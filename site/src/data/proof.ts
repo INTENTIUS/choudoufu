@@ -62,13 +62,15 @@ function board(bar: Bar, rows: Estate[], label: string): Figure | undefined {
 	return { value: `${bar.clear} of ${bar.estates}`, label, measured: `${when(runs)}${pins}`, href: BOARD };
 }
 
-/** The board's figure for a platform: the core set for AWS, the kubernetes lane for Kubernetes. */
+const NAMES: Record<Platform, string> = { aws: 'AWS', kubernetes: 'Kubernetes', azure: 'Azure' };
+
+/** The board's figure for a platform: the core set for AWS, the platform's own lane otherwise. */
 export function boardFigure(p: Platform): Figure | undefined {
 	const estates = gauntlet.estates as Estate[];
 	if (p === 'aws') {
 		return board(gauntlet.sets.core, estates.filter((e) => e.set === 'core'), 'core estates clear every headline stage');
 	}
-	return board(gauntlet.lanes.kubernetes, estates.filter((e) => e.lane === 'kubernetes'), 'Kubernetes estates clear every headline stage');
+	return board(gauntlet.lanes[p], estates.filter((e) => e.lane === p), `${NAMES[p]} estates clear every headline stage`);
 }
 
 type Proof = { evidence?: string[]; stage?: string; last_run?: { status: string; date: string; commit: string; version: string } };
@@ -105,7 +107,7 @@ export function claimsFigure(p: Platform): Figure | undefined {
 		.map((c) => (c.providers as Record<string, Cell>)[p])
 		.filter((c): c is Cell => !!c && c.status !== 'n/a');
 	const runsOf = (c: Cell) => (c.proofs ?? []).flatMap(proofRuns);
-	const name = p === 'aws' ? 'AWS' : 'Kubernetes';
+	const name = NAMES[p];
 	const proven = cells.filter((c) => c.status === 'proven');
 	if (proven.length) {
 		// A cell is current when it has a run of its own and none predates the

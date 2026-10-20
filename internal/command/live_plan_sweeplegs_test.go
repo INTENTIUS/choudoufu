@@ -26,8 +26,31 @@ import (
 // here by the family's name.
 func TestEverySubstrateSweepHasALeg(t *testing.T) {
 	for _, sub := range substrate.All {
+		if _, awaiting := sweepsAwaitingTheirUnit[sub.Sweep()]; awaiting {
+			continue
+		}
 		if _, ok := sweepLegBuilders[sub.Sweep()]; !ok {
 			t.Errorf("provider family %s asks for the %q sweep and no leg serves it: its plans would list nothing and file a %s gap", sub.Name(), sub.Sweep(), discovery.SweepGapNoSweepLeg)
+		}
+	}
+}
+
+// sweepsAwaitingTheirUnit are the sweeps a registered family asks for
+// whose leg and live-ls listing are a later unit's work, each with that
+// unit. It bounds WHAT is excused, one sweep kind, and an entry whose sweep
+// has gained a leg fails TestSweepsAwaitingTheirUnitStillAwait.
+//
+// Empty since the Azure Resource Graph leg landed (GitHub issue #1120,
+// unit 11); kept for the next family written ahead of its leg.
+var sweepsAwaitingTheirUnit = map[substrate.Sweep]string{}
+
+func TestSweepsAwaitingTheirUnitStillAwait(t *testing.T) {
+	for sw, unit := range sweepsAwaitingTheirUnit {
+		if _, ok := sweepLegBuilders[sw]; ok {
+			t.Errorf("sweep %q has a leg now; remove it from sweepsAwaitingTheirUnit (%s)", sw, unit)
+		}
+		if _, ok := liveLsListings[sw]; ok {
+			t.Errorf("sweep %q has a live-ls listing now; remove it from sweepsAwaitingTheirUnit (%s)", sw, unit)
 		}
 	}
 }
@@ -59,8 +82,9 @@ func TestSweepLegsChosenBySweepProperty(t *testing.T) {
 // graphFamily is a family whose sweep no leg serves.
 type graphFamily struct{ substrate.Substrate }
 
-func (graphFamily) Name() string           { return "graph" }
-func (graphFamily) Sweep() substrate.Sweep { return "graph-query" }
+func (graphFamily) Name() string            { return "graph" }
+func (graphFamily) ProviderTypes() []string { return []string{"graph"} }
+func (graphFamily) Sweep() substrate.Sweep  { return "graph-query" }
 
 // TestUnclaimedProviderGetsNoAWSLegs (GitHub issue #1707): a provider no
 // family claims used to get the AWS tagging-index legs, which list the
@@ -83,7 +107,7 @@ func TestUnclaimedProviderGetsNoAWSLegs(t *testing.T) {
 		"name":   {Type: cty.String, Required: true},
 		"labels": {Type: cty.Map(cty.String), Optional: true},
 	}}}
-	azure := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("azurerm")}
+	unclaimed := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("datadog")}
 	helm := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("helm")}
 	schemaOf := func(types map[string]providers.Schema) providers.Factory {
 		return providers.FactoryFixed(&tofu.MockProvider{GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
@@ -92,17 +116,17 @@ func TestUnclaimedProviderGetsNoAWSLegs(t *testing.T) {
 		}})
 	}
 	p := newProjectionProviders(nil, plugins.NewLibrary(plugins.ProviderFactories{
-		azure.Provider: schemaOf(map[string]providers.Schema{"azurerm_resource_group": tagged}),
-		helm.Provider:  schemaOf(map[string]providers.Schema{"helm_release": plain}),
+		unclaimed.Provider: schemaOf(map[string]providers.Schema{"datadog_monitor": tagged}),
+		helm.Provider:      schemaOf(map[string]providers.Schema{"helm_release": plain}),
 	}, nil))
 
-	for _, addr := range []addrs.AbsProviderConfig{azure, helm} {
+	for _, addr := range []addrs.AbsProviderConfig{unclaimed, helm} {
 		if _, known := substrate.ForProvider(addr.Provider.Type); known {
 			t.Fatalf("provider %s is claimed by a family; this test needs an unclaimed one", addr.Provider)
 		}
 	}
 
-	legs, sweep, diags := p.liveSweepLegs(ctx, nil, false, azure)
+	legs, sweep, diags := p.liveSweepLegs(ctx, nil, false, unclaimed)
 	if diags.HasErrors() {
 		t.Fatalf("unclaimed provider with a tagged type: %v", diags.Err())
 	}
@@ -113,8 +137,8 @@ func TestUnclaimedProviderGetsNoAWSLegs(t *testing.T) {
 		t.Fatalf("unclaimed provider with a tagged type: legs %#v, want one NoSweepLeg", legs)
 	}
 	gap, ok := legs[0].(discovery.NoSweepLeg)
-	if !ok || gap.Family != azure.Provider.ForDisplay() || gap.Kind != "" {
-		t.Errorf("unclaimed provider with a tagged type got %#v, want a NoSweepLeg naming %s and no family sweep", legs[0], azure.Provider.ForDisplay())
+	if !ok || gap.Family != unclaimed.Provider.ForDisplay() || gap.Kind != "" {
+		t.Errorf("unclaimed provider with a tagged type got %#v, want a NoSweepLeg naming %s and no family sweep", legs[0], unclaimed.Provider.ForDisplay())
 	}
 
 	legs, sweep, diags = p.liveSweepLegs(ctx, nil, false, helm)
@@ -126,5 +150,30 @@ func TestUnclaimedProviderGetsNoAWSLegs(t *testing.T) {
 	}
 	if legs == nil || len(legs) != 0 {
 		t.Errorf("unclaimed provider with no marked type: legs %#v, want an empty, non-nil list (nil means the AWS default to discovery)", legs)
+	}
+}
+
+// TestEveryFamilyPassReachesItsRemovedUntaggableBlocks (GitHub issue
+// #2119): a removed block of an untaggable type is found by its record or
+// not at all, so every family's pass runs the record-store removal leg,
+// either through Request.Sweep (the tagging-index and asset-search builders
+// turn it on) or through recordRemovalLegs. The label-list sweep is the one exemption, and
+// it holds only while no admitted Kubernetes kind lacks the label.
+func TestEveryFamilyPassReachesItsRemovedUntaggableBlocks(t *testing.T) {
+	for _, sub := range substrate.All {
+		switch sw := sub.Sweep(); {
+		case sw == substrate.SweepTaggingIndex:
+			if _, sweep, _ := sweepLegBuilders[sw](t.Context(), nil, sub, addrs.AbsProviderConfig{}); !sweep {
+				t.Errorf("%s: the tagging-index leg no longer turns Request.Sweep on, so nothing runs its record leg", sub.Name())
+			}
+		case sw == substrate.SweepLabelList:
+		case sw == substrate.SweepAssetSearch:
+			// The GCP leg's builder turns Request.Sweep on unconditionally
+			// (#2134 item 1), which runs every removal leg, the record leg
+			// among them. It cannot be called here: unlike the tagging-index
+			// builder it reads the provider's configuration from p.
+		case !recordRemovalLegs[sw]:
+			t.Errorf("%s: its %q pass runs no record leg, so a removed untaggable block is forgotten silently; add it to recordRemovalLegs", sub.Name(), sw)
+		}
 	}
 }

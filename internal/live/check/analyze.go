@@ -62,6 +62,17 @@ type Context struct {
 	// nil today, so their count for that refusal is a floor.
 	ProviderManagedTypes map[addrs.Provider]map[string]bool
 
+	// Cloud is what a real live-plan tells identity resolution about the
+	// cloud it is against ([identity.CloudContext]), so that this
+	// instrument and the plan name the same resources: today the Azure
+	// subscription ARM_SUBSCRIPTION_ID gives a provider block that sets
+	// none (GitHub issue #2133, finding 4). live-check fills it as
+	// live-plan does. The zero value is the corpus instruments' answer, so
+	// their rankings do not move with whoever's environment runs them; an
+	// azurerm or azapi resource whose subscription only the environment
+	// names then reads as needing discovery there.
+	Cloud identity.CloudContext
+
 	// ManagedResults are values a caller obtained from the provider for
 	// resources whose computed attributes the configuration references -
 	// [projection.PlanInstances] produces them, keyed by resource address.
@@ -152,6 +163,7 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	}
 
 	result, diags := identity.ResolveWith(ctx, cfg, identity.Context{
+		Cloud:          actx.Cloud,
 		Schemas:        actx.Schemas,
 		ManagedResults: actx.ManagedResults,
 	})

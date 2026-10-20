@@ -151,6 +151,8 @@ func sweepFacts(kind substrate.Sweep) SweepFacts {
 		desc = "a cluster client built from the provider block's own connection arguments (Substrate.NewSweeper)"
 	case substrate.SweepAssetSearch:
 		desc = "a Cloud Asset Inventory client built from the provider block's own credential arguments (Substrate.NewSweeper), one search per project the estate's resources name; the index lags creates and deletes"
+	case substrate.SweepResourceGraph:
+		desc = "one Azure Resource Graph query per subscription the estate's resources resolve to, matching the marker case-insensitively, through clients built from the azurerm and azapi provider blocks' own connection arguments (Substrate.NewSweeper; GitHub issue #1120)"
 	}
 	return SweepFacts{Kind: string(kind), Description: desc}
 }
@@ -212,6 +214,9 @@ var fenceByFamily = map[string]string{
 	"aws":        "IAM conditions on aws:ResourceTag, reads and writes, per principal (live/MARKERS.md).",
 	"kubernetes": "One ValidatingAdmissionPolicy, writes only, enforced per principal through the cluster's authorizer.",
 	"google":     "Project-scoped, restated: an IAM condition cannot match a label, so one estate per project, granted by an ordinary project IAM binding. Resource Manager tag bindings, which a condition can match, are ruled later (#1121).",
+	// GitHub issue #1122's ruling (2026-10-19): Azure RBAC cannot condition
+	// on tags, so the estate is a set of resource groups.
+	"azurerm": "Resource-group RBAC per principal (a custom role or Contributor on the estate's groups), plus Azure Policy on the tofu-estate tag: deny a write that lacks it or changes it. The RBAC alone governs deletes; a denyAction delete lock is opt-in (deleteLock, off by default). Template files an operator applies, never plan resources.",
 }
 
 func fenceFor(family string) (string, error) {
@@ -247,12 +252,23 @@ var harnessByFamily = map[string]struct {
 		PinFile: "live/floci-gcp-image",
 		Notes:   "the lex00/floci-gcp fork's GHCR image pinned by digest; Resource Manager tags, Cloud Asset search and matchTag are still gaps on it (lex00/floci-gcp#4 to #8).",
 	},
+	// GitHub issue #1120: the lex00/floci-az fork, pinned by digest in
+	// live/floci-az-image. Nothing on it is measured yet: no lane runs on
+	// it, and live/FLOCI.md's Azure section lists the surfaces it lacks.
+	"azurerm": {
+		Name:    "floci-az",
+		PinFile: "live/floci-az-image",
+		Notes:   "the lex00/floci-az fork, pinned by digest; no lane runs on it yet, and live/FLOCI.md lists the surfaces it lacks.",
+	},
 }
 
 func harnessFor(root, family string) (HarnessFacts, error) {
 	h, ok := harnessByFamily[family]
 	if !ok {
 		return HarnessFacts{}, fmt.Errorf("harness: no entry for family %q in harnessByFamily", family)
+	}
+	if h.PinFile == "" {
+		return HarnessFacts{Name: h.Name, Notes: h.Notes}, nil
 	}
 	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(h.PinFile)))
 	if err != nil {
@@ -285,12 +301,22 @@ type readinessArtifact struct {
 	Google struct {
 		Types []readinessType `json:"types"`
 	} `json:"google"`
+	Azure struct {
+		Azurerm struct {
+			Types []readinessType `json:"types"`
+		} `json:"azurerm"`
+		Azapi struct {
+			Types []readinessType `json:"types"`
+		} `json:"azapi"`
+	} `json:"azure"`
 }
 
 type readinessFacts struct {
-	awsTypes    []readinessType
-	k8sTypes    []readinessType
-	googleTypes []readinessType
+	awsTypes     []readinessType
+	k8sTypes     []readinessType
+	azurermTypes []readinessType
+	azapiTypes   []readinessType
+	googleTypes  []readinessType
 }
 
 func loadReadinessFacts(root string) (readinessFacts, error) {
@@ -298,7 +324,8 @@ func loadReadinessFacts(root string) (readinessFacts, error) {
 	if err := decodeJSON(root, ReadinessJSONRel, &art); err != nil {
 		return readinessFacts{}, err
 	}
-	return readinessFacts{awsTypes: art.Types, k8sTypes: art.Kubernetes.Types, googleTypes: art.Google.Types}, nil
+	return readinessFacts{awsTypes: art.Types, k8sTypes: art.Kubernetes.Types, googleTypes: art.Google.Types,
+		azurermTypes: art.Azure.Azurerm.Types, azapiTypes: art.Azure.Azapi.Types}, nil
 }
 
 func decodeJSON(root, rel string, v any) error {
@@ -331,6 +358,17 @@ func untaggableFor(family string, rf readinessFacts) UntaggableFacts {
 	case "google":
 		return tallyUntaggable(rf.googleTypes, func(t readinessType) bool { return t.Tier != "marker-carried" },
 			"a google or google-beta 8.6.0 type whose schema carries no settable labels map beside effective_labels (live/readiness.json google.types, every tier but marker-carried)")
+	case "azurerm":
+		// GitHub issue #2119: the azurerm resource types, which are what
+		// the AWS and Kubernetes rows count. azapi's ARM types are a
+		// different unit (one azapi_resource type declares all of them), so
+		// they are named in the definition rather than added in.
+		untagged := func(t readinessType) bool { return !t.Facts.Taggable }
+		azapi := tallyUntaggable(rf.azapiTypes, untagged, "")
+		return tallyUntaggable(rf.azurermTypes, untagged, fmt.Sprintf(
+			"an azurerm type whose schema carries no ARM tags map (live/readiness.json azure.azurerm.types facts.taggable=false); "+
+				"through azapi_resource, %d of %d ARM types take no tags at their latest API version (azure.azapi.types), all declaration-carried, not counted here",
+			azapi.Count, len(rf.azapiTypes)))
 	}
 	return UntaggableFacts{Definition: "no definition recorded for family " + family, ByTier: map[string]int{}}
 }

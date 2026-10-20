@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -403,12 +404,12 @@ type LiveStrictMarkers struct {
 }
 
 // LiveRecordStore is the "record_store" block nested inside a live block. Its
-// label picks the backend ("local", "s3", "kubernetes" or "gcs"), the same
+// label picks the backend ("local", "s3", "kubernetes", "gcs" or "azurerm"), the same
 // labeled-block-names-the-implementation shape a stock "backend" block uses,
 // per issue #73's "phrased in familiar backend-like terms" ruling. See
 // [Live.RecordStore].
 type LiveRecordStore struct {
-	// Type is the block's label: "local", "s3", "kubernetes" or "gcs".
+	// Type is the block's label: "local", "s3", "kubernetes", "gcs" or "azurerm".
 	// Validated against exactly those four spellings in decodeRecordStoreBlock;
 	// nothing else reaches this field. "ssm" is refused there by name
 	// (GitHub issue #1346).
@@ -537,6 +538,12 @@ type LiveRecordStore struct {
 	// (render-policy.sh --reads-outputs-of), and the block is refused there.
 	ReadsOutputsOf []LiveRecordStoreOutputRead
 
+	// AzureRM is the "azurerm" backend's connection arguments: the stock
+	// azurerm state backend's own (internal/backend/remote-state/azure), so
+	// an operator who has written that backend block writes this one. The
+	// Azure epic, GitHub issue #1120, ruled on #1122.
+	AzureRM LiveRecordStoreAzureRM
+
 	// OutputReadsDeclared is true for a store kind that keeps each estate's
 	// records apart, so that another estate's outputs are read only where a
 	// ReadsOutputsOf block declares them, and an undeclared read is refused.
@@ -639,6 +646,119 @@ type LiveRecordStoreGCS struct {
 	StorageCustomEndpoint              string
 	UniverseDomain                     string
 }
+
+// LiveRecordStoreAzureRM is the "azurerm" record store's connection
+// arguments. Every name is the stock azurerm backend's, and nothing here is
+// interpreted by this package: internal/live/projection resolves the ARM_*
+// environment defaults stock's schema declares and hands the result to
+// stock's own auth package, so the authentication precedence is stock's.
+//
+// Three of stock's arguments are not taken. "key" names one state blob and
+// a record store writes many under its own key namespace; "snapshot" and
+// "timeout_seconds" tune a single-blob state write. "endpoint" and
+// "msi_endpoint" are deprecated no-ops in stock. "customer_provided_key"
+// and "encryption_scope" are not taken this round: a key every read must
+// carry is a second secret the store would have to hold, and that is a
+// ruling, not a default.
+type LiveRecordStoreAzureRM struct {
+	StorageAccountName string
+	ContainerName      string
+	ResourceGroupName  string
+	SubscriptionID     string
+	TenantID           string
+	Environment        string
+	MetadataHost       string
+
+	AccessKey string
+	SASToken  string
+
+	ClientID                  string
+	ClientIDFilePath          string
+	ClientSecret              string
+	ClientSecretFilePath      string
+	ClientCertificate         string
+	ClientCertificatePassword string
+	ClientCertificatePath     string
+
+	OIDCToken              string
+	OIDCTokenFilePath      string
+	OIDCRequestURL         string
+	OIDCRequestToken       string
+	ADOServiceConnectionID string
+
+	// The booleans are pointers so an unset one falls back to stock's ARM_*
+	// environment default rather than to false: use_cli in particular is
+	// true by default in stock.
+	UseAzureADAuth         *bool
+	UseCLI                 *bool
+	UseMSI                 *bool
+	UseOIDC                *bool
+	UseAKSWorkloadIdentity *bool
+}
+
+// recordStoreAzureRMStrings maps each string argument of the "azurerm"
+// backend to its field. Every one belongs to that backend alone and is a
+// decode error on any other, the way "bucket" is on a local store.
+func recordStoreAzureRMStrings(a *LiveRecordStoreAzureRM) []struct {
+	name string
+	val  *string
+} {
+	return []struct {
+		name string
+		val  *string
+	}{
+		{"storage_account_name", &a.StorageAccountName},
+		{"container_name", &a.ContainerName},
+		{"resource_group_name", &a.ResourceGroupName},
+		{"subscription_id", &a.SubscriptionID},
+		{"tenant_id", &a.TenantID},
+		{"environment", &a.Environment},
+		{"metadata_host", &a.MetadataHost},
+		{"access_key", &a.AccessKey},
+		{"sas_token", &a.SASToken},
+		{"client_id", &a.ClientID},
+		{"client_id_file_path", &a.ClientIDFilePath},
+		{"client_secret", &a.ClientSecret},
+		{"client_secret_file_path", &a.ClientSecretFilePath},
+		{"client_certificate", &a.ClientCertificate},
+		{"client_certificate_password", &a.ClientCertificatePassword},
+		{"client_certificate_path", &a.ClientCertificatePath},
+		{"oidc_token", &a.OIDCToken},
+		{"oidc_token_file_path", &a.OIDCTokenFilePath},
+		{"oidc_request_url", &a.OIDCRequestURL},
+		{"oidc_request_token", &a.OIDCRequestToken},
+		{"ado_service_connection_id", &a.ADOServiceConnectionID},
+	}
+}
+
+func recordStoreAzureRMBools(a *LiveRecordStoreAzureRM) []struct {
+	name string
+	val  **bool
+} {
+	return []struct {
+		name string
+		val  **bool
+	}{
+		{"use_azuread_auth", &a.UseAzureADAuth},
+		{"use_cli", &a.UseCLI},
+		{"use_msi", &a.UseMSI},
+		{"use_oidc", &a.UseOIDC},
+		{"use_aks_workload_identity", &a.UseAKSWorkloadIdentity},
+	}
+}
+
+// RecordStoreAzureRMSettings is every argument that belongs to the "azurerm"
+// backend alone.
+var RecordStoreAzureRMSettings = func() []string {
+	var names []string
+	for _, f := range recordStoreAzureRMStrings(&LiveRecordStoreAzureRM{}) {
+		names = append(names, f.name)
+	}
+	for _, f := range recordStoreAzureRMBools(&LiveRecordStoreAzureRM{}) {
+		names = append(names, f.name)
+	}
+	return names
+}()
 
 // LiveRecordStoreOutputRead is one `reads_outputs_of "<estate>"` block
 // nested in a record_store "kubernetes" block:
@@ -925,6 +1045,36 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 		{Name: "kms_encryption_key"},
 		{Name: "storage_custom_endpoint"},
 		{Name: "universe_domain"},
+		// The "azurerm" backend's connection arguments, spelled as the
+		// stock azurerm backend spells them. See [RecordStoreAzureRMSettings].
+		{Name: "storage_account_name"},
+		{Name: "container_name"},
+		{Name: "resource_group_name"},
+		{Name: "subscription_id"},
+		{Name: "tenant_id"},
+		{Name: "environment"},
+		{Name: "metadata_host"},
+		{Name: "access_key"},
+		{Name: "sas_token"},
+		{Name: "client_id"},
+		{Name: "client_id_file_path"},
+		{Name: "client_secret"},
+		{Name: "client_secret_file_path"},
+		// client_certificate is in the list above already: the kubernetes
+		// backend and the azurerm backend both take one, and it means a
+		// different thing on each.
+		{Name: "client_certificate_password"},
+		{Name: "client_certificate_path"},
+		{Name: "oidc_token"},
+		{Name: "oidc_token_file_path"},
+		{Name: "oidc_request_url"},
+		{Name: "oidc_request_token"},
+		{Name: "ado_service_connection_id"},
+		{Name: "use_azuread_auth"},
+		{Name: "use_cli"},
+		{Name: "use_msi"},
+		{Name: "use_oidc"},
+		{Name: "use_aks_workload_identity"},
 	},
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "exec"},
@@ -1019,6 +1169,12 @@ var RecordStoreInsecureSettings = []string{"versioning", "lifecycle", "public_ac
 // reason.
 var RecordStoreClusterInsecureSettings = []string{"tls_verification", "namespace_access", "read_isolation", "encryption_at_rest", "estate_boundary"}
 
+// RecordStoreAzureRMInsecureSettings is every name the "azurerm" backend's
+// "allow_insecure" argument accepts: the three storage account settings its
+// contract asserts (the Azure epic, #1120). Pinned to
+// [internal/live/staterecord.AzureSettings] by the same test as the others.
+var RecordStoreAzureRMInsecureSettings = []string{"blob_versioning", "lifecycle_management", "public_access"}
+
 // RecordStoreInsecureSettingsFor is the names "allow_insecure" accepts on a
 // store of this type, and nil for a store with no contract to waive. The
 // "local" backend is that store: a directory has no versioning, no namespace
@@ -1031,6 +1187,8 @@ func RecordStoreInsecureSettingsFor(storeType string) []string {
 		return RecordStoreClusterInsecureSettings
 	case "gcs":
 		return RecordStoreGCSInsecureSettings
+	case "azurerm":
+		return RecordStoreAzureRMInsecureSettings
 	}
 	return nil
 }
@@ -1543,7 +1701,7 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 
 	label := block.Labels[0]
 	switch label {
-	case "local", "s3", "kubernetes", "gcs":
+	case "local", "s3", "kubernetes", "gcs", "azurerm":
 		rs.Type = label
 		rs.TypeRange = block.LabelRanges[0]
 	case "ssm":
@@ -1569,7 +1727,7 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 		return rs, hcl.Diagnostics{&hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Invalid record_store backend",
-			Detail:   fmt.Sprintf("record_store %q names a backend this fork does not know. Valid backends are \"local\" (the solo/dev default), \"s3\" (a bucket, for anything more than one operator shares) and \"kubernetes\" (Secrets in a cluster namespace, for an estate that runs on Kubernetes and wants no AWS account) and \"gcs\" (a Google Cloud Storage bucket).", label),
+			Detail:   fmt.Sprintf("record_store %q names a backend this fork does not know. Valid backends are \"local\" (the solo/dev default), \"s3\" (a bucket, for anything more than one operator shares), \"kubernetes\" (Secrets in a cluster namespace, for an estate that runs on Kubernetes and wants no AWS account), \"gcs\" (a Google Cloud Storage bucket) and \"azurerm\" (blobs in an Azure Storage container).", label),
 			Subject:  block.LabelRanges[0].Ptr(),
 		}}
 	}
@@ -1771,6 +1929,7 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 
 	diags = append(diags, decodeRecordStoreKubernetes(rs, content)...)
 	diags = append(diags, decodeRecordStoreGCS(rs, content)...)
+	diags = append(diags, decodeRecordStoreAzureRM(rs, content, block)...)
 
 	return rs, diags
 }
@@ -1785,7 +1944,7 @@ func decodeRecordStoreKubernetes(rs *LiveRecordStore, content *hcl.BodyContent) 
 	if rs.Type != "kubernetes" {
 		for _, name := range RecordStoreKubernetesSettings {
 			attr, exists := content.Attributes[name]
-			if !exists {
+			if !exists || recordStoreSharedArgument(rs.Type, name) {
 				continue
 			}
 			diags = append(diags, &hcl.Diagnostic{
@@ -2079,6 +2238,143 @@ func decodeRecordStoreGCS(rs *LiveRecordStore, content *hcl.BodyContent) hcl.Dia
 		})
 	}
 
+	return diags
+}
+
+// recordStoreSharedArgument reports whether name is an argument storeType
+// takes as its own although another backend takes one of the same name:
+// client_certificate is both the kubernetes backend's PEM certificate and the
+// azurerm backend's PKCS#12 one. The other backend's refusal loop skips it,
+// and storeType's own decoder reads it.
+func recordStoreSharedArgument(storeType, name string) bool {
+	return name == "client_certificate" && (storeType == "kubernetes" || storeType == "azurerm")
+}
+
+var (
+	azureStorageAccountPattern = regexp.MustCompile(`^[0-9a-z]{3,24}$`)
+	azureContainerPattern      = regexp.MustCompile(`^[0-9a-z][0-9a-z-]{1,61}[0-9a-z]$`)
+)
+
+// azureStorageNameProblem is stock's checkAccountAndContainerNames
+// (internal/backend/remote-state/azure/backend.go), which stock runs before
+// building a URL from the two names, applied here at load time so the
+// argument is named. "" for a name that passes, or for any other argument.
+func azureStorageNameProblem(arg, val string) string {
+	switch arg {
+	case "storage_account_name":
+		if !azureStorageAccountPattern.MatchString(val) {
+			return fmt.Sprintf("The \"storage_account_name\" argument was set to %q. Azure requires a storage account name of 3-24 lowercase letters and digits.", val)
+		}
+	case "container_name":
+		if !azureContainerPattern.MatchString(val) || strings.Contains(val, "--") {
+			return fmt.Sprintf("The \"container_name\" argument was set to %q. Azure requires a container name of 3-63 lowercase letters, digits and hyphens, starting and ending with a letter or digit, with no two hyphens in a row.", val)
+		}
+	}
+	return ""
+}
+
+// decodeRecordStoreAzureRM decodes the "azurerm" backend's connection
+// arguments, refuses each on a backend that has no use for one, and refuses
+// the other backends' location arguments on this one. The Azure epic, GitHub
+// issue #1120.
+//
+// storage_account_name and container_name are required, as stock requires
+// them. resource_group_name is required too where stock makes it optional:
+// stock needs it only to list an access key, and this store needs it on every
+// first contact, because the opening checks read the account's settings
+// through Azure Resource Manager, which addresses an account by its group.
+func decodeRecordStoreAzureRM(rs *LiveRecordStore, content *hcl.BodyContent, block *hcl.Block) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	if rs.Type != "azurerm" {
+		for _, name := range RecordStoreAzureRMSettings {
+			attr, exists := content.Attributes[name]
+			if !exists || recordStoreSharedArgument(rs.Type, name) {
+				continue
+			}
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
+				Detail:   fmt.Sprintf("The %q argument says how to reach an Azure Storage container and has no meaning for record_store %q. Remove it, or declare record_store \"azurerm\".", name, rs.Type),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+		}
+		return diags
+	}
+
+	for _, name := range []string{"path", "bucket"} {
+		if attr, exists := content.Attributes[name]; exists {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid argument for the azurerm record store",
+				Detail:   fmt.Sprintf("The %q argument has no meaning for record_store \"azurerm\", whose records are blobs in the container named by storage_account_name and container_name. Remove it.", name),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+		}
+	}
+
+	a := &rs.AzureRM
+	for _, f := range recordStoreAzureRMStrings(a) {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
+		}
+		val, valDiags := decodeLiteralString(attr, f.name)
+		diags = append(diags, valDiags...)
+		if valDiags.HasErrors() {
+			continue
+		}
+		if val == "" {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Empty record_store %s", f.name),
+				Detail:   fmt.Sprintf("The %q argument was set to an empty string. Give it a value, or omit the argument entirely.", f.name),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+			continue
+		}
+		if detail := azureStorageNameProblem(f.name, val); detail != "" {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid record_store %s", f.name),
+				Detail:   detail,
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+			continue
+		}
+		*f.val = val
+	}
+	for _, f := range recordStoreAzureRMBools(a) {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
+		}
+		val, valDiags := decodeLiteralBool(attr, f.name)
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			v := val
+			*f.val = &v
+		}
+	}
+
+	for _, req := range []struct {
+		name string
+		val  string
+		why  string
+	}{
+		{"storage_account_name", a.StorageAccountName, "the storage account the container is in"},
+		{"container_name", a.ContainerName, "the container the records are blobs in"},
+		{"resource_group_name", a.ResourceGroupName, "the storage account's resource group, which the opening checks read the account's versioning, lifecycle and public access settings through"},
+	} {
+		if req.val == "" && content.Attributes[req.name] == nil {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Missing record_store %s", req.name),
+				Detail:   fmt.Sprintf("record_store \"azurerm\" requires a %q argument naming %s.", req.name, req.why),
+				Subject:  block.DefRange.Ptr(),
+			})
+		}
+	}
 	return diags
 }
 

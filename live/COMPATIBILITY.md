@@ -10,9 +10,10 @@ before migrating](https://intentius.io/choudoufu/docs/use/check-a-config/).
 
 **Layout.** This page is substrate-neutral: every section below covers
 every substrate live markers support, with a note where a substrate
-differs. `live/kubernetes/COMPATIBILITY.md` and `live/gcp/COMPATIBILITY.md`
-cover the same sections for Kubernetes and GCP alone, including the ones
-where the answer is that the substrate does not share the concern (ruled on
+differs. `live/kubernetes/COMPATIBILITY.md`, `live/gcp/COMPATIBILITY.md` and
+`live/azure/COMPATIBILITY.md` cover the same sections for Kubernetes, GCP and
+Azure alone, including the ones where the answer is that the substrate does
+not share the concern (ruled on
 [#1602](https://github.com/INTENTIUS/choudoufu/issues/1602)).
 
 ## Your provider
@@ -52,14 +53,23 @@ the type's identity can be derived from your configuration:
   on a real cluster and what is refused by name;
   [#1016](https://github.com/INTENTIUS/choudoufu/issues/1016) is the
   ruling behind it.
+- hashicorp/azurerm and azure/azapi are one Azure family
+  ([#1120](https://github.com/INTENTIUS/choudoufu/issues/1120), ruled on
+  [#1122](https://github.com/INTENTIUS/choudoufu/issues/1122)), built
+  against azurerm 5.10.0 and azapi 2.13.0. An azurerm type binds by the ARM
+  id template generated from azurerm's own id parsers, or by its identity
+  schema; an `azapi_resource` binds by `type`, `parent_id` and `name`. The
+  marker is the AWS tag pair in the `tags` argument both providers accept,
+  read case-insensitively. The sweep is Azure Resource Graph, and the fence
+  is resource-group RBAC plus Azure Policy on the tag. None of it has run
+  against an emulator or a subscription yet: the
+  [Azure hub](https://intentius.io/choudoufu/azure/) says what is built and
+  what each claim is waiting on.
 - A type whose provider publishes no identity at all, `github_*` and
   `fastly_*` among them
   ([#223](https://github.com/INTENTIUS/choudoufu/issues/223)), is refused
   as `unadmitted-type`. A root made only of such resources is blocked as a
   whole, and a mixed estate is reported root by root.
-
-Azure has no admission table, marker carrier or emulator yet; its epic is
-[#1120](https://github.com/INTENTIUS/choudoufu/issues/1120).
 
 ## Your resource types
 
@@ -103,6 +113,11 @@ Kubernetes types are `marker-carried`, status `in-contract` -
 `metadata.labels` is this substrate's marker, the role `tags` plays here.
 `live/kubernetes/COMPATIBILITY.md`'s "Readiness tiers" has what the table
 does and does not cover for this substrate.
+
+`live/readiness.json` carries an `azure` block as well, rendered in `live/READINESS.md`'s Azure
+section: azurerm 5.10.0's 1,106 types and the 3,397 ARM types azapi 2.13.0
+can declare, tiered by the AWS rule. `live/azure/COMPATIBILITY.md`'s
+"Readiness tiers" has the counts.
 
 **GCP.** The labelled types are marker-carried. The network skeleton
 (networks, subnetworks, firewalls, routes, routers, service accounts,
@@ -255,6 +270,13 @@ both refused rather than defaulted - plus a narrower version of the
 GCP adds no stops of its own to this table; `live/gcp/COMPATIBILITY.md`'s
 "Identity arguments" says why.
 
+Azure adds no stop of its own here. Its identity arguments are the block's
+`name`, `resource_group_name` and parents, or an `azapi_resource`'s `type`,
+`parent_id` and `name`, and the subscription comes from the provider
+block's `subscription_id` the way an AWS region does, or from
+`ARM_SUBSCRIPTION_ID` when the block sets none.
+`live/azure/COMPATIBILITY.md`'s "Identity arguments" has the detail.
+
 ## Your modules
 
 A marker binds to a configuration address and stays correct as long as that
@@ -393,6 +415,17 @@ span projects is still swept whole. One `provider "google"` per project or
 region is ordinary, and a root mixing `aws_*`, `kubernetes_*` and `google_*`
 resources keeps each substrate's admission, marker and sweep independent.
 
+**Azure.** One provider block per subscription. Every Azure identity is
+built from the block and the provider block's `subscription_id` (or
+`ARM_SUBSCRIPTION_ID` when the block sets none), so in the
+ordinary case no type needs discovery and the AWS bound on sharing one
+configuration does not arise. The sweep runs one Resource Graph
+query per subscription the estate's resources resolve to, with that
+subscription's own provider block, and a declared id in a subscription no
+provider block names is warned by name as an incomplete sweep.
+`live/azure/COMPATIBILITY.md`'s "Your accounts and regions" has the AKS
+node resource group case.
+
 A module call's `providers` mapping is honoured, and used to be refused. Since
 [#188](https://github.com/INTENTIUS/choudoufu/issues/188)
 `internal/live/providerscope` walks every ancestor call's mapping, the same
@@ -467,6 +500,18 @@ API has to be enabled there; where it is not, the plan carries the warning
 server-named google instance only the search can find, which it then
 refuses rather than plan a duplicate.
 `live/gcp/COMPATIBILITY.md`'s "How you run it" has the index lag.
+
+**Azure.** The command-level refusals are unchanged. What differs is an
+unmarked object at a declared id: an ARM create is a PUT that would update
+it in place, so the plan refuses it by name under `declared_untagged =
+"refuse"` (the default), `"keep"` and `"report"`, and lint's
+`policy-overwrite-at-key` refuses `"keep"` and `"report"` before any plan.
+`"adopt"` and `"converge"` admit the object first and write the markers
+onto it in the plan. An object at a declared id carrying another estate's
+marker, or this estate's for another address, is refused too, under every
+verb, where AWS and Kubernetes warn (#2135); AKS produces both shapes on
+the resources a cluster is given.
+`live/azure/COMPATIBILITY.md`'s "How you run it" has the rest.
 
 ## Constructs this page used to refuse, and no longer does
 
@@ -608,6 +653,11 @@ ownership marker used to read only the AWS tags map. Since
 reads the Kubernetes label and manifest surfaces too, so a state-backed
 plan that would strip `tofu-estate` off a live Kubernetes object is
 refused the same way a stripped tag is.
+
+On Azure the tags hazard is the AWS one, with the marker key matched
+case-insensitively, since ARM tag keys are: `tags["Tofu-Estate"]` is
+refused as `tags["tofu-estate"]` is
+([#1120](https://github.com/INTENTIUS/choudoufu/issues/1120)).
 
 **A module call's child-side `providers` mapping can name an alias nothing
 resolves.** The refused shape is `configuration_aliases`,

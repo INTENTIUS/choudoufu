@@ -56,3 +56,7 @@ floor is one label-selected list per kind the cluster serves.
 No GCP scenario is written yet, so the cell is open. The sweep is one
 Cloud Asset Inventory search per project, paged over the estate's own
 hits, so resources outside the estate's projects should cost nothing.
+
+## On Azure
+
+Open. Nothing has run on Azure yet. A plan's sweep is one Resource Graph query per subscription, filtered on the estate's tag; nothing counts it, and floci-az does not serve Resource Graph.

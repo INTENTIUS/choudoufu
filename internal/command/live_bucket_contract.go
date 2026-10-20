@@ -159,6 +159,12 @@ func bucketWaiverWarnings(rs *configs.LiveRecordStore) tfdiags.Diagnostics {
 				fmt.Sprintf("record_store \"gcs\" names %q in allow_insecure for bucket %q, so %s. This warning repeats on every run for as long as the waiver is configured.",
 					name, rs.Bucket, staterecord.GCSWaiverCost(staterecord.Setting(name))),
 			))
+		case "azurerm":
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
+				fmt.Sprintf("The record store storage account's %s assertion is waived", name),
+				fmt.Sprintf("record_store \"azurerm\" names %q in allow_insecure for storage account %q, so %s. This warning repeats on every run for as long as the waiver is configured.",
+					name, rs.AzureRM.StorageAccountName, staterecord.AzureWaiverCost(staterecord.Setting(name))),
+			))
 		default:
 			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
 				fmt.Sprintf("The record store bucket's %s assertion is waived", name),

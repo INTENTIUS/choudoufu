@@ -61,7 +61,8 @@ type Stage struct {
 	Oracle     string `json:"oracle"`
 	Break      string `json:"break"`
 	// Substrates says how the stage reads on a substrate other than the
-	// floci emulator (#1067), keyed by substrate name (SubstrateKind). A
+	// floci emulator (#1067), keyed by substrate name (SubstrateKind,
+	// SubstrateFlociEKS, SubstrateFlociAz). A
 	// stage absent from the map applies there exactly as written. A note
 	// beginning "n/a: " means the stage cannot be run on that substrate:
 	// Rebuild (artifact.go) records it as VerdictNA for every estate on
@@ -210,7 +211,7 @@ func registeredStages() []Stage {
 		},
 	}
 	for i := range stages {
-		for substrate, notes := range map[string]map[string]string{SubstrateFlociEKS: flociEKSNotes, SubstrateFlociGCP: flociGCPNotes} {
+		for substrate, notes := range map[string]map[string]string{SubstrateFlociEKS: flociEKSNotes, SubstrateFlociGCP: flociGCPNotes, SubstrateFlociAz: flociAzNotes} {
 			note, ok := notes[stages[i].ID]
 			if !ok {
 				continue
@@ -249,6 +250,36 @@ var flociGCPNotes = map[string]string{
 	"greenfield":       "Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with labels and server-set fields normalised out; one emulator hosts both, in sequence.",
 	"strict":           "As on floci; the toggles name a google type.",
 	"no_local_state":   "The labelled objects are found by their labels, the declaration-carried ones by the identity their configuration computes. The request count is hashicorp/google's own, read from TF_LOG=debug's request blocks.",
+}
+
+// flociAzNotes is how each stage reads on SubstrateFlociAz (#1120,
+// live/ADDING-A-PLATFORM.md requirement 14): an azure-lane estate run
+// against lex00/floci-az. Kept beside the registry, as flociEKSNotes is, so
+// they read as one account of one substrate; TestEveryStageHasAFlociAzNote
+// holds that no stage is left without one.
+//
+// No stage is n/a here. Every stage's question has an Azure answer; where
+// floci-az cannot give it today (no Resource Graph, no Policy evaluation,
+// tags dropped on storage accounts: live/FLOCI.md, Azure) the note says so
+// and the stage fails by name until the fork serves it, rather than reading
+// a neutral n/a that would leave the lane's bar clear over a gap. Written
+// before any reference-azure run; the maintainer's first run measures them.
+var flociAzNotes = map[string]string{
+	"cold_deploy":      "Stock applies the unmodified configuration against floci-az, started from live/floci-az-image with the ARM_* environment aimed at it (gauntlet_floci_az_up in live/e2e/lib/gauntlet.sh); ARM reads of what it created are the baseline. floci-az drops tags on storage accounts and answers their PATCH with 405 (live/FLOCI.md, Azure), so an estate's storage account fails the stages that write its marker until the fork keeps them.",
+	"migrate":          "live-import writes tofu-estate and tofu-address as ARM tags: azurerm's tags argument, or azapi's top-level tags (body.tags when the configuration already puts tags there). Zero skipped means every state entry was tagged or recorded. An azurerm type on the identity-schema route takes its subscription from the provider block.",
+	"test_plan":        "Identities are ARM resource ids, compared by value with what an ARM GET of the same object returns, case-insensitively, because ARM ids are. The plan's sweep is one Resource Graph query per subscription; floci-az serves no Resource Graph today, so this stage fails on that refusal by name until it does.",
+	"test_apply":       "The count is the estate's taggable resources whose tofu-estate tag names it, read with an ARM GET of each declared id, the tag key and value compared case-insensitively. Resource Graph would answer it in one query, and floci-az has none.",
+	"drift_reconverge": "The mutation is an ARM PUT or PATCH made out of band with gauntlet_arm, never through the tool.",
+	"day2_rename":      "A rename rewrites the tofu-address tag; the ARM id does not change, so the moved block plans one in-place tag update and no replace, as stock's plans none.",
+	"day2_remove":      "ARM confirms the object is gone with a 404 on its id. A resource group's delete takes its children with it; the order the cloud accepts is the one the configuration's dependency graph gives.",
+	"day2_count":       "Each instance is its own ARM id, so the instance that leaves the count is found at its id and destroyed, and the one that comes back is created there.",
+	"day2_replace":     "A name is unique within its parent, so a create_before_destroy replacement is one whose name changes, as on kind: the new object is created at the new id and the old one destroyed after it, and the next plan is empty.",
+	"day2_crash":       "As on floci: the engine's interrupt hook kills the apply the instant the first create commits. The created resource carries both tags from its create PUT, so the next plan binds it at its declared id and proposes exactly the remainder.",
+	"day2_teardown":    "An empty estate is no resource carrying its tofu-estate tag in any resource group it owned, read through ARM.",
+	"plan_approval":    "As on floci. Azure Policy, evaluated by ARM when the write arrives, is the server's own say over an approved plan; floci-az evaluates no Policy rule, so only the moved-world refusal is measured there.",
+	"greenfield":       "Compared against the ARM reads recorded from stock's cold deploy earlier in the same run, resource by resource, with the two marker tags normalised out; one floci-az container hosts both, in sequence.",
+	"strict":           "As on floci; the toggles are substrate-neutral.",
+	"no_local_state":   "Both local artifacts are deleted; every declared resource must be found at its declared ARM id, which needs no sweep, and every other one by its tofu-estate tag through Resource Graph, which floci-az does not serve today.",
 }
 
 // flociEKSNotes is how each stage reads on SubstrateFlociEKS (#1113): an

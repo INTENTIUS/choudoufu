@@ -344,6 +344,15 @@ A type outside the admission table has no adoption path at all. Hand-stamping
 markers does not help, because nothing sweeps for a type this configuration
 cannot declare. [Compatibility reference](https://intentius.io/choudoufu/docs/use/compatibility/) covers finding yours.
 
+On Azure, `live-import` and `live-mv` write the same markers into `tags`.
+ARM tag keys are case-insensitive, so a `Tofu-Estate` already on an object
+counts as the marker and is rewritten under that spelling, never beside a
+lowercase copy. An `azapi_resource` that keeps its tags in `body.tags` is
+written there. Whether an azapi object can carry a marker depends on its ARM
+type and API version, so a subnet declared through azapi is migrated like
+`azurerm_subnet`: no marker, its identity kept in the record store, and its
+removal later found from that record.
+
 ## If you are used to import, moved and removed
 
 Stock needs those three because state is authoritative and each edits that
@@ -400,6 +409,34 @@ estate per project before granting it
 ([`live/MARKERS.md`](MARKERS.md#granting-a-gcp-estate)). And `live-mv`
 refuses a GCP resource by name until its label rewrite lands; rename the
 block and plan instead, and the plan rewrites the address label in place.
+
+## On Azure
+
+The path is the AWS one, built and not yet run against an emulator or a
+subscription. `live-import -approve` reads the stock state once, verifies
+each object at its ARM id, and writes `tofu-estate` and `tofu-address` as
+ARM tags through a tags-only plan and apply: azurerm's `tags` argument, or
+an `azapi_resource`'s top-level `tags`, or its `body.tags` where the
+configuration keeps them there. A key the object already carries as
+`Tofu-Estate` is rewritten under that spelling, since ARM refuses two keys
+that differ only by case.
+
+An Azure object is client-named: the configuration states the whole ARM id
+(seven untaggable azurerm types can mint their name instead). That changes
+the `Unowned` case above. A cloud that rejects a create at a taken name
+makes an unmarked object a harmless refusal there, but an ARM create is a
+PUT, and a PUT at an existing id updates the object in place.
+So the plan refuses such an object by name, "Unmarked live object at the
+declared id would be overwritten", under `declared_untagged = "refuse"`
+(the default), `"keep"` and `"report"`, and lint refuses `"keep"` and
+`"report"` outright (`policy-overwrite-at-key`). `"adopt"` and `"converge"`
+admit the object first and write the markers onto it in the plan. Adopt it
+with `"adopt"`, or write the two tags by hand and plan again.
+
+If the stock state lives in the `azurerm` backend, `tofu state pull >
+stock.tfstate` gives `live-import` its file. Keep the blob as the way back
+until the plan has been empty for as long as you need.
+`live/azure/ADOPT.md` has the rest.
 
 ## Getting back out
 

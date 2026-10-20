@@ -47,3 +47,23 @@ so its project and name are its whole identity. The scenario deletes
 the cache are gone. The derived name now matches nothing live, so the
 plan must propose exactly one create and leave the old firewall alone.
 It has no dated run yet, so the cell reads unproven.
+
+## On Azure
+
+### az-a-derived-name-needs-no-record
+
+    just smoke az-a-derived-name-needs-no-record
+    BREAK=1 just smoke az-a-derived-name-needs-no-record
+
+A tagged VNet and two subnets are applied on floci-az, one through
+`azurerm_subnet` and one through `azapi_resource`. A subnet takes no ARM
+tags; its ARM id is built from names the configuration sets, with the
+subscription from the provider block (`live/READINESS.md`, Azure). The
+scenario deletes `.tofu-records` and the state cache, and the next plan
+must read `No changes.` from the emulator and the configuration alone.
+
+`BREAK=1` renames the azurerm subnet once the store and the cache are
+gone. The derived id now matches nothing live, so the plan must propose
+exactly one create and leave the old subnet alone. floci-az serves no
+Resource Graph yet (lex00/floci-az#4, [live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet,
+so the cell reads unproven.

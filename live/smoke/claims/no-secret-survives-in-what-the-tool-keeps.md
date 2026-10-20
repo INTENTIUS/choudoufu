@@ -124,3 +124,7 @@ Until #1503 was fixed the projection seeded the prior from the
 configuration's own value, so the replan read `No changes.` and a
 rotated password was silently never sent. Step 5 printed that replan
 without asserting its shape; it now asserts both arms.
+
+## On Azure
+
+Open. Nothing has run on Azure yet (#1120), and no scenario is written for this promise there.

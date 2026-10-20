@@ -44,3 +44,24 @@ member unopposed, and the first estate's next plan proposes it back.
 the member must be refused. The emulator does not evaluate Compute, so the
 type measured is a bucket's IAM member rather than a firewall. It has no
 dated run yet, so the cell reads unproven.
+
+## On Azure
+
+### az-the-fence-gap-is-as-stated
+
+    just smoke az-the-fence-gap-is-as-stated
+    BREAK=1 just smoke az-the-fence-gap-is-as-stated
+
+`live/MARKERS.md`, "What the Azure grant cannot reach", says an untaggable
+child such as a subnet is fenced by the resource group's role assignment
+and loses only the Policy half. With `live/azure/estate-boundary.json`
+assigned at Alice's group, another estate's tagged create there is refused
+by Policy, while the same estate creates a subnet in Alice's VNet
+unopposed and an ARM delete of Alice's subnet goes through. Alice's next
+plan proposes her subnet back.
+
+`BREAK=1` removes the assignments after the tagged create is refused, and
+that create must then land. floci-az evaluates no Policy rule
+(lex00/floci-az#6) and has no role assignments (lex00/floci-az#5), so the
+RBAC half is not measured. It has no dated run yet, so the cell reads
+unproven.

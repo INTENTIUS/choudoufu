@@ -190,6 +190,7 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 
 	r.checkCollisions(result)
 	r.warnUnsweepableTypes()
+	r.diags = r.diags.Append(foreignResourceGroupWarnings(ctx, cfg, rctx.Scope))
 
 	return result, r.diags
 }
@@ -359,7 +360,9 @@ func childSubject(name string) string {
 }
 
 // checkCollisions reports two instances of the same type that resolve to
-// the same identity. They would bind to one live resource, so the plan
+// the same identity, or, for an Azure Resource Manager id
+// ([TypeIdentity.ARMResourceID]), two instances of any types that resolve
+// to the same id up to letter case. They would bind to one live resource, so the plan
 // would treat one cloud object as two managed resources, the same class of
 // ambiguity the marker path treats as a named error rather than picking a
 // winner.
@@ -394,6 +397,21 @@ func (r *resolver) checkCollisions(result *Result) {
 		}
 		key := res.Type() + "\x00" + ident + "\x00" + res.cloudScope.base
 		ctx := r.scopeContextValues(res)
+		if entry, ok := r.lookupType(res.Type()); ok && entry.ARMResourceID {
+			// GitHub issue #1120: an ARM id is the object's whole address -
+			// subscription, resource group, provider namespace and type are
+			// all in it - and ARM compares it case-insensitively. So the
+			// key is the folded id alone ([armCollisionKey]): not the type,
+			// because azurerm_virtual_network and an azapi_resource of type
+			// Microsoft.Network/virtualNetworks are one object declared
+			// twice, and not the provider configuration, because those two
+			// blocks never share one. The region and the scope context have
+			// nothing left to tell apart, and a context value an ARM id does
+			// not carry cannot be read off two blocks of two providers, so
+			// neither is consulted.
+			key = "arm\x00" + armCollisionKey(res)
+			ctx = nil
+		}
 
 		var collidesWith *Resolution
 		for i := range seen[key] {
@@ -1392,6 +1410,17 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}, true
 	}
 
+	// GitHub issue #1120 unit 13: azapi defaults an omitted parent_id of a
+	// resource group to the provider's subscription. See
+	// [resolver.armParentDefault].
+	armDefaultParent, res, done := r.armParentDefault(entry, attrs, scope, addr, cloudScope)
+	if done {
+		if fb, ok := r.recordFallback(addr, resAddr.Type); ok {
+			return fb, true
+		}
+		return res, true
+	}
+
 	var parts []Part
 	// The same pieces again, split by the identity attribute each component
 	// supplies. It is what makes an import ask the provider for
@@ -1439,7 +1468,14 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			sibArgs = append(sibArgs, argName)
 		}
 	}
+	// prevStart and curStart bound the parts the previous component
+	// contributed, which is what an [Component.ARMTypeSegment] component
+	// rewrites: azapi drops a tenant-root parent_id, or the whole parent_id
+	// for a subscription (see [armTypeSegment]).
+	prevStart, curStart := 0, 0
+	armID := false
 	for i, comp := range entry.Components {
+		prevStart, curStart = curStart, len(parts)
 		sibBefore := len(r.pendingSiblingApply)
 		if comp.Cloud != CloudNone {
 			// A cloud-bearing component may also carry the argument the
@@ -1498,6 +1534,12 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			continue
 		}
 		if attr == nil {
+			if armDefaultParent != "" && i+1 < len(entry.Components) && entry.Components[i+1].ARMTypeSegment {
+				// The parent azapi gives a resource group whose parent_id
+				// is omitted ([resolver.armParentDefault]).
+				parts = append(parts, Part{Literal: armDefaultParent})
+				continue
+			}
 			if comp.OmitIfAbsent {
 				// The provider's own grammar says this segment - and any
 				// Literal it carries as a prefix - is absent entirely when
@@ -1730,6 +1772,28 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			fail(sibBefore, attr.Name)
 			continue
 		}
+		if comp.ARMTypeSegment {
+			// GitHub issue #1120: azapi_resource's type contributes the text
+			// azapi joins parent_id and name with, not its own value. See
+			// [Component.ARMTypeSegment] and [armTypeSegment].
+			seg, ok := r.armTypeSegmentParts(got, parts[prevStart:curStart], attr, addr)
+			if !ok {
+				fail(sibBefore, "")
+				continue
+			}
+			parts = append(parts[:prevStart], seg...)
+			// The type as written, API version and all, is azapi's
+			// identity attribute "type" (#1120 unit 13): an import by
+			// identity object {id, type} reads the object at the block's
+			// own API version (azapi 2.13.0 internal/services/azapi_resource.go
+			// ImportState, lines 1361-1369, parse.ResourceIDWithResourceType),
+			// where a bare id is read at the newest version azapi knows
+			// (parse.ResourceIDWithApiVersionInfo, internal/services/parse/resource.go
+			// lines 213-231).
+			addTo("type", got)
+			armID = true
+			continue
+		}
 		// The identity-attribute formula gets the resolved value alone; a
 		// prefix Literal (see [Component.Literal] and [Component.OmitIfAbsent])
 		// is punctuation in the import-ID STRING, not part of the identity
@@ -1788,7 +1852,13 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	}
 	r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
 
-	res := classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly)
+	if armID {
+		// azapi's other identity attribute, "id": the whole ARM id, which
+		// is this identity's import id too. With "type" beside it the
+		// identity object carries the API version the bare id cannot.
+		addTo("id", append([]Part(nil), parts...))
+	}
+	res = classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly)
 	res.cloudScope = cloudScope
 	return res, true
 }
@@ -1947,6 +2017,36 @@ func (r *resolver) missingCloudComponent(entry TypeIdentity, attrs hcl.Attribute
 // the defaulting the region answer above already follows. A provider block
 // that states neither leaves the component unanswered, and the instance
 // needs discovery exactly as an AWS account-embedded one does.
+//
+// [CloudSubscriptionID] is answered the way the region's provider-block
+// fallback is (GitHub issue #1120): the resolved provider configuration's
+// own static `subscription_id`, which azurerm and azapi both take as the
+// subscription every request is made in. No resource argument defaults to
+// it, so there is no per-resource override to read first.
+//
+// A block that does not set subscription_id at all (or no block: the
+// implied empty configuration) is answered from the [CloudContext]'s
+// SubscriptionID, the run's ARM_SUBSCRIPTION_ID, which is where both
+// providers take it from in that case (azurerm 5.10.0
+// internal/provider/provider.go:115-120, azapi 2.13.0
+// internal/provider/provider.go:363-368; GitHub issue #2133, finding 4).
+// The precedence is theirs: the block's value wins and the environment
+// only fills an unset argument. A block that sets it to something this run
+// cannot evaluate statically (a variable with no default) is not answered
+// from the environment, because the provider would not be either
+// ([resolver.providerLeavesUnset]); that, a context with no
+// SubscriptionID, and a for_each provider block all answer exactly as an
+// AWS account the run is not told does: [ClassNeedsDiscovery] with
+// [cloudReason]'s sentence.
+//
+// This is AWS's region shape, provider block first, with one difference
+// AWS does not have: AWS identity never reads AWS_REGION, because nothing
+// in its pipeline passes an environment region into the [CloudContext].
+// The subscription is read from the environment because without it a
+// template-routed azurerm or azapi resource cannot be named at all, and an
+// identity that cannot be named reaches no ownership read, which is what
+// silenced the overwrite refusal for an estate configured by
+// ARM_SUBSCRIPTION_ID alone.
 func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bool) {
 	switch {
 	case which == CloudRegion && cs.regionKnown && cs.region != "":
@@ -1959,6 +2059,14 @@ func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bo
 		return cs.region, true
 	case which == CloudLocation && cs.zone != "":
 		return cs.zone, true
+	}
+	if which == CloudSubscriptionID {
+		if sub, ok := r.providerStaticAttr(cs.provider, "subscription_id"); ok && sub != "" {
+			return sub, true
+		}
+		if !r.providerLeavesUnset(cs.provider, "subscription_id") {
+			return "", false
+		}
 	}
 	return r.cloud.value(which)
 }
@@ -3607,7 +3715,7 @@ func (r *resolver) resourceCloudScope(rc *configs.Resource, scope instScope) clo
 	region, ok := r.effectiveRegion(rc, abs, scope)
 	project, _ := r.providerStaticAttr(abs, "project")
 	zone, _ := r.providerStaticAttr(abs, "zone")
-	return cloudScopeKey{base: abs.String(), region: region, regionKnown: ok, project: project, zone: zone}
+	return cloudScopeKey{base: abs.String(), region: region, regionKnown: ok, project: project, zone: zone, provider: abs}
 }
 
 // recordTypeProvider memoizes rc's own resolved provider's short type name
@@ -3733,41 +3841,15 @@ func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool
 	return r.providerStaticAttr(abs, "region")
 }
 
-// providerStaticAttr is one argument of the provider configuration abs
-// resolves to, read statically: the value when the block states it as
-// something this package can evaluate without applying, and false
-// otherwise. [resolver.providerRegionAttr] reads `region` through it, and
-// [resolver.resourceCloudScope] reads the google provider's `project` and
-// `zone` the same way.
+// providerStaticAttr is [resolver.providerRegionAttr] for any one argument
+// of abs's own provider configuration block: the block found by the same
+// deterministic match, the argument evaluated by the same rules, and every
+// failure the same ok=false. [CloudSubscriptionID] reads `subscription_id`
+// through it (GitHub issue #1120), and [resolver.resourceCloudScope] reads
+// the google provider's `project` and `zone` the same way (#1119).
 func (r *resolver) providerStaticAttr(abs addrs.AbsProviderConfig, name string) (string, bool) {
-	if r.rootCfg == nil || r.rootCfg.Module == nil {
-		return "", false
-	}
-	owner := r.rootCfg.Descendent(abs.Module)
-	if owner == nil || owner.Module == nil {
-		return "", false
-	}
-	mod := owner.Module
-
-	keys := make([]string, 0, len(mod.ProviderConfigs))
-	for k := range mod.ProviderConfigs {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var pc *configs.Provider
-	for _, k := range keys {
-		cand := mod.ProviderConfigs[k]
-		if cand.Alias != abs.Alias {
-			continue
-		}
-		if mod.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: cand.Name}) != abs.Provider {
-			continue
-		}
-		pc = cand
-		break
-	}
-	if pc == nil || pc.Config == nil || pc.ForEach != nil {
+	pc, mod, found := r.providerBlock(abs)
+	if !found || pc == nil || pc.Config == nil || pc.ForEach != nil {
 		return "", false
 	}
 
@@ -3807,6 +3889,80 @@ func (r *resolver) providerStaticAttr(abs addrs.AbsProviderConfig, name string) 
 		return "", false
 	}
 	return str.AsString(), true
+}
+
+// providerBlock finds abs's own provider configuration block by the
+// deterministic match [resolver.providerStaticAttr] has always used: in the
+// module abs names, the block whose alias is abs's and whose local name
+// maps to abs's provider, first in key order. found is false when the
+// module itself cannot be found; pc is nil, with found true, when the
+// module has no such block, which is OpenTofu's implied empty provider
+// configuration.
+func (r *resolver) providerBlock(abs addrs.AbsProviderConfig) (pc *configs.Provider, mod *configs.Module, found bool) {
+	if r.rootCfg == nil || r.rootCfg.Module == nil {
+		return nil, nil, false
+	}
+	owner := r.rootCfg.Descendent(abs.Module)
+	if owner == nil || owner.Module == nil {
+		return nil, nil, false
+	}
+	mod = owner.Module
+
+	keys := make([]string, 0, len(mod.ProviderConfigs))
+	for k := range mod.ProviderConfigs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		cand := mod.ProviderConfigs[k]
+		if cand.Alias != abs.Alias {
+			continue
+		}
+		if mod.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: cand.Name}) != abs.Provider {
+			continue
+		}
+		return cand, mod, true
+	}
+	return nil, mod, true
+}
+
+// providerLeavesUnset reports whether abs's provider configuration
+// certainly does not set the argument name: there is no block for it (the
+// implied empty configuration), or there is one, without for_each, whose
+// body has no such attribute. That is the one case in which a provider
+// falls back to its environment default, so it is the one case in which
+// [resolver.cloudValueFor] may read [CloudContext.SubscriptionID].
+//
+// Every doubt answers false: a module that cannot be found, a block with
+// for_each (whose keys may set it differently), a body this cannot read,
+// and an attribute that is present but not static. A block that sets
+// subscription_id = var.sub with no default is a subscription the
+// provider will use and this run cannot see; reading ARM_SUBSCRIPTION_ID
+// in its place would build the ARM id under a subscription the provider
+// never sends a request to.
+func (r *resolver) providerLeavesUnset(abs addrs.AbsProviderConfig, name string) bool {
+	pc, _, found := r.providerBlock(abs)
+	if !found {
+		return false
+	}
+	if pc == nil {
+		return true
+	}
+	if pc.ForEach != nil {
+		return false
+	}
+	if pc.Config == nil {
+		return true
+	}
+	content, _, diags := pc.Config.PartialContent(&hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{{Name: name}},
+	})
+	if diags.HasErrors() {
+		return false
+	}
+	_, set := content.Attributes[name]
+	return !set
 }
 
 func (r *resolver) errorf(rng hcl.Range, summary, format string, args ...any) {

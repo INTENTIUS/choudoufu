@@ -106,3 +106,7 @@ reads the markers out of `effective_labels`, because hashicorp/google's
 `labels` and `terraform_labels` keep only the keys a prior named, and
 mirrors them back, so a fresh cache, a stale one and none should give one
 plan.
+
+## On Azure
+
+Open. Nothing has run on Azure yet (#1120), and no scenario is written for this promise there.

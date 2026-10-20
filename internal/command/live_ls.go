@@ -26,6 +26,8 @@ import (
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/gcpsweep"
@@ -33,6 +35,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -269,13 +273,14 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	}
 
 	if args.ConfigDir != "" {
-		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.has(substrate.SweepLabelList), substrates.has(substrate.SweepAssetSearch), substrates.unclaimed, items)
+		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.has(substrate.SweepLabelList), substrates.has(substrate.SweepAssetSearch), substrates.has(substrate.SweepResourceGraph), substrates.unclaimed, items)
 		diags = diags.Append(gapDiags)
 		rep.Gaps = cmp.Gaps
 		rep.GapsSkipped = cmp.Skipped
 		rep.Schemas = cmp.Schemas
-		if len(cmp.LabelListItems) > 0 {
+		if len(cmp.LabelListItems) > 0 || len(cmp.ResourceGraphItems) > 0 {
 			rep.Items = append(rep.Items, cmp.LabelListItems...)
+			rep.Items = append(rep.Items, cmp.ResourceGraphItems...)
 			sortLiveLsItems(rep.Items)
 		}
 		for i := range rep.Items {
@@ -697,7 +702,7 @@ func pollConsistentEvery(ctx context.Context, read func(ctx context.Context) ([]
 // after resolution, since what it calls declared is a resolution's kind and
 // natural key. Its items come back in the comparison's Kubernetes field
 // and are counted found for the gap list below.
-func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, config *configs.Config, cfgDiags tfdiags.Diagnostics, kubernetes, gcp bool, unclaimed []addrs.AbsProviderConfig, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
+func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, config *configs.Config, cfgDiags tfdiags.Diagnostics, kubernetes, gcp, resourceGraph bool, unclaimed []addrs.AbsProviderConfig, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	// Whether provider schemas were read, tracked across the skip paths
 	// below rather than only on the path that completes: a comparison that
@@ -828,6 +833,15 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 		diags = diags.Append(gcpDiags)
 		kube = append(kube, found...)
 	}
+	// The Azure listing (GitHub issue #1120) runs here for the same reason:
+	// its clients are built from the provider blocks' evaluated arguments,
+	// and what it calls declared is a resolution's address or ARM id.
+	var graph []views.LiveLsItem
+	if resourceGraph {
+		var graphDiags tfdiags.Diagnostics
+		graph, graphDiags = c.liveLsResourceGraph(ctx, estate, config, provs, resolutions.All())
+		diags = diags.Append(graphDiags)
+	}
 	closeProviders()
 
 	declared := make(map[string]bool, resolutions.Len())
@@ -835,8 +849,13 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 		declared[res.Addr.String()] = true
 	}
 
-	foundInCloud := make(map[string]bool, len(items)+len(kube))
+	foundInCloud := make(map[string]bool, len(items)+len(kube)+len(graph))
 	for _, item := range items {
+		if item.Address != "" {
+			foundInCloud[item.Address] = true
+		}
+	}
+	for _, item := range graph {
 		if item.Address != "" {
 			foundInCloud[item.Address] = true
 		}
@@ -853,7 +872,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 		if foundInCloud[addr] {
 			continue
 		}
-		rung, detail, ok := liveLsRung(res, resourceSchemas)
+		rung, detail, ok := liveLsRung(res, resourceSchemas, liveLsInstanceOf(ctx, config, res.Addr, resourceSchemas))
 		if !ok {
 			// A marker-carried instance the listing still did not find is a
 			// genuine absence - not yet created, or created without its
@@ -866,7 +885,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 	}
 	sort.Slice(gaps, func(i, j int) bool { return gaps[i].Address < gaps[j].Address })
 
-	return liveLsComparison{Gaps: gaps, Declared: declared, Schemas: schemasRead, LabelListItems: kube}, diags
+	return liveLsComparison{Gaps: gaps, Declared: declared, Schemas: schemasRead, LabelListItems: kube, ResourceGraphItems: graph}, diags
 }
 
 // liveLsSubstrateSet is which substrates a listing covers, read off DIR's
@@ -901,6 +920,9 @@ var liveLsListings = map[substrate.Sweep]string{
 	substrate.SweepTaggingIndex: "the Resource Groups Tagging API index and the IAM role pass",
 	substrate.SweepLabelList:    "one label-selected list per kind each cluster serves",
 	substrate.SweepAssetSearch:  "one Cloud Asset Inventory search per project the estate's google resources name",
+	// Listed only with DIR, whose provider blocks name the subscriptions
+	// and credentials (GitHub issue #1120).
+	substrate.SweepResourceGraph: "one Azure Resource Graph query per subscription the estate's resources resolve to",
 }
 
 // liveLsNotListed is the warning for every family in set whose sweep
@@ -1196,6 +1218,13 @@ type liveLsComparison struct {
 	// such a substrate, or when the comparison skipped before resolution.
 	// Named for the capability, not the family (GitHub issue #1705).
 	LabelListItems []views.LiveLsItem
+
+	// ResourceGraphItems is the listing of every substrate whose sweep is
+	// [substrate.SweepResourceGraph] (the Azure Resource Graph listing,
+	// GitHub issue #1120), made here for LabelListItems' reason. Nil when
+	// DIR names no azurerm or azapi provider, or the comparison skipped
+	// before resolution.
+	ResourceGraphItems []views.LiveLsItem
 }
 
 // liveLsRung classifies why a declared instance cannot be found by this
@@ -1217,12 +1246,23 @@ type liveLsComparison struct {
 // ok is false for a marker-carried instance (an ordinary taggable type):
 // such an instance not being found is not a rung, it is a real gap, and
 // this function reports nothing rather than mislabeling it.
-func liveLsRung(res identity.Resolution, schemas map[string]providers.Schema) (rung, detail string, ok bool) {
+//
+// An Azure instance (GitHub issue #1120) asks the question the stamp asks
+// rather than [markers.Taggable], which answers azapi_resource's schema and
+// so called every azapi block taggable. inst carries what the schema
+// cannot: the provider type the block's own provider resolves to, and for
+// an azapi block its own type argument; see [liveLsArmRung].
+func liveLsRung(res identity.Resolution, schemas map[string]providers.Schema, inst liveLsInstance) (rung, detail string, ok bool) {
 	if h := liveClassTable[res.Class]; h.lsRung != "" {
 		return h.lsRung, h.lsDetail, true
 	}
 
 	schema, haveSchema := schemas[res.Type()]
+	if haveSchema {
+		if fam, claimed := substrate.ForProvider(inst.providerType); claimed && fam == substrate.Azure {
+			return liveLsArmRung(res, schema.Block, inst)
+		}
+	}
 	if haveSchema && !markers.Taggable(schema.Block) {
 		if _, labels := markers.LabelSurface(schema.Block); labels || markers.ManifestSurface(schema.Block) {
 			// Marker-carried on Kubernetes: the marker is a label, not a
@@ -1243,6 +1283,126 @@ func liveLsRung(res identity.Resolution, schemas map[string]providers.Schema) (r
 			true
 	}
 	return "", "", false
+}
+
+// liveLsDeclarationCarried is the tier sentence an Azure declaration-carried
+// detail ends with.
+const liveLsDeclarationCarried = "live/MARKERS.md's tier definitions (#417) name this the declaration-carried tier. Its identity comes entirely from configuration."
+
+// liveLsArmRung is [liveLsRung] for the Azure family, asking what the node
+// stamp asks (internal/live/projection's armTagTarget), so an instance the
+// stamp writes no marker on is never reported as a marker-carried absence:
+//
+//   - a type whose schema has no tags map the arm-tags surface writes
+//     ([markers.ARMTaggable] false), azurerm_subnet among them;
+//   - an azapi block whose ARM type at its own API version takes no tags,
+//     or one azapi's type data does not know
+//     ([projection.ARMTagPlacement], which reads [armtypes.Taggable] with
+//     the block's own type@api-version): the stamp leaves both unstamped.
+//
+// An azapi block whose type argument this run cannot read from
+// configuration alone is not classified (ok false), the same answer the
+// Resource Graph leg's untaggable list gives it (untaggableARMTypes): the
+// stamp reads the evaluated value at plan time, and a static evaluator
+// that cannot see it says nothing about whether it takes tags.
+func liveLsArmRung(res identity.Resolution, block *configschema.Block, inst liveLsInstance) (rung, detail string, ok bool) {
+	if !markers.ARMTaggable(block) {
+		return "declaration-carried",
+			fmt.Sprintf("%s has no settable tags argument, so no ownership marker was ever written for it - %s", res.Type(), liveLsDeclarationCarried),
+			true
+	}
+	if !armTypeArgument(block) {
+		return "", "", false
+	}
+	if !inst.armTypeKnown {
+		return "", "", false
+	}
+	obj := cty.ObjectVal(map[string]cty.Value{"type": cty.StringVal(inst.armType)})
+	if _, placed, why := projection.ARMTagPlacement(res.Addr, block, obj); !placed {
+		return "declaration-carried", fmt.Sprintf("%s %s", why, liveLsDeclarationCarried), true
+	}
+	return "", "", false
+}
+
+// liveLsInstance is what [liveLsRung] needs about a declared instance that
+// its resolution does not carry.
+type liveLsInstance struct {
+	// providerType is the type of the provider the instance's block
+	// resolves to ("azurerm", "azapi", "aws"), "" when unknown.
+	providerType string
+
+	// armType is the block's own type argument, "<ARM type>@<API
+	// version>", for this instance; armTypeKnown is false when the block
+	// has none or this run cannot read it from configuration alone.
+	armType      string
+	armTypeKnown bool
+}
+
+// liveLsInstanceOf reads [liveLsInstance] for addr off config: the
+// provider its block resolves to, and, for a block with a settable type
+// argument (azapi's shape), that argument for addr's own instance through
+// [staticeval.ArgumentScoped] with addr's count index or for_each key.
+func liveLsInstanceOf(ctx context.Context, config *configs.Config, addr addrs.AbsResourceInstance, schemas map[string]providers.Schema) liveLsInstance {
+	var inst liveLsInstance
+	if config == nil {
+		return inst
+	}
+	mc := config.DescendentForInstance(addr.Module)
+	if mc == nil || mc.Module == nil {
+		return inst
+	}
+	rc := mc.Module.ResourceByAddr(addr.Resource.Resource)
+	if rc == nil {
+		return inst
+	}
+	inst.providerType = rc.Provider.Type
+	schema, ok := schemas[rc.Type]
+	if !ok || schema.Block == nil || !armTypeArgument(schema.Block) {
+		return inst
+	}
+	rep, ok := liveLsRepetitionData(ctx, mc.Module, rc, addr.Resource.Key)
+	if !ok {
+		return inst
+	}
+	typ, why := staticeval.ArgumentScoped(ctx, mc.Module, rc, "type", rep)
+	if why != "" {
+		return inst
+	}
+	inst.armType, inst.armTypeKnown = typ, true
+	return inst
+}
+
+// liveLsRepetitionData is the count.index or each.key/each.value one
+// instance of rc evaluates under, read statically; false when the block's
+// collection cannot be read from configuration alone or does not hold key.
+func liveLsRepetitionData(ctx context.Context, mod *configs.Module, rc *configs.Resource, key addrs.InstanceKey) (instances.RepetitionData, bool) {
+	switch k := key.(type) {
+	case nil:
+		return instances.RepetitionData{}, true
+	case addrs.IntKey:
+		if rc.Count == nil {
+			return instances.RepetitionData{}, false
+		}
+		n, ok := staticeval.Count(ctx, mod, rc.Count)
+		if !ok || int(k) < 0 || int(k) >= n {
+			return instances.RepetitionData{}, false
+		}
+		return instances.RepetitionData{CountIndex: cty.NumberIntVal(int64(k))}, true
+	case addrs.StringKey:
+		if rc.ForEach == nil {
+			return instances.RepetitionData{}, false
+		}
+		elems, ok := staticeval.ForEachElements(ctx, mod, rc.ForEach)
+		if !ok {
+			return instances.RepetitionData{}, false
+		}
+		val, present := elems[string(k)]
+		if !present {
+			return instances.RepetitionData{}, false
+		}
+		return instances.RepetitionData{EachKey: cty.StringVal(string(k)), EachValue: val}, true
+	}
+	return instances.RepetitionData{}, false
 }
 
 func (c *LiveLsCommand) Help() string {

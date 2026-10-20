@@ -256,3 +256,26 @@ func TestBuildMaintainerExample(t *testing.T) {
 		t.Errorf("Build(maintainer's example) = %#v, want %#v", got, want)
 	}
 }
+
+// TestLeavesCreateStanding pins GitHub issue #1120's set against the
+// matrix: of declared+untagged's valid verbs, exactly keep and report leave
+// the create standing. refuse is the default, and adopt and converge admit
+// the object (internal/live/projection's checkOwnershipAt), so no create is
+// proposed for them. A verb added to the quadrant fails here until it is
+// placed.
+func TestLeavesCreateStanding(t *testing.T) {
+	want := map[Verb]bool{Keep: true, Report: true, Refuse: false, Adopt: false, Converge: false}
+	for v := range ValidVerbs[DeclaredUntagged] {
+		w, placed := want[v]
+		if !placed {
+			t.Errorf("%q is valid for %s and not placed in this test", v, DeclaredUntagged)
+			continue
+		}
+		if got := LeavesCreateStanding(v); got != w {
+			t.Errorf("LeavesCreateStanding(%q) = %v, want %v", v, got, w)
+		}
+	}
+	if LeavesCreateStanding(DefaultVerb[DeclaredUntagged]) {
+		t.Error("the default verb is counted")
+	}
+}

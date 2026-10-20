@@ -58,7 +58,7 @@ func TestBarsSplitVerifiedFromCarried(t *testing.T) {
 		r.Name = name
 		a.Estates = append(a.Estates, r)
 	}
-	a.Rebuild(m, nil, emu, oracle, ProviderVersions{}, eng, kind)
+	a.Rebuild(m, nil, emu, oracle, ProviderVersions{}, eng, SubstratePins{Kind: kind})
 
 	for _, c := range []struct {
 		key                      string

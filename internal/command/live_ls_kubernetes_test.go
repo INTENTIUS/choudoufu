@@ -232,14 +232,14 @@ func TestLiveLsRung_labelAndManifestSurfacesAreMarkerCarried(t *testing.T) {
 
 	for _, typeName := range []string{"kubernetes_config_map", "kubernetes_manifest"} {
 		res := liveLsTestResolution(t, typeName+".x", identity.ClassConcrete)
-		if rung, _, ok := liveLsRung(res, schemas); ok {
+		if rung, _, ok := liveLsRung(res, schemas, liveLsInstance{}); ok {
 			t.Errorf("%s classified as rung %q; a label-carried type not found is an absence, not a rung", typeName, rung)
 		}
 	}
 	// The control: a type with no marker surface of any kind is still the
 	// declaration-carried rung this function has always reported.
 	res := liveLsTestResolution(t, "aws_iam_group_policy_attachment.x", identity.ClassConcrete)
-	if rung, _, ok := liveLsRung(res, schemas); !ok || rung != "declaration-carried" {
+	if rung, _, ok := liveLsRung(res, schemas, liveLsInstance{}); !ok || rung != "declaration-carried" {
 		t.Errorf("untaggable AWS type: rung=%q ok=%v, want declaration-carried/true", rung, ok)
 	}
 }
@@ -280,7 +280,7 @@ resource "kubernetes_namespace" "app" {
 resource "null_resource" "x" {}
 `)
 	unclaimedOnly := liveLsLoadConfig(t, `
-resource "azurerm_resource_group" "rg" {}
+resource "datadog_monitor" "m" {}
 `)
 	var loadFailed tfdiags.Diagnostics
 	loadFailed = loadFailed.Append(tfdiags.Sourceless(tfdiags.Error, "Unreadable", "not a configuration"))
@@ -312,8 +312,8 @@ resource "azurerm_resource_group" "rg" {}
 			}
 		})
 	}
-	if got := liveLsSubstrates(unclaimedOnly, nil).unclaimed; len(got) != 1 || got[0].Provider.Type != "azurerm" {
-		t.Errorf("liveLsSubstrates(azurerm only).unclaimed = %v, want the azurerm provider configuration", got)
+	if got := liveLsSubstrates(unclaimedOnly, nil).unclaimed; len(got) != 1 || got[0].Provider.Type != "datadog" {
+		t.Errorf("liveLsSubstrates(datadog only).unclaimed = %v, want the datadog provider configuration", got)
 	}
 }
 
@@ -324,6 +324,9 @@ resource "azurerm_resource_group" "rg" {}
 // listing, and fails here by name.
 func TestEverySubstrateSweepHasAListing(t *testing.T) {
 	for _, sub := range substrate.All {
+		if _, awaiting := sweepsAwaitingTheirUnit[sub.Sweep()]; awaiting {
+			continue
+		}
 		if _, ok := liveLsListings[sub.Sweep()]; !ok {
 			t.Errorf("provider family %s asks for the %q sweep and live-ls has no listing for it", sub.Name(), sub.Sweep())
 		}
@@ -354,7 +357,7 @@ func TestLiveLsNamesWhatItCannotList(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`
 resource "fake_thing" "x" {}
-resource "azurerm_resource_group" "rg" {}
+resource "datadog_monitor" "m" {}
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -374,8 +377,8 @@ resource "azurerm_resource_group" "rg" {}
 	if !strings.Contains(all, "Not listed") || !strings.Contains(all, `provider family fake asks for the "fake-sweep" sweep`) {
 		t.Errorf("the fake family is not named as unlisted:\n%s", all)
 	}
-	if !strings.Contains(all, "hashicorp/azurerm") {
-		t.Errorf("the unclaimed azurerm provider is not named as unlisted:\n%s", all)
+	if !strings.Contains(all, "hashicorp/datadog") {
+		t.Errorf("the unclaimed datadog provider is not named as unlisted:\n%s", all)
 	}
 }
 

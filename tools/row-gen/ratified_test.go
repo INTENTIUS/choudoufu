@@ -139,6 +139,9 @@ func TestRatifiedRoundTripsEveryField(t *testing.T) {
 		// IS a ratified fact - it travels through both legs, the same as
 		// ServerAssigned or Reason - so it stays set in viaFile too.
 		NonAWSProvider: true,
+		// ARMResourceID and ARMTypeSegment (#1120, the Azure identity) are
+		// ratifiable facts like NonAWSProvider and travel through both legs.
+		ARMResourceID: true,
 		Components: []identity.Component{
 			{
 				Literal:                "/",
@@ -152,6 +155,7 @@ func TestRatifiedRoundTripsEveryField(t *testing.T) {
 				IdentityAttr:           "*",
 				SoleElement:            true,
 				PerElement:             true,
+				ARMTypeSegment:         true,
 			},
 			{Attrs: []string{}}, // empty, non-nil
 		},

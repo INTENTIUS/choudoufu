@@ -159,7 +159,8 @@ type dockerCapacity struct {
 
 // usesKind reports whether an estate needs a kubernetes cluster: the
 // kubernetes lane, a floci-eks estate (floci starts the cluster leg), or a
-// script under its directory that calls gauntlet_kind_up.
+// script under its directory that calls gauntlet_kind_up. A floci-az estate
+// (#1120) runs one emulator container, like a floci estate.
 func usesKind(root string, e Estate) bool {
 	if e.Lane == LaneKubernetes || e.Substrate() == SubstrateKind || e.Substrate() == SubstrateFlociEKS {
 		return true

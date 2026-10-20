@@ -242,6 +242,26 @@ const (
 	// would make that fails only because of the markers. See
 	// gcp_label_count.go.
 	RuleGCPLabelCount Rule = "gcp-label-count"
+
+	// RuleARMTagLimit covers an azurerm or azapi resource whose tags, once
+	// this run adds its ownership markers, come to more than the resource
+	// takes (azurerm's own validation, the ARM type's documented maximum, or
+	// ARM's 50), or one of whose marker tags breaks a rule azurerm or ARM
+	// applies to a tag. A warning: Azure refuses the write with its own
+	// error, and nothing is created wrongly. GitHub issue #1120. See
+	// arm_tag_limit.go.
+	RuleARMTagLimit Rule = "arm-tag-limit"
+
+	// RulePolicyOverwriteAtKey covers a policy block that assigns "keep" or
+	// "report" to the declared_untagged quadrant in a configuration that
+	// declares a resource whose create, sent at an id where an object
+	// already exists, updates that object instead of failing (azurerm and
+	// azapi: an ARM create is a PUT). Those two verbs leave an unmarked
+	// object out of the estate and let the plan propose the create, which
+	// there is a silent takeover. #1546's refusal on the opposite server,
+	// moved to lint so the configuration fails before any plan. GitHub
+	// issue #1120. See policy.go.
+	RulePolicyOverwriteAtKey Rule = "policy-overwrite-at-key"
 )
 
 // UnfindableClause is what an apply with no usable handle costs, as a
@@ -404,6 +424,10 @@ var ruleInfo = map[Rule]struct {
 		summary: "Delete quadrant has no scope block",
 		docsRef: `live/LIMITATIONS.md, "policy-scope"`,
 	},
+	RulePolicyOverwriteAtKey: {
+		summary: "Policy verb would let a create overwrite an unmarked object",
+		docsRef: `live/LIMITATIONS.md, "policy-overwrite-at-key"`,
+	},
 	RulePolicyThreshold: {
 		summary: "Policy threshold is not a positive number",
 		docsRef: `live/LIMITATIONS.md, "policy-threshold"`,
@@ -468,6 +492,11 @@ var ruleInfo = map[Rule]struct {
 	RuleGCPLabelCount: {
 		summary: "GCP resource has no room for its ownership markers",
 		docsRef: `live/LIMITATIONS.md, "gcp-label-count"`,
+	},
+	RuleARMTagLimit: {
+		summary:  "Azure resource has no room for its ownership markers",
+		docsRef:  `live/LIMITATIONS.md, "arm-tag-limit"`,
+		severity: SeverityWarning,
 	},
 }
 

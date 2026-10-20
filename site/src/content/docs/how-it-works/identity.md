@@ -16,6 +16,7 @@ create call.
 |---|---|
 | AWS | Tags `tofu-estate` and `tofu-address`, plus `tofu-slot` on interchangeable `count` members |
 | Kubernetes | One label, `tofu-estate`, with the address in an annotation |
+| Azure | The AWS tags, keys read case-insensitively (built, not yet measured) |
 
 ## Two ways back
 

@@ -151,6 +151,7 @@ var lintRuleTargetScope = map[Rule]struct {
 	RuleReceiptValue:    {ruleScoped, "the receipt block's own declaration, for a receipt this run will not write"},
 	RuleReceiptSecret:   {ruleScoped, "same block, same run"},
 	RuleGCPLabelCount:   {ruleScoped, "a create this run will not make cannot overflow; TestGCPLabelCountHonoursTheTargetScope pins it, outside the shared fixture"},
+	RuleARMTagLimit:     {ruleScoped, "a create this run will not make cannot overflow; TestARMTagLimitHonoursTheTargetScope pins it, outside the shared fixture"},
 
 	// ---- names a block, and still does not narrow ------------------
 	RuleMovedBlock:              {ruleBlockButUnscoped, "internal/live/discovery's declaredInstances is built on lint refusing exactly the statements it leaves out; and a moved endpoint is an addrs.MoveEndpoint whose FROM address the configuration no longer declares, so the plan graph has no vertex for it. See checkMovedBlocks"},
@@ -165,6 +166,7 @@ var lintRuleTargetScope = map[Rule]struct {
 	RulePolicyVerb:                {ruleWholeConfig, "the live block's ownership policy"},
 	RulePolicyScope:               {ruleWholeConfig, "same block"},
 	RulePolicyThreshold:           {ruleWholeConfig, "same block"},
+	RulePolicyOverwriteAtKey:      {ruleWholeConfig, "same block; the resource it names is evidence the estate has an overwriting family, and the verb governs every declared object whatever this run targets"},
 	RuleRetry:                     {ruleWholeConfig, "the live block's retry setting"},
 	RuleStrictMarkerRepair:        {ruleWholeConfig, "the live block's strict settings"},
 	RuleStrictSecrets:             {ruleWholeConfig, "same block"},
@@ -195,10 +197,12 @@ func scopedRuleSet() []Rule {
 // RuleIgnoreChanges are pinned on here: RuleMarkerlessType (whose #1203
 // twin, check.NodeStampUnmarkedApply, is pinned by
 // TestNodeStampUnmarkedApplyHonoursTheTargetScope over the same question)
-// and RuleGenerateName (Kubernetes only). The third, RuleGCPLabelCount,
-// has its own fixture (TestGCPLabelCountHonoursTheTargetScope). Stated
+// and RuleGenerateName (Kubernetes only). The third and fourth,
+// RuleGCPLabelCount and RuleARMTagLimit, have fixtures of their own
+// (TestGCPLabelCountHonoursTheTargetScope,
+// TestARMTagLimitHonoursTheTargetScope). Stated
 // rather than silently omitted, and [TestEveryScopedRuleIsInTheFixture]
-// holds the set to exactly those three.
+// holds the set to exactly those four.
 var scopedRules = []Rule{
 	RuleProvisioner,
 	RuleLogicalResource,
@@ -376,20 +380,21 @@ func TestEveryScopedRuleIsInTheFixture(t *testing.T) {
 		}
 	}
 	//
-	// gcp-label-count is the third. Without provider schemas every google
-	// type is also refused as unadmitted-type, so a google pair in the
-	// shared fixture would move unadmitted-type's own counts;
-	// TestGCPLabelCountHonoursTheTargetScope runs the same three arms on a
-	// fixture of its own.
+	// gcp-label-count and arm-tag-limit are the third and fourth. Without
+	// provider schemas every google or azurerm type is also refused as
+	// unadmitted-type, so a pair in the shared fixture would move
+	// unadmitted-type's own counts; TestGCPLabelCountHonoursTheTargetScope
+	// and TestARMTagLimitHonoursTheTargetScope run the narrowing on
+	// fixtures of their own.
 	for rule := range uncovered {
-		if rule != RuleMarkerlessType && rule != RuleGenerateName && rule != RuleGCPLabelCount {
+		if rule != RuleMarkerlessType && rule != RuleGenerateName && rule != RuleGCPLabelCount && rule != RuleARMTagLimit {
 			t.Errorf("%s is classified scoped and this fixture does not exercise it. Add a _targeted/_excluded pair to %s, "+
-				"or say here why it cannot be one - the three standing exceptions are markerless-type, generate-name and gcp-label-count.",
+				"or say here why it cannot be one - the four standing exceptions are markerless-type, generate-name, gcp-label-count and arm-tag-limit.",
 				rule, lintTargetScopeFixture)
 		}
 	}
-	if len(uncovered) != 3 {
-		t.Errorf("want exactly the three documented uncovered scoped rules, got %d: %v", len(uncovered), uncovered)
+	if len(uncovered) != 4 {
+		t.Errorf("want exactly the four documented uncovered scoped rules, got %d: %v", len(uncovered), uncovered)
 	}
 }
 

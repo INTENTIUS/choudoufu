@@ -98,7 +98,11 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// nothing itself: it renders rows, and internal/command words the
 		// refusal beside the other command-invocation guards, exactly as
 		// "markerstrip" below does.
-		"approval":     true,
+		"approval": true,
+		// The Azure epic's (#1120) azapi type-capability table: data the
+		// stamp consults before writing tags on an azapi resource. It
+		// refuses nothing; its caller decides.
+		"armtypes":     true,
 		"check":        true, // this package: the instrument itself
 		"cloudcontrol": true, // a client for one AWS API
 		// The verification cohorts' pinned rosters (issue #699): 31 cohort
@@ -150,6 +154,11 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// verdict about what it finds is the discovery leg's, as for
 		// kubesweep.
 		"gcpsweep": true,
+		// GitHub issue #1120's Azure sweep client: one Resource Graph
+		// query per subscription, returning resources or a typed error.
+		// Every verdict about what it finds is the discovery leg's, as
+		// for kubesweep and gcpsweep.
+		"azsweep": true,
 		// GitHub issue #1524: asks EKS, GKE or AKS whether a managed
 		// cluster encrypts Secrets at rest and returns the provider's
 		// answer as data. It emits no diagnostic; the encryption_at_rest

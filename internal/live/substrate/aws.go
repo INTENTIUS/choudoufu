@@ -86,6 +86,11 @@ func (aws) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
 // idempotent rather than conflicting, and that is per type and unmeasured.
 func (aws) CreateCollidesOnKey(markers.Surface) bool { return false }
 
+// CreateOverwritesAtKey is false: the same per-type, unmeasured behaviour
+// keeps AWS out of #1122's create-or-update refusal too, and the AWS
+// warning the declared_untagged default raises stays a warning.
+func (aws) CreateOverwritesAtKey(markers.Surface) bool { return false }
+
 // CarrierPhrase: the wording the ownership read used before a second
 // surface existed, unchanged.
 func (aws) CarrierPhrase(surface markers.Surface) string {

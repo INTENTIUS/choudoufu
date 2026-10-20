@@ -78,6 +78,10 @@
 // interface; a caller choosing between them is choosing an operational
 // tradeoff, never a different programming model.
 //
+// A fourth, [AzureBlobStore] (azureblob.go, the Azure epic #1120), is the S3
+// store on Azure's primitives: blobs in one container, ETag conditions on Put
+// Blob and Delete Blob, the estate as a blob index tag in the same request.
+//
 // # The five things the Kubernetes store had to settle
 //
 // GitHub issue #1392 named five, and each was measured on kind before it was

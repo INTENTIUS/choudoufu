@@ -1,0 +1,251 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "The Azure estate boundary (#1120, ruled on #1122): the Policy half of the fence. An estate is a set of resource groups. This template defines the marker guard, a custom Policy definition at the subscription, and assigns it at each of the estate's resource groups, with the estate's name as the assignment parameter. The delete lock, a second definition and assignment, is made only when deleteLock=true (off by default; see metadata.deleteLock). Apply it with az alone: az deployment sub create --location <region> --template-file live/azure/estate-boundary.json --parameters estate=<estate> resourceGroups='[\"<rg-1>\",\"<rg-2>\"]'. The RBAC half is live/azure/estate-grant.json. See live/MARKERS.md, \"Granting an Azure estate\".",
+    "scope": "Definitions live at the subscription because a definition's location must be a subscription or a management group, and a subscription is the narrowest that can hold them. Assignments are made at each resource group the estate owns, never at the subscription, because a group belongs to exactly one estate and the deny below requires every taggable resource in the assigned scope to carry that one estate's name. Assigned at the subscription, it would refuse every other estate and every untagged resource there.",
+    "modeIndexed": "Both definitions use mode Indexed, which evaluates only resource types that support tags and location. Excluded: resource types without tags (child resources such as Microsoft.Network/routeTables/routes, extension resources, most role and policy objects), resource groups and subscriptions themselves. Resource-group RBAC from estate-grant.json still covers those; the tag guard does not.",
+    "caseSensitivity": "Azure Policy string conditions other than match and notMatch compare with InvariantCultureIgnoreCase (learn.microsoft.com/azure/governance/policy/concepts/definition-structure-policy-rule, Conditions), so notEquals and equals below ignore the value's case. Tag names are case-insensitive for ARM operations (learn.microsoft.com/azure/azure-resource-manager/management/tag-resources, the Important note); the Policy page does not state the key casing of a tags['<name>'] field lookup itself, so a Tofu-Estate key being read by tags['tofu-estate'] rests on the ARM statement and is unmeasured on real Azure. floci-az stores definitions and assignments and evaluates no rule (live/FLOCI.md, Azure).",
+    "taggedAfterCreate": "Some types are created untagged and tagged by a second call: azurerm writes an App Service managed certificate's tags in a PATCH after its PUT, because the PUT refuses them (azurerm 5.10.0, app_service_managed_certificate_resource.go; Azure/azure-rest-api-specs#14529), and choudoufu writes its markers onto such a type with the Tags API after the create returns (internal/live/armtypes, after-create; substrate PostCreateNeeded). A deny on a missing tofu-estate would refuse that create on every run. So the marker guard lets a type listed in taggedAfterCreate exist without tofu-estate, and still refuses one that carries tofu-estate naming another estate. The default is the ARM type of every after-create azurerm type that lives in a resource group, from generated facts that live/azure_fence_test.go holds this default to. The cost: an untagged resource of a listed type, from anyone with write on the group, is not refused, and one ARM type can serve azurerm types that tag in their create too (Microsoft.Web/certificates is also azurerm_app_service_certificate). Pass taggedAfterCreate='[]' to refuse every untagged create instead, and either exempt the post-create resources one by one (az policy exemption create on the marker-guard assignment) or accept that their creates are denied. azurerm_subscription, the other after-create type, is in no resource group, so no assignment here reaches it.",
+    "deleteLock": "Opt-in, off by default (ruled on #1122, 2026-10-20). Resource-group RBAC from estate-grant.json alone governs who may delete, as on AWS and Kubernetes. deleteLock=true adds a denyAction on deleting any resource tagged with this estate. Policy is not per principal, so the lock refuses the estate's own destroys and replaces too: while it is on, removing or replacing a resource takes a policy exemption on the delete-lock assignment, scoped to that resource (or to the group for a whole-estate destroy), for the duration of the change: az policy exemption create --name <name> --exemption-category Waiver --policy-assignment /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Authorization/policyAssignments/choudoufu-estate-delete-guard --scope <resource-id> --expires-on <time>. Delete the exemption (az policy exemption delete) when the change is applied. Redeploying with deleteLock=false does not remove an assignment an earlier deploy made, because the deployment mode is Incremental: az policy assignment delete --name choudoufu-estate-delete-guard --resource-group <rg> removes it.",
+    "denyActionLimits": "When deleteLock is on: denyAction supports only the delete action (learn.microsoft.com/azure/governance/policy/concepts/effect-deny-action). It does not protect anything removed by a subscription deletion, or a child or extension resource removed because its parent was deleted. A resource-group deletion is blocked only for indexed resources and only when cascadeBehaviors.resourceGroup is deny (set below; it is also the documented default); non-indexed resources in the group are deleted. Policy assignments, locks, deny assignments, deployment stacks and subscriptions are exempt from denyAction. It is not per principal: it refuses the estate's own deletes too, so removing a resource from the estate is a policy exemption (az policy exemption create) on the delete-guard assignment, scoped to that resource, for the duration of the change."
+  },
+  "parameters": {
+    "estate": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "metadata": {
+        "description": "The estate's name, exactly as its tofu-estate marker spells it."
+      }
+    },
+    "resourceGroups": {
+      "type": "array",
+      "minLength": 1,
+      "metadata": {
+        "description": "The names of the resource groups this estate owns, in this subscription. Each must already exist."
+      }
+    },
+    "deleteLock": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Assign the delete lock (a denyAction on deleting a resource tagged with this estate) at each group. Off by default; resource-group RBAC governs deletes. See metadata.deleteLock for the exemption a destroy or replace needs while it is on."
+      }
+    },
+    "taggedAfterCreate": {
+      "type": "array",
+      "defaultValue": [
+        "Microsoft.Web/certificates"
+      ],
+      "metadata": {
+        "description": "ARM resource types the marker guard lets exist without tofu-estate, because their create arrives untagged and the tags follow in a second call. See metadata.taggedAfterCreate."
+      }
+    }
+  },
+  "variables": {
+    "markerGuardName": "choudoufu-estate-marker-guard",
+    "deleteGuardName": "choudoufu-estate-delete-guard"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Authorization/policyDefinitions",
+      "apiVersion": "2023-04-01",
+      "name": "[variables('markerGuardName')]",
+      "properties": {
+        "policyType": "Custom",
+        "mode": "Indexed",
+        "displayName": "choudoufu: every taggable resource carries this estate's tofu-estate marker",
+        "description": "Denies a create or update of a taggable resource whose tags['tofu-estate'] is missing (unless its type is one tagged after create) or names another estate. Assigned at each of an estate's resource groups by live/azure/estate-boundary.json.",
+        "metadata": {
+          "category": "Tags"
+        },
+        "parameters": {
+          "estate": {
+            "type": "String",
+            "metadata": {
+              "displayName": "Estate",
+              "description": "The estate that owns the resource group this is assigned at."
+            }
+          },
+          "taggedAfterCreate": {
+            "type": "Array",
+            "defaultValue": [],
+            "metadata": {
+              "displayName": "Types tagged after create",
+              "description": "ARM resource types allowed to exist without tofu-estate, because their create arrives untagged and their tags follow in a second call."
+            }
+          }
+        },
+        "policyRule": {
+          "if": {
+            "anyOf": [
+              {
+                "allOf": [
+                  {
+                    "field": "tags['tofu-estate']",
+                    "exists": "false"
+                  },
+                  {
+                    "field": "type",
+                    "notIn": "[[parameters('taggedAfterCreate')]"
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "field": "tags['tofu-estate']",
+                    "exists": "true"
+                  },
+                  {
+                    "field": "tags['tofu-estate']",
+                    "notEquals": "[[parameters('estate')]"
+                  }
+                ]
+              }
+            ]
+          },
+          "then": {
+            "effect": "deny"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/policyDefinitions",
+      "apiVersion": "2023-04-01",
+      "name": "[variables('deleteGuardName')]",
+      "condition": "[parameters('deleteLock')]",
+      "properties": {
+        "policyType": "Custom",
+        "mode": "Indexed",
+        "displayName": "choudoufu: a resource marked for this estate is not deleted",
+        "description": "Denies DELETE on a resource whose tags['tofu-estate'] names the estate, and a resource-group delete that would cascade to one. Assigned at each of an estate's resource groups by live/azure/estate-boundary.json.",
+        "metadata": {
+          "category": "Tags"
+        },
+        "parameters": {
+          "estate": {
+            "type": "String",
+            "metadata": {
+              "displayName": "Estate",
+              "description": "The estate that owns the resource group this is assigned at."
+            }
+          }
+        },
+        "policyRule": {
+          "if": {
+            "field": "tags['tofu-estate']",
+            "equals": "[[parameters('estate')]"
+          },
+          "then": {
+            "effect": "denyAction",
+            "details": {
+              "actionNames": [
+                "delete"
+              ],
+              "cascadeBehaviors": {
+                "resourceGroup": "deny"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[format('choudoufu-boundary-{0}', uniqueString(parameters('resourceGroups')[copyIndex()]))]",
+      "resourceGroup": "[parameters('resourceGroups')[copyIndex()]]",
+      "copy": {
+        "name": "perGroup",
+        "count": "[length(parameters('resourceGroups'))]"
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Authorization/policyDefinitions', variables('markerGuardName'))]",
+        "[subscriptionResourceId('Microsoft.Authorization/policyDefinitions', variables('deleteGuardName'))]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "parameters": {
+          "estate": {
+            "value": "[parameters('estate')]"
+          },
+          "taggedAfterCreate": {
+            "value": "[parameters('taggedAfterCreate')]"
+          },
+          "deleteLock": {
+            "value": "[parameters('deleteLock')]"
+          },
+          "markerGuardId": {
+            "value": "[subscriptionResourceId('Microsoft.Authorization/policyDefinitions', variables('markerGuardName'))]"
+          },
+          "deleteGuardId": {
+            "value": "[subscriptionResourceId('Microsoft.Authorization/policyDefinitions', variables('deleteGuardName'))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "estate": {
+              "type": "string"
+            },
+            "taggedAfterCreate": {
+              "type": "array"
+            },
+            "deleteLock": {
+              "type": "bool"
+            },
+            "markerGuardId": {
+              "type": "string"
+            },
+            "deleteGuardId": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/policyAssignments",
+              "apiVersion": "2023-04-01",
+              "name": "choudoufu-estate-marker-guard",
+              "properties": {
+                "displayName": "[format('choudoufu: resources here carry tofu-estate={0}', parameters('estate'))]",
+                "policyDefinitionId": "[parameters('markerGuardId')]",
+                "enforcementMode": "Default",
+                "parameters": {
+                  "estate": {
+                    "value": "[parameters('estate')]"
+                  },
+                  "taggedAfterCreate": {
+                    "value": "[parameters('taggedAfterCreate')]"
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/policyAssignments",
+              "apiVersion": "2023-04-01",
+              "name": "choudoufu-estate-delete-guard",
+              "condition": "[parameters('deleteLock')]",
+              "properties": {
+                "displayName": "[format('choudoufu: resources marked tofu-estate={0} are not deleted', parameters('estate'))]",
+                "policyDefinitionId": "[parameters('deleteGuardId')]",
+                "enforcementMode": "Default",
+                "parameters": {
+                  "estate": {
+                    "value": "[parameters('estate')]"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

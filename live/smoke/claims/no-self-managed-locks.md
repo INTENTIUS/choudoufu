@@ -98,3 +98,7 @@ Expected to be proven by steps of `just smoke gcp-records-in-a-bucket`, as
 store writes with `ifGenerationMatch` and holds no lock
 ([#2122](https://github.com/INTENTIUS/choudoufu/issues/2122)). The cell is
 open until that scenario is registered and runs.
+
+## On Azure
+
+Open. Nothing has run on Azure yet. `record_store "azurerm"` creates with `If-None-Match: *`, updates and deletes with `If-Match` on the ETag, and takes no lease ([the contract](../../../examples/record-store-azurerm/CONTRACT.md)); no race of two writers is written for floci-az.

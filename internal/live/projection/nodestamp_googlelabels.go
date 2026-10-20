@@ -26,7 +26,7 @@ import (
 // This file is the GCP half of the node-path stamp (GitHub issue #1119,
 // under #1121's ruling): the AWS tag branch's write, into a hashicorp/google
 // resource's top-level labels map. The map has the tags map's shape, so
-// everything after the shape checks is [NodeResolver.mergeMarkers], shared
+// everything after the shape checks is [NodeResolver.stampMarkerElems], shared
 // with the tag branch: the same conflict refusal, the same untag release,
 // the same slot. What differs is the address, which a label cannot spell
 // and so carries encoded ([markers.GoogleAddressValue]), and the estate,
@@ -75,7 +75,7 @@ func (n *NodeResolver) stampedGoogleLabels(addr addrs.AbsResourceInstance, label
 		}
 	}
 
-	diags = diags.Append(n.mergeMarkers(addr, elems, markers.GoogleAddressValue(addr), markers.EscapeAddress(addr.String())))
+	diags = diags.Append(n.stampMarkerElems(addr, elems, markers.GoogleAddressValue(addr), markers.EscapeAddress(addr.String()), false))
 	if diags.HasErrors() {
 		return labelsVal.WithMarks(labelsMarks), diags
 	}

@@ -46,7 +46,7 @@ choudoufu live-import -state=terraform.tfstate -estate=my-estate -approve
 
 The first prints a dry report. The second tags every `VERIFIED` or `DRIFTED`
 entry and leaves the state file as it was. The report explains each entry it
-skips. This works on AWS and Kubernetes.
+skips. This works on AWS and Kubernetes, and is built for Azure.
 
 ## Without a state file
 

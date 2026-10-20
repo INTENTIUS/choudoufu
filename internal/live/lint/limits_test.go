@@ -143,17 +143,32 @@ var enforcedLimits = map[string]Rule{
 	// live/LIMITATIONS.md, "gcp-label-count", and limitsCompanionRules for
 	// the one other rule allowed beside it.
 	"gcp-label-count": RuleGCPLabelCount,
+	// GitHub issue #1120: a Cosmos DB account with 14 tags, where Azure
+	// documents 15; the two markers make 16. A warning, like state-backend.
+	// See live/LIMITATIONS.md, "arm-tag-limit", and limitsCompanionRules
+	// for the one other rule allowed beside it.
+	"arm-tag-limit": RuleARMTagLimit,
+	// GitHub issue #1120: declared_untagged = "keep" in an estate that
+	// declares an azurerm resource group, whose create is a PUT that would
+	// overwrite an unmarked group at the declared id. #1546's refusal for
+	// the opposite server. See live/LIMITATIONS.md,
+	// "policy-overwrite-at-key"; unadmitted-type rides beside it for
+	// arm-tag-limit's reason.
+	"policy-overwrite-at-key": RulePolicyOverwriteAtKey,
 }
 
 // limitsCompanionRules is the one exception to TestLimitsEnforced's "that
 // rule and nothing else": a fixture whose rule is about a resource no
 // schemaless lint run admits. CheckContext has no provider schemas, and no
-// google type has a row in the admission table, so every google resource
-// is also refused as unadmitted-type. A gcp fixture must declare a google
-// resource to show its rule at all. The fixture's own rule must still
-// fire; only the named companion may fire beside it.
+// google or azurerm type has a row in the admission table, so every such
+// resource is also refused as unadmitted-type. A gcp or Azure fixture must
+// declare a google or azurerm resource to show its rule at all. The
+// fixture's own rule must still fire; only the named companion may fire
+// beside it.
 var limitsCompanionRules = map[string]Rule{
-	"gcp-label-count": RuleUnadmittedType,
+	"gcp-label-count":         RuleUnadmittedType,
+	"arm-tag-limit":           RuleUnadmittedType,
+	"policy-overwrite-at-key": RuleUnadmittedType,
 }
 
 // notYetEnforcedLimits is every live/e2e/limits directory whose

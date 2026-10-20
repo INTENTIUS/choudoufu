@@ -304,6 +304,8 @@ type siteData struct {
 	// its own tier-by-status cross tab, how each type comes back, and every
 	// type with its reason.
 	Google siteGoogle `json:"google"`
+	// Azure is GitHub issue #2119's Azure column: see [siteAzure].
+	Azure siteAzure `json:"azure"`
 }
 
 // siteGoogle is the Google substrate's site-rendered summary.
@@ -410,6 +412,7 @@ func buildSiteData(a Artifact, stamp string, pf pathFacts) siteData {
 	}
 	g.Paths = googleSitePaths(a, pf)
 	d.Google = g
+	d.Azure = buildSiteAzure(a.Azure)
 	return d
 }
 

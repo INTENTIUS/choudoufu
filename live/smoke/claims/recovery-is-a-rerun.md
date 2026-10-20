@@ -88,3 +88,7 @@ No GCP scenario is written yet, so the cell is open. The labels go out in
 the create call, so a resource an interrupted apply created carries its
 markers and binds on the rerun. The gauntlet's `day2_crash` stage is the
 expected proof once a GCP lane exists.
+
+## On Azure
+
+Open. The intended proof is the gauntlet's `day2_crash` stage on the `reference-azure` estate (the `azure` lane), which is built and has not been run.

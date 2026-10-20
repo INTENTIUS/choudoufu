@@ -87,3 +87,22 @@ sentinel and four bucket settings on opening and refuses a bucket that
 fails them. Its `BREAK=1` waives the wrong bucket's settings with
 `allow_insecure` and requires the refused apply to go through. It has no
 dated run yet, so the cell reads unproven.
+
+## On Azure
+
+### az-records-in-a-storage-account
+
+    just smoke az-records-in-a-storage-account
+    BREAK=1 just smoke az-records-in-a-storage-account
+
+record_store `"azurerm"` writes an estate's records to a storage account
+with versioning on, a previous-versions lifecycle rule and public access
+off, and each blob must carry the blob index tag `tofu-estate`. Four new
+estates must then be refused by name with no blob written: versioning off,
+no lifecycle rule, public access allowed, and a rule that deletes current
+records. `BREAK=1` removes the fences and waives all three with
+`allow_insecure`, and the same apply must go through and name each waiver.
+floci-az keeps none of the three settings (lex00/floci-az#8) and points
+blob calls at `core.windows.net` (lex00/floci-az#9) ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)), so it
+cannot pass there yet. It has no dated run yet, so the cell reads
+unproven.

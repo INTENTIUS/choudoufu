@@ -31,6 +31,17 @@ export FLOCI_GCP_IMAGE="${FLOCI_GCP_IMAGE:-$(cat "$ROOT/live/floci-gcp-image")}"
 FLOCI_GCP_PORT="${FLOCI_GCP_PORT:-0}"
 export FLOCI_PORT FLOCI_GCP_PORT
 
+# FLOCI_AZ_IMAGE is the Azure emulator's pin (#1120), the same role again:
+# lex00/floci-az by digest, read from live/floci-az-image. Exported on every
+# run, Azure or not, because docker compose interpolates every service in
+# the file, profile or no profile, and the floci-az service's image is
+# `:?`-required. FLOCI_AZ_PORT is exported here for the same reason
+# FLOCI_PORT's comment gives: 0 asks the kernel for a free port at bind
+# time, but only if compose can see it.
+export FLOCI_AZ_IMAGE="${FLOCI_AZ_IMAGE:-$(cat "$ROOT/live/floci-az-image")}"
+export FLOCI_AZ_PORT="${FLOCI_AZ_PORT:-0}"
+export FLOCI_PORT
+
 # The oracle's provider plugin cache. By default it is the named volume in
 # docker-compose.yml, mounted at /plugins. When the host exports
 # TF_PLUGIN_CACHE_DIR (claims-smoke.yml does, since #1646), `chdf init` on
@@ -563,6 +574,224 @@ for b in d.get('bindings',[]):
 d['bindings']=[b for b in d.get('bindings',[]) if b.get('members')]
 print(json.dumps(d))" "$2" "$3" <<< "$policy")" || return 1
   gcpl PUT "storage/v1/b/$1/iam" "$policy" >/dev/null
+}
+
+# azure_up stands up the Azure emulator for an Azure scenario (#1120 unit
+# 7): lex00/floci-az at the live/floci-az-image pin, as the floci-az
+# service of this run's own compose project, on a kernel-chosen port. It
+# waits for floci-az's /ready, fetches the CA its TLS listener was
+# generated with, proves one HTTPS read of /metadata/endpoints through that
+# CA, and then exports the environment both providers read
+# (azure_provider_env below), so a fixture's provider blocks need nothing
+# but `features {}`. live/FLOCI.md's Azure section says what the emulator
+# serves and what it does not.
+#
+# Built for #1120 and not yet booted by anyone: the first scenario that
+# calls this is its first run, and the maintainer's.
+#
+# AZURE_UP is set before the container is asked for, so a start that fails
+# half way still has its container removed by azure_down.
+AZURE_UP=0
+AZURE_HOST=""
+AZURE_ENDPOINT=""
+AZURE_CA_FILE=""
+FLOCI_AZ_READY_SECS="${FLOCI_AZ_READY_SECS:-90}"
+
+# The ids floci-az seeds: its default subscription
+# (services.arm.default-subscription-id) and default tenant (Entra's
+# default-tenant-id). The client id is any id: floci-az issues a token for
+# any client id and secret unless validate-client-credentials is set, and
+# accepts any bearer token on ARM.
+AZURE_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000001"
+AZURE_TENANT_ID="00000000-0000-0000-0000-000000000002"
+AZURE_CLIENT_ID="00000000-0000-0000-0000-000000000003"
+
+azure_up() {
+  AZURE_UP=1
+  logged compose-up-floci-az azure "docker compose up floci-az failed" \
+    -- "${COMPOSE[@]}" --profile azure up -d floci-az
+  local portlog
+  portlog="$(smoke_log_dir)/compose-port-floci-az.log"
+  FLOCI_AZ_PORT="$("${COMPOSE[@]}" --profile azure port floci-az 4577 2>"$portlog" | sed 's/.*://')"
+  [ -n "$FLOCI_AZ_PORT" ] || fail "azure" "could not resolve floci-az's published port; docker compose port said: $(tr '\n' ' ' < "$portlog")"
+  export FLOCI_AZ_PORT
+  # localhost, not 127.0.0.1: the generated certificate names localhost
+  # and *.localhost, and no IP the provider would dial by name.
+  AZURE_HOST="localhost:${FLOCI_AZ_PORT}"
+  AZURE_ENDPOINT="https://${AZURE_HOST}"
+  export AZURE_HOST AZURE_ENDPOINT
+
+  # Readiness is /ready and not /_floci/health: health answers as soon as
+  # the HTTP server is up, /ready only once every service has finished its
+  # startup work. The image is a JVM build, so this takes seconds, not
+  # milliseconds. Bounded by the wall clock and per probe (#1457): a probe
+  # that hangs cannot stretch the bound.
+  local deadline
+  deadline=$(( $(date +%s) + FLOCI_AZ_READY_SECS ))
+  until curl -fsS --max-time 2 "http://${AZURE_HOST}/ready" >/dev/null 2>&1; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      local upinfo state
+      upinfo="$(smoke_log_dir)/floci-az-container.log"
+      state="$("${COMPOSE[@]}" --profile azure ps -a --format '{{.State}} - {{.Status}}' floci-az 2>&1 | tr '\n' ';')"
+      "${COMPOSE[@]}" --profile azure logs --no-color --tail 200 floci-az > "$upinfo" 2>&1 || true
+      smoke_log_tail "$upinfo" "the floci-az container"
+      fail "azure" "floci-az never answered /ready on :${FLOCI_AZ_PORT} within ${FLOCI_AZ_READY_SECS}s; the container is [${state:-unknown}]. Its log is above, and whole in $upinfo. Raise the bound with FLOCI_AZ_READY_SECS=<seconds>."
+    fi
+    sleep 1
+  done
+
+  # The CA is generated at container start, so it is fetched per run and
+  # never committed. It is served over plain HTTP on the same port.
+  AZURE_CA_FILE="$SMOKE_WORKROOT/floci-az-ca.pem"
+  curl -fsS --max-time 10 "http://${AZURE_HOST}/_floci/tls-cert" -o "$AZURE_CA_FILE" 2>"$(smoke_log_dir)/floci-az-ca.err" \
+    || fail "azure" "could not fetch floci-az's CA from /_floci/tls-cert: $(cat "$(smoke_log_dir)/floci-az-ca.err")"
+  grep -q "BEGIN CERTIFICATE" "$AZURE_CA_FILE" \
+    || fail "azure" "/_floci/tls-cert answered without a PEM certificate, so TLS is off in the container: $(head -c 300 "$AZURE_CA_FILE")"
+  export AZURE_CA_FILE
+  azure_trust_bundle
+
+  # One HTTPS read through the CA, the read azurerm makes first. A failure
+  # here names the TLS path before any provider gets to.
+  curl -fsS --max-time 10 --cacert "$AZURE_CA_FILE" "${AZURE_ENDPOINT}/metadata/endpoints?api-version=2022-09-01" \
+    > "$(smoke_log_dir)/floci-az-metadata.json" 2>"$(smoke_log_dir)/floci-az-metadata.err" \
+    || fail "azure" "floci-az is ready but ${AZURE_ENDPOINT}/metadata/endpoints did not answer over TLS with its own CA: $(cat "$(smoke_log_dir)/floci-az-metadata.err")"
+
+  azure_provider_env
+  echo "  azure emulator up at $AZURE_ENDPOINT (compose project choudoufu-smoke-$SMOKE_ID, $FLOCI_AZ_IMAGE)"
+}
+
+# azure_trust_bundle makes the providers trust floci-az's CA. Go reads
+# SSL_CERT_FILE on Linux, where CI runs, and the bundle keeps the system
+# roots too, because the same process still downloads providers from the
+# public registry during init. macOS's Go ignores SSL_CERT_FILE and asks
+# the keychain, so there it says so and does not touch the keychain: the
+# operator trusts $AZURE_CA_FILE by hand, or runs the scenario on Linux.
+azure_trust_bundle() {
+  if [ "$(uname -s)" = "Darwin" ]; then
+    note "macOS: Go ignores SSL_CERT_FILE, so azurerm and azapi trust floci-az only once $AZURE_CA_FILE is in the keychain"
+    return 0
+  fi
+  local system="" f
+  for f in "${SSL_CERT_FILE:-}" /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/cert.pem; do
+    if [ -n "$f" ] && [ -s "$f" ]; then system="$f"; break; fi
+  done
+  [ -n "$system" ] || fail "azure" "found no system CA bundle to add floci-az's CA to; set SSL_CERT_FILE to one"
+  cat "$system" "$AZURE_CA_FILE" > "$SMOKE_WORKROOT/ca-bundle-with-floci-az.pem"
+  export SSL_CERT_FILE="$SMOKE_WORKROOT/ca-bundle-with-floci-az.pem"
+}
+
+# azure_provider_env exports what aims stock hashicorp/azurerm 5.10.0,
+# azure/azapi 2.13.0 and OpenTofu's stock azurerm backend at floci-az, each
+# read from that provider's source at the pin:
+#
+#   azurerm   ARM_METADATA_HOSTNAME: with metadata_host set it builds its
+#             whole environment from https://<host>/metadata/endpoints and
+#             ignores `environment` (internal/provider/provider.go).
+#   backend   ARM_METADATA_HOST, a different variable from the provider's
+#             (internal/backend/remote-state/azure/backend.go). A metadata
+#             host wins over ARM_ENVIRONMENT there too.
+#   azapi     no metadata host: ARM_ENVIRONMENT=custom plus the three
+#             endpoint variables, and instance discovery off, since the
+#             authority is not one Entra's discovery service knows.
+#
+# Credentials are a client secret floci-az does not check, and the Azure
+# CLI is turned off so a developer's own `az login` is never picked up.
+# Provider registration is off in both: floci-az answers the providers
+# listing with an empty list.
+azure_provider_env() {
+  export ARM_SUBSCRIPTION_ID="$AZURE_SUBSCRIPTION_ID"
+  export ARM_TENANT_ID="$AZURE_TENANT_ID"
+  export ARM_CLIENT_ID="$AZURE_CLIENT_ID"
+  export ARM_CLIENT_SECRET="floci-az-does-not-check-this"
+  export ARM_USE_CLI=false
+  export ARM_USE_MSI=false
+  export ARM_METADATA_HOSTNAME="$AZURE_HOST"
+  export ARM_METADATA_HOST="$AZURE_HOST"
+  export ARM_ENVIRONMENT=custom
+  export ARM_ACTIVE_DIRECTORY_AUTHORITY_HOST="$AZURE_ENDPOINT/"
+  export ARM_RESOURCE_MANAGER_ENDPOINT="$AZURE_ENDPOINT"
+  export ARM_RESOURCE_MANAGER_AUDIENCE="$AZURE_ENDPOINT/"
+  export ARM_DISABLE_INSTANCE_DISCOVERY=true
+  export ARM_RESOURCE_PROVIDER_REGISTRATIONS=none
+  export ARM_SKIP_PROVIDER_REGISTRATION=true
+  export ARM_DISABLE_TERRAFORM_PARTNER_ID=true
+}
+
+# azure_down removes the one container azure_up started, and its anonymous
+# /app/data volume (the image declares one, and stack_down's `down` keeps
+# volumes). The compose network goes with stack_down, which smoke.sh's
+# cleanup runs after this. Quiet for the reason stack_down gives.
+azure_down() {
+  [ "$AZURE_UP" = "1" ] || return 0
+  "${COMPOSE[@]}" --profile azure rm --stop --force -v floci-az >/dev/null 2>&1 || true
+  AZURE_UP=0
+}
+
+# arm is one ARM management-plane call against floci-az, the Azure
+# scenarios' out-of-band hand: what `az` would send, with no `az` on PATH
+# and no login. arm <METHOD> <path-with-api-version> [json-body] prints the
+# response body and fails (non-zero) on a non-2xx answer, so `|| fail`
+# after it names the call. floci-az accepts any bearer token on ARM
+# (live/FLOCI.md, Azure). Bounded per call like every other request a
+# scenario makes (#1457).
+ARM_REQUEST_SECS="${ARM_REQUEST_SECS:-30}"
+arm() {
+  local method="$1" path="$2" body="${3:-}"
+  local args=(-sS --fail-with-body --max-time "$ARM_REQUEST_SECS" --cacert "$AZURE_CA_FILE"
+    -X "$method" -H "Authorization: Bearer floci-az" -H "Content-Type: application/json")
+  [ -n "$body" ] && args+=(--data "$body")
+  curl "${args[@]}" "${AZURE_ENDPOINT}${path}"
+}
+
+# arm_tags <resource-id> <api-version> prints the resource's tags as one
+# JSON object, keys as ARM stored them. Read through ARM, not through
+# choudoufu, so a marker check here is a check of what the cloud holds.
+arm_tags() {
+  arm GET "$1?api-version=$2" | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin).get("tags") or {}, sort_keys=True))'
+}
+
+# azure_terraform_block <estate> [record-store-hcl] prints an Azure
+# fixture's terraform block and its two provider blocks: azurerm and azapi
+# pinned exactly to live/oracle-versions.json's azurerm_provider_version and
+# azapi_provider_version (#1122's pins), a live block for <estate>, and the
+# record store given (record_store "local" when none is). The subscription
+# is stated in the provider block because identity reads it from there,
+# the way AWS reads its region (#1120's corrections); everything else the
+# providers need is azure_provider_env's.
+azure_terraform_block() {
+  local estate="$1" store="${2:-}" azurerm_pin azapi_pin
+  azurerm_pin="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["azurerm_provider_version"])' "$ROOT/live/oracle-versions.json")" || return 1
+  azapi_pin="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["azapi_provider_version"])' "$ROOT/live/oracle-versions.json")" || return 1
+  [ -n "$store" ] || store='record_store "local" {
+      path = ".tofu-records"
+    }'
+  cat <<EOF
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "= ${azurerm_pin}"
+    }
+    azapi = {
+      source  = "azure/azapi"
+      version = "= ${azapi_pin}"
+    }
+  }
+  live {
+    estate = "${estate}"
+    ${store}
+  }
+}
+
+provider "azurerm" {
+  features {}
+  subscription_id = "${AZURE_SUBSCRIPTION_ID}"
+}
+
+provider "azapi" {
+  subscription_id = "${AZURE_SUBSCRIPTION_ID}"
+}
+EOF
 }
 
 # kc is kubectl against the run's own cluster, and kc_as is the same under

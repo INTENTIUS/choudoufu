@@ -19,7 +19,7 @@
     "folded 27 of them into the 16 promises left; a retired entry with demo: true is a scenario that is now a demo instead, and one with covered_by had its scenario deleted because the named proof (a scenario registered in some cell, or \"<estate>:<stage id>\") shows the same thing. One with merged_into is a whole claim whose statement nested in the named claim's: its proofs moved into that claim's cells, and it names no provider.",
     "real_service: true marks a proof whose scenario cannot run against the emulator honestly and runs against that provider's real account instead. It is maintainer-run (SMOKE_REAL_AWS=1 for aws, the only provider this is proven true for today). Since #2018 no workflow runs any claim scenario, so every proof, real_service or not, is proven by a dated evidence file from a hand run (live/proven_cell_ci_test.go). live/smoke_claims_test.go holds the flag to the scenario's own refusal. The field is per-proof rather than per-provider (#1598), so a second real-account provider sets real_service on its own proof instead of the schema growing a provider-named field.",
     "needs_emulator: true marks a proof whose scenario runs on one substrate and keeps its records on another - today a Kubernetes proof that also brings up the pinned floci emulator for an S3-backed record store, on top of kind and kubectl. An aws proof is never asked to carry it: there the emulator IS the substrate, which the column already says.",
-    "Scenario file names may carry a provider-specific prefix for readability (k8s- for a Kubernetes proof); it is a naming convention only, kept because renaming the files would be noisy for no gain. No code may read a scenario's provider, or whether it needs_emulator or is real_service, off that prefix - the provider a scenario proves is always the providers.<name> key that names its cell, never its file name (#1598, #1593)."
+    "Scenario file names may carry a provider-specific prefix for readability (k8s- for a Kubernetes proof, az- for an Azure one); it is a naming convention only, kept because renaming the files would be noisy for no gain. No code may read a scenario's provider, or whether it needs_emulator or is real_service, off that prefix - the provider a scenario proves is always the providers.<name> key that names its cell, never its file name (#1598, #1593)."
   ],
   "themes": {
     "adopt": "Adopt live infrastructure without state surgery",
@@ -31,7 +31,8 @@
   "provider_order": [
     "aws",
     "kubernetes",
-    "gcp"
+    "gcp",
+    "azure"
   ],
   "retired": [
     {
@@ -257,7 +258,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -359,6 +361,18 @@
             }
           ],
           "note": "Unproven until a dated run: gcp-no-silent-orphans.sh has no evidence file yet. The sweep is one Cloud Asset Inventory search per project the estate's google resources name, filtered on the estate label (#1119), which floci-gcp does not serve yet (lex00/floci-gcp#7). A deleted block's bucket is proposed for removal; a labelled topic whose tofu-address label encodes nothing declared is named in the plan's warning and never planned, because the label is matched and never decoded. Controller-held objects are excluded first. The network skeleton carries no label, so only its record proposes its removal."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-no-silent-orphans.sh",
+              "command": "just smoke az-no-silent-orphans",
+              "minutes": 4,
+              "break_mode": "BREAK=1 strips the orphan's tofu-estate tag with an ARM PATCH before its block is deleted and requires the replan to propose nothing, because without that control the destroy in the ordinary run would read the same if the sweep destroyed by something other than the tag"
+            }
+          ],
+          "note": "Unproven until a dated run: az-no-silent-orphans.sh has no evidence file yet. A resource group, a VNet and a user-assigned identity are applied; the identity's block is deleted, and the next plan must propose exactly that destroy, found by its tofu-estate tag through the Resource Graph sweep, while an identity tagged for another estate at the same address in the same group is left alone. The sweep is one Resource Graph query per subscription, and the sweep's query uses union, mv-expand and bag_keys, which floci-az's KQL subset refuses with 400 InvalidQuery, although Resource Graph itself is served there since 30000b0 (live/FLOCI.md, Azure)."
         }
       }
     },
@@ -370,7 +384,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -432,6 +447,10 @@
         "gcp": {
           "status": "open",
           "note": "Open: no GCP scenario proves it. gcp-records-in-a-bucket.sh exercises the gcs record store for claim 29 but does not assert that two runs settle without a lock. The store writes with ifGenerationMatch and holds no lock (#2122); a scenario racing two applies on one bucket would prove it, as k8s-records-in-the-cluster does on Kubernetes."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). record_store \"azurerm\" creates a blob with If-None-Match: * and updates and deletes it with If-Match on its ETag, and takes no lease (#1120, examples/record-store-azurerm/CONTRACT.md); a race of two writers on one record, the shape claim 29's Kubernetes scenario measures in its step 10, has not been written for floci-az, which honours both conditions on Put Blob and Delete Blob and, since 30000b0, answers a create over an existing blob 409 BlobAlreadyExists with quoted 0x ETags, as Azure does; not yet run."
         }
       }
     },
@@ -443,7 +462,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -518,6 +538,10 @@
         "gcp": {
           "status": "open",
           "note": "Open: no GCP scenario is written. The plan's reads go through hashicorp/google, whose labels and terraform_labels are non-authoritative on read; a plan without the cache mirrors the markers out of effective_labels, so a fresh cache, a stale one and none should give one plan, which is unmeasured."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). The three-way cache comparison and the -refresh=false plan the AWS and Kubernetes proofs run have not been written for Azure. On floci-az a plan with a live block reaches the Resource Graph sweep, and the sweep's query uses union, mv-expand and bag_keys, which floci-az's KQL subset refuses with 400 InvalidQuery, although Resource Graph itself is served there since 30000b0 (live/FLOCI.md, Azure)."
         }
       }
     },
@@ -529,7 +553,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -566,6 +591,10 @@
         "gcp": {
           "status": "open",
           "note": "Open: no GCP scenario is written. The labels go out in the create call, so a resource an interrupted apply created carries its markers and binds on the rerun by its label; the gauntlet's day2_crash stage is the expected proof once a GCP lane exists."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). The gauntlet's day2_crash stage on the reference-azure estate (live/gauntlet/estates.json, the azure lane) is the intended proof, as reference-k8s:day2_crash is on Kubernetes; reference-azure is built and has not been run, so it has no stage to cite."
         }
       }
     },
@@ -577,7 +606,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -639,6 +669,10 @@
         "gcp": {
           "status": "open",
           "note": "Open: no GCP scenario is written. The exit is part of the ruling (#1121): drop the live block, keep the cache file, and stock OpenTofu with hashicorp/google 8.6.0 carries on; the markers are ordinary labels stock ignores."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). The round trip through stock - stock applies, live-import marks every resource with its two ARM tags, the state file is dropped, the cache goes back to stock - is what the reference-azure estate's migrate and cold_deploy stages measure once the maintainer runs it; no smoke scenario is written."
         }
       }
     },
@@ -650,7 +684,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -735,6 +770,18 @@
             }
           ],
           "note": "Unproven until a dated run: gcp-greenfield.sh has no evidence file yet. The marker is labels in the resource's own labels map: tofu-estate, and tofu-address as a fixed-length encoding of the address that is matched and never decoded (live/MARKERS.md, \"GCP: labels\"). The scenario reads both back with the REST API and computes the expected encoding. The network and the service account have no labels map and bind by their configured name and project. The listing needs Cloud Asset search (lex00/floci-gcp#7) and labels served back as written (lex00/floci-gcp#6). A carve by relabel waits on live-mv's GCP rewrite."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-identity-is-a-tag.sh",
+              "command": "just smoke az-identity-is-a-tag",
+              "minutes": 4,
+              "break_mode": "BREAK=1 strips tofu-estate from the VNet with an ARM PATCH and requires the default replan to refuse it by name (\"Unmarked live object at the declared id would be overwritten\") rather than PUT over it, and under policy { declared_untagged = \"adopt\" } the apply to write the tag back, read through ARM"
+            }
+          ],
+          "note": "Unproven until a dated run: az-identity-is-a-tag.sh has no evidence file yet. A resource group, a VNet and a user-assigned identity through azurerm and a second identity through azapi_resource are applied; tofu-estate and tofu-address are read back through ARM on both providers' objects, and the replan must be empty with no state file and with the cache deleted. A carve between estates is one tag write and is not in the scenario. floci-az keeps tags on every type used, but every plan reaches the Resource Graph sweep, and the sweep's query uses union, mv-expand and bag_keys, which floci-az's KQL subset refuses with 400 InvalidQuery, although Resource Graph itself is served there since 30000b0 (live/FLOCI.md, Azure)."
         }
       }
     },
@@ -746,7 +793,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -854,6 +902,18 @@
             }
           ],
           "note": "Unproven until a dated run, and restated once one lands: an IAM condition cannot read a GCP label, so the fence is the project (#1121): one estate per project, granted by an ordinary project IAM binding (live/gcp/estate-grant.sh), covering reads and writes per principal at project granularity. gcp-the-label-is-the-boundary.sh installs that grant for two estates in two projects with floci-gcp's IAM enforcement on and shows a principal's write into the other project refused, through choudoufu and through a plain REST call; it has no dated run yet. The emulator evaluates Cloud Storage, Pub/Sub and Resource Manager and not Compute, so the writes measured are Cloud Storage's. Two estates sharing one project are not fenced from each other per principal, nothing finer than an estate can be granted, and a folder or organization binding passes the fence. Resource Manager tag bindings, which a condition can match, are ruled later."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-the-tag-is-the-boundary.sh",
+              "command": "just smoke az-the-tag-is-the-boundary",
+              "minutes": 5,
+              "break_mode": "BREAK=1 deletes the two Policy assignments and requires the three writes the fence refused to land, because without that control the refusals would read the same if they came from something other than the policy"
+            }
+          ],
+          "note": "Unproven until a dated run: az-the-tag-is-the-boundary.sh has no evidence file yet. The two Policy definitions of live/azure/estate-boundary.json are installed at the subscription and assigned at Alice's resource group; Bob's apply into that group (tofu-estate=smoke-az-bob), an untagged ARM create and an ARM delete of Alice's identity must each be refused by Policy. Policy fences writes only: unlike an IAM condition on AWS it does not fence reads, and it cannot name an address. Policy deny and denyAction evaluation and role assignments with enforcement are served by floci-az since 30000b0, and the compose service turns both on; not yet run. The RBAC half (live/azure/estate-grant.json) is not in the scenario yet, and for the plans the sweep's query uses union, mv-expand and bag_keys, which floci-az's KQL subset refuses with 400 InvalidQuery, although Resource Graph itself is served there since 30000b0 (live/FLOCI.md, Azure)."
         }
       }
     },
@@ -865,7 +925,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -910,6 +971,10 @@
         "gcp": {
           "status": "open",
           "note": "Open: no GCP scenario is written. The sweep's cost is one Cloud Asset Inventory search per project, paged over the estate's own hits, so another estate's resources in other projects cost nothing; the asset index answering for this estate only is unmeasured against real GCP (floci-gcp's search is lex00/floci-gcp#7)."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). A plan's sweep is one Resource Graph query per subscription the estate's resources resolve to, filtered on the tofu-estate tag, so its cost should not grow with foreign resources; nothing counts it. Resource Graph is served by floci-az since 30000b0, not yet run, and its KQL subset refuses the sweep's union, mv-expand and bag_keys."
         }
       }
     },
@@ -921,7 +986,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -945,6 +1011,10 @@
         "gcp": {
           "status": "open",
           "note": "Open: no GCP scenario is written. The marker sweep stays estate-wide on a cone plan, as on the other substrates."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). The cone plan's per-object reads are provider reads and substrate-neutral; the sweep stays estate-wide on a cone plan, which on Azure is the Resource Graph query: served by floci-az since 30000b0, not yet run, and its KQL subset refuses the sweep's union, mv-expand and bag_keys."
         }
       }
     },
@@ -956,7 +1026,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -1017,6 +1088,10 @@
         "gcp": {
           "status": "open",
           "note": "Open: no GCP scenario is written. A saved plan is re-planned against the live system at apply on every substrate; nothing about it is GCP-specific, but no run has shown it on GCP."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). The saved-plan approval check is substrate-neutral; the gauntlet's plan_approval stage on reference-azure is the intended proof once the maintainer runs it. Azure Policy's deny is evaluated by ARM at apply time, the role the server's refusal plays in the AWS and Kubernetes proofs; floci-az evaluates deny and denyAction since 30000b0 once FLOCI_AZ_SERVICES_POLICY_EVALUATE is set, which the smoke compose service does and gauntlet_floci_az_up does not yet; not yet run."
         }
       }
     },
@@ -1028,7 +1103,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -1114,6 +1190,10 @@
         "gcp": {
           "status": "open",
           "note": "Open: no GCP scenario proves it. gcp-records-in-a-bucket.sh exercises the store for claim 29 but does not assert key isolation. One bucket per estate is the default, because GCS cannot fence a listing: a principal that may list a bucket two estates share lists both estates' record keys, so on a shared bucket an estate's reach is its own records for get and put and every estate's keys for list. The store's list_isolation check warns by name when it can list another estate's keys."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). record_store \"azurerm\" keeps an estate's records under its own three prefixes with trailing slashes and tags every blob with tofu-estate in the same Put Blob, and live/azure/record-store-abac.condition is the read fence on that tag (#1120); the condition is unmeasured: floci-az serves role assignments since 30000b0 and stores their ABAC conditions, but evaluates no condition and no data action."
         }
       }
     },
@@ -1125,7 +1205,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -1209,6 +1290,18 @@
             }
           ],
           "note": "Unproven until a dated run: gcp-records-in-a-bucket.sh has no evidence file yet. record_store \"gcs\" (#2122) writes with ifGenerationMatch, checks its sentinel on opening and refuses a bucket without Object Versioning, a noncurrent-version lifecycle rule or enforced public access prevention, each by name, before anything is created; a rule that deletes live records is refused under its own headline and allow_insecure does not waive it."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-records-in-a-storage-account.sh",
+              "command": "just smoke az-records-in-a-storage-account",
+              "minutes": 6,
+              "break_mode": "BREAK=1 removes the fences, waives all three with allow_insecure, and requires the same apply to go through and name each waiver, because without that control the refusals would read the same if they were some other failure of the account"
+            }
+          ],
+          "note": "Unproven until a dated run: az-records-in-a-storage-account.sh has no evidence file yet. record_store \"azurerm\" writes an estate's records to a storage account with versioning on, a previous-versions lifecycle rule and public access off, and each blob must carry the blob index tag tofu-estate; four new estates must then be refused by name with no blob written: versioning off, no lifecycle rule, public access allowed, and a rule that deletes current records. The three settings, tags on storage accounts and a configurable storage suffix, which azure_up sets so the store's blob calls stay on the emulator, are served by floci-az since 30000b0, not yet run; the settings are stored and read back, and no blob version is made. For the plans the sweep's query uses union, mv-expand and bag_keys, which floci-az's KQL subset refuses with 400 InvalidQuery, although Resource Graph itself is served there since 30000b0 (live/FLOCI.md, Azure)."
         }
       }
     },
@@ -1220,7 +1313,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -1261,6 +1355,10 @@
         "gcp": {
           "status": "open",
           "note": "Open: no GCP scenario is written. A google_secret_manager_secret_version's secret_data is returned by the provider's read, so it is not residue and stays out of the record (live/SECRETS.md); unmeasured on GCP."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). Under strict { secrets = \"refuse\" } the record and the cache are substrate-neutral; no scenario scans what an Azure estate keeps."
         }
       }
     },
@@ -1272,7 +1370,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -1315,6 +1414,10 @@
         "gcp": {
           "status": "open",
           "note": "Open: no GCP scenario is written. ignore_changes on a label key of your own, labels[\"owner\"], is admitted, and ignore_changes over the labels map or a marker key is refused by lint."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). azurerm has no provider-level ignore_tags, so the Azure form of the promise is a lifecycle ignore_changes on tags, a different declaration from the AWS proof's; neither is measured on floci-az."
         }
       }
     },
@@ -1326,7 +1429,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -1348,6 +1452,18 @@
             }
           ],
           "note": "Unproven until a dated run: gcp-a-derived-name-needs-no-record.sh has no evidence file yet. A google_compute_network and a google_compute_firewall, neither with a labels argument, are applied; the record store and the state cache are deleted; and the plan must read No changes. from the emulator and the configuration alone. Both types are client-named: project and name are the whole identity (live/READINESS.md, GCP section). Compute verify on floci-gcp is lex00/floci-gcp#5."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-a-derived-name-needs-no-record.sh",
+              "command": "just smoke az-a-derived-name-needs-no-record",
+              "minutes": 3,
+              "break_mode": "BREAK=1 renames the azurerm subnet in the configuration after the record store and the cache are deleted, and requires the plan to propose exactly one create at azurerm_subnet.app and leave the live subnet alone, because without that control an empty plan would read the same if binding ignored the derived name"
+            }
+          ],
+          "note": "Unproven until a dated run: az-a-derived-name-needs-no-record.sh has no evidence file yet. A tagged VNet and two subnets, which take no ARM tags, one through azurerm_subnet and one through azapi_resource, are applied; the record store and the state cache are deleted; and the plan must read No changes. from the emulator and the configuration alone. Both are declaration-carried: the ARM id is rebuilt from resource_group_name, virtual_network_name and name, or from parent_id, type and name, with the subscription from the provider block (live/READINESS.md, Azure). Every plan's sweep is a Resource Graph query, and the sweep's query uses union, mv-expand and bag_keys, which floci-az's KQL subset refuses with 400 InvalidQuery, although Resource Graph itself is served there since 30000b0 (live/FLOCI.md, Azure)."
         }
       }
     },
@@ -1358,7 +1474,8 @@
       "theme": "adopt",
       "substrate": [
         "aws",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -1380,6 +1497,18 @@
             }
           ],
           "note": "Unproven until a dated run: gcp-a-parent-proves-no-child.sh has no evidence file yet. Two children are deleted out of band: a subnetwork under an unlabelled network, and a google_storage_bucket_iam_member under a bucket that carries the estate's labels. The next plan must propose exactly the two creates while both parents stand and the bucket keeps its labels; the apply puts both back. The emulator serving a bucket's IAM policy at storage/v1/b/<bucket>/iam is assumed, not confirmed from its docs."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-a-parent-proves-no-child.sh",
+              "command": "just smoke az-a-parent-proves-no-child",
+              "minutes": 3,
+              "break_mode": "BREAK=1 runs the identical out-of-band deletes and holds the plan to what a plan inferring the children from their parents would read, No changes.; that assertion must fail, and the control passes only when the plan instead proposes the two creates, because without it the creates would read the same if every plan proposed them"
+            }
+          ],
+          "note": "Unproven until a dated run: az-a-parent-proves-no-child.sh has no evidence file yet. Two children are deleted out of band with ARM DELETEs: an azurerm_subnet under a VNet and an azurerm_network_security_rule under a network security group, both parents tagged for the estate. The next plan must propose exactly the two creates while both parents stand and keep tofu-estate; the apply puts both back. Every plan's sweep is a Resource Graph query, and the sweep's query uses union, mv-expand and bag_keys, which floci-az's KQL subset refuses with 400 InvalidQuery, although Resource Graph itself is served there since 30000b0 (live/FLOCI.md, Azure); that floci-az serves security rules as children of a security group is assumed."
         }
       }
     },
@@ -1391,7 +1520,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -1413,6 +1543,18 @@
             }
           ],
           "note": "Unproven until a dated run: gcp-a-removed-derived-block-is-destroyed.sh has no evidence file yet. A deleted firewall block's record proposes its destroy, since the Cloud Asset sweep filters on the estate label and the firewall carries none. A subnetwork whose record and block go together is left live; the plan lists the unlabelled types it still knows as TYPE_NOT_TAGGABLE under Not swept for removal, and live/RECOVERY.md documents restoring the record's noncurrent version."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-a-removed-derived-block-is-destroyed.sh",
+              "command": "just smoke az-a-removed-derived-block-is-destroyed",
+              "minutes": 4,
+              "break_mode": "BREAK=1 moves the security rules' records out of the store before the ssh rule's block is deleted and requires the plan to propose no destroy of it, because without that control the destroy in the ordinary run would read the same if it came from anything but the record"
+            }
+          ],
+          "note": "Unproven until a dated run: az-a-removed-derived-block-is-destroyed.sh has no evidence file yet. A deleted azurerm_network_security_rule block's record proposes its destroy, since the Resource Graph sweep filters on the estate tag and the rule carries none; the removal leg rebuilds the ARM id from the record. An azurerm_subnet whose record and block go together is left live; the plan lists the untaggable types it still knows as TYPE_NOT_TAGGABLE under Not swept for removal, and live/RECOVERY.md documents restoring the record blob's previous version. Untaggable azapi_resource types are not reached by the leg yet. Every plan's sweep is a Resource Graph query, and the sweep's query uses union, mv-expand and bag_keys, which floci-az's KQL subset refuses with 400 InvalidQuery, although Resource Graph itself is served there since 30000b0 (live/FLOCI.md, Azure)."
         }
       }
     },
@@ -1423,7 +1565,8 @@
       "theme": "operate",
       "substrate": [
         "aws",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -1445,6 +1588,18 @@
             }
           ],
           "note": "Unproven until a dated run: gcp-a-markerless-type-is-held-by-its-record.sh has no evidence file yet. google_secret_manager_secret_version, in the google markerless list of live/readiness.json, is planned and applied under a live block, its identity (secret and version) written to the estate's record, and the plan with no cache reads No changes. from that record. The refusal half is shown with no record store rather than with a type whose identity a record cannot carry: measured on 2026-10-20 against the real hashicorp/google and google-beta 8.6.0 schemas, every member of identity.GoogleMarkerlessTypes the provider serves has identity.LocatedType true. That floci-gcp serves Secret Manager under <endpoint>/v1/ is assumed."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-a-markerless-type-is-held-by-its-record.sh",
+              "command": "just smoke az-a-markerless-type-is-held-by-its-record",
+              "minutes": 3,
+              "break_mode": "BREAK=1 writes the same management group into a root with no live block, so there is no record store to hold its minted name, and requires live-check to refuse azurerm_management_group.minted by name (\"Unmarked apply of a marker-only resource\", NAME_OMITTED), because without that control the admission in the ordinary run would read the same if the type were admitted for some reason other than the record"
+            }
+          ],
+          "note": "Unproven until a dated run: az-a-markerless-type-is-held-by-its-record.sh has no evidence file yet. azurerm_management_group, one of the seven admitted untaggable azurerm types whose name is Optional and Computed at 5.10.0, is applied with its name left out, so azurerm mints a GUID; under a live block the instance is record-located, the minted name written to the estate's record, and the plan with no cache reads No changes. from that record. No Azure type is on the markerless list, so the refusal half is shown with no record store. floci-az's generic ARM store, served since 30000b0, keeps subscription-scoped ids only, so the management group's tenant-scoped id still answers 404 there (not filed), and for the plans the sweep's query uses union, mv-expand and bag_keys, which floci-az's KQL subset refuses with 400 InvalidQuery, although Resource Graph itself is served there since 30000b0 (live/FLOCI.md, Azure); the BREAK arm reads the configuration offline and needs neither."
         }
       }
     },
@@ -1456,7 +1611,8 @@
       "substrate": [
         "aws",
         "kubernetes",
-        "gcp"
+        "gcp",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -1478,6 +1634,18 @@
             }
           ],
           "note": "Unproven until a dated run: gcp-the-fence-gap-is-as-stated.sh has no evidence file yet. Measured on google_storage_bucket_iam_member with the emulator's IAM evaluation on. A principal granted by live/gcp/estate-grant.sh creates one in its estate's project and is refused rewriting one in another project; a second estate's principal granted on the same project rewrites it unopposed, which is the project-only row of live/MARKERS.md, \"What a GCP grant cannot reach\". The emulator does not evaluate Compute, so a firewall is not the type measured."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-the-fence-gap-is-as-stated.sh",
+              "command": "just smoke az-the-fence-gap-is-as-stated",
+              "minutes": 5,
+              "break_mode": "BREAK=1 deletes the two Policy assignments after another estate's tagged create in Alice's group was refused, and requires that create to land, because without that control the subnet writes going through would read the same if no Policy had been in force"
+            }
+          ],
+          "note": "Unproven until a dated run: az-the-fence-gap-is-as-stated.sh has no evidence file yet. Measured on azurerm_subnet with live/azure/estate-boundary.json assigned at Alice's resource group. Another estate's tagged create there is refused by Policy, while the same estate creates a subnet in Alice's VNet unopposed and an ARM delete of Alice's subnet goes through, which is the Policy half of live/MARKERS.md, \"What the Azure grant cannot reach\"; Alice's next plan proposes her subnet back. The RBAC half, which is what fences a subnet, is not in the scenario yet; role assignments with enforcement and Policy evaluation are served by floci-az since 30000b0, not yet run. floci-az's mode: Indexed skips only resource groups, where Azure skips every type without tags, so its marker guard denies the untagged subnet create this claim says goes through, and that step is expected to fail there for the emulator's reason (not filed). For the plans the sweep's query uses union, mv-expand and bag_keys, which floci-az's KQL subset refuses with 400 InvalidQuery, although Resource Graph itself is served there since 30000b0 (live/FLOCI.md, Azure)."
         }
       }
     }

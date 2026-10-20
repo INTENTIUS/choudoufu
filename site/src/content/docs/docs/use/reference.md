@@ -46,17 +46,19 @@ from the cache; `"full"` reads everything.
 
 ## Blocks
 
-`record_store` takes the label `"local"`, `"s3"` or `"kubernetes"`.
+`record_store` takes the label `"local"`, `"s3"`, `"kubernetes"` or `"azurerm"`.
 
 | Argument | Store | Meaning |
 |---|---|---|
 | `path` | `local` | Records directory |
 | `bucket`, `region`, `bucket_owner` | `s3` | The bucket, its region and owning account |
-| `key_prefix` | `s3`, `kubernetes` | Replaces `tofu-records/<estate>/` |
+| `key_prefix` | `s3`, `kubernetes`, `azurerm` | Replaces `tofu-records/<estate>/` |
 | `namespace` | `kubernetes` | Defaults to `tofu-records-<estate>` |
 | `host`, `config_path`, `exec` and the rest | `kubernetes` | As in stock's `kubernetes` backend |
 | `control_plane` | `kubernetes` | `"eks"`, `"gke"` or `"aks"`, to check encryption at rest |
-| `allow_insecure` | `s3`, `kubernetes` | Checks this estate waives, by name |
+| `storage_account_name`, `container_name`, `resource_group_name` | `azurerm` | The container and the account's group, all required |
+| `subscription_id`, `use_azuread_auth` and the rest | `azurerm` | As in stock's `azurerm` backend |
+| `allow_insecure` | `s3`, `kubernetes`, `azurerm` | Checks this estate waives, by name |
 
 `policy` sets a verb for each declared or undeclared, tagged or untagged case,
 such as `undeclared_tagged`. It also takes `tag_key`, `tag_value` and a delete

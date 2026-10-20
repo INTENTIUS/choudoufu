@@ -27,6 +27,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/check"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/dataread"
@@ -1816,6 +1817,7 @@ func liveDiscoverOne(ctx context.Context, config *configs.Config, resolutions []
 	diags = diags.Append(legDiags)
 	req.Sweepers = legs
 	req.Sweep = sweep
+	req.RecordRemoval = known && recordRemovalLegs[sub.Sweep()]
 
 	// The Cloud Control fallback (issue #47): a type with no native provider
 	// list resource can still be enumerated when its mapped CFN type is
@@ -3436,6 +3438,13 @@ func liveTargetScope(ctx context.Context, tfCtx *tofu.Context, config *configs.C
 // cannot substitute one cannot see that.
 func liveResolve(ctx context.Context, config *configs.Config, provs projection.Providers, resourceSchemas map[string]providers.Schema, dataResults map[string]cty.Value, scope identity.Scope) (*identity.Result, tfdiags.Diagnostics) {
 	ictx := identity.Context{
+		// GitHub issue #2133, finding 4: the subscription an azurerm or
+		// azapi block that names none is configured with, read by the same
+		// function the Resource Graph sweep's environment fallback is
+		// ([projectionProviders.resourceGraphClientFor], through
+		// azsweep.Attrs.WithEnv), so identity and the sweep cannot
+		// disagree about it.
+		Cloud:       identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv)},
 		Schemas:     resourceSchemas,
 		DataResults: dataResults,
 		// GitHub issue #352, and nil for an untargeted run. See
@@ -3945,6 +3954,14 @@ type projectionProviders struct {
 	// and a cluster that cannot be reached must not be re-dialled once per
 	// custom resource in the state file. See live_import_kubernetes.go.
 	markerPatchers map[string]labelPatcher
+
+	// resourceGraphClients is the Resource Graph sweep's client
+	// ([substrate.SweepResourceGraph]) per azurerm or azapi provider
+	// configuration, with the subscription its block names (GitHub issue
+	// #1120): every pass's leg covers every block's subscription, so each
+	// client is built once and kept. Keyed by [providerCacheKey]. See
+	// live_plan_resourcegraph.go.
+	resourceGraphClients map[string]resourceGraphClient
 }
 
 var _ projection.Providers = (*projectionProviders)(nil)
@@ -4685,6 +4702,16 @@ var sweepLegBuilders = map[substrate.Sweep]sweepLegBuilder{
 		leg, diags := p.assetSearchLeg(ctx, sub, addr)
 		return leg, true, diags
 	},
+	// The Azure leg (GitHub issue #1120): one Resource Graph query per
+	// subscription the estate's resources resolve to, through clients built
+	// from the azurerm and azapi provider blocks' own connection arguments
+	// (live_plan_resourcegraph.go). Like the Kubernetes leg it is the pass's
+	// whole sweep: the AWS loops' admission-table universe is nothing an
+	// azurerm provider handle can list.
+	substrate.SweepResourceGraph: func(ctx context.Context, p *projectionProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
+		leg, diags := p.resourceGraphLeg(ctx, sub, addr)
+		return leg, false, diags
+	},
 }
 
 // assetSearchLeg builds the GCP leg through the family's own
@@ -4735,6 +4762,20 @@ func googleUnlabelledTypes(schema providers.ProviderSchema) map[string]bool {
 		}
 	}
 	return out
+}
+
+// recordRemovalLegs are the sweeps whose pass runs the record-store
+// removal leg without [discovery.Request.Sweep] (GitHub issue #2119). The
+// tagging-index sweep needs no entry: its builder turns Sweep on, which
+// runs every removal leg. The Resource Graph sweep lists only tagged
+// objects, so an untaggable azurerm object whose block was removed is
+// found by its record or not at all, as an untaggable AWS one is; the
+// leg is AWS's, run alone. The label-list sweep has no entry: every
+// admitted Kubernetes kind carries the label (live/readiness.json counts
+// no untaggable one), so the label sweep finds a removed block's object
+// itself.
+var recordRemovalLegs = map[substrate.Sweep]bool{
+	substrate.SweepResourceGraph: true,
 }
 
 // liveSweepLegs is one provider configuration's sweep legs and its

@@ -24,6 +24,7 @@
       "oracle": "This stage is the stock run. Its state file and its cloud are the baseline every later stage is compared to. A failure here is stock failing, not choudoufu, and is recorded as such. A declared pre-apply is performed by the stock oracle too, from the same list - a crossing where one side got a targeted first apply and the other did not would not be comparing like with like.",
       "break": "Not applicable; this stage has nothing of choudoufu's to break.",
       "substrates": {
+        "floci-az": "Stock applies the unmodified configuration against floci-az, started from live/floci-az-image with the ARM_* environment aimed at it (gauntlet_floci_az_up in live/e2e/lib/gauntlet.sh); ARM reads of what it created are the baseline. floci-az drops tags on storage accounts and answers their PATCH with 405 (live/FLOCI.md, Azure), so an estate's storage account fails the stages that write its marker until the fork keeps them.",
         "floci-eks": "Stock applies the unmodified configuration against the emulator, and floci's EKS real mode starts a k3s container for each aws_eks_cluster. The configuration's own provider \"kubernetes\" block reaches that cluster exactly as written, with no delta repointing it, so every later stage measures the block under test. The AWS resources, and the cluster's objects read with kubectl inside the k3s container, are the baseline. k3s stands in for the control plane and nothing behind it: IRSA, EKS Pod Identity, the VPC CNI, EBS CSI volume claims, access-entry authorization and managed add-ons are not emulated, and are measured only by the estate's real-AWS live-cert cycle.",
         "floci-gcp": "Stock applies the unmodified configuration against a floci-gcp emulator the script started for this run, with every hashicorp/google endpoint the configuration reaches pointed at it; the emulator's objects, read with its REST API, are the baseline. A second emulator holds the stock oracle. Two emulator gaps bear on the stages below: labels must come back exactly as written (lex00/floci-gcp#6), and the sweep needs Cloud Asset search (lex00/floci-gcp#7). A stage that fails on either says so in its own verdict.",
         "kind": "Stock applies the unmodified configuration against the kind cluster the script created for this run; the cluster's objects, read with kubectl, are the baseline."
@@ -40,6 +41,7 @@
       "oracle": "The stock state file's instance list. Every address in it must be accounted for by name.",
       "break": "Remove one instance from the expected count; the assertion on the summary line must fail.",
       "substrates": {
+        "floci-az": "live-import writes tofu-estate and tofu-address as ARM tags: azurerm's tags argument, or azapi's top-level tags (body.tags when the configuration already puts tags there). Zero skipped means every state entry was tagged or recorded. An azurerm type on the identity-schema route takes its subscription from the provider block.",
         "floci-eks": "One state file covers both legs: an AWS entry is bound as on floci, a Kubernetes entry as on kind, its tofu-estate label read with kubectl inside the k3s container. The provider block reads the cluster's endpoint and credential from the estate's own resources, so this stage also measures the provider-configuration fixpoint (#1113): a cluster leg reported unreachable while the cluster exists is a failure, never a skip.",
         "floci-gcp": "Each state entry of a type with a labels map is bound by a labels-only plan writing tofu-estate and the encoded tofu-address label (#1121); an entry of a type with no labels argument (network, subnetwork, firewall, service account) is recorded, its identity recomputed from configuration. Zero skipped means every entry was stamped or recorded, and the labels are read back with the REST API.",
         "kind": "The stock state file names each object by namespace and name, and a bound object carries the tofu-estate label the way a bound AWS resource carries its two tags; zero skipped means every entry was stamped or recorded."
@@ -56,6 +58,7 @@
       "oracle": "Stock `plan` on the migrated state is also empty. Identity strings are compared by value against the CLI, which is the same answer stock's state would hold.",
       "break": "Corrupt one expected identity string; stage 3 must fail on that string and nothing else.",
       "substrates": {
+        "floci-az": "Identities are ARM resource ids, compared by value with what an ARM GET of the same object returns, case-insensitively, because ARM ids are. The plan's sweep is one Resource Graph query per subscription; floci-az serves no Resource Graph today, so this stage fails on that refusal by name until it does.",
         "floci-eks": "AWS identities compare as on floci, Kubernetes identities as NAMESPACE/NAME against kubectl in the k3s container. The kubernetes provider is configured from the cluster this run reads live, so an empty plan is also evidence that the provider block was answered as written.",
         "floci-gcp": "Identities are the resource names under projects/<project>/, compared with what the emulator's REST API reports for the same objects.",
         "kind": "Identities are NAMESPACE/NAME, compared by value with what kubectl reports."
@@ -72,6 +75,7 @@
       "oracle": "Stock `apply` of an empty plan is a no-op by definition; the object count is the comparison.",
       "break": "Expect a different count; the assertion must fail.",
       "substrates": {
+        "floci-az": "The count is the estate's taggable resources whose tofu-estate tag names it, read with an ARM GET of each declared id, the tag key and value compared case-insensitively. Resource Graph would answer it in one query, and floci-az has none.",
         "floci-eks": "The count sums both legs: the AWS markers as on floci, plus `kubectl get <kind> -A -l tofu-estate=<estate>` inside the k3s container.",
         "floci-gcp": "The count is the labelled types the estate declares (buckets, topics, disks, instances) filtered on tofu-estate=<estate> through the REST API. The declaration-carried skeleton carries no label and is never in it.",
         "kind": "The count is `kubectl get <kind> -A -l tofu-estate=<estate>` summed over the estate's kinds."
@@ -88,6 +92,7 @@
       "oracle": "Stock `plan` after the same mutation, with marker tags normalised out of both plans, proposes the same change.",
       "break": "Mutate a second object as well; the single-object assertion must fail.",
       "substrates": {
+        "floci-az": "The mutation is an ARM PUT or PATCH made out of band with gauntlet_arm, never through the tool.",
         "floci-eks": "The mutation is made on either leg out of band: through the emulator's API on the AWS side, or as a kubectl label or patch inside the k3s container, never through the tool.",
         "floci-gcp": "The mutation is a REST PATCH against the emulator, never through the tool. A label the configuration declares is the field mutated, since hashicorp/google reads back only the label keys its configuration names.",
         "kind": "The mutation is a kubectl label or patch, never through the tool."
@@ -104,6 +109,7 @@
       "oracle": "Stock with the same `moved` block plans zero churn. The two plans, normalised, are identical.",
       "break": "Rename without the `moved` block; the plan must show a destroy and a create.",
       "substrates": {
+        "floci-az": "A rename rewrites the tofu-address tag; the ARM id does not change, so the moved block plans one in-place tag update and no replace, as stock's plans none.",
         "floci-eks": "Read on the leg the renamed block lives on, as that leg's own substrate reads it.",
         "floci-gcp": "The moved-block half only: live-mv refuses GCP by name until its rewrite lands (internal/live/mv's SummaryGCPMoveNotBuilt). The block address is encoded in the tofu-address label, so the moved block plans one in-place change, that label rewritten, where stock plans zero churn. A bare rename without a moved block plans the same rewrite, since the block name is not part of the object's identity, so the Break control renames the object itself, which plans a destroy and a create.",
         "kind": "The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage. A bare rename without a moved block plans the same one in-place change to the address annotation, since the block name is not part of the object's identity, so the Break control is a rename of the object's own metadata.name instead, which is a genuine identity change and must plan a destroy and a create."
@@ -120,6 +126,7 @@
       "oracle": "Stock with the same block removed plans the same destroys in a working order.",
       "break": "Keep the block; no destroy may be proposed.",
       "substrates": {
+        "floci-az": "ARM confirms the object is gone with a 404 on its id. A resource group's delete takes its children with it; the order the cloud accepts is the one the configuration's dependency graph gives.",
         "floci-eks": "The removed block's object is confirmed gone on its own leg: through the emulator's API for AWS, with kubectl in the k3s container for Kubernetes. Objects EKS itself writes (CoreDNS, kube-proxy, add-on Deployments) carry no tofu-estate label and are never proposed; one the configuration declares, such as aws-auth, is the operator's, as it is in stock.",
         "floci-gcp": "The REST API confirms the object is gone. A labelled object leaving the configuration is found by its label and its record; an unlabelled one (a firewall whose network stays) by its record alone, and it is destroyed at the address stock destroys.",
         "kind": "kubectl confirms the object is gone. When the object's address annotation names an instance the configuration no longer declares, of a type that manages its kind, the sweep destroys it at that address, as stock destroys the state orphan (#1996). With no annotation, one naming an instance still declared, or one another orphan also carries, it plans the removal at `<type>.orphan_<namespace>_<name>` (`kubernetes_manifest.orphan_<kind>_<namespace>_<name>` for a manifest kind), under the versioned type once no block declares the kind; a controller's copies, which the sweep excludes, are never proposed."
@@ -136,6 +143,7 @@
       "oracle": "Stock's plan for the same count change, normalised.",
       "break": "Expect a different instance to be destroyed; the assertion must fail.",
       "substrates": {
+        "floci-az": "Each instance is its own ARM id, so the instance that leaves the count is found at its id and destroyed, and the one that comes back is created there.",
         "floci-eks": "Read on the leg the counted block lives on, as that leg's own substrate reads it.",
         "floci-gcp": "The instance key is part of the encoded tofu-address label, so the instance that leaves the count is found at its own address, the one stock destroys; the REST API confirms the survivor is untouched.",
         "kind": "The instance that leaves the count is found by its label and planned at the sweep's orphan address, since the label carries no index; kubectl confirms it is the same object stock destroys and that the survivor is untouched. The instance that comes back is created at its declared address."
@@ -152,6 +160,7 @@
       "oracle": "Stock's replace of the same resource leaves the same single object.",
       "break": "Skip the destroy half; the next plan must report a collision rather than proposing nothing.",
       "substrates": {
+        "floci-az": "A name is unique within its parent, so a create_before_destroy replacement is one whose name changes, as on kind: the new object is created at the new id and the old one destroyed after it, and the next plan is empty.",
         "floci-eks": "Read on the leg the replaced block lives on, as that leg's own substrate reads it.",
         "floci-gcp": "A name is unique in its project, so the replacement create_before_destroy is used for is one whose name changes, as on kind. The old and the new object carry the same tofu-address label between the create and the destroy, and the record's deposed entry is what says which one goes. At -parallelism=1 the apply log shows the new object's create complete before the old object's destroy starts, the REST API confirms only the new object remains, and the next plan is empty. The Break control recreates the old object carrying the block's labels: the next plan must not be empty.",
         "kind": "A Kubernetes name is unique within its namespace, so the replacement create_before_destroy exists for here is a rename: a content-hashed name such as `cfg-${sha}` changes, and the Deployment reading the object rolls onto the new one before the old one goes. The old object carries the block's address annotation, the sweep binds it to the block (#1640), and the plan is the replace stock plans (`must be replaced`, create first). At `-parallelism=1` the apply log shows the new object's create complete before the old object's destroy starts, kubectl confirms only the new object remains, and the next plan is empty. A replacement that keeps its name is destroy-then-create on either tool and is not what this stage measures (#1541). The Break control recreates the old object, carrying the block's annotation, after the apply: the next plan must propose destroying it rather than nothing."
@@ -168,6 +177,7 @@
       "oracle": "Stock records the old object as deposed and destroys it on the next apply; the outcome after one more apply must be the same.",
       "break": "Interrupt and then assert nothing is proposed; the assertion must fail.",
       "substrates": {
+        "floci-az": "As on floci: the engine's interrupt hook kills the apply the instant the first create commits. The created resource carries both tags from its create PUT, so the next plan binds it at its declared id and proposes exactly the remainder.",
         "floci-eks": "Read on the leg the interrupted object lives on, as that leg's own substrate reads it. An apply spanning both legs is interrupted at whichever create commits first.",
         "floci-gcp": "The stage interrupts an apply that creates two objects with the engine's own SIGTERM at -parallelism=1, between the first object's create committing and the second's being dispatched; the next plan must propose exactly the remainder, binding the object already created by its labels rather than creating it a second time. The oracle is stock's plan on the oracle emulator from the same position, reached by applying the first object alone. The create_before_destroy window (day2_replace) is not interrupted on this substrate yet.",
         "kind": "The emulator's window exists here too, and this stage interrupts it (#1768, after #1683). A create_before_destroy rename (day2_replace, #1541) creates the new object, carrying the block's address annotation, before destroying the old one; the engine's own interrupt at -parallelism=1 kills the apply the instant the new object's create commits, leaving both objects annotated with one address and the record holding the old one as the address's deposed object. The oracle is the outcome, not the plan's wording: stock plans a deposed-object destroy, while with the same configuration the rerun here plans the old object's destroy at its orphan address, because the new object is at the declared, listed key. What must agree is the end state after one more apply, the one stock's replace leaves: exactly the new object, the old one gone, the record's deposed entry cleared, and an empty replan. Both paths are run: the same configuration (the orphan destroy), and a name read from another block's attribute (#1539's shape), where only the deposed record settles which claimant is the old object (#1683) and the plan reads stock's deposed-object destroy. Both use kubernetes_config_map, whose record renders an identity; a kubernetes_config_map_v1 record does not, and that shape still ends in the two-claimant collision. The Break line covers both windows. The stage also interrupts an apply that creates several objects: a real SIGTERM lands between one object's create committing and the next object's ever being dispatched, and the next plan must propose exactly the remainder, binding the object already created by its tofu-estate label and its namespace and name rather than creating it a second time or sweeping it as an orphan. The oracle is stock's own plan on the oracle cluster from the same position, reached by applying the first object alone. A cross-estate live-mv re-keys no record (internal/live/mv/mv.go returns before propagateModuleRename for a cross-estate move, because the record it would move lives in the estate being left). On a metadata-block object it is one governed write with no window of its own; on a kubernetes_manifest object it is two requests, the label patch and then the ownership hand-off (#1704), and reference-k8s-platform-app kills a move between them with the e2e build's TOFU_E2E_LIVE_MV_INTERRUPT and requires the plain rerun to finish the hand-off (#1858, #1883). A same-estate rename is no longer write-free (#1639): on a metadata-block object it rewrites the address annotation in one provider write, which has no window of its own, but on a kubernetes_manifest object it is two requests, the merge patch and then the ownership hand-off (#1704), and a kill between them is a window this stage does not interrupt either; its rerun does not recover it today (#1764)."
@@ -184,6 +194,7 @@
       "oracle": "Stock `apply -destroy` on the same estate leaves the same empty account.",
       "break": "Leave one resource; the assertion that the estate is empty must fail.",
       "substrates": {
+        "floci-az": "An empty estate is no resource carrying its tofu-estate tag in any resource group it owned, read through ARM.",
         "floci-eks": "Both legs end empty: the AWS listing as on floci, and kubectl in the k3s container returning nothing for every kind the estate declared. The cluster leg is destroyed before the cluster it lives on, the order the configuration's own dependency graph gives, so no load balancer or network interface outlives the cluster.",
         "floci-gcp": "An empty estate is no labelled object carrying tofu-estate=<estate> through the REST API, and the declaration-carried skeleton gone (404). The destroy count is compared with stock's destroy of the same estate on the oracle emulator.",
         "kind": "An empty cluster is `kubectl get <kind> -A -l tofu-estate=<estate>` returning nothing for every kind."
@@ -200,6 +211,7 @@
       "oracle": "Stock's planfile applies in the unchanged case; in the changed case choudoufu is stricter than stock by design, and the refusal is asserted, not compared.",
       "break": "Apply the planfile after a mutation and expect success; the run must refuse.",
       "substrates": {
+        "floci-az": "As on floci. Azure Policy, evaluated by ARM when the write arrives, is the server's own say over an approved plan; floci-az evaluates no Policy rule, so only the moved-world refusal is measured there.",
         "floci-eks": "As on floci; the saved plan carries both legs, and the apply of it configures the kubernetes provider from the same cluster the plan read.",
         "floci-gcp": "The out-of-band move is a REST PATCH adding a label to an estate object.",
         "kind": "The out-of-band move is a kubectl label."
@@ -216,6 +228,7 @@
       "oracle": "The cloud after stock's cold deploy, compared object by object with marker tags normalised out.",
       "break": "Drop one resource from the expected inventory; the comparison must fail.",
       "substrates": {
+        "floci-az": "Compared against the ARM reads recorded from stock's cold deploy earlier in the same run, resource by resource, with the two marker tags normalised out; one floci-az container hosts both, in sequence.",
         "floci-eks": "Both legs are compared against stock's cold deploy: AWS objects as on floci, cluster objects as on kind. A greenfield plan starts with no cluster, so the kubernetes provider's sweep reads that leg as empty by construction, stock's order, and the apply configures the provider once the cluster exists.",
         "floci-gcp": "Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with labels and server-set fields normalised out; one emulator hosts both, in sequence.",
         "kind": "Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with the label and the server-set fields normalised out; one cluster hosts both, in sequence."
@@ -232,6 +245,7 @@
       "oracle": "No stock equivalent. The toggle documentation is the oracle, and each toggle's fixture is the comparison.",
       "break": "Turn a toggle off; its refusal must disappear and no other may appear.",
       "substrates": {
+        "floci-az": "As on floci; the toggles are substrate-neutral.",
         "floci-eks": "As on floci; the toggles apply to both legs alike.",
         "floci-gcp": "As on floci; the toggles name a google type."
       }
@@ -247,6 +261,7 @@
       "oracle": "Stock has no plan in this position: with its state file gone it needs one import block per object. The oracle is the estate's own cache-serving plan taken just before the deletion, which must be empty, and the declared configuration - every declared address must resolve to the existing object.",
       "break": "Delete one taggable object's marker before the plan; the object is then not found and the plan proposes creating it, which the stage must fail.",
       "substrates": {
+        "floci-az": "Both local artifacts are deleted; every declared resource must be found at its declared ARM id, which needs no sweep, and every other one by its tofu-estate tag through Resource Graph, which floci-az does not serve today.",
         "floci-eks": "Both legs lose their local record store and state cache together. The AWS leg's objects are found by their markers as on floci; the cluster leg's by their tofu-estate label, through a kubernetes provider configured from the cluster this plan reads live, so the plan also shows the provider block needs nothing local.",
         "floci-gcp": "The labelled objects are found by their labels, the declaration-carried ones by the identity their configuration computes. The request count is hashicorp/google's own, read from TF_LOG=debug's request blocks."
       }
@@ -423,6 +438,90 @@
     }
   },
   "lanes": {
+    "azure": {
+      "label": "azure lane",
+      "estates": 1,
+      "clear": 0,
+      "verified": 0,
+      "carried": 0,
+      "stages": {
+        "cold_deploy": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "day2_count": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "day2_crash": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "day2_remove": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "day2_rename": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "day2_replace": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "day2_teardown": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "drift_reconverge": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "greenfield": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "migrate": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "no_local_state": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "plan_approval": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "strict": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "test_apply": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
+        "test_plan": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        }
+      }
+    },
     "gcp": {
       "label": "gcp lane",
       "estates": 1,
@@ -4144,6 +4243,33 @@
         }
       },
       "notes": "Landed 2026-08-19, the fifth OpenTofu-native estate. Genuinely different from every prior crossing in this lane. OpenTofu-native evidence: README/badges state \"OpenTofu-first ... native state encryption, S3 locking without DynamoDB, no vendor lock-in\", required_version >= 1.11.0, and docs/TROUBLESHOOTING.md carries a dedicated real-usage \"OpenTofu general\" section (tofu init -upgrade) rather than just a badge - weaker than corpus-hongbomiao's genuine .tofu files (this ships plain .tf), comparable to sumaform/overture-tiles. Several other candidates evaluated and rejected first (an account-singleton-heavy 0-star repo, a devtool's test fixture masquerading as an estate, multiple 0-1-star scaffolds). cold_deploy genuinely passes (28 resources, plain tofu apply, unmodified). migrate genuinely passes: live-import 22 of 28 eligible (21 VERIFIED, 1 DRIFTED), -approve 22 newly stamped, 6 correctly UNTAGGABLE, 0 failed. test_plan BLOCKED, deterministically asserted (Plan: 2 to add, 3 to change, 1 to destroy, all 5 addresses traced to three independent, filed, evidence-backed gaps, not routed around); the VPC's own marker re-verified directly against the AWS CLI after state deletion, BREAK=1 confirmed load-bearing. Six real floci gaps filed with full evidence: lex00/floci#73 (S3Control PutPublicAccessBlock unimplemented), #74 (IAM UpdateAccountPasswordPolicy unsupported), #75 (IAM Access Analyzer - whole missing service), #76 (EC2 ModifyInstanceMetadataDefaults unsupported), #77 (CloudTrail tagging trio missing, blocks any tagged aws_cloudtrail), #78 (EC2 CreateFlowLogs ignores TagSpecifications) - none fixed, per this session's standing instruction. Two choudoufu gaps filed: INTENTIUS/choudoufu#327 (aws_nat_gateway's ForceNew args read null from a projected prior, forcing a spurious replace), #328 (aws_default_security_group.revoke_rules_on_delete, write-only with no live representation, always diffs) - not fixed. A REAL BUG found and fixed along the way, outside this task's own estate work: #325's marker-alias fix (merged just before this crossing started) double-counted a live object when an estate declares BOTH sides of a default-adopter pair (this module does, aws_default_security_group next to an unrelated aws_security_group) - both scanType passes appended an identical claimant, producing a false \"Two live resources claiming one address\" collision on a single real object (confirmed via direct AWS CLI query). Fixed with claimantAlreadyPresent (dedupe by import ID), covered by a new regression test reproducing the exact real-world error text before the fix and passing after. Stages 4-5 not attempted - both need a genuinely empty first plan. Merged to local main as 62e63a3eb5 (crossing: 427977009a, the discovery double-count fix: 3bdceb43e3); rebased onto a concurrent sibling's internal/live/identity work mid-session, one conflict (the generated identity-golden.txt) resolved by regenerating, not hand-merging; justfile gained recipe demo-corpus-xancloud-iac; live/corpus-manifest.json gained the pin. Re-verified 2026-08-19 after #327's fix (56e807062e/b5bb09d27e, generic - reuses #275's existing residueCandidates/ResidueStore mechanism unchanged, adding one new call site: live-import's Approve now records residue for every eligible instance using the migrated state's own real prior value, not #327-specific): plan moved from 2 to add/3 to change/1 to destroy down to 1 to add/1 to change/0 to destroy - aws_nat_gateway.this[\"main-0\"] no longer proposes a spurious replace. Remaining test_plan blockers are exactly the still-unfixed floci gaps (#73-#78, S3Control/IAM password policy/IAM Access Analyzer/EC2 metadata defaults/CloudTrail tagging/EC2 flow logs), not a choudoufu-side gap. A residual, lower-severity, choudoufu-specific diff on regional_nat_gateway_address (pure-Computed set(object), harmless) remains and was deliberately not filed - residueCandidates correctly excludes pure-Computed attributes, and broadening that needs its own corpus-wide validation before it's safe (risk: masking real out-of-band drift). Follow-up pass 2026-08-20 (this session): #73/#74/#75 fixed and closed (lex00/floci commits 51c00478/08d92407/be3f7ffd - S3 account-level PutPublicAccessBlock, IAM UpdateAccountPasswordPolicy, AccessAnalyzer as a whole new service), joining #76/#77/#78 which other concurrent sessions closed the same night (all six of the floci gaps this estate originally filed are now closed). Re-pinned floci-image to be3f7ffd (sha256:8a882bcc, CI+GHCR-publish both green) and regenerated floci-capabilities.json (verified additive: one digest block added, none removed, no existing block changed). Re-crossed for real against the new pin, the script AS COMMITTED (still setting TF_VAR_cloudtrail_enabled=false and the three iam_baseline_enable_* toggles off, so the five originally-toggled-off features are not re-exercised by this run - re-enabling them is separate, larger follow-up work, not attempted here). Real result: stage 1 PASS (28 resources, unchanged); stage 2 PASS (22 stamped: 21 VERIFIED + 1 DRIFTED, 6 UNTAGGABLE, 0 failed - unchanged from before); stage 3 still FAILS the script's own hard-coded assertion (which expects the stale 'Plan: 2 to add, 3 to change, 1 to destroy.' shape from before tonight's floci fixes), but the REAL diagnostic surface changed: only two addresses appear in the plan now, not five - 'module.vpc.aws_nat_gateway.this[\"main-0\"] will be updated in-place' (the pre-existing, previously-noted harmless regional_nat_gateway_address residual, #327 itself still holding - no force-replace) and, newly, 'module.vpc.aws_flow_log.cloudwatch[\"main\"] must be replaced' - a force-replace that could not appear before tonight because the flow log was never migrated at all (floci#78 blocked its tag write, so live-import never had a marker to find). This is very likely the same #327-shaped bug class (a ForceNew argument reading null from a projected prior) now hitting aws_flow_log instead of aws_nat_gateway, not yet diagnosed or filed as its own issue - flagged here rather than assumed. A second confirmatory run was attempted to capture the exact 'Plan: N to add, M to change, K to destroy' totals line and pin down the flow_log diff further, but was lost to a session interruption before completing; the two-address finding above is from one complete, real, natural-exit run and was not re-confirmed a second time this session. The script's own hard-coded assertion (both the exact-string check and the per-address list) is now stale relative to the pin and needs updating by whoever picks this back up, once the flow_log diff is diagnosed. Stages 4-5 remain not_run (unchanged - both need a genuinely empty first plan, which this has not yet reached). RESOLVED as #347 (2026-08-20, 2cb473affd/27cafb1650): the flow_log diff was diagnosed - iam_role_arn (ForceNew) reads null on the projected prior because floci's own FlowLogService never learns or emits it at all (Ec2QueryHandler.handleCreateFlowLogs ignores DeliverLogsPermissionArn; handleDescribeFlowLogs never returns it), confirmed via TF_LOG=trace straight through Ratification.Approve's residue classification (#327's residueCandidates/ResidueStore mechanism correctly DECLINES to record it, since both classification reads come back empty on any prior, not just the projected one - the opposite of #327's shape, where the provider preserves without truly reading). Confirmed parity label 1, \"OpenTofu fails here too\": the PLAIN cold-deploy state (written by a real, non-choudoufu tofu apply) already carries iam_role_arn=\"\" immediately after apply, so a stock stateful tofu plan would show the identical perpetual diff. Filed as lex00/floci#87 (open, emulator gap, not a choudoufu defect). run.sh's stage-3 assertions were updated to match reality: 2 addresses (aws_flow_log.cloudwatch[\"main\"] must be replaced; aws_nat_gateway.this[\"main-0\"] will be updated in-place, #327's own still-harmless residual) and \"Plan: 1 to add, 1 to change, 1 to destroy.\" RE-VERIFIED 2026-08-21 (this session, worktree live/reverify-limitations, floci pinned at the current e61a987/d65baf42 image): real re-run of run.sh, exit 0, every hard-coded assertion passed byte-for-byte against the #347 shape above - same 2 addresses, same summary line, same 28/22/21+1/6/0 stage 1-2 counts. lex00/floci#87 confirmed still OPEN (not narrowed by the e61a987 re-pin, which addressed #86/#88 only). None of tonight's #331/#337/#340/#343/#344 admission/identity/record-store changes touched this estate. Wall unchanged; stages 4-5 remain not_run. UPDATE 2026-08-21 (lex00/floci#87 FIXED via lex00/floci#96, PR squash-merged as 17c7f7ef, published sha256:cdd50ec04a1a13461035657bdd9ec2ed377ac48925e76495a73c9674b5cbd9f9, verified via the GHCR packages API and `docker buildx imagetools inspect` on both the :17c7f7e and :latest tags): CreateFlowLogs/DescribeFlowLogs now carry DeliverLogsPermissionArn. Re-pinned floci-image to this digest and regenerated floci-capabilities.json (verified additive: one digest block added - 87 services, 747 type rows, matching every prior digest's shape - none removed, no existing block changed). Re-crossed for real against the new pin: stage 1 PASS (28 resources, unchanged); stage 2 PASS (22 stamped: 21 VERIFIED + 1 DRIFTED, 6 UNTAGGABLE, 0 failed - unchanged from before). Stage 3 (test_plan) genuinely changed shape: aws_flow_log.cloudwatch[\"main\"] no longer appears anywhere in the plan - the force-replace lex00/floci#87 caused is gone. The plan is narrower but NOT empty: 'Plan: 0 to add, 1 to change, 0 to destroy.', the sole remaining address module.vpc.aws_nat_gateway.this[\"main-0\"] will be updated in-place - the same pre-existing, harmless #327 regional_nat_gateway_address residual this estate has carried since before #87 was ever diagnosed. run.sh's stage-3 header and assertions rewritten to match this reality (single-address plan, exact 'Plan: 0 to add, 1 to change, 0 to destroy.' string, an explicit assertion that aws_flow_log no longer appears), re-run clean end to end (exit 0, no FAIL), and BREAK=1 re-confirmed load-bearing (the VPC identity check fails exactly as designed against a wrong expected address). test_plan stays 'fail' by this repo's own convention (a first plan must be empty to pass) - #327's own NAT-gateway residual is the estate's only remaining wall, unchanged in kind from before, just no longer sharing the plan with #87. Stages 4-5 remain not_run: both still need a genuinely empty first plan, which this estate has not yet reached. NOT a new estate at full parity - one wall cleared (lex00/floci#87), one wall (#327, already tracked, not this session's to fix) remains. UNIT gauntlet:corpus-xancloud-iac/test_plan (2026-08-21, orchestrator-run worker): stage 3 (test_plan) is now PASS. Root cause traced and fixed generically, not scoped around: aws_nat_gateway.this[\"main-0\"] regional_nat_gateway_address (Computed only - this NAT gateway has connectivity_type=public, not \"regional\", confirmed directly against floci's own DescribeNatGateways response, which carries no such field for this object at all) was showing \"+ regional_nat_gateway_address = (known after apply)\" on every first live plan. internal/live/projection/residue.go's residueCandidates and fillResidue used to refuse a purely-Computed attribute a residue candidacy at all (\"it cannot be set in configuration, so there is nothing to remember\") - that reasoning undercounted a real case: the provider's Read does not re-derive this attribute from a bare identity-only prior, it leaves whatever the prior held (null), and OpenTofu marks a null Computed attribute unknown forever. Fixed by dropping the Required/Optional restriction from both functions, keeping every other exclusion (identity, sensitive, write-only, NestedType) - safety comes from classifyResidue's own two-read discriminator, not from that schema-shape filter. internal/live/projection/residue_test.go and internal/live/liveimport/residue_test.go updated to match (arn, Computed-only in the lambda-like fixture, is now a legitimate candidate; a new TestFillResidueFillsAComputedOnlyAttribute pins the positive case). Re-crossed for real: stage 1 PASS (28 resources, unchanged); stage 2 PASS (22 stamped, unchanged); stage 3 now PASS - \"No changes. Your infrastructure matches the configuration.\", BREAK=1 re-confirmed load-bearing against the VPC identity check. Stages 4-5 remain not_run: not yet written, since stage 3 only just started passing in this run - a follow-up unit's work, not attempted here."
+    },
+    {
+      "name": "reference-azure",
+      "source": "hand-written reference shape kept in this repository: a resource group, a VNet with a subnet, a network security group with one rule, a storage account, a user-assigned identity, a public IP and two count identities through hashicorp/azurerm, plus one azapi_resource identity; the azure lane's first estate, run against floci-az (#1120). Built and not yet run",
+      "lane": "azure",
+      "set": "growing",
+      "substrate": "floci-az",
+      "script": "live/e2e/reference-azure/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "reference-ec2-vpc",

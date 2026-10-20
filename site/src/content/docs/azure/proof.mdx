@@ -1,0 +1,28 @@
+---
+title: Proof
+description: Nothing is proven on Azure yet. What is written and what each claim waits on.
+prompt: |
+  Follow https://intentius.io/choudoufu/azure/proof/. Read live/CLAIMS.md and report each Azure cell and the draft that would close it.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+## Claims you can run
+
+Four `az-*` drafts cover claims 7, 1, 13 and 29 on the floci-az emulator. None has run. The emulator has no Resource Graph or Policy yet ([FLOCI.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md#azure-floci-az)).
+
+## Where the numbers are
+
+- [CLAIMS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/CLAIMS.md): every Azure cell, all open
+- [READINESS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/READINESS.md#azure): every type's tier
+- [PROOF.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/azure/PROOF.md): the drafts and the lane
+
+## Run one now
+
+```
+just smoke az-identity-is-a-tag
+```
+
+Against today's emulator it stops at `Microsoft.ResourceGraph not registered`.

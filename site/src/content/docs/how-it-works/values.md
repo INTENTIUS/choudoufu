@@ -22,13 +22,14 @@ beyond ownership.
 Losing a `random_pet` record renames everything built from it.
 [Recover an estate](../../docs/use/recover-an-estate/) has the procedure.
 
-## Three stores
+## Four stores
 
 | Store | Records are | For |
 |---|---|---|
 | `local` | Files in `.tofu-records` | One operator (default) |
 | `s3` | Objects in your bucket | A team on AWS |
 | `kubernetes` | Secrets in your namespace | A team on a cluster |
+| `azurerm` | Blobs in your Storage container | A team on Azure |
 
 ```hcl
 record_store "s3" {

@@ -71,7 +71,7 @@ func boardMergeFixture(t *testing.T) (base, ours, theirs Board, names []string) 
 		})
 	}
 	m := &Manifest{Estates: es}
-	a.Rebuild(m, nil, "sha256:probe", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, nil, "sha256:probe", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 
 	st := func(changed ...string) map[string]ScriptStaleness {
 		out := map[string]ScriptStaleness{}
@@ -83,7 +83,7 @@ func boardMergeFixture(t *testing.T) (base, ours, theirs Board, names []string) 
 		}
 		return out
 	}
-	return buildBoard(m, a, st(), ""), buildBoard(m, a, st("alpha"), ""), buildBoard(m, a, st("foxtrot"), ""), names
+	return buildBoard(m, a, st(), SubstratePins{}), buildBoard(m, a, st("alpha"), SubstratePins{}), buildBoard(m, a, st("foxtrot"), SubstratePins{}), names
 }
 
 func canonBoard(t *testing.T, b Board) []byte {

@@ -121,6 +121,12 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 		"Resolved resource missing from the configuration": true,
 		"Unscoped account reconciliation refused":          true,
 		SummaryUnclassifiedProblem:                         true,
+		// GitHub issue #1120: a subscription the Azure sweep cannot query
+		// at all until an operator registers Microsoft.ResourceGraph, or
+		// one Resource Graph throttled past its retries. A plan made
+		// without it would propose no removal there.
+		"Microsoft.ResourceGraph not registered":   true,
+		"Azure Resource Graph throttled the sweep": true,
 	}
 
 	registered := make(map[string]bool)
@@ -172,6 +178,14 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 			// GitHub issue #1119: a project the GCP leg could not search,
 			// and an orphan it reports and never proposes removing; the
 			// plan in front of the operator is correct either way.
+			if SeverityForRefusal(r.Summary) != SeverityWarning {
+				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
+			}
+		case resourceGraphIncomplete(r.Summary):
+			// GitHub issue #1120: a subscription the Azure sweep could not
+			// read, could not reach with any provider block's credential,
+			// or failed on otherwise - an incomplete sweep, named, never
+			// an empty one.
 			if SeverityForRefusal(r.Summary) != SeverityWarning {
 				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
 			}

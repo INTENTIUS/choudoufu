@@ -294,6 +294,50 @@ recorded `implemented` on that evidence and both return
 record-located harness's notes in `live/e2e/README.md` carry more of this
 shape.
 
+## Azure: floci-az
+
+The Azure lane (#1120) runs on lex00/floci-az, a fork of floci-io/floci-az,
+pinned by digest in `live/floci-az-image` and started by `azure_up` in
+`live/smoke/lib.sh`. The pin is the fork's main at `836d528`, a JVM image
+for linux/amd64 and linux/arm64. Everything below was read from that
+commit's source, not measured: no scenario has booted it yet.
+
+**Endpoints.** One port, 4577 in the container, published on a free host
+port. It serves the ARM management plane, the Entra token endpoints
+(`/{tenant}/oauth2/v2.0/token`), `/metadata/endpoints`, `/ready`, and blob
+storage both path-style (`/{account}/{container}/{blob}`) and host-style
+(`{account}.blob.localhost`). The harness starts it with TLS on: floci-az
+then answers HTTP and HTTPS on the same port, and serves the CA it
+generated at `GET /_floci/tls-cert`.
+
+**Auth and aiming.** floci-az issues a token to any client id and secret,
+and accepts any bearer token on ARM. `azure_provider_env` exports the
+variables. azurerm takes `ARM_METADATA_HOSTNAME` and builds everything from
+`https://<host>/metadata/endpoints`. The stock azurerm backend reads a
+different variable, `ARM_METADATA_HOST`. azapi has no metadata host: it
+takes `ARM_ENVIRONMENT=custom` plus `ARM_ACTIVE_DIRECTORY_AUTHORITY_HOST`,
+`ARM_RESOURCE_MANAGER_ENDPOINT` and `ARM_RESOURCE_MANAGER_AUDIENCE`, with
+instance discovery off. Both providers need TLS. On Linux the harness adds
+the CA to `SSL_CERT_FILE`. On macOS Go ignores that variable, so the CA has
+to be trusted in the keychain by hand.
+
+**Gaps against what the lane needs** (lex00/floci-az#2 lists the surfaces):
+
+| Need | floci-az at the pin |
+|---|---|
+| Tags round-trip | Kept on resource groups, network, VMs, AKS, ACR, Redis, SQL and the other database servers, managed identities. Dropped on storage accounts, key vaults, managed HSMs and web apps (all in `ArmHandler`), and on API Management, Event Grid and Monitor resources. Storage account and key vault `PATCH` answer 405, and azurerm updates both with `PATCH`. |
+| Generic resources | None: a provider namespace no handler claims answers 404. An azapi type works only where floci-az has a handler. |
+| Resource Graph | Absent. No `Microsoft.ResourceGraph` route. |
+| Role assignments | Absent. Role definitions, role assignments and ABAC conditions have no route. |
+| Policy `deny` / `denyAction` | Definitions and assignments are stored. Rules are never evaluated, so nothing is denied. |
+| Blob conditional writes | `If-None-Match: *` and `If-Match` are honoured on Put Blob and Delete Blob. A create over an existing blob answers 412 `ConditionNotMet`; Azure answers 409 `BlobAlreadyExists`. ETags are unquoted UUIDs. |
+| Blob index tags | `x-ms-tags` on Put Blob, Get/Set Blob Tags and Find Blobs by Tags are served. |
+| Record store opening checks | Blob versioning, lifecycle rules and `allowBlobPublicAccess` are not kept: `blobServices/default` always answers empty properties, and `managementPolicies` has no route. |
+| Stock backend reach | `/metadata/endpoints` returns the storage suffix `core.windows.net`. The stock backend builds `https://<account>.blob.<suffix>`, so its blob calls leave the emulator for real Azure DNS. |
+
+Code in choudoufu that needs one of these waits for the fork (emulator
+policy, `live/ADDING-A-PLATFORM.md`).
+
 ## Related
 
 - `live/floci-capabilities.json` — per-service and per-type implementation
@@ -306,6 +350,8 @@ shape.
   `0a30ae86d95b5e05b0350edc8fa5b0dbe078eeaf`, read with
   `git show 0a30ae86d9:live/floci-capabilities.json`.
 - `live/floci-image` — the pinned digest every harness and measurement uses.
+- `live/floci-az-image` — the Azure emulator's pinned digest, held by
+  `live/floci_az_pin_test.go`.
 - `live/e2e/README.md` — the harnesses, and per-fixture notes on what floci
   gets wrong for that fixture specifically.
 - `live/plan-budget.json` — the call-count ratchet, and its own statement of

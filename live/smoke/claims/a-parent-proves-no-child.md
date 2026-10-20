@@ -41,3 +41,22 @@ stands and the bucket keeps its labels, and the apply puts both back.
 inferred the children from their parents would read, `No changes.`; that
 check must fail on the real plan, which proposes the two creates. It has
 no dated run yet, so the cell reads unproven.
+
+## On Azure
+
+### az-a-parent-proves-no-child
+
+    just smoke az-a-parent-proves-no-child
+    BREAK=1 just smoke az-a-parent-proves-no-child
+
+Two parents tagged for the estate, each with a child that takes no tags:
+an `azurerm_subnet` in a VNet, and an `azurerm_network_security_rule` in a
+network security group. Both children are deleted with ARM DELETEs. The
+next plan must propose exactly the two creates while both parents stand
+and keep `tofu-estate`, and the apply puts both back.
+
+`BREAK=1` runs the same deletes and holds the plan to what a plan that
+inferred the children from their parents would read, `No changes.`; that
+check must fail on the real plan, which proposes the two creates. floci-az
+serves no Resource Graph yet (lex00/floci-az#4). It has no dated run yet,
+so the cell reads unproven.

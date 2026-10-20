@@ -508,7 +508,7 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 			// displaced.go.
 			switch want, verdict := decl.displacedFrom(ctx, bindType, escaped, c); verdict {
 			case verdictDisplaced:
-				diags = diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, c)))
+				diags = diags.Append(problemDiag(res, displacedProblem(req, decl, bindType, escaped, want, c)))
 			case verdictOwnObject:
 				// Issue #692: the sweep saw this declared instance's own
 				// marker on a live object and nothing contradicts it, so

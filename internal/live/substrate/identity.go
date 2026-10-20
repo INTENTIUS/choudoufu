@@ -35,8 +35,61 @@ type SynthesizedIdentity struct {
 	// FromIdentitySchema: the provider's own resource identity schema
 	// decides, through internal/live/identity's identity-schema route (which
 	// reads the full schema map and the configuration signal, neither of
-	// which a family sees). Every other field is empty when it is set.
+	// which a family sees). Every other field is empty when it is set,
+	// except NonAWSProvider and the two below, which say how the family's
+	// provider answers what that route cannot read from the schemas alone.
 	FromIdentitySchema bool
+
+	// CloudIdentityAttrs, with FromIdentitySchema: identity attributes the
+	// family's provider fills in from its own provider configuration, by
+	// name, mapped to the identity package's CloudValue string. The route
+	// reads such an attribute from that value when the type has no
+	// argument by the same name, the way an AWS identity schema's
+	// account_id and region are the provider's (GitHub issue #1120: every
+	// azurerm 5.10.0 identity schema requires subscription_id, and no
+	// azurerm argument supplies it). An attribute the type does declare as
+	// an argument is read from the argument, as before.
+	//
+	// A family may set it on an answer without FromIdentitySchema too,
+	// saying the same of the type's identity schema: internal/live/identity's
+	// record rung reads it from any answer (GitHub issue #2135), and the
+	// identity-schema route never sees such an answer.
+	CloudIdentityAttrs map[string]string
+
+	// ARMTemplate, with FromIdentitySchema: the type's ARM id built from
+	// its own arguments, when the family has one (azurerm's generated
+	// template, live/azurerm-ids.json). The route renders this as the
+	// import id where the template supplies exactly the identity schema's
+	// attributes, so the identity is an ARM id other blocks can collide
+	// with ([SynthesizedIdentity.ARMResourceID]); and it is the route's
+	// answer where the identity schema names an attribute no argument
+	// supplies (a parent's name the type takes as the parent's ARM id).
+	// Nil otherwise.
+	ARMTemplate *SynthesizedIdentity
+
+	// TemplateWithheld, with FromIdentitySchema: why the family has an ARM
+	// id template for the type and will not offer it (GitHub issue #1120
+	// unit 17), naming the segment or the row that fails. The route
+	// refuses with this reason, in place of its own, wherever it does not
+	// admit the type itself: a template that cannot be resolved exactly
+	// from configuration is refused by name, never guessed around. Empty
+	// otherwise.
+	TemplateWithheld string
+
+	// IdentitySources, with FromIdentitySchema: where a record reads each
+	// attribute of the type's identity schema from, when the family knows
+	// a source for every one (GitHub issue #2138, the maintainer's option
+	// (a)). internal/live/identity's record rung reads an attribute the
+	// type's block does not declare from here: a parent's name parsed out
+	// of a parent's ARM id argument, a renamed argument, or a constant.
+	// Nil when the family names none; then IdentitySourcesProblem says why,
+	// for the refusal.
+	IdentitySources map[string]IdentitySource
+
+	// IdentitySourcesProblem, with FromIdentitySchema: why IdentitySources
+	// is nil for a type that serves an identity schema, naming the
+	// attribute, for strict-markers-unrecordable to say. Empty otherwise.
+	IdentitySourcesProblem string
 
 	// NonAWSProvider is identity.TypeIdentity's field of the same name.
 	NonAWSProvider bool
@@ -46,6 +99,11 @@ type SynthesizedIdentity struct {
 	Components    []IdentityComponent
 	ImportSyntax  string
 	IdentityAttrs []string
+
+	// ARMResourceID is identity.TypeIdentity's field of the same name: the
+	// identity is an Azure Resource Manager resource id (GitHub issue
+	// #1120), whole and case-insensitive.
+	ARMResourceID bool
 }
 
 // IdentityComponent is the subset of identity.Component a family's
@@ -59,6 +117,18 @@ type IdentityComponent struct {
 	Path             []string
 	OmitIfAbsent     bool
 	SameNameIdentity bool
+
+	// Cloud is identity.Component's Cloud, as its string ("subscription-id"
+	// for the Azure subscription the provider configuration targets).
+	Cloud string
+
+	// ARMTypeSegment is identity.Component's field of the same name.
+	ARMTypeSegment bool
+
+	// ServerAssignedIfAbsent is identity.Component's field of the same
+	// name: leaving every one of Attrs unset asks the provider to mint the
+	// value (GitHub issue #2119; see [markProviderMintedIfAbsent]).
+	ServerAssignedIfAbsent bool
 }
 
 // SynthesizeIdentity asks every family in [All]'s order how typeName's

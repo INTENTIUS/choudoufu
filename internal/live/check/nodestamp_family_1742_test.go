@@ -28,6 +28,9 @@ type labelsFamily struct{ substrate.Substrate }
 
 const surfaceFakeLabels markers.Surface = "fake-labels"
 
+// ProviderTypes: the fake stands in for AWS in substrate.All, so it claims
+// the aws provider type itself rather than inheriting the claim.
+func (labelsFamily) ProviderTypes() []string     { return []string{"aws"} }
 func (labelsFamily) Surfaces() []markers.Surface { return []markers.Surface{surfaceFakeLabels} }
 func (labelsFamily) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
 	if block == nil {

@@ -214,6 +214,10 @@ func TestNodeResolver_AdjustConfigValue_awsShapeUnaffectedByLabelBranch(t *testi
 // be lost, which is refused too.
 type alwaysWithholdLabels struct{ substrate.Substrate }
 
+// ProviderTypes: the fake replaces Kubernetes in substrate.All and claims
+// its provider type itself rather than by embedding.
+func (alwaysWithholdLabels) ProviderTypes() []string { return []string{"kubernetes"} }
+
 func (alwaysWithholdLabels) Writes(surface markers.Surface) substrate.Writes {
 	w := substrate.Kubernetes.Writes(surface)
 	if surface == markers.SurfaceLabels {

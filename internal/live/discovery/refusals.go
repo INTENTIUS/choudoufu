@@ -5,7 +5,11 @@
 
 package discovery
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/intentius/choudoufu/internal/live/azsweep"
+)
 
 // This file is GitHub issue #110 applied to section D of #101's inventory,
 // the discovery pass. See internal/live/stamp/refusals.go for why a pass no
@@ -68,6 +72,22 @@ var refusals = []Refusal{
 	{
 		Summary: "Annotated with a live Helm release, not in its manifest",
 		What:    "The Kubernetes sweep found an object carrying the estate's label and Helm's meta.helm.sh/release-name annotation, naming a release that still exists, whose manifest does not list it (GitHub issue #1738 item 4, ruled 2026-09-30). The release's latest record and its last deployed one are read metadata-first and decoded the way Helm's storage driver wrote them, and the object is matched on kind, namespace (the release's, for a document that gives none) and name. Unmatched, it is not the release's, so it is not reported as controller-held; it is not proposed for destroy either, so a wrong match can only ever raise this warning. A chart that dropped the object under helm.sh/resource-policy: keep, or a copy of a Helm object's YAML applied by hand, leaves it in this state. A record that cannot be read or decoded holds the object instead. A warning: the plan is unchanged by it.",
+	},
+	{
+		Summary: "Azure Resource Graph throttled the sweep",
+		What:    "The Azure leg of the estate sweep (GitHub issue #1120) queries Azure Resource Graph once per subscription the estate's resources resolve to, and Resource Graph answered one of those queries 429 past the waits its Retry-After and x-ms-user-quota-resets-after headers allow (four waits, none longer than a minute). What the estate marks in that subscription is unknown, and a plan made without it would propose no removal there however many blocks were deleted, so the plan is refused, naming the subscription; plan again once the caller's Resource Graph quota has recovered.",
+	},
+	{
+		Summary: "Azure subscription not covered by any provider block",
+		What:    "The Azure leg of the estate sweep (GitHub issue #1120) queries every subscription the estate's resources resolve to, with the credential of the azurerm or azapi provider block that names it. A declared resource's ARM id names a subscription no provider block of the configuration names, so no credential was set to query it. A warning naming the subscription, and an incomplete sweep rather than an empty one: a resource the estate marks there whose block was deleted is not proposed for removal. Adding a provider block (an alias will do) whose subscription_id is that subscription covers it.",
+	},
+	{
+		Summary: "Azure subscription not readable by the sweep",
+		What:    "The Azure leg of the estate sweep (GitHub issue #1120) asked Azure Resource Graph about one subscription the estate's resources resolve to, and the credential cannot read it: no role assignment grants read on it, it does not exist, or it belongs to a tenant the token was not issued for (Resource Graph's NoValidSubscriptionsInQueryRequest, ARM's AuthorizationFailed, SubscriptionNotFound, InvalidSubscriptionId, InvalidAuthenticationTokenTenant, or any 403). One query per subscription is what makes this visible: asked about several at once, Resource Graph leaves an unreadable one out without saying so. A warning naming the subscription and the credential, and an incomplete sweep rather than an empty one: a resource the estate marks there whose block was deleted is not proposed for removal until a run can read it.",
+	},
+	{
+		Summary: "Azure sweep unavailable",
+		What:    "The Azure leg of the estate sweep (GitHub issue #1120) could not query one subscription for a reason none of the other Azure summaries names: no Resource Graph client could be built from an azurerm or azapi provider block (it names no credential the sweep can use, or sets a connection argument from a sensitive value), the provider block names no subscription, Resource Graph answered an error it does not classify, or a page after the first failed, in which case the pages already read are discarded rather than used. A warning, and an incomplete sweep rather than an empty one: a resource the estate marks there whose block was deleted is not proposed for removal until a run can read it.",
 	},
 	{
 		Summary: "Cannot list the record store",
@@ -187,11 +207,15 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Live resource displaced from the address it is marked for",
-		What:    "A live resource carries this estate's marker for an address the configuration still declares, but the identity that address resolves to names a different live resource - so two resources answer to one address. Nothing is proposed for it; a human says which is which.",
+		What:    "A live resource carries this estate's marker for an address the configuration still declares, but the identity that address resolves to names a different live resource - so two resources answer to one address. Nothing is proposed for it on that address's behalf; a human says which is which. An object at an identity nothing declares is not read at all; one at the identity another declared instance computes (a renumbered count list's leftover) is read there by that instance and judged by its own markers, and the warning names that instance. An Azure object at a declared instance's ARM id gets no such warning: that instance's read refuses it under \"Live object marked for another owner at the declared id would be overwritten\" (GitHub issue #2135), one diagnostic for one object.",
 	},
 	{
 		Summary: "Located identity record unreadable",
 		What:    "A type with no tags argument and no list route of any kind can only be found again through the estate's record store, and reading its stored identity for one declared instance failed - a corrupt record, an unreachable store, or a record format this build does not understand.",
+	},
+	{
+		Summary: "Microsoft.ResourceGraph not registered",
+		What:    "The Azure leg of the estate sweep (GitHub issue #1120) queries Azure Resource Graph once per subscription the estate's resources resolve to, and one of those subscriptions has not registered the Microsoft.ResourceGraph resource provider (ARM's MissingSubscriptionRegistration and the other codes azure-sdk-for-go's registration policy acts on). The fix is registering it (az provider register --namespace Microsoft.ResourceGraph), never a retry or a grant. Refused by name, naming the subscription: a sweep that skipped it would read as one with nothing to remove there however many blocks were deleted.",
 	},
 	{
 		Summary: "Malformed ownership marker",
@@ -340,7 +364,7 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep || summary == SummaryGCPSweepIncomplete || summary == SummaryGCPOrphanUnaddressed || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable || summary == SummaryFieldGranularOrphanUnclassified || summary == SummaryFieldGranularOrphansPending || summary == SummaryFieldHandoverFailed || summary == SummaryFieldSharedWithStock {
+	if summary == SummaryIncompleteSweep || summary == SummaryGCPSweepIncomplete || summary == SummaryGCPOrphanUnaddressed || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable || summary == SummaryFieldGranularOrphanUnclassified || summary == SummaryFieldGranularOrphansPending || summary == SummaryFieldHandoverFailed || summary == SummaryFieldSharedWithStock || resourceGraphIncomplete(summary) {
 		// A gap in coverage, never a wrong plan: the run in front of the
 		// operator is correct and simply did not see everything. The held
 		// delete (GitHub issue #1184) is the same severity for a different
@@ -349,6 +373,22 @@ func SeverityForRefusal(summary string) Severity {
 		return SeverityWarning
 	}
 	return SeverityError
+}
+
+// resourceGraphIncomplete reports whether summary is one of the Azure leg's
+// incomplete-sweep warnings (GitHub issue #1120): a subscription the
+// credential cannot read, one no provider block covers, or a query that
+// failed in a way azsweep does not name. An unregistered
+// Microsoft.ResourceGraph and a query throttled past its retries are
+// refusals, and are absent here.
+func resourceGraphIncomplete(summary string) bool {
+	switch summary {
+	case resourceGraphSummaries[azsweep.SummarySubscriptionUnreadable],
+		resourceGraphSummaries[azsweep.SummarySubscriptionUncovered],
+		resourceGraphSummaries[azsweep.SummarySweepUnavailable]:
+		return true
+	}
+	return false
 }
 
 // problemKindForSummary is [problemSummaries] read backwards. The map is

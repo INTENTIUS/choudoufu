@@ -51,3 +51,25 @@ because no GCP type of the other kind exists at the pin: against the real
 hashicorp/google and google-beta 8.6.0 schemas, every markerless type the
 provider serves can be recorded. It has no dated run yet, so the cell
 reads unproven.
+
+## On Azure
+
+### az-a-markerless-type-is-held-by-its-record
+
+    just smoke az-a-markerless-type-is-held-by-its-record
+    BREAK=1 just smoke az-a-markerless-type-is-held-by-its-record
+
+No Azure type is minted outright, so none is on the markerless list. Seven
+admitted untaggable azurerm types mint a GUID when their name is left out
+(`live/READINESS.md`, Azure). An `azurerm_management_group` with no name
+is planned and applied under a live block; the name azurerm chose goes
+into the estate's record, and with the cache deleted the plan must read
+`No changes.` from that record.
+
+`BREAK=1` puts the same block in a root with no live block, so no record
+store exists to hold the minted name, and `live-check` must refuse
+`azurerm_management_group.minted` by name ("Unmarked apply of a
+marker-only resource", the name omitted). floci-az has no handler for
+`Microsoft.Management` (lex00/floci-az#7) and no Resource Graph
+(lex00/floci-az#4); the `BREAK=1` arm reads the configuration offline and
+needs neither. It has no dated run yet, so the cell reads unproven.

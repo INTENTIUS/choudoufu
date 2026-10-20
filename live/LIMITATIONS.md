@@ -64,6 +64,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 <!-- limits-gen:begin lint-roster -->
 | Rule | Summary | Severity | Documented at | Fixture |
 |---|---|---|---|---|
+| `arm-tag-limit` | Azure resource has no room for its ownership markers | warning | "arm-tag-limit" | `live/e2e/limits/arm-tag-limit/` |
 | `child-live-config` | Live configuration in a child module is not consulted | error | "child-live-config" | `live/e2e/limits/child-live-config/` |
 | `child-module` | This module call cannot be expanded under live resource markers | error | "child-module" | `live/e2e/limits/child-module/` |
 | `count-index` | count.index is not available in resource arguments | error | "count-index-in-tag" | `live/e2e/limits/count-index-in-tag/` |
@@ -78,6 +79,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `module-providers` | Module provider mapping is not honoured | error | "module-providers" | `live/e2e/limits/module-providers/` |
 | `moved-block` | moved blocks are not available under live resource markers | error | "moved-block" | `live/e2e/limits/moved-block/` |
 | `overlong-address` | Resource address does not fit in a marker | error | "overlong-address" | `live/e2e/limits/overlong-address/` |
+| `policy-overwrite-at-key` | Policy verb would let a create overwrite an unmarked object | error | "policy-overwrite-at-key" | `live/e2e/limits/policy-overwrite-at-key/` |
 | `policy-scope` | Delete quadrant has no scope block | error | "policy-scope" | `live/e2e/limits/policy-scope/` |
 | `policy-threshold` | Policy threshold is not a positive number | error | "policy-threshold" | `live/e2e/limits/policy-threshold/` |
 | `policy-verb` | Policy verb is not valid for its quadrant | error | "policy-verb" | `live/e2e/limits/policy-verb/` |
@@ -97,7 +99,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `unadmitted-type` | Resource type is outside the live-markers subset | error | "unadmitted-type" | `live/e2e/limits/unadmitted-type/` |
 | `undeclared-provider-alias` | Provider configuration is not declared | error | "undeclared-provider-alias" | `live/e2e/limits/undeclared-provider-alias/` |
 
-**32 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 29 of the 32 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
+**34 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 31 of the 34 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
 <!-- limits-gen:end lint-roster -->
 
 ### local-exec
@@ -1118,10 +1120,18 @@ configuration computes for the address that marker names. When those two
 disagree it says so, as `Live resource displaced from the address it is
 marked for`.
 
-That finding is a warning and it proposes nothing. The resource is not read,
-not changed and not destroyed; it stays in the account until you say which
-resource is which, with `live-mv` or a `moved` block. The comparison behind
-it is inexact - the identity a configuration computes and the identity a
+That finding is a warning and it proposes nothing for the address the
+marker names. The resource is not changed or destroyed as that address's
+object; it stays in the account until you say which resource is which, with
+`live-mv` or a `moved` block. Whether it is read depends on where it sits:
+at an identity nothing declares it is not read at all, and at the identity
+another declared instance computes (`aws_x.r[2]`'s leftover sitting where
+`aws_x.r[1]` now points) it is read there by that instance and judged by its
+own markers, and the warning names that instance. On Azure an object at a
+declared instance's ARM id gets no displaced warning: that instance's read
+refuses it as `Live object marked for another owner at the declared id
+would be overwritten` (#2135), one diagnostic for one object. The comparison
+behind it is inexact - the identity a configuration computes and the identity a
 provider attaches to a listed object are two different things that usually,
 not always, spell the same string - so it is built to report only on
 positive evidence and to stay silent wherever it cannot compare like with
@@ -1317,6 +1327,63 @@ measured once per statically evaluable key under the same boundary as
 `foreach-invalid-key`, and a `count` resource is measured at its highest
 index when the count is statically evaluable. Fixture at
 `live/e2e/limits/overlong-address/`.
+
+### arm-tag-limit
+
+**Construct.** An `azurerm` or `azapi` resource whose tags, once this run
+adds its ownership markers, come to more than the resource takes, or one of
+whose marker tags breaks a rule azurerm or ARM applies to a tag. The stamp
+adds `tofu-estate` and `tofu-address`, one continuation tag for each 256
+characters of address past the first, and `tofu-slot` on a `count` block.
+A configuration stock creates with 14 tags on a Cosmos DB account, or 49 on
+a resource group, fails its create only because of the markers.
+
+**Why bounded.** Azure caps the tags on one resource, and the cap is not
+the same everywhere. The rule takes the lowest of the limits that apply and
+names each with its source:
+
+- azurerm's own validation of the type's `tags` argument, read from the
+  provider's schema at the pin (`internal/live/armtypes`,
+  `azurerm_tags_generated.json`): 50 for `commonschema.Tags()`, 15 for
+  `azurerm_key_vault_secret` (`commonschema.TagsWithMaximumElements(15)`),
+  lowercase-only keys for `azurerm_data_share_account`, a 128-character key
+  for `azurerm_storage_account`;
+- the ARM type's documented maximum, from the `tags` description in the
+  type data azapi embeds (`taglimits_generated.txt`, 38 ARM types at azapi
+  2.13.0, among them Cosmos DB and storage accounts at 15 and API
+  Management at 10). An azapi resource's ARM type is its `type` argument;
+  an azurerm type's is read off its id template in `live/azurerm-ids.json`
+  (`azurerm_armtypes_generated.txt`);
+- ARM's default of 50 tags, 512-character keys and 256-character values
+  (go-azure-helpers' `tags.Validate`, and Azure's documented limits)
+  otherwise.
+
+Each marker key is checked under the spelling the stamp writes, which is
+the configuration's own when it already sets one (`Tofu-Estate`), and each
+address chunk is measured in bytes, which is what azurerm and ARM count,
+while the continuation split counts characters.
+
+A warning, not a refusal. Azure refuses the write that carries the markers
+with its own error and nothing is created wrongly: the create or update
+fails, or for a type azurerm tags after its create
+(`azurerm_app_service_managed_certificate`, `azurerm_subscription`) the
+object is created and the marker write that follows fails, naming the
+object. The warning names the cause before an apply does.
+
+**Forwarding address.** Free room in the block's own tags, or keep the
+resource's identity in the record store instead of a marker
+(`strict { markers "record" }`, "strict-markers").
+
+**Enforcement.** `RuleARMTagLimit`, `internal/live/lint/arm_tag_limit.go`
+(`checkARMTagLimit`), severity warning. It reads what configuration alone
+states: a `tags` argument (or an azapi `body.tags` written as an object)
+whose keys do not evaluate is skipped, and a key whose value is unknown is
+counted, since the key takes a slot whatever its value. With provider
+schemas it counts only a type whose schema carries the `arm-tags` surface,
+so the three azurerm types whose `tags` is a list of strings are never
+counted. Fixture at `live/e2e/limits/arm-tag-limit/`, which a schemaless
+lint run also refuses as `unadmitted-type` (no azurerm type has a row in the
+admission table).
 
 ### ignore-changes
 
@@ -1578,6 +1645,34 @@ and take the default.
 
 **Enforcement.** `RulePolicyThreshold`, `internal/live/lint/policy.go`
 (`checkLivePolicy`). Fixture at `live/e2e/limits/policy-threshold/`.
+
+### policy-overwrite-at-key
+
+**Construct.** `declared_untagged = "keep"` or `declared_untagged = "report"`
+in a `policy` block, in a configuration that declares an `azurerm` or `azapi`
+resource.
+
+**Why bounded.** Both verbs are quieter refusals: a declared object found at
+its identity without this estate's `tofu-estate` marker stays out of the
+estate, and the plan still proposes the resource's create. On Kubernetes the
+API server answers that create with 409 AlreadyExists, which is why the verbs
+stay accepted there (GitHub issue #1546). An ARM create is a PUT, and a PUT
+to an id that already exists updates the object there instead of failing, so
+on Azure the same create takes the unmarked object over with nothing to say
+it was ever this estate's (GitHub issue #1120, ruled on #1122). Which
+families this applies to is read off `substrate.CreateOverwritesAtKey`, never
+off a type name. The projection refuses such an object by name under every
+verb that reaches it ("Unmarked live object at the declared id would be
+overwritten"); this rule stops the configuration before any plan.
+
+**Forwarding address.** Remove the assignment to keep the default,
+`"refuse"`, which stops a plan that meets such an object; set `"adopt"` to
+take such objects over with this estate's markers written in the plan; or
+point the resource at a name nobody is using.
+
+**Enforcement.** `RulePolicyOverwriteAtKey`, `internal/live/lint/policy.go`
+(`checkPolicyOverwriteAtKey`). Fixture at
+`live/e2e/limits/policy-overwrite-at-key/`.
 
 ### retry
 
@@ -2727,6 +2822,10 @@ refused, and each says so in its own entry.
 | 0 | 0 | dataread | Data source read failed | error | `internal/live/dataread` | "Data source read failed" |
 | - | - | discovery | Address too long to carry an ownership marker | error | `internal/live/discovery` | "overlong-address" |
 | - | - | discovery | Annotated with a live Helm release, not in its manifest | warning | `internal/live/discovery` | "Annotated with a live Helm release, not in its manifest" |
+| - | - | discovery | Azure Resource Graph throttled the sweep | error | `internal/live/discovery` | "Azure Resource Graph throttled the sweep" |
+| - | - | discovery | Azure subscription not covered by any provider block | warning | `internal/live/discovery` | "Azure subscription not covered by any provider block" |
+| - | - | discovery | Azure subscription not readable by the sweep | warning | `internal/live/discovery` | "Azure subscription not readable by the sweep" |
+| - | - | discovery | Azure sweep unavailable | warning | `internal/live/discovery` | "Azure sweep unavailable" |
 | - | - | discovery | Cannot list the record store | error | `internal/live/discovery` | "Cannot list the record store" |
 | - | - | discovery | Cloud Control identifier could not be composed | error | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
 | - | - | discovery | Content match found more than one live candidate | error | `internal/live/discovery` | "Content match found more than one live candidate" |
@@ -2762,6 +2861,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Malformed slot marker | error | `internal/live/discovery` | "Malformed slot marker" |
 | - | - | discovery | Marked resource abandoned by a provider configuration change | warning | `internal/live/discovery` | "strict-provider-change" |
 | - | - | discovery | Marked resource outside its address's provider configuration | error | `internal/live/discovery` | "Marked resource outside its address's provider configuration" |
+| - | - | discovery | Microsoft.ResourceGraph not registered | error | `internal/live/discovery` | "Microsoft.ResourceGraph not registered" |
 | - | - | discovery | No AWS account ID from the provider | warning | `internal/live/discovery` | "No AWS account ID from the provider" |
 | - | - | discovery | No configuration to discover against | error | `internal/live/discovery` | "No configuration to discover against" |
 | - | - | discovery | No configured provider serves a removed resource's type | error | `internal/live/discovery` | "No configured provider serves a removed resource's type" |
@@ -2802,7 +2902,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Function calls not allowed | error | `hcl` | "Function calls not allowed" |
 | 0 | 0 | identity | Identity derived from a sensitive value | error | `internal/live/identity` | "Identity derived from a sensitive value" |
 | 0 | 0 | identity | Identity derived from an impure function | error | `internal/live/identity` | "Identity derived from an impure function" |
-| 0 | 0 | identity | Identity table and provider schema disagree | error | `internal/live/identity` | "Identity table and provider schema disagree" |
+| 0 | 0 | identity | Identity table and provider schema disagree | warning | `internal/live/identity` | "Identity table and provider schema disagree" |
 | 0 | 0 | identity | Inconsistent conditional result types | error | `hcl` | "Inconsistent conditional result types" |
 | 0 | 0 | identity | Incorrect condition type | error | `hcl` | "Incorrect condition type" |
 | 0 | 0 | identity | Incorrect key type | error | `hcl` | "Incorrect key type" |
@@ -2845,7 +2945,8 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Reference to undeclared resource | error | `internal/live/identity` | "Reference to undeclared resource" |
 | 0 | 0 | identity | Required variable not set | error | `internal/configs` | "Required variable not set" |
 | 0 | 0 | identity | Reserved symbol name | error | `internal/addrs` | "Reserved symbol name" |
-| 0 | 0 | identity | Resource type has no orphan recovery | error | `internal/live/identity` | "Resource type has no orphan recovery" |
+| - | - | identity | Resource in a resource group this estate does not declare | warning | `internal/live/identity` | live/MARKERS.md, "Granting an Azure estate" |
+| 0 | 0 | identity | Resource type has no orphan recovery | warning | `internal/live/identity` | "Resource type has no orphan recovery" |
 | 0 | 0 | identity | Secret-generating resource refused | error | `internal/live/identity` | "strict-secrets" |
 | 0 | 0 | identity | Sensitive for_each expression | error | `internal/live/identity` | "Sensitive for_each expression" |
 | 0 | 0 | identity | Sensitive lifecycle.enabled expression | error | `internal/live/identity` | "Sensitive lifecycle.enabled expression" |
@@ -2866,6 +2967,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Variables not allowed | error | `hcl` | "Variables not allowed" |
 | 0 | 0 | identity | for_each key cannot be recorded as a marker | error | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
 | 0 | 0 | identity | for_each over a resource that is not keyed | error | `internal/live/identity` | "for_each over a resource that is not keyed" |
+| - | - | lint | arm-tag-limit | warning | `internal/live/lint` | "arm-tag-limit" |
 | 0 | 0 | lint | child-live-config | error | `internal/live/lint` | "child-live-config" |
 | 0 | 0 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
 | - | - | lint | gcp-label-count | error | `internal/live/lint` | "gcp-label-count" |
@@ -2874,6 +2976,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | ignore-changes | error | `internal/live/lint` | "ignore-changes" |
 | 0 | 0 | lint | module-provider-block | error | `internal/live/lint` | "module-provider-block" |
 | 0 | 0 | lint | overlong-address | error | `internal/live/lint` | "overlong-address" |
+| - | - | lint | policy-overwrite-at-key | error | `internal/live/lint` | "policy-overwrite-at-key" |
 | 0 | 0 | lint | policy-scope | error | `internal/live/lint` | "policy-scope" |
 | 0 | 0 | lint | policy-threshold | error | `internal/live/lint` | "policy-threshold" |
 | 0 | 0 | lint | policy-verb | error | `internal/live/lint` | "policy-verb" |
@@ -2905,6 +3008,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot encode a projected object | error | `internal/live/projection` | "Cannot encode a projected object" |
 | - | - | projection | Cannot import for projection | error | `internal/live/projection` | "Cannot import for projection" |
 | - | - | projection | Cannot list the record store | error | `internal/live/projection` | "Cannot list the record store" |
+| - | - | projection | Cannot merge ownership markers into this azapi body value | warning | `internal/live/projection` | "Cannot merge ownership markers into this azapi body value" |
 | - | - | projection | Cannot merge ownership markers into this labels value | error | `internal/live/projection` | "Cannot merge ownership markers into this labels value" |
 | - | - | projection | Cannot merge ownership markers into this manifest value | error | `internal/live/projection` | "Cannot merge ownership markers into this manifest value" |
 | - | - | projection | Cannot merge ownership markers into this metadata block | error | `internal/live/projection` | "Cannot merge ownership markers into this metadata block" |
@@ -2927,6 +3031,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot set ownership markers on an unresolved tags value | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved tags value" |
 | - | - | projection | Cannot set the address annotation on an unresolved annotations value | error | `internal/live/projection` | "Cannot set the address annotation on an unresolved annotations value" |
 | - | - | projection | Cannot set the field manager on an unresolved value | error | `internal/live/projection` | "Cannot set the field manager on an unresolved value" |
+| - | - | projection | Cannot tell where an azapi resource carries its tags | error | `internal/live/projection` | "Cannot tell where an azapi resource carries its tags" |
 | - | - | projection | Could not write the discovery hint | error | `internal/live/projection` | "Could not write the discovery hint" |
 | - | - | projection | Could not write the state cache | error | `internal/live/projection` | "Could not write the state cache" |
 | - | - | projection | Created object is not marked | error | `internal/live/projection` | "Created object is not marked" |
@@ -2935,6 +3040,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Identity not resolvable, and the marker carries no address | error | `internal/live/projection` | "Identity not resolvable, and the marker carries no address" |
 | - | - | projection | Ignoring an additional imported object | error | `internal/live/projection` | "Ignoring an additional imported object" |
 | - | - | projection | Import reported absence as an error | error | `internal/live/projection` | "Import reported absence as an error" |
+| - | - | projection | Live object marked for another owner at the declared id would be overwritten | error | `internal/live/projection` | "Live object marked for another owner at the declared id would be overwritten" |
 | - | - | projection | Live resource listed but not importable | error | `internal/live/projection` | "Live resource listed but not importable" |
 | - | - | projection | Live resource marked for another address | error | `internal/live/projection` | "Live resource marked for another address" |
 | - | - | projection | Live resource outside this estate | error | `internal/live/projection` | "Live resource outside this estate" |
@@ -2953,6 +3059,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Ownership marker is not a legal field manager name | error | `internal/live/projection` | "Ownership marker is not a legal field manager name" |
 | - | - | projection | Ownership marker is not a legal label value | error | `internal/live/projection` | "Ownership marker is not a legal label value" |
 | - | - | projection | Ownership marker was not stored | error | `internal/live/projection` | "Ownership marker was not stored" |
+| - | - | projection | Ownership markers not set on an azapi resource type not known to take tags | warning | `internal/live/projection` | "Ownership markers not set on an azapi resource type not known to take tags" |
 | - | - | projection | Parent-derived identity with no formula | error | `internal/live/projection` | "Parent-derived identity with no formula" |
 | - | - | projection | Persisted record does not match the current schema | error | `internal/live/projection` | "Persisted record does not match the current schema" |
 | - | - | projection | Provider default labels not known at plan time | error | `internal/live/projection` | "Provider default labels not known at plan time" |
@@ -2974,13 +3081,14 @@ refused, and each says so in its own entry.
 | - | - | projection | This estate does not declare that it reads another estate's outputs | error | `internal/live/projection` | "This estate does not declare that it reads another estate's outputs" |
 | - | - | projection | This estate may not read another estate's outputs | error | `internal/live/projection` | "This estate may not read another estate's outputs" |
 | - | - | projection | Unlabelled live object holds the declared name | error | `internal/live/projection` | "Unlabelled live object holds the declared name" |
+| - | - | projection | Unmarked live object at the declared id would be overwritten | error | `internal/live/projection` | "Unmarked live object at the declared id would be overwritten" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
 | - | - | projection | Values from another estate are as of its last apply | warning | `internal/live/projection` | "Values from another estate are as of its last apply" |
 | - | - | projection | Values from another estate are as that estate's plan proposes them | warning | `internal/live/projection` | "Values from another estate are as that estate's plan proposes them" |
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**286 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**299 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3213,6 +3321,38 @@ reserved for the limits wing's fixture directories, and
 #### Annotated with a live Helm release, not in its manifest
 
 **What.** The Kubernetes sweep found an object carrying the estate's label and Helm's meta.helm.sh/release-name annotation, naming a release that still exists, whose manifest does not list it (GitHub issue #1738 item 4, ruled 2026-09-30). The release's latest record and its last deployed one are read metadata-first and decoded the way Helm's storage driver wrote them, and the object is matched on kind, namespace (the release's, for a document that gives none) and name. Unmatched, it is not the release's, so it is not reported as controller-held; it is not proposed for destroy either, so a wrong match can only ever raise this warning. A chart that dropped the object under helm.sh/resource-policy: keep, or a copy of a Helm object's YAML applied by hand, leaves it in this state. A record that cannot be read or decoded holds the object instead. A warning: the plan is unchanged by it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Azure Resource Graph throttled the sweep
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) queries Azure Resource Graph once per subscription the estate's resources resolve to, and Resource Graph answered one of those queries 429 past the waits its Retry-After and x-ms-user-quota-resets-after headers allow (four waits, none longer than a minute). What the estate marks in that subscription is unknown, and a plan made without it would propose no removal there however many blocks were deleted, so the plan is refused, naming the subscription; plan again once the caller's Resource Graph quota has recovered.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Azure subscription not covered by any provider block
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) queries every subscription the estate's resources resolve to, with the credential of the azurerm or azapi provider block that names it. A declared resource's ARM id names a subscription no provider block of the configuration names, so no credential was set to query it. A warning naming the subscription, and an incomplete sweep rather than an empty one: a resource the estate marks there whose block was deleted is not proposed for removal. Adding a provider block (an alias will do) whose subscription_id is that subscription covers it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Azure subscription not readable by the sweep
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) asked Azure Resource Graph about one subscription the estate's resources resolve to, and the credential cannot read it: no role assignment grants read on it, it does not exist, or it belongs to a tenant the token was not issued for (Resource Graph's NoValidSubscriptionsInQueryRequest, ARM's AuthorizationFailed, SubscriptionNotFound, InvalidSubscriptionId, InvalidAuthenticationTokenTenant, or any 403). One query per subscription is what makes this visible: asked about several at once, Resource Graph leaves an unreadable one out without saying so. A warning naming the subscription and the credential, and an incomplete sweep rather than an empty one: a resource the estate marks there whose block was deleted is not proposed for removal until a run can read it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Azure sweep unavailable
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) could not query one subscription for a reason none of the other Azure summaries names: no Resource Graph client could be built from an azurerm or azapi provider block (it names no credential the sweep can use, or sets a connection argument from a sensitive value), the provider block names no subscription, Resource Graph answered an error it does not classify, or a page after the first failed, in which case the pages already read are discarded rather than used. A warning, and an incomplete sweep rather than an empty one: a resource the estate marks there whose block was deleted is not proposed for removal until a run can read it.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -3452,7 +3592,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Live resource displaced from the address it is marked for
 
-**What.** A live resource carries this estate's marker for an address the configuration still declares, but the identity that address resolves to names a different live resource - so two resources answer to one address. Nothing is proposed for it; a human says which is which.
+**What.** A live resource carries this estate's marker for an address the configuration still declares, but the identity that address resolves to names a different live resource - so two resources answer to one address. Nothing is proposed for it on that address's behalf; a human says which is which. An object at an identity nothing declares is not read at all; one at the identity another declared instance computes (a renumbered count list's leftover) is read there by that instance and judged by its own markers, and the warning names that instance. An Azure object at a declared instance's ARM id gets no such warning: that instance's read refuses it under "Live object marked for another owner at the declared id would be overwritten" (GitHub issue #2135), one diagnostic for one object.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -3495,6 +3635,14 @@ reserved for the limits wing's fixture directories, and
 #### Marked resource outside its address's provider configuration
 
 **What.** A live resource carries this estate's marker for an address the configuration declares under a provider configuration that never listed it, and only passes that address does not belong to found it - a region or account change that left the old region's object behind. Proceeding would create a second live resource carrying one address's marker, so the plan refuses instead.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Microsoft.ResourceGraph not registered
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) queries Azure Resource Graph once per subscription the estate's resources resolve to, and one of those subscriptions has not registered the Microsoft.ResourceGraph resource provider (ARM's MissingSubscriptionRegistration and the other codes azure-sdk-for-go's registration policy acts on). The fix is registering it (az provider register --namespace Microsoft.ResourceGraph), never a retry or a grant. Refused by name, naming the subscription: a sweep that skipped it would read as one with nothing to remove there however many blocks were deleted.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -4166,6 +4314,16 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Resource in a resource group this estate does not declare
+
+**What.** On Azure an estate is the set of resource groups its configuration declares (GitHub issue #1122). A declared azurerm or azapi resource whose resource_group_name, resource_group_id or parent_id names a group no azurerm_resource_group or azapi Microsoft.Resources/resourceGroups block declares is outside the estate's role assignment and Policy guard. Reported as a warning, once per group.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+**Full entry.** `live/MARKERS.md`, "Granting an Azure estate" - hand-written, and the authority on this refusal.
+
 #### Resource type has no orphan recovery
 
 **What.** The type is admitted by the provider's identity schema rather than by the generated admission table, so it plans and applies but the estate-wide sweep will not list it: deleting its last block leaves the live resource with no run proposing to remove it. Reported as a warning.
@@ -4458,6 +4616,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot merge ownership markers into this azapi body value
+
+**What.** GitHub issue #1120's ARM branch of the node-path stamp found an azapi_resource body, or a body.tags, it cannot add the ownership markers into - a body that is marked or is not an object, or a tags entry that is not a string - so it left the configuration value as evaluated and wrote no marker.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Cannot merge ownership markers into this labels value
 
 **What.** GitHub issue #1061's label branch of the node-path stamp (NodeResolver.stampedMetadata) found a Kubernetes metadata.labels value it does not know how to add the tofu-estate marker into - a non-map value, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated. The Kubernetes sibling of "Cannot merge ownership markers into this tags value".
@@ -4634,6 +4800,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot tell where an azapi resource carries its tags
+
+**What.** GitHub issue #1120: an azapi_resource whose body is not known at plan time, so the stamp cannot tell whether its tags go in body.tags or in the top-level tags argument. azapi refuses both and ignores the top-level argument when body carries tags, so the stamp refuses rather than guess.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Could not write the discovery hint
 
 **What.** Guided discovery's plan-cost hint could not be written to the estate's record store, so the next run pays a full estate sweep instead of a narrowed one.
@@ -4698,6 +4872,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Live object marked for another owner at the declared id would be overwritten
+
+**What.** GitHub issue #2135, ruled 2026-10-20, widening #1120's refusal: a declared Azure resource (azurerm, or azapi_resource) was read at the ARM id its block declares, and it carries an ownership marker that is not this block's - another estate's tofu-estate, or this estate's with a tofu-address naming another instance or none that can be read. On AWS and Kubernetes those are the "Live resource outside this estate" and "Live resource marked for another address" warnings, beside a plan proposing the create; on Azure that create is a PUT that would write this block's markers over the object, so the run stops instead, under every policy verb, before anything is applied. The message names the marker found (estate and address) and the usual causes of a marker no choudoufu run wrote: AKS copying a cluster's tags over those of the existing route table, public IP or virtual network it is given, and an Azure Policy modify effect. Remedies: strict { markers "record" } for the type, which holds its identity in the record store so the copied tags decide nothing; keeping the resource out of the estate or out of the cluster's resource groups; a moved block or live-mv for a real move; live-mv -from-estate or live-import -approve to take another estate's object over deliberately. An object carrying this exact block's marker is admitted, and an absent object never triggers this.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Live resource listed but not importable
 
 **What.** GitHub issue #596: the provider's own list call returned a live object carrying this estate's tofu-estate marker and a tofu-address marker naming a declared instance, and the provider then answered that nothing exists at the identity that same listing served for it. The two answers contradict each other, so the plan refuses rather than propose creating a duplicate of the object it just listed. A list-served identity is used as the discriminator precisely because a tagging-API sighting is not proof of existence - deleted objects linger in the tag index - so an instance whose only sighting was the tag index still takes the ordinary ABSENT path and a genuine rebuild is never blocked.
@@ -4708,7 +4890,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Live resource marked for another address
 
-**What.** A live object at the identity a declared instance names carries this estate's marker under a different resource address, or under no address at all, so it is another instance's object (or a malformed marker) and is not projected.
+**What.** A live object at the identity a declared instance names carries this estate's marker under a different resource address, or under no address at all, so it is another instance's object (or a malformed marker) and is not projected. On a declared Azure resource read at the id its own block computes this is an error instead, under "Live object marked for another owner at the declared id would be overwritten", because the create it would leave standing is a PUT over that object (GitHub issue #2135).
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -4716,7 +4898,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Live resource outside this estate
 
-**What.** A live object bound by discovery carries an estate marker other than this run's, so it belongs to a different estate and is not projected.
+**What.** A live object bound by discovery carries an estate marker other than this run's, so it belongs to a different estate and is not projected. On a declared Azure resource read at the id its own block computes this is an error instead, under "Live object marked for another owner at the declared id would be overwritten", because the create it would leave standing is a PUT over that object (GitHub issue #2135).
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -4836,7 +5018,15 @@ reserved for the limits wing's fixture directories, and
 
 #### Ownership marker was not stored
 
-**What.** GitHub issue #1192: the object the provider returned after ApplyResourceChange does not carry a marker this run sent, so something between the write and the stored object discarded it - a Kubernetes admission policy or controller enforcing a label scheme, or an AWS Organizations tag policy. A create is reported as a warning, because the object was really added and the next plan reads it as a resource outside the estate and says so. An update that lost tofu-estate is an error, because its whole content was the marker, nothing it wrote lasted, and every later run would otherwise repeat it and report a change that did not happen. Permit tofu-estate wherever labels or tags are governed, or set markers = record for the type. No live read is issued: the value judged is the one the provider already returned.
+**What.** GitHub issue #1192: the object the provider returned after ApplyResourceChange does not carry a marker this run sent, so something between the write and the stored object discarded or rewrote it - a Kubernetes admission policy or controller enforcing a label scheme, an AWS Organizations tag policy, an Azure Policy assignment with a modify or append effect on tags, or AKS copying a cluster's tags over those of an existing resource it is given. A create is reported as a warning, because the object was really added and the next plan reads it as a resource outside the estate and says so. An update that lost tofu-estate is an error, because its whole content was the marker, nothing it wrote lasted, and every later run would otherwise repeat it and report a change that did not happen. Permit tofu-estate wherever labels or tags are governed, or set markers = record for the type. No live read is issued: the value judged is the one the provider already returned.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Ownership markers not set on an azapi resource type not known to take tags
+
+**What.** GitHub issue #1120: an azapi_resource whose ARM type and API version are not known to take tags (the taggability table generated from azapi's type data says it does not, or does not know it), so the stamp writes no marker rather than one Azure would refuse.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -5005,6 +5195,14 @@ reserved for the limits wing's fixture directories, and
 #### Unlabelled live object holds the declared name
 
 **What.** GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = "adopt" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Unmarked live object at the declared id would be overwritten
+
+**What.** GitHub issue #1120, ruled on #1122: a declared Azure resource (azurerm, or azapi_resource) was read at the ARM id its block declares, and it carries no tofu-estate tag. Under declared_untagged's default the plan would propose creating it, and an ARM create is a PUT, which updates an object already at that id instead of failing; the run stops instead, before anything is applied. Both providers read the id before their PUT and fail the apply when an object is there, azapi_resource always and azurerm for most types unless its features block sets skip_import_check_on_create_and_allow_overwriting_existing_resources, so the refusal is usually earlier than an apply-time error and, under azurerm with that flag or a type that skips the read, the only guard against a silent takeover (GitHub issue #2133); the message says which applies to the resource's provider. It holds under declared_untagged = "refuse" (the default), "keep" and "report": unlike #1546's refusal, keep and report do not soften it, since those verbs leave the same create standing, and lint's policy-overwrite-at-key refuses them before any plan. "adopt" and "converge" never reach it, because they admit the object first and the plan writes this estate's markers onto it. policy { declared_untagged = "adopt" } adopts the object, and writing the tofu-estate and tofu-address tags onto it does the same by hand. An absent object never triggers this; an object carrying another estate's marker, or this estate's for another address, is refused under its own summary, "Live object marked for another owner at the declared id would be overwritten" (GitHub issue #2135); AWS and Kubernetes types are unaffected.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

@@ -1,7 +1,7 @@
 ---
-// A slot page's link to the same slot on the other platforms: AWS adopt to
-// Kubernetes adopt, GCP adopt and back. The page's own id decides every side,
-// so a slot page places <PlatformSwitch /> with no props.
+// A slot page's links to the same slot on the other platforms: AWS adopt to
+// Kubernetes adopt, GCP adopt and Azure adopt, and back. The page's own id
+// decides every side, so a slot page places <PlatformSwitch /> with no props.
 const id = Astro.locals.starlightRoute.entry.id;
 const [platform, slot] = id.split('/');
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -9,6 +9,7 @@ const sides = [
 	{ key: 'aws', label: 'AWS' },
 	{ key: 'kubernetes', label: 'Kubernetes' },
 	{ key: 'gcp', label: 'GCP' },
+	{ key: 'azure', label: 'Azure' },
 ];
 ---
 <p class="cd-switch not-content">

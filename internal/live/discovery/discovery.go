@@ -223,6 +223,18 @@ type Request struct {
 	// right one.
 	Sweep bool
 
+	// RecordRemoval runs the record-orphan leg ([recordOrphanReadSweep])
+	// on a pass that does not ask for [Request.Sweep]: a family whose
+	// sweep leg is its whole sweep ([Request.Sweepers]) and so has no use
+	// for the admission-table loops, but whose untaggable types are still
+	// held by nothing but the estate's record once their block is removed.
+	// The Azure Resource Graph pass sets it (GitHub issue #2119): without
+	// it, deleting an azurerm_subnet block left the subnet in the cloud and
+	// out of the plan, where an AWS estate proposes destroying an
+	// untaggable aws_iam_role_policy from the same record. With Sweep set
+	// the leg runs anyway, and this changes nothing.
+	RecordRemoval bool
+
 	// SweepTypes overrides the sweep's type universe. Empty means the
 	// default in [sweepTypes], which is the admission table. It exists for
 	// tests and for a future in which the admitted set is derived from
@@ -611,7 +623,7 @@ func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdia
 	if declDiags.HasErrors() {
 		return res, diags
 	}
-	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep && len(req.CacheVouchTypes) == 0 && len(req.Sweepers) == 0 {
+	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep && !req.RecordRemoval && len(req.CacheVouchTypes) == 0 && len(req.Sweepers) == 0 {
 		// Nothing waits on discovery, no sweep was asked for and no cache
 		// vouching either, which is a legitimate configuration: every
 		// instance was named by static analysis, and without a sweep or a
@@ -814,6 +826,16 @@ func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdia
 		// GitHub issue #2134: a GCP hit a record now destroys is not also
 		// reported as left alone. See gcp.go.
 		dropGCPHitsTheRecordsRemove(res)
+		endLegs()
+	}
+	if req.RecordRemoval && !req.Sweep {
+		// GitHub issue #2119: the record leg alone, for a family whose own
+		// sweep leg replaced the admission-table loops. The parent-read and
+		// fold-child legs list a parent's children through this provider's
+		// list resources, which only the AWS provider serves, so they stay
+		// behind Sweep.
+		legsCtx, endLegs := discoverPhase(ctx, "removal-legs")
+		diags = diags.Append(recordOrphanReadSweep(legsCtx, req, schemas, res))
 		endLegs()
 	}
 
@@ -1078,6 +1100,11 @@ type claimant struct {
 	// (GitHub issue #2134 item 13, the GCP side of #2136). Empty for every
 	// other source.
 	resourcePath string
+
+	// objectType is [taggedCandidate.objectType]: the object's own type
+	// where the leg that found it files it under its marker's, for a
+	// message about the object. Empty when the two are the same.
+	objectType string
 }
 
 // displayID is how a claimant is named in a message: its live identity, or a
@@ -2067,7 +2094,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			TypeName: typeName,
 			Reason:   SweepGapNotTaggable,
 			Detail: fmt.Sprintf(
-				"A %s carries no tags, so it can carry no ownership marker and the sweep has nothing to search on. Destroy a resource of this type before removing its block, or delete it out of band.",
+				"A %s carries no tags, so it can carry no ownership marker and the sweep has nothing to search on. Removing its block still plans the destroy while the estate's record of it survives; with that record lost the resource is left running unowned, and live/RECOVERY.md says how to restore the record's previous version.",
 				typeName),
 		}))
 	}
@@ -2735,7 +2762,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			// Reported, never acted on: see displaced.go.
 			switch want, verdict := decl.displacedFrom(ctx, bindType, escaped, c); verdict {
 			case verdictDisplaced:
-				diags = diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, c)))
+				diags = diags.Append(problemDiag(res, displacedProblem(req, decl, bindType, escaped, want, c)))
 			case verdictOwnObject:
 				// Issue #692: see Result.VerifiedDeclared - the sighting
 				// vouches for the declared instance instead of being

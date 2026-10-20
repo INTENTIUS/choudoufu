@@ -188,7 +188,7 @@ func (n *NodeResolver) VerifyAppliedMarkers(_ context.Context, addr addrs.AbsRes
 
 	diags = diags.Append(tfdiags.Sourceless(severity, SummaryMarkerNotStored,
 		fmt.Sprintf(
-			"%s was %s, but the object the provider returned after the write does not carry the ownership marker this run sent:\n  - %s\n\n%s\n\nSomething between this run and the stored object removed it: a Kubernetes admission policy or controller enforcing a label scheme, or an AWS Organizations tag policy. Permit %s where that is configured, or set markers = record for this type in the live block so the estate's identity for it is held in the record store instead of on the object.",
+			"%s was %s, but the object the provider returned after the write does not carry the ownership marker this run sent:\n  - %s\n\n%s\n\nSomething between this run and the stored object removed or rewrote it: a Kubernetes admission policy or controller enforcing a label scheme, an AWS Organizations tag policy, an Azure Policy assignment with a modify or append effect on tags, or AKS, which copies a cluster's tags over the tags of the existing resources it is given (a route table, a public IP, a virtual network). Permit %s where a policy is configured, keep a resource an AKS cluster is given out of the estate, or set markers = record for this type in the live block so the estate's identity for it is held in the record store instead of on the object.",
 			addr, did, strings.Join(lost, "\n  - "), consequence, markers.TagEstate,
 		)))
 	return diags
@@ -262,6 +262,23 @@ func carrierMarkers(providerType string, obj cty.Value, schema providers.Schema)
 			collectStrings(v, out)
 		}
 		return out, found
+
+	case markers.SurfaceARMTags:
+		// GitHub issue #1120: the top-level tags map, present, known,
+		// unmarked and non-null, with the marker keys read
+		// case-insensitively ([markers.ARMTagsOf]), so a configuration's
+		// own Tofu-Estate compares as the tofu-estate it is. azapi copies a
+		// body.tags write back to the top-level attribute after the apply;
+		// before it, a planned body.tags leaves the top-level map unknown,
+		// which reads as nothing sent and is never a false positive.
+		if !obj.Type().HasAttribute(markers.ARMTagsArgument) {
+			return nil, false
+		}
+		v := obj.GetAttr(markers.ARMTagsArgument)
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || !v.CanIterateElements() {
+			return nil, false
+		}
+		return markers.ARMTagsOf(obj)
 
 	case markers.SurfaceLabels:
 		labels, ok := labelSurfaceLabels(obj)

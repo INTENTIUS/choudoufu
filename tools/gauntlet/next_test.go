@@ -28,7 +28,7 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 		{Name: "c-done", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"},
 	}}
 	a := &Artifact{}
-	a.Rebuild(m, nil, "e", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, nil, "e", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 	set := func(name string, verdicts map[string]string) {
 		r, _ := a.Result(name)
 		for k, v := range verdicts {
@@ -50,9 +50,9 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 	set("c-close", close)
 	set("g-close", close)
 	// c-far: nothing passes.
-	a.Rebuild(m, nil, "e", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, nil, "e", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 
-	units := NextUnits(a, "all", "")
+	units := NextUnits(a, "all", SubstratePins{})
 	got := []string{}
 	for _, u := range units {
 		got = append(got, u.ID)
@@ -65,13 +65,13 @@ func TestNextIsDeterministicAndOrdered(t *testing.T) {
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("order = %v, want %v", got, want)
 	}
-	again := NextUnits(a, "all", "")
+	again := NextUnits(a, "all", SubstratePins{})
 	for i := range units {
 		if again[i].ID != units[i].ID {
 			t.Fatal("NextUnits is not deterministic")
 		}
 	}
-	core := NextUnits(a, "core", "")
+	core := NextUnits(a, "core", SubstratePins{})
 	for _, u := range core {
 		if u.Set != SetCore {
 			t.Errorf("-set core returned %s", u.ID)
@@ -101,7 +101,7 @@ func TestNextSurfacesStaleClearEstatesAsTrailingWork(t *testing.T) {
 		{Name: "g-broken", Source: "s", URL: "u", Pin: "p", Lane: "published-deployment", Set: SetGrowing},
 	}}
 	a := &Artifact{}
-	a.Rebuild(m, nil, "new-pin", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, nil, "new-pin", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 
 	allPass := map[string]string{}
 	for _, s := range active {
@@ -125,9 +125,9 @@ func TestNextSurfacesStaleClearEstatesAsTrailingWork(t *testing.T) {
 	}
 	setLastRun("c-fresh", "new-pin")
 	setLastRun("c-stale", "old-pin")
-	a.Rebuild(m, nil, "new-pin", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, nil, "new-pin", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 
-	units := NextUnits(a, "all", "")
+	units := NextUnits(a, "all", SubstratePins{})
 	var ids []string
 	for _, u := range units {
 		ids = append(ids, u.ID)

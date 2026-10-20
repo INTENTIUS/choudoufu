@@ -3305,7 +3305,31 @@ const (
 	// internal/live/identity/testdata/record-fallback-google-labelled.
 	// fixture-dirs 674 -> 676 on the same row; the cohort pins are
 	// untouched.
-	identityGoldenPinDirs = 707
+	//
+	// Trial merge of gcp-lane and azure: the azure side's three fixtures
+	// join the gcp side's, 707 -> 710, fixture-dirs 676 -> 679.
+	//
+	// The azure side's own entries, renumbered from 702:
+	// 702 -> 703 for GitHub issue #1120 unit 12: one new fixture,
+	// live/e2e/limits/arm-tag-limit, an azurerm_cosmosdb_account the
+	// schemaless sweep leaves unadmitted (no azurerm type has a table row).
+	// It adds no row, so instances and body-sha256 are unchanged.
+	// fixture-dirs 671 -> 672 on the same row; the cohort pins are
+	// untouched.
+	//
+	// 703 -> 704 for GitHub issue #1120 unit 16: one new fixture,
+	// live/e2e/limits/policy-overwrite-at-key, an azurerm_resource_group
+	// the schemaless sweep leaves unadmitted. It adds no row, so instances
+	// and body-sha256 are unchanged. fixture-dirs 672 -> 673 on the same
+	// row; the cohort pins are untouched.
+	//
+	// 704 -> 705 for GitHub issue #2135: one new fixture,
+	// internal/live/lint/testdata/strict-markers-azurerm-aks, a
+	// `markers "record"` selection of four azurerm types and no resource
+	// block. It adds no row, so instances and body-sha256 are unchanged.
+	// fixture-dirs 673 -> 674 on the same row; the cohort pins are
+	// untouched.
+	identityGoldenPinDirs = 710
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

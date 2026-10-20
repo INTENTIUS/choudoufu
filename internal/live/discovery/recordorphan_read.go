@@ -176,7 +176,12 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			continue
 		}
 		typeName := addr.Resource.Resource.Type
-		if _, ratified := identity.LookupType(typeName); !ratified {
+		// GitHub issue #2119: azapi_resource is one Terraform type for
+		// every ARM type, so whether its sweep covers an instance is read
+		// off the instance's record below rather than off the type here.
+		azapiSchema, azapiServed := providerSchemaFor(schemas, typeName)
+		azapi := azapiServed && substrate.AzapiResourceShape(azapiSchema.Block)
+		if _, ratified := identity.LookupType(typeName); !ratified && !azapi {
 			// No ratified row - but a type [identity.LocatedType] admits is
 			// this leg's population too, not only the ratified,
 			// multi-Component one the file's own doc comment was written
@@ -213,11 +218,19 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				// (project, region) against the provider's other types.
 				_, schemaAdmitted = identity.SynthesizeTypeIdentity(typeName, schemas.ResourceSchemas(), nil)
 			}
-			if !schemaAdmitted && (!ok || !identity.LocatedType(typeName, schemaMap)) {
+			located := ok && identity.LocatedType(typeName, schemaMap)
+			if !schemaAdmitted && !located && !substrate.AzurermRecordable(typeName) {
 				// Not an admitted type at all, by either door - a stray or
 				// foreign key, not this leg's to guess at, the same
 				// discipline [builder.discoverOrphanedRecords] applies to a
 				// key it cannot make sense of.
+				//
+				// The third door is GitHub issue #2119's: an azurerm type
+				// has no ratified row (the Azure family admits it by its
+				// ARM id template, or the identity-schema route does), and
+				// its record is turned back into an ARM id by that same
+				// template below. A type whose template the family cannot
+				// read is a stray key here as it is everywhere else.
 				continue
 			}
 		}
@@ -245,7 +258,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				unserved = true
 			}
 		}
-		if !unserved && typeTaggable(schemas, typeName) && !selection.Selects(addr.ConfigResource()) {
+		if !unserved && !azapi && typeTaggable(schemas, typeName) && !selection.Selects(addr.ConfigResource()) {
 			// Taggable, meaning the ordinary tag sweep already covers it
 			// (and already ran, above, before this leg) and would already
 			// be in known if it found anything. [typeTaggable] reads the
@@ -339,6 +352,46 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 		}
 		elsewhere := req.ScopeProvider.Provider.Type != "" && recordedProvider != "" && recordedProvider != req.ScopeProvider.String()
 		importID := rec.ImportID
+		var identityValues map[string]string
+		if azapi {
+			typ := rec.Components[substrate.AzapiRecordType]
+			if typ != "" && substrate.AzapiTypeCarriesMarker(typ) && !selection.Selects(addr.ConfigResource()) {
+				// Its ARM type takes tags at its API version, so the stamp
+				// marked it and the Resource Graph sweep that ran ahead of
+				// this leg covers it, exactly as the type-level skip above
+				// does for a taggable type with a type of its own.
+				continue
+			}
+			if importID == "" {
+				// The id azapi builds from the three arguments
+				// (identity.AzapiResourceID, its newResourceID rule).
+				importID, _ = identity.AzapiResourceID(rec.Components[substrate.AzapiRecordParentID], typ, rec.Components[substrate.AzapiRecordName])
+			}
+			switch {
+			case typ == "" || importID == "":
+				if !elsewhere {
+					// Without its type the record cannot say whether the
+					// sweep covers the object, and without an id there is
+					// nothing to read: the same warning, naming the type
+					// and the estate, an azurerm record missing a segment
+					// gets below (#2119's D3).
+					diags = diags.Append(problemDiag(res, Problem{
+						Kind:     ProblemUnsweepableOwnedType,
+						TypeName: typeName,
+						Detail: fmt.Sprintf("Estate %q holds a record of an %s whose configuration block was removed, and the record does not hold the resource's ARM type and id, so its removal is not proposed and the object stays in the cloud. Find it among the estate's resource groups and delete it by hand.",
+							req.Estate, typeName),
+					}))
+					continue
+				}
+			default:
+				// azapi's own identity (id, type): the import that
+				// confirms the object reads it at the API version its
+				// block declared, not at the newest one azapi knows
+				// (ImportState's identity-with-type case,
+				// internal/services/azapi_resource.go at 2.13.0).
+				identityValues = map[string]string{"id": importID, substrate.AzapiRecordType: typ}
+			}
+		}
 		if importID == "" {
 			// A composite identity from the provider's own wire identity
 			// schema ([projection.LocatedRecord.Components] populated
@@ -353,6 +406,29 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// on the SAME provider version.
 			var ok bool
 			importID, ok = composeImportIDFromComponents(typeName, rec.Components)
+			if !ok && substrate.AzurermRecordable(typeName) {
+				// GitHub issue #2119: an azurerm identity schema's
+				// attributes, rebuilt into the ARM id the importer takes by
+				// the template admission reads (substrate.AzurermRecordImportID).
+				importID, ok = substrate.AzurermRecordImportID(typeName, rec.Components)
+				if !ok && !elsewhere {
+					// Never silent for this family: the record is the only
+					// thing that still names the object. #2119's D3 says
+					// such a warning names the type and the estate rather
+					// than the address, because the address is what a lost
+					// or broken record no longer vouches for. A warning,
+					// the one #107 gives an owned object no removal can
+					// reach: refusing would hold the whole estate's plan
+					// over one object it cannot destroy anyway.
+					diags = diags.Append(problemDiag(res, Problem{
+						Kind:     ProblemUnsweepableOwnedType,
+						TypeName: typeName,
+						Detail: fmt.Sprintf("Estate %q holds a record of an %s whose configuration block was removed, and the record does not hold every segment of its Azure resource id, so its removal is not proposed and the object stays in the cloud. Find it among the estate's resource groups and delete it by hand.",
+							req.Estate, typeName),
+					}))
+					continue
+				}
+			}
 			if !ok && !elsewhere {
 				// A component this composer does not know how to resolve (a
 				// nested Block, a Default substitute, an OmitIfAbsent
@@ -444,6 +520,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			Addr:             resolvedAddr,
 			Class:            identity.ClassConcrete,
 			ImportID:         importID,
+			IdentityValues:   identityValues,
 			Undeclared:       true,
 			DestroyDependsOn: dependsOn,
 			// See [identity.Resolution.RecordRooted]'s doc comment: this

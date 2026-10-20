@@ -48,3 +48,7 @@ second directory must see nothing.
 No GCP scenario is written yet, so the cell is open. `ignore_changes =
 [labels["owner"]]` is admitted, and `ignore_changes` over the `labels` map
 or a marker key is refused by lint.
+
+## On Azure
+
+Open. Nothing has run on Azure yet. azurerm has no provider-level `ignore_tags`, so the Azure form of this promise is `lifecycle { ignore_changes = [tags] }`, a different declaration from the AWS proof's, and it is not measured.

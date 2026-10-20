@@ -155,8 +155,9 @@ recoverability, silently, until the next crash.
 
 ### A removed block of an untaggable type, record lost
 
-A type with no marker surface (an untaggable AWS type, or a GCP type with
-no labels map such as `google_compute_subnetwork`) is declaration-carried:
+A type with no marker surface (an untaggable AWS type, a GCP type with no
+labels map such as `google_compute_subnetwork`, or an untaggable azurerm
+type such as `azurerm_subnet`) is declaration-carried:
 its identity is recomputed from configuration, and nothing lists it by
 marker. Remove its block and the plan destroys it from its record. Lose that
 record first, and nothing left in the run knows the object or its type: the
@@ -165,12 +166,28 @@ see it. The object is left in place, never destroyed by a guess.
 
 What the plan does report is the gap itself. Every unlabelled type the
 configuration still declares appears under "Not swept for removal" as
-`TYPE_NOT_TAGGABLE`, on AWS and on GCP alike (GitHub issue #2119, D3). That
+`TYPE_NOT_TAGGABLE`, on AWS, GCP and Azure alike (GitHub issue #2119, D3). That
 list is the reminder that removals of those types ride on the records.
 
-The recovery is step 2 below: restore the record's noncurrent version, then
-plan, and the destroy comes back. Without a restore, find the object with
-the cloud's own console or CLI and delete it by hand.
+The recovery is the record's previous version, restored before the next
+plan (step 2 below), and the destroy comes back:
+
+- AWS: the `s3` store's noncurrent version of the record object.
+- GCP: the `gcs` store requires Object Versioning and a lifecycle rule that
+  deletes only noncurrent versions, so the deleted or overwritten record
+  object is still a noncurrent generation. List it with `gcloud storage ls
+  --all-versions gs://<bucket>/<record key>` and copy that generation back
+  with `gcloud storage cp gs://<bucket>/<record key>#<generation>
+  gs://<bucket>/<record key>`.
+- Azure: the `azurerm` store requires blob versioning, so the deleted or
+  overwritten record blob is still a previous version. List it with
+  `az storage blob list --include v --prefix <record key>` and copy it back
+  over the current blob with `az storage blob copy start` from the
+  `?versionid=` URL, or promote it under the blob's Versions tab in the
+  portal.
+
+Without a restore, find the object with the cloud's own console or CLI and
+delete it by hand.
 
 ### The 96 in-contract record-carried AWS types
 

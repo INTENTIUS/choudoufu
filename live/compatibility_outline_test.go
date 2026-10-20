@@ -21,8 +21,8 @@ import (
 //
 // This pin holds each platform's copy to the same level-2 outline: every ##
 // heading in live/COMPATIBILITY.md must appear, in the same order, in
-// live/kubernetes/COMPATIBILITY.md and live/gcp/COMPATIBILITY.md, and vice
-// versa. A section that does not
+// live/kubernetes/COMPATIBILITY.md, live/gcp/COMPATIBILITY.md and
+// live/azure/COMPATIBILITY.md, and vice versa. A section that does not
 // apply to a substrate still gets the heading, with a line saying so - the
 // heading disappearing silently is exactly what #1602 was filed over.
 var compatH2Pattern = regexp.MustCompile(`(?m)^## (.+)$`)
@@ -49,7 +49,7 @@ func TestCompatibilityDocsShareOutline(t *testing.T) {
 
 	// Every platform's copy joins the pin (live/ADDING-A-PLATFORM.md,
 	// requirement 15).
-	for _, platform := range []string{"kubernetes", "gcp"} {
+	for _, platform := range []string{"kubernetes", "gcp", "azure"} {
 		path := platform + "/COMPATIBILITY.md"
 		got := compatibilityHeadings(t, path)
 		if len(got) == 0 {

@@ -155,11 +155,12 @@ func LoadShardArtifacts(dir string) ([]ShardArtifact, error) {
 // CombineShards folds every shard's own row into base and rebuilds.
 //
 // expect is the estate list the run was supposed to measure (ShardEstates,
-// or the explicit names a dispatch asked for); commit, emulator and
-// kindImage are the tree and the two substrate pins every shard must have
-// measured against - emulator for a floci-substrate estate, kindImage for a
+// or the explicit names a dispatch asked for); commit, emulator and pins
+// are the tree and the substrate pins every shard must have measured
+// against - emulator for a floci-substrate estate, pins.Kind for a
 // kind-substrate one (issue #1594's split, mutually exclusive per row the
-// same way LastRun.Emulator/LastRun.SubstrateImage are). Each is checked
+// same way LastRun.Emulator/LastRun.SubstrateImage are), pins.FlociAz for a
+// floci-az one (#1120). Each is checked
 // rather than inferred from the shards themselves: shards that all agree
 // with each other and disagree with the checkout are a set of stale
 // uploads, and they read identically to a fresh run from the inside.
@@ -168,7 +169,7 @@ func LoadShardArtifacts(dir string) ([]ShardArtifact, error) {
 // them has the same fix - re-run that estate's job, which is minutes now
 // that a job is one estate - and because the alternative is a board that
 // quietly describes fewer estates, or another tree, than it claims to.
-func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect []string, commit, emulator, kindImage string) (*Artifact, error) {
+func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect []string, commit, emulator string, pins SubstratePins) (*Artifact, error) {
 	if len(expect) == 0 {
 		return nil, fmt.Errorf("combine-shards: no estates were expected, so there is nothing to combine and nothing to check against")
 	}
@@ -191,11 +192,11 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 	// (cmdRun calls Rebuild before writing it). Comparing a shard's
 	// untouched rows against a base that had not been through the same
 	// function would report every derived field as a difference.
-	cmp, err := rebuiltCopy(base, m, bi, emulator, oracleVersions(root), providerVersions(root), engineVersion(root), kindImage)
+	cmp, err := rebuiltCopy(base, m, bi, emulator, oracleVersions(root), providerVersions(root), engineVersion(root), pins)
 	if err != nil {
 		return nil, err
 	}
-	// The floci-gcp pin is the checkout's, as kindImage and emulator are
+	// The floci-gcp pin is the checkout's, as pins and emulator are
 	// this run's (#1119); it has no flag of its own.
 	cmp.EmulatorGCP = flociGCPImagePin(root)
 	baseRows := indexRows(cmp.Estates)
@@ -229,14 +230,21 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 		// nightly hit: every kind row read "measured against emulator
 		// <none>" against a run that pins a floci digest, forever, because
 		// a kind row is NEVER stamped with Emulator.
-		if pin, ok := substrateImagePin(entry.Substrate(), cmp, kindImage); ok {
+		if entry.Substrate() == SubstrateFlociAz {
+			// floci-az (#1120) is not floci: its row records the floci-az
+			// image, held to live/floci-az-image here the way a kind row is
+			// held to the node image.
+			if row.LastRun.SubstrateImage != pins.FlociAz {
+				return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured against floci-az image %s and this run pins %s (%s); rows measured against different images are not one board", s.Estate, orNone(row.LastRun.SubstrateImage), orNone(pins.FlociAz), s.Path)
+			}
+		} else if pin, ok := substrateImagePin(entry.Substrate(), cmp, pins); ok {
 			if row.LastRun.SubstrateImage != pin {
 				return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured against %s %s and this run pins %s (%s); rows measured against different images are not one board", s.Estate, substrateImageNoun(entry.Substrate()), orNone(row.LastRun.SubstrateImage), pin, s.Path)
 			}
 		} else if row.LastRun.Emulator != emulator {
 			return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured against emulator %s and this run pins %s (%s); rows measured against different images are not one board", s.Estate, orNone(row.LastRun.Emulator), emulator, s.Path)
 		}
-		if err := checkShardContributesOnlyItsOwn(s, baseRows, m, bi, emulator, oracleVersions(root), providerVersions(root), engineVersion(root), kindImage); err != nil {
+		if err := checkShardContributesOnlyItsOwn(s, baseRows, m, bi, emulator, oracleVersions(root), providerVersions(root), engineVersion(root), pins); err != nil {
 			return nil, err
 		}
 		got[s.Estate] = row
@@ -274,7 +282,7 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 
 	out := &Artifact{Estates: rows, LiveCert: base.LiveCert}
 	out.EmulatorGCP = flociGCPImagePin(root)
-	out.Rebuild(m, bi, emulator, oracleVersions(root), providerVersions(root), engineVersion(root), kindImage)
+	out.Rebuild(m, bi, emulator, oracleVersions(root), providerVersions(root), engineVersion(root), pins)
 	return out, nil
 }
 
@@ -287,10 +295,10 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 // would otherwise contribute a measurement nothing in this run accounts
 // for, and it would look exactly like a row the collect job had decided to
 // keep.
-func checkShardContributesOnlyItsOwn(s ShardArtifact, baseRows map[string]EstateResult, m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions, engine, kindImage string) error {
+func checkShardContributesOnlyItsOwn(s ShardArtifact, baseRows map[string]EstateResult, m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions, engine string, pins SubstratePins) error {
 	// The shard's own artifact goes through Rebuild too, for the same
 	// reason the base did: like compared with like.
-	cmp, err := rebuiltCopy(s.Artifact, m, bi, emulator, oracle, providers, engine, kindImage)
+	cmp, err := rebuiltCopy(s.Artifact, m, bi, emulator, oracle, providers, engine, pins)
 	if err != nil {
 		return err
 	}
@@ -324,7 +332,7 @@ func checkShardContributesOnlyItsOwn(s ShardArtifact, baseRows map[string]Estate
 // rebuiltCopy is a deep copy of a with every derived field recomputed -
 // through JSON, so the copy shares no map with the original (EstateResult
 // carries two, and Rebuild writes into them in place).
-func rebuiltCopy(a *Artifact, m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions, engine, kindImage string) (*Artifact, error) {
+func rebuiltCopy(a *Artifact, m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions, engine string, pins SubstratePins) (*Artifact, error) {
 	b, err := json.Marshal(a)
 	if err != nil {
 		return nil, err
@@ -333,6 +341,6 @@ func rebuiltCopy(a *Artifact, m *Manifest, bi *BehaviorIndex, emulator string, o
 	if err := json.Unmarshal(b, &cp); err != nil {
 		return nil, err
 	}
-	cp.Rebuild(m, bi, emulator, oracle, providers, engine, kindImage)
+	cp.Rebuild(m, bi, emulator, oracle, providers, engine, pins)
 	return &cp, nil
 }

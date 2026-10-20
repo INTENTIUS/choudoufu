@@ -80,3 +80,7 @@ the marker must land with no warning.
 No GCP scenario is written yet, so the cell is open. A saved plan is
 re-planned against the live system at apply on every substrate, and
 nothing about that is GCP-specific.
+
+## On Azure
+
+Open. The intended proof is the gauntlet's `plan_approval` stage on `reference-azure`, which is built and has not been run. floci-az evaluates no Policy, so the server's own refusal at apply time cannot be shown there.

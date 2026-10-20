@@ -538,11 +538,17 @@ func recordIdentityMatches(rec recordIdentityNames, liveImportID string, liveIde
 	// A miss falls through and changes nothing. Every record written
 	// before #879, and every record whose type has only one name, carries
 	// an empty SecondaryID and takes exactly the path it always took.
-	if rec.secondaryID != "" && rec.secondaryID == liveImportID {
+	//
+	// Both import-id comparisons go through [sameImportID]: an ARM id is
+	// compared case-insensitively (GitHub issue #2136), every other id
+	// exactly. A record written from the provider's casing has to match the
+	// lowercased id Resource Graph lists for the same object, or the
+	// ordinary replace #885 silences would read on Azure as displaced.
+	if rec.secondaryID != "" && sameImportID(rec.secondaryID, liveImportID) {
 		return true
 	}
 	if rec.importID != "" {
-		return rec.importID == liveImportID
+		return sameImportID(rec.importID, liveImportID)
 	}
 	components := rec.components
 	if len(components) == 0 {

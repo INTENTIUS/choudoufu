@@ -417,6 +417,60 @@ func changedOutsideTags(block *configschema.Block, prior, planned cty.Value) []s
 	return changedAttrs(block, prior, planned, map[string]bool{"tags": true, "tags_all": true})
 }
 
+// changedOutsideARMTags is [changedOutsideTags] for a write that may also set
+// an azapi body's tags (inBody, GitHub issue #1120 unit 19): the body is
+// expected to move there, and only there, so it is compared with its tags
+// key left out ([markers.ARMBodyWithoutTags]). With inBody false it is
+// changedOutsideTags exactly.
+func changedOutsideARMTags(block *configschema.Block, prior, planned cty.Value, inBody bool) []string {
+	if !inBody {
+		return changedOutsideTags(block, prior, planned)
+	}
+	out := changedAttrs(block, prior, planned, map[string]bool{"tags": true, "tags_all": true, markers.ARMBodyArgument: true})
+	if prior == cty.NilVal || prior.IsNull() || planned == cty.NilVal || planned.IsNull() {
+		return out
+	}
+	p := markers.ARMBodyWithoutTags(prior.GetAttr(markers.ARMBodyArgument))
+	n := markers.ARMBodyWithoutTags(planned.GetAttr(markers.ARMBodyArgument))
+	if n.IsWhollyKnown() && !equivalent(p, n) {
+		out = append(out, fmt.Sprintf("%s outside its tags (%s -> %s)", markers.ARMBodyArgument, shortValue(p), shortValue(n)))
+		sort.Strings(out)
+	}
+	return out
+}
+
+// withARMBodyTags is obj with its azapi body's tags key set to tags
+// ([markers.WithARMBodyTags]).
+func withARMBodyTags(obj cty.Value, tags map[string]string) (cty.Value, error) {
+	body, ok := markers.WithARMBodyTags(obj.GetAttr(markers.ARMBodyArgument), tags)
+	if !ok {
+		return cty.NilVal, fmt.Errorf("its %s is not an object a tags key can be set in", markers.ARMBodyArgument)
+	}
+	if obj.IsMarked() {
+		return cty.NilVal, fmt.Errorf("it is marked as a whole")
+	}
+	vals := obj.AsValueMap()
+	vals[markers.ARMBodyArgument] = body
+	return cty.ObjectVal(vals), nil
+}
+
+// armBodyConfig is a synthetic configuration for a write into an azapi
+// body's tags: candidate with the body desired holds, markers included, and
+// a null top-level tags argument, because that is the configuration the
+// object's operator wrote (azapi refuses one that sets both,
+// validateDuplicatedDefinitions) and the one azapi plans the top-level
+// value from. Without it, [claimTagsOnly] nulls the Optional+Computed body
+// as something the provider may fill in, and the plan writes nothing.
+func armBodyConfig(candidate, desired cty.Value) cty.Value {
+	if candidate.IsMarked() {
+		return candidate
+	}
+	vals := candidate.AsValueMap()
+	vals[markers.ARMBodyArgument] = desired.GetAttr(markers.ARMBodyArgument)
+	vals[markers.ARMTagsArgument] = cty.NullVal(candidate.GetAttr(markers.ARMTagsArgument).Type())
+	return cty.ObjectVal(vals)
+}
+
 // equivalent reports whether two values say the same thing about the cloud.
 //
 // It is RawEquals plus one allowance for a real thing legacy-SDK providers

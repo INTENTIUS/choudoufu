@@ -8,12 +8,14 @@ package projection
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/moved"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -260,6 +262,26 @@ func (b *builder) locatedIdentityWithAliases(ctx context.Context, addr addrs.Abs
 // every writer already calls is what keeps that true without each new call
 // site having to remember to ask a second question.
 func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Value) (LocatedRecord, bool) {
+	return LocatedRecordFromIn(resourceType, schema, obj, nil)
+}
+
+// LocatedRecordFromIn is [LocatedRecordFrom] told the provider
+// configuration obj was applied through, as values (GitHub issue #2135).
+// It is what makes an identity with a provider-configuration component
+// recordable ([identity.LocatedIdentityPlan.ProviderComponents]: azurerm's
+// subscription_id, which the applied object's attributes do not carry):
+// values answers it the way identity resolution does
+// ([identity.ProviderCloudValue]). With values nil, or not knowing one of
+// them, such a type records nothing, which is what [LocatedRecordFrom]
+// answered for it before #2135.
+//
+// The record is then checked against the object itself: where the family
+// can rebuild an id from the record ([substrate.AzurermRecordImportID]) and
+// the object carries one, the two must name the same object, compared as
+// ARM compares ids, without regard to case. A record naming another
+// subscription than the one the object lives in is a wrong identity, the
+// one thing a record may never hold, so a disagreement records nothing.
+func LocatedRecordFromIn(resourceType string, schema providers.Schema, obj cty.Value, values identity.ProviderValue) (LocatedRecord, bool) {
 	if !identity.RecordableIdentitySchema(resourceType, schema) {
 		return locatedRatifiedComponentsRecord(resourceType, schema, obj)
 	}
@@ -275,6 +297,9 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 			// reads back as a whole identity - the exact defect this
 			// branch exists to close.
 			rec.Components, recordable = identity.LocatedIdentity(obj, plan.Components)
+			if recordable && (plan.FromProvider() || plan.Derived()) {
+				rec.Components, recordable = withProviderComponents(resourceType, obj, plan, rec.Components, values)
+			}
 			if recordable {
 				// GitHub issue #879. This branch records the object
 				// form of the identity and, until now, nothing else -
@@ -363,12 +388,65 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 		// this real object), never on a type name.
 		if comps, ok := schemaFallbackComponentsRecord(resourceType, schema, obj); ok {
 			rec.Components = comps
+		} else if args, ok := substrate.AzapiRecordArguments(schema.Block, obj); ok {
+			// GitHub issue #2119: an azapi_resource's id is the whole of
+			// what the importer needs, but not the whole of what a record
+			// is read for. Whether the Resource Graph sweep can find the
+			// object depends on the ARM type and API version its `type`
+			// names, and once its block is removed the record is the only
+			// place left that says (internal/live/discovery's record leg).
+			// Kept beside the id, like the components above, never in
+			// place of it.
+			rec.Components = args
 		}
 	}
 	if !recordable || rec.Empty() {
 		return LocatedRecord{}, false
 	}
 	return rec, true
+}
+
+// withProviderComponents adds plan's provider components and its derived
+// components (GitHub issue #2138) to comps, the components
+// [identity.LocatedIdentity] read off obj, and checks the whole against
+// obj's own id. See [LocatedRecordFromIn]. comps is never mutated: the
+// answer is a new map.
+//
+// A derived component is a value read out of another argument (a parent's
+// name parsed out of the parent's ARM id) or a constant, not off an
+// attribute of its own name, so for a plan with one the check is not
+// optional: the record has to rebuild into an ARM id, and the object has to
+// carry an id equal to it, or nothing is written. That is the backstop
+// #2138's ruling keeps, against a parse that succeeds and names another
+// object.
+func withProviderComponents(resourceType string, obj cty.Value, plan identity.LocatedIdentityPlan, comps map[string]string, values identity.ProviderValue) (map[string]string, bool) {
+	fromProvider, ok := identity.LocatedProviderIdentity(plan, values)
+	if !ok {
+		return nil, false
+	}
+	derived, ok := identity.LocatedDerivedIdentity(plan, obj)
+	if !ok {
+		return nil, false
+	}
+	out := make(map[string]string, len(comps)+len(fromProvider)+len(derived))
+	for k, v := range comps {
+		out[k] = v
+	}
+	for k, v := range fromProvider {
+		out[k] = v
+	}
+	for k, v := range derived {
+		out[k] = v
+	}
+	rebuilt, ok := substrate.AzurermRecordImportID(resourceType, out)
+	own := substrate.ObjectString(obj, "id")
+	if plan.Derived() && (!ok || own == "") {
+		return nil, false
+	}
+	if ok && own != "" && !strings.EqualFold(own, rebuilt) {
+		return nil, false
+	}
+	return out, true
 }
 
 // schemaFallbackComponentsRecord is [LocatedRecordFrom]'s family-1 half

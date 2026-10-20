@@ -58,7 +58,7 @@ func TestGCPRowHasABarOfItsOwn(t *testing.T) {
 		{Name: "gcp-one", Protocol: ProtocolGauntlet, Stages: passEverything()},
 		{Name: "k8s-one", Protocol: ProtocolGauntlet, Stages: passEverything()},
 	}}
-	a.Rebuild(flociGCPManifest(), &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(flociGCPManifest(), &BehaviorIndex{}, "img", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 	gcp, ok := a.Result("gcp-one")
 	if !ok {
 		t.Fatal("gcp-one has no row")
@@ -119,10 +119,10 @@ func TestFlociGCPRowIsJudgedAgainstItsOwnPins(t *testing.T) {
 	row := func(img, google string) EstateResult {
 		return EstateResult{Substrate: SubstrateFlociGCP, Protocol: ProtocolGauntlet, LastRun: &LastRun{Commit: "c", SubstrateImage: img, GoogleProviderVersion: google}}
 	}
-	if IsSubstrateStale(row(gcpPin, "8.6.0"), a, "kind-pin") {
+	if IsSubstrateStale(row(gcpPin, "8.6.0"), a, SubstratePins{Kind: "kind-pin"}) {
 		t.Error("a floci-gcp row measured against the current floci-gcp pin reads stale")
 	}
-	if !IsSubstrateStale(row("ghcr.io/lex00/floci-gcp@sha256:old", "8.6.0"), a, "kind-pin") {
+	if !IsSubstrateStale(row("ghcr.io/lex00/floci-gcp@sha256:old", "8.6.0"), a, SubstratePins{Kind: "kind-pin"}) {
 		t.Error("a floci-gcp row measured against an older floci-gcp image reads current")
 	}
 	if got := ProviderStaleReasons(row(gcpPin, "8.6.0"), a.Providers); len(got) != 0 {
@@ -132,7 +132,7 @@ func TestFlociGCPRowIsJudgedAgainstItsOwnPins(t *testing.T) {
 	if len(got) != 1 || !strings.Contains(got[0], "hashicorp/google 8.5.0") {
 		t.Errorf("ProviderStaleReasons = %q, want one reason naming hashicorp/google 8.5.0", got)
 	}
-	note, _ := lastRunNote(row("ghcr.io/lex00/floci-gcp@sha256:old", "8.6.0"), a, "kind-pin")
+	note, _ := lastRunNote(row("ghcr.io/lex00/floci-gcp@sha256:old", "8.6.0"), a, SubstratePins{Kind: "kind-pin"})
 	if !strings.Contains(note, "**Stale**: the current pin is `"+gcpPin+"`") {
 		t.Errorf("lastRunNote for a stale floci-gcp row = %q, want it to name the floci-gcp pin", note)
 	}

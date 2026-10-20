@@ -151,7 +151,7 @@ func TestLiveLsRung(t *testing.T) {
 
 	t.Run("record-backed", func(t *testing.T) {
 		res := liveLsTestResolution(t, "aws_s3_bucket.data", identity.ClassRecordBacked)
-		rung, detail, ok := liveLsRung(res, schemas)
+		rung, detail, ok := liveLsRung(res, schemas, liveLsInstance{})
 		if !ok || rung != "record" || detail == "" {
 			t.Fatalf("got rung=%q detail=%q ok=%v, want record/non-empty/true", rung, detail, ok)
 		}
@@ -159,7 +159,7 @@ func TestLiveLsRung(t *testing.T) {
 
 	t.Run("record-located", func(t *testing.T) {
 		res := liveLsTestResolution(t, "aws_s3_bucket.data", identity.ClassRecordLocated)
-		rung, _, ok := liveLsRung(res, schemas)
+		rung, _, ok := liveLsRung(res, schemas, liveLsInstance{})
 		if !ok || rung != "record" {
 			t.Fatalf("got rung=%q ok=%v, want record/true", rung, ok)
 		}
@@ -167,7 +167,7 @@ func TestLiveLsRung(t *testing.T) {
 
 	t.Run("untaggable schema is declaration-carried", func(t *testing.T) {
 		res := liveLsTestResolution(t, "aws_s3_bucket.data", identity.ClassConcrete)
-		rung, detail, ok := liveLsRung(res, schemas)
+		rung, detail, ok := liveLsRung(res, schemas, liveLsInstance{})
 		if !ok || rung != "declaration-carried" || detail == "" {
 			t.Fatalf("got rung=%q detail=%q ok=%v, want declaration-carried/non-empty/true", rung, detail, ok)
 		}
@@ -175,7 +175,7 @@ func TestLiveLsRung(t *testing.T) {
 
 	t.Run("no schema at all: not classified, not a gap", func(t *testing.T) {
 		res := liveLsTestResolution(t, "aws_s3_bucket.data", identity.ClassNeedsDiscovery)
-		_, _, ok := liveLsRung(res, map[string]providers.Schema{})
+		_, _, ok := liveLsRung(res, map[string]providers.Schema{}, liveLsInstance{})
 		if ok {
 			t.Fatal("expected ok=false when no schema is available to check taggability")
 		}

@@ -17,6 +17,8 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
@@ -128,7 +130,10 @@ type StampReport struct {
 // exactly the same rules as the first, not by a copy of them that drifts.
 // Nothing here is new but the named attribute paths on the replacement
 // refusal, which internal/live/mv's checkPlan has always printed.
-func notATagsOnlyPlan(block *configschema.Block, prior cty.Value, typeName string, resp providers.PlanResourceChangeResponse) string {
+//
+// armInBody is [eligible.armInBody]: the write sets an azapi body's tags, so
+// the body may change there and nowhere else ([changedOutsideARMTags]).
+func notATagsOnlyPlan(block *configschema.Block, prior cty.Value, typeName string, resp providers.PlanResourceChangeResponse, armInBody bool) string {
 	if resp.Diagnostics.HasErrors() {
 		return fmt.Sprintf("The provider failed while planning the tag write: %s. Nothing was written.", resp.Diagnostics.Err())
 	}
@@ -138,7 +143,7 @@ func notATagsOnlyPlan(block *configschema.Block, prior cty.Value, typeName strin
 	if resp.PlannedState == cty.NilVal || resp.PlannedState.IsNull() {
 		return "Planning the tag write produced no object at all. This is a provider bug; nothing was written."
 	}
-	if extra := changedOutsideTags(block, prior, resp.PlannedState); len(extra) > 0 {
+	if extra := changedOutsideARMTags(block, prior, resp.PlannedState, armInBody); len(extra) > 0 {
 		return fmt.Sprintf("Stamping this %s would also change %s. Approve is a tags-only write; nothing was written. Run live-plan to see what else has drifted and resolve that first.", typeName, strings.Join(extra, ", "))
 	}
 	return ""
@@ -378,7 +383,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		// estate's record store's located namespace and no tag is
 		// written. Residue is still recorded exactly as it is for an
 		// ordinary eligible instance - see [located]'s doc comment.
-		res.outcome = locateOne(ctx, r.recordStore, entry.Addr, loc)
+		res.outcome = locateOne(ctx, r.recordStore, entry.Addr, loc, r.providerValues(loc.providerAddr))
 		r.reportProgress(entry, res.outcome)
 		res.diags = res.diags.Append(unwrittenCarrierDiag(r.recordStore, entry.Addr, loc.typeName))
 		if res.outcome.Outcome == OutcomeRecorded || res.outcome.Outcome == OutcomeAlreadyRecorded {
@@ -417,7 +422,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		// configuration's strict { secrets } refused to seed - and
 		// there is nothing to derive an identity from for any of those.
 		if untaggable != nil {
-			if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, untaggable.providerAddr, untaggable.typeName, untaggable.schema, untaggable.applied); err != nil {
+			if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, untaggable.providerAddr, untaggable.typeName, untaggable.schema, untaggable.applied, r.providerValues(untaggable.providerAddr)); err != nil {
 				res.diags = res.diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
 					"The identity read for %s was not recorded: %s. If this type has no list route either, a later live-plan will not be able to find this instance again until its identity is recorded some other way.",
 					entry.Addr, err,
@@ -450,7 +455,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 	// recording an identity for it would be exactly the wrong-marker
 	// failure HANDOFF.md's safety rule forbids.
 	if res.outcome.Outcome == OutcomeStamped || res.outcome.Outcome == OutcomeAlreadyStamped {
-		if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, elig.providerAddr, elig.typeName, elig.schema, elig.applied); err != nil {
+		if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, elig.providerAddr, elig.typeName, elig.schema, elig.applied, r.providerValues(elig.providerAddr)); err != nil {
 			res.diags = res.diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
 				"The identity read for %s was not recorded alongside its marker: %s.",
 				entry.Addr, err,
@@ -528,11 +533,11 @@ func unwrittenCarrierDiag(store *projection.RecordStore, addr addrs.AbsResourceI
 // DIFFERENT identity, or a write that lost a race - and is always worth a
 // warning, because it means a later plan may not find this instance from
 // the record alone.
-func seedIdentityFor(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, providerAddr addrs.AbsProviderConfig, typeName string, schema providers.Schema, applied cty.Value) (recorded bool, err error) {
+func seedIdentityFor(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, providerAddr addrs.AbsProviderConfig, typeName string, schema providers.Schema, applied cty.Value, values identity.ProviderValue) (recorded bool, err error) {
 	if store == nil {
 		return false, nil
 	}
-	rec, ok := projection.LocatedRecordFrom(typeName, schema, applied)
+	rec, ok := projection.LocatedRecordFromIn(typeName, schema, applied, values)
 	if !ok {
 		return false, nil
 	}
@@ -541,6 +546,20 @@ func seedIdentityFor(ctx context.Context, store *projection.RecordStore, addr ad
 		return false, err
 	}
 	return true, nil
+}
+
+// providerValues is the [identity.ProviderValue] an identity record written
+// for an instance read through provider answers its provider components
+// from (GitHub issue #2135): [Request.Config]'s provider block and
+// [Request.Cloud], as a live plan's identity resolution reads them. Nil
+// with no configuration, which records no such identity.
+func (r *Ratification) providerValues(provider addrs.AbsProviderConfig) identity.ProviderValue {
+	if r.config == nil {
+		return nil
+	}
+	return func(which identity.CloudValue) (string, bool) {
+		return identity.ProviderCloudValue(r.config, provider, which, r.cloud)
+	}
 }
 
 // recordOne is Approve's GitHub issue #340 half: the migration of one
@@ -611,7 +630,7 @@ func recordOne(ctx context.Context, store *projection.RecordStore, addr addrs.Ab
 // admitted for the selection by [identity.SelectedLocatedType] is read for
 // its identity exactly the way the apply path would read it. Neither
 // function names a resource type.
-func locateOne(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, loc *located) StampOutcome {
+func locateOne(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, loc *located, values identity.ProviderValue) StampOutcome {
 	out := StampOutcome{Addr: addr, TypeName: loc.typeName}
 	if store == nil {
 		out.Outcome = OutcomeSkipped
@@ -621,7 +640,7 @@ func locateOne(ctx context.Context, store *projection.RecordStore, addr addrs.Ab
 		return out
 	}
 
-	rec, ok := projection.LocatedRecordFrom(loc.typeName, loc.schema, loc.applied)
+	rec, ok := projection.LocatedRecordFromIn(loc.typeName, loc.schema, loc.applied, values)
 	if !ok {
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf(
@@ -696,6 +715,19 @@ func recordResidueFor(ctx context.Context, store *projection.RecordStore, secret
 	return diags
 }
 
+// markerTags is [tagsFromObject] read for e's surface: on the ARM tags map
+// (GitHub issue #1120) the marker keys come back in their canonical
+// lowercase spelling whatever case the object carries them in
+// ([markers.CanonicalARMMarkers]), so Tofu-Estate reads as tofu-estate the
+// way ARM reads it.
+func (e *eligible) markerTags(obj cty.Value) (map[string]string, bool) {
+	tags, ok := tagsFromObject(e.schema, obj)
+	if ok && e.armTagged {
+		tags = markers.CanonicalARMMarkers(tags)
+	}
+	return tags, ok
+}
+
 // approveOne is the tags-only write for one resource, from the object
 // Ratify already read. See tags.go's package comment for why this mirrors
 // mv's rewrite.go rather than calling it.
@@ -738,7 +770,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	}
 	chunks := discovery.SplitAddress(wantAddress)
 
-	tags, ok := tagsFromObject(e.schema, e.applied)
+	tags, ok := e.markerTags(e.applied)
 	if !ok {
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("%s has no settable tags argument in the provider's schema. Nothing was written.", e.typeName)
@@ -782,16 +814,29 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		return out
 	}
 
-	desiredTags := make(map[string]string, len(tags)+1+len(chunks))
-	for k, v := range tags {
+	// GitHub issue #1120: on the ARM tags map the object's own tags are
+	// copied as spelled, not as [eligible.markerTags] canonicalised them,
+	// and each marker is written under the spelling the object already
+	// uses ([markers.SetARMMarkerTag]): ARM refuses two keys that differ
+	// only by case.
+	rawTags := tags
+	if e.armTagged {
+		rawTags, _ = tagsFromObject(e.schema, e.applied)
+	}
+	desiredTags := make(map[string]string, len(rawTags)+1+len(chunks))
+	for k, v := range rawTags {
 		desiredTags[k] = v
 	}
-	desiredTags[discovery.TagEstate] = estate
+	set := func(key, value string) { desiredTags[key] = value }
+	if e.armTagged {
+		set = func(key, value string) { markers.SetARMMarkerTag(desiredTags, key, value) }
+	}
+	set(discovery.TagEstate, estate)
 	for i, chunk := range chunks {
-		desiredTags[discovery.AddressTagKey(i)] = chunk
+		set(discovery.AddressTagKey(i), chunk)
 	}
 	if slot != "" {
-		desiredTags[discovery.TagSlot] = slot
+		set(discovery.TagSlot, slot)
 	}
 
 	desired, err := withTags(e.schema.Block, e.applied, desiredTags)
@@ -799,6 +844,23 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("The tags of this %s could not be replaced: %s.", e.typeName, err)
 		return out
+	}
+	if e.armInBody {
+		// GitHub issue #1120 unit 19: this object's configuration keeps its
+		// tags in the body, and azapi sends body.tags and ignores the
+		// top-level argument whenever the body has them (expandBody,
+		// internal/services/azapi_resource.go at 2.13.0), so a marker
+		// written only to the top level would be planned, applied and never
+		// stored. The top-level value set above is what azapi itself plans
+		// for it (tagsWithDefaultTags copies body.tags when the argument is
+		// null), so the planned object reads the markers back where every
+		// reader looks (markers.ARMTagsOf).
+		desired, err = withARMBodyTags(desired, desiredTags)
+		if err != nil {
+			out.Outcome = OutcomeFailed
+			out.Detail = fmt.Sprintf("The body tags of this %s could not be replaced: %s. Nothing was written.", e.typeName, err)
+			return out
+		}
 	}
 
 	// The resource being stamped has no configuration - that is what a
@@ -816,6 +878,9 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		refusal   string
 	)
 	for _, candidate := range syntheticConfigs(e.schema.Block, desired) {
+		if e.armInBody {
+			candidate = armBodyConfig(candidate, desired)
+		}
 		resp := e.provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
 			TypeName:         e.typeName,
 			PriorState:       e.applied,
@@ -829,7 +894,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 			ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
 			PriorIdentity: e.identity,
 		})
-		if why := notATagsOnlyPlan(e.schema.Block, e.applied, e.typeName, resp); why != "" {
+		if why := notATagsOnlyPlan(e.schema.Block, e.applied, e.typeName, resp, e.armInBody); why != "" {
 			// Kept, not returned: if no candidate produces a clean plan, the
 			// LAST refusal is the one reported, so the message an operator
 			// reads is the one for the configuration that asserts most - the
@@ -866,7 +931,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	if slot != "" {
 		out.Detail = fmt.Sprintf("Wrote tofu-estate, tofu-address and tofu-slot = %q.", slot)
 	}
-	newTags, newOK := tagsFromObject(e.schema, applyResp.NewState)
+	newTags, newOK := e.markerTags(applyResp.NewState)
 	newRaw, newCorrupt := discovery.GatherAddress(newTags)
 	if !newOK || newCorrupt || discovery.EscapeAddress(newRaw) != wantAddress || newTags[discovery.TagEstate] != estate ||
 		(slot != "" && newTags[discovery.TagSlot] != slot) {

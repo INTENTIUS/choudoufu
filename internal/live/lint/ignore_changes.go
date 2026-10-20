@@ -161,6 +161,12 @@ func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Modu
 		checkIgnoreChangesGoogleLabels(resource, addr, path,
 			markers.GoogleLabelPath(markers.TagEstate),
 			markers.GoogleLabelPath(markers.TagAddress), issues)
+	case markers.SurfaceARMTags:
+		// GitHub issue #1120: the ARM tags map is refused exactly as the
+		// AWS one is, with the marker key matched case-insensitively,
+		// because ARM tag keys are: tags["Tofu-Estate"] ignores the same
+		// tag as tags["tofu-estate"].
+		checkIgnoreChangesTagsWith(resource, addr, path, isARMMarkerTag, issues)
 	default:
 		checkIgnoreChangesTags(resource, addr, path, issues)
 	}
@@ -171,6 +177,14 @@ func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Modu
 // [checkIgnoreChangesLabel] beside it. Unchanged in every particular: the
 // wording, the whole-argument and per-key split, and the diagnostic ranges.
 func checkIgnoreChangesTags(resource *configs.Resource, addr string, path addrs.Module, issues *[]Issue) {
+	checkIgnoreChangesTagsWith(resource, addr, path, isMarkerTag, issues)
+}
+
+// checkIgnoreChangesTagsWith is [checkIgnoreChangesTags] with the question
+// "is this tag key a marker" passed in: [isMarkerTag] for AWS, and
+// [isARMMarkerTag], which folds case, for the ARM tags map (GitHub issue
+// #1120).
+func checkIgnoreChangesTagsWith(resource *configs.Resource, addr string, path addrs.Module, isMarker func(string) bool, issues *[]Issue) {
 	managed := resource.Managed
 
 	if managed.IgnoreAllChanges {
@@ -196,7 +210,7 @@ func checkIgnoreChangesTags(resource *configs.Resource, addr string, path addrs.
 		if !ok {
 			continue
 		}
-		if !whole && !isMarkerTag(key) {
+		if !whole && !isMarker(key) {
 			continue
 		}
 
@@ -398,6 +412,12 @@ func isMarkerTag(key string) bool {
 		return true
 	}
 	return strings.HasPrefix(key, markers.TagAddress+"-")
+}
+
+// isARMMarkerTag is [isMarkerTag] for an ARM tag key, which is
+// case-insensitive (GitHub issue #1120).
+func isARMMarkerTag(key string) bool {
+	return isMarkerTag(strings.ToLower(key))
 }
 
 // traversalRange points the diagnostic at the ignore_changes entry itself

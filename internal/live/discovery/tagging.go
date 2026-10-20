@@ -1187,6 +1187,25 @@ type taggedCandidate struct {
 	importID     string
 	identityAttr string
 	tags         map[string]string
+
+	// refusedAt is the declared instance whose own read refuses this object
+	// (GitHub issue #2135's "Live object marked for another owner at the
+	// declared id would be overwritten"), set only by the Resource Graph leg
+	// ([ResourceGraphSweep.fileHit]) and only for an object at that
+	// instance's ARM id carrying this estate's marker for another declared
+	// address. [fileCandidate] then files no displaced marker for it: one
+	// object, one diagnostic, and the refusal is the one that says what
+	// happens to it.
+	refusedAt string
+
+	// objectType names the listed object by its own type, where the leg
+	// knows it apart from the type its marker names (GitHub issue #2138):
+	// the Resource Graph leg files an object under its marker's type, so an
+	// AKS-copied cluster marker on a route table is filed as an
+	// azurerm_kubernetes_cluster, and a message that means the object
+	// ("A live ... with identity ...") has to say route table. Empty on
+	// every other leg, whose type is the object's own.
+	objectType string
 }
 
 // sweepViaTagging is the sweep's Tagging API path (issue #51): one
@@ -1534,6 +1553,7 @@ func fileCandidate(ctx context.Context, req Request, decl *declared, typeName st
 		slot:         c.tags[TagSlot],
 		tags:         c.tags,
 		noIdentity:   c.importID == "",
+		objectType:   c.objectType,
 	}
 
 	// GitHub issue #906: this object's marker names a declared address,
@@ -1555,7 +1575,15 @@ func fileCandidate(ctx context.Context, req Request, decl *declared, typeName st
 		// displaced.go.
 		switch want, verdict := decl.displacedFrom(ctx, bindType, escaped, claim); verdict {
 		case verdictDisplaced:
-			return diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, claim)))
+			if c.refusedAt != "" {
+				// The projection reads this object at c.refusedAt's own id
+				// and refuses it there by name, as an Error naming the
+				// marker found: see [taggedCandidate.refusedAt]. A warning
+				// beside it about the same object would only say less.
+				log.Printf("[DEBUG] live/discovery: %s carries %q at %s's ARM id; the projection's overwrite refusal reports it", c.importID, escaped, c.refusedAt)
+				return diags
+			}
+			return diags.Append(problemDiag(res, displacedProblem(req, decl, bindType, escaped, want, claim)))
 		case verdictOwnObject:
 			// Issue #692: see Result.VerifiedDeclared - the sighting
 			// vouches for the declared instance instead of being
@@ -1566,6 +1594,10 @@ func fileCandidate(ctx context.Context, req Request, decl *declared, typeName st
 		case verdictIdentityChanging:
 			// Issue #885: neither reported nor vouched. See
 			// [verdictIdentityChanging].
+		case verdictUncompared:
+			// An Azure sighting with no ARM id on the address's side to
+			// compare it with: neither reported nor vouched. See
+			// [verdictUncompared].
 		}
 		return diags
 	}

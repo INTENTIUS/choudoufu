@@ -223,6 +223,20 @@ type eligible struct {
 	// [approveGoogleLabels]. It takes a slot exactly as the tags map does.
 	googleLabelled bool
 
+	// armTagged says the marker is carried in an Azure Resource Manager tags
+	// map ([markers.SurfaceARMTags], GitHub issue #1120): the same tags-only
+	// write [approveOne] makes on AWS, with the marker keys read
+	// case-insensitively and written under the spelling the object already
+	// uses, because ARM tag keys are case-insensitive.
+	armTagged bool
+
+	// armInBody says the ARM marker goes in an azapi_resource's body.tags
+	// rather than its top-level tags argument, because that is where the
+	// object's own configuration keeps its tags and azapi then ignores the
+	// top-level argument ([projection.ARMTagPlacement], GitHub issue #1120
+	// unit 19). Set only when armTagged.
+	armInBody bool
+
 	// manifestKey is the natural key read out of the state's own recorded
 	// object, [markers.ManifestKeyOf]. Set only when manifested.
 	manifestKey markers.ManifestKey
@@ -345,6 +359,18 @@ type Request struct {
 	// resolve to nothing, which [migrationSlots] already treats as "stay
 	// blocked". See that function's "gate 4" doc for the full argument.
 	Config *configs.Config
+
+	// Cloud is what the run's environment says about the cloud, the
+	// [identity.CloudContext] a live plan's identity resolution is given:
+	// today the ARM_SUBSCRIPTION_ID an azurerm or azapi provider block that
+	// names no subscription_id falls back to. GitHub issue #2135: the
+	// identity record Approve writes for an azurerm type holds that
+	// subscription, answered from Config's provider block and this through
+	// [identity.ProviderCloudValue], so the record names the object under
+	// the subscription a later plan's identity route would. The zero value
+	// leaves a provider block that sets subscription_id statically
+	// answered and every other one unrecorded.
+	Cloud identity.CloudContext
 
 	// State is the state to read, already parsed by the caller - through
 	// [github.com/intentius/choudoufu/internal/states/statefile] - and never
@@ -477,6 +503,12 @@ type Ratification struct {
 	// Approve, not Ratify, is where every write in this package happens.
 	recordStore *projection.RecordStore
 
+	// config and cloud are [Request.Config] and [Request.Cloud], carried
+	// through to Approve for the provider components of an identity record
+	// (GitHub issue #2135; see [Ratification.providerValues]).
+	config *configs.Config
+	cloud  identity.CloudContext
+
 	// rootOutputStore and rootOutputs are GitHub issue #349's migration
 	// half. A stock state file holds the value every root-level `output`
 	// block settled on at the last apply, and until this existed a migration
@@ -577,6 +609,8 @@ func ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		residuable:      make(map[string]*residuable),
 		secrets:         req.Secrets,
 		recordStore:     req.RecordStore,
+		config:          req.Config,
+		cloud:           req.Cloud,
 		rootOutputStore: req.RootOutputStore,
 		rootOutputs:     req.State,
 		parallelism:     req.Parallelism,
@@ -823,7 +857,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	// Each carrier is named here, so a surface this switch has not learned
 	// is one the completeness guard (internal/live/markers/seams_test.go)
 	// reports rather than one a migration silently leaves unmarked.
-	var labelled, manifested, googleLabelled bool
+	var labelled, manifested, googleLabelled, armTagged bool
 	// GitHub issue #1863: a field-granular Kubernetes type carries no
 	// surface - its marker is the field manager its writes are made under
 	// (#1191) - and is not untaggable for that: what a migration owes it is
@@ -838,6 +872,8 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	switch {
 	case fieldGranular:
 	case surface == markers.SurfaceTags:
+	case surface == markers.SurfaceARMTags:
+		armTagged = true
 	case surface == markers.SurfaceLabels:
 		labelled = !selected
 	case surface == markers.SurfaceManifest:
@@ -858,6 +894,26 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	}
 	priorVal, _ := prior.Value.UnmarkDeep()
 	entry.LiveID = liveIDFrom(typeName, priorVal)
+
+	// GitHub issue #1120 unit 19. The arm-tags surface is answered from the
+	// schema, and azapi_resource's schema has a tags argument for every ARM
+	// type; whether this object can carry a marker is a property of the ARM
+	// type and API version its type argument names. One that takes no tags
+	// is migrated the way an untaggable AWS type is (aws_route, the
+	// fixture's UNTAGGABLE row, and #364 unit A2's identity record): its
+	// identity goes into the record store and no marker is written. The
+	// stamp makes the same decision for a planned object (armTagTarget),
+	// so a migrated estate and a greenfield one agree.
+	var armInBody bool
+	if armTagged && !selected {
+		inBody, placed, why := projection.ARMTagPlacement(addr, schema.Block, priorVal)
+		if !placed {
+			untaggable, car := ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
+			untaggable.Detail = why + " It is migrated as an untaggable type is: its identity is recorded in the estate's record store when one is configured."
+			return untaggable, car
+		}
+		armInBody = inBody
+	}
 
 	// GitHub issue #1109. A manifest-shape instance has no flat id
 	// attribute at all - its whole object is one dynamic argument - so
@@ -921,7 +977,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		// see [located]'s doc comment.
 		return entry, carriers{located: &located{sub}}
 	}
-	elig := &eligible{residuable: sub, labelled: labelled, manifested: manifested, googleLabelled: googleLabelled}
+	elig := &eligible{residuable: sub, labelled: labelled, manifested: manifested, googleLabelled: googleLabelled, armTagged: armTagged, armInBody: armInBody}
 	if fieldGranular {
 		// GitHub issue #1863: the write the state records and the manager
 		// it was made under, read from the state's own object, never from

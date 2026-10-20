@@ -88,6 +88,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/docsref"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/mdspan"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -226,13 +227,16 @@ func key(r check.Refusal) string { return string(r.Layer) + "/" + r.ID }
 //
 // [check.Refusal] carries no severity field, so each layer that has a
 // mechanism for anything but fatal is asked directly, by the ID that layer's
-// refusals are keyed on. Two do today:
+// refusals are keyed on. Five do today:
 //
 //   - lint, whose refusal ID is its rule's own string ([lint.Rule.Severity],
 //     GitHub issue #214);
 //   - discovery, whose refusal ID is the diagnostic Summary and whose
 //     [discovery.SeverityForRefusal] is the same call the diagnostic itself
 //     is built from - five of its refusals are warnings;
+//   - identity, whose registry entries can declare Warning
+//     ([identity.IsWarning]): three of its refusals are warnings, and this
+//     table called all three errors until GitHub issue #1120's follow-up;
 //   - projection, whose registry entries can declare Warning
 //     ([projection.IsWarning]; GitHub issue #1371's as-of notice);
 //   - dataread, which serves two demand classes with opposite contracts
@@ -253,6 +257,13 @@ func severityLabel(r check.Refusal) string {
 	switch r.Layer {
 	case check.LayerLint:
 		if lint.Rule(r.ID).Severity() == lint.SeverityWarning {
+			return "warning"
+		}
+	case check.LayerIdentity:
+		// identity's own registry declares its warnings ([identity.IsWarning];
+		// GitHub issue #1120's foreign-resource-group warning among them).
+		// passthrough's refusals share this layer and are all errors.
+		if r.RaisedBy == check.RaisedByIdentity && identity.IsWarning(r.ID) {
 			return "warning"
 		}
 	case check.LayerDiscovery:
@@ -322,9 +333,10 @@ func renderTable(catalog []check.Refusal, freq map[string]frequency, measured bo
 		"`internal/live/discovery`'s. A refusal blocking nothing is not an "+
 		"error in this table - it is the interesting end of it, and a set "+
 		"assembled by watching output could never contain one. **Severity** "+
-		"is `error` (fatal, stops the run) unless marked `warning`. Four "+
+		"is `error` (fatal, stops the run) unless marked `warning`. Five "+
 		"layers can declare `warning` today: a lint rule (GitHub issue "+
-		"#214's `state-backend`), a discovery refusal, whose severity is "+
+		"#214's `state-backend`), an identity registry entry marked as a "+
+		"warning, a discovery refusal, whose severity is "+
 		"read from the same call the diagnostic is built from, a "+
 		"dataread refusal belonging to the root-output demand class, which "+
 		"costs one output its prior value rather than the run, and a "+

@@ -416,9 +416,15 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 		o.estate = estate
 		return newGCSStore(ctx, rs, rt, o)
 
+	case "azurerm":
+		// No AWS configuration is loaded on this path either. The Azure
+		// epic, GitHub issue #1120: blobs in one Azure Storage container,
+		// reached with stock's azurerm backend authentication.
+		return newAzureRMStore(ctx, rs, estate, o)
+
 	default:
 		// internal/configs/live.go's decodeRecordStoreBlock already refuses
-		// anything but "local"/"s3"/"kubernetes"/"gcs" at config-decode time, so a
+		// anything but "local"/"s3"/"kubernetes"/"gcs"/"azurerm" at config-decode time, so a
 		// caller reaching here has a *configs.LiveRecordStore that bypassed
 		// that decoder - an internal inconsistency, not a configuration
 		// mistake an operator could have made.

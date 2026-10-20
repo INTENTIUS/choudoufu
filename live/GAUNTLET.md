@@ -29,7 +29,7 @@ change that lowers the bars until estates catch up; a non-headline stage
 moving either bar.
 
 A headline stage marked "tier-1 gated" below (#999) activates on tier-1
-fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 45
+fixture evidence (`live/behaviors.json`, #522's ruling) rather than on 46
 hand-written per-estate sections: an estate that has never been asked to
 run it reads `not_run` and stays clear, while a genuine `fail` on it still
 breaks clear, exactly as any other headline stage.
@@ -41,10 +41,11 @@ Both bars are the floci emulator's. The `kubernetes` lane (#1067) runs against a
 kind cluster instead - a real API server, not an emulator - and has a bar
 of its own, `lanes.kubernetes` in `live/gauntlet.json`, counted toward neither bar
 above. The `gcp` lane (#1119) is the same arrangement on the floci-gcp
-emulator, pinned in `live/floci-gcp-image`, with its bar at `lanes.gcp`.
-A stage whose oracle is AWS-shaped says under its entry below how it
-reads on each of those substrates, or that it does not apply there, in
-which case the estate's cell reads `n/a` and is neutral for clear;
+emulator, pinned in `live/floci-gcp-image`, with its bar at `lanes.gcp`,
+and the `azure` lane (#1120) on floci-az, an Azure emulator, with its bar at
+`lanes.azure`. A stage whose oracle is AWS-shaped says under its entry below
+how it reads on each of those substrates, or that it does not apply there,
+in which case the estate's cell reads `n/a` and is neutral for clear;
 nothing is skipped silently.
 
 An AWS-lane estate whose configuration also manages the cluster its own
@@ -69,6 +70,8 @@ Oracle: This stage is the stock run. Its state file and its cloud are the baseli
 
 Break: Not applicable; this stage has nothing of choudoufu's to break.
 
+On the floci-az substrate: Stock applies the unmodified configuration against floci-az, started from live/floci-az-image with the ARM_* environment aimed at it (gauntlet_floci_az_up in live/e2e/lib/gauntlet.sh); ARM reads of what it created are the baseline. floci-az drops tags on storage accounts and answers their PATCH with 405 (live/FLOCI.md, Azure), so an estate's storage account fails the stages that write its marker until the fork keeps them.
+
 On the floci-eks substrate: Stock applies the unmodified configuration against the emulator, and floci's EKS real mode starts a k3s container for each aws_eks_cluster. The configuration's own provider "kubernetes" block reaches that cluster exactly as written, with no delta repointing it, so every later stage measures the block under test. The AWS resources, and the cluster's objects read with kubectl inside the k3s container, are the baseline. k3s stands in for the control plane and nothing behind it: IRSA, EKS Pod Identity, the VPC CNI, EBS CSI volume claims, access-entry authorization and managed add-ons are not emulated, and are measured only by the estate's real-AWS live-cert cycle.
 
 On the floci-gcp substrate: Stock applies the unmodified configuration against a floci-gcp emulator the script started for this run, with every hashicorp/google endpoint the configuration reaches pointed at it; the emulator's objects, read with its REST API, are the baseline. A second emulator holds the stock oracle. Two emulator gaps bear on the stages below: labels must come back exactly as written (lex00/floci-gcp#6), and the sweep needs Cloud Asset search (lex00/floci-gcp#7). A stage that fails on either says so in its own verdict.
@@ -82,6 +85,8 @@ Proves: `choudoufu live-import -approve` against the stock state file binds ever
 Oracle: The stock state file's instance list. Every address in it must be accounted for by name.
 
 Break: Remove one instance from the expected count; the assertion on the summary line must fail.
+
+On the floci-az substrate: live-import writes tofu-estate and tofu-address as ARM tags: azurerm's tags argument, or azapi's top-level tags (body.tags when the configuration already puts tags there). Zero skipped means every state entry was tagged or recorded. An azurerm type on the identity-schema route takes its subscription from the provider block.
 
 On the floci-eks substrate: One state file covers both legs: an AWS entry is bound as on floci, a Kubernetes entry as on kind, its tofu-estate label read with kubectl inside the k3s container. The provider block reads the cluster's endpoint and credential from the estate's own resources, so this stage also measures the provider-configuration fixpoint (#1113): a cluster leg reported unreachable while the cluster exists is a failure, never a skip.
 
@@ -97,6 +102,8 @@ Oracle: Stock `plan` on the migrated state is also empty. Identity strings are c
 
 Break: Corrupt one expected identity string; stage 3 must fail on that string and nothing else.
 
+On the floci-az substrate: Identities are ARM resource ids, compared by value with what an ARM GET of the same object returns, case-insensitively, because ARM ids are. The plan's sweep is one Resource Graph query per subscription; floci-az serves no Resource Graph today, so this stage fails on that refusal by name until it does.
+
 On the floci-eks substrate: AWS identities compare as on floci, Kubernetes identities as NAMESPACE/NAME against kubectl in the k3s container. The kubernetes provider is configured from the cluster this run reads live, so an empty plan is also evidence that the provider block was answered as written.
 
 On the floci-gcp substrate: Identities are the resource names under projects/<project>/, compared with what the emulator's REST API reports for the same objects.
@@ -110,6 +117,8 @@ Proves: Applying the empty plan changes nothing: the estate's tagged-object coun
 Oracle: Stock `apply` of an empty plan is a no-op by definition; the object count is the comparison.
 
 Break: Expect a different count; the assertion must fail.
+
+On the floci-az substrate: The count is the estate's taggable resources whose tofu-estate tag names it, read with an ARM GET of each declared id, the tag key and value compared case-insensitively. Resource Graph would answer it in one query, and floci-az has none.
 
 On the floci-eks substrate: The count sums both legs: the AWS markers as on floci, plus `kubectl get <kind> -A -l tofu-estate=<estate>` inside the k3s container.
 
@@ -125,6 +134,8 @@ Oracle: Stock `plan` after the same mutation, with marker tags normalised out of
 
 Break: Mutate a second object as well; the single-object assertion must fail.
 
+On the floci-az substrate: The mutation is an ARM PUT or PATCH made out of band with gauntlet_arm, never through the tool.
+
 On the floci-eks substrate: The mutation is made on either leg out of band: through the emulator's API on the AWS side, or as a kubectl label or patch inside the k3s container, never through the tool.
 
 On the floci-gcp substrate: The mutation is a REST PATCH against the emulator, never through the tool. A label the configuration declares is the field mutated, since hashicorp/google reads back only the label keys its configuration names.
@@ -138,6 +149,8 @@ Proves: Renaming a resource through a `moved` block and through `choudoufu live-
 Oracle: Stock with the same `moved` block plans zero churn. The two plans, normalised, are identical.
 
 Break: Rename without the `moved` block; the plan must show a destroy and a create.
+
+On the floci-az substrate: A rename rewrites the tofu-address tag; the ARM id does not change, so the moved block plans one in-place tag update and no replace, as stock's plans none.
 
 On the floci-eks substrate: Read on the leg the renamed block lives on, as that leg's own substrate reads it.
 
@@ -153,6 +166,8 @@ Oracle: Stock with the same block removed plans the same destroys in a working o
 
 Break: Keep the block; no destroy may be proposed.
 
+On the floci-az substrate: ARM confirms the object is gone with a 404 on its id. A resource group's delete takes its children with it; the order the cloud accepts is the one the configuration's dependency graph gives.
+
 On the floci-eks substrate: The removed block's object is confirmed gone on its own leg: through the emulator's API for AWS, with kubectl in the k3s container for Kubernetes. Objects EKS itself writes (CoreDNS, kube-proxy, add-on Deployments) carry no tofu-estate label and are never proposed; one the configuration declares, such as aws-auth, is the operator's, as it is in stock.
 
 On the floci-gcp substrate: The REST API confirms the object is gone. A labelled object leaving the configuration is found by its label and its record; an unlabelled one (a firewall whose network stays) by its record alone, and it is destroyed at the address stock destroys.
@@ -166,6 +181,8 @@ Proves: Scaling a `count` block down and back up destroys and creates only the i
 Oracle: Stock's plan for the same count change, normalised.
 
 Break: Expect a different instance to be destroyed; the assertion must fail.
+
+On the floci-az substrate: Each instance is its own ARM id, so the instance that leaves the count is found at its id and destroyed, and the one that comes back is created there.
 
 On the floci-eks substrate: Read on the leg the counted block lives on, as that leg's own substrate reads it.
 
@@ -181,6 +198,8 @@ Oracle: Stock's replace of the same resource leaves the same single object.
 
 Break: Skip the destroy half; the next plan must report a collision rather than proposing nothing.
 
+On the floci-az substrate: A name is unique within its parent, so a create_before_destroy replacement is one whose name changes, as on kind: the new object is created at the new id and the old one destroyed after it, and the next plan is empty.
+
 On the floci-eks substrate: Read on the leg the replaced block lives on, as that leg's own substrate reads it.
 
 On the floci-gcp substrate: A name is unique in its project, so the replacement create_before_destroy is used for is one whose name changes, as on kind. The old and the new object carry the same tofu-address label between the create and the destroy, and the record's deposed entry is what says which one goes. At -parallelism=1 the apply log shows the new object's create complete before the old object's destroy starts, the REST API confirms only the new object remains, and the next plan is empty. The Break control recreates the old object carrying the block's labels: the next plan must not be empty.
@@ -194,6 +213,8 @@ Proves: A replace interrupted after the create and before the destroy is recover
 Oracle: Stock records the old object as deposed and destroys it on the next apply; the outcome after one more apply must be the same.
 
 Break: Interrupt and then assert nothing is proposed; the assertion must fail.
+
+On the floci-az substrate: As on floci: the engine's interrupt hook kills the apply the instant the first create commits. The created resource carries both tags from its create PUT, so the next plan binds it at its declared id and proposes exactly the remainder.
 
 On the floci-eks substrate: Read on the leg the interrupted object lives on, as that leg's own substrate reads it. An apply spanning both legs is interrupted at whichever create commits first.
 
@@ -209,6 +230,8 @@ Oracle: Stock `apply -destroy` on the same estate leaves the same empty account.
 
 Break: Leave one resource; the assertion that the estate is empty must fail.
 
+On the floci-az substrate: An empty estate is no resource carrying its tofu-estate tag in any resource group it owned, read through ARM.
+
 On the floci-eks substrate: Both legs end empty: the AWS listing as on floci, and kubectl in the k3s container returning nothing for every kind the estate declared. The cluster leg is destroyed before the cluster it lives on, the order the configuration's own dependency graph gives, so no load balancer or network interface outlives the cluster.
 
 On the floci-gcp substrate: An empty estate is no labelled object carrying tofu-estate=<estate> through the REST API, and the declaration-carried skeleton gone (404). The destroy count is compared with stock's destroy of the same estate on the oracle emulator.
@@ -222,6 +245,8 @@ Proves: `plan -out` followed by `apply <planfile>` applies when the world has no
 Oracle: Stock's planfile applies in the unchanged case; in the changed case choudoufu is stricter than stock by design, and the refusal is asserted, not compared.
 
 Break: Apply the planfile after a mutation and expect success; the run must refuse.
+
+On the floci-az substrate: As on floci. Azure Policy, evaluated by ARM when the write arrives, is the server's own say over an approved plan; floci-az evaluates no Policy rule, so only the moved-world refusal is measured there.
 
 On the floci-eks substrate: As on floci; the saved plan carries both legs, and the apply of it configures the kubernetes provider from the same cluster the plan read.
 
@@ -237,6 +262,8 @@ Oracle: The cloud after stock's cold deploy, compared object by object with mark
 
 Break: Drop one resource from the expected inventory; the comparison must fail.
 
+On the floci-az substrate: Compared against the ARM reads recorded from stock's cold deploy earlier in the same run, resource by resource, with the two marker tags normalised out; one floci-az container hosts both, in sequence.
+
 On the floci-eks substrate: Both legs are compared against stock's cold deploy: AWS objects as on floci, cluster objects as on kind. A greenfield plan starts with no cluster, so the kubernetes provider's sweep reads that leg as empty by construction, stock's order, and the apply configures the provider once the cluster exists.
 
 On the floci-gcp substrate: Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with labels and server-set fields normalised out; one emulator hosts both, in sequence.
@@ -251,6 +278,8 @@ Oracle: No stock equivalent. The toggle documentation is the oracle, and each to
 
 Break: Turn a toggle off; its refusal must disappear and no other may appear.
 
+On the floci-az substrate: As on floci; the toggles are substrate-neutral.
+
 On the floci-eks substrate: As on floci; the toggles apply to both legs alike.
 
 On the floci-gcp substrate: As on floci; the toggles name a google type.
@@ -262,6 +291,8 @@ Proves: After the estate is applied and its plan is empty, deleting BOTH the loc
 Oracle: Stock has no plan in this position: with its state file gone it needs one import block per object. The oracle is the estate's own cache-serving plan taken just before the deletion, which must be empty, and the declared configuration - every declared address must resolve to the existing object.
 
 Break: Delete one taggable object's marker before the plan; the object is then not found and the plan proposes creating it, which the stage must fail.
+
+On the floci-az substrate: Both local artifacts are deleted; every declared resource must be found at its declared ARM id, which needs no sweep, and every other one by its tofu-estate tag through Resource Graph, which floci-az does not serve today.
 
 On the floci-eks substrate: Both legs lose their local record store and state cache together. The AWS leg's objects are found by their markers as on floci; the cluster leg's by their tofu-estate label, through a kubernetes provider configured from the cluster this plan reads live, so the plan also shows the provider block needs nothing local.
 
@@ -359,10 +390,10 @@ Every estate is one entry in `live/gauntlet/estates.json`:
 
 `set` is `core` or `growing`; `reason` is required for core; `script` defaults
 to `live/e2e/<name>/run.sh`; `url` and `pin` are required except for the
-`reference` lane and a `kubernetes`-lane or `gcp`-lane estate kept in this
+`reference` lane and a `kubernetes`-, `gcp`- or `azure`-lane estate kept in this
 repository.
 
-Lanes: terraform-popular, opentofu-native, reference, published-deployment, kubernetes, gcp.
+Lanes: terraform-popular, opentofu-native, reference, published-deployment, kubernetes, gcp, azure.
 
 ### The cold-deploy pre-apply
 
@@ -458,7 +489,7 @@ Check `live/estate-types.json` (`go run ./tools/estate-types`, issue #435)
 before proposing one: it lists, from real committed or fetched
 configuration and no gauntlet run, every resource type each estate in the
 manifest already exercises. As of that artifact's last run, it reports
-45 estates exercising 219 distinct types between them, of which 141 no
+46 estates exercising 228 distinct types between them, of which 150 no
 cohort fixture covers yet (`totals.estates`, `totals.distinct_types`,
 `totals.types_in_no_cohort`; these figures are rendered from the
 artifact by `gauntlet render`, so they can only be as current as the

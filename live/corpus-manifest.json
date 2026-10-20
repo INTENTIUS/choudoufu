@@ -286,7 +286,33 @@
     "that script's header.",
     "Like the terraform-aws-modules examples this glob DOES match a real root",
     "with its own provider block, so it contributes to a corpus-gen number; the",
-    "two unset Grafana Cloud variables read unset_var_only there, honestly."
+    "two unset Grafana Cloud variables read unset_var_only there, honestly.",
+    "",
+    "The Azure roots (added 2026-10-19 for the Azure lane, epic #1120; licenses",
+    "checked same day: MPL-2.0 for both provider repositories, MIT for the",
+    "three Azure Verified Modules) are the corpus's first azurerm and azapi",
+    "configurations. They are here for static coverage only - live-check,",
+    "corpus-gen and the identity and admission work that reads them - and no",
+    "estate or crossing runs them. Thirteen roots, each pinned by tag and",
+    "commit: six from hashicorp/terraform-provider-azurerm's own examples/ at",
+    "v5.10.0 and four from Azure/terraform-provider-azapi's examples/ at",
+    "v2.13.0 (the lane's two provider pins; neither declares a version, so",
+    "each resolves to the release it ships beside), and three Azure Verified",
+    "Modules examples, which are azapi-only and constrain azapi to a range",
+    "2.13.0 satisfies. Between them they hold a resource group, a virtual",
+    "network with subnets, a network security group and its rules, a storage",
+    "account with containers, AKS, a key vault, a function app, role",
+    "assignments and private endpoints. The provider examples are one",
+    "resource family each, written to exercise a resource, and the AVM",
+    "examples exercise a module's variable surface, so both read as rankings",
+    "under their own origins, never as a rate.",
+    "",
+    "Roots were chosen so that no configuration in the tree pins azurerm below",
+    "5.x: most AVM examples still declare azurerm < 5.0, and azapi's",
+    "storage-account with_private_endpoint example pins azurerm =4.20.0, so",
+    "those would measure against a schema the lane does not target. The",
+    "private-endpoint coverage that example would have given comes from",
+    "azapi's Microsoft.Network_privateEndpoints example instead."
   ],
   "sources": [
     {
@@ -589,6 +615,88 @@
         "repo": "https://github.com/grafana/quickpizza.git",
         "tag": "v0.15.28",
         "commit": "d5608ca0870d5cf58e911c64d227b9cfcfc94179"
+      }
+    },
+    {
+      "glob": ".corpus/azurerm/examples/virtual-networks/multiple-subnets",
+      "origin": "azure provider examples",
+      "fetch": {
+        "dir": ".corpus/azurerm",
+        "repo": "https://github.com/hashicorp/terraform-provider-azurerm.git",
+        "tag": "v5.10.0",
+        "commit": "b24dfdc1dafe6d0721572b0f6debecb7ab5e81c6"
+      }
+    },
+    {
+      "glob": ".corpus/azurerm/examples/virtual-networks/network-security-group-rule",
+      "origin": "azure provider examples"
+    },
+    {
+      "glob": ".corpus/azurerm/examples/storage/storage-container",
+      "origin": "azure provider examples"
+    },
+    {
+      "glob": ".corpus/azurerm/examples/kubernetes/basic-cluster",
+      "origin": "azure provider examples"
+    },
+    {
+      "glob": ".corpus/azurerm/examples/app-service/function-azure-RBAC-role-assignment",
+      "origin": "azure provider examples"
+    },
+    {
+      "glob": ".corpus/azurerm/examples/private-endpoint/private-dns-group",
+      "origin": "azure provider examples"
+    },
+    {
+      "glob": ".corpus/azapi/examples/Microsoft.KeyVault_vaults@2026-02-01/rbac",
+      "origin": "azure provider examples",
+      "fetch": {
+        "dir": ".corpus/azapi",
+        "repo": "https://github.com/Azure/terraform-provider-azapi.git",
+        "tag": "v2.13.0",
+        "commit": "cf3ecee858fa48c0aca95d0b995a8bfd4950c8ec"
+      }
+    },
+    {
+      "glob": ".corpus/azapi/examples/Microsoft.Authorization_roleAssignments@2022-04-01",
+      "origin": "azure provider examples"
+    },
+    {
+      "glob": ".corpus/azapi/examples/Microsoft.Network_privateEndpoints@2022-01-01",
+      "origin": "azure provider examples"
+    },
+    {
+      "glob": ".corpus/azapi/examples/Microsoft.ContainerService_managedClusters@2023-04-02-preview",
+      "origin": "azure provider examples"
+    },
+    {
+      "glob": ".corpus/avm-nsg/examples/example_with_NSG_rule",
+      "origin": "azure-verified-modules",
+      "fetch": {
+        "dir": ".corpus/avm-nsg",
+        "repo": "https://github.com/Azure/terraform-azurerm-avm-res-network-networksecuritygroup.git",
+        "tag": "v0.6.0",
+        "commit": "c5283612e428c44229a54d1278f184d5203e322b"
+      }
+    },
+    {
+      "glob": ".corpus/avm-storage/examples/private-endpoint-basic",
+      "origin": "azure-verified-modules",
+      "fetch": {
+        "dir": ".corpus/avm-storage",
+        "repo": "https://github.com/Azure/terraform-azurerm-avm-res-storage-storageaccount.git",
+        "tag": "v0.10.0",
+        "commit": "5695e5ec21744a3765051677d9e82bfba16b5d98"
+      }
+    },
+    {
+      "glob": ".corpus/avm-web-site/examples/function_app",
+      "origin": "azure-verified-modules",
+      "fetch": {
+        "dir": ".corpus/avm-web-site",
+        "repo": "https://github.com/Azure/terraform-azurerm-avm-res-web-site.git",
+        "tag": "v0.24.1",
+        "commit": "56c704e9f44002a46a71226d3c19f3915e1865c0"
       }
     }
   ],

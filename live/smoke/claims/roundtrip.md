@@ -135,3 +135,7 @@ the ruling ([#1121](https://github.com/INTENTIUS/choudoufu/issues/1121)):
 drop the `live` block, keep the cache file, and stock OpenTofu with
 hashicorp/google 8.6.0 carries on. The markers are ordinary labels stock
 ignores.
+
+## On Azure
+
+Open. The intended proof is the `reference-azure` estate's `cold_deploy` and `migrate` stages: stock applies, `live-import` writes the two ARM tags. The estate is built and has not been run, and no smoke scenario is written.

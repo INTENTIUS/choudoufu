@@ -130,3 +130,20 @@ alone. Controller-held objects are excluded first, and an object whose
 address label matches nothing declared is reported rather than planned; a
 deleted block's record proposes that removal. The network skeleton carries
 no label, so only its record proposes its removal.
+
+## On Azure
+
+### az-no-silent-orphans
+
+    just smoke az-no-silent-orphans
+    BREAK=1 just smoke az-no-silent-orphans
+
+A resource group, a VNet and a user-assigned identity are applied on
+floci-az, the identity's block is deleted, and the next plan must propose
+exactly that destroy, found by its `tofu-estate` tag through the Resource
+Graph sweep. An identity tagged for another estate at the same address in
+the same group must be left alone. `BREAK=1` strips the orphan's
+`tofu-estate` tag with an ARM PATCH first, and the replan must then
+propose nothing. floci-az serves no Resource Graph yet
+(lex00/floci-az#4, [live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell
+reads unproven.

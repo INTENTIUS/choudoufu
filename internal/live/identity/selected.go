@@ -7,6 +7,7 @@ package identity
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/strict"
@@ -162,6 +163,18 @@ func SelectedLocatedRefusal(resourceType string, schemas map[string]providers.Sc
 
 	plan, recordable := LocatedIdentityPlanFor(resourceType, schema)
 	if !recordable {
+		if why := FamilyIdentitySourcesProblem(resourceType, schema); why != "" {
+			// GitHub issue #2138: the family generated a source for every
+			// identity attribute it could, from its provider's own parsers
+			// and identity tests, and says by name which one it could not.
+			// That is the reason, and the generic sentence below (a
+			// composite import string) would send a reader after the
+			// wrong one.
+			return fmt.Sprintf(
+				"a record cannot hold the whole identity of a %s: %s. A record holding the rest would be a partial identity, and a later import by it a wrong one. Leave this resource its ownership marker.",
+				resourceType, why,
+			)
+		}
 		return fmt.Sprintf(
 			"a record cannot hold the whole identity of a %s. Its documented import string is composite and nothing proves the exported \"id\" attribute is the whole of it, so a record written from \"id\" would hold a fragment - and a fragment read back by a later import is a WRONG identity, not a missing one. Leave this resource its ownership marker.",
 			resourceType,
@@ -249,6 +262,22 @@ func sensitiveIdentityAttr(plan LocatedIdentityPlan, schema providers.Schema) st
 		// record write as a required one, and a record must never carry a
 		// secret regardless of which bucket named it.
 		names = append(append([]string(nil), plan.Components...), plan.OptionalComponents...)
+		// GitHub issue #2138: a derived component's value is read out of
+		// another argument, so that argument is what the record would
+		// carry a piece of.
+		derived := make([]string, 0, len(plan.DerivedComponents))
+		for name := range plan.DerivedComponents {
+			derived = append(derived, name)
+		}
+		sort.Strings(derived)
+		for _, name := range derived {
+			src := plan.DerivedComponents[name]
+			for _, arg := range []string{src.Argument, src.Within} {
+				if arg != "" {
+					names = append(names, arg)
+				}
+			}
+		}
 	case plan.Composed():
 		names = append(append([]string(nil), plan.ImportIDParts...), plan.ImportIDVariadicGroup...)
 		for _, alt := range plan.ImportIDAlternatives {

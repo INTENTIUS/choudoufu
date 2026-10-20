@@ -189,3 +189,7 @@ a principal that may list a bucket two estates share lists both estates'
 record keys. So on a shared bucket an estate reaches only its own records
 for reads and writes, and every estate's keys for a list. The cell is open
 until the scenario is registered and runs.
+
+## On Azure
+
+Open. Nothing has run on Azure yet. Each blob carries `tofu-estate` as a blob index tag, and `live/azure/record-store-abac.condition` is the read fence on it; floci-az has no route for role assignments or ABAC conditions, so the fence is unmeasured.
