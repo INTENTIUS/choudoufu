@@ -66,10 +66,24 @@ Resource Graph lists any type, so a type with no admission row is still
 found once its last block is gone.
 
 Two kinds of object are held, never swept: one whose ARM `managedBy`
-property is set (an AKS node resource group, a managed application's
-group), and one carrying an `aks-managed-` tag. AKS copies the cluster's
-tags onto its node resource group, the estate's marker among them, so
-without that rule the group would read as an orphan.
+names a resource that owns its lifecycle (an AKS cluster on its node
+resource group, a managed application on its managed resource group), and
+one carrying an `aks-managed-` tag. AKS copies the cluster's tags onto its
+node resource group, the estate's marker among them, so without that rule
+the group would read as an orphan. Any other `managedBy` is not a hold: ARM
+sets an attached managed disk's to its virtual machine, and that disk is
+still the estate's, proposed for removal when its block is gone (#2133). An
+object whose ARM id a block declares binds to that block before either
+rule is asked, so a declared object is never read as held.
+
+AKS node pools: per Microsoft's "Use Azure tags in AKS"
+(learn.microsoft.com/azure/aks/use-tags), a node pool's tags go to its
+virtual machine scale set and to every instance, so both carry the node
+pool's marker. The instances are in Resource Graph's `computeresources`
+table, which the sweep does not query, so they are never listed. The scale
+set is held when it carries an `aks-managed-` tag; no Microsoft page lists
+which ones AKS writes on it, so that is for a run against real AKS to
+confirm (`substrate.ControllerHeld`'s doc comment has the sources).
 
 Resource Graph is an index, and Azure documents a lag before a delete
 reaches it. A destroy therefore writes a record tombstone, as on AWS, and

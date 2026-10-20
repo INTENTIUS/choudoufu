@@ -51,13 +51,14 @@ import (
 // writes one, and [classifyOrphans] reads it for every orphan whose
 // address another claimant shares, by import id: the ARM id this leg files.
 //
-// A controller-held resource (its ARM managedBy set, or a tag AKS writes
-// on its node resource group) is the family's answer
+// A controller-held resource (its ARM managedBy naming a lifecycle owner,
+// or a tag AKS writes on its node resource group) is the family's answer
 // ([substrate.ControllerHeld] over [substrate.HoldEvidence]'s ManagedBy and
-// ARMTags) and is reported held before any binding is tried: AKS copies the
-// cluster's tags, the estate's marker among them, onto the node resource
-// group it creates, so that group carries a declared address that is not
-// its own.
+// ARMTags) and is reported held before a marker binding is tried: AKS
+// copies the cluster's tags, the estate's marker among them, onto the node
+// resource group it creates, so that group carries a declared address that
+// is not its own. A declared instance's own ARM id still binds first: an
+// object the configuration declares is never read as held (#2133).
 
 // SourceResourceGraph marks a [TypeScan] the Resource Graph leg made.
 const SourceResourceGraph EnumerationSource = "RESOURCE_GRAPH"
@@ -218,24 +219,31 @@ func (g ResourceGraphSweep) fileHit(ctx context.Context, req Request, decl *decl
 		typeName, named = addr.Resource.Resource.Type, true
 	}
 
-	if hold, held := substrate.ControllerHeld(substrate.HoldEvidence{ManagedBy: hit.ManagedBy, ARMTags: hit.Tags}); held {
-		h := ControllerHeldResource{
-			TypeName:    typeName,
-			ImportID:    hit.ID,
-			DisplayName: hit.Name,
-			Controller:  hold.Controller,
-			HeldBy:      hold.HeldBy,
+	// A declared instance's own ARM id binds before any hold is asked
+	// (#2133 finding 2): an object the configuration declares is that
+	// instance's, whatever its managedBy or tags say, and reading it as held
+	// would drop it from every plan.
+	d, declaredID := byID[strings.ToLower(hit.ID)]
+	if !declaredID {
+		if hold, held := substrate.ControllerHeld(substrate.HoldEvidence{ManagedBy: hit.ManagedBy, ARMTags: hit.Tags}); held {
+			h := ControllerHeldResource{
+				TypeName:    typeName,
+				ImportID:    hit.ID,
+				DisplayName: hit.Name,
+				Controller:  hold.Controller,
+				HeldBy:      hold.HeldBy,
+			}
+			if named && !declaredAddrs[addr.String()] {
+				h.Marked, h.Addr = true, addr
+			}
+			res.ControllerHeld = append(res.ControllerHeld, h)
+			sortControllerHeld(res.ControllerHeld)
+			return typeName, false
 		}
-		if named && !declaredAddrs[addr.String()] {
-			h.Marked, h.Addr = true, addr
-		}
-		res.ControllerHeld = append(res.ControllerHeld, h)
-		sortControllerHeld(res.ControllerHeld)
-		return typeName, false
 	}
 
 	importID := hit.ID
-	if d, ok := byID[strings.ToLower(hit.ID)]; ok {
+	if declaredID {
 		importID = d.ImportID
 		if named && !declaredAddrs[addr.String()] {
 			// The object a declared instance names, carrying the marker of

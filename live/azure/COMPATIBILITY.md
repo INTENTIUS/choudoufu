@@ -138,7 +138,9 @@ An AKS cluster beside the `kubernetes` provider is the common one. AKS
 creates a node resource group, sets its `managedBy` to the cluster, and
 copies the cluster's tags onto it, the estate's marker included. The sweep
 reports that group and everything carrying an `aks-managed-` tag as
-held, and proposes destroying none of them. The cluster's own objects are
+held, and proposes destroying none of them. A `managedBy` naming anything
+but an AKS cluster or a managed application, such as an attached disk's
+virtual machine, is not a hold. The cluster's own objects are
 the Kubernetes leg's, swept by label; the two fences are judged under their
 own credentials, as for EKS in `live/kubernetes/COMPATIBILITY.md`.
 

@@ -104,6 +104,72 @@ func TestAzureControllerHeld(t *testing.T) {
 	}
 }
 
+// TestAzureManagedByHoldsOnlyLifecycleOwners (#2133 finding 2): managedBy
+// is a hold only when it names a resource that owns the object's lifecycle.
+func TestAzureManagedByHoldsOnlyLifecycleOwners(t *testing.T) {
+	rg := "/subscriptions/0/resourceGroups/rg"
+	for _, c := range []struct {
+		managedBy string
+		held      bool
+	}{
+		{rg + "/providers/Microsoft.ContainerService/managedClusters/aks", true},
+		{rg + "/providers/microsoft.containerservice/MANAGEDCLUSTERS/aks", true},
+		{rg + "/providers/Microsoft.Solutions/applications/app", true},
+		// An attached disk's managedBy is its virtual machine.
+		{rg + "/providers/Microsoft.Compute/virtualMachines/vm1", false},
+		// A scale set instance's disk names the instance.
+		{rg + "/providers/Microsoft.Compute/virtualMachineScaleSets/pool/virtualMachines/0", false},
+		// A child of a lifecycle owner's type is not that type.
+		{rg + "/providers/Microsoft.ContainerService/managedClusters/aks/agentPools/np", false},
+		{"not-an-id", false},
+	} {
+		if _, ok := Azure.ControllerHeld(HoldEvidence{ManagedBy: c.managedBy}); ok != c.held {
+			t.Errorf("managedBy %q held %v, want %v", c.managedBy, ok, c.held)
+		}
+	}
+}
+
+func TestARMIDType(t *testing.T) {
+	for id, want := range map[string]string{
+		"/subscriptions/0/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks":                                "Microsoft.ContainerService/managedClusters",
+		"/subscriptions/0/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/p/virtualMachines/0":                 "Microsoft.Compute/virtualMachineScaleSets/virtualMachines",
+		"/subscriptions/0/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/v/providers/Microsoft.Authorization/locks/l": "Microsoft.Authorization/locks",
+		"/subscriptions/0/resourceGroups/rg":                       "",
+		"/subscriptions/0/resourceGroups/rg/providers/Microsoft.X": "",
+	} {
+		got, ok := ARMIDType(id)
+		if got != want || ok != (want != "") {
+			t.Errorf("ARMIDType(%q) = %q, %v; want %q", id, got, ok, want)
+		}
+	}
+}
+
+// TestAzureScaleSetHoldIsTheAKSTag pins #2133 finding 11's answer: a node
+// pool's scale set carries the node pool's tags, the estate's marker among
+// them, and has no managedBy; it is held by an aks-managed- tag and by
+// nothing else. Its instances need no rule because the sweep's query never
+// reads the computeresources table that holds them (azsweep.Query).
+func TestAzureScaleSetHoldIsTheAKSTag(t *testing.T) {
+	marker := map[string]string{markers.TagEstate: "prod", markers.TagAddress: "azurerm_kubernetes_cluster_node_pool.np"}
+	if _, ok := Azure.ControllerHeld(HoldEvidence{ARMTags: marker}); ok {
+		t.Error("a scale set carrying only the node pool's marker read as held; no documented rule says so")
+	}
+	tagged := map[string]string{"aks-managed-poolName": "np"}
+	for k, v := range marker {
+		tagged[k] = v
+	}
+	if h, ok := Azure.ControllerHeld(HoldEvidence{ARMTags: tagged}); !ok || h.Controller != "AKS" {
+		t.Errorf("a scale set with an aks-managed- tag: %+v, %v; want held by AKS", h, ok)
+	}
+	q := strings.ToLower(azsweep.Query("prod"))
+	if strings.Contains(q, "computeresources") {
+		t.Errorf("the sweep now reads computeresources, where scale set instances live; ControllerHeld's doc comment says they are never listed:\n%s", q)
+	}
+	if !strings.HasPrefix(q, "resources\n") {
+		t.Errorf("the sweep's query no longer starts at the resources table; revisit ControllerHeld's scale set note:\n%s", q)
+	}
+}
+
 func TestAzureManualMarkFix(t *testing.T) {
 	id := "/subscriptions/0/resourceGroups/rg"
 	got := Azure.ManualMarkFix(Created{Object: cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal(id)})}, map[string]string{markers.TagEstate: "prod", markers.TagAddress: "azurerm_resource_group.rg"}, nil)

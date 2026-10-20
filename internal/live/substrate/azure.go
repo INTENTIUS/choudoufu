@@ -336,17 +336,114 @@ func (azure) MarkerNoun(surface markers.Surface) string {
 // writes or names them.
 const AKSManagedTagPrefix = "aks-managed-"
 
+// LifecycleOwnerTypes are the ARM resource types whose id in an object's
+// managedBy means that resource owns the object's lifecycle: it created the
+// object and deletes it with itself, so the object is held, never swept
+// (#1122, #2133 finding 2). Lowercased; ARM compares types
+// case-insensitively.
+//
+//   - Microsoft.ContainerService/managedClusters on its node resource
+//     group. The AKS FAQ ("Why are two resource groups created with AKS?",
+//     learn.microsoft.com/azure/aks/faq, read 2026-10-20): "The AKS resource
+//     provider automatically creates the second resource group during
+//     deployment ... AKS automatically deletes the node resource group
+//     whenever you delete the cluster."
+//   - Microsoft.Solutions/applications on its managed resource group. The
+//     Managed Applications overview ("Managed resource group",
+//     learn.microsoft.com/azure/azure-resource-manager/managed-applications/overview,
+//     read 2026-10-20): "When the customer deletes the managed application,
+//     the managed resource group is also deleted."
+//
+// A resource group's managedBy is "The ID of the resource that manages this
+// resource group" (Resource Groups - Get, ResourceGroup definition,
+// learn.microsoft.com/rest/api/resources/resource-groups/get, api-version
+// 2021-04-01). Neither page prints the managedBy value of a node or
+// managed resource group; that is the maintainer's to measure.
+//
+// Left out because no Microsoft page found on 2026-10-20 states their
+// lifecycle tie, though azurerm creates each through a
+// managed_resource_group_name argument: Microsoft.Databricks/workspaces,
+// Microsoft.Synapse/workspaces, Microsoft.RedHatOpenShift/openShiftClusters,
+// Microsoft.Purview/accounts and Microsoft.Workloads/sapVirtualInstances. An
+// owner missing here costs a held group being read as an ordinary one, which
+// matters only if it carries this estate's marker.
+var LifecycleOwnerTypes = map[string]bool{
+	"microsoft.containerservice/managedclusters": true,
+	"microsoft.solutions/applications":           true,
+}
+
+// ARMIDType is the ARM resource type an ARM id names: the namespace after
+// its last /providers/ segment and every type segment after it, with the
+// names dropped ("Microsoft.ContainerService/managedClusters" for a
+// cluster's id, "Microsoft.Compute/virtualMachineScaleSets/virtualMachines"
+// for a scale set instance's). Matched case-insensitively and returned as
+// spelled. False when the id names no provider namespace, or the segments
+// after it do not pair into type and name.
+func ARMIDType(id string) (string, bool) {
+	segs := strings.Split(strings.Trim(id, "/"), "/")
+	at := -1
+	for i, s := range segs {
+		if strings.EqualFold(s, "providers") {
+			at = i
+		}
+	}
+	if at < 0 || at+1 >= len(segs) {
+		return "", false
+	}
+	rest := segs[at+2:]
+	if len(rest) == 0 || len(rest)%2 != 0 {
+		return "", false
+	}
+	parts := []string{segs[at+1]}
+	for i := 0; i < len(rest); i += 2 {
+		parts = append(parts, rest[i])
+	}
+	return strings.Join(parts, "/"), true
+}
+
 // ControllerHeld reads two fixed things off an ARM object (#1122):
 //
-//   - its managedBy property, which ARM sets to the id of the resource that
-//     manages it (an AKS cluster on its node resource group, a managed
-//     application on its managed resource group, and so on); the object is
-//     held by that resource.
+//   - its managedBy property, when it names a resource of a type in
+//     [LifecycleOwnerTypes]: an AKS cluster on its node resource group, a
+//     managed application on its managed resource group. Any other managedBy
+//     is not a hold. ARM sets managedBy on every attached managed disk to
+//     the id of its virtual machine ("A relative URI containing the ID of
+//     the VM that has the disk attached", Disks - Get, Disk definition,
+//     learn.microsoft.com/rest/api/compute/disks/get, read 2026-10-20;
+//     azurerm's managed_disk_resource.go parses it as a virtual machine id),
+//     and an attachment is not ownership: the estate declares that disk and
+//     removing its block must still propose its removal (#2133 finding 2).
+//     azurerm_resource_group's own managed_by argument lets a configuration
+//     set the property to anything, which is one more reason the type, not
+//     the presence, decides.
 //   - an aks-managed- tag ([AKSManagedTagPrefix]), compared
 //     case-insensitively as every ARM tag key is.
+//
+// Virtual machine scale sets (#2133 finding 11). "Use Azure tags in AKS"
+// (learn.microsoft.com/azure/aks/use-tags, read 2026-10-20) says tags set
+// on a cluster go to the cluster's related resources and its node resource
+// group "but not the node pools", and tags set on a node pool go to "The
+// virtual machine scale set and each virtual machine scale set instance
+// associated with the node pool". So a stamped
+// azurerm_kubernetes_cluster_node_pool puts its marker on its scale set and
+// on every instance. The instances need no rule: Resource Graph keeps
+// microsoft.compute/virtualmachinescalesets/virtualmachines in its
+// computeresources table, not resources (Supported tables,
+// learn.microsoft.com/azure/governance/resource-graph/reference/supported-tables-resources,
+// read 2026-10-20), and the sweep queries resources and resource groups
+// alone ([azsweep.Query]), so it never lists one. The scale set itself is
+// in resources and has no managedBy. It is held when it carries an
+// aks-managed- tag; no Microsoft page found on 2026-10-20 lists which
+// aks-managed- tags AKS writes on a node pool's scale set, only that
+// aks-managed tags exist on resources in the node resource group (AKS FAQ),
+// so no rule is added on the docs' evidence and the maintainer measures it.
+// The same holds for a "Virtual Machines" node pool's standalone virtual
+// machines, which are in resources.
 func (azure) ControllerHeld(ev HoldEvidence) (Hold, bool) {
 	if ev.ManagedBy != "" {
-		return Hold{Controller: "ARM managedBy", HeldBy: "the ARM resource " + ev.ManagedBy + " (managedBy)"}, true
+		if t, ok := ARMIDType(ev.ManagedBy); ok && LifecycleOwnerTypes[strings.ToLower(t)] {
+			return Hold{Controller: "ARM managedBy", HeldBy: "the ARM resource " + ev.ManagedBy + " (managedBy)"}, true
+		}
 	}
 	var aks []string
 	for k, v := range ev.ARMTags {
@@ -363,7 +460,7 @@ func (azure) ControllerHeld(ev HoldEvidence) (Hold, bool) {
 
 func (azure) HoldRecognition() HoldRecognition {
 	return HoldRecognition{
-		Mechanism: "the object's ARM managedBy property, or a tag AKS writes on its node resource group (aks-managed- prefix, case-insensitive; AKS FAQ)",
+		Mechanism: "the object's ARM managedBy property when it names an AKS managed cluster or a managed application (the lifecycle owners of a node or managed resource group; an attached disk's managedBy is its VM and is not a hold), or a tag AKS writes on its node resource group (aks-managed- prefix, case-insensitive; AKS FAQ)",
 		Keys:      []string{"managedBy", AKSManagedTagPrefix + "*"},
 	}
 }
