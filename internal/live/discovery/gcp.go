@@ -266,6 +266,12 @@ func gcpDeclaredHit(ctx context.Context, req Request, decl *declared, res *Resul
 	typeName := addr.Resource.Resource.Type
 	escaped := EscapeAddress(addr.String())
 	claim := gcpClaimant(a, typeName, address, escaped)
+	if claim.importID == "" {
+		// Nothing here imports the object, so the asset's own path names it
+		// in a warning when no import form is known (an unlabelled type, or
+		// one the provider source states no Asset name for).
+		claim.importID = claim.resourcePath
+	}
 	switch want, verdict := decl.displacedFrom(ctx, typeName, escaped, claim); verdict {
 	case verdictDisplaced:
 		diags = diags.Append(problemDiag(res, displacedProblem(req, typeName, escaped, want, claim)))

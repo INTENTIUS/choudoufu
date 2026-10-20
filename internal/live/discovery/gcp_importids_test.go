@@ -96,7 +96,10 @@ func TestRecordLegComposesGoogleCompositeRecords(t *testing.T) {
 		}
 	}
 
-	res := &Result{Estate: estate}
+	// The key is labelled, so its record proposes a destroy only when the
+	// Asset search saw it this run wearing the deleted address's label
+	// (GitHub issue #2139, item 1).
+	res := &Result{Estate: estate, Verdicts: Verdicts{Orphans: []OwnedResource{{TypeName: "cloudkms.googleapis.com/CryptoKey", Marker: markers.GoogleAddressValue(key), Withheld: "reported"}}}}
 	req := Request{Estate: estate, HintStore: raw, ScopeProvider: googleProv, VouchProvider: googleProv, Sweep: true}
 	diags = recordOrphanReadSweep(ctx, req, schemas, res)
 
