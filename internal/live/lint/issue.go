@@ -228,6 +228,20 @@ const (
 	// are served by the root configuration's provider config instead. See
 	// module_provider_block.go.
 	RuleModuleProviderBlock Rule = "module-provider-block"
+
+	// RuleGCPMultiProject covers a configuration whose google provider
+	// blocks and google resources name more than one GCP project between
+	// them. The fence is project-scoped (GitHub issue #1121), so one estate
+	// over two projects cannot be fenced as one. A warning: the plan is
+	// correct either way, and only the fence is weaker. See
+	// gcp_multi_project.go.
+	RuleGCPMultiProject Rule = "gcp-multi-project"
+
+	// RuleGCPLabelCount covers a google resource whose labels come to more
+	// than GCP's 64 once this run adds its ownership markers: a create stock
+	// would make that fails only because of the markers. See
+	// gcp_label_count.go.
+	RuleGCPLabelCount Rule = "gcp-label-count"
 )
 
 // UnfindableClause is what an apply with no usable handle costs, as a
@@ -445,6 +459,15 @@ var ruleInfo = map[Rule]struct {
 	RuleModuleProviderBlock: {
 		summary: "Provider block in a child module needs count, for_each, enabled or depends_on removed from its call chain",
 		docsRef: `live/LIMITATIONS.md, "module-provider-block"`,
+	},
+	RuleGCPMultiProject: {
+		summary:  "GCP estate spans more than one project",
+		docsRef:  `live/LIMITATIONS.md, "gcp-multi-project"`,
+		severity: SeverityWarning,
+	},
+	RuleGCPLabelCount: {
+		summary: "GCP resource has no room for its ownership markers",
+		docsRef: `live/LIMITATIONS.md, "gcp-label-count"`,
 	},
 }
 

@@ -3262,7 +3262,16 @@ const (
 	// outputs and no resources. It adds no row, so instances and
 	// body-sha256 are unchanged. fixture-dirs 670 -> 671 on the same row;
 	// the cohort pins are untouched.
-	identityGoldenPinDirs = 702
+	//
+	// 702 -> 704 for GitHub issue #1121's two GCP lint rules: two new
+	// fixtures. live/e2e/limits/gcp-multi-project declares two google
+	// provider blocks and no resources. live/e2e/limits/gcp-label-count
+	// declares one google_storage_bucket, a type with no row in the
+	// admission table, so identity resolution renders nothing for it.
+	// Neither adds a row, so instances and body-sha256 are unchanged.
+	// fixture-dirs 671 -> 673 on the same row; the cohort pins are
+	// untouched.
+	identityGoldenPinDirs = 704
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

@@ -97,8 +97,9 @@ type Context struct {
 // route through it are [RuleProvisioner], [RuleLogicalResource],
 // [RuleUnadmittedType], [RuleMarkerlessType], [RuleCountIndex],
 // [RuleIgnoreChanges], [RuleGenerateName], [RuleForEachKey],
-// [RuleOverlongAddress], [RuleReceiptLeaf], [RuleReceiptValue] and
-// [RuleReceiptSecret], plus [CheckResidueAttributes]' warning. Every other
+// [RuleOverlongAddress], [RuleReceiptLeaf], [RuleReceiptValue],
+// [RuleReceiptSecret] and [RuleGCPLabelCount], plus
+// [CheckResidueAttributes]' warning. Every other
 // rule is about the configuration, a module call or the live block itself,
 // and none of those is an [addrs.ConfigResource] for a scope to answer
 // about.
@@ -175,6 +176,8 @@ func CheckWith(ctx context.Context, cfg *configs.Config, lctx Context) []Issue {
 
 	var issues []Issue
 	checkStrictMarkers(cfg, lctx.Schemas, &issues)
+	checkGCPMultiProject(ctx, cfg, &issues)
+	checkGCPLabelCount(ctx, cfg, lctx.Schemas, lctx.Scope, &issues)
 	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, lctx.Scope, signal, recordStoreConfigured, secrets, markersRecord, nil, &issues)
 	sortIssues(issues)
 	return issues
