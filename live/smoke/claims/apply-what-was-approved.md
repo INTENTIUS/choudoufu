@@ -74,3 +74,9 @@ perpetual drift stock reads, marker intact. A policy that strips
 warns, the adopting update fails rather than reporting a change nothing
 kept (#1192). `BREAK=1` points the stripping policy at a decoy label, and
 the marker must land with no warning.
+
+## On GCP
+
+No GCP scenario is written yet, so the cell is open. A saved plan is
+re-planned against the live system at apply on every substrate, and
+nothing about that is GCP-specific.

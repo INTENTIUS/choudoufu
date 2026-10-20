@@ -180,3 +180,12 @@ it is, and changes nothing of network's; after network's destroy deletes
 that output, the consumer is told so by name. `BREAK=1` declares the read
 and withholds the Role, and the plan must refuse, naming the estate, its
 namespace and the Role to grant.
+
+## On GCP
+
+Expected to be proven by steps of `just smoke gcp-records-in-a-bucket`.
+One bucket per estate is the default, because GCS cannot fence a listing:
+a principal that may list a bucket two estates share lists both estates'
+record keys. So on a shared bucket an estate reaches only its own records
+for reads and writes, and every estate's keys for a list. The cell is open
+until the scenario is registered and runs.

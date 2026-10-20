@@ -29,7 +29,8 @@
   },
   "provider_order": [
     "aws",
-    "kubernetes"
+    "kubernetes",
+    "gcp"
   ],
   "retired": [
     {
@@ -254,7 +255,8 @@
       "theme": "adopt",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -309,6 +311,10 @@
             }
           ],
           "note": "Unproven until a dated run: k8s-no-silent-orphans.sh, k8s-a-held-delete-is-not-gone.sh, k8s-a-deleted-namespace-is-gone.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). The sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete. An object no natural key declares is joined a second way, by the block its address annotation names (#1640): bound when that block is declared, an orphan otherwise. The label is what makes an object this estate's, so an orphan whose annotation was stripped is still proposed for removal; two objects whose annotations claim one block that holds neither are refused as a collision rather than both destroyed (#1641)."
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: gcp-no-silent-orphans.sh will prove it, with BREAK=1 stripping the orphan's label and requiring the replan to leave it. The sweep is one Cloud Asset Inventory search per project the estate's google resources name, filtered on the estate label (#1119). Controller-held objects (a GKE node's VM and disks, Dataproc and Batch VMs, a Cloud Run service another product manages) are excluded first. An orphan whose tofu-address label matches nothing declared is reported and never planned, because the label is matched and never decoded; a deleted block's record proposes its removal. The network skeleton carries no label, so only its record proposes its removal, and a skeleton object that loses its block and its record together is found by nothing. No GCP scenario is registered yet, so the cell reads open until one is and runs."
         }
       }
     },
@@ -319,7 +325,8 @@
       "theme": "operate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -363,6 +370,10 @@
             }
           ],
           "note": ""
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: gcp-records-in-a-bucket.sh's steps are expected to prove it, as k8s-records-in-the-cluster's do on Kubernetes. The gcs record store writes with ifGenerationMatch and holds no lock (#2122). No GCP scenario is registered yet, so the cell reads open until one is and runs."
         }
       }
     },
@@ -373,7 +384,8 @@
       "theme": "cache",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -423,6 +435,10 @@
               ]
             }
           ]
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: no GCP scenario is written. The plan's reads go through hashicorp/google, whose labels and terraform_labels are non-authoritative on read; a plan without the cache mirrors the markers out of effective_labels, so a fresh cache, a stale one and none should give one plan, which is unmeasured."
         }
       }
     },
@@ -433,7 +449,8 @@
       "theme": "adopt",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -459,6 +476,10 @@
               "note": "The gauntlet's day2_crash stage on a kind estate: an apply creating two ConfigMaps is interrupted by a real SIGTERM the instant the first create commits; the next plan proposes exactly the remainder and binds the created object by its tofu-estate label, namespace and name, matching stock's own plan from the same position; one recovery apply finishes and the replan is empty. Its BREAK asserts nothing is proposed and must fail. This replaced k8s-recovery-is-a-rerun.sh, whose label-strip control is not repeated here."
             }
           ]
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: no GCP scenario is written. The labels go out in the create call, so a resource an interrupted apply created carries its markers and binds on the rerun by its label; the gauntlet's day2_crash stage is the expected proof once a GCP lane exists."
         }
       }
     },
@@ -469,7 +490,8 @@
       "theme": "cache",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -513,6 +535,10 @@
               ]
             }
           ]
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: no GCP scenario is written. The exit is part of the ruling (#1121): drop the live block, keep the cache file, and stock OpenTofu with hashicorp/google 8.6.0 carries on; the markers are ordinary labels stock ignores."
         }
       }
     },
@@ -523,7 +549,8 @@
       "theme": "adopt",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -568,6 +595,10 @@
             }
           ],
           "note": "Unproven until a dated run: k8s-greenfield.sh, k8s-custom-resource.sh, claim 13's k8s-the-label-is-the-boundary.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). The ownership marker is one label, tofu-estate, because an address is often not a legal label value (#1016); the block address rides beside it in the annotation choudoufu.intentius.io/tofu-address (#1639, #1605's ruling). Any kubectl reads both. The sweep binds an object no natural key declares to the block its annotation names (#1640), so a block whose name is read at plan time applies and replans empty, and a create_before_destroy rename plans as the replace stock plans (#1541, #1641). A rename rewrites the annotation (a moved block plans it, live-mv writes it); a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 13 on Kubernetes). A count pool's fungible set, the AWS proof count-is-a-fungible-set, does not arise here: the API server keeps names unique per kind and namespace, so a count-expanded set carries distinct names and no slot is written."
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: gcp-greenfield.sh will prove it on floci-gcp, with BREAK=1 stripping tofu-estate and requiring the replan to restore it. The marker is three labels in the resource's own labels map: tofu-estate, tofu-address as a fixed-length encoding of the address that is matched and never decoded, and tofu-slot where AWS would write one (live/MARKERS.md, \"GCP: labels\"). The network skeleton has no labels map and binds by its configured name, project and location. A carve by relabel waits on live-mv's GCP rewrite, refused by name until then. No GCP scenario is registered yet, so the cell reads open until one is and runs."
         }
       }
     },
@@ -578,7 +609,8 @@
       "theme": "gate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -632,6 +664,10 @@
             }
           ],
           "note": "Unproven until a dated run: k8s-the-label-is-the-boundary.sh has no evidence file with a date (no workflow has run a claim scenario since #2018). Write-only and cluster-wide: one ValidatingAdmissionPolicy on the estate label, installed by a cluster admin, fences create, update and delete and never get or list (#1066). An IAM condition on AWS also fences reads and can name an address, not only an estate. One estate across contexts, clusters or two estates applying to one cluster at once has not been measured. Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Restated, and open until a run: gcp-the-label-is-the-boundary.sh will prove the restated form. An IAM condition cannot read a GCP label, so the fence is the project (#1121): one estate per project, granted by an ordinary project IAM binding (live/gcp/estate-grant.sh), covering reads and writes per principal at project granularity. Two estates sharing one project are not fenced from each other per principal, nothing finer than an estate can be granted, and a folder or organization binding passes the fence. The labelled types, the declaration-carried skeleton and the instance templates are all fenced only at the project. Resource Manager tag bindings, which a condition can match, are ruled later. No GCP scenario is registered yet, so the cell reads open until one is and runs."
         }
       }
     },
@@ -642,7 +678,8 @@
       "theme": "scale",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -676,6 +713,10 @@
               ]
             }
           ]
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: no GCP scenario is written. The sweep's cost is one Cloud Asset Inventory search per project, paged over the estate's own hits, so another estate's resources in other projects cost nothing; the asset index answering for this estate only is unmeasured against real GCP (floci-gcp's search is lex00/floci-gcp#7)."
         }
       }
     },
@@ -686,7 +727,8 @@
       "theme": "scale",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -706,6 +748,10 @@
         "kubernetes": {
           "status": "open",
           "note": "Open: the proof is written and has not run. live/smoke/drafts/k8s-plan-cost-tracks-the-change.sh changes one of 20 ConfigMaps, which a second block reads, and plans it in full and with -cone=HEAD through live/smoke/k8sproxy.py, then again once the estate has grown to 80; it requires the cone plan to read those two ConfigMaps by name and no other, propose the full plan's changes, and send the same request count at 20 and 80 while the full plan's grows by at least one request per added ConfigMap. BREAK=1 points -cone at a base that is not a commit, so the guard plans the whole estate, and requires the read check to refuse that plan. The marker sweep stays estate-wide on a cone plan, which on a cluster is discovery and one label-selected list per kind served (#1065). About 4 minutes, an estimate. The cell reads proven only after both arms run green (live/smoke/drafts/README.md)."
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: no GCP scenario is written. The marker sweep stays estate-wide on a cone plan, as on the other substrates."
         }
       }
     },
@@ -716,7 +762,8 @@
       "theme": "gate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -752,6 +799,10 @@
             }
           ],
           "note": "Unproven until a dated run: k8s-the-server-gets-the-last-word.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: no GCP scenario is written. A saved plan is re-planned against the live system at apply on every substrate; nothing about it is GCP-specific, but no run has shown it on GCP."
         }
       }
     },
@@ -762,7 +813,8 @@
       "theme": "operate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -830,6 +882,10 @@
             }
           ],
           "note": "Two estates whose key_prefix values prefix one another, the hazard the AWS name-prefix proof measures, are not measured here: KubernetesStore names each record Secret by a SHA-256 of its whole key and refuses a key-annotation mismatch with KeyCollisionError, so a broken delimiter would produce a collision or a refusal rather than a silent read, and no scenario pins which. On Kubernetes the declaration is the reader's record_store block: reads_outputs_of \"<estate>\" {} opens that estate's records namespace through a store that can only get. An undeclared read is refused before anything is sent, under an identity RBAC would have let through; a declared read plans with the producer's value through a grant of one get and says how old it is; after the producer's destroy deletes its recorded output, the consumer is told so by name."
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: gcp-records-in-a-bucket.sh's steps are expected to prove the key_prefix half. One bucket per estate is the default, because GCS cannot fence a listing: a principal that may list a bucket two estates share lists both estates' record keys, so on a shared bucket an estate's reach is its own records for get and put and every estate's keys for list. No GCP scenario is registered yet, so the cell reads open until one is and runs."
         }
       }
     },
@@ -840,7 +896,8 @@
       "theme": "operate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -891,6 +948,10 @@
             }
           ],
           "note": "Unproven until a dated run: claim 1's k8s-a-deleted-namespace-is-gone.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: gcp-records-in-a-bucket.sh will prove it, with BREAK=1 removing the bucket's fences. record_store \"gcs\" (#2122) writes with ifGenerationMatch, checks its sentinel on opening and makes four opening checks of the bucket. No GCP scenario is registered yet, so the cell reads open until one is and runs."
         }
       }
     },
@@ -901,7 +962,8 @@
       "theme": "operate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -931,6 +993,10 @@
               ]
             }
           ]
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: no GCP scenario is written. A google_secret_manager_secret_version's secret_data is returned by the provider's read, so it is not residue and stays out of the record (live/SECRETS.md); unmeasured on GCP."
         }
       }
     },
@@ -941,7 +1007,8 @@
       "theme": "operate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "gcp"
       ],
       "providers": {
         "aws": {
@@ -973,6 +1040,10 @@
             }
           ],
           "note": ""
+        },
+        "gcp": {
+          "status": "open",
+          "note": "Open: no GCP scenario is written. ignore_changes on a label key of your own, labels[\"owner\"], is admitted, and ignore_changes over the labels map or a marker key is refused by lint."
         }
       }
     }
