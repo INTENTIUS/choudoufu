@@ -71,6 +71,11 @@ var guardedPackages = []string{
 	"flocitest",
 	"k8stest",
 	"foreign",
+	// GitHub issue #1119's GCP sweep client: reads the google provider
+	// block's evaluated configuration, testing every argument for a mark
+	// before reading it and unmarking only credentials and access_token,
+	// the substrate rule (#1527). Its API answers are Go structs.
+	"gcpsweep",
 	"harness",
 	"identity",
 	// Issue #1750's multi-estate fixture: HCL text rendering, a module
