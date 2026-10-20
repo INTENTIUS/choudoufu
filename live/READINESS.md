@@ -20,7 +20,7 @@ around the generated markers, never inside them.
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
 | Total | 1119 | 492 | 4 | 19 | 62 | 3 | 1699 |
 
-`live/readiness.json` last committed at commit `1538dee628` on 2026-10-19T23:09:58-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
+`live/readiness.json` last committed at commit `1a67958ee6` on 2026-10-19T23:48:54-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
 <!-- readiness-gen:end tiers -->
 
 ## Two counts called record-carried
@@ -88,16 +88,6 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | record-carried | 0 | 57 | 0 | 113 | 133 | 0 | 303 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Total | 1098 | 131 | 0 | 123 | 133 | 0 | 1485 |
-
-| Survey path | Tier | Types |
-|---|---|---|
-| marker | marker-carried | 320 |
-| client-named | declaration-carried | 301 |
-| parent-derived | declaration-carried | 545 |
-| project-derived | declaration-carried | 16 |
-| unique-name | declaration-carried | 0 |
-| server-minted | record-carried | 133 |
-| unbindable | record-carried | 170 |
 
 | Reason | Why the type is not in contract |
 |---|---|
