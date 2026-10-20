@@ -2956,7 +2956,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Ownership marker was not stored | error | `internal/live/projection` | "Ownership marker was not stored" |
 | - | - | projection | Parent-derived identity with no formula | error | `internal/live/projection` | "Parent-derived identity with no formula" |
 | - | - | projection | Persisted record does not match the current schema | error | `internal/live/projection` | "Persisted record does not match the current schema" |
-| - | - | projection | Provider default labels not known at plan time | error | `internal/live/projection` | "Provider default labels not known at plan time" |
+| - | - | projection | Provider default labels not known at plan time | warning | `internal/live/projection` | "Provider default labels not known at plan time" |
 | - | - | projection | Provider produced an invalid object | error | `internal/live/projection` | "Provider produced an invalid object" |
 | - | - | projection | Provider unavailable | error | `internal/live/projection` | "Provider unavailable" |
 | - | - | projection | Provisioner record could not be read | error | `internal/live/projection` | "Provisioner record could not be read" |
@@ -4869,7 +4869,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Provider default labels not known at plan time
 
-**What.** GitHub issue #1119: a hashicorp/google provider block's default_labels or add_terraform_attribution_label is not known statically, so the projection could not rebuild terraform_labels after the read, which the provider empties on a prior re-derived without a state file. Each labelled resource through that provider shows terraform_labels as a change on a cache-less plan.
+**What.** GitHub issue #1119: a hashicorp/google provider block's default_labels key set or add_terraform_attribution_label is not known statically, so the projection could not rebuild terraform_labels after the read, which the provider empties on a prior re-derived without a state file. Each labelled resource through that provider shows terraform_labels as a change on a cache-less plan. A default label whose key is written out and whose value comes from another resource or a data source is read: only the keys are needed.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

@@ -109,9 +109,10 @@ does and does not cover for this substrate.
 custom roles and the rest of the types with no `labels` map) is
 declaration-carried: its identity is recomputed from the configuration's
 `name`, `project` and location, and no stock argument can carry a marker on
-it. An unlabelled type whose identity the server mints is refused by the
-markerless veto, as on AWS. `live/gcp/COMPATIBILITY.md`'s "Readiness tiers"
-has what that tier costs the sweep.
+it. An unlabelled type whose identity the server mints is record-carried:
+its record holds the identity, as on AWS, and the markerless veto refuses
+it only where no record store exists. `live/gcp/COMPATIBILITY.md`'s
+"Readiness tiers" has what that tier costs the sweep.
 
 ## How your configuration is written
 

@@ -56,9 +56,9 @@ them back, so an imported resource replans empty.
 
 `live/gcp/COMPATIBILITY.md`, "Refused", has the table: a marker written by
 hand into an instance template's labels, an estate name over 63
-characters, an unlabelled type whose identity the server mints, and
-`live-mv` until its label rewrite lands. Each is refused by name with
-nothing written.
+characters, and an unlabelled type whose identity the server mints in a
+root with no `live` block to give it a record store. Each is refused by
+name with nothing written.
 
 ## Leaving
 

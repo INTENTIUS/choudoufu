@@ -7,6 +7,8 @@ package discovery
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -101,6 +103,63 @@ func TestGCPSweepProjects(t *testing.T) {
 	})
 	if want := []string{"proj-a", "proj-b", "proj-z"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("GCPSweepProjects = %v, want %v", got, want)
+	}
+}
+
+// TestGCPSweepProjectsInReadsNeedsDiscoveryProjects: a labelled google
+// type whose name the API assigns resolves needs-discovery with no import
+// id, so [GCPSweepProjects] could not see the project its block names. A
+// block in proj-b under a proj-a provider was never searched, came back
+// unbound, and planned a second create of an object that exists. Its
+// `project` argument is configuration, read here with each.value bound; a
+// project another resource's output names is not known until apply and is
+// left to the provider's.
+func TestGCPSweepProjectsInReadsNeedsDiscoveryProjects(t *testing.T) {
+	dir := t.TempDir()
+	src := `
+provider "google" { project = "proj-a" }
+
+resource "google_recaptcha_enterprise_key" "site" {
+  display_name = "site"
+  project      = "proj-b"
+}
+
+resource "google_recaptcha_enterprise_key" "per" {
+  for_each     = { one = "proj-c" }
+  display_name = each.key
+  project      = each.value
+}
+
+resource "google_recaptcha_enterprise_key" "later" {
+  display_name = "later"
+  project      = google_project.p.project_id
+}
+
+resource "google_project" "p" {
+  name       = "p"
+  project_id = "proj-d"
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := loadConfig(t, dir)
+	needs := func(addr string) identity.Resolution {
+		r := gcpResolution(t, addr, "")
+		r.Class = identity.ClassNeedsDiscovery
+		return r
+	}
+	resolutions := []identity.Resolution{
+		needs("google_recaptcha_enterprise_key.site"),
+		needs(`google_recaptcha_enterprise_key.per["one"]`),
+		needs("google_recaptcha_enterprise_key.later"),
+	}
+	if got, want := GCPSweepProjects("proj-a", resolutions), []string{"proj-a"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("GCPSweepProjects = %v, want %v: the import-id read alone sees no project for a needs-discovery instance", got, want)
+	}
+	got := GCPSweepProjectsIn(context.Background(), cfg, "proj-a", resolutions)
+	if want := []string{"proj-a", "proj-b", "proj-c"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("GCPSweepProjectsIn = %v, want %v", got, want)
 	}
 }
 

@@ -1344,7 +1344,7 @@ func (c *LiveLsCommand) Synopsis() string {
 // client from the block's own credential arguments, as live-plan's sweep
 // builds it ([projectionProviders.assetSearchLeg]), searching the
 // provider's project and every project a google resource names
-// ([discovery.GCPSweepProjects]). An item is filed under the block whose
+// ([discovery.GCPSweepProjectsIn]). An item is filed under the block whose
 // encoded address its tofu-address label carries ([markers.GoogleAddressValue]),
 // held by a controller when [substrate.ControllerHeld] says so, and
 // otherwise under no address. A project that cannot be searched is a
@@ -1374,7 +1374,7 @@ func (c *LiveLsCommand) liveLsGCP(ctx context.Context, estate string, config *co
 		if !isGCP || gcpLeg.Searcher == nil {
 			continue
 		}
-		projects := discovery.GCPSweepProjects(gcpLeg.Project, resolutions)
+		projects := discovery.GCPSweepProjectsIn(ctx, config, gcpLeg.Project, resolutions)
 		cov := gcpsweep.Coverage{}
 		for _, p := range projects {
 			cov[p] = gcpLeg.Searcher

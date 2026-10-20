@@ -7,6 +7,7 @@ package identity
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -283,5 +284,68 @@ func TestRecordFallbackLeavesLabelledGoogleTypeToItsLabel(t *testing.T) {
 	}
 	if site.RecordFallback {
 		t.Fatalf("%s.site carries RecordFallback; the record is not its only carrier", typeName)
+	}
+}
+
+// TestRecordFallbackHoldsAPrefixedInstanceTemplate: an instance template's
+// labels are copied onto the VMs made from it and are not its own
+// ([markers.GooglePropagatedLabels]), so it carries no marker. A template
+// named by name_prefix gets its name from the provider at create, which
+// nothing before apply knows, and the record is then its only carrier: it
+// must resolve record-located, never needs-discovery waiting on a label
+// the template will never carry. One that states its name re-derives from
+// configuration and needs no record.
+func TestRecordFallbackHoldsAPrefixedInstanceTemplate(t *testing.T) {
+	const typeName = "google_compute_instance_template"
+	schema := locatedSchema(map[string]*configschema.Attribute{
+		"name":        {Type: cty.String, Optional: true, Computed: true},
+		"name_prefix": {Type: cty.String, Optional: true, Computed: true},
+		"project":     {Type: cty.String, Optional: true, Computed: true},
+	})
+	schema.Block.Attributes["labels"] = &configschema.Attribute{Type: cty.Map(cty.String), Optional: true, Description: "A set of key/value label pairs to assign to instances created from this template."}
+	schema.Block.Attributes["effective_labels"] = &configschema.Attribute{Type: cty.Map(cty.String), Computed: true}
+	schemas := map[string]providers.Schema{typeName: schema}
+
+	if !RecordFallbackType(typeName, "google", schemas) {
+		t.Fatalf("RecordFallbackType(%s) = false, want true: its labels are the VMs', not a marker carrier", typeName)
+	}
+
+	// Written to a temporary directory rather than testdata, so the
+	// identity golden's fixture walk does not pick it up.
+	dir := t.TempDir()
+	src := `
+terraform {
+  live {
+    estate = "record-fallback-google"
+
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+resource "google_compute_instance_template" "prefixed" {
+  name_prefix = "web-"
+  project     = "proj-a"
+}
+
+resource "google_compute_instance_template" "named" {
+  name    = "web"
+  project = "proj-a"
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := loadConfig(t, dir, nil)
+	result, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
+	assertNoErrors(t, diags)
+	prefixed := resolutionAt(t, result, typeName+".prefixed")
+	if prefixed.Class != ClassRecordLocated || !prefixed.RecordFallback {
+		t.Fatalf("%s.prefixed resolved %s (record fallback %v), want %s through the record fallback", typeName, prefixed.Class, prefixed.RecordFallback, ClassRecordLocated)
+	}
+	named := resolutionAt(t, result, typeName+".named")
+	if named.Class != ClassConcrete || named.ImportID != "projects/proj-a/global/instanceTemplates/web" {
+		t.Fatalf("%s.named resolved %s %q, want CONCRETE projects/proj-a/global/instanceTemplates/web", typeName, named.Class, named.ImportID)
 	}
 }

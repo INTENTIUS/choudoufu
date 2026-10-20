@@ -718,9 +718,10 @@ The provider reads labels non-authoritatively: on a read, `labels` and
 `effective_labels` holds every label on the resource whoever set it. A
 plan built without a cache therefore reads the markers from
 `effective_labels` and mirrors them into the other two maps, and rebuilds
-`terraform_labels` from the provider block's `default_labels` when those are
-known statically. When they are not, the plan warns "Provider default labels
-not known at plan time" and shows `terraform_labels` as a change the apply
+`terraform_labels` from the keys of the provider block's `default_labels`
+when those keys are known statically (a value may come from another
+resource). When they are not, the plan warns "Provider default labels not
+known at plan time" and shows `terraform_labels` as a change the apply
 makes no call for.
 
 ### The address label
@@ -865,8 +866,8 @@ Every gap is the project's granularity, stated per class of type:
 |---|---|---|---|
 | Labelled types (the `google-labels` surface) | the address label, or the configured name | project only: any principal with write in the project can relabel or delete any estate's resource there | found by the estate label |
 | Declaration-carried skeleton (networks, subnetworks, firewalls, routes, routers, service accounts, custom roles and the other types with no `labels` map) | recomputed from the configuration's `name`, `project` and location | project only, the same | never found by label: an undeclared one is invisible to the sweep, and only a deleted block's record proposes its removal |
-| Instance templates | the configured name | project only | the same gap as the skeleton |
-| Unlabelled types whose identity the server mints | none | none | refused by the markerless veto, as on AWS |
+| Instance templates | the configured name, or the record for one named by `name_prefix` | project only | the same gap as the skeleton |
+| Unlabelled types whose identity the server mints | the estate's record | project only | never found by label: only a deleted block's record proposes its removal |
 
 On the skeleton no stock argument can carry a marker: `description` is
 ForceNew on networks, subnetworks and routes, and is the user's own

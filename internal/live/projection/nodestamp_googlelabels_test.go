@@ -222,6 +222,33 @@ resource "google_storage_bucket" "logs" { name = "logs" }
 		t.Errorf("a variable with no value read as known: %#v", got)
 	}
 
+	// Only the keys rebuild terraform_labels, and these are written out:
+	// a value read from another resource is unknown at plan time in stock
+	// too, and it leaves the key set known (gcp-label-count reads the
+	// same keys). Refusing it used to warn and show terraform_labels as a
+	// change on every cache-less plan.
+	b = load(t, `
+provider "google" {
+  default_labels = { env = "prod", team = google_storage_bucket.names.name }
+}
+resource "google_storage_bucket" "names" { name = "names" }
+resource "google_storage_bucket" "logs" { name = "logs" }
+`)
+	got, ok = b.googleLabelDefaults(context.Background(), providerAddr)
+	if !ok || !got.RawEquals(googleDefaults(true, "env", "team")) {
+		t.Errorf("literal keys over a resource-valued label = %#v, %v; want env and team, attribution on", got, ok)
+	}
+
+	// A key set that is itself another resource's output is not known
+	// until apply, and stays unread.
+	b = load(t, `
+provider "google" { default_labels = google_storage_bucket.names.labels }
+resource "google_storage_bucket" "names" { name = "names" }
+`)
+	if got, ok := b.googleLabelDefaults(context.Background(), providerAddr); ok {
+		t.Errorf("a key set read from another resource read as known: %#v", got)
+	}
+
 	b = load(t, `resource "google_storage_bucket" "logs" { name = "logs" }`)
 	got, ok = b.googleLabelDefaults(context.Background(), providerAddr)
 	if !ok || !got.RawEquals(googleDefaults(true)) {
