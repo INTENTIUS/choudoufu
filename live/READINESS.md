@@ -87,7 +87,7 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | Reason | Why the type is not in contract |
 |---|---|
 | 1 | no row; the provider's identity schema admits it at run time, as it would an unrowed AWS type. |
-| 2 | the API mints its identity and it has no labels, so it is vetoed as markerless; the located-record route is not established for GCP yet. |
+| 2 | the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity. |
 | 3 | the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it. |
 | 4 | no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason). |
 

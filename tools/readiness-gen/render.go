@@ -419,7 +419,7 @@ func googleReasonFor(r Row) string {
 	case StatusInContract:
 		return ""
 	case StatusPendingMechanism:
-		return "the API mints its identity and it has no labels, so it is vetoed as markerless; the located-record route is not established for GCP yet."
+		return "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
 	case StatusNeedsEvidence:
 		return "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
 	case StatusPendingRatification:
