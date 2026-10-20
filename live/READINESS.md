@@ -65,7 +65,7 @@ declaration is declaration-carried. A type whose identity the API mints and
 which has no labels is vetoed as markerless and is record-carried, as on
 AWS, and so is a type nothing binds.
 
-How the declaration-carried and record-carried types split, measured at
+How the declaration-carried and record-carried types split, at commit `1a67958ee6`, measured at
 8.6.0 over both providers' 1485 types: of the 862 declaration-carried, 545
 are composed over a parent resource the configuration also names (every IAM
 member, binding, policy and audit config among them), 301 are named by the
