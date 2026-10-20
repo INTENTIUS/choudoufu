@@ -3013,7 +3013,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Module output not supported in static context
 
-**What.** An identity argument, a count or a for_each reads a child module's output. Module outputs are produced by evaluating the module, which has not happened yet.
+**What.** An identity argument, a count or a for_each reads a child module's output that cannot be read from configuration. An output is read through its own expression in the child, so one computed from the child's variables and locals resolves; this refuses where that expression reads something not statically knowable (a managed resource's attribute, an unread data source, a provider function), where the output is sensitive, where the reference names no single instance's output (a whole module, an unindexed repeated call, or an instance the call does not expand to), and where the module tree is not built yet (a module source, a backend, an encryption block).
 
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 

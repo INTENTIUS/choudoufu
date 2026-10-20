@@ -4245,7 +4245,24 @@ func (r *resolver) countExpansion(rc *configs.Resource) (*expansion, bool) {
 		// trading it for a vaguer one. See [resolver.tolerantRetry].
 		retried, retryOK := r.tolerantRetry(expr, instScope{}, ident)
 		if !retryOK || !retried.IsWhollyKnown() || retried.IsNull() {
-			return nil, false
+			// #2142: `count = module.helper.n`, a child module's output
+			// computed from that module's own variables. Read through
+			// [resolver.moduleOutputValue], which evaluates the output's
+			// expression strictly in the child instance's evaluator and
+			// answers only with a wholly known, unmarked value of a
+			// non-sensitive output - the reading a module-call argument
+			// already gets. Only a bare reference is taken: anything
+			// wrapped around one (length(module.x.list)) keeps the
+			// refusal it has.
+			trav, travDiags := hcl.AbsTraversalForExpr(expr)
+			if travDiags.HasErrors() {
+				return nil, false
+			}
+			outVal, outOK := r.moduleOutputValue(r.curCfg, r.modInst, trav)
+			if !outOK {
+				return nil, false
+			}
+			retried = outVal
 		}
 		r.diags = r.diags[:mark]
 		val = retried
