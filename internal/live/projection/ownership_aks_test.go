@@ -159,40 +159,63 @@ func TestAKSRetag_markersGoneIsTheOverwriteRefusal(t *testing.T) {
 // is a PUT to the existing id. The maintainer's ruling on #2135 widens
 // #1120's refusal to it: an Error, no create, the marker found named, and
 // the causes and remedies said.
+//
+// Under every declared_untagged verb too (GitHub issue #2140, finding 3):
+// the object carries this estate's marker, so it is in no declared_untagged
+// quadrant, and no verb there reaches it or softens the refusal.
 func TestAKSRetag_clusterMarkersCopiedIsTheMarkedOverwriteRefusal(t *testing.T) {
 	for _, a := range aksTargets {
-		t.Run(a.typ, func(t *testing.T) {
-			b := aksBuilder(t, &Ownership{Estate: aksEstate})
-			if got := b.checkOwnership(a.addr(), a.typ, a.id, armTagsSchema(), aksLive(a, aksCopiedTags(aksEstate)), true, false, false); got != ownershipUnowned {
-				t.Fatalf("verdict %d, want ownershipUnowned", got)
-			}
-			errs := errorDiagsWith(b.diags, SummaryOverwriteMarkedAtKey)
-			if len(errs) != 1 {
-				t.Fatalf("want exactly one Error %q, got:\n%s", SummaryOverwriteMarkedAtKey, renderDiags(b.diags))
-			}
-			detail := errs[0].Description().Detail
-			for _, want := range []string{
-				a.id,
-				`tofu-estate="` + aksEstate + `"`,
-				`tofu-address="` + aksClusterAddr + `"`,
-				"another address than " + a.addr().String(),
-				"AKS copies a cluster's tags",
-				"Azure Policy assignment with a modify effect",
-				`strict { markers "record" { types = ["` + a.typ + `"] } }`,
-				"moved block",
-				"hashicorp/azurerm reads the id before that PUT",
-			} {
-				if !strings.Contains(detail, want) {
-					t.Errorf("the refusal does not say %q:\n%s", want, detail)
+		for _, verb := range declaredUntaggedVerbs {
+			t.Run(a.typ+"/declared_untagged="+verb, func(t *testing.T) {
+				own := &Ownership{Estate: aksEstate}
+				if verb != "" {
+					own.Policy = buildPolicy(t, "", verb)
 				}
-			}
-			if hasDiag(b.diags, SummaryWrongAddress, "") {
-				t.Errorf("the #244 warning still fires beside the refusal:\n%s", renderDiags(b.diags))
-			}
-			if om, ok := b.omitted[a.addr().String()]; !ok || om.Reason != ReasonUnowned {
-				t.Errorf("omission = %+v (present %v), want ReasonUnowned", om, ok)
-			}
-		})
+				clusterMarkersCopiedRefused(t, aksBuilder(t, own), a)
+			})
+		}
+	}
+}
+
+// declaredUntaggedVerbs is every declared_untagged verb, with "" for no
+// policy block: the loop #2135's marked overwrite refusal must hold under.
+var declaredUntaggedVerbs = []string{"", "refuse", "keep", "report", "adopt", "converge"}
+
+// clusterMarkersCopiedRefused is TestAKSRetag_clusterMarkersCopiedIsTheMarkedOverwriteRefusal's
+// assertion for one target under one builder.
+func clusterMarkersCopiedRefused(t *testing.T, b *builder, a aksTarget) {
+	t.Helper()
+	if got := b.checkOwnership(a.addr(), a.typ, a.id, armTagsSchema(), aksLive(a, aksCopiedTags(aksEstate)), true, false, false); got != ownershipUnowned {
+		t.Fatalf("verdict %d, want ownershipUnowned", got)
+	}
+	errs := errorDiagsWith(b.diags, SummaryOverwriteMarkedAtKey)
+	if len(errs) != 1 {
+		t.Fatalf("want exactly one Error %q, got:\n%s", SummaryOverwriteMarkedAtKey, renderDiags(b.diags))
+	}
+	detail := errs[0].Description().Detail
+	for _, want := range []string{
+		a.id,
+		`tofu-estate="` + aksEstate + `"`,
+		`tofu-address="` + aksClusterAddr + `"`,
+		"another address than " + a.addr().String(),
+		"AKS copies a cluster's tags",
+		"Azure Policy assignment with a modify effect",
+		`strict { markers "record" { types = ["` + a.typ + `"] } }`,
+		"moved block",
+		"hashicorp/azurerm reads the id before that PUT",
+	} {
+		if !strings.Contains(detail, want) {
+			t.Errorf("the refusal does not say %q:\n%s", want, detail)
+		}
+	}
+	if hasDiag(b.diags, SummaryWrongAddress, "") {
+		t.Errorf("the #244 warning still fires beside the refusal:\n%s", renderDiags(b.diags))
+	}
+	if strings.Contains(detail, "declared_untagged") {
+		t.Errorf("the refusal names a declared_untagged verb for this estate's own marker:\n%s", detail)
+	}
+	if om, ok := b.omitted[a.addr().String()]; !ok || om.Reason != ReasonUnowned {
+		t.Errorf("omission = %+v (present %v), want ReasonUnowned", om, ok)
 	}
 }
 
@@ -200,10 +223,11 @@ func TestAKSRetag_clusterMarkersCopiedIsTheMarkedOverwriteRefusal(t *testing.T) 
 // estate copies that estate's tofu-estate onto this estate's route table.
 // Before #2135 that was #1166's another-estate Warning beside a create; now
 // the marked overwrite refusal, under every declared_untagged verb, since
-// none of them reaches a marked object.
+// none of them reaches a marked object (refuse and converge included,
+// GitHub issue #2140, finding 3).
 func TestAKSRetag_clusterOfAnotherEstate(t *testing.T) {
 	a := aksTargets[0]
-	for _, verb := range []string{"", "keep", "report", "adopt"} {
+	for _, verb := range declaredUntaggedVerbs {
 		t.Run("declared_untagged="+verb, func(t *testing.T) {
 			own := &Ownership{Estate: aksEstate}
 			if verb != "" {
