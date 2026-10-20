@@ -67,12 +67,40 @@ var Patterns = []*regexp.Regexp{
 }
 
 // Object names the object an import asked the provider for: the import
-// ID, the identity's attribute values, or both. A not-found answer from
-// Azure only counts when it is about this object (GitHub issue #2133,
-// finding 7); the AWS and Kubernetes shapes do not consult it.
+// ID, the identity's attribute values, or both, and the type name of the
+// provider it was asked of. A not-found answer from Azure only counts when
+// the provider is one of [ARMProviders] and the answer is about this
+// object (GitHub issue #2133, finding 7; #2140, finding 1). The
+// [Signals] and [Patterns] shapes consult none of it; the Azure shapes
+// consult all of it, and match nothing for an object of any other
+// provider, so an AWS or Kubernetes error that happens to say `"x" was
+// not found` keeps main's answer.
 type Object struct {
 	ID       string
 	Identity map[string]string
+
+	// Provider is the provider's type name ("azurerm", "aws"), from the
+	// resource block's resolved provider address. Empty when the caller
+	// cannot say, which reads as not Azure: a missed absence stays the
+	// fatal import error it already was, never a create.
+	Provider string
+}
+
+// ARMProviders are the provider type names whose import errors the Azure
+// shapes are read for: substrate.Azure's ProviderTypes, repeated here
+// because this package is a leaf internal/tofu imports and substrate is
+// not (TestARMProvidersAreTheAzureFamily in internal/live/substrate holds
+// the two equal).
+var ARMProviders = []string{"azurerm", "azapi"}
+
+// isARM reports whether provider is one of [ARMProviders].
+func isARM(provider string) bool {
+	for _, p := range ARMProviders {
+		if p == provider {
+			return true
+		}
+	}
+	return false
 }
 
 // Matches reports whether one diagnostic's summary or detail is a
@@ -153,9 +181,16 @@ var (
 	doubleQuoted = regexp.MustCompile(`"([^"]+)"`)
 )
 
-// azureNotFound reports whether text is one of the Azure shapes above and
-// is about object.
+// azureNotFound reports whether text is one of the Azure shapes above,
+// object was asked of an ARM provider, and text is about object.
 func azureNotFound(text string, object Object) bool {
+	// GitHub issue #2140, finding 1: azureSentence alone would read
+	// Kubernetes' `namespace "team-a" was not found` and an AWS
+	// `subnet "subnet-0abc" was not found` as absences of `team-a/app`
+	// and `subnet-0abc/rtb-0def`, whose segments those names are.
+	if !isARM(object.Provider) {
+		return false
+	}
 	known, haveID := object.names()
 	if len(known) == 0 {
 		return false

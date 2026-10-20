@@ -1193,9 +1193,11 @@ type taggedCandidate struct {
 	// declared id would be overwritten"), set only by the Resource Graph leg
 	// ([ResourceGraphSweep.fileHit]) and only for an object at that
 	// instance's ARM id carrying this estate's marker for another declared
-	// address. [fileCandidate] then files no displaced marker for it: one
-	// object, one diagnostic, and the refusal is the one that says what
-	// happens to it.
+	// address. [fileCandidate] then files its displaced marker as
+	// [Result.PendingDisplaced] instead of a diagnostic: one object, one
+	// diagnostic, and the projection, which alone knows whether that
+	// instance's read refused it, gives the warning only when it did not
+	// (GitHub issue #2140, finding 4).
 	refusedAt string
 
 	// objectType names the listed object by its own type, where the leg
@@ -1577,10 +1579,13 @@ func fileCandidate(ctx context.Context, req Request, decl *declared, typeName st
 		case verdictDisplaced:
 			if c.refusedAt != "" {
 				// The projection reads this object at c.refusedAt's own id
-				// and refuses it there by name, as an Error naming the
-				// marker found: see [taggedCandidate.refusedAt]. A warning
-				// beside it about the same object would only say less.
-				log.Printf("[DEBUG] live/discovery: %s carries %q at %s's ARM id; the projection's overwrite refusal reports it", c.importID, escaped, c.refusedAt)
+				// and, when it does, refuses it there by name, as an Error
+				// naming the marker found: see [taggedCandidate.refusedAt].
+				// A warning beside it about the same object would only say
+				// less, so the warning waits on that read
+				// ([Result.PendingDisplaced]).
+				log.Printf("[DEBUG] live/discovery: %s carries %q at %s's ARM id; the displaced warning waits on that instance's read", c.importID, escaped, c.refusedAt)
+				res.PendingDisplaced = append(res.PendingDisplaced, PendingDisplaced{RefusedAt: c.refusedAt, Problem: displacedProblem(req, decl, bindType, escaped, want, claim)})
 				return diags
 			}
 			return diags.Append(problemDiag(res, displacedProblem(req, decl, bindType, escaped, want, claim)))

@@ -82,6 +82,17 @@ record_store "azurerm" {
   bucket       = "b"
   sas_token    = "t"
 }`, "Azure Storage container"},
+		// The trial merge with gcp-lane (#2140): reads_outputs_of on an
+		// azurerm store fell to the local store's sentence, which says its
+		// records are "a directory this run's user already reads".
+		{"reads_outputs_of on azurerm", `record_store "azurerm" {
+  storage_account_name = "acmerecords"
+  container_name       = "records"
+  resource_group_name  = "rg"
+  reads_outputs_of "network" {
+    namespace = "tofu-records-network"
+  }
+}`, "admits blobs tagged tofu-estate=\"network\""},
 		{"another store's waiver", `record_store "azurerm" {
   storage_account_name = "acmerecords"
   container_name       = "records"

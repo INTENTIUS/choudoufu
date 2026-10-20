@@ -73,11 +73,84 @@ func TestMatchesAzureOnlyAboutTheImportedObject(t *testing.T) {
 		"azurerm throttled":        {"retrieving Virtual Network: unexpected status 429 (429 Too Many Requests) with error: TooManyRequests: Rate limit exceeded", aks, false},
 		"arm code inside a word":   {"MyResourceNotFoundHandler failed for 'aks'", aks, false},
 	} {
+		tc.object.Provider = "azurerm"
 		if got := Matches(tc.summary, "", tc.object); got != tc.want {
 			t.Errorf("%s: Matches(summary) = %v, want %v", name, got, tc.want)
 		}
 		if got := Matches("Error", tc.summary, tc.object); got != tc.want {
 			t.Errorf("%s: Matches(detail) = %v, want %v", name, got, tc.want)
+		}
+	}
+}
+
+// GitHub issue #2140, finding 1: the Azure shapes are read only for an
+// object asked of an Azure provider. Both inputs below name a segment of
+// the object being imported, so the azurerm sentence shape alone would
+// read them as absences and the callers would plan a create in place of a
+// fatal import error. Main never read them as absent.
+func TestMatchesAzureShapesNeedAnAzureProvider(t *testing.T) {
+	for name, tc := range map[string]struct {
+		summary string
+		object  Object
+	}{
+		"kubernetes namespace": {`namespace "team-a" was not found`, Object{ID: "team-a/app", Provider: "kubernetes"}},
+		"aws subnet":           {`subnet "subnet-0abc" was not found`, Object{ID: "subnet-0abc/rtb-0def", Provider: "aws"}},
+		"no provider":          {`namespace "team-a" was not found`, Object{ID: "team-a/app"}},
+	} {
+		if Matches(tc.summary, "", tc.object) || Matches("Error", tc.summary, tc.object) {
+			t.Errorf("%s: %q reads as an absence of %+v", name, tc.summary, tc.object)
+		}
+	}
+
+	// The same Azure answers that are absences from azurerm and azapi are
+	// not absences from any other provider.
+	const aksID = "/subscriptions/s/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks"
+	sdk := "retrieving Kubernetes Cluster: unexpected status 404 (404 Not Found) with error: ResourceNotFound: The Resource 'Microsoft.ContainerService/managedClusters/aks' under resource group 'rg' was not found."
+	sentence := "the Bot Channels Registration \"aks\" was not found in Resource Group \"rg\""
+	for _, text := range []string{sdk, sentence} {
+		for _, provider := range []string{"azurerm", "azapi"} {
+			if !Matches("Error", text, Object{ID: aksID, Provider: provider}) {
+				t.Errorf("%s: %q does not read as an absence", provider, text)
+			}
+		}
+		for _, provider := range []string{"aws", "kubernetes", "google", ""} {
+			if Matches("Error", text, Object{ID: aksID, Provider: provider}) {
+				t.Errorf("%s: %q reads as an absence", provider, text)
+			}
+		}
+	}
+}
+
+// mainCases are origin/main's TestMatches cases at the time of #2140,
+// verbatim: main's Matches took no object, so an AWS or Kubernetes
+// caller's answer must not depend on the object it now passes.
+var mainCases = map[string]struct {
+	summary, detail string
+	want            bool
+}{
+	"sdk finder":            {"couldn't find resource", "", true},
+	"aws api code":          {"error reading thing", "ResourceNotFoundException: no such policy", true},
+	"kubernetes":            {"Unable to fetch service account \"smoke-k8s/app\" from Kubernetes", "serviceaccounts \"app\" not found", true},
+	"kubernetes grouped":    {"Cannot import", "deployments.apps \"web\" not found", true},
+	"kubernetes in summary": {"configmaps \"app-config\" not found", "", true},
+	"english not found":     {"Provider produced invalid response", "the endpoint was not found in the region", false},
+	"forbidden":             {"Unauthorized", "serviceaccounts is forbidden: User \"x\" cannot get resource", false},
+	"empty":                 {"", "", false},
+}
+
+func TestMatchesKeepsMainsAnswerOffAzure(t *testing.T) {
+	objects := []Object{
+		{},
+		{ID: "smoke-k8s/app", Provider: "kubernetes"},
+		{ID: "app-config", Identity: map[string]string{"name": "web", "namespace": "region"}, Provider: "kubernetes"},
+		{ID: "arn:aws:iam::123456789012:policy/thing", Provider: "aws"},
+		{ID: "endpoint/region", Provider: "aws"},
+	}
+	for name, tc := range mainCases {
+		for _, object := range objects {
+			if got := Matches(tc.summary, tc.detail, object); got != tc.want {
+				t.Errorf("%s, %+v: Matches = %v, main's answer %v", name, object, got, tc.want)
+			}
 		}
 	}
 }

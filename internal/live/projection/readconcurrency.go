@@ -458,7 +458,7 @@ func runReadFetch(ctx context.Context, e *readFetch) {
 	}
 	e.obj, e.importStub, e.status, e.diags = importAndRead(
 		ctx, p.entry.provider, p.schema, e.want.addr.Resource.Resource.Type,
-		p.target, e.want.importID, e.want.values, p.attrsSeed, p.attrsSeedMarks,
+		p.providerAddr.Provider.Type, p.target, e.want.importID, e.want.values, p.attrsSeed, p.attrsSeedMarks,
 		p.manifestKeys,
 	)
 }

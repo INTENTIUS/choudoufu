@@ -20,7 +20,9 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
 )
@@ -155,6 +157,13 @@ func pairResolution(typ, name, id string) identity.Resolution {
 // discovery's verified set, and returns both layers' diagnostics.
 func pairPlan(t *testing.T, src string, resolutions []identity.Resolution, listed []azsweep.Resource, objects map[string]cty.Value) tfdiags.Diagnostics {
 	t.Helper()
+	return pairPlanWith(t, src, resolutions, listed, objects, nil)
+}
+
+// pairPlanWith is [pairPlan] with a hook over the projection's options,
+// for the -refresh=false case.
+func pairPlanWith(t *testing.T, src string, resolutions []identity.Resolution, listed []azsweep.Resource, objects map[string]cty.Value, opts func(*projection.Options, addrs.AbsProviderConfig)) tfdiags.Diagnostics {
+	t.Helper()
 	cfg := liveLsLoadConfig(t, src)
 	arm := &pairARM{objects: objects}
 	provAddr, p := arm.provider()
@@ -169,8 +178,11 @@ func pairPlan(t *testing.T, src string, resolutions []identity.Resolution, liste
 	if diags.HasErrors() {
 		t.Fatalf("discovery: %s", diags.Err())
 	}
-	_, projDiags := projection.BuildWith(context.Background(), cfg, resolutions, projection.SingleProvider(provAddr, p),
-		projection.Options{Ownership: liveOwnershipWith(pairEstate, disco, nil, nil)})
+	o := projection.Options{Ownership: liveOwnershipWith(pairEstate, disco, nil, nil)}
+	if opts != nil {
+		opts(&o, provAddr)
+	}
+	_, projDiags := projection.BuildWith(context.Background(), cfg, resolutions, projection.SingleProvider(provAddr, p), o)
 	return diags.Append(projDiags)
 }
 
@@ -200,10 +212,79 @@ const pairDisplacedSummary = "Live resource displaced from the address it is mar
 // #2135 refusal for the route table and no displaced warning about the
 // same object.
 func TestAKSCopiedMarkerIsOneRefusalNoDisplacedWarning(t *testing.T) {
+	const route = "azurerm_route_table.rt"
+	routeID := pairID("Microsoft.Network/routeTables", "rt")
+	diags := aksCopiedPlan(t, nil)
+
+	refusals := pairWith(diags, projection.SummaryOverwriteMarkedAtKey)
+	if len(refusals) != 1 || refusals[0].Severity() != tfdiags.Error || !strings.Contains(refusals[0].Description().Detail, routeID) || !strings.Contains(refusals[0].Description().Detail, route) {
+		t.Errorf("want exactly one %q Error for %s at %s, got:\n%s", projection.SummaryOverwriteMarkedAtKey, route, routeID, pairRender(diags))
+	}
+	if ds := pairWith(diags, pairDisplacedSummary); len(ds) != 0 {
+		t.Errorf("a displaced warning beside the refusal for the same object:\n%s", pairRender(diags))
+	}
+}
+
+// TestAKSCopiedMarkerUnderRefreshFalseIsTheDisplacedWarning is GitHub
+// issue #2140, finding 4: the same estate planned with -refresh=false,
+// the route table served from the state cache on its record envelope's
+// word (listed live at its id, recorded as this estate's). That read
+// inspects no tags, so nothing refuses the route table, and the displaced
+// warning discovery left waiting on it is the object's one diagnostic.
+// Before the fix discovery dropped the warning on the premise the refusal
+// was certain, and the plan said nothing about the object at all.
+func TestAKSCopiedMarkerUnderRefreshFalseIsTheDisplacedWarning(t *testing.T) {
 	const cluster, route = "azurerm_kubernetes_cluster.aks", "azurerm_route_table.rt"
+	routeID := pairID("Microsoft.Network/routeTables", "rt")
+	served := false
+	diags := aksCopiedPlan(t, func(o *projection.Options, provAddr addrs.AbsProviderConfig) {
+		served = true
+		routeAddr, d := addrs.ParseAbsResourceInstanceStr(route)
+		if d.HasErrors() {
+			t.Fatal(d.Err())
+		}
+		local, err := staterecord.NewLocalStore(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		store := projection.NewRecordEnvelopeStore(local, projection.RecordKeyPrefix(pairEstate))
+		if _, err := projection.SeedLocatedForInstance(t.Context(), store, routeAddr, provAddr, projection.LocatedRecord{ImportID: routeID}); err != nil {
+			t.Fatal(err)
+		}
+		cache := states.NewState()
+		src, err := (&states.ResourceInstanceObject{Status: states.ObjectReady, Value: pairObject(routeID, "rt", pairMarkers(cluster))}).Encode(pairObject(routeID, "rt", nil).Type(), 0, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cache.RootModule().SetResourceInstanceCurrent(routeAddr.Resource, src, provAddr, addrs.NoKey)
+		o.StateCache = cache
+		o.CacheServesReads = true
+		o.EnvelopeVouchServes = true
+		o.RecordStore = store
+		o.CacheVouchSightings = o.CacheVouchSightings.Add(provAddr, "azurerm_route_table", routeID)
+	})
+	if !served {
+		t.Fatal("the options hook did not run")
+	}
+
+	if rs := pairWith(diags, projection.SummaryOverwriteMarkedAtKey); len(rs) != 0 {
+		t.Fatalf("the route table was refused, so this is not the cache-served case:\n%s", pairRender(diags))
+	}
+	ds := pairWith(diags, pairDisplacedSummary)
+	if len(ds) != 1 || !strings.Contains(ds[0].Description().Detail, cluster) {
+		t.Errorf("want exactly one displaced warning about %s's marker at %s, got:\n%s", cluster, routeID, pairRender(diags))
+	}
+}
+
+// aksCopiedPlan is the cluster and the route table it was given, both
+// declared, the route table carrying the cluster's markers, which AKS
+// copied.
+func aksCopiedPlan(t *testing.T, opts func(*projection.Options, addrs.AbsProviderConfig)) tfdiags.Diagnostics {
+	t.Helper()
+	const cluster = "azurerm_kubernetes_cluster.aks"
 	clusterID := pairID("Microsoft.ContainerService/managedClusters", "aks")
 	routeID := pairID("Microsoft.Network/routeTables", "rt")
-	diags := pairPlan(t, `
+	return pairPlanWith(t, `
 provider "azurerm" {
   features {}
 }
@@ -230,15 +311,7 @@ resource "azurerm_route_table" "rt" {
 		map[string]cty.Value{
 			clusterID: pairObject(clusterID, "aks", pairMarkers(cluster)),
 			routeID:   pairObject(routeID, "rt", pairMarkers(cluster)),
-		})
-
-	refusals := pairWith(diags, projection.SummaryOverwriteMarkedAtKey)
-	if len(refusals) != 1 || refusals[0].Severity() != tfdiags.Error || !strings.Contains(refusals[0].Description().Detail, routeID) || !strings.Contains(refusals[0].Description().Detail, route) {
-		t.Errorf("want exactly one %q Error for %s at %s, got:\n%s", projection.SummaryOverwriteMarkedAtKey, route, routeID, pairRender(diags))
-	}
-	if ds := pairWith(diags, pairDisplacedSummary); len(ds) != 0 {
-		t.Errorf("a displaced warning beside the refusal for the same object:\n%s", pairRender(diags))
-	}
+		}, opts)
 }
 
 // TestPlainAzureRenameKeepsTheDisplacedWarning is the bound: the route

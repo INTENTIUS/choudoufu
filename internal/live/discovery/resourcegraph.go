@@ -257,22 +257,20 @@ func (g ResourceGraphSweep) fileHit(ctx context.Context, req Request, decl *decl
 			// The object a declared instance names, carrying this estate's
 			// marker for ANOTHER declared address: AKS's copy of a
 			// cluster's markers onto the route table or public IP it was
-			// given, most often. d reads it at its own id and refuses it by
-			// name (GitHub issue #2135), so the displaced marker
+			// given, most often. When d reads it at its own id it refuses
+			// it by name (GitHub issue #2135), so the displaced marker
 			// [fileCandidate] would file for the address the marker names
-			// is left to that refusal (see [taggedCandidate.refusedAt]).
+			// waits on that read (see [taggedCandidate.refusedAt]).
 			//
-			// The refusal is certain here, not likely. d is concrete with
-			// an ARM id (byID holds nothing else, and a record-located
-			// instance has no import id to be keyed by), so the projection
-			// reads it unless d is vouched, and nothing can vouch for it:
-			// the only object at d's id carries another address, and an
-			// object carrying d's address at any other id is compared by
-			// ARM id and reported displaced instead (#2136). An ARM create
-			// overwrites at its id, so the read refuses under every policy
-			// verb. The one run that reads no tags at all is the
-			// cache-served -refresh=false plan, which reads no other marker
-			// either.
+			// Waits, rather than being dropped here: the refusal is likely,
+			// not certain (GitHub issue #2140, finding 4). Nothing in
+			// discovery vouches for d (the only object at d's id carries
+			// another address, and one carrying d's address at any other
+			// id is compared by ARM id and reported displaced, #2136), but
+			// under -refresh=false the projection serves d from the cache
+			// on its record envelope's word and reads no tags, and then
+			// nothing refuses. The projection alone knows which happened,
+			// and gives the warning when it did not refuse.
 			refusedAt = d.Addr.String()
 		}
 		if named && !declaredAddrs[addr.String()] {
