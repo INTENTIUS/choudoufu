@@ -285,7 +285,8 @@ EOF
   fi
   echo "}"
   echo
-  gcp_provider_block "$2" "$PROJECT" "$REGION" "$ZONE"
+  # A refused block must stop the run: a root without it reaches googleapis.com.
+  gcp_provider_block "$2" "$PROJECT" "$REGION" "$ZONE" || fail "gcp_provider_block refused (the line above says why); no root is written without the emulator endpoints"
 }
 
 # The day-2 state of the shape. write_config renders the root from these, so

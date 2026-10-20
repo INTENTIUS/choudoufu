@@ -407,7 +407,8 @@ gcp_up() {
   export FLOCI_GCP_PORT
   GCP_ENDPOINT="http://localhost:${FLOCI_GCP_PORT}"
   export GCP_ENDPOINT
-  export GOOGLE_OAUTH_ACCESS_TOKEN="${GOOGLE_OAUTH_ACCESS_TOKEN:-chdf-smoke-fake-token}"
+  # Unconditional: a token already in the environment may be a real one.
+  export GOOGLE_OAUTH_ACCESS_TOKEN="chdf-smoke-fake-token"
   export GOOGLE_PROJECT="$SMOKE_GCP_PROJECT" GOOGLE_CLOUD_PROJECT="$SMOKE_GCP_PROJECT"
   export GOOGLE_REGION="$SMOKE_GCP_REGION" GOOGLE_ZONE="$SMOKE_GCP_ZONE"
   echo "  GCP emulator up at $GCP_ENDPOINT (compose project choudoufu-smoke-$SMOKE_ID, project $SMOKE_GCP_PROJECT)"
@@ -462,15 +463,37 @@ PATHS
 # the run's emulator, with every endpoint gcp_endpoint_paths names. Call it
 # after gcp_up. The project defaults to SMOKE_GCP_PROJECT.
 gcp_provider_block() {
-  local project="${1:-$SMOKE_GCP_PROJECT}" arg path
+  local project="${1:-$SMOKE_GCP_PROJECT}" arg path paths
   : "${GCP_ENDPOINT:?gcp_provider_block needs gcp_up first}"
+  paths="$(gcp_all_endpoint_paths)" || return 1
+  case "${GOOGLE_OAUTH_ACCESS_TOKEN:-}" in
+    chdf-*) ;;
+    *) printf 'gcp_provider_block: GOOGLE_OAUTH_ACCESS_TOKEN is not a chdf- fake token\n' >&2; return 1 ;;
+  esac
   printf 'provider "google" {\n'
-  printf '  project = "%s"\n  region  = "%s"\n  zone    = "%s"\n\n' "$project" "$SMOKE_GCP_REGION" "$SMOKE_GCP_ZONE"
+  printf '  project = "%s"\n  region  = "%s"\n  zone    = "%s"\n  access_token = "%s"\n\n' "$project" "$SMOKE_GCP_REGION" "$SMOKE_GCP_ZONE" "$GOOGLE_OAUTH_ACCESS_TOKEN"
   while read -r arg path; do
     [ "$path" = "-" ] && path=""
     printf '  %s = "%s/%s"\n' "$arg" "$GCP_ENDPOINT" "$path"
-  done < <(gcp_endpoint_paths)
+  done <<< "$paths"
   printf '}\n'
+}
+
+# gcp_all_endpoint_paths: gcp_endpoint_paths, then every other
+# *_custom_endpoint argument of the pinned provider at v1/, so the run fails
+# closed against the emulator rather than reaching googleapis.com. The list
+# is live/e2e/lib/gcp-provider-endpoints.txt, shared with the gauntlet.
+gcp_all_endpoint_paths() {
+  local file
+  file="$(cd "$(dirname "${BASH_SOURCE[0]}")/../e2e/lib" && pwd)/gcp-provider-endpoints.txt"
+  [ -r "$file" ] || { printf 'gcp_all_endpoint_paths: %s is unreadable\n' "$file" >&2; return 1; }
+  local named
+  named="$(gcp_endpoint_paths)"
+  printf '%s\n' "$named"
+  grep -v '^#' "$file" | while read -r arg; do
+    [ -n "$arg" ] || continue
+    printf '%s\n' "$named" | grep -q "^$arg " || printf '%s v1/\n' "$arg"
+  done
 }
 
 # gcp_required_provider prints the hashicorp/google entry of a
@@ -499,7 +522,7 @@ gcp_write_root() {
     printf 'terraform {\n  required_providers {\n%s\n  }\n\n  live {\n    estate = "%s"\n' "$req" "$estate"
     [ -z "$extra" ] || printf '%s\n' "$extra"
     printf '  }\n}\n\n'
-    gcp_provider_block "$project"
+    gcp_provider_block "$project" || fail "stack" "gcp_provider_block refused (the line above says why); no root is written without the emulator endpoints"
   } > "$dir/versions.tf"
 }
 

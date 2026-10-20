@@ -70,7 +70,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   mkdir -p "$NOSTORE"
   {
     printf 'terraform {\n  required_providers {\n%s\n  }\n}\n\n' "$(gcp_required_provider)"
-    gcp_provider_block "$P"
+    gcp_provider_block "$P" || fail "gcp-a-markerless-type-is-held-by-its-record" "gcp_provider_block refused; no root is written without the emulator endpoints"
   } > "$NOSTORE/versions.tf"
   resources > "$NOSTORE/main.tf"
   logged gcp-held-break-init "gcp-a-markerless-type-is-held-by-its-record" "BREAK: init failed" -- in_dir "$NOSTORE" chdf init -input=false -no-color

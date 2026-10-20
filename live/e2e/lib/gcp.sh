@@ -73,16 +73,50 @@ cloud_billing_custom_endpoint v1/
 PATHS
 }
 
+# GCP_PROVIDER_ENDPOINTS: every *_custom_endpoint argument hashicorp/google
+# accepts at the pinned version. See the file's own header.
+GCP_PROVIDER_ENDPOINTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gcp-provider-endpoints.txt"
+
+# gcp_all_endpoint_paths: gcp_endpoint_paths, then every other argument in
+# GCP_PROVIDER_ENDPOINTS at v1/. The run fails closed: a product the list
+# above never named still points at the emulator, where it fails with a 404,
+# instead of at googleapis.com. Two missed arguments sent reference-gcp's and
+# gcve's first runs to the real IAM and Cloud Billing APIs (2026-10-20).
+gcp_all_endpoint_paths() {
+  [ -r "$GCP_PROVIDER_ENDPOINTS" ] || { printf 'gcp_all_endpoint_paths: %s is unreadable\n' "$GCP_PROVIDER_ENDPOINTS" >&2; return 1; }
+  local named
+  named="$(gcp_endpoint_paths)"
+  printf '%s\n' "$named"
+  grep -v '^#' "$GCP_PROVIDER_ENDPOINTS" | while read -r arg; do
+    [ -n "$arg" ] || continue
+    printf '%s\n' "$named" | grep -q "^$arg " || printf '%s v1/\n' "$arg"
+  done
+}
+
+# gcp_harness_token: the fake bearer token every request carries. The block
+# writes it as access_token, which the provider prefers over Application
+# Default Credentials (transport/config.go's GetCredentials at v8.6.0), so no
+# real credential on the machine is ever picked up; floci-gcp ignores it with
+# IAM enforcement off. Refused unless it is the harness's own fake.
+gcp_harness_token() {
+  case "${GOOGLE_OAUTH_ACCESS_TOKEN:-}" in
+    chdf-*) printf '%s' "$GOOGLE_OAUTH_ACCESS_TOKEN" ;;
+    *) printf 'gcp_harness_token: GOOGLE_OAUTH_ACCESS_TOKEN is not a chdf- fake token; refusing to write a real credential into an emulator run\n' >&2; return 1 ;;
+  esac
+}
+
 # gcp_provider_block <endpoint> <project> <region> <zone>: a provider
 # "google" block pointed at one emulator. Stock and choudoufu get the same
 # block, so the only difference between their roots is the live block.
 gcp_provider_block() {
-  local ep="$1" project="$2" region="$3" zone="$4" arg path
-  printf 'provider "google" {\n  project = "%s"\n  region  = "%s"\n  zone    = "%s"\n\n' "$project" "$region" "$zone"
+  local ep="$1" project="$2" region="$3" zone="$4" arg path paths token
+  paths="$(gcp_all_endpoint_paths)" || return 1
+  token="$(gcp_harness_token)" || return 1
+  printf 'provider "google" {\n  project = "%s"\n  region  = "%s"\n  zone    = "%s"\n  access_token = "%s"\n\n' "$project" "$region" "$zone" "$token"
   while read -r arg path; do
     [ "$path" = "-" ] && path=""
     printf '  %s = "%s/%s"\n' "$arg" "$ep" "$path"
-  done < <(gcp_endpoint_paths)
+  done <<< "$paths"
   printf '}\n'
 }
 

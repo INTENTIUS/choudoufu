@@ -175,7 +175,8 @@ EOF
   fi
   echo "}"
   echo
-  gcp_provider_block "$2" "$PROJECT" "$REGION" "$ZONE"
+  # A refused block must stop the run: a root without it reaches googleapis.com.
+  gcp_provider_block "$2" "$PROJECT" "$REGION" "$ZONE" || fail "gcp_provider_block refused (the line above says why); no root is written without the emulator endpoints"
 }
 # resource_block writes the ten instances. $1 is the events topic's block
 # name (events, then stream after the rename); $2 is the shard count; $3 is
