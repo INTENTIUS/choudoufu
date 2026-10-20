@@ -39,6 +39,14 @@
       "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
     },
     {
+      "name": "corpus-azapi-role-assignment",
+      "source": "Azure/terraform-provider-azapi examples/Microsoft.Authorization_roleAssignments@2022-04-01 (tag v2.13.0), the azapi provider's own published role-assignment example: a resource group through azapi_resource, an azurerm_user_assigned_identity, the built-in AcrPull role read with data \"azurerm_role_definition\", and an azapi_resource role assignment granting it at the group's scope; the azure lane's first published estate, run against floci-az (#1120). Built and not yet run",
+      "url": "https://github.com/Azure/terraform-provider-azapi.git",
+      "pin": "v2.13.0",
+      "lane": "azure",
+      "set": "growing"
+    },
+    {
       "name": "corpus-cloud-platform-components",
       "source": "ministryofjustice/cloud-platform-infrastructure terraform/aws-accounts/cloud-platform-aws/vpc/eks/core/components (commit 6e1eca7be0, MIT), the Ministry of Justice Cloud Platform's own cluster-components root, top-level resources only: three StorageClasses on the unversioned kubernetes_storage_class, three PriorityClasses, two ClusterRoleBindings, a ServiceAccount in kube-system and kubernetes_manifest.vpa, five VerticalPodAutoscalers keyed by for_each over a static map (the manager workspace's, selected in the configuration); plus the VPA project's own two CRDs (converted by convert.sh) and the three namespaces the VPAs live in, pre-applied - 19 objects over seven kinds. Pruned: the ~15 ministryofjustice module calls (not in .corpus/_modules), the backend, remote states and aws data sources, and storage.tf's kubectl_manifest gp2 default flip, which stock applies on the side from a root of its own",
       "url": "https://github.com/ministryofjustice/cloud-platform-infrastructure.git",
