@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
 	"github.com/intentius/choudoufu/internal/backend/remote-state/azure/auth"
@@ -134,27 +135,38 @@ func (a Attrs) authConfig(cfg cloud.Configuration) *auth.Config {
 // requested until [Client.Search].
 func New(ctx context.Context, a Attrs) (*Client, error) {
 	a = a.WithEnv(os.Getenv)
+	cred, ep, creds, err := a.credential(ctx, "the estate sweep")
+	if err != nil {
+		return nil, err
+	}
+	c := NewWith(ep, cred, httpclient.New(ctx))
+	c.subscription = a.SubscriptionID
+	c.creds = creds
+	return c, nil
+}
+
+// credential is the credential chain [New] and [NewTagger] share, for
+// arguments that already have the environment applied ([Attrs.WithEnv]);
+// who names the caller in the errors.
+func (a Attrs) credential(ctx context.Context, who string) (azcore.TokenCredential, Endpoints, Credentials, error) {
 	if refused := a.refusedMarks(); len(refused) > 0 {
-		return nil, fmt.Errorf("the %s provider block sets %s from a sensitive value, which the estate sweep does not read; set it from a non-sensitive value so the sweep calls as and where the provider does", a.providerName(), strings.Join(refused, " and "))
+		return nil, Endpoints{}, Credentials{}, fmt.Errorf("the %s provider block sets %s from a sensitive value, which %s does not read; set it from a non-sensitive value so %s calls as and where the provider does", a.providerName(), strings.Join(refused, " and "), who, who)
 	}
 	cfg, err := a.cloudConfig(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("the %s provider block's cloud: %w", a.providerName(), err)
+		return nil, Endpoints{}, Credentials{}, fmt.Errorf("the %s provider block's cloud: %w", a.providerName(), err)
 	}
 	ac := a.authConfig(cfg)
 	method, err := auth.GetAuthMethod(ctx, ac)
 	if err != nil {
-		return nil, fmt.Errorf("the %s provider block names no credential the estate sweep can use: %w", a.providerName(), err)
+		return nil, Endpoints{}, Credentials{}, fmt.Errorf("the %s provider block names no credential %s can use: %w", a.providerName(), who, err)
 	}
 	cred, err := method.Construct(ctx, ac)
 	if err != nil {
-		return nil, fmt.Errorf("building the %s credential (%s): %w", a.providerName(), method.Name(), err)
+		return nil, Endpoints{}, Credentials{}, fmt.Errorf("building the %s credential (%s): %w", a.providerName(), method.Name(), err)
 	}
 	rm := cfg.Services[cloud.ResourceManager]
-	c := NewWith(Endpoints{ResourceManager: rm.Endpoint, Audience: rm.Audience}, cred, httpclient.New(ctx))
-	c.subscription = a.SubscriptionID
-	c.creds = Credentials{Method: method.Name(), TenantID: a.TenantID, ClientID: a.ClientID}
-	return c, nil
+	return cred, Endpoints{ResourceManager: rm.Endpoint, Audience: rm.Audience}, Credentials{Method: method.Name(), TenantID: a.TenantID, ClientID: a.ClientID}, nil
 }
 
 func (a Attrs) providerName() string {

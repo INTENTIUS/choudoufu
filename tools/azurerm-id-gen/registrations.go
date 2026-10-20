@@ -26,6 +26,16 @@ type registration struct {
 	Via     string   // "Importer" or "IDValidationFunc"
 	Expr    ast.Node // the importer value, or the IDValidationFunc body
 	Problem string   // set when no validating expression was found
+
+	// ReadPkg, ReadFile and Read are the resource's Read function: the
+	// untyped resource's `Read: f` (f's declaration), or the typed
+	// resource's Read() method. Its body parses the stored id, d.Id() or
+	// metadata.ResourceData.Id(), which is the id the resource actually
+	// holds; [loader.readIDTypeOf] reads it to check the importer against
+	// (#1120 unit 13). Nil when no Read was found.
+	ReadPkg  *pkg
+	ReadFile *ast.File
+	Read     ast.Node
 }
 
 // registrations walks every package under internal/services and returns
@@ -150,9 +160,79 @@ func (l *loader) untypedRegistrations(p *pkg, f *ast.File, fd *ast.FuncDecl) []r
 			continue
 		}
 		r.Pkg, r.File, r.Expr = ip, ifl, expr
+		r.ReadPkg, r.ReadFile, r.Read = l.findRead(cp, cf, ctor, 0, map[*ast.FuncDecl]bool{})
 		out = append(out, r)
 	}
 	return out
+}
+
+// findRead is [loader.findImporter] for the resource's Read function: a
+// `Read: f` key (or `r.Read = f`) whose value names a function
+// declaration. The value test is what tells the resource's Read from the
+// `Read: pluginsdk.DefaultTimeout(...)` of its Timeouts block, which is a
+// call, not a function reference.
+func (l *loader) findRead(p *pkg, f *ast.File, fd *ast.FuncDecl, depth int, seen map[*ast.FuncDecl]bool) (*pkg, *ast.File, ast.Node) {
+	if fd == nil || fd.Body == nil || seen[fd] {
+		return nil, nil, nil
+	}
+	seen[fd] = true
+	var (
+		rp    *pkg
+		rf    *ast.File
+		found *ast.FuncDecl
+		calls []*ast.CallExpr
+	)
+	try := func(key string, value ast.Expr) bool {
+		if key != "Read" {
+			return false
+		}
+		switch value.(type) {
+		case *ast.Ident, *ast.SelectorExpr:
+		default:
+			return false
+		}
+		if vp, vf, vd := l.funcRef(p, f, value); vd != nil {
+			rp, rf, found = vp, vf, vd
+			return true
+		}
+		return false
+	}
+	ast.Inspect(fd.Body, func(n ast.Node) bool {
+		if found != nil {
+			return false
+		}
+		switch n := n.(type) {
+		case *ast.KeyValueExpr:
+			if id, ok := n.Key.(*ast.Ident); ok && try(id.Name, n.Value) {
+				return false
+			}
+		case *ast.AssignStmt:
+			for i, lhs := range n.Lhs {
+				if se, ok := lhs.(*ast.SelectorExpr); ok && i < len(n.Rhs) && try(se.Sel.Name, n.Rhs[i]) {
+					return false
+				}
+			}
+		case *ast.CallExpr:
+			calls = append(calls, n)
+		}
+		return true
+	})
+	if found != nil {
+		return rp, rf, found.Body
+	}
+	if depth >= 2 {
+		return nil, nil, nil
+	}
+	for _, c := range calls {
+		cp, cf, cfd := l.funcRef(p, f, c.Fun)
+		if cfd == nil || !strings.HasPrefix(cp.path, l.module+"/internal/services/") {
+			continue
+		}
+		if rp, rf, e := l.findRead(cp, cf, cfd, depth+1, seen); e != nil {
+			return rp, rf, e
+		}
+	}
+	return nil, nil, nil
 }
 
 // findImporter looks for `Importer: X` (or `r.Importer = X`) in a resource
@@ -228,6 +308,9 @@ func (l *loader) typedRegistrations(p *pkg, f *ast.File, fd *ast.FuncDecl) []reg
 			continue
 		}
 		r.Pkg, r.File, r.Expr = mp, mp.fileOf[m], m.Body
+		if rp, rm := l.methodWithEmbedding(tp, tname, "Read", 0); rm != nil && rm.Body != nil {
+			r.ReadPkg, r.ReadFile, r.Read = rp, rp.fileOf[rm], rm.Body
+		}
 		out = append(out, r)
 	}
 	return out

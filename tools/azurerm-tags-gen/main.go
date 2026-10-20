@@ -20,6 +20,14 @@
 //
 //	go run ./tools/azurerm-tags-gen -src <azurerm checkout at the pin> -schema <tofu providers schema -json output>
 //	go run ./tools/azurerm-tags-gen -src <dir> -schema <file> -check   # fail on drift, write nothing
+//	go run ./tools/azurerm-tags-gen -ids live/azurerm-ids.json [-check]
+//
+// The -ids form needs no provider source: it writes
+// internal/live/armtypes/azurerm_armtypes_generated.txt, the ARM resource
+// type of each azurerm type with a tags map, read off the id templates in
+// the committed id table (tools/azurerm-id-gen's output) and joined to the
+// committed tag facts. armtypes.TagLimit is keyed by ARM type, so that join
+// is what lets a lint ask an azurerm resource's tag limit.
 //
 // The pin for the Azure lane is azurerm 5.10.0.
 package main
@@ -40,8 +48,13 @@ func main() {
 		schema = flag.String("schema", "", "`tofu providers schema -json` output that includes hashicorp/azurerm at the same version (required)")
 		root   = flag.String("root", ".", "repository root")
 		check  = flag.Bool("check", false, "compare the committed facts against the source and exit non-zero on any difference")
+		ids    = flag.String("ids", "", "live/azurerm-ids.json: write (or -check) the azurerm-to-ARM type join from it instead of the tag facts")
 	)
 	flag.Parse()
+	if *ids != "" {
+		armTypes(*root, *ids, *check)
+		return
+	}
 	if *src == "" || *schema == "" {
 		fail(fmt.Errorf("-src and -schema are required"))
 	}
@@ -75,6 +88,36 @@ func main() {
 		fail(err)
 	}
 	fmt.Printf("wrote %s (%d bytes): %s\n", out, len(want), summary)
+}
+
+// armTypes is the -ids form.
+func armTypes(root, ids string, check bool) {
+	data, err := os.ReadFile(ids)
+	if err != nil {
+		fail(err)
+	}
+	join, err := armtypes.GenerateAzurermARMTypes(data)
+	if err != nil {
+		fail(err)
+	}
+	want := join.Render()
+	out := filepath.Join(root, "internal", "live", "armtypes", armtypes.RMARMTypesPath)
+	if check {
+		got, err := os.ReadFile(out)
+		if err != nil {
+			fail(err)
+		}
+		if !bytes.Equal(got, want) {
+			fmt.Fprintf(os.Stderr, "%s is stale against %s\nrun: go run ./tools/azurerm-tags-gen -ids %s\n", out, ids, ids)
+			os.Exit(1)
+		}
+		fmt.Printf("%s matches %s\n", out, ids)
+		return
+	}
+	if err := os.WriteFile(out, want, 0o644); err != nil {
+		fail(err)
+	}
+	fmt.Printf("wrote %s (%d bytes): %d of %d azurerm types with a tags map name an ARM type\n", out, len(want), len(join.Rows()), join.Tagged)
 }
 
 func fail(err error) {

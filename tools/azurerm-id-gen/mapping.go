@@ -113,6 +113,9 @@ type mapCtx struct {
 	Type    string // the resource type being mapped
 	Schema  typeSchema
 	SubForm subscriptionForm
+	// ArgForms is [argFormsIn] over the resource's file: an argument whose
+	// validator parses a full ARM id never supplies one segment's value.
+	ArgForms map[string]subscriptionForm
 	// ParentTypes returns the azurerm types whose own id template is
 	// exactly prefix (static segments compared case-insensitively, value
 	// segments by position only). Nil means no index.
@@ -230,7 +233,15 @@ func mapSegments(segs []segment, ctx mapCtx) mapping {
 		case segSubscription:
 			if ctx.Schema.Attrs["subscription_id"].configurable() {
 				if ctx.SubForm == "guid" {
-					return component{Attrs: []string{"subscription_id"}, Segment: s.Name, Rule: ruleSubscription}, nil, true
+					// A GUID subscription_id is a property of the object,
+					// not the subscription it is created in (#1120 unit
+					// 13). At 5.10.0 the three automation connection types
+					// are the only ones that declare one with a segment to
+					// fill, and each builds its id from the client's
+					// subscription and sends subscription_id as a field
+					// value (automation_connection_certificate_resource.go
+					// lines 80-84 and 108).
+					return component{Cloud: cloudSubscription, Segment: s.Name, Rule: ruleSubscription}, nil, true
 				}
 				// A full-id or undetermined subscription_id is the parent-id
 				// pass's, or reported.
@@ -266,7 +277,19 @@ func mapSegments(segs []segment, ctx mapCtx) mapping {
 			}
 			return component{}, cands, false
 		}
-		if c, ok := pick(cands, used); ok {
+		// An argument that holds a full ARM id cannot be one segment's
+		// value (#1120 unit 13): network_manager_management_group_connection's
+		// management_group_id is /providers/Microsoft.Management/managementGroups/<name>,
+		// validated by validate.ManagementGroupID, and mapping it to the
+		// managementGroupId segment would render that prefix twice. Such an
+		// argument is the parent-id pass's to use, as a whole prefix.
+		var single []cand
+		for _, c := range cands {
+			if ctx.ArgForms[c.attr] != "arm-id" {
+				single = append(single, c)
+			}
+		}
+		if c, ok := pick(single, used); ok {
 			return component{Attrs: []string{c.attr}, Segment: s.Name, Rule: c.rule}, nil, true
 		}
 		return component{}, cands, false
@@ -533,46 +556,71 @@ func template(segs []segment) string {
 	return b.String()
 }
 
-// subscriptionFormIn reads the validator a resource's schema declares for
-// its subscription_id argument in one file: `"subscription_id": {...,
-// ValidateFunc: X}`. A UUID validator means a bare GUID; a validator naming
-// SubscriptionID means the full /subscriptions/{guid} id (commonids'
-// ValidateSubscriptionID parses exactly that).
+// subscriptionFormIn is [argFormsIn]'s answer for subscription_id.
 func subscriptionFormIn(f *ast.File) subscriptionForm {
+	return argFormsIn(f)["subscription_id"]
+}
+
+// argFormsIn reads the validator a resource's schema declares for each
+// argument in one file, `"arg": {..., ValidateFunc: X}`, as the form of the
+// value it accepts: a UUID validator means a bare GUID ("guid"); any other
+// validator whose last name ends in ID or Id (commonids.ValidateSubscriptionID,
+// validate.ManagementGroupID, api.ValidateApiID) parses a full ARM id
+// ("arm-id"). An argument with no validator, or one this does not
+// recognise, is absent. The first declaration of a key in the file wins.
+func argFormsIn(f *ast.File) map[string]subscriptionForm {
+	out := map[string]subscriptionForm{}
 	if f == nil {
-		return ""
+		return out
 	}
-	var form subscriptionForm
 	ast.Inspect(f, func(n ast.Node) bool {
 		kv, ok := n.(*ast.KeyValueExpr)
-		if !ok || form != "" {
-			return form == ""
-		}
-		key, ok := stringLit(kv.Key)
-		if !ok || key != "subscription_id" {
+		if !ok {
 			return true
 		}
-		ast.Inspect(kv.Value, func(n ast.Node) bool {
-			inner, ok := n.(*ast.KeyValueExpr)
-			if !ok {
-				return true
+		key, ok := stringLit(kv.Key)
+		if !ok {
+			return true
+		}
+		if _, done := out[key]; done {
+			return true
+		}
+		var form subscriptionForm
+		found := false
+		if cl, ok := kv.Value.(*ast.CompositeLit); ok {
+			for _, e := range cl.Elts {
+				inner, ok := e.(*ast.KeyValueExpr)
+				if !ok {
+					continue
+				}
+				id, ok := inner.Key.(*ast.Ident)
+				if !ok || (id.Name != "ValidateFunc" && id.Name != "ValidateDiagFunc") {
+					continue
+				}
+				found = true
+				form = validatorForm(exprText(inner.Value))
+				break
 			}
-			id, ok := inner.Key.(*ast.Ident)
-			if !ok || (id.Name != "ValidateFunc" && id.Name != "ValidateDiagFunc") {
-				return true
-			}
-			text := exprText(inner.Value)
-			switch {
-			case strings.Contains(text, "UUID"):
-				form = "guid"
-			case strings.Contains(text, "SubscriptionID"):
-				form = "arm-id"
-			}
-			return false
-		})
-		return false
+		}
+		if found && form != "" {
+			out[key] = form
+		}
+		return true
 	})
-	return form
+	return out
+}
+
+// validatorForm classifies a validator by its rendered names ([exprText]).
+func validatorForm(text string) subscriptionForm {
+	if strings.Contains(text, "UUID") {
+		return "guid"
+	}
+	names := strings.Split(strings.TrimSuffix(text, "."), ".")
+	last := names[len(names)-1]
+	if strings.HasSuffix(last, "ID") || strings.HasSuffix(last, "Id") {
+		return "arm-id"
+	}
+	return ""
 }
 
 // exprText is a cheap rendering of an expression's identifiers, enough to

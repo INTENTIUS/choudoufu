@@ -134,6 +134,22 @@ var enforcedLimits = map[string]Rule{
 	// the matrix, including the two halves that need provider schemas.
 	"strict-markers":              RuleStrictMarkers,
 	"strict-markers-unrecordable": RuleStrictMarkersUnrecordable,
+	// GitHub issue #1120: a Cosmos DB account with 14 tags, where Azure
+	// documents 15; the two markers make 16. A warning, like state-backend.
+	// See live/LIMITATIONS.md, "arm-tag-limit", and limitsCompanionRules
+	// for the one other rule allowed beside it.
+	"arm-tag-limit": RuleARMTagLimit,
+}
+
+// limitsCompanionRules is the one exception to TestLimitsEnforced's "that
+// rule and nothing else": a fixture whose rule is about a resource no
+// schemaless lint run admits. CheckContext has no provider schemas, and no
+// azurerm type has a row in the admission table, so every azurerm resource
+// is also refused as unadmitted-type. An Azure fixture must declare an
+// azurerm resource to show its rule at all. The fixture's own rule must
+// still fire; only the named companion may fire beside it.
+var limitsCompanionRules = map[string]Rule{
+	"arm-tag-limit": RuleUnadmittedType,
 }
 
 // notYetEnforcedLimits is every live/e2e/limits directory whose
@@ -192,10 +208,19 @@ func TestLimitsEnforced(t *testing.T) {
 			if len(issues) == 0 {
 				t.Fatalf("CheckContext() reported no issues for %s, want at least one %s", dir, rule)
 			}
+			fired := false
 			for _, issue := range issues {
-				if issue.Rule != rule {
-					t.Errorf("%s: got rule %q, want exactly %q (and no other rule): %s", dir, issue.Rule, rule, issue)
+				if issue.Rule == rule {
+					fired = true
+					continue
 				}
+				if companion, ok := limitsCompanionRules[dir]; ok && issue.Rule == companion {
+					continue
+				}
+				t.Errorf("%s: got rule %q, want exactly %q (and no other rule): %s", dir, issue.Rule, rule, issue)
+			}
+			if !fired {
+				t.Errorf("%s: %s did not fire", dir, rule)
 			}
 		})
 	}

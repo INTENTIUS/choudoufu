@@ -2352,6 +2352,15 @@ policy-threshold:policy-threshold"
   LINT_WARNED="backend-block:state-backend
 cloud-block:state-backend"
 
+  # Directories this AWS harness cannot plan at all: their fixture declares
+  # another platform's provider, which needs that platform's credentials
+  # and emulator to configure, so live-plan refuses before lint for a
+  # reason unrelated to the rule. Each is still listed, so the completeness
+  # check below holds, and each is asserted by
+  # internal/live/lint/limits_test.go's TestLimitsEnforced instead.
+  #   arm-tag-limit            GitHub issue #1120: an azurerm resource.
+  LINT_OTHER_PLATFORM="arm-tag-limit"
+
   # Completeness: every subdirectory of the limits wing appears in exactly
   # one table. Without this a new fixture directory would be silently
   # skipped, which is the failure mode a table-driven step is prone to.
@@ -2360,7 +2369,7 @@ cloud-block:state-backend"
     [ -n "$LDIR" ] || continue
     LINT_LISTED="$LINT_LISTED $LDIR"
   done <<< "$LINT_ENFORCED"
-  LINT_LISTED="$LINT_LISTED $LINT_TODO"
+  LINT_LISTED="$LINT_LISTED $LINT_TODO $LINT_OTHER_PLATFORM"
   while IFS=: read -r LDIR _; do
     [ -n "$LDIR" ] || continue
     LINT_LISTED="$LINT_LISTED $LDIR"
@@ -2368,7 +2377,7 @@ cloud-block:state-backend"
   for LPATH in "$LIMITS_DIR"/*/; do
     LDIR="$(basename "$LPATH")"
     in_list "$LDIR" "$LINT_LISTED" \
-      || fail "lint-rejects" "live/e2e/limits/$LDIR is in neither table — add it to LINT_ENFORCED with its rule, to LINT_WARNED if the rule is advisory-only (#210), or to LINT_TODO with why nothing catches it yet"
+      || fail "lint-rejects" "live/e2e/limits/$LDIR is in neither table — add it to LINT_ENFORCED with its rule, to LINT_WARNED if the rule is advisory-only (#210), to LINT_TODO with why nothing catches it yet, or to LINT_OTHER_PLATFORM if this harness cannot plan its provider"
   done
   for LDIR in $LINT_LISTED; do
     [ -d "$LIMITS_DIR/$LDIR" ] \

@@ -63,6 +63,94 @@ func (l *loader) idTypeOf(r registration) (*idSource, string) {
 	return l.segmentsOf(found[0].p, found[0].name)
 }
 
+// readIDTypeOf is the id type a resource's Read parses its stored id with:
+// the first call in Read's body, in source order, that is handed the
+// resource's own id (d.Id(), metadata.ResourceData.Id()) and whose
+// declared result is a type that states its segments. That id is the one
+// the resource holds (azurerm's Create sets it, d.SetId(id.ID()), and Read
+// is where it is taken apart again), so it is the check on what the
+// importer's expression yielded (#1120 unit 13). Nil when Read was not
+// found or parses its id some other way.
+func (l *loader) readIDTypeOf(r registration) *typeKey {
+	if r.Read == nil {
+		return nil
+	}
+	return l.readIn(r.ReadPkg, r.ReadFile, r.Read, 0, map[ast.Node]bool{})
+}
+
+// readIn is [loader.readIDTypeOf] over one body. When the body hands the
+// id to no parser itself it follows the calls it makes, two deep and only
+// inside the checkout's services: a typed resource's Read is often
+// `return r.base.readFunc("resource_id")` (policy's assignment resources),
+// a method of a field whose type this loader does not track, so a method
+// is followed by name when its package declares exactly one by that name.
+func (l *loader) readIn(p *pkg, f *ast.File, body ast.Node, depth int, seen map[ast.Node]bool) *typeKey {
+	if p == nil || body == nil || seen[body] {
+		return nil
+	}
+	seen[body] = true
+	var found *typeKey
+	var calls []*ast.CallExpr
+	ast.Inspect(body, func(n ast.Node) bool {
+		if found != nil {
+			return false
+		}
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !passesOwnID(call) {
+			calls = append(calls, call)
+			return true
+		}
+		fp, ff, fd := l.funcRef(p, f, call.Fun)
+		if fd == nil || fd.Type.Results == nil || len(fd.Type.Results.List) == 0 {
+			return true
+		}
+		if tp, name := l.typeRef(fp, ff, fd.Type.Results.List[0].Type); tp != nil && l.isIDType(tp, name) {
+			found = &typeKey{tp, name}
+			return false
+		}
+		return true
+	})
+	if found != nil || depth >= 2 {
+		return found
+	}
+	for _, c := range calls {
+		fp, ff, fd := l.funcRef(p, f, c.Fun)
+		if fd == nil {
+			if se, ok := c.Fun.(*ast.SelectorExpr); ok {
+				fp, fd = p, p.uniqueMethod(se.Sel.Name)
+				if fd != nil {
+					ff = p.fileOf[fd]
+				}
+			}
+		}
+		if fd == nil || fd.Body == nil || !strings.HasPrefix(fp.path, l.module+"/internal/services/") {
+			continue
+		}
+		if k := l.readIn(fp, ff, fd.Body, depth+1, seen); k != nil {
+			return k
+		}
+	}
+	return nil
+}
+
+// passesOwnID reports whether a call is handed a resource's own id: an
+// argument that is a no-argument call of a method named Id.
+func passesOwnID(call *ast.CallExpr) bool {
+	for _, a := range call.Args {
+		c, ok := a.(*ast.CallExpr)
+		if !ok || len(c.Args) != 0 {
+			continue
+		}
+		if se, ok := c.Fun.(*ast.SelectorExpr); ok && se.Sel.Name == "Id" {
+			return true
+		}
+	}
+	return false
+}
+
 func (l *loader) collect(p *pkg, f *ast.File, n ast.Node, depth int, seen map[*ast.FuncDecl]bool, out *[]typeKey) {
 	if n == nil {
 		return
@@ -80,6 +168,32 @@ func (l *loader) collect(p *pkg, f *ast.File, n ast.Node, depth int, seen map[*a
 	}
 	ast.Inspect(n, func(n ast.Node) bool {
 		switch x := n.(type) {
+		case *ast.FuncLit:
+			// A function literal's body, never its signature (#1120 unit
+			// 13). An importer that wraps a parser literal declares the
+			// type the wrapper wants back, and that is not the one the
+			// literal parses: azurerm_lb_nat_rule's importer is
+			// loadBalancerSubResourceImporter(func(input string)
+			// (*loadbalancers.LoadBalancerId, error) {...}), whose body
+			// parses the rule's own InboundNatRuleId and returns the load
+			// balancer's id built from it (loadbalancer.go line 114 and
+			// lb_nat_rule_resource.go line 31 at 5.10.0). Read in
+			// signature order, the result type was the first id type
+			// seen, so the row recorded the load balancer's id.
+			l.collect(p, f, x.Body, depth, seen, out)
+			return false
+		case *ast.CallExpr:
+			// validation.None(...) accepts an id only when it is none of
+			// the ids its arguments validate, so those are the ids this
+			// resource's is not (#1120 unit 13): azurerm_resource_policy_assignment's
+			// IDValidationFunc is validate.ResourceAssignmentId, whose
+			// validation.None lists the management group, resource group
+			// and subscription validators (policy/validate/resource_assignment_id.go
+			// lines 14-23 at 5.10.0), and the row took the management
+			// group's id.
+			if se, ok := x.Fun.(*ast.SelectorExpr); ok && se.Sel.Name == "None" {
+				return false
+			}
 		case *ast.CompositeLit:
 			if x.Type != nil {
 				tp, name := l.typeRef(p, f, x.Type)

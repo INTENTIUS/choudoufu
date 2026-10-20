@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/armtypes"
 )
 
 // The Azure fence (#1120, ruled on #1122) is two ARM templates an operator
@@ -36,6 +38,9 @@ const (
 	// doubled bracket, so ARM passes it to Policy instead of evaluating it
 	// at deployment.
 	azPolicyEstateParam = "[[parameters('estate')]"
+	// azPolicyTaggedAfterCreateParam is the marker guard's exemption for
+	// types created untagged and tagged by a second call.
+	azPolicyTaggedAfterCreateParam = "[[parameters('taggedAfterCreate')]"
 )
 
 func armTemplate(t *testing.T, path string) map[string]any {
@@ -159,18 +164,35 @@ func TestAzureBoundaryTemplateGuardsTheMarker(t *testing.T) {
 		t.Fatalf("%s defines %d policies, want one deny and one denyAction", azBoundaryTemplate, len(defs))
 	}
 
-	// The deny: anyOf { tag missing, tag != estate }.
+	// The deny: anyOf { allOf { tag missing, type not tagged after
+	// create }, allOf { tag present, tag != estate } }. The second clause
+	// carries no type exemption: a resource of any type that names another
+	// estate is refused.
 	anyOf, _ := dig(deny, "properties", "policyRule", "if", "anyOf").([]any)
 	var missing, differs bool
 	for _, c := range anyOf {
-		cond, _ := c.(map[string]any)
-		if cond["field"] != azEstateTag {
-			continue
+		group, _ := c.(map[string]any)
+		all, _ := group["allOf"].([]any)
+		var absent, present, other, exempt, typed bool
+		for _, a := range all {
+			cond, _ := a.(map[string]any)
+			switch {
+			case cond["field"] == azEstateTag && cond["exists"] == "false":
+				absent = true
+			case cond["field"] == azEstateTag && cond["exists"] == "true":
+				present = true
+			case cond["field"] == azEstateTag && cond["notEquals"] == azPolicyEstateParam:
+				other = true
+			case cond["field"] == "type" && cond["notIn"] == azPolicyTaggedAfterCreateParam:
+				exempt = true
+			default:
+				typed = true
+			}
 		}
-		if cond["exists"] == "false" {
+		if absent && exempt && !typed && len(all) == 2 {
 			missing = true
 		}
-		if cond["notEquals"] == azPolicyEstateParam {
+		if present && other && !typed && len(all) == 2 {
 			differs = true
 		}
 	}
@@ -210,6 +232,90 @@ func TestAzureBoundaryTemplateGuardsTheMarker(t *testing.T) {
 	for _, a := range assignments {
 		if v := dig(a, "properties", "parameters", "estate", "value"); v != "[parameters('estate')]" {
 			t.Errorf("%s: assignment %v passes estate = %v, want the template's own estate parameter", azBoundaryTemplate, a["name"], v)
+		}
+	}
+	if v := dig(deny, "properties", "parameters", "taggedAfterCreate", "type"); v != "Array" {
+		t.Errorf("%s: the marker guard's taggedAfterCreate parameter is %v, want Array", azBoundaryTemplate, v)
+	}
+	var passed bool
+	for _, a := range assignments {
+		if dig(a, "properties", "parameters", "taggedAfterCreate", "value") == "[parameters('taggedAfterCreate')]" {
+			passed = true
+		}
+	}
+	if !passed {
+		t.Errorf("%s: no assignment passes the template's taggedAfterCreate through to the marker guard", azBoundaryTemplate)
+	}
+}
+
+// azAfterCreateOutsideGroups are the after-create azurerm types the
+// boundary template has no reason to exempt, each with why: no assignment
+// it makes can reach them.
+var azAfterCreateOutsideGroups = map[string]string{
+	"azurerm_subscription": "a subscription is in no resource group; the template assigns only at the estate's groups",
+}
+
+// TestAzureBoundaryExemptsExactlyTheAfterCreateTypes (#1120 unit 12): the
+// boundary template's default taggedAfterCreate is the ARM type of every
+// after-create azurerm type (internal/live/armtypes, generated from
+// azurerm's Create functions) whose id lives in a resource group, read off
+// that type's id template in live/azurerm-ids.json, and nothing else. A
+// provider bump that adds an after-create type, or moves one's ARM type,
+// fails here until the template's default follows it; a hand-added type
+// fails too.
+func TestAzureBoundaryExemptsExactlyTheAfterCreateTypes(t *testing.T) {
+	tmpl := armTemplate(t, azBoundaryTemplate)
+	raw, _ := dig(tmpl, "parameters", "taggedAfterCreate", "defaultValue").([]any)
+	got := map[string]bool{}
+	for _, v := range raw {
+		s, _ := v.(string)
+		got[strings.ToLower(s)] = true
+	}
+
+	data, err := os.ReadFile("azurerm-ids.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids struct {
+		Types []struct {
+			Type     string `json:"type"`
+			Template string `json:"template"`
+		} `json:"types"`
+	}
+	if err := json.Unmarshal(data, &ids); err != nil {
+		t.Fatal(err)
+	}
+	templates := map[string]string{}
+	for _, r := range ids.Types {
+		templates[r.Type] = r.Template
+	}
+
+	want := map[string]string{}
+	for _, row := range armtypes.DefaultRMTags().Rows() {
+		if row.Create == armtypes.CreateInCreate {
+			continue
+		}
+		if why, ok := azAfterCreateOutsideGroups[row.Type]; ok {
+			if strings.Contains(templates[row.Type], "/resourceGroups/") {
+				t.Errorf("%s is listed as outside any group (%s), and its id template %s is in one", row.Type, why, templates[row.Type])
+			}
+			continue
+		}
+		arm, ok := armtypes.AzurermARMType(row.Type)
+		if !ok || !strings.Contains(templates[row.Type], "/resourceGroups/") {
+			t.Errorf("after-create type %s has no resource-group ARM type to exempt (template %q); exempt it by hand in the template and say why here", row.Type, templates[row.Type])
+			continue
+		}
+		want[strings.ToLower(arm)] = row.Type
+	}
+	for arm, tf := range want {
+		if !got[arm] {
+			t.Errorf("%s: taggedAfterCreate does not list %s, the ARM type of after-create %s, so the marker guard denies its untagged create", azBoundaryTemplate, arm, tf)
+		}
+	}
+	for arm := range got {
+		if _, ok := want[arm]; !ok {
+			t.Errorf("%s: taggedAfterCreate lists %s, which is no after-create azurerm type's; every listed type is a type the guard lets exist untagged", azBoundaryTemplate, arm)
 		}
 	}
 }
