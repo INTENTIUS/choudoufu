@@ -7,6 +7,8 @@ package discovery
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -14,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -150,19 +153,43 @@ func TestProviderSchemaForFillsNoIdentityOnAWS(t *testing.T) {
 	}
 }
 
-// TestGCPHitTheRecordRemovesIsNotAlsoWithheld: once the record leg
-// proposes a destroy, the Asset search's withheld report of the same
-// labelled object is dropped, and an unrelated hit is kept.
+// TestGCPHitTheRecordRemovesIsNotAlsoWithheld: once a removal leg
+// proposes a destroy, the Asset search's withheld report of that same
+// object is dropped. The match is by object (#2139 item 6): a second
+// object wearing the same address label is not the one the record names,
+// so it stays, and so does an unrelated hit.
 func TestGCPHitTheRecordRemovesIsNotAlsoWithheld(t *testing.T) {
 	bucket := mustAddr(t, "google_storage_bucket.logs")
-	res := &Result{Orphans: []OwnedResource{
-		{Addr: bucket, Removal: true},
-		{TypeName: "storage.googleapis.com/Bucket", Marker: markers.GoogleAddressValue(bucket), Withheld: "reported"},
-		{TypeName: "pubsub.googleapis.com/Topic", Marker: "aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbbbbbbbbbbbb", Withheld: "reported"},
-	}}
+	subnet := mustAddr(t, "google_compute_subnetwork.edge")
+	withheld := func(assetType, name string, addr addrs.AbsResourceInstance) OwnedResource {
+		return OwnedResource{TypeName: assetType, ImportID: name, Marker: markers.GoogleAddressValue(addr), Withheld: "reported"}
+	}
+	res := &Result{
+		// The record leg's removals, as it files them.
+		Resolutions: []identity.Resolution{
+			{Addr: bucket, Class: identity.ClassConcrete, ImportID: "logs", Undeclared: true, RecordRooted: true},
+			{Addr: subnet, Class: identity.ClassConcrete, ImportID: "projects/p/regions/us-east1/subnetworks/edge", Undeclared: true, RecordRooted: true},
+		},
+		Orphans: []OwnedResource{
+			withheld("storage.googleapis.com/Bucket", "//storage.googleapis.com/projects/_/buckets/logs", bucket),
+			withheld("storage.googleapis.com/Bucket", "//storage.googleapis.com/projects/_/buckets/logs-copy", bucket),
+			withheld("compute.googleapis.com/Subnetwork", "//compute.googleapis.com/projects/p/regions/us-east1/subnetworks/edge", subnet),
+			withheld("compute.googleapis.com/Subnetwork", "//compute.googleapis.com/projects/p/regions/us-west1/subnetworks/edge", subnet),
+			{TypeName: "pubsub.googleapis.com/Topic", ImportID: "//pubsub.googleapis.com/projects/p/topics/t", Marker: "aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbbbbbbbbbbbb", Withheld: "reported"},
+		},
+	}
 	dropGCPHitsTheRecordsRemove(res)
-	if len(res.Orphans) != 2 || res.Orphans[1].TypeName != "pubsub.googleapis.com/Topic" {
-		t.Fatalf("orphans after the drop = %+v; want the record's removal and the unrelated topic", res.Orphans)
+	var got []string
+	for _, o := range res.Orphans {
+		got = append(got, o.ImportID)
+	}
+	want := []string{
+		"//storage.googleapis.com/projects/_/buckets/logs-copy",
+		"//compute.googleapis.com/projects/p/regions/us-west1/subnetworks/edge",
+		"//pubsub.googleapis.com/projects/p/topics/t",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("orphans after the drop = %q; want the two objects the records do not name and the unrelated topic, %q", got, want)
 	}
 }
 
@@ -205,14 +232,17 @@ func TestGCPLegWithNoClientStillFilesGaps(t *testing.T) {
 // side of #2136): a configuration renames a network from rt-old to rt-new,
 // and the old network still wears the address label. Its full resource
 // name, not the label, says which object it is, so it is a displaced
-// claimant and not the new name's object; one whose path carries every
-// configured value is.
+// claimant and not the new name's object; one whose path ends in the
+// configured name is. The resolution is the one the real resolver produces
+// for google_compute_network, whose only identity value is the name: the
+// project is read off the provider block into the import ID, not into
+// IdentityValues.
 func TestGCPRenamedObjectDoesNotVouch(t *testing.T) {
 	res := identity.Resolution{
 		Addr:           mustAddr(t, "google_compute_network.main"),
 		Class:          identity.ClassConcrete,
 		ImportID:       "projects/p/global/networks/rt-new",
-		IdentityValues: map[string]string{"project": "p", "name": "rt-new"},
+		IdentityValues: map[string]string{"name": "rt-new"},
 	}
 	old := claimant{importID: "projects/p/global/networks/rt-old", resourcePath: "projects/p/global/networks/rt-old"}
 	if want, mismatched := configIdentityMismatch("google_compute_network", res, old); !mismatched || want != "name=rt-new" {
@@ -222,12 +252,92 @@ func TestGCPRenamedObjectDoesNotVouch(t *testing.T) {
 	if want, mismatched := configIdentityMismatch("google_compute_network", res, same); mismatched {
 		t.Errorf("the network at the configured name was refused, want %q", want)
 	}
-	otherProject := claimant{resourcePath: "projects/q/global/networks/rt-new"}
-	if _, mismatched := configIdentityMismatch("google_compute_network", res, otherProject); !mismatched {
-		t.Error("a same-named network in another project vouched")
-	}
 	bucketRes := identity.Resolution{Addr: mustAddr(t, "google_storage_bucket.logs"), IdentityValues: map[string]string{"name": "logs-new"}}
 	if _, mismatched := configIdentityMismatch("google_storage_bucket", bucketRes, claimant{resourcePath: "projects/_/buckets/logs-old"}); !mismatched {
 		t.Error("a renamed bucket vouched")
+	}
+}
+
+// TestGCPRenamedObjectIsDisplacedThroughDiscover is #2139 item 2: the
+// rename check above runs in production. The configuration's network
+// main is now named rt-new; the Asset search finds the old network rt-old
+// still wearing main's address label. Through Discover, with the
+// resolution the real resolver produces, it is a DISPLACED_MARKER warning
+// and vouches for nothing, and the network at the configured name vouches
+// for main.
+func TestGCPRenamedObjectIsDisplacedThroughDiscover(t *testing.T) {
+	const estate = "gcp-rename"
+	dir := t.TempDir()
+	src := `terraform {
+  required_providers {
+    google = {
+      source = "hashicorp/google"
+    }
+  }
+}
+
+provider "google" {
+  project = "proj-a"
+}
+
+resource "google_compute_network" "main" {
+  name                    = "rt-new"
+  auto_create_subnetworks = false
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := loadConfig(t, dir)
+	resolutions := resolveOrFail(t, cfg).All()
+	main := mustAddr(t, "google_compute_network.main")
+	if len(resolutions) != 1 || resolutions[0].Class != identity.ClassConcrete ||
+		resolutions[0].ImportID != "projects/proj-a/global/networks/rt-new" ||
+		len(resolutions[0].IdentityValues) != 1 || resolutions[0].IdentityValues["name"] != "rt-new" {
+		t.Fatalf("resolutions = %+v; the test needs the real resolver's concrete network with only name in IdentityValues", resolutions)
+	}
+
+	labels := map[string]string{markers.TagEstate: estate, markers.TagAddress: markers.GoogleAddressValue(main)}
+	network := func(name string) gcpsweep.Asset {
+		return gcpsweep.Asset{AssetType: "compute.googleapis.com/Network",
+			Name: "//compute.googleapis.com/projects/proj-a/global/networks/" + name, Labels: labels}
+	}
+	discover := func(hit gcpsweep.Asset) *Result {
+		res, diags := Discover(context.Background(), Request{
+			Estate:      estate,
+			Config:      cfg,
+			Resolutions: resolutions,
+			Provider:    newFakeCloud(),
+			Sweepers:    []Sweeper{GCPAssetSweep{Searcher: fakeAssetSearcher{assets: map[string][]gcpsweep.Asset{"proj-a": {hit}}}, Project: "proj-a"}},
+		})
+		assertNoErrors(t, diags)
+		for _, o := range res.Orphans {
+			t.Errorf("orphan %+v; a hit wearing a declared address's label is never an orphan", o)
+		}
+		return res
+	}
+	vouched := func(res *Result) bool {
+		for _, a := range res.VerifiedDeclared {
+			if a.Equal(main) {
+				return true
+			}
+		}
+		return false
+	}
+
+	old := discover(network("rt-old"))
+	if len(old.Problems) != 1 || old.Problems[0].Kind != ProblemDisplacedMarker || !strings.Contains(old.Problems[0].Detail, "rt-old") {
+		t.Errorf("problems for the renamed-away network = %+v; want one DISPLACED_MARKER naming rt-old", old.Problems)
+	}
+	if vouched(old) {
+		t.Error("the renamed-away network vouched for google_compute_network.main")
+	}
+
+	current := discover(network("rt-new"))
+	if len(current.Problems) != 0 {
+		t.Errorf("problems for the network at the configured name = %+v; want none", current.Problems)
+	}
+	if !vouched(current) {
+		t.Error("the network at the configured name did not vouch for google_compute_network.main")
 	}
 }

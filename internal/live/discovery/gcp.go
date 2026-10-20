@@ -33,7 +33,9 @@ import (
 // its labels onto is controller-held ([substrate.Google]'s
 // ControllerHeld), reported and never removed. A hit whose tofu-address
 // label encodes an address the configuration declares is that block's
-// object. Anything else is an orphan, reported by its asset type and full
+// object when its full resource name agrees with the identity the
+// configuration computes, and a displaced marker, reported and left
+// alone, when it does not ([gcpDeclaredHit]). Anything else is an orphan, reported by its asset type and full
 // resource name with the encoded address it carries: the label is matched,
 // never decoded, so a hit naming a block the configuration no longer has
 // cannot be turned back into an address here, and an orphan with no
@@ -190,7 +192,8 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 				entry.addClaimant(gcpClaimant(a, address, entry.escaped))
 				continue
 			}
-			if _, isDeclared := declared.instances[address]; isDeclared {
+			if addr, isDeclared := declared.instances[address]; isDeclared {
+				diags = diags.Append(gcpDeclaredHit(ctx, req, decl, res, a, address, addr))
 				continue
 			}
 			block, hasBlock := markers.GoogleAddressBlock(address)
@@ -244,6 +247,35 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 		sort.Strings(orphans)
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryGCPOrphanUnaddressed,
 			fmt.Sprintf("%d resource(s) carry estate %q's label and no address this configuration declares:\n  - %s", len(orphans), req.Estate, strings.Join(orphans, "\n  - "))))
+	}
+	return diags
+}
+
+// gcpDeclaredHit classifies a hit whose address label is a declared
+// instance's that is not waiting on discovery, the way the tag sweep
+// classifies an AWS object wearing a declared address's marker
+// ([declared.displacedFrom]). Its full resource name says which object it
+// is (#2134 item 13, #2139 item 2): one the configuration no longer names,
+// such as the old network after a rename, is a [ProblemDisplacedMarker]
+// warning and is left alone, and one it does name vouches for the address.
+func gcpDeclaredHit(ctx context.Context, req Request, decl *declared, res *Result, a gcpsweep.Asset, address string, addr addrs.AbsResourceInstance) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if decl == nil {
+		return diags
+	}
+	typeName := addr.Resource.Resource.Type
+	escaped := EscapeAddress(addr.String())
+	claim := gcpClaimant(a, address, escaped)
+	switch want, verdict := decl.displacedFrom(ctx, typeName, escaped, claim); verdict {
+	case verdictDisplaced:
+		diags = diags.Append(problemDiag(res, displacedProblem(req, typeName, escaped, want, claim)))
+	case verdictOwnObject:
+		if vouched, ok := decl.vouchAddr(typeName, escaped); ok {
+			res.VerifiedDeclared = append(res.VerifiedDeclared, vouched)
+		}
+	case verdictIdentityChanging:
+		// The estate's record names this object: a replace is pending.
+		// Neither reported nor vouched, as on AWS.
 	}
 	return diags
 }
@@ -475,16 +507,33 @@ func GCPSweepProjects(providerProject string, resolutions []identity.Resolution)
 }
 
 // dropGCPHitsTheRecordsRemove drops a GCP leg's withheld orphan when a
-// record leg proposes the destroy of the same object (GitHub issue #2134,
+// removal leg proposes the destroy of the same object (GitHub issue #2134,
 // item 1): the Asset search found a labelled object whose tofu-address
 // encodes nothing declared, and the deleted block's record then named that
 // address. The record's destroy is the answer, so the hit is not reported a
 // second time as left alone. It runs after the removal legs.
+//
+// The match is by object, not by label (#2139 item 6): a second object
+// wearing the same address label is not the one the record names, and it
+// stays in the warnings.
 func dropGCPHitsTheRecordsRemove(res *Result) {
-	removed := map[string]bool{}
+	removed := map[string][]gcpRemoval{}
+	add := func(addr addrs.AbsResourceInstance, importID string, values map[string]string) {
+		typeName := addr.Resource.Resource.Type
+		if !strings.HasPrefix(typeName, "google_") || importID == "" && len(values) == 0 {
+			return
+		}
+		label := markers.GoogleAddressValue(addr)
+		removed[label] = append(removed[label], gcpRemoval{typeName: typeName, importID: importID, values: values})
+	}
+	for _, r := range res.Resolutions {
+		if r.Undeclared {
+			add(r.Addr, r.ImportID, r.IdentityValues)
+		}
+	}
 	for _, o := range res.Orphans {
-		if o.Removal && strings.HasPrefix(o.Addr.Resource.Resource.Type, "google_") {
-			removed[markers.GoogleAddressValue(o.Addr)] = true
+		if o.Removal {
+			add(o.Addr, o.ImportID, o.IdentityValues)
 		}
 	}
 	if len(removed) == 0 {
@@ -492,10 +541,49 @@ func dropGCPHitsTheRecordsRemove(res *Result) {
 	}
 	kept := res.Orphans[:0]
 	for _, o := range res.Orphans {
-		if !o.Removal && o.Withheld != "" && o.Marker != "" && removed[o.Marker] {
+		if !o.Removal && o.Withheld != "" && o.Marker != "" && gcpRemovalNames(removed[o.Marker], gcpImportID(o.ImportID)) {
 			continue
 		}
 		kept = append(kept, o)
 	}
 	res.Orphans = kept
+}
+
+// gcpRemoval is one removal a GCP hit is compared against.
+type gcpRemoval struct {
+	typeName string
+	importID string
+	values   map[string]string
+}
+
+// gcpRemovalNames reports whether one of removals names the object at
+// path, an Asset hit's full resource name less its host. Equal strings
+// match. Otherwise the removal's identity values, or its import ID split
+// by the type's row, or a slash-free import ID as the one value, are
+// compared with path the way [gcpPathMismatch] compares a claimant. Every
+// doubt answers no, which keeps the hit's warning.
+func gcpRemovalNames(removals []gcpRemoval, path string) bool {
+	if path == "" {
+		return false
+	}
+	for _, r := range removals {
+		if r.importID == path {
+			return true
+		}
+		values := r.values
+		if len(values) == 0 && r.importID != "" {
+			if entry, ok := identity.LookupType(r.typeName); ok {
+				values, _ = splitImportIDByComponents(entry, r.importID)
+			} else if !strings.Contains(r.importID, "/") {
+				values = map[string]string{"id": r.importID}
+			}
+		}
+		if len(values) == 0 {
+			continue
+		}
+		if _, mismatched := gcpPathMismatch(identity.Resolution{ImportID: r.importID, IdentityValues: values}, path); !mismatched {
+			return true
+		}
+	}
+	return false
 }
