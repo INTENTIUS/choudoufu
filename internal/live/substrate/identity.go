@@ -76,6 +76,21 @@ type SynthesizedIdentity struct {
 	// otherwise.
 	TemplateWithheld string
 
+	// IdentitySources, with FromIdentitySchema: where a record reads each
+	// attribute of the type's identity schema from, when the family knows
+	// a source for every one (GitHub issue #2138, the maintainer's option
+	// (a)). internal/live/identity's record rung reads an attribute the
+	// type's block does not declare from here: a parent's name parsed out
+	// of a parent's ARM id argument, a renamed argument, or a constant.
+	// Nil when the family names none; then IdentitySourcesProblem says why,
+	// for the refusal.
+	IdentitySources map[string]IdentitySource
+
+	// IdentitySourcesProblem, with FromIdentitySchema: why IdentitySources
+	// is nil for a type that serves an identity schema, naming the
+	// attribute, for strict-markers-unrecordable to say. Empty otherwise.
+	IdentitySourcesProblem string
+
 	// NonAWSProvider is identity.TypeIdentity's field of the same name.
 	NonAWSProvider bool
 

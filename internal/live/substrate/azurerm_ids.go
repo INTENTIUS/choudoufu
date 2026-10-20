@@ -68,6 +68,11 @@ type azurermIDType struct {
 	Components     []azurermIDComponent `json:"components"`
 	IdentitySchema []string             `json:"identity_schema"`
 	Contract       *azurermContract     `json:"identity_contract"`
+	// IdentitySources and IdentitySourcesProblem are where a record reads
+	// each identity attribute from, or why it cannot (GitHub issue #2138,
+	// azurerm_sources.go).
+	IdentitySources        map[string]azurermIdentitySource `json:"identity_sources"`
+	IdentitySourcesProblem string                           `json:"identity_sources_problem"`
 	// Route is the generator's record of the route this package and the
 	// identity-schema route give the type (#1120 unit 17), one of the
 	// AzurermRoute* constants. Admission does not read it; the guards
@@ -505,6 +510,10 @@ func azurermAdmits(typeName string, schema providers.Schema) (SynthesizedIdentit
 		return route, true
 	}
 	row, ok := tab.rows[typeName]
+	if ok && row.Class == azurermClassIdentitySchema {
+		route.IdentitySources = row.identitySources()
+		route.IdentitySourcesProblem = row.IdentitySourcesProblem
+	}
 	if !ok || !row.templateBearing() {
 		return route, true
 	}

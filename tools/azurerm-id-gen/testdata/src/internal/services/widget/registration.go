@@ -16,6 +16,8 @@ func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 		"azurerm_widget_storage":      resourceWidgetStorage(),
 		"azurerm_widget_link":         resourceWidgetLink(),
 		"azurerm_widget_gizmo_legacy": resourceGizmoLegacy(),
+		"azurerm_widget_container":    resourceWidgetContainer(),
+		"azurerm_widget_record":       resourceWidgetRecord(),
 	}
 }
 
@@ -70,4 +72,30 @@ func (r GizmoResource) ResourceType() string { return "azurerm_widget_gizmo" }
 
 func (r GizmoResource) IDValidationFunc() pluginsdk.SchemaValidateFunc {
 	return gizmos.ValidateGizmoID
+}
+
+// A child whose parent is stated only as the parent's id, with the
+// validator that says which id (#2138).
+func resourceWidgetContainer() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		Importer: pluginsdk.ImporterValidatingIdentity(&commonids.StorageContainerId{}),
+		Schema: map[string]*pluginsdk.Schema{
+			"storage_account_id": {
+				Type:         pluginsdk.TypeString,
+				Required:     true,
+				ValidateFunc: commonids.ValidateStorageAccountID,
+			},
+		},
+	}
+}
+
+// A record set whose zone argument is named apart from its segment, and
+// whose record type is a constant (#2138).
+func resourceWidgetRecord() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			_, err := gizmos.ParseRecordID(id)
+			return err
+		}),
+	}
 }

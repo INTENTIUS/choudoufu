@@ -24520,13 +24520,13 @@
       "counts": {
         "types": 1106,
         "tiers": {
-          "declaration-carried": 489,
+          "declaration-carried": 492,
           "marker-carried": 387,
-          "record-carried": 230
+          "record-carried": 227
         },
         "statuses": {
-          "in-contract": 843,
-          "needs-evidence": 263
+          "in-contract": 849,
+          "needs-evidence": 257
         }
       },
       "types": [
@@ -25598,11 +25598,11 @@
         },
         {
           "type": "azurerm_app_service_custom_hostname_binding",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -26586,11 +26586,11 @@
         },
         {
           "type": "azurerm_backup_policy_vm",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29997,10 +29997,10 @@
         {
           "type": "azurerm_dns_a_record",
           "tier": "marker-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": true,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30043,10 +30043,10 @@
         {
           "type": "azurerm_dns_cname_record",
           "tier": "marker-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": true,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30119,10 +30119,10 @@
         {
           "type": "azurerm_dns_txt_record",
           "tier": "marker-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": true,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30271,11 +30271,11 @@
         },
         {
           "type": "azurerm_email_communication_service_domain_sender_username",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,

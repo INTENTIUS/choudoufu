@@ -97,6 +97,18 @@ func TestFixtureClassifiesEachShape(t *testing.T) {
 			typ: "azurerm_widget_ghost", class: classUnmapped,
 			reason: "not found in the provider's registrations",
 		},
+		{
+			// #2138: a parent stated as the parent's id.
+			typ: "azurerm_widget_container", class: classIdentitySchema, kind: "resourceids", idType: "StorageContainerId",
+			attrs: []string{"storage_account_id(arm-id)", "name"},
+		},
+		{
+			// #2138: no segment name finds zone_name or the record type;
+			// the identity test does.
+			typ: "azurerm_widget_record", class: classIdentitySchema, kind: "resourceids", idType: "RecordId",
+			attrs:    []string{"cloud:subscription-id", "resource_group_name", "zone_name", "name"},
+			template: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Widget/zones/{dnsZoneName}/{recordType}/{relativeRecordSetName}",
+		},
 	}
 	if len(rows) != len(cases) {
 		t.Errorf("fixture produced %d rows, want %d", len(rows), len(cases))
@@ -285,6 +297,8 @@ func TestFixtureRecordsContractsAndRoutes(t *testing.T) {
 		"azurerm_widget_storage":      "identity-schema",
 		"azurerm_widget_link":         "unmapped",
 		"azurerm_widget_ghost":        "unmapped",
+		"azurerm_widget_container":    "template-fallback",
+		"azurerm_widget_record":       "template-fallback",
 	}
 	for typ, route := range want {
 		if got := rows[typ].Route; got != route {
@@ -341,5 +355,79 @@ func TestX(t *testing.T) {
 	}
 	if got["azurerm_x"] == nil || !reflect.DeepEqual(got["azurerm_x"].Attributes, want) {
 		t.Errorf("contracts = %+v, want %+v", got["azurerm_x"], want)
+	}
+}
+
+// TestFixtureRecordsIdentitySources (#2138): an identity-schema row carries
+// where each identity attribute sits in the type's own id and where its
+// value comes from, as azurerm's identity test states it; a parent's id is
+// parsed as the id its argument's validator parses.
+func TestFixtureRecordsIdentitySources(t *testing.T) {
+	rows := fixtureRows(t)
+	const account = "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Storage/storageAccounts/{storageAccountName}"
+	within := func(seg string) identitySource {
+		return identitySource{Segment: seg, Within: "storage_account_id", ParentIDType: "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.StorageAccountId", ParentTemplate: account, ParentSegment: seg}
+	}
+	for typ, want := range map[string]map[string]identitySource{
+		"azurerm_widget_storage": {
+			"name":                {Segment: "storageAccountName", Argument: "name"},
+			"resource_group_name": {Segment: "resourceGroupName", Argument: "resource_group_name"},
+			"subscription_id":     {Segment: "subscriptionId", Provider: cloudSubscription},
+		},
+		"azurerm_widget_container": {
+			"name":                 {Segment: "containerName", Argument: "name"},
+			"resource_group_name":  within("resourceGroupName"),
+			"storage_account_name": within("storageAccountName"),
+			"subscription_id":      within("subscriptionId"),
+		},
+		"azurerm_widget_record": {
+			"dns_zone_name":       {Segment: "dnsZoneName", Argument: "zone_name"},
+			"name":                {Segment: "relativeRecordSetName", Argument: "name"},
+			"record_type":         {Segment: "recordType", Constant: "CNAME"},
+			"resource_group_name": {Segment: "resourceGroupName", Argument: "resource_group_name"},
+			"subscription_id":     {Segment: "subscriptionId", Provider: cloudSubscription},
+		},
+	} {
+		e := rows[typ]
+		if e.IdentitySourcesProblem != "" || !reflect.DeepEqual(e.IdentitySources, want) {
+			t.Errorf("%s: sources %+v (problem %q), want %+v", typ, e.IdentitySources, e.IdentitySourcesProblem, want)
+		}
+	}
+	for _, c := range rows["azurerm_widget_record"].Components {
+		if len(c.Attrs) > 0 && c.Rule != ruleIdentityTest {
+			t.Errorf("azurerm_widget_record: component %+v not taken from the identity test", c)
+		}
+	}
+}
+
+// TestIdentityAttrNamesIsAzurermsRule pins the port of azurerm's
+// pluginsdk.ToSnakeCase and SegmentName on the spellings azurerm 5.10.0's
+// own identity schemas show.
+func TestIdentityAttrNamesIsAzurermsRule(t *testing.T) {
+	for in, want := range map[string]string{
+		"storageAccountName": "storage_account_name",
+		"resourceGroupName":  "resource_group_name",
+		"subscriptionId":     "subscription_id",
+		"signalRName":        "signalr_name",
+		"webPubSubName":      "web_pubsub_name",
+		"vmName":             "vm_name",
+		"VMName":             "vm_name",
+		"serverGroupsv2Name": "server_groups_v2_name",
+	} {
+		segs := []segment{{Kind: segUser, Name: in}, {Kind: segStatic, Value: "x"}}
+		names, problem := identityAttrNames(segs, false)
+		if problem != "" || names[0] != want {
+			t.Errorf("%s: %q (%s), want %q", in, names[0], problem, want)
+		}
+	}
+	segs := []segment{{Kind: segUser, Name: "widgetName"}, {Kind: segUser, Name: "gizmoName"}}
+	if names, _ := identityAttrNames(segs, false); names[1] != "name" {
+		t.Errorf("the last *Name segment is %q, want name", names[1])
+	}
+	if names, _ := identityAttrNames(segs, true); names[1] != "gizmo_name" {
+		t.Errorf("the virtual form's last segment is %q, want gizmo_name", names[1])
+	}
+	if _, problem := identityAttrNames([]segment{{Kind: segScope, Name: "scope"}}, false); problem == "" {
+		t.Error("a scope segment is named")
 	}
 }

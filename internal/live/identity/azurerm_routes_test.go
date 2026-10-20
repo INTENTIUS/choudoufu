@@ -42,12 +42,19 @@ import (
 // each is required, optional or computed (never their types), and the
 // identity attributes it requires for import (azurerm 5.10.0 marks every
 // one required_for_import, and the writer refuses an extract where that
-// stops being true rather than drop the distinction). Regenerate it with
-// -update-azurerm-identity-extract and AZURERM_SCHEMA set, the variable
-// internal/live/armtypes' pin test and the substrate's tags extract read.
+// stops being true rather than drop the distinction). Since GitHub issue
+// #2138 it also carries, per type, the checks azurerm's generated resource
+// identity test makes (identity_test), read from the provider source, so
+// the record rung's generated identity sources are pinned against the
+// provider's own statement of them without the source checked out
+// ([TestAzurermIdentitySourcesAgreeWithTheIdentityTest]). Regenerate it
+// with -update-azurerm-identity-extract and AZURERM_SCHEMA set, the
+// variable internal/live/armtypes' pin test and the substrate's tags
+// extract read, and AZURERM_SRC, the azurerm checkout at the same tag
+// tools/azurerm-id-gen reads.
 const azurermIdentityExtractPath = "testdata/azurerm-5.10.0-identity.json"
 
-var updateAzurermIdentityExtract = flag.Bool("update-azurerm-identity-extract", false, "regenerate "+azurermIdentityExtractPath+" from $AZURERM_SCHEMA")
+var updateAzurermIdentityExtract = flag.Bool("update-azurerm-identity-extract", false, "regenerate "+azurermIdentityExtractPath+" from $AZURERM_SCHEMA and $AZURERM_SRC")
 
 type azurermIdentityExtract struct {
 	Provider     string                                `json:"provider"`
@@ -63,6 +70,27 @@ type azurermIdentityExtractType struct {
 	// Arguments maps each configuration attribute to "required",
 	// "optional", "optional+computed" or "computed".
 	Arguments map[string]string `json:"arguments"`
+	// IdentityTest is azurerm's generated resource identity test for the
+	// type, one check per identity attribute, as the test file writes it
+	// (GitHub issue #2138). Absent when azurerm publishes none.
+	IdentityTest map[string]azurermIdentityTestCheck `json:"identity_test,omitempty"`
+}
+
+// azurermIdentityTestCheck is one check of an identity test, read off the
+// call in the test file:
+//
+//   - "matches-state": statecheck.ExpectIdentityValueMatchesStateAtPath,
+//     the identity value equals the state value at Path;
+//   - "contains": customstatecheck.ExpectStateContainsIdentityValueAtPath,
+//     the state value at Path contains the identity value;
+//   - "value": statecheck.ExpectIdentityValue with a known value, String
+//     for a string literal (knownvalue.StringExact("CNAME")) or Expr for
+//     anything else, as written (data.Subscriptions.Primary).
+type azurermIdentityTestCheck struct {
+	Check  string `json:"check"`
+	Path   string `json:"path,omitempty"`
+	String string `json:"string,omitempty"`
+	Expr   string `json:"expr,omitempty"`
 }
 
 // loadAzurermIdentityExtract reads the extract as provider schemas.
@@ -188,6 +216,13 @@ func writeAzurermIdentityExtract(t *testing.T) {
 		}
 		ex.Types[name] = ty
 	}
+	tests := readAzurermIdentityTests(t, os.Getenv("AZURERM_SRC"))
+	for name, ty := range ex.Types {
+		if checks, ok := tests[name]; ok {
+			ty.IdentityTest = checks
+			ex.Types[name] = ty
+		}
+	}
 	var b bytes.Buffer
 	enc := json.NewEncoder(&b)
 	enc.SetIndent("", "  ")
@@ -214,6 +249,21 @@ type azurermIDsRow struct {
 		ARMID   bool     `json:"arm_id"`
 		Segment string   `json:"segment"`
 	} `json:"components"`
+	// IdentitySources and IdentitySourcesProblem are GitHub issue #2138's
+	// record sources ([TestAzurermIdentitySourcesAgreeWithTheIdentityTest]).
+	IdentitySources        map[string]azurermIDsSource `json:"identity_sources"`
+	IdentitySourcesProblem string                      `json:"identity_sources_problem"`
+}
+
+type azurermIDsSource struct {
+	Segment        string `json:"segment"`
+	Argument       string `json:"argument"`
+	Within         string `json:"within"`
+	ParentIDType   string `json:"parent_id_type"`
+	ParentTemplate string `json:"parent_template"`
+	ParentSegment  string `json:"parent_segment"`
+	Provider       string `json:"provider"`
+	Constant       string `json:"constant"`
 }
 
 func loadAzurermIDsRows(t *testing.T) (schemaDigest string, rows map[string]azurermIDsRow) {

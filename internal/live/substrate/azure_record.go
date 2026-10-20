@@ -68,7 +68,20 @@ func AzurermRecordable(typeName string) bool {
 // Every segment has to be present: a hole is refused, never filled, because
 // an id with a hole in it names a different object or none (HANDOFF's
 // safety rule).
+//
+// A record of an identity-schema type is keyed by identity attribute, and
+// since GitHub issue #2138 holds attributes no argument is named after (the
+// storage_account_name a container's record parses out of its
+// storage_account_id), so where the row records where each attribute sits
+// in the type's own id, that is what it is rebuilt from first.
 func AzurermRecordImportID(typeName string, values map[string]string) (string, bool) {
+	if tab, err := loadAzurermIDs(); err == nil {
+		if row, ok := tab.rows[typeName]; ok {
+			if id, ok := azurermRecordImportIDFromIdentity(row, values); ok {
+				return id, true
+			}
+		}
+	}
 	row, ok := azurermRecordRow(typeName)
 	if !ok {
 		return "", false
