@@ -3283,7 +3283,15 @@ const (
 	// 702 -> 703 for #1119 (hashicorp/google identity rows, tools/gcp-row-gen): the new fixture
 	// internal/live/identity/testdata/gcp-identity-rows. fixture-dirs
 	// 671 -> 672; the cohort pins are untouched.
-	identityGoldenPinDirs = 703
+	//
+	// 703 -> 705 for GitHub issue #1121's two GCP lint rules: two new
+	// fixtures. live/e2e/limits/gcp-multi-project declares two google
+	// provider blocks and no resources. live/e2e/limits/gcp-label-count
+	// declares one google_storage_bucket, which takes the identity-schema
+	// route and so renders nothing in the schema-less golden. Neither adds
+	// a row. fixture-dirs 672 -> 674 on the same row; the cohort pins are
+	// untouched.
+	identityGoldenPinDirs = 705
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).
