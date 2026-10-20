@@ -197,7 +197,7 @@ func (s *googleTestSearch) SearchAddress(_ context.Context, project, estate, add
 func googleTestAsset(bucket, estate, address string) gcpsweep.Asset {
 	return gcpsweep.Asset{
 		AssetType: "storage.googleapis.com/Bucket",
-		Name:      "//storage.googleapis.com/projects/_/buckets/" + bucket,
+		Name:      "//storage.googleapis.com/" + bucket,
 		Project:   "projects/111111111111",
 		Labels:    map[string]string{markers.TagEstate: estate, markers.TagAddress: address},
 	}
@@ -415,15 +415,15 @@ func TestMove_GoogleLabelsDestinationSearchUnavailable(t *testing.T) {
 
 // TestIsGoogleSelfMatchesTheWholePath (GitHub issue #2134, item 8): a
 // same-named object in another region, or of another type, is not the one
-// being moved; only an exact path is, or, for a bucket being moved, its
-// projects/_/buckets/ form.
+// being moved; only an exact path is. A bucket's documented Asset name is
+// //storage.googleapis.com/<name>, and only that spelling names it.
 func TestIsGoogleSelfMatchesTheWholePath(t *testing.T) {
 	m := &mover{googleSelf: []string{"edge", "projects/p/regions/us-east1/subnetworks/edge"}}
 	for name, want := range map[string]bool{
 		"//compute.googleapis.com/projects/p/regions/us-east1/subnetworks/edge":     true,
 		"//compute.googleapis.com/projects/p/regions/europe-west1/subnetworks/edge": false,
 		"//compute.googleapis.com/projects/p/global/networks/edge":                  false,
-		"//storage.googleapis.com/projects/_/buckets/edge":                          false,
+		"//storage.googleapis.com/edge":                                             false,
 		"//pubsub.googleapis.com/projects/p/topics/edge":                            false,
 		"projects/p/regions/us-east1/subnetworks/edge":                              false,
 	} {
@@ -432,7 +432,13 @@ func TestIsGoogleSelfMatchesTheWholePath(t *testing.T) {
 		}
 	}
 	bucket := &mover{googleSelf: []string{"logs"}}
-	if !bucket.isGoogleSelf("//storage.googleapis.com/projects/_/buckets/logs") {
-		t.Error("a bucket is not matched by its projects/_/buckets/ asset name")
+	for name, want := range map[string]bool{
+		"//storage.googleapis.com/logs":                    true,
+		"//storage.googleapis.com/logs-copy":               false,
+		"//storage.googleapis.com/projects/_/buckets/logs": false,
+	} {
+		if got := bucket.isGoogleSelf(name); got != want {
+			t.Errorf("bucket: isGoogleSelf(%q) = %v, want %v", name, got, want)
+		}
 	}
 }

@@ -9,7 +9,7 @@
 // family: AWS's rows come from CloudFormation evidence, these come from the
 // provider's own source.
 //
-// Two modes, and only the first needs anything outside the tree:
+// Three modes, and only the first two need anything outside the tree:
 //
 //	go run ./tools/gcp-row-gen -extract -google DIR -google-beta DIR -schema FILE
 //
@@ -21,9 +21,17 @@
 // states them) and live/gcp-schema-facts.json (each type's attributes, nested
 // blocks and identity schema, as the schema states them).
 //
+//	go run ./tools/gcp-row-gen -asset-names FILE
+//
+// reads a saved copy of Google's Cloud Asset Inventory asset names page
+// (AssetNamesURL, fetched with curl and treated as text) and writes
+// live/gcp-asset-names.json: each asset type's documented full resource
+// name formats, with the page's URL and "Last updated" date. It is the
+// Asset name of a type whose provider source states none (assetnames.go).
+//
 //	go run ./tools/gcp-row-gen
 //
-// reads only those two committed artifacts and writes
+// reads only those three committed artifacts and writes
 // internal/live/identity/table_generated_google.go, live/gcp-survey.json
 // and internal/live/identity/importids_generated_google.go (the import-ID
 // forms of Asset hits and of composite records, importids.go).
@@ -85,11 +93,18 @@ func main() {
 	googleDir := flag.String("google", "", "-extract: a checkout of hashicorp/terraform-provider-google at the pinned tag")
 	betaDir := flag.String("google-beta", "", "-extract: a checkout of hashicorp/terraform-provider-google-beta at the pinned tag")
 	schemaFile := flag.String("schema", "", "-extract: `providers schema -json` output covering both providers at the pinned release")
+	assetNamesFile := flag.String("asset-names", "", "a saved copy of "+AssetNamesURL+": read its asset type table into "+AssetNamesJSONRel+", instead of deriving rows")
 	flag.Parse()
 
 	root, err := repoRoot()
 	if err != nil {
 		fail(err)
+	}
+	if *assetNamesFile != "" {
+		if err := runAssetNames(root, *assetNamesFile); err != nil {
+			fail(err)
+		}
+		return
 	}
 	if *extract {
 		if *googleDir == "" || *betaDir == "" || *schemaFile == "" {
@@ -117,7 +132,11 @@ func runGenerate(root string) error {
 	if err != nil {
 		return err
 	}
-	out, err := Generate(ev, facts)
+	names, err := loadAssetNames(root)
+	if err != nil {
+		return err
+	}
+	out, err := Generate(ev, facts, names)
 	if err != nil {
 		return err
 	}

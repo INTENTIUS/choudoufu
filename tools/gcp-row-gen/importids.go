@@ -56,6 +56,7 @@ type ImportIDCounts struct {
 	Labelled, AsIs, Rewritten, Unknown           int
 	GoogleLabelled, GoogleAsIs, GoogleRewritten  int
 	GoogleUnknown                                int
+	Documented, GoogleDocumented                 int
 	Composite, Composed, CompositeRefused        int
 	CompositeLabelled, CompositeLabelledComposed int
 }
@@ -135,8 +136,9 @@ func samePlaceholderSet(a, b string) bool {
 // Magic Modules computes when it records none (api/resource.go's
 // GetCaiAssetNameTemplate at the commit that generated the pin):
 // "//<api_service_name>/<id format>". A handwritten type with no recorded
-// format has no Asset name in the source, and is unknown.
-func decideAsset(t string, sources map[string]Source, facts map[string]TypeFacts) AssetDecision {
+// format has no Asset name in the source, and takes the one Google
+// documents for its asset type instead ([decideDocumented]).
+func decideAsset(t string, sources map[string]Source, facts map[string]TypeFacts, names AssetNames) AssetDecision {
 	d := AssetDecision{Type: t, Verdict: AssetUnknown}
 	src, ok := sameSource(sources, facts)
 	if !ok {
@@ -153,8 +155,7 @@ func decideAsset(t string, sources map[string]Source, facts map[string]TypeFacts
 	case src.Generation == "mmv1" && src.APIService != "" && src.IDFormat != "":
 		asset = "//" + src.APIService + "/" + src.IDFormat
 	default:
-		d.Reason = "the provider source states no Asset name format for this type"
-		return d
+		return decideDocumented(d, src, names)
 	}
 	rest, ok := strings.CutPrefix(asset, "//")
 	host, path, ok2 := strings.Cut(rest, "/")
@@ -267,18 +268,28 @@ func requiredCount(id map[string]string) int {
 }
 
 // deriveImportIDs runs both decisions over every type.
-func deriveImportIDs(ev Evidence, byType map[string]map[string]TypeFacts, decisions []Decision) ([]AssetDecision, []CompositeDecision, ImportIDCounts) {
+func deriveImportIDs(ev Evidence, names AssetNames, byType map[string]map[string]TypeFacts, decisions []Decision) ([]AssetDecision, []CompositeDecision, ImportIDCounts, error) {
 	var assets []AssetDecision
 	var composites []CompositeDecision
 	var c ImportIDCounts
+	undocumented := map[string]Source{}
 	for _, d := range decisions {
 		inGoogle := containsStr(d.Providers, ProviderGoogle)
 		if d.Labels {
-			a := decideAsset(d.Type, ev.Types[d.Type], byType[d.Type])
+			if src, ok := sameSource(ev.Types[d.Type], byType[d.Type]); ok && len(src.CAINameFormats) == 0 && (src.Generation != "mmv1" || src.APIService == "" || src.IDFormat == "") {
+				undocumented[d.Type] = src
+			}
+			a := decideAsset(d.Type, ev.Types[d.Type], byType[d.Type], names)
 			assets = append(assets, a)
 			c.Labelled++
 			if inGoogle {
 				c.GoogleLabelled++
+			}
+			if a.Row.Documented {
+				c.Documented++
+				if inGoogle {
+					c.GoogleDocumented++
+				}
 			}
 			switch a.Verdict {
 			case AssetAsIs:
@@ -319,10 +330,13 @@ func deriveImportIDs(ev Evidence, byType map[string]map[string]TypeFacts, decisi
 			c.CompositeRefused++
 		}
 	}
-	return assets, composites, c
+	if err := checkDocumentedAssets(undocumented, names); err != nil {
+		return nil, nil, ImportIDCounts{}, err
+	}
+	return assets, composites, c, nil
 }
 
-func renderImportIDs(assets []AssetDecision, composites []CompositeDecision, c ImportIDCounts) ([]byte, error) {
+func renderImportIDs(assets []AssetDecision, composites []CompositeDecision, c ImportIDCounts, names AssetNames) ([]byte, error) {
 	var b bytes.Buffer
 	b.WriteString(`// Copyright (c) The OpenTofu Authors
 // SPDX-License-Identifier: MPL-2.0
@@ -342,17 +356,28 @@ package identity
 // rewritten into another accepted form (%d), and %d are unknown (%d) and
 // have no row: a hit of one is refused by name, never imported with a
 // guessed ID.
+//
+// The provider source states no Asset name for a handwritten type, and
+// %d rows (%d) take the name Google documents for the type's asset type
+// instead, marked Documented. The page is
+// %s
+// (last updated %s), read into %s.
 var GoogleAssetImports = map[string]GoogleAssetImport{
-`, ProviderVersion, c.Labelled, c.GoogleLabelled, c.AsIs, c.GoogleAsIs, c.Rewritten, c.GoogleRewritten, c.Unknown, c.GoogleUnknown)
+`, ProviderVersion, c.Labelled, c.GoogleLabelled, c.AsIs, c.GoogleAsIs, c.Rewritten, c.GoogleRewritten, c.Unknown, c.GoogleUnknown,
+		c.Documented, c.GoogleDocumented, names.Source, names.LastUpdated, AssetNamesJSONRel)
 	for _, a := range assets {
 		if a.Verdict == AssetUnknown {
 			continue
 		}
-		fmt.Fprintf(&b, "\t%q: {Host: %q, Asset: %q, Import: GoogleImportFormat%s},\n", a.Type, a.Row.Host, a.Row.Asset, renderFormat(a.Row.Import))
+		documented := ""
+		if a.Row.Documented {
+			documented = ", Documented: true"
+		}
+		fmt.Fprintf(&b, "\t%q: {Host: %q, Asset: %q, Import: GoogleImportFormat%s%s},\n", a.Type, a.Row.Host, a.Row.Asset, renderFormat(a.Row.Import), documented)
 	}
 	b.WriteString("}\n\n")
 
-	b.WriteString("// GoogleAssetUnknown is every labelled type with no [GoogleAssetImports]\n// row, and why the source at the pin does not give one.\n")
+	b.WriteString("// GoogleAssetUnknown is every labelled type with no [GoogleAssetImports]\n// row, and why neither the source at the pin nor Google's asset names page\n// gives one.\n")
 	b.WriteString("var GoogleAssetUnknown = map[string]string{\n")
 	for _, a := range assets {
 		if a.Verdict == AssetUnknown {

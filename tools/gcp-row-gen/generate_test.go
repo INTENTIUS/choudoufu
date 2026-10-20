@@ -28,12 +28,25 @@ func loadForTest(t *testing.T) (string, Evidence, Facts) {
 	return root, ev, facts
 }
 
+func loadNamesForTest(t *testing.T) AssetNames {
+	t.Helper()
+	root, err := repoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	names, err := loadAssetNames(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return names
+}
+
 // TestGeneratedFilesAreCurrent regenerates the table and the survey from
 // the committed evidence and requires both to match what is committed.
 // Regenerate with `go run ./tools/gcp-row-gen`.
 func TestGeneratedFilesAreCurrent(t *testing.T) {
 	root, ev, facts := loadForTest(t)
-	out, err := Generate(ev, facts)
+	out, err := Generate(ev, facts, loadNamesForTest(t))
 	if err != nil {
 		t.Fatal(err)
 	}

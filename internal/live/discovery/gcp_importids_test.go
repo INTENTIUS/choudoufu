@@ -148,13 +148,30 @@ func TestGCPClaimantImportIDs(t *testing.T) {
 		t.Errorf("a disk hit with the wrong host was given %q", c.importID)
 	}
 
-	// The provider source at the pin states no Asset name for a bucket,
-	// so a bucket hit is refused by name at binding, whichever form the
-	// index spells it in.
-	if _, ok := identity.GoogleAssetUnknown["google_storage_bucket"]; !ok {
-		t.Fatal("google_storage_bucket is not in identity.GoogleAssetUnknown")
+	// A compute instance's source states no Asset name; Google documents
+	// //compute.googleapis.com/projects/PROJECT_ID/zones/ZONE/instances/INSTANCE,
+	// which is its importer's first form.
+	vm := gcpClaimant(hit("compute.googleapis.com/Instance", "//compute.googleapis.com/projects/p/zones/us-east1-b/instances/web"), "google_compute_instance", "addr", "addr")
+	if vm.noIdentity || vm.importID != "projects/p/zones/us-east1-b/instances/web" {
+		t.Errorf("compute instance claimant = %q (noIdentity %v); want its documented Asset path as it is", vm.importID, vm.noIdentity)
 	}
-	for _, name := range []string{"//storage.googleapis.com/logs", "//storage.googleapis.com/projects/_/buckets/logs"} {
+
+	// Nor does a bucket's; Google documents //storage.googleapis.com/BUCKET,
+	// and the bucket importer reads a one-part ID as the bucket's name.
+	bucket := gcpClaimant(hit("storage.googleapis.com/Bucket", "//storage.googleapis.com/logs"), "google_storage_bucket", "addr", "addr")
+	if bucket.noIdentity || bucket.importID != "logs" {
+		t.Errorf("bucket claimant = %q (noIdentity %v); want the bucket name logs", bucket.importID, bucket.noIdentity)
+	}
+
+	// Any other spelling of a bucket is refused by name at binding. The
+	// JSON API's projects/_/buckets/logs would reach the importer as project
+	// "projects" and bucket "_", so it is not read as a bucket at all.
+	for _, name := range []string{
+		"//storage.googleapis.com/projects/_/buckets/logs",
+		"//storage.googleapis.com/",
+		"storage.googleapis.com/logs",
+		"//compute.googleapis.com/logs",
+	} {
 		bucket := gcpClaimant(hit("storage.googleapis.com/Bucket", name), "google_storage_bucket", "addr", "addr")
 		if !bucket.noIdentity || bucket.importID != "" {
 			t.Errorf("bucket hit %s gave import ID %q; want it refused", name, bucket.importID)
@@ -163,7 +180,7 @@ func TestGCPClaimantImportIDs(t *testing.T) {
 		res := &Result{}
 		diag, refused := bindClaimant(res, map[string]Binding{}, "google_storage_bucket", "addr", mustAddr(t, "google_storage_bucket.logs"), bucket)
 		if !refused || diag.Description().Summary != problemSummaries[ProblemNoIdentity] ||
-			!strings.Contains(diag.Description().Detail, "no Asset name format") || len(res.Bindings) != 0 {
+			!strings.Contains(diag.Description().Detail, "is not of the form //storage.googleapis.com/{{bucket}}") || len(res.Bindings) != 0 {
 			t.Errorf("bucket hit %s bound or was refused without saying why: %v", name, diag)
 		}
 	}

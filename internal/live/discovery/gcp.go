@@ -269,7 +269,8 @@ func gcpDeclaredHit(ctx context.Context, req Request, decl *declared, res *Resul
 	if claim.importID == "" {
 		// Nothing here imports the object, so the asset's own path names it
 		// in a warning when no import form is known (an unlabelled type, or
-		// one the provider source states no Asset name for).
+		// one neither the provider source nor Google's asset names page gives
+		// an import form for).
 		claim.importID = claim.resourcePath
 	}
 	switch want, verdict := decl.displacedFrom(ctx, typeName, escaped, claim); verdict {
@@ -357,6 +358,12 @@ func (d gcpDemand) unsearched(decl *declared, res *Result, why string) tfdiags.D
 // the row's host and shape, gives no import id, and the claimant is
 // refused by name at binding ([ProblemNoIdentity]) rather than imported
 // with a guess.
+//
+// The name is the one Google documents for the asset type at
+// https://docs.cloud.google.com/asset-inventory/docs/asset-names (last
+// updated 2026-10-19), and only that spelling is read: a bucket is
+// //storage.googleapis.com/<name>, never projects/_/buckets/<name>, which is
+// the Cloud Storage JSON API's and IAM's form.
 func gcpClaimant(a gcpsweep.Asset, typeName, address, escaped string) claimant {
 	importID, ok := identity.GoogleAssetImportID(typeName, a.Name)
 	c := claimant{
@@ -374,8 +381,8 @@ func gcpClaimant(a gcpsweep.Asset, typeName, address, escaped string) claimant {
 		why, unknown := identity.GoogleAssetUnknown[typeName]
 		if !unknown {
 			why = "the provider source at the pin gives no import form for it"
-			if _, rowed := identity.GoogleAssetImports[typeName]; rowed {
-				why = fmt.Sprintf("its name does not have the shape tools/gcp-row-gen read for %s", typeName)
+			if row, rowed := identity.GoogleAssetImports[typeName]; rowed {
+				why = fmt.Sprintf("its name is not of the form //%s/%s that tools/gcp-row-gen read for %s", row.Host, row.Asset, typeName)
 			}
 		}
 		c.noIdentityDetail = fmt.Sprintf("The Cloud Asset Inventory hit %s carries the label for %s, and no import ID can be made from its name: %s. It is refused rather than imported with a guessed ID.", a.Name, address, why)
