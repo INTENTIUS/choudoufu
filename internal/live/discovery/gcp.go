@@ -189,7 +189,7 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 			}
 			address := a.Labels[markers.TagAddress]
 			if entry, ok := demand.entries[address]; ok {
-				entry.addClaimant(gcpClaimant(a, address, entry.escaped))
+				entry.addClaimant(gcpClaimant(a, entry.res.Type(), address, entry.escaped))
 				continue
 			}
 			if addr, isDeclared := declared.instances[address]; isDeclared {
@@ -233,7 +233,7 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 		for _, a := range hits {
 			address := a.Labels[markers.TagAddress]
 			if slotted {
-				cb.extra = append(cb.extra, gcpClaimant(a, address, address))
+				cb.extra = append(cb.extra, gcpClaimant(a, cb.resource.Type, address, address))
 				continue
 			}
 			fileOrphan(a, address, gcpStaleInstanceWithheld(address, cb.addr))
@@ -342,14 +342,18 @@ func (d gcpDemand) unsearched(decl *declared, res *Result, why string) tfdiags.D
 	return diags
 }
 
-// gcpClaimant is one hit as a claimant of a declared instance. Its import
-// id is the asset's full resource name without the service host
-// ("//pubsub.googleapis.com/projects/p/topics/t" is "projects/p/topics/t"),
-// the projects/... form hashicorp/google's importers accept. An inference
-// from the provider's import formats, not measured on every type.
-func gcpClaimant(a gcpsweep.Asset, address, escaped string) claimant {
-	importID := gcpImportID(a.Name)
-	return claimant{
+// gcpClaimant is one hit as a claimant of a declared instance of typeName.
+// Its import id is what [identity.GoogleAssetImportID] makes of the
+// asset's full resource name by the generated table
+// (INTENTIUS/choudoufu#2139 item 7): the path as it is where the type's
+// importer accepts it, or its parts put into a form the importer does
+// accept. A type the table has no row for, or a name that does not have
+// the row's host and shape, gives no import id, and the claimant is
+// refused by name at binding ([ProblemNoIdentity]) rather than imported
+// with a guess.
+func gcpClaimant(a gcpsweep.Asset, typeName, address, escaped string) claimant {
+	importID, ok := identity.GoogleAssetImportID(typeName, a.Name)
+	c := claimant{
 		importID:     importID,
 		identityAttr: "id",
 		displayName:  a.AssetType + " " + a.Name,
@@ -357,13 +361,25 @@ func gcpClaimant(a gcpsweep.Asset, address, escaped string) claimant {
 		escaped:      escaped,
 		slot:         a.Labels[markers.TagSlot],
 		tags:         a.Labels,
-		noIdentity:   importID == "",
-		resourcePath: importID,
+		noIdentity:   !ok,
+		resourcePath: gcpImportID(a.Name),
 	}
+	if !ok {
+		why, unknown := identity.GoogleAssetUnknown[typeName]
+		if !unknown {
+			why = "the provider source at the pin gives no import form for it"
+			if _, rowed := identity.GoogleAssetImports[typeName]; rowed {
+				why = fmt.Sprintf("its name does not have the shape tools/gcp-row-gen read for %s", typeName)
+			}
+		}
+		c.noIdentityDetail = fmt.Sprintf("The Cloud Asset Inventory hit %s carries the label for %s, and no import ID can be made from its name: %s. It is refused rather than imported with a guessed ID.", a.Name, address, why)
+	}
+	return c
 }
 
 // gcpImportID is an asset's full resource name without its leading
-// "//host/".
+// "//host/": the path [gcpPathMismatch] compares an identity's values with.
+// It is not an import ID; [identity.GoogleAssetImportID] makes that.
 func gcpImportID(name string) string {
 	rest, ok := strings.CutPrefix(name, "//")
 	if !ok {

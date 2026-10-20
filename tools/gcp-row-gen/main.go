@@ -24,7 +24,9 @@
 //	go run ./tools/gcp-row-gen
 //
 // reads only those two committed artifacts and writes
-// internal/live/identity/table_generated_google.go and live/gcp-survey.json.
+// internal/live/identity/table_generated_google.go, live/gcp-survey.json
+// and internal/live/identity/importids_generated_google.go (the import-ID
+// forms of Asset hits and of composite records, importids.go).
 // The test TestGeneratedFilesAreCurrent runs the same derivation and fails
 // when either committed output has drifted from it.
 //
@@ -127,5 +129,9 @@ func runGenerate(root string) error {
 	c := out.Survey.Counts
 	fmt.Printf("%s: %d types; %d rowed (%d server-assigned), %d markerless, %d identity-schema routed, %d refused\n",
 		SurveyJSONRel, c.Types, c.Rowed, c.ServerAssigned, c.Markerless, c.SchemaRouted, c.Refused)
+	ic := out.ImportCounts
+	fmt.Printf("%s: %d labelled types (%d hashicorp/google): %d as-is (%d), %d rewritten (%d), %d unknown (%d); %d composite types (%d labelled): %d compose (%d labelled), %d refused\n",
+		ImportIDsGoRel, ic.Labelled, ic.GoogleLabelled, ic.AsIs, ic.GoogleAsIs, ic.Rewritten, ic.GoogleRewritten, ic.Unknown, ic.GoogleUnknown,
+		ic.Composite, ic.CompositeLabelled, ic.Composed, ic.CompositeLabelledComposed, ic.CompositeRefused)
 	return nil
 }

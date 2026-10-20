@@ -768,10 +768,14 @@ exception is a slotted member of a declared `count` set past its count: the
 slot says which member it is, so a scale-down removes it as on AWS.
 
 The sweep is also how an instance whose identity the server assigns is
-found. Its address label binds it, and its import id is the asset's full
-resource name without the service host (`projects/p/keys/k`). The index
-lags creates, so an object created moments ago can be missing; an estate
-with a record store finds it by its record first.
+found. Its address label binds it, and its import id comes from a table
+`tools/gcp-row-gen` writes from the provider source at the pin
+(`internal/live/identity/importids_generated_google.go`): the asset's path
+as it is where the type's importer accepts it, or its parts moved into a
+form the importer does accept. A type the source gives no form for, such
+as `google_storage_bucket`, is refused by name rather than imported with a
+guessed id. The index lags creates, so an object created moments ago can be
+missing; an estate with a record store finds it by its record first.
 
 ### Why GCP carries `tofu-slot`
 

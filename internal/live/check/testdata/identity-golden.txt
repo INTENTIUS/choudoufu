@@ -16,7 +16,7 @@
 # shape: class RECORD_BACKED=27
 # shape: fixture-dirs=676 fixture-instances=1750
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=fbcda4ee45935948d60f3f992dc53afa00b09c02f904937054897f990478e0da
+# shape: body-sha256=9efc1a50246964e583304a268381e25abdcfba008e14851b15c1991a5fdca2ab
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -117,9 +117,9 @@ internal/live/discovery/testdata/estate-names/child	aws_vpc.child	NEEDS_DISCOVER
 internal/live/discovery/testdata/estate-names/child	module.grandchild.aws_vpc.grandchild	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/estate-names/child/grandchild	aws_vpc.grandchild	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/foreach-legacy-key	aws_subnet.this["at@sign"]	NEEDS_DISCOVERY		
-internal/live/discovery/testdata/gcp-count-slots	google_recaptcha_enterprise_key.keys[0]	NEEDS_DISCOVERY		
-internal/live/discovery/testdata/gcp-count-slots	google_recaptcha_enterprise_key.keys[1]	NEEDS_DISCOVERY		
-internal/live/discovery/testdata/gcp-count-slots	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/gcp-count-slots	google_vertex_ai_index_endpoint.keys[0]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/gcp-count-slots	google_vertex_ai_index_endpoint.keys[1]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/gcp-count-slots	google_vertex_ai_index_endpoint.site	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read	aws_iam_policy.team_0002_policy	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read-count	aws_iam_policy.team_policy[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read-count	aws_iam_policy.team_policy[1]	NEEDS_DISCOVERY		

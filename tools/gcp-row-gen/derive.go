@@ -508,6 +508,9 @@ func sameIdentitySource(a, b Source) bool {
 	a.File, b.File = "", ""
 	a.Generation, b.Generation = "", ""
 	a.ImportFormats, b.ImportFormats = nil, nil
+	a.APIService, b.APIService = "", ""
+	a.CAINameFormats, b.CAINameFormats = nil, nil
+	a.DocImportFormats, b.DocImportFormats = nil, nil
 	return reflect.DeepEqual(a, b)
 }
 

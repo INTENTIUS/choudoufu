@@ -205,3 +205,17 @@ func summaryIsAProblemKind(summary string) bool {
 	_, ok := problemKindForSummary(summary)
 	return ok
 }
+
+// TestUncomposableRecordIsAnError pins INTENTIUS/choudoufu#2139 item 3's
+// refusal: a removed google block whose record cannot be composed into an
+// import ID stops the plan, as the record leg's other refusals of a removal
+// it cannot propose do, rather than leave the object live as a warning.
+func TestUncomposableRecordIsAnError(t *testing.T) {
+	summary := problemSummaries[ProblemUncomposableRecord]
+	if _, ok := LookupRefusal(summary); !ok {
+		t.Fatalf("%q is not in the refusal registry", summary)
+	}
+	if got := SeverityForRefusal(summary); got != SeverityError {
+		t.Fatalf("SeverityForRefusal(%q) = %v, want %v", summary, got, SeverityError)
+	}
+}

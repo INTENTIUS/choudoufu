@@ -247,6 +247,10 @@ var refusals = []Refusal{
 		What:    "A resource block was removed, and the record its instance left (the record-orphan-read leg, issue #364) names the provider configuration that managed it, which no pass of this run reads through - an alias renamed or removed in a root with several configurations of one provider (GitHub issue #1721). Its removal is read only through that configuration, because reading the identity through another region or account could reach a different object of the same name. Declaring the configuration again lets the plan destroy it.",
 	},
 	{
+		Summary: "Removed resource's record has no import ID to destroy it by",
+		What:    "INTENTIUS/choudoufu#2139 item 3: a resource block was removed, and the record its instance left holds the identity as its identity schema's attributes with no import ID. The type has no identity-table row, and the provider source at the pin states no import format made of those attributes (or the record lacks one the format needs), so there is nothing to read or destroy the object by. The plan refuses, naming the type, rather than drop the record and leave the object live. Importing the object to a declared block, or destroying it by hand and deleting the record, clears it.",
+	},
+	{
 		Summary: "Resolved resource missing from the configuration",
 		What:    "Discovery was asked to find a resource the configuration it was given does not declare. The resolutions and the configuration came from different runs; a bug in whatever assembled them, not in the configuration.",
 	},

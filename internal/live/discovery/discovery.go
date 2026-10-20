@@ -1078,6 +1078,12 @@ type claimant struct {
 	// (GitHub issue #2134 item 13, the GCP side of #2136). Empty for every
 	// other source.
 	resourcePath string
+
+	// noIdentityDetail, when set, is why a noIdentity claimant has no
+	// import ID, said by the source that knows: a GCP Asset hit whose type
+	// has no accepted import form (INTENTIUS/choudoufu#2139 item 7). The
+	// binding refusal uses it in place of its list-call wording.
+	noIdentityDetail string
 }
 
 // displayID is how a claimant is named in a message: its live identity, or a
@@ -4759,14 +4765,18 @@ func quotedList(vals []string) string {
 // Binding was recorded; diag is only meaningful when it is true.
 func bindClaimant(res *Result, bound map[string]Binding, typeName, escaped string, addr addrs.AbsResourceInstance, c claimant) (diag tfdiags.Diagnostic, hasProblem bool) {
 	if c.noIdentity {
+		detail := c.noIdentityDetail
+		if detail == "" {
+			detail = fmt.Sprintf(
+				"The live %s carrying the marker for %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The identity this type is looked up by (%s) was not among the attributes the list call returned. A provider that serves no identity at all cannot be discovered by marker; one that serves a different set is issue #105.",
+				typeName, addr, identityAttrNames(typeName))
+		}
 		return problemDiag(res, Problem{
 			Kind:     ProblemNoIdentity,
 			TypeName: typeName,
 			Addr:     addr,
 			Marker:   escaped,
-			Detail: fmt.Sprintf(
-				"The live %s carrying the marker for %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The identity this type is looked up by (%s) was not among the attributes the list call returned. A provider that serves no identity at all cannot be discovered by marker; one that serves a different set is issue #105.",
-				typeName, addr, identityAttrNames(typeName)),
+			Detail:   detail,
 		}), true
 	}
 	b := Binding{
@@ -4970,4 +4980,5 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemDirectReadUnresolved:      "Direct read could not settle a tag-index-lagged instance",
 	ProblemRecordedProviderAbsent:    "Removed resource's provider configuration is gone",
 	ProblemRemovedTypeUnserved:       "No configured provider serves a removed resource's type",
+	ProblemUncomposableRecord:        "Removed resource's record has no import ID to destroy it by",
 }
