@@ -694,7 +694,7 @@ func checkManagedResources(ctx context.Context, cfg *configs.Config, path addrs.
 						"rather than by a ratification batch that has not reached it: %s. Applying a "+
 						"block of this type %s No configuration edit changes that, and no future batch "+
 						"reaches it.",
-					resource.Type, identity.MarkerlessReason, UnfindableClause,
+					resource.Type, identity.MarkerlessReasonFor(resource.Type), UnfindableClause,
 				),
 				Subject: resource.DeclRange,
 			})

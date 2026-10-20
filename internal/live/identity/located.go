@@ -135,7 +135,7 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 		// about an identity the provider will never accept back.
 		return false
 	}
-	if _, ok := MarkerlessTypes[resourceType]; !ok {
+	if !IsMarkerless(resourceType) {
 		return false
 	}
 	if _, ok := LookupType(resourceType); ok {

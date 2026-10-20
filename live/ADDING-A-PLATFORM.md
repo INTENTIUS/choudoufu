@@ -133,9 +133,12 @@ afterwards.
 
 Fixed: read from the schema or generated evidence, never a type-name list;
 `SynthesizeIdentity` is the family's answer for a type with no row. Per
-platform: the source. GCP's open question is Magic Modules rows versus a
-`name`/`project`/location rule (#1119 item 1, #1121 measurement 5), not yet
-ruled. Azure's is ruled (#1122): a `resource_group_name` + `name` rule with
+platform: the source. GCP's is ruled: rows from the provider's own source
+at the pin, which `tools/gcp-row-gen` reads (the generated
+terraform-provider-google source at the tag, not Magic Modules, because it
+also covers the handwritten and IAM types) into
+`internal/live/identity/table_generated_google.go`, with the project,
+region and zone an id format embeds taken from the provider block. Azure's is ruled (#1122): a `resource_group_name` + `name` rule with
 the ARM type from a table generated from azurerm's id parsers, and azapi
 binding by `type` + `parent_id` + `name`, the manifest mechanism.
 

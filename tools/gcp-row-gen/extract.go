@@ -1,0 +1,534 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+)
+
+// The provider source is read as text. Nothing in it is compiled, imported
+// or executed: each fact below is one regular expression over one file,
+// and a file the expression does not match contributes nothing rather than
+// a guess.
+var (
+	registryRe = regexp.MustCompile(`registry\.Schema\{\s*Name:\s*"(google_[a-z0-9_]+)",\s*ProductName:\s*"[^"]*",\s*Type:\s*registry\.(SchemaTypeResource|SchemaTypeIAMResource),`)
+
+	idFormatRe = regexp.MustCompile(`\bid, err := tpgresource\.ReplaceVars(?:ForId)?\(d, config, "([^"]+)"\)`)
+
+	// importRe is the generated importer's shape: ParseImportId over a
+	// list of regexes, then the id the imported instance is given.
+	importRe = regexp.MustCompile(`(?s)tpgresource\.ParseImportId\(\[\]string\{(.*?)\}, d, config\).*?\bid, err := tpgresource\.ReplaceVars(?:ForId)?\(d, config, "([^"]+)"\)`)
+
+	quotedRe = regexp.MustCompile(`"((?:[^"\\]|\\.)*)"`)
+
+	metaFieldRe = regexp.MustCompile(`(?m)^(resource|generation_type):\s*'?([^'\n]*)'?\s*$`)
+
+	parseFuncRe   = regexp.MustCompile(`func (\w+IdParseFunc)\(d \*schema\.ResourceData`)
+	qualifiersRe  = regexp.MustCompile(`GetImportIdQualifiers\(\[\]string\{"([^"]+)"`)
+	wholeIDSetRe  = regexp.MustCompile(`d\.Set\("([a-z0-9_]+)", d\.Id\(\)\)`)
+	namedGroupRe  = regexp.MustCompile(`\(\?P<([a-z0-9_]+)>(?:\[\^/\]\+|\.\+)\)`)
+	iamDefaultRe  = regexp.MustCompile(`tpgresource\.Get(Project|Region|Zone|Location)\(d, config\)`)
+	iamExpectedRe = regexp.MustCompile(`expected '([^']+)'`)
+
+	sprintfRe = regexp.MustCompile(`(\w+) := fmt\.Sprintf\("([^"]+)", ([\w, ]+)\)`)
+	diffGetRe = regexp.MustCompile(`(\w+) := diff\.Get\("([a-z0-9_]+)"\)\.\(string\)`)
+)
+
+// iamKinds maps an IAM type's suffix to its kind and to the framework file
+// whose own error message states the kind's import grammar. A policy's
+// importer hands the whole id to the parent's IdParseFunc
+// (iamPolicyImport in resource_iam_policy.go) and states no grammar of its
+// own, so its grammar is the parent id alone.
+var iamKinds = []struct {
+	suffix, kind, file string
+}{
+	{"_iam_member", "iam_member", "resource_iam_member.go"},
+	{"_iam_binding", "iam_binding", "resource_iam_binding.go"},
+	{"_iam_audit_config", "iam_audit_config", "resource_iam_audit_config.go"},
+	{"_iam_policy", "iam_policy", ""},
+}
+
+const iamPolicyGrammar = "resource_name"
+
+func runExtract(root, googleDir, betaDir, schemaFile string) error {
+	ev := Evidence{
+		GeneratedBy: "go run ./tools/gcp-row-gen -extract",
+		Pins:        map[string]SourcePin{},
+		Types:       map[string]map[string]Source{},
+	}
+	for _, p := range []struct{ name, dir, repo string }{
+		{ProviderGoogle, googleDir, "hashicorp/terraform-provider-google"},
+		{ProviderGoogleBeta, betaDir, "hashicorp/terraform-provider-google-beta"},
+	} {
+		pin, err := readPin(p.dir, p.repo)
+		if err != nil {
+			return err
+		}
+		ev.Pins[p.name] = pin
+		sources, err := extractSources(p.dir)
+		if err != nil {
+			return fmt.Errorf("%s: %w", p.name, err)
+		}
+		for t, s := range sources {
+			if ev.Types[t] == nil {
+				ev.Types[t] = map[string]Source{}
+			}
+			ev.Types[t][p.name] = s
+		}
+	}
+
+	facts, err := extractFacts(schemaFile)
+	if err != nil {
+		return err
+	}
+	// A type the source registers but the schema does not serve, or the
+	// reverse, is a mismatch between two artifacts of the same release, and
+	// is refused rather than half-recorded.
+	for p, pf := range facts.Providers {
+		for t := range pf.Types {
+			if _, ok := ev.Types[t][p]; !ok {
+				fmt.Fprintf(os.Stderr, "gcp-row-gen: %s serves %s but its source registers no resource by that name; recorded with no source evidence\n", p, t)
+			}
+		}
+	}
+	for t, byProv := range ev.Types {
+		for p := range byProv {
+			if _, ok := facts.Providers[p].Types[t]; !ok {
+				return fmt.Errorf("%s's source registers %s, which its schema does not serve", p, t)
+			}
+		}
+	}
+
+	evData, err := marshalEvidence(ev)
+	if err != nil {
+		return err
+	}
+	factsData, err := marshalFacts(facts)
+	if err != nil {
+		return err
+	}
+	for rel, data := range map[string][]byte{EvidenceJSONRel: evData, FactsJSONRel: factsData} {
+		if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(rel)), data, 0o644); err != nil { //nolint:gosec // committed artifacts
+			return fmt.Errorf("writing %s: %w", rel, err)
+		}
+		fmt.Printf("%s: %d bytes\n", rel, len(data))
+	}
+	return nil
+}
+
+// readPin reads the checkout's HEAD and refuses it unless the v<ProviderVersion>
+// tag names that same commit. The version is not in the source tree (the
+// release build sets it), so the tag is the only statement of it.
+func readPin(dir, repo string) (SourcePin, error) {
+	head, err := os.ReadFile(filepath.Join(dir, ".git", "HEAD"))
+	if err != nil {
+		return SourcePin{}, fmt.Errorf("reading %s's HEAD: %w", repo, err)
+	}
+	commit := strings.TrimSpace(string(head))
+	if strings.HasPrefix(commit, "ref:") {
+		return SourcePin{}, fmt.Errorf("%s is on a branch (%s); check out the v%s tag", repo, commit, ProviderVersion)
+	}
+	tag := "v" + ProviderVersion
+	tagged := ""
+	if data, err := os.ReadFile(filepath.Join(dir, ".git", "refs", "tags", tag)); err == nil {
+		tagged = strings.TrimSpace(string(data))
+	} else if data, err := os.ReadFile(filepath.Join(dir, ".git", "packed-refs")); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			if f := strings.Fields(line); len(f) == 2 && f[1] == "refs/tags/"+tag {
+				tagged = f[0]
+			}
+		}
+	}
+	if tagged != commit {
+		return SourcePin{}, fmt.Errorf("%s's HEAD %s is not the %s tag (%q)", repo, commit, tag, tagged)
+	}
+	return SourcePin{Repository: repo, Tag: tag, Commit: commit}, nil
+}
+
+// sourceRoot is the provider package directory: google/ in
+// terraform-provider-google, google-beta/ in -google-beta.
+func sourceRoot(dir string) string {
+	if fi, err := os.Stat(filepath.Join(dir, "google-beta")); err == nil && fi.IsDir() {
+		return filepath.Join(dir, "google-beta")
+	}
+	return filepath.Join(dir, "google")
+}
+
+// extractSources reads every resource type one provider checkout registers.
+func extractSources(dir string) (map[string]Source, error) {
+	grammar, err := iamGrammars(dir)
+	if err != nil {
+		return nil, err
+	}
+	meta, err := metaFiles(dir)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]Source{}
+	services := filepath.Join(sourceRoot(dir), "services")
+	err = filepath.WalkDir(services, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		text := string(data)
+		rel, _ := filepath.Rel(dir, path)
+		rel = filepath.ToSlash(rel)
+		for _, m := range registryRe.FindAllStringSubmatch(text, -1) {
+			typeName, regType := m[1], m[2]
+			if _, dup := out[typeName]; dup {
+				return fmt.Errorf("%s is registered twice (again in %s)", typeName, rel)
+			}
+			var s Source
+			if regType == "SchemaTypeIAMResource" {
+				s = iamSource(typeName, text, grammar)
+			} else {
+				s = resourceSource(text)
+				s.Generation = meta[typeName]
+			}
+			s.File = rel
+			out[typeName] = s
+		}
+		return nil
+	})
+	return out, err
+}
+
+// resourceSource reads one resource file.
+func resourceSource(text string) Source {
+	s := Source{Kind: "resource"}
+	if m := idFormatRe.FindStringSubmatch(text); m != nil {
+		s.IDFormat = m[1]
+	}
+	if m := importRe.FindStringSubmatch(text); m != nil {
+		for _, q := range quotedRe.FindAllStringSubmatch(m[1], -1) {
+			s.ImportFormats = append(s.ImportFormats, q[1])
+		}
+		s.ImportIDFormat = m[2]
+	}
+	for _, name := range placeholders(s.IDFormat) {
+		if v, ok := schemaDefault(text, name); ok {
+			if s.Defaults == nil {
+				s.Defaults = map[string]string{}
+			}
+			s.Defaults[name] = v
+		}
+		if tmpl, ok := customizeDiffDerivation(text, name); ok {
+			if s.Derived == nil {
+				s.Derived = map[string]string{}
+			}
+			s.Derived[name] = tmpl
+		}
+	}
+	return s
+}
+
+// schemaDefault reads the string Default the file's schema map declares for
+// a top-level argument: a `"name": {` field opening, up to the closing brace
+// at the same indentation. The identity schema's own field of the same name
+// (RequiredForImport or OptionalForImport) is skipped.
+func schemaDefault(text, name string) (string, bool) {
+	open := regexp.MustCompile(`\n(\t+)"` + regexp.QuoteMeta(name) + `": \{\n`)
+	for _, loc := range open.FindAllStringSubmatchIndex(text, -1) {
+		indent := text[loc[2]:loc[3]]
+		rest := text[loc[1]:]
+		end := strings.Index(rest, "\n"+indent+"},")
+		if end < 0 {
+			continue
+		}
+		field := rest[:end]
+		if strings.Contains(field, "ForImport:") {
+			continue
+		}
+		m := regexp.MustCompile(`\n` + indent + `\tDefault:\s*"([^"]*)",`).FindStringSubmatch("\n" + field)
+		if m == nil {
+			return "", false
+		}
+		return m[1], true
+	}
+	return "", false
+}
+
+// customizeDiffDerivation recognises a computed attribute the provider's own
+// CustomizeDiff sets from configuration arguments alone:
+//
+//	aid := diff.Get("account_id").(string)
+//	proj := diff.Get("project").(string)
+//	email := fmt.Sprintf("%s@%s.iam.gserviceaccount.com", aid, proj)
+//	diff.SetNew("email", email)
+//
+// and returns the template it computes, "{{account_id}}@{{project}}.iam.gserviceaccount.com".
+// Any other shape - a verb other than %s, an argument read some other way -
+// is not recognised.
+func customizeDiffDerivation(text, name string) (string, bool) {
+	set := regexp.MustCompile(`diff\.SetNew\("` + regexp.QuoteMeta(name) + `", (\w+)\)`).FindStringSubmatch(text)
+	if set == nil {
+		return "", false
+	}
+	gets := map[string]string{}
+	for _, g := range diffGetRe.FindAllStringSubmatch(text, -1) {
+		gets[g[1]] = g[2]
+	}
+	for _, m := range sprintfRe.FindAllStringSubmatch(text, -1) {
+		if m[1] != set[1] {
+			continue
+		}
+		format := m[2]
+		args := strings.Split(m[3], ",")
+		if strings.Count(format, "%") != len(args) || strings.Count(format, "%s") != len(args) {
+			return "", false
+		}
+		out := format
+		for _, a := range args {
+			attr, ok := gets[strings.TrimSpace(a)]
+			if !ok {
+				return "", false
+			}
+			out = strings.Replace(out, "%s", "{{"+attr+"}}", 1)
+		}
+		return out, true
+	}
+	return "", false
+}
+
+// iamSource reads one IAM type: its kind, its grammar, and its parent id.
+func iamSource(typeName, text string, grammar map[string]string) Source {
+	s := Source{}
+	for _, k := range iamKinds {
+		if strings.HasSuffix(typeName, k.suffix) {
+			s.Kind = k.kind
+			s.IAMGrammar = grammar[k.kind]
+			break
+		}
+	}
+	seen := map[string]bool{}
+	for _, m := range iamDefaultRe.FindAllStringSubmatch(text, -1) {
+		name := strings.ToLower(m[1])
+		if !seen[name] {
+			seen[name] = true
+			s.IAMDefaults = append(s.IAMDefaults, name)
+		}
+	}
+	sort.Strings(s.IAMDefaults)
+	funcs := parseFuncRe.FindAllStringSubmatchIndex(text, -1)
+	if len(funcs) != 1 {
+		// No parse function, or several in one file: which one this type
+		// uses is not a regex question.
+		return s
+	}
+	body := text[funcs[0][0]:]
+	if end := strings.Index(body, "\n}\n"); end >= 0 {
+		body = body[:end]
+	}
+	switch {
+	case qualifiersRe.MatchString(body):
+		if tmpl, ok := regexToTemplate(qualifiersRe.FindStringSubmatch(body)[1]); ok {
+			s.IAMParent = tmpl
+		}
+	case wholeIDSetRe.MatchString(body):
+		s.IAMParent = "{{" + wholeIDSetRe.FindStringSubmatch(body)[1] + "}}"
+	}
+	return s
+}
+
+// regexToTemplate turns an importer regex made only of literal segments and
+// `(?P<name>[^/]+)` groups into the id template it parses. Anything else in
+// the regex is refused.
+func regexToTemplate(re string) (string, bool) {
+	re = strings.TrimSuffix(strings.TrimPrefix(re, "^"), "$")
+	out := namedGroupRe.ReplaceAllString(re, "{{$1}}")
+	if strings.ContainsAny(namedGroupRe.ReplaceAllString(re, ""), `()[]?*+|^$\`) {
+		return "", false
+	}
+	return out, true
+}
+
+// iamGrammars reads the IAM framework's grammar per kind from the error
+// message each importer raises on a malformed id.
+func iamGrammars(dir string) (map[string]string, error) {
+	out := map[string]string{"iam_policy": iamPolicyGrammar}
+	for _, k := range iamKinds {
+		if k.file == "" {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(sourceRoot(dir), "tpgiamresource", k.file))
+		if err != nil {
+			return nil, err
+		}
+		m := iamExpectedRe.FindStringSubmatch(string(data))
+		if m == nil {
+			return nil, fmt.Errorf("%s states no import grammar", k.file)
+		}
+		out[k.kind] = m[1]
+	}
+	return out, nil
+}
+
+// metaFiles maps each type to the generation_type its *_meta.yaml records.
+func metaFiles(dir string) (map[string]string, error) {
+	out := map[string]string{}
+	err := filepath.WalkDir(sourceRoot(dir), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, "_meta.yaml") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		fields := map[string]string{}
+		for _, m := range metaFieldRe.FindAllStringSubmatch(string(data), -1) {
+			fields[m[1]] = strings.TrimSpace(m[2])
+		}
+		if r := fields["resource"]; r != "" {
+			out[r] = fields["generation_type"]
+		}
+		return nil
+	})
+	return out, err
+}
+
+// placeholderRe is one ReplaceVars variable. A leading % (path-escaped) is
+// kept apart from the name.
+var placeholderRe = regexp.MustCompile(`\{\{(%?)([a-zA-Z0-9_]+)\}\}`)
+
+func placeholders(tmpl string) []string {
+	var out []string
+	for _, m := range placeholderRe.FindAllStringSubmatch(tmpl, -1) {
+		out = append(out, m[2])
+	}
+	return out
+}
+
+// schemaDump is the subset of `providers schema -json` read here.
+type schemaDump struct {
+	ProviderSchemas map[string]struct {
+		ResourceSchemas map[string]struct {
+			Block jsonBlock `json:"block"`
+		} `json:"resource_schemas"`
+		ResourceIdentitySchemas map[string]struct {
+			Attributes map[string]struct {
+				RequiredForImport bool `json:"required_for_import"`
+				OptionalForImport bool `json:"optional_for_import"`
+			} `json:"attributes"`
+		} `json:"resource_identity_schemas"`
+	} `json:"provider_schemas"`
+}
+
+type jsonAttr struct {
+	Required   bool `json:"required"`
+	Optional   bool `json:"optional"`
+	Computed   bool `json:"computed"`
+	NestedType *struct {
+		Attributes map[string]jsonAttr `json:"attributes"`
+	} `json:"nested_type"`
+}
+
+type jsonBlock struct {
+	Attributes map[string]jsonAttr `json:"attributes"`
+	BlockTypes map[string]struct {
+		Block    jsonBlock `json:"block"`
+		MaxItems int       `json:"max_items"`
+	} `json:"block_types"`
+}
+
+func flags(a jsonAttr) string {
+	switch {
+	case a.Required:
+		return "R"
+	case a.Optional && a.Computed:
+		return "OC"
+	case a.Optional:
+		return "O"
+	default:
+		return "C"
+	}
+}
+
+func extractFacts(schemaFile string) (Facts, error) {
+	data, err := os.ReadFile(schemaFile)
+	if err != nil {
+		return Facts{}, err
+	}
+	var dump schemaDump
+	if err := json.Unmarshal(data, &dump); err != nil {
+		return Facts{}, fmt.Errorf("decoding %s: %w", schemaFile, err)
+	}
+	out := Facts{GeneratedBy: "go run ./tools/gcp-row-gen -extract", Providers: map[string]ProviderFacts{}}
+	for _, p := range []string{ProviderGoogle, ProviderGoogleBeta} {
+		addr := "registry.opentofu.org/hashicorp/" + p
+		ps, ok := dump.ProviderSchemas[addr]
+		if !ok {
+			return Facts{}, fmt.Errorf("%s has no schema for %s", schemaFile, addr)
+		}
+		pf := ProviderFacts{Source: "hashicorp/" + p, Version: ProviderVersion, Types: map[string]TypeFacts{}}
+		for t, rs := range ps.ResourceSchemas {
+			tf := TypeFacts{Attrs: map[string]string{}}
+			for name, a := range rs.Block.Attributes {
+				tf.Attrs[name] = flags(a)
+				if a.NestedType != nil {
+					if tf.Nested == nil {
+						tf.Nested = map[string]map[string]string{}
+					}
+					leaves := map[string]string{}
+					for ln, la := range a.NestedType.Attributes {
+						leaves[ln] = flags(la)
+					}
+					tf.Nested[name] = leaves
+				}
+			}
+			for name, bt := range rs.Block.BlockTypes {
+				if tf.Blocks == nil {
+					tf.Blocks = map[string]BlockFacts{}
+				}
+				leaves := map[string]string{}
+				for ln, la := range bt.Block.Attributes {
+					leaves[ln] = flags(la)
+				}
+				tf.Blocks[name] = BlockFacts{Attrs: leaves, MaxItems: bt.MaxItems}
+			}
+			if ids, ok := ps.ResourceIdentitySchemas[t]; ok {
+				tf.Identity = map[string]string{}
+				for name, a := range ids.Attributes {
+					if a.RequiredForImport {
+						tf.Identity[name] = "R"
+					} else {
+						tf.Identity[name] = "O"
+					}
+				}
+			}
+			pf.Types[t] = tf
+		}
+		out.Providers[p] = pf
+	}
+	return out, nil
+}
+
+// sortedProviders lists the providers a type's evidence names, in a fixed
+// order.
+func sortedProviders(byProv map[string]Source) []string {
+	out := make([]string, 0, len(byProv))
+	for p := range byProv {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
+}

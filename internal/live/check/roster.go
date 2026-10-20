@@ -204,7 +204,7 @@ func rungForType(schemas map[string]providers.Schema, providerType, resourceType
 	if resourceType == "" {
 		return ""
 	}
-	if _, markerless := identity.MarkerlessTypes[resourceType]; markerless {
+	if identity.IsMarkerless(resourceType) {
 		return RungRecordOnly
 	}
 	if schema, ok := schemas[resourceType]; ok {
