@@ -96,7 +96,7 @@ Oracle: Stock `plan` on the migrated state is also empty. Identity strings are c
 
 Break: Corrupt one expected identity string; stage 3 must fail on that string and nothing else.
 
-On the floci-az substrate: Identities are ARM resource ids, compared by value with what an ARM GET of the same object returns, case-insensitively, because ARM ids are. The plan's sweep is one Resource Graph query per subscription. floci-az serves Resource Graph since 30000b0, but its KQL subset refuses the sweep query's union, mv-expand and bag_keys, so this stage fails on that 400 InvalidQuery by name until it accepts them.
+On the floci-az substrate: Identities are ARM resource ids, compared by value with what an ARM GET of the same object returns, case-insensitively, because ARM ids are. The plan's sweep is one Resource Graph query per subscription. floci-az serves Resource Graph since 30000b0, but its KQL subset refuses the sweep query's union, mv-expand and bag_keys, so the sweep answers 400 InvalidQuery, which the plan reports as the "Azure sweep unavailable" incomplete-sweep warning and goes on without (lex00/floci-az#11). What only the sweep can find (an orphan whose block was removed with no record) is missed until floci-az accepts them.
 
 On the floci-eks substrate: AWS identities compare as on floci, Kubernetes identities as NAMESPACE/NAME against kubectl in the k3s container. The kubernetes provider is configured from the cluster this run reads live, so an empty plan is also evidence that the provider block was answered as written.
 
