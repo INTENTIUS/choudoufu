@@ -62,6 +62,63 @@
       }
     },
     {
+      "family": "google",
+      "identity": {
+        "carries_address": true,
+        "address_in_markers": true,
+        "description": "the block address is a key of the marker map itself, beside tofu-estate"
+      },
+      "surfaces": [
+        {
+          "surface": "google-labels",
+          "marker_noun": "label",
+          "carrier_phrase": "labels map",
+          "carrier_paths": [
+            "effective_labels",
+            "terraform_labels",
+            "labels"
+          ],
+          "collides_on_key": true,
+          "writes": {
+            "create": "in-create",
+            "adopt": "google-labels-plan",
+            "post_create": "never-needed"
+          },
+          "post_create_writer": "never-needed"
+        }
+      ],
+      "sweep": {
+        "kind": "asset-search",
+        "description": "a Cloud Asset Inventory client built from the provider block's own credential arguments (Substrate.NewSweeper), one search per project the estate's resources name; the index lags creates and deletes"
+      },
+      "controller_held": {
+        "recognized": true,
+        "mechanism": "a Compute Engine instance or disk carrying a label key GKE, Dataproc or Batch reserves for the VMs and disks they create, or a Cloud Run service whose goog-managed-by label names a product; never a goog- prefix, which the provider writes on everything it creates",
+        "keys": [
+          "batch-job-uid",
+          "goog-dataproc-cluster-name",
+          "goog-dataproc-cluster-uuid",
+          "goog-gke-node",
+          "goog-gke-volume",
+          "goog-k8s-cluster-name",
+          "goog-k8s-node-pool-name",
+          "goog-managed-by"
+        ]
+      },
+      "untaggable": {
+        "definition": "no definition recorded for family google",
+        "count": 0,
+        "by_tier": {}
+      },
+      "fence": "Project-scoped, restated: an IAM condition cannot match a label, so one estate per project, granted by an ordinary project IAM binding. Resource Manager tag bindings, which a condition can match, are ruled later (#1121).",
+      "harness": {
+        "name": "floci-gcp",
+        "pin_file": "live/floci-gcp-image",
+        "pin": "ghcr.io/lex00/floci-gcp@sha256:1662f974900c4c42359cc91bba06bd7d4b14936a926027b0fafa010b8f1dd93d",
+        "notes": "the lex00/floci-gcp fork's GHCR image pinned by digest; Resource Manager tags, Cloud Asset search and matchTag are still gaps on it (lex00/floci-gcp#4 to #8)."
+      }
+    },
+    {
       "family": "kubernetes",
       "identity": {
         "carries_address": true,

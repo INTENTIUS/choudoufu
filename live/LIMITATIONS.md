@@ -2658,6 +2658,8 @@ refused, and each says so in its own entry.
 | - | - | discovery | Field-granular removals deferred | warning | `internal/live/discovery` | "Field-granular removals deferred" |
 | - | - | discovery | Fields owned by this estate's field manager not proposed for removal | warning | `internal/live/discovery` | "Fields owned by this estate's field manager not proposed for removal" |
 | - | - | discovery | Force refused over another estate's field | error | `internal/live/discovery` | "Force refused over another estate's field" |
+| - | - | discovery | GCP resource carries this estate's label and no declared address | warning | `internal/live/discovery` | "GCP resource carries this estate's label and no declared address" |
+| - | - | discovery | GCP sweep incomplete | warning | `internal/live/discovery` | "GCP sweep incomplete" |
 | - | - | discovery | Incomplete sweep for undeclared resources | warning | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
 | - | - | discovery | Indistinguishable instances without per-instance markers | error | `internal/live/discovery` | "Indistinguishable instances without per-instance markers" |
 | - | - | discovery | Invalid estate name | error | `internal/live/discovery` | "Invalid estate name" |
@@ -2867,6 +2869,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Ownership marker was not stored | error | `internal/live/projection` | "Ownership marker was not stored" |
 | - | - | projection | Parent-derived identity with no formula | error | `internal/live/projection` | "Parent-derived identity with no formula" |
 | - | - | projection | Persisted record does not match the current schema | error | `internal/live/projection` | "Persisted record does not match the current schema" |
+| - | - | projection | Provider default labels not known at plan time | error | `internal/live/projection` | "Provider default labels not known at plan time" |
 | - | - | projection | Provider produced an invalid object | error | `internal/live/projection` | "Provider produced an invalid object" |
 | - | - | projection | Provider unavailable | error | `internal/live/projection` | "Provider unavailable" |
 | - | - | projection | Provisioner record could not be read | error | `internal/live/projection` | "Provisioner record could not be read" |
@@ -2891,7 +2894,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**280 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**283 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3236,6 +3239,22 @@ reserved for the limits wing's fixture directories, and
 #### Force refused over another estate's field
 
 **What.** GitHub issue #1191 and #1106 section 3: a field-granular Kubernetes block sets force = true and plans to write a field another estate's field manager, choudoufu:<other>, owns. Forcing would move the field across the estate boundary with a flag, so the plan stops with nothing applied, naming the owning estate. Force against a manager that is not an estate's keeps its ordinary meaning.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### GCP resource carries this estate's label and no declared address
+
+**What.** GitHub issue #1119: a GCP resource carries the estate's tofu-estate label and a tofu-address label the configuration does not declare. A GCP address label is matched, never decoded, so it is reported and never planned for removal here; a deleted block's record is what proposes the removal.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### GCP sweep incomplete
+
+**What.** GitHub issue #1119: the GCP leg could not search one project for the estate's label: the Cloud Asset API is not enabled there, the credential lacks cloudasset.assets.searchAllResources, a page failed part way, or no project is known. A gap in coverage, never a wrong plan.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -4740,6 +4759,14 @@ reserved for the limits wing's fixture directories, and
 #### Persisted record does not match the current schema
 
 **What.** A record in the record store was written against a different schema for its type than the installed provider now offers.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Provider default labels not known at plan time
+
+**What.** GitHub issue #1119: a hashicorp/google provider block's default_labels or add_terraform_attribution_label is not known statically, so the projection could not rebuild terraform_labels after the read, which the provider empties on a prior re-derived without a state file. Each labelled resource through that provider shows terraform_labels as a change on a cache-less plan.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

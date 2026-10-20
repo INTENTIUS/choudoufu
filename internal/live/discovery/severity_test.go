@@ -167,6 +167,13 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 			if SeverityForRefusal(r.Summary) != SeverityWarning {
 				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
 			}
+		case r.Summary == SummaryGCPSweepIncomplete, r.Summary == SummaryGCPOrphanUnaddressed:
+			// GitHub issue #1119: a project the GCP leg could not search,
+			// and an orphan it reports and never proposes removing; the
+			// plan in front of the operator is correct either way.
+			if SeverityForRefusal(r.Summary) != SeverityWarning {
+				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
+			}
 		case r.Summary == SummaryHelmNotInManifest:
 			// GitHub issue #1738 item 4: a finding the sweep reports and
 			// acts on by proposing nothing, so the plan stands.

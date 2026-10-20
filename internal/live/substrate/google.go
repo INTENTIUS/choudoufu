@@ -6,12 +6,14 @@
 package substrate
 
 import (
+	"context"
 	"fmt"
 	"sort"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -189,10 +191,28 @@ func (google) MarkerNoun(surface markers.Surface) string {
 	return ""
 }
 
-// NewSweeper: placeholder until the Asset Inventory client lands.
-func (google) NewSweeper(cty.Value, bool) (Sweeper, error) {
-	return nil, fmt.Errorf("the GCP sweep client is not built yet")
+// NewSweeper is the Cloud Asset Inventory client the provider block's own
+// credential arguments build, read the way hashicorp/google reads them
+// ([gcpsweep.ProviderAttrs], [gcpsweep.Attrs.Auth]). On an error the
+// client is a nil [Sweeper], never an [AssetSearchSweeper] holding a nil
+// client.
+func (google) NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error) {
+	client, err := gcpsweep.New(context.Background(), gcpsweep.ProviderAttrs(providerConfig, ok))
+	if err != nil {
+		return nil, err
+	}
+	return AssetSearchSweeper{Client: client, Project: client.Project()}, nil
 }
+
+// AssetSearchSweeper is the GCP sweep client: the searcher, and the
+// project the provider block names, searched with every project its
+// resources name.
+type AssetSearchSweeper struct {
+	Client  gcpsweep.Searcher
+	Project string
+}
+
+func (AssetSearchSweeper) SweepKind() Sweep { return SweepAssetSearch }
 
 // ---- GitHub issue #1706 ----
 
