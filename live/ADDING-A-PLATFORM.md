@@ -93,6 +93,34 @@ registers a fake third family and shows the dispatch seams it would fall
 into. Today `hashicorp/google` falls through to the AWS identity-schema
 route (`substrate/identity.go`), which a GCP family replaces.
 
+The family answers every question `substrate.Substrate` asks. Most of the
+answers are rendered in the generated matrix,
+[`live/SUBSTRATES.md`](SUBSTRATES.md). This table has every question, with
+the reason each family gives in `aws.go` and `kubernetes.go`:
+
+| Question | AWS | Kubernetes |
+|---|---|---|
+| `Surfaces`, `SurfaceOf`, `MarkersOf`, `CarrierPaths`, `MarkerNoun`, `CarrierPhrase` | `tags` (`tags`, `tags_all`), "tag" | `labels` (`metadata[0].labels`) and `manifest` (`manifest.metadata.labels`), "label" |
+| `Writes` | in-create / tags-only-plan / tagging-api | in-create / labels-only-plan or api-patch / never-needed |
+| `CarriesAddress` | true: the `tofu-address` tag | true: the address annotation (#1605's ruling, built as PRs #1664, #1678, #1684) |
+| `AddressInMarkers`, `AddressCarrier` | true: the address is a key of the tag map | false: the annotation sits outside the label map |
+| `Sweep`, `NewSweeper` | tagging-index, through the configured provider, no client | label-list, a cluster client built from the provider block |
+| `SweepFindsUnadmitted` | false: the tagging-index universe is the admission table read another way | true: it lists every kind the cluster serves |
+| `MarkerOutlivesObject` | true: the tagging index keeps listing a terminated object's tags for a while, so a record tombstone is read | false: the label is a field of the object, so a tombstone has no reader (#1883) |
+| `CreateCollidesOnKey` | false: out of scope of #1546, since an AWS create of an existing object often succeeds or renames, per type and unmeasured | true for `labels`: the API server answers 409 while an unlabelled object holds the name (#1546); false for `manifest`, where the server-side dry run already answers |
+| `MarkerWriter`, `PostCreateNeeded` | tagging-api; needed when the type's CloudFormation counterpart has `tag_on_create` false (`live/registry.json`) | never needed: both surfaces carry the label in the create call |
+| `ManualMarkFix`, `CreatedObject` | an `aws resourcegroupstaggingapi tag-resources` line naming the ARN | the generic fix; the object's id |
+| `ControllerHeld`, `HoldRecognition` (#1706) | the object's own tags carry a key in `markers.ControllerTagKeys` (ACK, Crossplane) | the Helm release annotation (`kubesweep.HelmReleaseNameAnnotation`) |
+| `SynthesizeIdentity` | the identity-schema route, which claims every type | object metadata, manifest, or a field-granular patch target (#1191) |
+| `NotACarrier` | `markers.NotAMarkerSurface` | a Kubernetes sentence of its own |
+| `ProviderTypes` | open in PR #2118, not merged when this was written | same |
+
+A new platform fills in the same column. These are the rows the GCP and
+Azure drafts got wrong first: `CarriesAddress`, `MarkerOutlivesObject`,
+`CreateCollidesOnKey`, `ControllerHeld`, `PostCreateNeeded` and
+`SweepFindsUnadmitted`. Each one is a fact about the cloud's API, so
+measure it on the emulator and do not copy it from AWS.
+
 ### 3. Estate identity rule (admission of types)
 
 | | AWS | Kubernetes |
@@ -133,14 +161,29 @@ carrier is expected to be `tags` (#1120 item 2) and is not yet ruled.
 | Join key | the `tofu-address` tag, with continuation tags and `tofu-slot` (`live/MARKERS.md`) | the natural key (group, kind, namespace, name); since [#1605](https://github.com/INTENTIUS/choudoufu/issues/1605) also `markers.AddressAnnotation` (`choudoufu.intentius.io/tofu-address`), no continuations, no slot |
 | Server-assigned ids | recovered by marker discovery (`internal/live/discovery`) | none: `TestNoKubernetesTypeNeedsDiscovery` pins it |
 
-Fixed: `Substrate.CarriesAddress` answers whether the address is on the
-object, and `TestEveryFamilyCarriesTheAddress` checks it. Per platform: where
-the address lives, and whether slots and continuations exist. Kubernetes
-shipped first with no address on the object (#1016) and added the annotation
-later, so the contract permits both. GCP's ruling puts no `tofu-address` in
-a label (#1121); where else the address goes is not ruled.
+Fixed: the address is on the object. `CarriesAddress` is true for every
+family, and `TestEveryFamilyCarriesTheAddress` pins it. Kubernetes shipped
+first without it (#1016) and gained it under #1605. Per platform: where the
+address sits (`AddressInMarkers`), and whether slots and continuations
+exist. GCP is ruled: a second label, `tofu-address`, holding a fixed-length
+encoding of the address (#1121, 2026-10-19).
 
-### 6. Not-found recogniser
+### 6. Types that are identifiable but cannot carry a marker
+
+| | AWS | Kubernetes |
+|---|---|---|
+| Answer | the declaration-carried tier, counted in `live/SUBSTRATES.md` and classified by survey path in `live/RECOVERY.md` (client-named, parent-derived, account-derived, unique-name) | no untaggable whole-object types; the field-granular types (#1191) carry the server-side-apply field manager `choudoufu:<estate>` as their marker (`kubesweep/fieldgranular.go`) |
+| Veto | `identity.MarkerlessTypes` (`identity/markerless_generated.go`) refuses untaggable types whose identity is server-minted | none needed |
+| Fence gap | stated per service in `live/MARKERS.md`, "What this grant cannot reach" | none for whole objects |
+
+The rule for a new platform, in order: look first for a carrier the stock
+provider already writes; classify the rest by survey path; veto the
+server-minted ones; state the fence gap. GCP's network skeleton has no
+labels (#1119 item 3), so this tier is large there. The proving claims are
+inventoried in [#2119](https://github.com/INTENTIUS/choudoufu/issues/2119)
+and built last.
+
+### 7. Not-found recogniser
 
 `internal/live/absent` (`absent.Matches`) decides whether a provider's
 import error means "no such object" or "could not answer". It is textual,
@@ -151,14 +194,14 @@ because only Summary and Detail cross the plugin wire. It holds AWS phrasings
 provider's not-found text is added here with a test, or its imports read as
 failures.
 
-### 7. Sweep and orphans
+### 8. Sweep and orphans
 
 | | AWS | Kubernetes |
 |---|---|---|
 | Kind | `substrate.SweepTaggingIndex`: the Resource Groups Tagging API and the other legs in `discovery/tagging.go`, `nativesweep.go`, `cloudcontrol.go`, through the configured provider | `substrate.SweepLabelList`: one label-selected list per served kind per namespace, `discovery/kubernetes.go` over the `internal/live/kubesweep` client from `NewSweeper` |
 | Finds a type with no row | no | yes (`SweepFindsUnadmitted`) |
 | Marker outlives the object | yes, so tombstones are read | no (`MarkerOutlivesObject`) |
-| Controller-made objects | ACK and Crossplane tags (`markers.ControllerTagKeys`) | `ownerReferences`; Helm release annotation |
+| Controller-held | ACK and Crossplane tags (`markers.ControllerTagKeys`) | the Helm release annotation; objects with `ownerReferences` are excluded by the sweep in `kubesweep` |
 | Landed | | [#1065](https://github.com/INTENTIUS/choudoufu/issues/1065), PR [#1070](https://github.com/INTENTIUS/choudoufu/pull/1070) |
 
 Fixed: an undeclared object carrying the estate's marker shows up in a plan;
@@ -167,7 +210,7 @@ platform: the call shape and the consistency lag. GCP's is Cloud Asset
 Inventory, and sweep equivalence waits on lex00/floci-gcp#7 (#1121). Azure's
 is Resource Graph (#1120 item 3).
 
-### 8. Record store
+### 9. Record store
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -184,7 +227,7 @@ conditional write, the sentinel check on opening (`live/STORAGE.md`,
 Kubernetes had a lane (PR #1074, 2026-09-12) a week before its own store
 (PR #1435, 2026-09-20), so a native store is not the first unit.
 
-### 9. The fence
+### 10. The fence
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -195,10 +238,10 @@ Fixed: the fence is never code here; it is a template a person installs,
 and the claims table says per platform whether it is proven or restated.
 Per platform: everything else, and the headline must say what the fence does
 not cover (Kubernetes's is write-only). GCP is ruled project-scoped for now
-(#1121). Azure RBAC cannot condition on tags, so resource groups versus a
-restated fence is the open ruling (#1122).
+(#1121). Azure RBAC cannot condition on tags; the fence is resource groups
+(ruled 2026-10-19, #1122).
 
-### 10. Lint and refusals
+### 11. Lint and refusals
 
 Fixed: a construct the platform cannot honour is refused by name, with a
 lint rule and a fixture. Kubernetes added one, `generate-name`
@@ -207,7 +250,7 @@ no join key; AWS's rules (`count-index`, `markerless-type` and the rest) live
 beside it in `internal/live/lint/issue.go`. The registries a rule joins are
 listed below.
 
-### 11. Emulator and harness
+### 12. Emulator and harness
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -217,7 +260,7 @@ listed below.
 Fixed: a pinned image and a per-run lifecycle in `lib.sh`. GCP and Azure
 run on floci forks (policy below).
 
-### 12. Claims with a BREAK control
+### 13. Claims with a BREAK control
 
 The Kubernetes bar on #1119: bind, mark on create, sweep and a governed
 fence, each a claim with a BREAK control, then a lane.
@@ -238,7 +281,7 @@ header reads `# CLAIM <n> (<provider>) - <title>`; and each claim page under
 A scenario may start as a demo in `smokeDemoScenarios` before it can assert
 a marker, as `k8s-greenfield` did.
 
-### 13. Gauntlet lane
+### 14. Gauntlet lane
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -252,7 +295,7 @@ reading in `tools/gauntlet/stages.go`, so a stage whose oracle is
 AWS-shaped is marked per substrate rather than silently skipped. A
 hand-written reference estate comes first, then published roots.
 
-### 14. Docs pages
+### 15. Docs pages
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -305,11 +348,11 @@ and rule where the address lives together with the carrier.
 
 Known differences for the next two, from the issues only:
 
-- GCP: labels ruled, no labels on the network skeleton, fence
-  project-scoped for now, `google` and `google-beta` share types (#1119
-  items 3 and 6, #1121).
-- Azure: tags nearly universal, no tag condition in RBAC, azapi beside
-  azurerm, case-insensitive tag keys; carrier, fence and identity rule not
+- GCP: labels for the estate and an encoded `tofu-address` label, no
+  labels on the network skeleton, fence project-scoped for now, `google`
+  and `google-beta` share types (#1119 items 3 and 6, #1121).
+- Azure: tags nearly universal, the fence is resource groups (#1122), azapi
+  beside azurerm, case-insensitive tag keys; carrier and identity rule not
   yet ruled (#1120, #1122).
 
 ## Registries that bite in CI
@@ -324,8 +367,8 @@ Each was found by a red CI run.
 | A refusal | the stage's registry (for example `discovery/refusals.go`, `projection/refusals.go`); `internal/live/refusalscan` fails on a summary with no entry |
 | A marker surface | a `markers.Surface` constant; every seam in `TestEverySurfaceSeamHandlesEverySurface`, or an exemption with a reason |
 | A family | `substrate.All` before AWS; `TestEverySubstrateAnswersEveryQuestion`; `fenceByFamily` and `harnessByFamily` in `tools/substrates-gen`; regenerate `live/substrates.json` and `live/SUBSTRATES.md` |
-| A claim cell | see requirement 12 |
-| A site hub | see requirement 14 |
+| A claim cell | see requirement 13 |
+| A site hub | see requirement 15 |
 | A tool under `tools/` | a `.gitignore` entry (`TestEveryToolHasAGitignoreEntry`) |
 | An artifact measured on an emulator | its image field in `live/flociimage_test.go` |
 
