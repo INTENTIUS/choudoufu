@@ -7,12 +7,15 @@ package lint
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
 // checkLivePolicy validates the optional policy block nested in a live
@@ -139,4 +142,103 @@ func checkLivePolicy(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 // missing scope block would.
 func scopeIsSet(s *configs.LivePolicyScope) bool {
 	return s != nil && (len(s.Services) > 0 || len(s.Types) > 0 || len(s.Regions) > 0)
+}
+
+// checkPolicyOverwriteAtKey is GitHub issue #1120's lint half of #1546's
+// refusal, for the opposite server. A policy block may assign
+// declared_untagged "keep" or "report" ([policy.LeavesCreateStanding]):
+// quieter refusals that leave a declared object found without this
+// estate's marker out of the estate while the plan still proposes the
+// resource's create. On Kubernetes the API server answers that create with
+// 409 AlreadyExists, so the softer verbs cost nothing and stay accepted.
+// On a substrate whose create at an occupied id updates the object there
+// ([substrate.CreateOverwritesAtKey]: Azure, where an ARM create is a PUT)
+// the same create is a silent takeover of the unmarked object. So a
+// configuration declaring any resource of such a family is refused here,
+// before any plan, by name. internal/live/projection refuses the object
+// itself under every verb that reaches it, for a run that never linted.
+//
+// Whole configuration: the policy block governs the estate, not one block,
+// and the resource it names is the first such one in address order, as
+// evidence that the estate has one. cfg is the node being visited; the
+// resources are read from its root, because a policy block anywhere governs
+// resources everywhere.
+func checkPolicyOverwriteAtKey(cfg *configs.Config, path addrs.Module, issues *[]Issue) {
+	mod := cfg.Module
+	if mod.Live == nil || mod.Live.Policy == nil || !mod.Live.Policy.DeclaredUntaggedSet {
+		return
+	}
+	p := mod.Live.Policy
+	verb := policy.Verb(p.DeclaredUntagged)
+	if !policy.Valid(policy.DeclaredUntagged, verb) || !policy.LeavesCreateStanding(verb) {
+		// An invalid verb is policy-verb's refusal; only a valid one that
+		// leaves the create standing is this rule's.
+		return
+	}
+	root := cfg.Root
+	if root == nil {
+		root = cfg
+	}
+	addr, providerType, ok := firstOverwritingResource(root)
+	if !ok {
+		return
+	}
+	attr := policy.DeclaredUntagged.Attribute()
+	*issues = append(*issues, Issue{
+		Rule:      RulePolicyOverwriteAtKey,
+		Construct: fmt.Sprintf("policy.%s = %q", attr, verb),
+		Module:    path,
+		Detail: fmt.Sprintf(
+			"the %s quadrant is assigned %q, and this configuration declares %s, through provider %s. Creating it is a PUT to "+
+				"the id its block declares, and a PUT to an id that already exists updates the object there instead of "+
+				"failing. %q leaves a declared object found at that id without this estate's %s tag out of the estate and "+
+				"lets the plan propose the create, so the apply would take that object over with nothing to say it was ever "+
+				"this estate's. On Kubernetes the API server refuses that create with 409 AlreadyExists, which is why the "+
+				"verb is accepted there (GitHub issue #1546); for this resource nothing refuses it (GitHub issue #1120). "+
+				"Remove the assignment to keep the default, \"refuse\", which stops such a plan by name; set it to "+
+				"\"adopt\" to take such objects over with this estate's markers written in the open; or point the "+
+				"resource at a name nobody is using.",
+			attr, verb, addr, providerType, verb, markers.TagEstate,
+		),
+		Subject: p.DeclaredUntaggedRange,
+	})
+}
+
+// firstOverwritingResource is the first managed resource, in address order
+// over the whole tree under root, whose provider's family answers
+// [substrate.CreateOverwritesAtKey] for one of its surfaces. Read off the
+// family the provider type belongs to, never off a type name.
+func firstOverwritingResource(root *configs.Config) (string, string, bool) {
+	var found []string
+	byAddr := map[string]string{}
+	root.DeepEach(func(c *configs.Config) {
+		if c.Module == nil {
+			return
+		}
+		for _, rc := range c.Module.ManagedResources {
+			sub, ok := substrate.ForProvider(rc.Provider.Type)
+			if !ok || !familyOverwritesAtKey(sub) {
+				continue
+			}
+			a := rc.Addr().InModule(c.Path).String()
+			found = append(found, a)
+			byAddr[a] = rc.Provider.Type
+		}
+	})
+	if len(found) == 0 {
+		return "", "", false
+	}
+	sort.Strings(found)
+	return found[0], byAddr[found[0]], true
+}
+
+// familyOverwritesAtKey reports whether any of sub's surfaces answers
+// [substrate.CreateOverwritesAtKey].
+func familyOverwritesAtKey(sub substrate.Substrate) bool {
+	for _, surface := range sub.Surfaces() {
+		if sub.CreateOverwritesAtKey(surface) {
+			return true
+		}
+	}
+	return false
 }

@@ -3269,7 +3269,13 @@ const (
 	// It adds no row, so instances and body-sha256 are unchanged.
 	// fixture-dirs 671 -> 672 on the same row; the cohort pins are
 	// untouched.
-	identityGoldenPinDirs = 703
+	//
+	// 703 -> 704 for GitHub issue #1120 unit 16: one new fixture,
+	// live/e2e/limits/policy-overwrite-at-key, an azurerm_resource_group
+	// the schemaless sweep leaves unadmitted. It adds no row, so instances
+	// and body-sha256 are unchanged. fixture-dirs 672 -> 673 on the same
+	// row; the cohort pins are untouched.
+	identityGoldenPinDirs = 704
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

@@ -230,3 +230,24 @@ func ValidVerbNames(q Quadrant) string {
 	sort.Strings(names)
 	return strings.Join(names, ", ")
 }
+
+// LeavesCreateStanding reports whether v, assigned to the declared+untagged
+// quadrant by a policy block, is one of the two verbs that keep a declared
+// object found without this estate's marker out of the estate while the
+// plan still proposes the resource's create: keep and report, the quieter
+// variants of refuse (see [ValidVerbs]). refuse itself is the default and
+// is not counted; adopt and converge admit the object instead, so no create
+// is proposed for it.
+//
+// It exists for GitHub issue #1120 (ruled on #1122): on a substrate whose
+// create at an occupied id updates the object there rather than failing
+// (Azure's ARM PUT), the create these two verbs leave standing is a silent
+// takeover of the unmarked object. That is the case #1546 refuses on
+// Kubernetes, where the server's 409 made a softer verb harmless and so
+// the softer verbs were kept; here nothing on the server stops the create,
+// so internal/live/lint refuses the verbs by name for such an estate and
+// internal/live/projection refuses the object under every verb that
+// reaches it.
+func LeavesCreateStanding(v Verb) bool {
+	return v == Keep || v == Report
+}

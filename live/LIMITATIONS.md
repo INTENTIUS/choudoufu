@@ -77,6 +77,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `module-providers` | Module provider mapping is not honoured | error | "module-providers" | `live/e2e/limits/module-providers/` |
 | `moved-block` | moved blocks are not available under live resource markers | error | "moved-block" | `live/e2e/limits/moved-block/` |
 | `overlong-address` | Resource address does not fit in a marker | error | "overlong-address" | `live/e2e/limits/overlong-address/` |
+| `policy-overwrite-at-key` | Policy verb would let a create overwrite an unmarked object | error | "policy-overwrite-at-key" | `live/e2e/limits/policy-overwrite-at-key/` |
 | `policy-scope` | Delete quadrant has no scope block | error | "policy-scope" | `live/e2e/limits/policy-scope/` |
 | `policy-threshold` | Policy threshold is not a positive number | error | "policy-threshold" | `live/e2e/limits/policy-threshold/` |
 | `policy-verb` | Policy verb is not valid for its quadrant | error | "policy-verb" | `live/e2e/limits/policy-verb/` |
@@ -96,7 +97,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `unadmitted-type` | Resource type is outside the live-markers subset | error | "unadmitted-type" | `live/e2e/limits/unadmitted-type/` |
 | `undeclared-provider-alias` | Provider configuration is not declared | error | "undeclared-provider-alias" | `live/e2e/limits/undeclared-provider-alias/` |
 
-**31 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 28 of the 31 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
+**32 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 29 of the 32 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
 <!-- limits-gen:end lint-roster -->
 
 ### local-exec
@@ -1635,6 +1636,34 @@ and take the default.
 **Enforcement.** `RulePolicyThreshold`, `internal/live/lint/policy.go`
 (`checkLivePolicy`). Fixture at `live/e2e/limits/policy-threshold/`.
 
+### policy-overwrite-at-key
+
+**Construct.** `declared_untagged = "keep"` or `declared_untagged = "report"`
+in a `policy` block, in a configuration that declares an `azurerm` or `azapi`
+resource.
+
+**Why bounded.** Both verbs are quieter refusals: a declared object found at
+its identity without this estate's `tofu-estate` marker stays out of the
+estate, and the plan still proposes the resource's create. On Kubernetes the
+API server answers that create with 409 AlreadyExists, which is why the verbs
+stay accepted there (GitHub issue #1546). An ARM create is a PUT, and a PUT
+to an id that already exists updates the object there instead of failing, so
+on Azure the same create takes the unmarked object over with nothing to say
+it was ever this estate's (GitHub issue #1120, ruled on #1122). Which
+families this applies to is read off `substrate.CreateOverwritesAtKey`, never
+off a type name. The projection refuses such an object by name under every
+verb that reaches it ("Unmarked live object at the declared id would be
+overwritten"); this rule stops the configuration before any plan.
+
+**Forwarding address.** Remove the assignment to keep the default,
+`"refuse"`, which stops a plan that meets such an object; set `"adopt"` to
+take such objects over with this estate's markers written in the plan; or
+point the resource at a name nobody is using.
+
+**Enforcement.** `RulePolicyOverwriteAtKey`, `internal/live/lint/policy.go`
+(`checkPolicyOverwriteAtKey`). Fixture at
+`live/e2e/limits/policy-overwrite-at-key/`.
+
 ### retry
 
 **Construct.** A `retry { max_attempts = ... }` or `retry { mode = "..." }`
@@ -2851,6 +2880,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | lint | ignore-changes | error | `internal/live/lint` | "ignore-changes" |
 | 0 | 0 | lint | module-provider-block | error | `internal/live/lint` | "module-provider-block" |
 | 0 | 0 | lint | overlong-address | error | `internal/live/lint` | "overlong-address" |
+| - | - | lint | policy-overwrite-at-key | error | `internal/live/lint` | "policy-overwrite-at-key" |
 | 0 | 0 | lint | policy-scope | error | `internal/live/lint` | "policy-scope" |
 | 0 | 0 | lint | policy-threshold | error | `internal/live/lint` | "policy-threshold" |
 | 0 | 0 | lint | policy-verb | error | `internal/live/lint` | "policy-verb" |
@@ -2960,7 +2990,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**291 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**292 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -5034,7 +5064,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Unmarked live object at the declared id would be overwritten
 
-**What.** GitHub issue #1120, ruled on #1122: a declared Azure resource (azurerm, or azapi_resource) was read at the ARM id its block declares, and it carries no tofu-estate tag. Under declared_untagged's default the plan would propose creating it, and an ARM create is a PUT, which updates an object already at that id instead of failing, so the apply would take the object over silently; the run stops instead. policy { declared_untagged = "adopt" } adopts the object, and writing the tofu-estate and tofu-address tags onto it does the same by hand. An absent object never triggers this, nor does an object carrying another estate's marker, which is refused as another estate's; AWS and Kubernetes types are unaffected.
+**What.** GitHub issue #1120, ruled on #1122: a declared Azure resource (azurerm, or azapi_resource) was read at the ARM id its block declares, and it carries no tofu-estate tag. Under declared_untagged's default the plan would propose creating it, and an ARM create is a PUT, which updates an object already at that id instead of failing, so the apply would take the object over silently; the run stops instead. Unlike #1546's refusal it holds under declared_untagged = "keep" and "report" too, since those verbs leave the same create standing; lint's policy-overwrite-at-key refuses them before any plan. policy { declared_untagged = "adopt" } adopts the object, and writing the tofu-estate and tofu-address tags onto it does the same by hand. An absent object never triggers this, nor does an object carrying another estate's marker, which is refused as another estate's; AWS and Kubernetes types are unaffected.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

@@ -139,6 +139,13 @@ var enforcedLimits = map[string]Rule{
 	// See live/LIMITATIONS.md, "arm-tag-limit", and limitsCompanionRules
 	// for the one other rule allowed beside it.
 	"arm-tag-limit": RuleARMTagLimit,
+	// GitHub issue #1120: declared_untagged = "keep" in an estate that
+	// declares an azurerm resource group, whose create is a PUT that would
+	// overwrite an unmarked group at the declared id. #1546's refusal for
+	// the opposite server. See live/LIMITATIONS.md,
+	// "policy-overwrite-at-key"; unadmitted-type rides beside it for
+	// arm-tag-limit's reason.
+	"policy-overwrite-at-key": RulePolicyOverwriteAtKey,
 }
 
 // limitsCompanionRules is the one exception to TestLimitsEnforced's "that
@@ -149,7 +156,8 @@ var enforcedLimits = map[string]Rule{
 // azurerm resource to show its rule at all. The fixture's own rule must
 // still fire; only the named companion may fire beside it.
 var limitsCompanionRules = map[string]Rule{
-	"arm-tag-limit": RuleUnadmittedType,
+	"arm-tag-limit":           RuleUnadmittedType,
+	"policy-overwrite-at-key": RuleUnadmittedType,
 }
 
 // notYetEnforcedLimits is every live/e2e/limits directory whose

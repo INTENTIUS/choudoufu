@@ -164,3 +164,67 @@ func TestARMOverwrite_whatTheRuleDoesNotReach(t *testing.T) {
 		}
 	})
 }
+
+// TestARMOverwrite_holdsUnderTheVerbsThatLeaveTheCreate: declared_untagged's
+// keep and report leave the unmarked object out of the estate exactly as
+// refuse does, so the plan would still propose the create, and on Azure the
+// create is the takeover. The Error holds under both, naming the verb the
+// operator wrote and why it did not apply (#1120; lint's
+// policy-overwrite-at-key refuses the same verbs before any plan). keep,
+// which on AWS is a refusal with no warning at all, is not quiet here.
+// converge, like adopt, admits the object, and no create is proposed.
+func TestARMOverwrite_holdsUnderTheVerbsThatLeaveTheCreate(t *testing.T) {
+	for _, typ := range []string{"azurerm_dns_zone", "azapi_resource"} {
+		for _, verb := range []string{"keep", "report"} {
+			t.Run(typ+"/"+verb, func(t *testing.T) {
+				b := armOverwriteBuilder(t, &Ownership{Estate: policyEstate, Policy: buildPolicy(t, "", verb)})
+				addr := armOverwriteAddr(t, typ)
+				if got := b.checkOwnership(addr, typ, armOverwriteID, armTagsSchema(), armObject(nil), true, false, false); got != ownershipUnowned {
+					t.Fatalf("verdict %d, want ownershipUnowned", got)
+				}
+				errs := errorDiagsWith(b.diags, overwriteSummary)
+				if len(errs) != 1 {
+					t.Fatalf("declared_untagged = %q let the create stand: want exactly one Error %q, got:\n%s", verb, overwriteSummary, renderDiags(b.diags))
+				}
+				detail := errs[0].Description().Detail
+				for _, want := range []string{
+					`policy { declared_untagged = "` + verb + `" } does not change this`,
+					`policy { declared_untagged = "adopt" }`,
+					"#1546", "#1120",
+				} {
+					if !strings.Contains(detail, want) {
+						t.Errorf("the refusal does not say %q:\n%s", want, detail)
+					}
+				}
+				if hasDiag(b.diags, SummaryOutsideEstate, armOverwriteID) {
+					t.Errorf("also reported under the warning:\n%s", renderDiags(b.diags))
+				}
+				if om, ok := b.omitted[addr.String()]; !ok || om.Reason != ReasonUnowned {
+					t.Errorf("omission = %+v (present %v), want ReasonUnowned", om, ok)
+				}
+			})
+		}
+	}
+	t.Run("converge admits", func(t *testing.T) {
+		addr := armOverwriteAddr(t, "azurerm_dns_zone")
+		b := armOverwriteBuilder(t, &Ownership{Estate: policyEstate, Policy: buildPolicy(t, "", "converge")})
+		if got := b.checkOwnership(addr, "azurerm_dns_zone", armOverwriteID, armTagsSchema(), armObject(nil), true, false, false); got != ownershipOK || b.diags.HasErrors() {
+			t.Errorf("verdict %d diags:\n%s", got, renderDiags(b.diags))
+		}
+	})
+	t.Run("the default names no verb", func(t *testing.T) {
+		b := armOverwriteBuilder(t, &Ownership{Estate: policyEstate, Policy: buildPolicy(t, "", "refuse")})
+		b.checkOwnership(armOverwriteAddr(t, "azurerm_dns_zone"), "azurerm_dns_zone", armOverwriteID, armTagsSchema(), armObject(nil), true, false, false)
+		errs := errorDiagsWith(b.diags, overwriteSummary)
+		if len(errs) != 1 || strings.Contains(errs[0].Description().Detail, "does not change this") {
+			t.Errorf("the default refusal:\n%s", renderDiags(b.diags))
+		}
+	})
+	t.Run("AWS keep stays quiet", func(t *testing.T) {
+		b := k8sOwnershipBuilder(&Ownership{Estate: policyEstate, Policy: buildPolicy(t, "", "keep")})
+		b.checkOwnership(k8sConfigMapAddr(t), "aws_cloudwatch_log_group", "/somebody/logs", tagSurfaceSchema(), tagSurfaceObject(nil), true, false, false)
+		if len(b.diags) != 0 {
+			t.Errorf("AWS keep changed:\n%s", renderDiags(b.diags))
+		}
+	})
+}
