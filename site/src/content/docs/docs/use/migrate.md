@@ -1,6 +1,6 @@
 ---
 title: Migrate an existing estate
-description: Put a marker on each resource your OpenTofu or Terraform configuration already manages, then keep the state file as your way back.
+description: Put a marker on each resource your configuration already manages, and keep the state file as your way back.
 prompt: >-
   Follow https://intentius.io/choudoufu/docs/use/migrate/ for this repository.
   Run `choudoufu live-check ./`, then `choudoufu init` and the dry
@@ -9,13 +9,11 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-You have a configuration that already manages live resources. Migrating means
-putting a marker on each of them.
+Migrating puts a marker on each live resource your configuration manages.
 
 :::caution
-Turning on the live backend does not bind resources you already manage. A
-resource with no marker is not yours yet, so the first plan reads it as absent
-and proposes a second one beside it. Put the markers on first.
+Mark resources first. The first plan reads an unmarked resource as absent and
+proposes a second one beside it.
 :::
 
 ## Check the configuration
@@ -24,62 +22,51 @@ and proposes a second one beside it. Put the markers on first.
 choudoufu live-check ./
 ```
 
-It needs no `live` block, no credentials and no cloud calls. It prints a
-verdict, then every refusal that fired, with the types responsible and what to
-do. Run `choudoufu init` first if you can: with provider schemas it admits more,
-and without them it says its answer is pessimistic. `-json` prints the same
-verdict as one document whose `schemas` field says which answer you got.
+This runs offline and prints a verdict with each refusal and its fix. Run
+`choudoufu init` first so provider schemas let it admit more. `-json` prints
+the same verdict as one document.
 
-It checks lint and identity resolution only, so a clean result is necessary,
-not sufficient. Plan against a non-production account before trusting a
-migration.
+Then plan against a non-production account.
 [`live/COMPATIBILITY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/COMPATIBILITY.md)
 explains each refusal.
 
 ## Keep the state file
 
-Do not delete `terraform.tfstate`. It is the only input `live-import` has, and
-your way back to stock. If your state is remote, pull a copy with
-`tofu state pull > terraform.tfstate`.
+Keep `terraform.tfstate`. It is the input to `live-import` and your way back to
+stock. For remote state, run `tofu state pull > terraform.tfstate`.
 
 ## With a state file: two commands
 
-Run these in a directory `choudoufu init` has prepared, with the provider
-configuration the state was last applied with.
+Run these after `choudoufu init`, with the state's last provider configuration.
 
 ```
 choudoufu live-import -state=terraform.tfstate -estate=my-estate
 choudoufu live-import -state=terraform.tfstate -estate=my-estate -approve
 ```
 
-The first writes nothing and prints a report. The second writes a marker on
-every entry shown as `VERIFIED` or `DRIFTED`. Entries shown as `MISSING`,
-`UNTAGGABLE` or `UNADMITTED_TYPE` are never written, and the report says why.
-The state file is never changed. It works on AWS and on Kubernetes.
+The first prints a dry report. The second tags every `VERIFIED` or `DRIFTED`
+entry and leaves the state file as it was. The report explains each entry it
+skips. This works on AWS and Kubernetes.
 
 ## Without a state file
 
-This path never offers a `count` or `for_each` instance.
+This path skips `count` and `for_each` instances.
 
 1. Create `estate.chdf.hcl` with `estate = "my-estate"`, and remove any
    `backend` or `cloud` block.
-2. Run `choudoufu plan` and read the `Adoptable` section. Each entry is a live
-   resource that matches a block and has no marker, with the command that
-   adopts it.
-3. Run those commands as printed.
-4. Plan again. Every adopted resource reports no changes.
+2. Run `choudoufu plan` and read the `Adoptable` section. Each entry is an
+   unmarked live resource that matches a block, with its adopt command.
+3. Execute those commands as printed.
+4. Run `choudoufu plan` again. Adopted resources report no changes.
 
-## Then
-
-Keep the sidecar or `live` block from here on. Without it a plan is stock mode,
-and stock mode with no state file proposes rebuilding the estate.
+Keep the sidecar from then on. A stock plan with no state file proposes
+rebuilding the estate.
 
 ## Getting back out
 
 Copy `.terraform/choudoufu-cache.tfstate` to `terraform.tfstate` and remove the
-`live` block. Stock OpenTofu's first plan proposes removing the marker tags and
-nothing else. choudoufu refuses that same plan, so a `live` block lost in a bad
-merge cannot un-migrate an estate; to leave on purpose, run
+`live` block. Stock OpenTofu's first plan proposes removing only the marker
+tags. choudoufu refuses that plan. To leave on purpose, run
 `CHOUDOUFU_UNMIGRATE=my-estate choudoufu apply`.
 [`live/MIGRATE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MIGRATE.md)
 has the rest.
