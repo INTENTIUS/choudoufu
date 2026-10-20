@@ -26,8 +26,8 @@ const repo = (path: string) => `https://github.com/INTENTIUS/choudoufu/blob/main
 export const ASSUMED: Link[] = [
 	{ label: 'Deleting the state file changes no plan', href: '/how-it-works/cache/' },
 	{ label: 'The create call writes the estate tag', href: '/how-it-works/identity/' },
-	{ label: 'Each record write is one conditional request', href: repo('live/CONCURRENCY.md') },
-	{ label: 'A pull request plans only what its change reaches', href: repo('live/PLAN-CONE.md') },
+	{ label: 'Record writes are conditional requests', href: repo('live/CONCURRENCY.md') },
+	{ label: 'A pull request plans only what it touches', href: repo('live/PLAN-CONE.md') },
 	{ label: 'Other estates are read live', href: '/docs/use/day2/' },
 	{ label: 'A saved plan refuses if its targets moved', href: repo('live/smoke/claims/apply-what-was-approved.md') },
 ];
@@ -86,7 +86,7 @@ export const PLATFORMS: { id: Platform; label: string; room: string; hub: string
 export const STORES: { id: string; label: string; line: string; href: string }[] = [
 	{ id: 's3', label: 'S3 bucket', line: 'Records in your bucket', href: '/docs/use/bucket/' },
 	{ id: 'kubernetes', label: "Cluster's Secrets", line: 'Records as Secrets in your namespace', href: '/kubernetes/operate/' },
-	{ id: 'local', label: 'Local', line: 'Records as local files, for a demo', href: '/how-it-works/values/' },
+	{ id: 'local', label: 'Local', line: 'Records as local files', href: '/how-it-works/values/' },
 ];
 
 export const ROLES: { label: string; room: string }[] = [
@@ -105,7 +105,7 @@ export const ROOMS: Room[] = [
 	{
 		id: 'state-file',
 		title: 'From a state file',
-		lede: 'You run OpenTofu or Terraform with a state file.',
+		lede: 'You run OpenTofu or Terraform.',
 		works: [
 			'live-import tags every resource in your state',
 			'count, for_each, modules and multiple providers work',
@@ -123,10 +123,10 @@ export const ROOMS: Room[] = [
 	{
 		id: 'terragrunt',
 		title: 'From Terragrunt',
-		lede: 'You run Terragrunt units, each with its own state.',
+		lede: 'You run Terragrunt units.',
 		works: [
 			"live-import reads each unit's state, pulled with tofu state pull",
-			'Values from other estates come from the live resource',
+			'Other estates are read live',
 		],
 		differs: [
 			'estate.chdf.hcl replaces the generated backend block.',
@@ -145,7 +145,7 @@ export const ROOMS: Room[] = [
 		works: [
 			"terragucci's check stage runs live-check",
 			"choudoufu spans nest under terragucci's trace",
-			'Concurrent applies to different resources both land',
+			'Applies to different resources run concurrently',
 		],
 		differs: ["terragucci never reads required_version as a choudoufu release."],
 		first: { label: 'terragucci: choose choudoufu', href: 'https://intentius.io/terragucci/guides/use-a-binary/#choudoufu' },
@@ -172,9 +172,9 @@ export const ROOMS: Room[] = [
 	{
 		id: 'aws',
 		title: 'On AWS',
-		lede: 'Your resources are on AWS.',
+		lede: 'You run on AWS.',
 		works: [
-			'Taggable resources get tofu-estate and tofu-address tags',
+			'Resources get tofu-estate and tofu-address tags',
 			'A tofu-estate IAM condition scopes a role to an estate',
 			'apply <planfile> refuses if the live system moved',
 		],
@@ -188,9 +188,9 @@ export const ROOMS: Room[] = [
 	{
 		id: 'kubernetes',
 		title: 'On Kubernetes',
-		lede: 'Your workloads run on any Kubernetes cluster.',
+		lede: 'You run Kubernetes.',
 		works: [
-			'Every type, custom resources included, carries the tofu-estate label',
+			'Every type carries the tofu-estate label, CRDs included',
 			'One admission policy fences writes by that label',
 			'Records can live in the cluster',
 		],
@@ -227,7 +227,7 @@ export const ROOMS: Room[] = [
 		lede: 'You want to see it work first.',
 		works: [
 			'The tutorial needs only Docker',
-			'Each claim is a runnable scenario with a breaking arm',
+			'Each claim is a scenario you can run and break',
 			'Leaving is one file copy and deleting the live block',
 		],
 		differs: [],
@@ -258,7 +258,7 @@ export const ROOMS: Room[] = [
 		title: 'Contributing',
 		lede: 'You want to change choudoufu.',
 		works: [
-			'just contribute runs one gauntlet unit on your key',
+			'just contribute runs one gauntlet unit',
 			'Each claim has a BREAK=1 arm that must be caught',
 			'A maintainer merges every pull request',
 		],
