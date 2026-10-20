@@ -1223,6 +1223,12 @@ func liveLsRung(res identity.Resolution, schemas map[string]providers.Schema) (r
 			// instance's is - not a rung.
 			return "", "", false
 		}
+		if _, labels := markers.GoogleLabelSurface(schema.Block); labels {
+			// Marker-carried on GCP: the marker is in the labels map
+			// (live/MARKERS.md, "GCP: labels"), so a missing instance is
+			// a genuine absence, not a rung.
+			return "", "", false
+		}
 		return "declaration-carried",
 			fmt.Sprintf("%s has no settable tags argument, so no ownership marker was ever written for it - live/MARKERS.md's tier definitions (#417) name this the declaration-carried tier. Its identity comes entirely from configuration.", res.Type()),
 			true

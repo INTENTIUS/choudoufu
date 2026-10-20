@@ -100,7 +100,7 @@ func mirrorGoogleMarkerLabels(v cty.Value, block *configschema.Block, defaults c
 	if _, ok := markers.GoogleLabelSurface(block); !ok {
 		return v
 	}
-	if v == cty.NilVal || v.IsNull() || !v.IsKnown() || !v.Type().IsObjectType() {
+	if v == cty.NilVal || v.IsMarked() || v.IsNull() || !v.IsKnown() || !v.Type().IsObjectType() {
 		return v
 	}
 	if !v.Type().HasAttribute(markers.GoogleEffectiveLabelsAttr) || !v.Type().HasAttribute(markers.GoogleLabelsAttr) {
@@ -119,11 +119,7 @@ func mirrorGoogleMarkerLabels(v cty.Value, block *configschema.Block, defaults c
 		}
 	}
 	changed := false
-	for _, key := range []string{markers.TagEstate, markers.TagAddress, markers.TagSlot} {
-		live := eff.Index(cty.StringVal(key))
-		if !eff.HasIndex(cty.StringVal(key)).True() || live.IsNull() || !live.IsKnown() {
-			continue
-		}
+	for key, live := range markers.GoogleMarkerValues(eff) {
 		if have, ok := elems[key]; ok && have.IsKnown() && !have.IsNull() && have.RawEquals(live) {
 			continue
 		}
@@ -154,28 +150,35 @@ func mirrorGoogleMarkerLabels(v cty.Value, block *configschema.Block, defaults c
 // again. False when defaults was not seeded ([builder.googleLabelDefaults]
 // could not read the provider block), and terraform_labels is left as read.
 func googleTerraformLabels(eff cty.Value, labels map[string]cty.Value, defaults cty.Value) (cty.Value, bool) {
-	if defaults == cty.NilVal || defaults.IsNull() || !defaults.Type().IsObjectType() {
+	if defaults == cty.NilVal || defaults.IsMarked() || defaults.IsNull() || !defaults.Type().IsObjectType() {
+		return cty.NilVal, false
+	}
+	if eff.IsMarked() || eff.IsNull() || !eff.IsKnown() || !eff.CanIterateElements() {
 		return cty.NilVal, false
 	}
 	keys := map[string]bool{}
 	for k := range labels {
 		keys[k] = true
 	}
-	for it := defaults.GetAttr("keys").ElementIterator(); it.Next(); {
-		_, k := it.Element()
+	defaultKeys := defaults.GetAttr("keys")
+	attribution := defaults.GetAttr("attribution")
+	if defaultKeys.IsMarked() || attribution.IsMarked() {
+		return cty.NilVal, false
+	}
+	for it := defaultKeys.ElementIterator(); it.Next(); {
+		k, _ := it.Element()
 		keys[k.AsString()] = true
 	}
-	if defaults.GetAttr("attribution").True() {
+	if attribution.True() {
 		keys[googleAttributionKey] = true
 	}
 	out := map[string]cty.Value{}
-	for k := range keys {
-		if !eff.HasIndex(cty.StringVal(k)).True() {
+	for it := eff.ElementIterator(); it.Next(); {
+		k, live := it.Element()
+		if !keys[k.AsString()] || live.IsMarked() || live.IsNull() || !live.IsKnown() {
 			continue
 		}
-		if live := eff.Index(cty.StringVal(k)); !live.IsNull() && live.IsKnown() {
-			out[k] = live
-		}
+		out[k.AsString()] = live
 	}
 	if len(out) == 0 {
 		return cty.MapValEmpty(cty.String), true

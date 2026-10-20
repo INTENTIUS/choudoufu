@@ -122,12 +122,12 @@ func GoogleLabelsOf(obj cty.Value) (map[string]string, bool) {
 		}
 		found = true
 		v := obj.GetAttr(name)
-		if v.IsNull() || !v.IsKnown() || !v.CanIterateElements() {
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || !v.CanIterateElements() {
 			continue
 		}
 		for it := v.ElementIterator(); it.Next(); {
 			k, val := it.Element()
-			if k.Type() != cty.String || k.IsNull() || val.IsNull() || !val.IsKnown() || val.Type() != cty.String {
+			if k.Type() != cty.String || k.IsNull() || val.IsMarked() || val.IsNull() || !val.IsKnown() || val.Type() != cty.String {
 				continue
 			}
 			labels[k.AsString()] = val.AsString()
@@ -215,4 +215,88 @@ func GoogleLabelPath(key string) cty.Path {
 		cty.GetAttrStep{Name: GoogleLabelsAttr},
 		cty.IndexStep{Key: cty.StringVal(key)},
 	}
+}
+
+// WithGoogleMarkersMirrored returns obj, a hashicorp/google object read
+// back on a prior that named none of its labels, with every marker key it
+// carries in effective_labels put back into labels and terraform_labels,
+// valued as the object carries it. The provider's labels and
+// terraform_labels are non-authoritative: a read keeps only the keys the
+// prior names (tpgresource.SetLabels at v8.6.0), so an object imported
+// with no prior reads back with neither map naming its markers, and a
+// write that removes or rewrites one plans nothing. This puts back what a
+// state file written by the apply that set them would hold. Any other
+// object is returned unchanged.
+//
+//markers:surface google-labels
+func WithGoogleMarkersMirrored(obj cty.Value) cty.Value {
+	if obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() {
+		return obj
+	}
+	ty := obj.Type()
+	if !ty.HasAttribute(GoogleEffectiveLabelsAttr) {
+		return obj
+	}
+	eff := obj.GetAttr(GoogleEffectiveLabelsAttr)
+	if eff.IsMarked() || eff.IsNull() || !eff.IsKnown() || !eff.CanIterateElements() {
+		return obj
+	}
+	carried := GoogleMarkerValues(eff)
+	attrs := obj.AsValueMap()
+	changed := false
+	for _, name := range []string{GoogleLabelsAttr, GoogleTerraformLabelsAttr} {
+		if !ty.HasAttribute(name) {
+			continue
+		}
+		cur := obj.GetAttr(name)
+		if cur.IsMarked() || !cur.IsKnown() {
+			continue
+		}
+		elems := map[string]cty.Value{}
+		if !cur.IsNull() {
+			for it := cur.ElementIterator(); it.Next(); {
+				k, v := it.Element()
+				elems[k.AsString()] = v
+			}
+		}
+		moved := false
+		for key, live := range carried {
+			if have, ok := elems[key]; ok && have.RawEquals(live) {
+				continue
+			}
+			elems[key] = live
+			moved = true
+		}
+		if moved {
+			attrs[name] = cty.MapVal(elems)
+			changed = true
+		}
+	}
+	if !changed {
+		return obj
+	}
+	return cty.ObjectVal(attrs)
+}
+
+// GoogleMarkerValues is the marker keys effective_labels carries, each with
+// its value, read once so a caller never indexes the map by a key it may
+// not hold. A marked, null or unknown entry is left out.
+//
+//markers:surface google-labels
+func GoogleMarkerValues(eff cty.Value) map[string]cty.Value {
+	out := map[string]cty.Value{}
+	if eff == cty.NilVal || eff.IsMarked() || eff.IsNull() || !eff.IsKnown() || !eff.CanIterateElements() {
+		return out
+	}
+	for it := eff.ElementIterator(); it.Next(); {
+		k, v := it.Element()
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || k.Type() != cty.String {
+			continue
+		}
+		switch key := k.AsString(); key {
+		case TagEstate, TagAddress, TagSlot:
+			out[key] = v
+		}
+	}
+	return out
 }
