@@ -747,8 +747,12 @@ seconds; `go test ./live/` runs it.
 No workflow runs a claim scenario: #2018 deleted the three that did. A
 proof counts toward its cell only through a dated run, which is a
 `live/smoke/evidence/<name>.lastrun.json` written from the two logs of a
-hand run (the main arm and `BREAK=1`) with a `date` field, or a gauntlet
-stage the cell cites as `<estate>:<stage id>` while that stage reads pass
-in `live/gauntlet.json`. A cell with any proof lacking both reads
-`unproven` in `claims.json`, and `live/proven_cell_ci_test.go` fails the
-day a cell says otherwise.
+hand run (the main arm and `BREAK=1`) with a `date` field, a proof's
+carried `last_run`, or a gauntlet stage the cell cites as
+`<estate>:<stage id>` while that stage reads pass in `live/gauntlet.json`.
+A cell with any proof lacking all three reads `unproven` in `claims.json`,
+and `live/proven_cell_ci_test.go` fails the day a cell says otherwise. A
+release never resets a result: `live/CLAIMS.md` marks a run older than the
+newest release stale. The `last_run` entries were restored from
+`claims.json` at 958bcf7f2d, the last commit before #2028, and
+`live/claims_last_run_test.go` holds each one to that history.
