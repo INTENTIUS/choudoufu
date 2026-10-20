@@ -144,6 +144,14 @@
       "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
     },
     {
+      "name": "corpus-k8s-infra-gcp-gcve",
+      "source": "kubernetes/k8s.io infra/gcp/terraform/k8s-infra-gcp-gcve (commit 4046258e7d, Apache-2.0), the Kubernetes project's own root for its VMware Engine CI project: five google_project_service over a for_each whose project comes from a data source, a custom-mode VPC, a subnetwork and two firewalls (one reading the subnetwork's range), terraform-google-modules simple_bucket (a bucket and its IAM member) and projects_iam in authoritative mode (five project IAM bindings keyed by its helper module's outputs) - 16 instances, one labelled, on hashicorp/google 8.6.0. The gcp lane's first published root (#1119): provider.tf replaced for the pin and the emulator, simple_bucket ~> 12.4 for google 8.x, and the five VMware Engine resources left out because floci-gcp does not serve them",
+      "url": "https://github.com/kubernetes/k8s.io.git",
+      "pin": "4046258e7d54fdc156e2f39ad8da51b57be88f55",
+      "lane": "gcp",
+      "set": "growing"
+    },
+    {
       "name": "corpus-k8s-metrics-server",
       "source": "kubernetes/k8s.io infra/aws/terraform/kops-infra-ci/metrics-server.tf (commit 4046258e7d), the Kubernetes project's own metrics-server installation for its kops CI cluster, cut out of its root: two ClusterRoles, two ClusterRoleBindings, a RoleBinding, a ServiceAccount, a Deployment and a Service in kube-system, and the aggregated APIService v1beta1.metrics.k8s.io, all on the provider's non-_v1 type names (#1880, epic #1885). Measures an aggregated API (kubernetes_api_service) through the sweep and through a rollout that leaves it unavailable, and a teardown that leaves kube-system, a namespace the estate writes into and never declared, as it found it",
       "url": "https://github.com/kubernetes/k8s.io.git",

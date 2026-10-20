@@ -90,6 +90,8 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # shellcheck source=live/e2e/lib/gauntlet.sh
 source "$ROOT/live/e2e/lib/gauntlet.sh"
+# shellcheck source=live/e2e/lib/gcp.sh
+source "$ROOT/live/e2e/lib/gcp.sh"
 # shellcheck source=live/e2e/reference-gcp/gcp.sh
 source "$ROOT/live/e2e/reference-gcp/gcp.sh"
 
