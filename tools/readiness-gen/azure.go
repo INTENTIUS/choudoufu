@@ -87,10 +87,9 @@ type azurermIDsFile struct {
 		Commit  string `json:"commit"`
 	} `json:"pin"`
 	Types []struct {
-		Type          string `json:"type"`
-		Class         string `json:"class"`
-		Template      string `json:"template"`
-		TemplateClass string `json:"template_class"`
+		Type     string `json:"type"`
+		Class    string `json:"class"`
+		Template string `json:"template"`
 	} `json:"types"`
 }
 
@@ -134,7 +133,7 @@ func buildAzureSubstrate(root string) (AzureSubstrate, error) {
 		if _, ok := withheld[t.Type]; ok {
 			class = azurermClassWithheld
 		}
-		row, err := azurermRow(t.Type, class, t.TemplateClass, armScope(t.Template), tagged && !notARM[t.Type])
+		row, err := azurermRow(t.Type, class, armScope(t.Template), tagged && !notARM[t.Type])
 		if err != nil {
 			return AzureSubstrate{}, err
 		}
@@ -159,51 +158,52 @@ func buildAzureSubstrate(root string) (AzureSubstrate, error) {
 // azurermRow is one azurerm type's tier and status.
 //
 // Admission is the class: "template" and "parent-id" rows the substrate
-// does not withhold are admitted by the Azure family's own rule, and
-// "identity-schema" rows keep the identity-schema route (#1122). That route
-// decides at run time from the provider's schema; a row whose id template
-// the generator also mapped segment by segment (TemplateClass template or
-// parent-id) is corroborated by it and counted in contract, and one it
-// could not map is pending, the status an AWS type the schema route admits
-// without a row has.
+// does not withhold are admitted by the Azure family's own rule today.
+// "identity-schema" rows keep the identity-schema route (#1122), and at
+// this pin that route admits none of them: all 196 identity schemas
+// require subscription_id, which no azurerm argument supplies, so the
+// route refuses (internal/live/identity's
+// TestAzurermUnadmittedClassesKeepTheSchemaRoute pins the refusal). They
+// are tiered where they are destined, the way AWS tiers a type its schema
+// admission would carry ([destinedTier]): the identity is the
+// declaration's arguments plus the provider block's subscription, so an
+// untaggable one is declaration-carried, pending the route reading the
+// subscription from the provider block. Regenerate when that lands.
 //
 // Server-minted identity: the veto AWS applies to an untaggable type whose
 // identity the provider mints (identity.MarkerlessTypes) has no Azure
-// member at this pin. Every component of every admitted row is a
+// member at this pin. Every component of every mapped row is a
 // configuration argument or the provider's subscription (measured against
 // the 5.10.0 schema: no component names a Computed-only attribute), so an
 // admitted untaggable type is declaration-carried. Seven admitted
 // untaggable types make the naming argument Optional and mint a GUID when
 // it is left out (azurerm_management_group's name, azurerm_role_definition's
 // role_definition_id, and five more); the resolver refuses such a block by
-// name ("Identity argument not set"), so the omitted case never reaches
-// apply. Whether an UNADMITTED type's create reads its id from the response
-// (azurerm_sentinel_threat_intelligence_indicator does) is not in any
-// committed artifact; those types are refused as unadmitted either way and
-// are record-carried here.
-func azurermRow(typeName, class, templateClass, scope string, taggable bool) (Row, error) {
+// name ("Identity argument not set";
+// TestAzureOptionalNameOmittedIsRefusedByName), so the omitted case never
+// reaches apply. Whether an UNADMITTED type's create reads its id from the
+// response (azurerm_sentinel_threat_intelligence_indicator does) is not in
+// any committed artifact; those types are refused as unadmitted either way
+// and are record-carried here.
+func azurermRow(typeName, class, scope string, taggable bool) (Row, error) {
 	facts := Facts{Taggable: taggable, ARMIDClass: class, ARMScope: scope}
-	admitted := false
+	destined := false
 	status := StatusNeedsEvidence
 	switch class {
 	case azurermClassTemplate, azurermClassParentID:
-		admitted, status = true, StatusInContract
+		facts.Admitted, status = true, StatusInContract
 	case azurermClassIdentitySchema:
-		admitted, facts.SchemaRoute = true, true
+		facts.SchemaRoute, destined = true, true
 		status = StatusPendingRatification
-		if templateClass == azurermClassTemplate || templateClass == azurermClassParentID {
-			status = StatusInContract
-		}
 	case azurermClassUnmapped, azurermClassWithheld:
 	default:
 		return Row{}, fmt.Errorf("%s gives %s the class %q, which the Azure readiness rule does not know", AzurermIDsJSONRel, typeName, class)
 	}
-	facts.Admitted = admitted
 	tier := TierRecordCarried
 	switch {
 	case taggable:
 		tier = TierMarkerCarried
-	case admitted:
+	case facts.Admitted || destined:
 		tier = TierDeclarationCarried
 	}
 	return Row{Type: typeName, Tier: tier, Status: status, Facts: facts}, nil

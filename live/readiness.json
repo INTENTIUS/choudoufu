@@ -24525,9 +24525,9 @@
           "record-carried": 231
         },
         "statuses": {
-          "in-contract": 828,
+          "in-contract": 651,
           "needs-evidence": 259,
-          "pending-ratification": 19
+          "pending-ratification": 196
         }
       },
       "types": [
@@ -24654,10 +24654,10 @@
         {
           "type": "azurerm_analysis_services_server",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25603,7 +25603,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25736,10 +25736,10 @@
         {
           "type": "azurerm_application_gateway",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25752,10 +25752,10 @@
         {
           "type": "azurerm_application_insights",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25813,10 +25813,10 @@
         {
           "type": "azurerm_application_insights_standard_web_test",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25829,10 +25829,10 @@
         {
           "type": "azurerm_application_insights_web_test",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25845,10 +25845,10 @@
         {
           "type": "azurerm_application_insights_workbook",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25861,10 +25861,10 @@
         {
           "type": "azurerm_application_insights_workbook_template",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25937,10 +25937,10 @@
         {
           "type": "azurerm_application_security_group",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25998,10 +25998,10 @@
         {
           "type": "azurerm_arc_kubernetes_provisioned_cluster",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -26089,10 +26089,10 @@
         {
           "type": "azurerm_attestation_provider",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -26105,10 +26105,10 @@
         {
           "type": "azurerm_automanage_configuration",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -26121,10 +26121,10 @@
         {
           "type": "azurerm_automation_account",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -26542,10 +26542,10 @@
         {
           "type": "azurerm_availability_set",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -26591,7 +26591,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -26649,10 +26649,10 @@
         {
           "type": "azurerm_bastion_host",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -26665,10 +26665,10 @@
         {
           "type": "azurerm_batch_account",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -26681,10 +26681,10 @@
         {
           "type": "azurerm_batch_application",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -26712,10 +26712,10 @@
         {
           "type": "azurerm_batch_pool",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -26968,10 +26968,10 @@
         {
           "type": "azurerm_capacity_reservation",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -26984,10 +26984,10 @@
         {
           "type": "azurerm_capacity_reservation_group",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27030,10 +27030,10 @@
         {
           "type": "azurerm_cdn_frontdoor_batch_rule_set",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27106,10 +27106,10 @@
         {
           "type": "azurerm_cdn_frontdoor_origin",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27122,10 +27122,10 @@
         {
           "type": "azurerm_cdn_frontdoor_origin_group",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27288,10 +27288,10 @@
         {
           "type": "azurerm_cognitive_account",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27304,10 +27304,10 @@
         {
           "type": "azurerm_cognitive_account_connection_account_key",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27320,10 +27320,10 @@
         {
           "type": "azurerm_cognitive_account_connection_account_managed_identity",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27336,10 +27336,10 @@
         {
           "type": "azurerm_cognitive_account_connection_api_key",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27352,10 +27352,10 @@
         {
           "type": "azurerm_cognitive_account_connection_custom_keys",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27368,10 +27368,10 @@
         {
           "type": "azurerm_cognitive_account_connection_entra_id",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27444,10 +27444,10 @@
         {
           "type": "azurerm_cognitive_deployment",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27460,10 +27460,10 @@
         {
           "type": "azurerm_communication_service",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -28031,10 +28031,10 @@
         {
           "type": "azurerm_cosmosdb_postgresql_cluster",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -28047,10 +28047,10 @@
         {
           "type": "azurerm_cosmosdb_postgresql_coordinator_configuration",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -28288,10 +28288,10 @@
         {
           "type": "azurerm_custom_provider",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -28304,10 +28304,10 @@
         {
           "type": "azurerm_dashboard_grafana",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -28320,10 +28320,10 @@
         {
           "type": "azurerm_dashboard_grafana_managed_private_endpoint",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29101,10 +29101,10 @@
         {
           "type": "azurerm_data_protection_backup_instance_blob_storage",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29117,10 +29117,10 @@
         {
           "type": "azurerm_data_protection_backup_instance_data_lake_storage",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29133,10 +29133,10 @@
         {
           "type": "azurerm_data_protection_backup_instance_disk",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29149,10 +29149,10 @@
         {
           "type": "azurerm_data_protection_backup_instance_kubernetes_cluster",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29180,10 +29180,10 @@
         {
           "type": "azurerm_data_protection_backup_instance_postgresql_flexible_server",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29196,10 +29196,10 @@
         {
           "type": "azurerm_data_protection_backup_policy_blob_storage",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29212,10 +29212,10 @@
         {
           "type": "azurerm_data_protection_backup_policy_data_lake_storage",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29228,10 +29228,10 @@
         {
           "type": "azurerm_data_protection_backup_policy_disk",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29244,10 +29244,10 @@
         {
           "type": "azurerm_data_protection_backup_policy_kubernetes_cluster",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29260,10 +29260,10 @@
         {
           "type": "azurerm_data_protection_backup_policy_mysql_flexible_server",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29276,10 +29276,10 @@
         {
           "type": "azurerm_data_protection_backup_policy_postgresql_flexible_server",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29292,10 +29292,10 @@
         {
           "type": "azurerm_data_protection_backup_vault",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29311,7 +29311,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29324,10 +29324,10 @@
         {
           "type": "azurerm_data_protection_resource_guard",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29340,10 +29340,10 @@
         {
           "type": "azurerm_data_share",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29356,10 +29356,10 @@
         {
           "type": "azurerm_data_share_account",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29402,10 +29402,10 @@
         {
           "type": "azurerm_data_share_dataset_kusto_cluster",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29418,10 +29418,10 @@
         {
           "type": "azurerm_data_share_dataset_kusto_database",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29434,10 +29434,10 @@
         {
           "type": "azurerm_database_migration_project",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29450,10 +29450,10 @@
         {
           "type": "azurerm_database_migration_service",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29466,10 +29466,10 @@
         {
           "type": "azurerm_databox_edge_device",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29482,10 +29482,10 @@
         {
           "type": "azurerm_databricks_access_connector",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29498,10 +29498,10 @@
         {
           "type": "azurerm_databricks_virtual_network_peering",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29514,10 +29514,10 @@
         {
           "type": "azurerm_databricks_workspace",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29533,7 +29533,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29606,10 +29606,10 @@
         {
           "type": "azurerm_dedicated_host",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29622,10 +29622,10 @@
         {
           "type": "azurerm_dedicated_host_group",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30001,7 +30001,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30047,7 +30047,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30123,7 +30123,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30241,10 +30241,10 @@
         {
           "type": "azurerm_email_communication_service",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30257,10 +30257,10 @@
         {
           "type": "azurerm_email_communication_service_domain",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30276,7 +30276,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30349,10 +30349,10 @@
         {
           "type": "azurerm_eventgrid_namespace_topic",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30455,10 +30455,10 @@
         {
           "type": "azurerm_eventhub",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30501,10 +30501,10 @@
         {
           "type": "azurerm_eventhub_consumer_group",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30742,10 +30742,10 @@
         {
           "type": "azurerm_federated_identity_credential",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30758,10 +30758,10 @@
         {
           "type": "azurerm_firewall",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30819,10 +30819,10 @@
         {
           "type": "azurerm_firewall_policy",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30835,10 +30835,10 @@
         {
           "type": "azurerm_firewall_policy_rule_collection_group",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -31001,10 +31001,10 @@
         {
           "type": "azurerm_gallery_application",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -31017,10 +31017,10 @@
         {
           "type": "azurerm_gallery_application_version",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -31588,10 +31588,10 @@
         {
           "type": "azurerm_ip_group",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -31619,10 +31619,10 @@
         {
           "type": "azurerm_key_vault",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -31830,10 +31830,10 @@
         {
           "type": "azurerm_kubernetes_automatic_cluster",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -31891,10 +31891,10 @@
         {
           "type": "azurerm_kubernetes_cluster_node_pool",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -32192,10 +32192,10 @@
         {
           "type": "azurerm_lb_backend_address_pool",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -32268,10 +32268,10 @@
         {
           "type": "azurerm_lb_probe",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -32329,10 +32329,10 @@
         {
           "type": "azurerm_linux_function_app",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -32360,10 +32360,10 @@
         {
           "type": "azurerm_linux_virtual_machine",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -32436,10 +32436,10 @@
         {
           "type": "azurerm_local_network_gateway",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -32632,10 +32632,10 @@
         {
           "type": "azurerm_log_analytics_workspace",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33218,10 +33218,10 @@
         {
           "type": "azurerm_managed_disk",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33534,10 +33534,10 @@
         {
           "type": "azurerm_monitor_action_group",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33550,10 +33550,10 @@
         {
           "type": "azurerm_monitor_activity_log_alert",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33686,10 +33686,10 @@
         {
           "type": "azurerm_monitor_metric_alert",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33732,10 +33732,10 @@
         {
           "type": "azurerm_monitor_scheduled_query_rules_alert",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33748,10 +33748,10 @@
         {
           "type": "azurerm_monitor_scheduled_query_rules_alert_v2",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33794,10 +33794,10 @@
         {
           "type": "azurerm_monitor_workspace",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33810,10 +33810,10 @@
         {
           "type": "azurerm_mssql_database",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33856,10 +33856,10 @@
         {
           "type": "azurerm_mssql_elasticpool",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33920,7 +33920,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34128,10 +34128,10 @@
         {
           "type": "azurerm_mssql_server",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34237,7 +34237,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34295,10 +34295,10 @@
         {
           "type": "azurerm_mysql_flexible_database",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34311,10 +34311,10 @@
         {
           "type": "azurerm_mysql_flexible_server",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34342,10 +34342,10 @@
         {
           "type": "azurerm_mysql_flexible_server_configuration",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34358,10 +34358,10 @@
         {
           "type": "azurerm_mysql_flexible_server_firewall_rule",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34374,10 +34374,10 @@
         {
           "type": "azurerm_nat_gateway",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34540,10 +34540,10 @@
         {
           "type": "azurerm_netapp_volume_bucket",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34556,10 +34556,10 @@
         {
           "type": "azurerm_netapp_volume_bucket_with_server",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34632,10 +34632,10 @@
         {
           "type": "azurerm_network_ddos_protection_plan",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34678,10 +34678,10 @@
         {
           "type": "azurerm_network_interface",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34769,10 +34769,10 @@
         {
           "type": "azurerm_network_manager",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34920,10 +34920,10 @@
         {
           "type": "azurerm_network_manager_routing_rule",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -35041,10 +35041,10 @@
         {
           "type": "azurerm_network_profile",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -35057,10 +35057,10 @@
         {
           "type": "azurerm_network_security_group",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -35133,10 +35133,10 @@
         {
           "type": "azurerm_network_security_rule",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -35164,10 +35164,10 @@
         {
           "type": "azurerm_network_watcher_flow_log",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -35705,10 +35705,10 @@
         {
           "type": "azurerm_playwright_workspace",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -35856,10 +35856,10 @@
         {
           "type": "azurerm_postgresql_flexible_server_configuration",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -35887,10 +35887,10 @@
         {
           "type": "azurerm_postgresql_flexible_server_firewall_rule",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -35936,7 +35936,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -35967,7 +35967,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36040,10 +36040,10 @@
         {
           "type": "azurerm_private_dns_resolver_forwarding_rule",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36131,10 +36131,10 @@
         {
           "type": "azurerm_private_dns_zone",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36147,10 +36147,10 @@
         {
           "type": "azurerm_private_dns_zone_virtual_network_link",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36163,10 +36163,10 @@
         {
           "type": "azurerm_private_endpoint",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36194,10 +36194,10 @@
         {
           "type": "azurerm_private_link_service",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36210,10 +36210,10 @@
         {
           "type": "azurerm_proximity_placement_group",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36226,10 +36226,10 @@
         {
           "type": "azurerm_public_ip",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36242,10 +36242,10 @@
         {
           "type": "azurerm_public_ip_prefix",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36318,10 +36318,10 @@
         {
           "type": "azurerm_redhat_openshift_cluster",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36334,10 +36334,10 @@
         {
           "type": "azurerm_redis_cache",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36380,10 +36380,10 @@
         {
           "type": "azurerm_redis_firewall_rule",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36501,10 +36501,10 @@
         {
           "type": "azurerm_resource_group",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36682,10 +36682,10 @@
         {
           "type": "azurerm_resource_provider_feature_registration",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36758,10 +36758,10 @@
         {
           "type": "azurerm_route",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36774,10 +36774,10 @@
         {
           "type": "azurerm_route_filter",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36790,10 +36790,10 @@
         {
           "type": "azurerm_route_map",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36806,10 +36806,10 @@
         {
           "type": "azurerm_route_server",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36822,10 +36822,10 @@
         {
           "type": "azurerm_route_server_bgp_connection",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -36838,10 +36838,10 @@
         {
           "type": "azurerm_route_table",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -37544,10 +37544,10 @@
         {
           "type": "azurerm_service_plan",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -37560,10 +37560,10 @@
         {
           "type": "azurerm_servicebus_namespace",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -37594,7 +37594,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -37712,10 +37712,10 @@
         {
           "type": "azurerm_shared_image",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -37728,10 +37728,10 @@
         {
           "type": "azurerm_shared_image_gallery",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -37759,10 +37759,10 @@
         {
           "type": "azurerm_signalr_service",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -37775,10 +37775,10 @@
         {
           "type": "azurerm_signalr_service_custom_certificate",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -37791,10 +37791,10 @@
         {
           "type": "azurerm_signalr_service_custom_domain",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38707,10 +38707,10 @@
         {
           "type": "azurerm_storage_account",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38726,7 +38726,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38739,10 +38739,10 @@
         {
           "type": "azurerm_storage_account_local_user",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38758,7 +38758,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38774,7 +38774,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38790,7 +38790,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38806,7 +38806,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38837,7 +38837,7 @@
           "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38850,10 +38850,10 @@
         {
           "type": "azurerm_storage_container",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38911,10 +38911,10 @@
         {
           "type": "azurerm_storage_discovery_workspace",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38927,10 +38927,10 @@
         {
           "type": "azurerm_storage_encryption_scope",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38958,10 +38958,10 @@
         {
           "type": "azurerm_storage_mover",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38974,10 +38974,10 @@
         {
           "type": "azurerm_storage_mover_agent",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38990,10 +38990,10 @@
         {
           "type": "azurerm_storage_mover_job_definition",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -39006,10 +39006,10 @@
         {
           "type": "azurerm_storage_mover_project",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -39022,10 +39022,10 @@
         {
           "type": "azurerm_storage_mover_source_endpoint",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -39038,10 +39038,10 @@
         {
           "type": "azurerm_storage_mover_target_endpoint",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -39129,10 +39129,10 @@
         {
           "type": "azurerm_storage_sync",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -39145,10 +39145,10 @@
         {
           "type": "azurerm_storage_sync_cloud_endpoint",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -39176,10 +39176,10 @@
         {
           "type": "azurerm_storage_sync_server_endpoint",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -39567,10 +39567,10 @@
         {
           "type": "azurerm_subnet",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -39628,10 +39628,10 @@
         {
           "type": "azurerm_subnet_service_endpoint_storage_policy",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40079,10 +40079,10 @@
         {
           "type": "azurerm_system_center_virtual_machine_manager_availability_set",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40095,10 +40095,10 @@
         {
           "type": "azurerm_system_center_virtual_machine_manager_cloud",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40111,10 +40111,10 @@
         {
           "type": "azurerm_system_center_virtual_machine_manager_server",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40157,10 +40157,10 @@
         {
           "type": "azurerm_system_center_virtual_machine_manager_virtual_machine_template",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40173,10 +40173,10 @@
         {
           "type": "azurerm_system_center_virtual_machine_manager_virtual_network",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40249,10 +40249,10 @@
         {
           "type": "azurerm_traffic_manager_profile",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40280,10 +40280,10 @@
         {
           "type": "azurerm_user_assigned_identity",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40296,10 +40296,10 @@
         {
           "type": "azurerm_video_indexer_account",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40432,10 +40432,10 @@
         {
           "type": "azurerm_virtual_hub",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40448,10 +40448,10 @@
         {
           "type": "azurerm_virtual_hub_bgp_connection",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40464,10 +40464,10 @@
         {
           "type": "azurerm_virtual_hub_connection",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40480,10 +40480,10 @@
         {
           "type": "azurerm_virtual_hub_ip",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40496,10 +40496,10 @@
         {
           "type": "azurerm_virtual_hub_route_table",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40527,10 +40527,10 @@
         {
           "type": "azurerm_virtual_hub_routing_intent",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40603,10 +40603,10 @@
         {
           "type": "azurerm_virtual_machine_extension",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40769,10 +40769,10 @@
         {
           "type": "azurerm_virtual_network",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -40845,10 +40845,10 @@
         {
           "type": "azurerm_virtual_network_peering",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -41056,10 +41056,10 @@
         {
           "type": "azurerm_web_application_firewall_policy",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -41072,10 +41072,10 @@
         {
           "type": "azurerm_web_pubsub",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -41088,10 +41088,10 @@
         {
           "type": "azurerm_web_pubsub_custom_certificate",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -41104,10 +41104,10 @@
         {
           "type": "azurerm_web_pubsub_custom_domain",
           "tier": "declaration-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -41165,10 +41165,10 @@
         {
           "type": "azurerm_web_pubsub_socketio",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -41211,10 +41211,10 @@
         {
           "type": "azurerm_windows_virtual_machine",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -41272,10 +41272,10 @@
         {
           "type": "azurerm_workloads_sap_discovery_virtual_instance",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -41288,10 +41288,10 @@
         {
           "type": "azurerm_workloads_sap_single_node_virtual_instance",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -41304,10 +41304,10 @@
         {
           "type": "azurerm_workloads_sap_three_tier_virtual_instance",
           "tier": "marker-carried",
-          "status": "in-contract",
+          "status": "pending-ratification",
           "facts": {
             "taggable": true,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
