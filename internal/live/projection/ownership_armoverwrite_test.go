@@ -228,3 +228,47 @@ func TestARMOverwrite_holdsUnderTheVerbsThatLeaveTheCreate(t *testing.T) {
 		}
 	})
 }
+
+// TestARMOverwrite_namesWhatTheProviderWouldDo: GitHub issue #2133, finding
+// 5. Both providers read the id before their create PUT in their default
+// configuration, so the refusal is earlier than an apply-time error, not
+// the only thing between the plan and a takeover, and it says so per
+// provider: azurerm's read is the one a features flag turns off, azapi's
+// has no switch. The refusal still fires under both.
+func TestARMOverwrite_namesWhatTheProviderWouldDo(t *testing.T) {
+	for typ, wants := range map[string][]string{
+		"azurerm_dns_zone": {
+			"hashicorp/azurerm reads the id before that PUT",
+			"a resource with the ID ... already exists",
+			"skip_import_check_on_create_and_allow_overwriting_existing_resources = true",
+			"before anything is applied",
+			"refuses before azurerm would",
+		},
+		"azapi_resource": {
+			"azure/azapi reads the id before that PUT",
+			`"Resource already exists"`,
+			"no setting that turns the read off",
+			"before anything is applied",
+			"refuses before azapi would",
+		},
+	} {
+		t.Run(typ, func(t *testing.T) {
+			b := armOverwriteBuilder(t, &Ownership{Estate: k8sOwnershipEstate})
+			addr := armOverwriteAddr(t, typ)
+			b.checkOwnership(addr, typ, armOverwriteID, armTagsSchema(), armObject(nil), true, false, false)
+			errs := errorDiagsWith(b.diags, overwriteSummary)
+			if len(errs) != 1 {
+				t.Fatalf("want exactly one Error %q, got:\n%s", overwriteSummary, renderDiags(b.diags))
+			}
+			detail := errs[0].Description().Detail
+			for _, want := range wants {
+				if !strings.Contains(detail, want) {
+					t.Errorf("the refusal does not say %q:\n%s", want, detail)
+				}
+			}
+			if strings.Contains(detail, "Nothing in this provider is known to read the id first") {
+				t.Errorf("the refusal fell back to the unknown-provider sentence for %s:\n%s", typ, detail)
+			}
+		})
+	}
+}

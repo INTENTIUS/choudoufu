@@ -93,10 +93,16 @@ which is 15 on a Cosmos DB or storage account and 10 on API Management.
 An azurerm id is a template over the block's `name`, its
 `resource_group_name`, and its parents' names or ids. An `azapi_resource`
 id is `parent_id`, a segment derived from `type`, and `name`. The
-subscription is the provider block's `subscription_id`. A value set from
-`ARM_SUBSCRIPTION_ID` or a variable with no default is not known before
-the run, and the identity needs discovery, as an AWS account the run is not
-told does.
+subscription is the provider block's `subscription_id`, or
+`ARM_SUBSCRIPTION_ID` when the block sets none, the precedence both
+providers apply (azurerm 5.10.0 `internal/provider/provider.go:118`, azapi
+2.13.0 `internal/provider/provider.go:364-368`). The sweep reads the
+environment through the same function, so the two agree on it. A block
+value set from a variable with no default is not known before the run, and
+the environment does not stand in for it, because the provider would not
+let it: the identity needs discovery, as an AWS account the run is not told
+does. The Azure CLI's default subscription, which both providers fall back
+to last, is not read.
 
 Seven admitted untaggable azurerm types mint a GUID when their naming
 argument is left out: `azurerm_management_group`,
@@ -152,7 +158,21 @@ you run it" applies as written.
 What is Azure's own is what a plan finds at a declared id. An object there
 without this estate's `tofu-estate` tag is refused by name, "Unmarked live
 object at the declared id would be overwritten", because an ARM create is
-a PUT that would update it in place. `declared_untagged = "keep"` or
+a PUT that would update it in place.
+
+Both providers guard the same case at apply, and the refusal says which
+one the resource is under:
+
+| Provider | Its own check before the create PUT | Why the plan still refuses |
+|---|---|---|
+| azurerm 5.10.0 | Reads the id and fails with "a resource with the ID ... already exists" (`helpers/tf/errors.go:9-12`; e.g. `internal/services/resource/resource_group_resource.go:76-87`), unless `features { skip_import_check_on_create_and_allow_overwriting_existing_resources = true }` (`internal/provider/features.go:26-31`, 544-546). 61 of the 1,086 resource files do no such read, `azurerm_container_app_environment_certificate` among the taggable ones | Earlier: nothing is applied, where azurerm's error comes after the resources ordered before this one were created. Under the flag or such a type it is the only guard |
+| azapi 2.13.0 (`azapi_resource`) | Reads the id before every create and fails with "Resource already exists" (`internal/services/azapi_resource.go:873-893`). No provider feature or `ignore_*` argument turns it off | Earlier, for the same reason. Never the only guard |
+
+`azapi_resource` with its tags in `body.tags` reads back the same way as
+with the top-level argument: azapi puts `body.tags` into the top-level
+`tags` attribute at plan (lines 724 and 1555-1568), after create and update
+(line 1103), on refresh (1182-1184) and on import (1419-1421), so the marker
+is read from top-level `tags` in both cases. `declared_untagged = "keep"` or
 `"report"` would leave that create standing, so lint's
 `policy-overwrite-at-key` refuses both verbs in any configuration with an
 azurerm or azapi resource. `"adopt"` and `"converge"` admit the object

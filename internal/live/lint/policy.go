@@ -193,9 +193,13 @@ func checkPolicyOverwriteAtKey(cfg *configs.Config, path addrs.Module, issues *[
 			"the %s quadrant is assigned %q, and this configuration declares %s, through provider %s. Creating it is a PUT to "+
 				"the id its block declares, and a PUT to an id that already exists updates the object there instead of "+
 				"failing. %q leaves a declared object found at that id without this estate's %s tag out of the estate and "+
-				"lets the plan propose the create, so the apply would take that object over with nothing to say it was ever "+
-				"this estate's. On Kubernetes the API server refuses that create with 409 AlreadyExists, which is why the "+
-				"verb is accepted there (GitHub issue #1546); for this resource nothing refuses it (GitHub issue #1120). "+
+				"lets the plan propose the create, and then only the provider's own read of the id before its PUT stands "+
+				"between the apply and taking that object over with nothing to say it was ever this estate's: azapi always "+
+				"does that read, azurerm does it for most types unless its features block sets "+
+				"skip_import_check_on_create_and_allow_overwriting_existing_resources = true, and either way it fails the "+
+				"apply partway through rather than the plan. On Kubernetes the API server refuses that create with 409 "+
+				"AlreadyExists, which is why the verb is accepted there (GitHub issue #1546); for this resource ARM does "+
+				"not (GitHub issues #1120, #2133). "+
 				"Remove the assignment to keep the default, \"refuse\", which stops such a plan by name; set it to "+
 				"\"adopt\" to take such objects over with this estate's markers written in the open; or point the "+
 				"resource at a name nobody is using.",

@@ -135,3 +135,25 @@ func TestTaggerNeverReplacesTheOperatorsTags(t *testing.T) {
 		t.Errorf("the object's tags after the write are %v, want %v", stored, want)
 	}
 }
+
+// EnvSubscriptionID is WithEnv's subscription for a block that sets none:
+// ARM_SUBSCRIPTION_ID for either provider, and nothing else (GitHub issue
+// #2133, finding 4).
+func TestEnvSubscriptionIDIsWithEnvsAnswer(t *testing.T) {
+	env := map[string]string{"ARM_SUBSCRIPTION_ID": "sub-env", "AZURE_SUBSCRIPTION_ID": "not-read"}
+	getenv := func(k string) string { return env[k] }
+	if got := EnvSubscriptionID(getenv); got != "sub-env" {
+		t.Errorf("EnvSubscriptionID = %q, want sub-env", got)
+	}
+	for _, p := range []string{ProviderAzureRM, ProviderAzAPI} {
+		if got := (Attrs{Provider: p}).WithEnv(getenv).SubscriptionID; got != EnvSubscriptionID(getenv) {
+			t.Errorf("%s WithEnv = %q, EnvSubscriptionID = %q", p, got, EnvSubscriptionID(getenv))
+		}
+		if got := (Attrs{Provider: p, SubscriptionID: "sub-block"}).WithEnv(getenv).SubscriptionID; got != "sub-block" {
+			t.Errorf("%s: the block's subscription lost to the environment: %q", p, got)
+		}
+	}
+	if got := EnvSubscriptionID(func(string) string { return "" }); got != "" {
+		t.Errorf("EnvSubscriptionID with nothing set = %q", got)
+	}
+}

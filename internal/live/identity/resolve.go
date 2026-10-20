@@ -2013,11 +2013,31 @@ func (r *resolver) missingCloudComponent(entry TypeIdentity, attrs hcl.Attribute
 // fallback is (GitHub issue #1120): the resolved provider configuration's
 // own static `subscription_id`, which azurerm and azapi both take as the
 // subscription every request is made in. No resource argument defaults to
-// it, so there is no per-resource override to read first. A subscription
-// the block does not state statically (ARM_SUBSCRIPTION_ID, a variable with
-// no default) falls through to the [CloudContext], which never knows one,
-// so the run answers exactly as it does for an AWS account it is not told:
-// [ClassNeedsDiscovery] with [cloudReason]'s sentence.
+// it, so there is no per-resource override to read first.
+//
+// A block that does not set subscription_id at all (or no block: the
+// implied empty configuration) is answered from the [CloudContext]'s
+// SubscriptionID, the run's ARM_SUBSCRIPTION_ID, which is where both
+// providers take it from in that case (azurerm 5.10.0
+// internal/provider/provider.go:115-120, azapi 2.13.0
+// internal/provider/provider.go:363-368; GitHub issue #2133, finding 4).
+// The precedence is theirs: the block's value wins and the environment
+// only fills an unset argument. A block that sets it to something this run
+// cannot evaluate statically (a variable with no default) is not answered
+// from the environment, because the provider would not be either
+// ([resolver.providerLeavesUnset]); that, a context with no
+// SubscriptionID, and a for_each provider block all answer exactly as an
+// AWS account the run is not told does: [ClassNeedsDiscovery] with
+// [cloudReason]'s sentence.
+//
+// This is AWS's region shape, provider block first, with one difference
+// AWS does not have: AWS identity never reads AWS_REGION, because nothing
+// in its pipeline passes an environment region into the [CloudContext].
+// The subscription is read from the environment because without it a
+// template-routed azurerm or azapi resource cannot be named at all, and an
+// identity that cannot be named reaches no ownership read, which is what
+// silenced the overwrite refusal for an estate configured by
+// ARM_SUBSCRIPTION_ID alone.
 func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bool) {
 	if which == CloudRegion && cs.regionKnown && cs.region != "" {
 		return cs.region, true
@@ -2025,6 +2045,9 @@ func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bo
 	if which == CloudSubscriptionID {
 		if sub, ok := r.providerStaticAttr(cs.provider, "subscription_id"); ok && sub != "" {
 			return sub, true
+		}
+		if !r.providerLeavesUnset(cs.provider, "subscription_id") {
+			return "", false
 		}
 	}
 	return r.cloud.value(which)
@@ -3804,34 +3827,8 @@ func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool
 // failure the same ok=false. [CloudSubscriptionID] reads `subscription_id`
 // through it (GitHub issue #1120).
 func (r *resolver) providerStaticAttr(abs addrs.AbsProviderConfig, name string) (string, bool) {
-	if r.rootCfg == nil || r.rootCfg.Module == nil {
-		return "", false
-	}
-	owner := r.rootCfg.Descendent(abs.Module)
-	if owner == nil || owner.Module == nil {
-		return "", false
-	}
-	mod := owner.Module
-
-	keys := make([]string, 0, len(mod.ProviderConfigs))
-	for k := range mod.ProviderConfigs {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var pc *configs.Provider
-	for _, k := range keys {
-		cand := mod.ProviderConfigs[k]
-		if cand.Alias != abs.Alias {
-			continue
-		}
-		if mod.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: cand.Name}) != abs.Provider {
-			continue
-		}
-		pc = cand
-		break
-	}
-	if pc == nil || pc.Config == nil || pc.ForEach != nil {
+	pc, mod, found := r.providerBlock(abs)
+	if !found || pc == nil || pc.Config == nil || pc.ForEach != nil {
 		return "", false
 	}
 
@@ -3871,6 +3868,80 @@ func (r *resolver) providerStaticAttr(abs addrs.AbsProviderConfig, name string) 
 		return "", false
 	}
 	return str.AsString(), true
+}
+
+// providerBlock finds abs's own provider configuration block by the
+// deterministic match [resolver.providerStaticAttr] has always used: in the
+// module abs names, the block whose alias is abs's and whose local name
+// maps to abs's provider, first in key order. found is false when the
+// module itself cannot be found; pc is nil, with found true, when the
+// module has no such block, which is OpenTofu's implied empty provider
+// configuration.
+func (r *resolver) providerBlock(abs addrs.AbsProviderConfig) (pc *configs.Provider, mod *configs.Module, found bool) {
+	if r.rootCfg == nil || r.rootCfg.Module == nil {
+		return nil, nil, false
+	}
+	owner := r.rootCfg.Descendent(abs.Module)
+	if owner == nil || owner.Module == nil {
+		return nil, nil, false
+	}
+	mod = owner.Module
+
+	keys := make([]string, 0, len(mod.ProviderConfigs))
+	for k := range mod.ProviderConfigs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		cand := mod.ProviderConfigs[k]
+		if cand.Alias != abs.Alias {
+			continue
+		}
+		if mod.ProviderForLocalConfig(addrs.LocalProviderConfig{LocalName: cand.Name}) != abs.Provider {
+			continue
+		}
+		return cand, mod, true
+	}
+	return nil, mod, true
+}
+
+// providerLeavesUnset reports whether abs's provider configuration
+// certainly does not set the argument name: there is no block for it (the
+// implied empty configuration), or there is one, without for_each, whose
+// body has no such attribute. That is the one case in which a provider
+// falls back to its environment default, so it is the one case in which
+// [resolver.cloudValueFor] may read [CloudContext.SubscriptionID].
+//
+// Every doubt answers false: a module that cannot be found, a block with
+// for_each (whose keys may set it differently), a body this cannot read,
+// and an attribute that is present but not static. A block that sets
+// subscription_id = var.sub with no default is a subscription the
+// provider will use and this run cannot see; reading ARM_SUBSCRIPTION_ID
+// in its place would build the ARM id under a subscription the provider
+// never sends a request to.
+func (r *resolver) providerLeavesUnset(abs addrs.AbsProviderConfig, name string) bool {
+	pc, _, found := r.providerBlock(abs)
+	if !found {
+		return false
+	}
+	if pc == nil {
+		return true
+	}
+	if pc.ForEach != nil {
+		return false
+	}
+	if pc.Config == nil {
+		return true
+	}
+	content, _, diags := pc.Config.PartialContent(&hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{{Name: name}},
+	})
+	if diags.HasErrors() {
+		return false
+	}
+	_, set := content.Attributes[name]
+	return !set
 }
 
 func (r *resolver) errorf(rng hcl.Range, summary, format string, args ...any) {

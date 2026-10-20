@@ -197,6 +197,22 @@ func (azure) CreateCollidesOnKey(markers.Surface) bool { return false }
 // create-or-update) and azapi's CreateUpdate, which sends one PUT for both
 // (internal/services/azapi_resource.go at 2.13.0); it awaits measurement
 // on floci-az.
+//
+// This answers what ARM does, not what the provider in front of it does
+// (GitHub issue #2133, finding 5). Both providers read the id before the
+// PUT and fail the create when an object is there: azapi_resource always
+// (azapi 2.13.0 internal/services/azapi_resource.go:873-893, no switch),
+// azurerm for most types unless its features block sets
+// skip_import_check_on_create_and_allow_overwriting_existing_resources
+// (azurerm 5.10.0 internal/provider/features.go:26-31, 544-546; e.g.
+// internal/services/resource/resource_group_resource.go:76-87), and not
+// for a few types whose create does no read. The refusal stays true for
+// both providers on purpose: it is a plan-time stop, before anything is
+// applied, where the providers' is an apply-time error after whatever
+// was ordered before the resource has been created; and under azurerm it
+// is the only guard where the flag is set or the type skips the read.
+// internal/live/projection's overwriteProviderGuard puts the per-provider
+// answer in the refusal itself.
 func (azure) CreateOverwritesAtKey(surface markers.Surface) bool {
 	return surface == markers.SurfaceARMTags
 }

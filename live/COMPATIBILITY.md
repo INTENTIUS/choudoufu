@@ -253,7 +253,8 @@ both refused rather than defaulted - plus a narrower version of the
 Azure adds no stop of its own here. Its identity arguments are the block's
 `name`, `resource_group_name` and parents, or an `azapi_resource`'s `type`,
 `parent_id` and `name`, and the subscription comes from the provider
-block's `subscription_id` the way an AWS region does.
+block's `subscription_id` the way an AWS region does, or from
+`ARM_SUBSCRIPTION_ID` when the block sets none.
 `live/azure/COMPATIBILITY.md`'s "Identity arguments" has the detail.
 
 ## Your modules
@@ -381,7 +382,8 @@ EKS `aws-auth` ConfigMap case, where the interesting behavior actually
 lives.
 
 **Azure.** One provider block per subscription. Every Azure identity is
-built from the block and the provider block's `subscription_id`, so in the
+built from the block and the provider block's `subscription_id` (or
+`ARM_SUBSCRIPTION_ID` when the block sets none), so in the
 ordinary case no type needs discovery and the AWS bound on sharing one
 configuration does not arise. The sweep runs one Resource Graph
 query per subscription the estate's resources resolve to, with that

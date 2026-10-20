@@ -180,9 +180,12 @@ resource "azurerm_dns_zone" "z" {
 	}
 }
 
-// The subscription is the provider block's, never a guess: a block that
-// does not state it statically (ARM_SUBSCRIPTION_ID) leaves the identity
-// unbuildable, the same answer an AWS account-embedded identity gets.
+// The subscription is the provider block's, or ARM_SUBSCRIPTION_ID's when
+// the block sets none, never a guess: a block that does not state it and a
+// run whose environment names none (this test's zero CloudContext) leave
+// the identity unbuildable, the same answer an AWS account-embedded
+// identity gets. azure_subscription_env_test.go has the environment's
+// cases (GitHub issue #2133, finding 4).
 func TestAzurermSubscriptionUnstatedIsCloudUnknown(t *testing.T) {
 	result, errs := resolveAzure(t, `
 provider "azurerm" {
