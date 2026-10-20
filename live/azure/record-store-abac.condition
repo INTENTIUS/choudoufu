@@ -1,0 +1,41 @@
+(
+ (
+  !(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read'} AND NOT SubOperationMatches{'Blob.List'})
+  AND
+  !(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/delete'})
+  AND
+  !(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/read'})
+ )
+ OR
+ (
+  @Resource[Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags:tofu-estate<$key_case_sensitive$>] StringEquals 'ESTATE'
+ )
+)
+AND
+(
+ (
+  !(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write'})
+  AND
+  !(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/add/action'})
+  AND
+  !(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags/write'})
+ )
+ OR
+ (
+  @Request[Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags:tofu-estate<$key_case_sensitive$>] StringEquals 'ESTATE'
+ )
+)
+AND
+(
+ (
+  !(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read'} AND SubOperationMatches{'Blob.List'})
+ )
+ OR
+ (
+  @Request[Microsoft.Storage/storageAccounts/blobServices/containers/blobs:prefix] StringStartsWith 'tofu-records/ESTATE/'
+  OR
+  @Request[Microsoft.Storage/storageAccounts/blobServices/containers/blobs:prefix] StringStartsWith 'tofu-hints/ESTATE/'
+  OR
+  @Request[Microsoft.Storage/storageAccounts/blobServices/containers/blobs:prefix] StringStartsWith 'tofu-outputs/ESTATE/'
+ )
+)
