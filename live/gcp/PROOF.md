@@ -33,7 +33,7 @@ to manufacture the fault. Only the maintainer runs them.
 | `gcp-a-derived-name-needs-no-record` | 48, no record and no cache | renames the firewall; the plan must create it |
 | `gcp-a-parent-proves-no-child` | 49, a parent proves no child | holds the plan to No changes.; that must fail |
 | `gcp-a-removed-derived-block-is-destroyed` | 50, destroyed from its record | loses the record; the destroy must go too |
-| `gcp-a-markerless-type-is-refused` | 51, the markerless veto | swaps in a client-named type; the plan must pass |
+| `gcp-a-markerless-type-is-held-by-its-record` | 51, held by its record, or refused | drops the live block; live-check must refuse it |
 | `gcp-the-fence-gap-is-as-stated` | 52, the derived types' fence | removes the binding; the apply must be refused |
 
 ## Emulator gaps

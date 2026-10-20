@@ -15,14 +15,17 @@
 # from something other than the record, and the first half would prove
 # nothing about records.
 #
-# Not yet run, so its cell reads unproven. Step 4 names the lost
-# subnetwork by type: no plan can know a deleted block's address once its
-# record is gone too, so the name a plan can give is the type's, in the
-# warning list -verbose prints ("Not swept for removal", TYPE_NOT_TAGGABLE)
-# or a warning of its own. Which of the two the GCP leg raises is read from
-# the code, not measured: #2119 lists GCP's sweep after a block is removed
-# as "to design", and if the plan names neither, this step fails and that
-# is the finding. Compute on floci-gcp is lex00/floci-gcp#5.
+# Not yet run, so its cell reads unproven. Step 4's warning names the
+# type and the estate, never the address: the address is exactly what was
+# lost with the record, so a warning that printed one would be guessing.
+# Read from the code on 2026-10-20, no warning of that shape exists on the
+# GCP path yet. The GCP leg's two warnings, "GCP sweep incomplete" and
+# "GCP resource carries this estate's label and no declared address", name
+# the estate and only labelled objects; the TYPE_NOT_TAGGABLE sweep gap
+# names the type, raises no warning, and is filed only by the AWS
+# per-type sweep. Until one is built, step 4 fails, and that is the
+# finding #2119 lists as "to design". Compute on floci-gcp is
+# lex00/floci-gcp#5.
 
 SMOKE_WORK="$SMOKE_WORKROOT/gcp-a-removed-derived-block-is-destroyed"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -69,7 +72,7 @@ TF
 NET_PATH="compute/v1/projects/$P/global/networks/removed-net"
 FW_PATH="compute/v1/projects/$P/global/firewalls/removed-allow-ssh"
 SUB_PATH="compute/v1/projects/$P/regions/$R/subnetworks/removed-subnet-edge"
-plan() { ( cd "$SMOKE_WORK" && chdf plan -input=false -no-color "$@" 2>&1 ); }
+plan() { ( cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1 ); }
 # lose_record <type> moves every record of one resource type out of the
 # store. Each type here has one instance, so that is one record. A record
 # key is tofu-records/<estate>/<type>/<encoded address>
@@ -152,23 +155,37 @@ explain \
   "moved out of the store, its block is deleted, and the cache with" \
   "them. No plan can propose destroying an object nothing names, so" \
   "the subnetwork stays live. What the plan must not do is say nothing:" \
-  "it names google_compute_subnetwork as a type no sweep covers, which" \
-  "is the warning that a removed block of it may have left one behind."
-cmd "mv .tofu-records/.../google_compute_subnetwork lost-records/ && rm edge.tf && choudoufu plan -verbose"
+  "a warning names the type, google_compute_subnetwork, and the estate," \
+  "$ESTATE, and never an address, because the address went with the record."
+cmd "mv .tofu-records/.../google_compute_subnetwork lost-records/ && rm edge.tf && choudoufu plan"
 lose_record google_compute_subnetwork || fail "gcp-a-removed-derived-block-is-destroyed" "could not find the subnetwork's record to lose"
 rm -f "$SMOKE_WORK/edge.tf" "$CACHE"
-LOUT="$(plan -verbose)" || fail "gcp-a-removed-derived-block-is-destroyed" "the plan with the record lost failed: $LOUT"
+LOUT="$(plan)" || fail "gcp-a-removed-derived-block-is-destroyed" "the plan with the record lost failed: $LOUT"
 printf '%s\n' "$LOUT" > "$SMOKE_WORKROOT/logs/gcp-a-removed-derived-block-is-destroyed-lost.plan"
-{ grep -E '^Plan:|^No changes|will be destroyed|^Warning:|google_compute_subnetwork' <<< "$LOUT" || true; } | head -8 | evidence
+{ grep -E '^Plan:|^No changes|will be destroyed|^Warning:' <<< "$LOUT" || true; } | head -8 | evidence
 if grep -qE 'will be destroyed|[1-9][0-9]* to destroy' <<< "$LOUT"; then
   fail "gcp-a-removed-derived-block-is-destroyed" "the plan proposes a destroy with nothing left to name the subnetwork: $LOUT"
 fi
-NAMED="$(grep -E 'google_compute_subnetwork' <<< "$LOUT" | grep -vE 'will be|must be' || true)"
+# warnings prints each "Warning:" diagnostic of the plan as one line, its
+# summary and detail joined, so one grep can ask what a single warning says.
+warnings() {
+  awk '
+    /^Warning: / { if (w != "") print w; w = $0; next }
+    /^(Error: |Plan: |No changes|Not swept for removal|Swept via parent read)/ { if (w != "") print w; w = ""; next }
+    w != "" { w = w " " $0 }
+    END { if (w != "") print w }
+  ' <<< "$1"
+}
+NAMED="$(warnings "$LOUT" | grep -F 'google_compute_subnetwork' | grep -F "$ESTATE" || true)"
 [ -n "$NAMED" ] \
-  || fail "gcp-a-removed-derived-block-is-destroyed" "the plan never names google_compute_subnetwork: the lost subnetwork dropped out silently (full plan in $SMOKE_WORKROOT/logs/gcp-a-removed-derived-block-is-destroyed-lost.plan)"
+  || fail "gcp-a-removed-derived-block-is-destroyed" "no warning names both google_compute_subnetwork and estate $ESTATE: the lost subnetwork dropped out silently (full plan in $SMOKE_WORKROOT/logs/gcp-a-removed-derived-block-is-destroyed-lost.plan)"
+if grep -qF 'google_compute_subnetwork.edge' <<< "$NAMED"; then
+  fail "gcp-a-removed-derived-block-is-destroyed" "the warning names google_compute_subnetwork.edge, an address nothing left in this run can know: $NAMED"
+fi
+printf '%s\n' "$NAMED" | cut -c1-200 | evidence
 gcpl GET "$SUB_PATH" >/dev/null 2>&1 \
   || fail "gcp-a-removed-derived-block-is-destroyed" "the subnetwork is gone; nothing named it, so nothing may have deleted it"
-proof "no destroy proposed, the subnetwork still live, and the plan names its type as one no sweep covers."
+proof "no destroy proposed, the subnetwork still live, and a warning naming its type and the estate, never its address."
 
 step "5. clean up by hand, and destroy exactly what remains"
 gcpl DELETE "$SUB_PATH" >/dev/null || fail "gcp-a-removed-derived-block-is-destroyed" "could not delete the subnetwork by hand"
@@ -179,5 +196,6 @@ proof "1 destroyed. The estate is gone."
 
 echo "  What you watched: an unlabelled firewall whose block was deleted"
 echo "  destroyed from its record, and an unlabelled subnetwork whose record"
-echo "  and block went together left live and named by type, never dropped"
-echo "  without a word. Keep the record store and the second case is gone."
+echo "  and block went together left live, named by type and estate and"
+echo "  never dropped without a word. Keep the record store and the second"
+echo "  case is gone."

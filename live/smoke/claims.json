@@ -1173,14 +1173,14 @@
               "break_mode": "BREAK=1 moves the firewall's record out of the store before its block is deleted and requires the plan to propose no destroy of it, because without that control the destroy in the ordinary run would read the same if it came from anything but the record"
             }
           ],
-          "note": "Unproven until a dated run: gcp-a-removed-derived-block-is-destroyed.sh has no evidence file yet. A deleted firewall block's record proposes its destroy, since the Cloud Asset sweep filters on the estate label and the firewall carries none. A subnetwork whose record and block go together is left live, and the plan run with -verbose must name google_compute_subnetwork rather than drop it without a word. Which diagnostic names it on GCP is read from the code, not measured: #2119 lists GCP's sweep after a removed block as to design, and if the plan names neither the type nor the address, that step fails and is the finding."
+          "note": "Unproven until a dated run: gcp-a-removed-derived-block-is-destroyed.sh has no evidence file yet. A deleted firewall block's record proposes its destroy, since the Cloud Asset sweep filters on the estate label and the firewall carries none. A subnetwork whose record and block go together is left live, and a warning must name its type and the estate, never the address, which went with the record. Read from the code, no such warning exists on the GCP path yet: the GCP leg's warnings name the estate and only labelled objects, and the TYPE_NOT_TAGGABLE sweep gap names a type, raises no warning and is filed only by the AWS per-type sweep. So that step fails until the warning is built, the sweep #2119 lists as to design."
         }
       }
     },
     {
       "id": 51,
-      "slug": "a-markerless-type-is-refused",
-      "title": "An untaggable server-minted type is refused by name",
+      "slug": "a-markerless-type-is-held-by-its-record",
+      "title": "A markerless type is held by its record, or refused",
       "theme": "operate",
       "substrate": [
         "aws",
@@ -1189,7 +1189,7 @@
       "providers": {
         "aws": {
           "status": "open",
-          "note": "Inventoried in #2119, not built. AWS's veto is identity.MarkerlessTypes (159 types), refused by the markerless-type rule (live/LIMITATIONS.md); no claim scenario holds it yet."
+          "note": "Inventoried in #2119, not built. AWS's veto is identity.MarkerlessTypes, 159 types; under a live block a type whose identity a record can carry is admitted record-located (#270), and one whose identity it cannot carry, aws_wafv2_api_key among them, is refused by the markerless-type rule (live/LIMITATIONS.md). No claim scenario holds either half yet."
         },
         "kubernetes": {
           "status": "n/a",
@@ -1199,13 +1199,13 @@
           "status": "unproven",
           "proofs": [
             {
-              "scenario": "live/smoke/scenarios/gcp-a-markerless-type-is-refused.sh",
-              "command": "just smoke gcp-a-markerless-type-is-refused",
-              "minutes": 2,
-              "break_mode": "BREAK=1 swaps the alert policy for a google_service_account, unlabelled but client-named, in the same root and requires the plan to go through with its two creates and no markerless-type finding, because without that control the refusal would read the same if something other than the type refused the root"
+              "scenario": "live/smoke/scenarios/gcp-a-markerless-type-is-held-by-its-record.sh",
+              "command": "just smoke gcp-a-markerless-type-is-held-by-its-record",
+              "minutes": 3,
+              "break_mode": "BREAK=1 writes the same secret and version into a root with no live block, so there is no record store to hold the version's identity, and requires live-check to refuse google_secret_manager_secret_version by name under markerless-type, because without that control the admission in the ordinary run would read the same if the type were admitted for some reason other than the record"
             }
           ],
-          "note": "Unproven until a dated run: gcp-a-markerless-type-is-refused.sh has no evidence file yet. google_monitoring_alert_policy, in the google markerless list of live/readiness.json, must be refused by the markerless-type rule naming the block, with nothing created. Read from the code it may fail: every live block implies a local record store, lint admits a markerless type whose schema can be recorded as record-located (identity.LocatedType, #270), and LocatedType does not exclude google types, though live/READINESS.md says that route is not established for GCP. A lint check with a one-attribute schema admits this type under a live block."
+          "note": "Unproven until a dated run: gcp-a-markerless-type-is-held-by-its-record.sh has no evidence file yet. google_secret_manager_secret_version, in the google markerless list of live/readiness.json, is planned and applied under a live block, its identity (secret and version) written to the estate's record, and the plan with no cache reads No changes. from that record. The refusal half is shown with no record store rather than with a type whose identity a record cannot carry: measured on 2026-10-20 against the real hashicorp/google and google-beta 8.6.0 schemas, every member of identity.GoogleMarkerlessTypes the provider serves has identity.LocatedType true. That floci-gcp serves Secret Manager under <endpoint>/v1/ is assumed."
         }
       }
     },

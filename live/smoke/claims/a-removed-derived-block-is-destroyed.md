@@ -9,7 +9,8 @@ A type with no marker cannot be found by a sweep that searches on one.
 When its block is deleted, the estate's record is the only thing left
 that names it, and the plan proposes the destroy from that record. With
 the record lost too, nothing can name the address, so the plan cannot
-destroy it; it must still say so rather than drop it without a word. It
+destroy it. It must still warn, naming the type and the estate and never
+the address, since the address is what was lost. It
 is D3 of [#2119](https://github.com/INTENTIUS/choudoufu/issues/2119), the
 sibling of [claim 1](no-silent-orphans.md) for this tier.
 
@@ -37,10 +38,11 @@ A network, a firewall and a subnetwork, none labelled. The firewall's
 block is deleted with the cache, and its record must propose exactly one
 destroy at `google_compute_firewall.ssh`. Then the subnetwork's record and
 block go together: no destroy may be proposed, the subnetwork stays live,
-and the plan run with `-verbose` must name `google_compute_subnetwork`.
+and one warning must name both `google_compute_subnetwork` and the estate,
+without the address `google_compute_subnetwork.edge`.
 
 `BREAK=1` loses the firewall's record before its block is deleted, and
-the destroy must go with it. Which diagnostic names the lost subnetwork
-on GCP is read from the code rather than measured, and #2119 lists this
-sweep as still to design. It has no dated run yet, so the cell reads
-unproven.
+the destroy must go with it. Read from the code, no warning on the GCP
+path names an unlabelled type and the estate yet, so the second half
+fails until one is built; #2119 lists this sweep as still to design. It
+has no dated run yet, so the cell reads unproven.
