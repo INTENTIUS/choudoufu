@@ -17,7 +17,16 @@ const repo = (path: string) => `https://github.com/INTENTIUS/choudoufu/blob/main
 export const BOARD = repo('live/BOARD.md');
 export const CLAIMS = repo('live/CLAIMS.md');
 
-type Run = { date: string; commit: string };
+type Run = { date: string; commit: string; version?: string };
+
+// The newest release, from CHANGELOG.md's first dated heading. A run older
+// than it is stale: a release ages a result, it never resets one.
+const release = (() => {
+	const m = readFileSync(join(root, 'CHANGELOG.md'), 'utf8').match(/^## choudoufu (v\S+) \((\d{4}-\d{2}-\d{2})\)\s*$/m);
+	if (!m) throw new Error('site/src/data/proof.ts: CHANGELOG.md names no released version');
+	return { version: m[1], date: m[2] };
+})();
+const stale = (r: Run) => (r.version ? r.version !== release.version : r.date.slice(0, 10) < release.date);
 export type Figure = {
 	/** The number as shown, "23 of 23". */
 	value: string;
@@ -62,12 +71,14 @@ export function boardFigure(p: Platform): Figure | undefined {
 	return board(gauntlet.lanes.kubernetes, estates.filter((e) => e.lane === 'kubernetes'), 'Kubernetes estates clear every headline stage');
 }
 
-type Proof = { evidence?: string[]; stage?: string };
+type Proof = { evidence?: string[]; stage?: string; last_run?: { status: string; date: string; commit: string; version: string } };
 type Cell = { status: string; proofs?: Proof[] };
 
-/** The dated runs behind one proof: its evidence files' date and commit, or its gauntlet stage's last run. */
+/** The dated runs behind one proof: its evidence files' date and commit, its carried last_run, or its gauntlet stage's last run. */
 function proofRuns(proof: Proof): Run[] {
 	const runs: Run[] = [];
+	const lr = proof.last_run;
+	if (lr?.status === 'proven' && lr.date) runs.push({ date: lr.date, commit: lr.commit, version: lr.version });
 	for (const f of proof.evidence ?? []) {
 		const p = join(root, f);
 		if (!f.endsWith('.json') || !existsSync(p)) continue;
@@ -97,7 +108,12 @@ export function claimsFigure(p: Platform): Figure | undefined {
 	const name = p === 'aws' ? 'AWS' : 'Kubernetes';
 	const proven = cells.filter((c) => c.status === 'proven');
 	if (proven.length) {
-		return { value: `${proven.length} of ${cells.length}`, label: `claims proven on ${name}`, measured: when(proven.flatMap(runsOf)), href: CLAIMS };
+		// A cell is current when it has a run of its own and none predates the
+		// newest release. One proven only by another claim's steps has no run
+		// here, so it never counts as current on that claim's say-so.
+		const current = proven.filter((c) => runsOf(c).length > 0 && !runsOf(c).some(stale)).length;
+		const age = current === proven.length ? `, all on ${release.version}` : current > 0 ? `, ${current} on ${release.version}, the rest stale` : `, all stale: measured before ${release.version}`;
+		return { value: `${proven.length} of ${cells.length}`, label: `claims proven on ${name}`, measured: `${when(proven.flatMap(runsOf))}${age}`, href: CLAIMS };
 	}
 	const dated = cells.filter((c) => runsOf(c).length);
 	if (dated.length) {
