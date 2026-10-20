@@ -34,10 +34,15 @@ type IdentitySource struct {
 
 	// Within: the value is segment ParentSegment of this argument's value,
 	// an ARM id of the shape ParentTemplate, parsed as azurerm parses it
-	// ([ARMIDSegment]).
-	Within         string
-	ParentTemplate string
-	ParentSegment  string
+	// ([ARMIDSegment]): ParentSegments is that template segment by segment
+	// with each one's kind, and ParentInsensitive is whether azurerm's
+	// validator for the argument parses it insensitively (GitHub issue
+	// #2140).
+	Within            string
+	ParentTemplate    string
+	ParentSegment     string
+	ParentSegments    []ARMIDPart
+	ParentInsensitive bool
 
 	// Provider: the provider configuration's value, as a cloud value
 	// string ("subscription-id").
@@ -49,15 +54,37 @@ type IdentitySource struct {
 }
 
 type azurermIdentitySource struct {
-	Segment        string `json:"segment"`
-	Argument       string `json:"argument"`
-	Within         string `json:"within"`
-	ParentIDType   string `json:"parent_id_type"`
-	ParentTemplate string `json:"parent_template"`
-	ParentSegment  string `json:"parent_segment"`
-	Provider       string `json:"provider"`
-	Constant       string `json:"constant"`
+	Segment        string      `json:"segment"`
+	Argument       string      `json:"argument"`
+	Within         string      `json:"within"`
+	ParentIDType   string      `json:"parent_id_type"`
+	ParentTemplate string      `json:"parent_template"`
+	ParentSegment  string      `json:"parent_segment"`
+	ParentSegments []ARMIDPart `json:"parent_segments"`
+	ParentParse    string      `json:"parent_parse"`
+	Provider       string      `json:"provider"`
+	Constant       string      `json:"constant"`
 }
+
+// ARMIDPart is one path segment of an ARM id as go-azure-helpers'
+// resourceids declares it, recorded by tools/azurerm-id-gen from the id
+// type's Segments(): Kind "fixed" (a static or resource-provider segment,
+// whose text is Value), "constant" (a constant segment, one of Values) or
+// "value" (a subscription, resource group or user-specified segment, any
+// non-empty text, under Name).
+type ARMIDPart struct {
+	Kind   string   `json:"kind"`
+	Name   string   `json:"name,omitempty"`
+	Value  string   `json:"value,omitempty"`
+	Values []string `json:"values,omitempty"`
+}
+
+// The kinds of [ARMIDPart].
+const (
+	ARMIDFixed    = "fixed"
+	ARMIDConstant = "constant"
+	ARMIDValue    = "value"
+)
 
 // identitySources is the row's sources in this package's terms, nil when it
 // has none.
@@ -68,56 +95,82 @@ func (t azurermIDType) identitySources() map[string]IdentitySource {
 	out := make(map[string]IdentitySource, len(t.IdentitySources))
 	for attr, s := range t.IdentitySources {
 		out[attr] = IdentitySource{
-			Segment:        s.Segment,
-			Argument:       s.Argument,
-			Within:         s.Within,
-			ParentTemplate: s.ParentTemplate,
-			ParentSegment:  s.ParentSegment,
-			Provider:       s.Provider,
-			Constant:       s.Constant,
+			Segment:           s.Segment,
+			Argument:          s.Argument,
+			Within:            s.Within,
+			ParentTemplate:    s.ParentTemplate,
+			ParentSegment:     s.ParentSegment,
+			ParentSegments:    s.ParentSegments,
+			ParentInsensitive: s.ParentParse == "insensitive",
+			Provider:          s.Provider,
+			Constant:          s.Constant,
 		}
 	}
 	return out
 }
 
-// ARMIDSegment parses id as an ARM id of the shape template and returns the
-// value of its segment {segment}, the way a go-azure-sdk resourceids parser
-// does: the two split on "/" into the same number of path segments, each
-// fixed segment of the template equal to id's at the same position without
-// regard to case (ARM's comparison), and each {value} segment a non-empty
-// one. Nothing is matched by name or by search: a segment is its position,
-// so an id of any other shape, or a template naming no such segment,
-// answers false.
+// ARMIDSegment parses id as an ARM id of the segments parts and returns the
+// value of the segment named segment, the way go-azure-helpers'
+// resourceids.Parser.Parse does for an id type with no scope segment
+// (parse.go at the version azurerm 5.10.0 vendors): the id splits on "/"
+// into exactly as many path segments as parts; a fixed part equals its
+// text, a constant part equals one of its possible values, and a value part
+// is any non-empty text. With insensitive false, as ParseXxxID and every
+// ValidateXxxID parse, fixed and constant parts compare case-sensitively;
+// with insensitive true, as ParseXxxIDInsensitively parses, they compare
+// without regard to case. Nothing is matched by search: a segment is its
+// position, so an id of any other shape, a wrong constant, or parts naming
+// no such segment answer false.
 //
-// It reads a template with one value per path segment, which is every
-// parent template tools/azurerm-id-gen records (a scope segment, which
-// spans several, is never one: [identitySources]' generator refuses it).
-func ARMIDSegment(template, id, segment string) (string, bool) {
-	if !strings.HasPrefix(template, "/") || !strings.HasPrefix(id, "/") {
+// One trailing "/" is accepted, as Parse accepts it: Parse trims each
+// segment and the "/" after it off the input as it goes, and an input with
+// nothing left over is whole.
+func ARMIDSegment(parts []ARMIDPart, insensitive bool, id, segment string) (string, bool) {
+	if len(parts) == 0 || !strings.HasPrefix(id, "/") {
 		return "", false
 	}
-	tp := strings.Split(strings.TrimPrefix(template, "/"), "/")
-	ip := strings.Split(strings.TrimPrefix(strings.TrimSuffix(id, "/"), "/"), "/")
-	if len(tp) != len(ip) {
+	ip := strings.Split(strings.TrimSuffix(strings.TrimPrefix(id, "/"), "/"), "/")
+	if len(ip) != len(parts) {
 		return "", false
+	}
+	same := func(want, got string) bool {
+		if insensitive {
+			return strings.EqualFold(want, got)
+		}
+		return want == got
 	}
 	value, found := "", false
-	for i, t := range tp {
+	for i, p := range parts {
 		v := ip[i]
 		if v == "" {
 			return "", false
 		}
-		if strings.HasPrefix(t, "{") && strings.HasSuffix(t, "}") {
-			if t[1:len(t)-1] == segment {
-				if found {
-					return "", false
-				}
-				value, found = v, true
+		switch p.Kind {
+		case ARMIDFixed:
+			if !same(p.Value, v) {
+				return "", false
 			}
-			continue
-		}
-		if !strings.EqualFold(t, v) {
+		case ARMIDConstant:
+			ok := false
+			for _, c := range p.Values {
+				if same(c, v) {
+					// Parse answers the declared spelling.
+					v, ok = c, true
+					break
+				}
+			}
+			if !ok {
+				return "", false
+			}
+		case ARMIDValue:
+		default:
 			return "", false
+		}
+		if p.Kind != ARMIDFixed && p.Name == segment {
+			if found {
+				return "", false
+			}
+			value, found = v, true
 		}
 	}
 	return value, found

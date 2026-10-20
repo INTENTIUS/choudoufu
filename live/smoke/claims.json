@@ -826,7 +826,7 @@
         },
         "azure": {
           "status": "open",
-          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). The saved-plan approval check is substrate-neutral; the gauntlet's plan_approval stage on reference-azure is the intended proof once the maintainer runs it. Azure Policy's deny is evaluated by ARM at apply time, the role the server's refusal plays in the AWS and Kubernetes proofs; floci-az evaluates deny and denyAction since 30000b0 once FLOCI_AZ_SERVICES_POLICY_EVALUATE is set, which the smoke compose service does and gauntlet_floci_az_up does not yet; not yet run."
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). The saved-plan approval check is substrate-neutral; the gauntlet's plan_approval stage on reference-azure is the intended proof once the maintainer runs it. Azure Policy's deny is evaluated by ARM at apply time, the role the server's refusal plays in the AWS and Kubernetes proofs; floci-az evaluates deny and denyAction since 30000b0 once FLOCI_AZ_SERVICES_POLICY_EVALUATE is set, which the smoke compose service and gauntlet_floci_az_up both do (#2140); the plan_approval stage assigns no Policy definition, so the server's own refusal at apply time is not shown by it; not yet run."
         }
       }
     },

@@ -170,7 +170,9 @@ as the parent's id (`azurerm_storage_container`'s `storage_account_name`,
 parsed out of `storage_account_id` by the id grammar azurerm parses it
 with), a renamed argument or a constant (`azurerm_dns_cname_record`'s
 `dns_zone_name` and `record_type`), as azurerm's own identity tests state
-them. A record is written only when it rebuilds into the object's own ARM id.
+them; the generator reads those tests, so the agreement is checked within
+one generator run rather than independently
+([#2140](https://github.com/INTENTIUS/choudoufu/issues/2140)). A record is written only when it rebuilds into the object's own ARM id.
 The other five are refused by name, with the attribute azurerm states no
 configurable source for
 ([#2138](https://github.com/INTENTIUS/choudoufu/issues/2138)). Or

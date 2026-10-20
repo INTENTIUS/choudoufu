@@ -23,10 +23,13 @@ import (
 // the grammar of the id type azurerm's own validator parses that argument
 // as; a renamed argument; or a constant. These tests pin each source the
 // way TestAzurermIdentityRouteAgreesWithTheTemplate pins the 103 templates:
-// against what the provider says, here the checks azurerm's generated
-// resource identity test makes, carried in the identity extract and read
-// from the provider source apart from the generator
-// ([readAzurermIdentityTests]).
+// against the checks azurerm's generated resource identity test makes,
+// carried in the identity extract by a second reader of the provider
+// source ([readAzurermIdentityTests]). The generator derived the sources
+// from those same tests, so this is a self-consistency check of one
+// generator run against azurerm's identity tests, not independent
+// evidence (#2140). The parse of a parent's id is pinned directly, in
+// internal/live/substrate's TestARMIDSegment.
 
 // azurermRecordableIdentitySchemaTypes is how many of azurerm 5.10.0's 196
 // identity-schema types strict { markers "record" } may select. It was 103
@@ -141,8 +144,16 @@ func azurermSourceDisagreement(row azurermIDsRow, ty azurermIdentityExtractType)
 			}
 			// The parse the record rung runs, on an id of the parent's
 			// shape whose every value names its own segment.
-			sample := azurermFilledTemplate(src.ParentTemplate, func(seg string) string { return "v-" + seg })
-			if got, ok := substrate.ARMIDSegment(src.ParentTemplate, sample, src.ParentSegment); !ok || got != "v-"+src.ParentSegment {
+			// The parts the parse reads are the template, segment for
+			// segment, and the parse is one azurerm runs (#2140).
+			if rendered := azurermPartsTemplate(src.ParentSegments); rendered != src.ParentTemplate {
+				out = append(out, fmt.Sprintf("%s: parent segments render %s, and the parent template is %s", a, rendered, src.ParentTemplate))
+			}
+			if src.ParentParse != "strict" && src.ParentParse != "insensitive" {
+				out = append(out, fmt.Sprintf("%s: parent parse %q is neither strict nor insensitive", a, src.ParentParse))
+			}
+			sample := azurermFilledParts(src.ParentSegments, func(seg string) string { return "v-" + seg })
+			if got, ok := substrate.ARMIDSegment(src.ParentSegments, src.ParentParse == "insensitive", sample, src.ParentSegment); !ok || got != "v-"+src.ParentSegment {
 				out = append(out, fmt.Sprintf("%s: parsing %s for {%s} gives %q, %v", a, sample, src.ParentSegment, got, ok))
 			}
 		}
@@ -185,6 +196,39 @@ func azurermFilledTemplate(template string, value func(string) string) string {
 		}
 	}
 	return strings.Join(parts, "/")
+}
+
+// azurermPartsTemplate renders parts as tools/azurerm-id-gen renders a
+// template: fixed text as itself, every other part as {name}.
+func azurermPartsTemplate(parts []substrate.ARMIDPart) string {
+	var b strings.Builder
+	for _, p := range parts {
+		if p.Kind == substrate.ARMIDFixed {
+			b.WriteString("/" + p.Value)
+		} else {
+			b.WriteString("/{" + p.Name + "}")
+		}
+	}
+	return b.String()
+}
+
+// azurermFilledParts is an id of parts' shape: fixed text as itself, a
+// constant its first possible value, and a value segment value(name).
+func azurermFilledParts(parts []substrate.ARMIDPart, value func(string) string) string {
+	var b strings.Builder
+	for _, p := range parts {
+		switch p.Kind {
+		case substrate.ARMIDFixed:
+			b.WriteString("/" + p.Value)
+		case substrate.ARMIDConstant:
+			if len(p.Values) > 0 {
+				b.WriteString("/" + p.Values[0])
+			}
+		default:
+			b.WriteString("/" + value(p.Name))
+		}
+	}
+	return b.String()
 }
 
 // azurermShape is a template with its value segments' names dropped and its

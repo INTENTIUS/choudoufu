@@ -45,9 +45,12 @@ import (
 // stops being true rather than drop the distinction). Since GitHub issue
 // #2138 it also carries, per type, the checks azurerm's generated resource
 // identity test makes (identity_test), read from the provider source, so
-// the record rung's generated identity sources are pinned against the
-// provider's own statement of them without the source checked out
-// ([TestAzurermIdentitySourcesAgreeWithTheIdentityTest]). Regenerate it
+// the record rung's generated identity sources are pinned against those
+// tests without the source checked out
+// ([TestAzurermIdentitySourcesAgreeWithTheIdentityTest]). The generator
+// read the same tests to produce the sources, so the pin is a
+// self-consistency check of one generator run against them, not an
+// independent one ([readAzurermIdentityTests], #2140). Regenerate it
 // with -update-azurerm-identity-extract and AZURERM_SCHEMA set, the
 // variable internal/live/armtypes' pin test and the substrate's tags
 // extract read, and AZURERM_SRC, the azurerm checkout at the same tag
@@ -256,14 +259,16 @@ type azurermIDsRow struct {
 }
 
 type azurermIDsSource struct {
-	Segment        string `json:"segment"`
-	Argument       string `json:"argument"`
-	Within         string `json:"within"`
-	ParentIDType   string `json:"parent_id_type"`
-	ParentTemplate string `json:"parent_template"`
-	ParentSegment  string `json:"parent_segment"`
-	Provider       string `json:"provider"`
-	Constant       string `json:"constant"`
+	Segment        string                `json:"segment"`
+	Argument       string                `json:"argument"`
+	Within         string                `json:"within"`
+	ParentIDType   string                `json:"parent_id_type"`
+	ParentTemplate string                `json:"parent_template"`
+	ParentSegment  string                `json:"parent_segment"`
+	ParentSegments []substrate.ARMIDPart `json:"parent_segments"`
+	ParentParse    string                `json:"parent_parse"`
+	Provider       string                `json:"provider"`
+	Constant       string                `json:"constant"`
 }
 
 func loadAzurermIDsRows(t *testing.T) (schemaDigest string, rows map[string]azurermIDsRow) {

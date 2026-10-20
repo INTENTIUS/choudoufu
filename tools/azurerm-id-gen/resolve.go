@@ -31,6 +31,11 @@ type segment struct {
 	Kind  string `json:"kind"`
 	Name  string `json:"name,omitempty"`  // the parser's own name for a value segment
 	Value string `json:"value,omitempty"` // the fixed text of a static or provider segment
+	// Values is a constant segment's possible values, as its
+	// resourceids.ConstantSegment states them (its PossibleValuesForX()
+	// call, read to the string constants it returns), in declaration
+	// order; nil when they cannot be read (GitHub issue #2140).
+	Values []string `json:"values,omitempty"`
 }
 
 // idSource is the id type a resource's importer parses and where it came
@@ -295,7 +300,7 @@ func (l *loader) segmentsOf(p *pkg, name string) (*idSource, string) {
 	}
 	if m := p.method(name, "Segments"); m != nil {
 		src.Kind = "resourceids"
-		segs, problem := segmentsFromList(m)
+		segs, problem := segmentsFromList(p, m)
 		if problem != "" {
 			return src, problem
 		}
@@ -325,7 +330,9 @@ func isStruct(p *pkg, name string) bool {
 }
 
 // segmentsFromList reads `return []resourceids.Segment{ resourceids.X(...), ... }`.
-func segmentsFromList(m *ast.FuncDecl) ([]segment, string) {
+// p is the package declaring m, where a constant segment's
+// PossibleValuesForX() is looked up.
+func segmentsFromList(p *pkg, m *ast.FuncDecl) ([]segment, string) {
 	var lit *ast.CompositeLit
 	ast.Inspect(m.Body, func(n ast.Node) bool {
 		if rs, ok := n.(*ast.ReturnStmt); ok && len(rs.Results) == 1 && lit == nil {
@@ -366,7 +373,11 @@ func segmentsFromList(m *ast.FuncDecl) ([]segment, string) {
 		case "UserSpecifiedSegment":
 			out = append(out, segment{Kind: segUser, Name: arg(0)})
 		case "ConstantSegment":
-			out = append(out, segment{Kind: segConstant, Name: arg(0)})
+			var values []string
+			if len(call.Args) > 1 {
+				values = possibleValues(p, call.Args[1])
+			}
+			out = append(out, segment{Kind: segConstant, Name: arg(0), Values: values})
 		case "ScopeSegment":
 			out = append(out, segment{Kind: segScope, Name: arg(0)})
 		case "ResourceIDSegment":
@@ -378,6 +389,59 @@ func segmentsFromList(m *ast.FuncDecl) ([]segment, string) {
 		}
 	}
 	return out, ""
+}
+
+// possibleValues reads a ConstantSegment's possible values argument,
+// `PossibleValuesForRecordType()`: a call to a function of p whose body
+// returns a []string literal of string(Const) conversions or string
+// literals, each Const a string constant of p. Nil when any part of that
+// is some other shape, so a constant whose values are not read is never
+// given a partial list.
+func possibleValues(p *pkg, e ast.Expr) []string {
+	call, ok := e.(*ast.CallExpr)
+	if !ok || p == nil {
+		return nil
+	}
+	id, ok := call.Fun.(*ast.Ident)
+	if !ok {
+		return nil
+	}
+	fd := p.funcs[id.Name]
+	if fd == nil || fd.Body == nil {
+		return nil
+	}
+	var lit *ast.CompositeLit
+	ast.Inspect(fd.Body, func(n ast.Node) bool {
+		if rs, ok := n.(*ast.ReturnStmt); ok && len(rs.Results) == 1 && lit == nil {
+			lit, _ = rs.Results[0].(*ast.CompositeLit)
+		}
+		return lit == nil
+	})
+	if lit == nil {
+		return nil
+	}
+	var out []string
+	for _, el := range lit.Elts {
+		if c, ok := el.(*ast.CallExpr); ok && len(c.Args) == 1 {
+			if fn, ok := c.Fun.(*ast.Ident); ok && fn.Name == "string" {
+				el = c.Args[0]
+			}
+		}
+		if s, ok := stringLit(el); ok {
+			out = append(out, s)
+			continue
+		}
+		cid, ok := el.(*ast.Ident)
+		if !ok {
+			return nil
+		}
+		s, ok := stringLit(p.consts[cid.Name])
+		if !ok {
+			return nil
+		}
+		out = append(out, s)
+	}
+	return out
 }
 
 // segmentsFromFormat reads a hand parser's ID(): a fmt.Sprintf whose format

@@ -324,7 +324,8 @@ the CA to `SSL_CERT_FILE`. On macOS Go ignores that variable, so the CA has
 to be trusted in the keychain by hand.
 
 **Settings the lane turns on.** Three surfaces are opt-in in the fork, and
-`live/smoke/docker-compose.yml` sets them:
+`live/smoke/docker-compose.yml` and the gauntlet's `gauntlet_floci_az_up`
+both set them, through `live/e2e/lib/floci-az.sh` (#2140):
 
 - `FLOCI_AZ_STORAGE_SUFFIX=localhost:<host port>` (c760e26), so
   `/metadata/endpoints` and storage accounts' `primaryEndpoints` name the

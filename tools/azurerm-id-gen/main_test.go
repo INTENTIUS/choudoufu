@@ -8,6 +8,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
@@ -366,7 +367,15 @@ func TestFixtureRecordsIdentitySources(t *testing.T) {
 	rows := fixtureRows(t)
 	const account = "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Storage/storageAccounts/{storageAccountName}"
 	within := func(seg string) identitySource {
-		return identitySource{Segment: seg, Within: "storage_account_id", ParentIDType: "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.StorageAccountId", ParentTemplate: account, ParentSegment: seg}
+		return identitySource{Segment: seg, Within: "storage_account_id", ParentIDType: "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids.StorageAccountId", ParentTemplate: account, ParentSegment: seg,
+			ParentSegments: []parentPart{
+				{Kind: partFixed, Value: "subscriptions"}, {Kind: partValue, Name: "subscriptionId"},
+				{Kind: partFixed, Value: "resourceGroups"}, {Kind: partValue, Name: "resourceGroupName"},
+				{Kind: partFixed, Value: "providers"}, {Kind: partFixed, Value: "Microsoft.Storage"},
+				{Kind: partFixed, Value: "storageAccounts"}, {Kind: partValue, Name: "storageAccountName"},
+			},
+			ParentParse: parseStrict,
+		}
 	}
 	for typ, want := range map[string]map[string]identitySource{
 		"azurerm_widget_storage": {
@@ -429,5 +438,65 @@ func TestIdentityAttrNamesIsAzurermsRule(t *testing.T) {
 	}
 	if _, problem := identityAttrNames([]segment{{Kind: segScope, Name: "scope"}}, false); problem == "" {
 		t.Error("a scope segment is named")
+	}
+}
+
+// TestConstantSegmentsCarryTheirValues: a constant segment is read with
+// its possible values, through PossibleValuesForX() to the string
+// constants it returns, so a parse can check it (#2140).
+func TestConstantSegmentsCarryTheirValues(t *testing.T) {
+	l, err := newLoader("testdata/src")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := l.load("github.com/hashicorp/go-azure-sdk/resource-manager/widget/2024-01-01/gizmos")
+	if p == nil {
+		t.Fatal("the fixture's gizmos package does not load")
+	}
+	src, problem := l.segmentsOf(p, "RecordId")
+	if problem != "" {
+		t.Fatal(problem)
+	}
+	var got []string
+	for _, s := range src.Segments {
+		if s.Kind == segConstant {
+			got = s.Values
+		}
+	}
+	if want := []string{"A", "CNAME", "TXT"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("recordType's values %v, want %v", got, want)
+	}
+	parts, problem := parentParts(src.Segments)
+	if problem != "" || parts[8].Kind != partConstant || !reflect.DeepEqual(parts[8].Values, got) || parts[5].Kind != partFixed || parts[7].Kind != partValue {
+		t.Errorf("parentParts = %+v (%s)", parts, problem)
+	}
+	if _, problem := parentParts([]segment{{Kind: segConstant, Name: "recordType"}}); problem == "" {
+		t.Error("a constant with no values read became a part")
+	}
+	if _, problem := parentParts([]segment{{Kind: segScope, Name: "scope"}}); problem == "" {
+		t.Error("a scope segment became a part")
+	}
+}
+
+// TestInsensitiveParseIsRead: a validator naming a ParseXxxIDInsensitively
+// records the parse as insensitive, and ValidateXxxID as strict (#2140).
+func TestInsensitiveParseIsRead(t *testing.T) {
+	l, err := newLoader("testdata/src")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &pkg{funcs: map[string]*ast.FuncDecl{}, imports: map[*ast.File]map[string]string{}}
+	for src, want := range map[string]bool{
+		"validation.AsGeneratedID(commonids.ParseKubernetesClusterIDInsensitively)":          true,
+		"commonids.ValidateKubernetesClusterID":                                              false,
+		"commonschema.ResourceIDReferenceRequiredForceNew(&commonids.KubernetesClusterId{})": false,
+	} {
+		e, err := parser.ParseExpr(src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := l.namesInsensitiveParse(p, nil, e, 0); got != want {
+			t.Errorf("%s: insensitive %v, want %v", src, got, want)
+		}
 	}
 }

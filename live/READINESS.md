@@ -77,7 +77,13 @@ is recorded in `live/azurerm-ids.json` (#1120 unit 17). A record can hold
 the whole identity of 191 of the 196, each attribute the block does not
 declare read from the source azurerm's identity test states for it (a
 parent's id parsed by its id grammar, a renamed argument, a constant), and
-refuses the other 5 by name (#2138).
+refuses the other 5 by name (#2138). The sources and the guard's check of
+them come from one `tools/azurerm-id-gen` run over azurerm's source, so
+their agreement with azurerm's identity tests is a self-consistency check
+of that run, not independent evidence. A parent's id is parsed as
+azurerm's validator for the argument parses it, constant and fixed
+segments checked, strictly or case-insensitively as that validator does
+(#2140).
 
 No stock carrier exists for an untaggable Azure type. azurerm and azapi
 write nothing onto an ARM object but its own properties, and ARM keeps no
