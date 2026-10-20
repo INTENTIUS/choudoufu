@@ -14,9 +14,11 @@ stage cited as `<estate>:<stage id>`. A page has a `## On AWS` and a
 every proof in it, or the stage it cites.
 
 A cell reads `proven` only when every proof in it names a dated run: an
-evidence file under `../evidence/` with a `date`, or a stage that reads
-pass in `live/gauntlet.json`. Otherwise it reads `unproven`, and its note
-names the proofs that have no dated run. No workflow runs these scenarios
+evidence file under `../evidence/` with a `date`, a carried `last_run`, or
+a stage that reads pass in `live/gauntlet.json`. Otherwise it reads
+`unproven`, and its note names the proofs that have no dated run. A
+release does not reset a result; a run older than the newest release reads
+stale on `live/CLAIMS.md`. No workflow runs these scenarios
 since #2018, so a run by hand with its evidence file is what moves a cell. `live/smoke_claims_test.go` fails if a
 claim has no page, a page has no claim, or a section never gives a proof's
 command.
