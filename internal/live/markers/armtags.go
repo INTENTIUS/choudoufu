@@ -239,3 +239,59 @@ func DeleteARMMarkerTag(tags map[string]string, key string) {
 		delete(tags, k)
 	}
 }
+
+// ARMBodyArgument is azapi_resource's request body argument, which carries
+// the object's tags under [ARMTagsArgument] when its configuration puts them
+// there (GitHub issue #1120: azapi sends body.tags and ignores the top-level
+// argument then, internal/services/azapi_resource.go's expandBody at 2.13.0).
+const ARMBodyArgument = "body"
+
+// WithARMBodyTags returns an azapi body with its tags key set to tags, as an
+// object of strings, and every other key unchanged: the write a tags-only
+// change to an existing object makes when its configuration keeps its tags
+// in the body. ok is false when body is not a known, unmarked object or map
+// a tags key can be set in.
+//
+//markers:surface arm-tags
+func WithARMBodyTags(body cty.Value, tags map[string]string) (cty.Value, bool) {
+	if body == cty.NilVal || body.IsNull() || !body.IsKnown() || body.IsMarked() {
+		return cty.NilVal, false
+	}
+	if !body.Type().IsObjectType() && !body.Type().IsMapType() {
+		return cty.NilVal, false
+	}
+	elems := map[string]cty.Value{}
+	for it := body.ElementIterator(); it.Next(); {
+		k, v := it.Element()
+		elems[k.AsString()] = v
+	}
+	tagVals := make(map[string]cty.Value, len(tags))
+	for k, v := range tags {
+		tagVals[k] = cty.StringVal(v)
+	}
+	elems[ARMTagsArgument] = cty.ObjectVal(tagVals)
+	return cty.ObjectVal(elems), true
+}
+
+// ARMBodyWithoutTags returns an azapi body with its tags key removed, so two
+// bodies can be compared on everything a tags-only write must leave alone.
+// Any value that is not a known, unmarked object or map comes back as it is.
+//
+//markers:surface arm-tags
+func ARMBodyWithoutTags(body cty.Value) cty.Value {
+	if body == cty.NilVal || body.IsNull() || !body.IsKnown() || body.IsMarked() {
+		return body
+	}
+	if !body.Type().IsObjectType() && !body.Type().IsMapType() {
+		return body
+	}
+	elems := map[string]cty.Value{}
+	for it := body.ElementIterator(); it.Next(); {
+		k, v := it.Element()
+		if k.AsString() == ARMTagsArgument {
+			continue
+		}
+		elems[k.AsString()] = v
+	}
+	return cty.ObjectVal(elems)
+}

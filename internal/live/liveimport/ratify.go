@@ -224,6 +224,13 @@ type eligible struct {
 	// uses, because ARM tag keys are case-insensitive.
 	armTagged bool
 
+	// armInBody says the ARM marker goes in an azapi_resource's body.tags
+	// rather than its top-level tags argument, because that is where the
+	// object's own configuration keeps its tags and azapi then ignores the
+	// top-level argument ([projection.ARMTagPlacement], GitHub issue #1120
+	// unit 19). Set only when armTagged.
+	armInBody bool
+
 	// manifestKey is the natural key read out of the state's own recorded
 	// object, [markers.ManifestKeyOf]. Set only when manifested.
 	manifestKey markers.ManifestKey
@@ -858,6 +865,26 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	priorVal, _ := prior.Value.UnmarkDeep()
 	entry.LiveID = liveIDFrom(typeName, priorVal)
 
+	// GitHub issue #1120 unit 19. The arm-tags surface is answered from the
+	// schema, and azapi_resource's schema has a tags argument for every ARM
+	// type; whether this object can carry a marker is a property of the ARM
+	// type and API version its type argument names. One that takes no tags
+	// is migrated the way an untaggable AWS type is (aws_route, the
+	// fixture's UNTAGGABLE row, and #364 unit A2's identity record): its
+	// identity goes into the record store and no marker is written. The
+	// stamp makes the same decision for a planned object (armTagTarget),
+	// so a migrated estate and a greenfield one agree.
+	var armInBody bool
+	if armTagged && !selected {
+		inBody, placed, why := projection.ARMTagPlacement(addr, schema.Block, priorVal)
+		if !placed {
+			untaggable, car := ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
+			untaggable.Detail = why + " It is migrated as an untaggable type is: its identity is recorded in the estate's record store when one is configured."
+			return untaggable, car
+		}
+		armInBody = inBody
+	}
+
 	// GitHub issue #1109. A manifest-shape instance has no flat id
 	// attribute at all - its whole object is one dynamic argument - so
 	// [liveIDFrom] answers "" for it and the report used to print "live
@@ -920,7 +947,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		// see [located]'s doc comment.
 		return entry, carriers{located: &located{sub}}
 	}
-	elig := &eligible{residuable: sub, labelled: labelled, manifested: manifested, armTagged: armTagged}
+	elig := &eligible{residuable: sub, labelled: labelled, manifested: manifested, armTagged: armTagged, armInBody: armInBody}
 	if fieldGranular {
 		// GitHub issue #1863: the write the state records and the manager
 		// it was made under, read from the state's own object, never from

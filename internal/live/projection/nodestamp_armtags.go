@@ -177,6 +177,28 @@ func armTagTarget(addr addrs.AbsResourceInstance, block *configschema.Block, con
 		"%s's body evaluated to a %s, not an object, so this run cannot tell where its tags go and has written no ownership marker on it.", addr, body.Type().FriendlyName())))
 }
 
+// ARMTagPlacement is [armTagTarget] for a write onto an object that already
+// exists, outside the node stamp: live-import's adopt write and live-mv's
+// rewrite (GitHub issue #1120 unit 19), handed the object as the provider
+// read it. inBody says the marker goes in body.tags, where the object's own
+// configuration keeps its tags; otherwise in the top-level tags argument.
+// ok false says nowhere, and why is the sentence the stamp would have
+// warned with: an azapi ARM type that takes no tags at its API version, one
+// this build does not know, or a body no marker can be merged into. Both
+// writers therefore decline exactly the objects a plan declines to stamp.
+func ARMTagPlacement(addr addrs.AbsResourceInstance, block *configschema.Block, obj cty.Value) (inBody, ok bool, why string) {
+	at, diags := armTagTarget(addr, block, obj)
+	switch {
+	case at == armTagsInBody:
+		return true, true, ""
+	case at == armTagsTopLevel:
+		return false, true, ""
+	case len(diags) > 0:
+		return false, false, diags[0].Description().Detail
+	}
+	return false, false, fmt.Sprintf("%s has nowhere to carry an ownership marker.", addr)
+}
+
 // stampedARMTags returns the argument to replace and its stamped value for
 // an instance on the ARM surface, or stamped false when nothing is written
 // (an azapi type not known to take tags, or a value the stamp cannot merge

@@ -129,7 +129,10 @@ type StampReport struct {
 // exactly the same rules as the first, not by a copy of them that drifts.
 // Nothing here is new but the named attribute paths on the replacement
 // refusal, which internal/live/mv's checkPlan has always printed.
-func notATagsOnlyPlan(block *configschema.Block, prior cty.Value, typeName string, resp providers.PlanResourceChangeResponse) string {
+//
+// armInBody is [eligible.armInBody]: the write sets an azapi body's tags, so
+// the body may change there and nowhere else ([changedOutsideARMTags]).
+func notATagsOnlyPlan(block *configschema.Block, prior cty.Value, typeName string, resp providers.PlanResourceChangeResponse, armInBody bool) string {
 	if resp.Diagnostics.HasErrors() {
 		return fmt.Sprintf("The provider failed while planning the tag write: %s. Nothing was written.", resp.Diagnostics.Err())
 	}
@@ -139,7 +142,7 @@ func notATagsOnlyPlan(block *configschema.Block, prior cty.Value, typeName strin
 	if resp.PlannedState == cty.NilVal || resp.PlannedState.IsNull() {
 		return "Planning the tag write produced no object at all. This is a provider bug; nothing was written."
 	}
-	if extra := changedOutsideTags(block, prior, resp.PlannedState); len(extra) > 0 {
+	if extra := changedOutsideARMTags(block, prior, resp.PlannedState, armInBody); len(extra) > 0 {
 		return fmt.Sprintf("Stamping this %s would also change %s. Approve is a tags-only write; nothing was written. Run live-plan to see what else has drifted and resolve that first.", typeName, strings.Join(extra, ", "))
 	}
 	return ""
@@ -822,6 +825,23 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		out.Detail = fmt.Sprintf("The tags of this %s could not be replaced: %s.", e.typeName, err)
 		return out
 	}
+	if e.armInBody {
+		// GitHub issue #1120 unit 19: this object's configuration keeps its
+		// tags in the body, and azapi sends body.tags and ignores the
+		// top-level argument whenever the body has them (expandBody,
+		// internal/services/azapi_resource.go at 2.13.0), so a marker
+		// written only to the top level would be planned, applied and never
+		// stored. The top-level value set above is what azapi itself plans
+		// for it (tagsWithDefaultTags copies body.tags when the argument is
+		// null), so the planned object reads the markers back where every
+		// reader looks (markers.ARMTagsOf).
+		desired, err = withARMBodyTags(desired, desiredTags)
+		if err != nil {
+			out.Outcome = OutcomeFailed
+			out.Detail = fmt.Sprintf("The body tags of this %s could not be replaced: %s. Nothing was written.", e.typeName, err)
+			return out
+		}
+	}
 
 	// The resource being stamped has no configuration - that is what a
 	// migration is - so one is synthesized, and there is more than one honest
@@ -838,6 +858,9 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		refusal   string
 	)
 	for _, candidate := range syntheticConfigs(e.schema.Block, desired) {
+		if e.armInBody {
+			candidate = armBodyConfig(candidate, desired)
+		}
 		resp := e.provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
 			TypeName:         e.typeName,
 			PriorState:       e.applied,
@@ -851,7 +874,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 			ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
 			PriorIdentity: e.identity,
 		})
-		if why := notATagsOnlyPlan(e.schema.Block, e.applied, e.typeName, resp); why != "" {
+		if why := notATagsOnlyPlan(e.schema.Block, e.applied, e.typeName, resp, e.armInBody); why != "" {
 			// Kept, not returned: if no candidate produces a clean plan, the
 			// LAST refusal is the one reported, so the message an operator
 			// reads is the one for the configuration that asserts most - the
