@@ -101,6 +101,13 @@ type holding any sensitive attribute, so the configuration-only
 `wait_for_service_account_token` was proposed on every plan. Refuse now
 drops each sensitive argument and records the rest.
 
+## On GCP
+
+No GCP scenario is written yet, so the cell is open. A
+`google_secret_manager_secret_version`'s `secret_data` is returned by the
+provider's read, so it stays out of the record (`live/SECRETS.md`), and
+`secret_data_wo` is never recorded.
+
 ## What this does not claim
 
 The debug log and the saved plan hold the value. They are the operator's

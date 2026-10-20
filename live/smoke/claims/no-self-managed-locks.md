@@ -90,3 +90,11 @@ both are parked: twelve rounds, each landing one write and refusing the
 other with a conflict naming both versions, no Lease taken. Its `BREAK=1`
 control swaps each write for the stock `backend "kubernetes"`
 read-then-update, and all twelve rounds must end with both writes landed.
+
+## On GCP
+
+Expected to be proven by steps of `just smoke gcp-records-in-a-bucket`, as
+`k8s-records-in-the-cluster` proves it on Kubernetes: the `gcs` record
+store writes with `ifGenerationMatch` and holds no lock
+([#2122](https://github.com/INTENTIUS/choudoufu/issues/2122)). The cell is
+open until that scenario is registered and runs.

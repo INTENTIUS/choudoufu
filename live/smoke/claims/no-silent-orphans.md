@@ -119,3 +119,14 @@ the plan a blind sweep would make, `No changes.`, which must fail.
 
 What fences a write on the label is the admission policy of
 [claim 13 on Kubernetes](the-tag-is-the-boundary.md#on-kubernetes).
+
+## On GCP
+
+`just smoke gcp-no-silent-orphans` is the proof, on floci-gcp: a labelled
+resource whose block is deleted is proposed for removal by the sweep, a
+Cloud Asset Inventory search per project filtered on the estate label. Its
+`BREAK=1` strips the orphan's label and requires the replan to leave it
+alone. Controller-held objects are excluded first, and an object whose
+address label matches nothing declared is reported rather than planned; a
+deleted block's record proposes that removal. The network skeleton carries
+no label, so only its record proposes its removal.

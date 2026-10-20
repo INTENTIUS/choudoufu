@@ -102,3 +102,16 @@ another estate's object before any cluster is consulted. `BREAK=1`
 removes the policy, and the writes it refused must go through, while the
 plan-side refusal must still hold. One estate across clusters, or two
 estates applying to one cluster at once, is not measured.
+
+## On GCP
+
+Restated: `just smoke gcp-the-label-is-the-boundary` proves the
+project-scoped form. An IAM condition cannot read a GCP label, so the
+fence is the project
+([#1121](https://github.com/INTENTIUS/choudoufu/issues/1121)): one estate
+per project, granted by an ordinary project IAM binding,
+`live/gcp/estate-grant.sh`. Two estates sharing one project are not fenced
+from each other per principal, and nothing finer than an estate can be
+granted. Its `BREAK=1` grants the refused principal the binding and
+requires its write to go through. The cell is open until the scenario is
+registered and runs.

@@ -127,3 +127,11 @@ logs one line per request the client sent. The plan texts match once each
 tool's name is taken out, and the request counts are equal (8 each on the
 first run). `BREAK=1` turns the live block on for choudoufu's leg, and the
 measurement must move. Foreign objects and a plan's cost are claim 14's.
+
+## On GCP
+
+No GCP scenario is written yet, so the cell is open. The exit is part of
+the ruling ([#1121](https://github.com/INTENTIUS/choudoufu/issues/1121)):
+drop the `live` block, keep the cache file, and stock OpenTofu with
+hashicorp/google 8.6.0 carries on. The markers are ordinary labels stock
+ignores.

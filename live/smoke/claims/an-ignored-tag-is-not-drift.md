@@ -42,3 +42,9 @@ the cluster or in a bucket; the bucket step also needs the floci
 emulator. `BREAK=1` writes an undeclared key, which must plan `No
 changes.`, and runs the shared-store steps on the local store, where the
 second directory must see nothing.
+
+## On GCP
+
+No GCP scenario is written yet, so the cell is open. `ignore_changes =
+[labels["owner"]]` is admitted, and `ignore_changes` over the `labels` map
+or a marker key is refused by lint.

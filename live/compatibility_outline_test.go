@@ -19,9 +19,10 @@ import (
 // live/COMPATIBILITY.md and dropped whole sections with no word that they
 // did not apply.
 //
-// This pin holds the two documents to the same level-2 outline: every ##
+// This pin holds each platform's copy to the same level-2 outline: every ##
 // heading in live/COMPATIBILITY.md must appear, in the same order, in
-// live/kubernetes/COMPATIBILITY.md, and vice versa. A section that does not
+// live/kubernetes/COMPATIBILITY.md and live/gcp/COMPATIBILITY.md, and vice
+// versa. A section that does not
 // apply to a substrate still gets the heading, with a line saying so - the
 // heading disappearing silently is exactly what #1602 was filed over.
 var compatH2Pattern = regexp.MustCompile(`(?m)^## (.+)$`)
@@ -42,17 +43,21 @@ func compatibilityHeadings(t *testing.T, path string) []string {
 
 func TestCompatibilityDocsShareOutline(t *testing.T) {
 	root := compatibilityHeadings(t, "COMPATIBILITY.md")
-	kube := compatibilityHeadings(t, "kubernetes/COMPATIBILITY.md")
-
 	if len(root) == 0 {
 		t.Fatalf("COMPATIBILITY.md: no ## headings found; the heading pattern or the file moved")
 	}
-	if len(kube) == 0 {
-		t.Fatalf("kubernetes/COMPATIBILITY.md: no ## headings found; the heading pattern or the file moved")
-	}
 
-	if !reflect.DeepEqual(root, kube) {
-		t.Fatalf("live/COMPATIBILITY.md and live/kubernetes/COMPATIBILITY.md have different ## outlines.\nCOMPATIBILITY.md:            %v\nkubernetes/COMPATIBILITY.md: %v",
-			root, kube)
+	// Every platform's copy joins the pin (live/ADDING-A-PLATFORM.md,
+	// requirement 15).
+	for _, platform := range []string{"kubernetes", "gcp"} {
+		path := platform + "/COMPATIBILITY.md"
+		got := compatibilityHeadings(t, path)
+		if len(got) == 0 {
+			t.Fatalf("%s: no ## headings found; the heading pattern or the file moved", path)
+		}
+		if !reflect.DeepEqual(root, got) {
+			t.Errorf("live/COMPATIBILITY.md and live/%s have different ## outlines.\nCOMPATIBILITY.md: %v\n%s: %v",
+				path, root, path, got)
+		}
 	}
 }

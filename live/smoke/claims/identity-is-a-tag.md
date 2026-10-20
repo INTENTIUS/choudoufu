@@ -88,3 +88,12 @@ or `kubectl label`. With the admission policy installed the caller must
 hold both estates; [claim 13's Kubernetes
 scenario](the-tag-is-the-boundary.md#on-kubernetes) measures the refusal
 without the grant and the carve with it (claim 12 until #1817).
+
+## On GCP
+
+`just smoke gcp-greenfield` is the proof, on floci-gcp: a labelled
+resource is created carrying `tofu-estate` and the encoded `tofu-address`
+(`live/MARKERS.md`, "GCP: labels"), the replan is empty, and the estate
+plans without its cache. Its `BREAK=1` strips `tofu-estate` and requires
+the replan to restore it. A carve by relabel waits on `live-mv`'s GCP
+rewrite, which is refused by name until it lands.
