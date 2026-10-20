@@ -2,7 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/intentius/choudoufu.svg)](https://pkg.go.dev/github.com/intentius/choudoufu)
 
-**OpenTofu that respects the owner tag on each resource. Your cloud's own permissions decide who can change it.** <img src="site/public/brand/cube-160.png" width="32" height="32" alt="">
+**OpenTofu that respects the owner tag on each resource.** <img src="site/public/brand/cube-160.png" width="32" height="32" alt="">
 
 Each resource carries its own identity on the resource itself, as a marker
 the platform can select on: on AWS, two resource tags. The apply writes it
