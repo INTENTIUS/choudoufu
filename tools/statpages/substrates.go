@@ -36,8 +36,9 @@ type substratesData struct {
 			Mechanism  string `json:"mechanism"`
 		} `json:"controller_held"`
 		Untaggable struct {
-			Count  int            `json:"count"`
-			ByTier map[string]int `json:"by_tier"`
+			Count      int            `json:"count"`
+			ByTier     map[string]int `json:"by_tier"`
+			NotCounted bool           `json:"not_counted"`
 		} `json:"untaggable"`
 		Fence   string `json:"fence"`
 		Harness struct {
@@ -98,6 +99,9 @@ func substratesSpans(root string) (map[string]string, error) {
 	})
 	row("Untaggable types", func(i int) string {
 		u := d.Rows[i].Untaggable
+		if u.NotCounted {
+			return "not yet counted"
+		}
 		out := fmt.Sprint(u.Count)
 		var parts []string
 		for _, k := range sortedKeys(u.ByTier) {
@@ -111,6 +115,9 @@ func substratesSpans(root string) (map[string]string, error) {
 	row("Fence", func(i int) string { return d.Rows[i].Fence })
 	row("Harness", func(i int) string {
 		h := d.Rows[i].Harness
+		if h.PinFile == "" {
+			return fmt.Sprintf("%s, not yet pinned. %s", h.Name, h.Notes)
+		}
 		return fmt.Sprintf("%s, pinned in `%s` to `%s`. %s", h.Name, h.PinFile, h.Pin, h.Notes)
 	})
 	return map[string]string{"substrates": s.String()}, nil

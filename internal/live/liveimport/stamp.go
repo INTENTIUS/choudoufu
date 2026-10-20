@@ -17,6 +17,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
@@ -696,6 +697,19 @@ func recordResidueFor(ctx context.Context, store *projection.RecordStore, secret
 	return diags
 }
 
+// markerTags is [tagsFromObject] read for e's surface: on the ARM tags map
+// (GitHub issue #1120) the marker keys come back in their canonical
+// lowercase spelling whatever case the object carries them in
+// ([markers.CanonicalARMMarkers]), so Tofu-Estate reads as tofu-estate the
+// way ARM reads it.
+func (e *eligible) markerTags(obj cty.Value) (map[string]string, bool) {
+	tags, ok := tagsFromObject(e.schema, obj)
+	if ok && e.armTagged {
+		tags = markers.CanonicalARMMarkers(tags)
+	}
+	return tags, ok
+}
+
 // approveOne is the tags-only write for one resource, from the object
 // Ratify already read. See tags.go's package comment for why this mirrors
 // mv's rewrite.go rather than calling it.
@@ -733,7 +747,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	}
 	chunks := discovery.SplitAddress(wantAddress)
 
-	tags, ok := tagsFromObject(e.schema, e.applied)
+	tags, ok := e.markerTags(e.applied)
 	if !ok {
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf("%s has no settable tags argument in the provider's schema. Nothing was written.", e.typeName)
@@ -777,16 +791,29 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		return out
 	}
 
-	desiredTags := make(map[string]string, len(tags)+1+len(chunks))
-	for k, v := range tags {
+	// GitHub issue #1120: on the ARM tags map the object's own tags are
+	// copied as spelled, not as [eligible.markerTags] canonicalised them,
+	// and each marker is written under the spelling the object already
+	// uses ([markers.SetARMMarkerTag]): ARM refuses two keys that differ
+	// only by case.
+	rawTags := tags
+	if e.armTagged {
+		rawTags, _ = tagsFromObject(e.schema, e.applied)
+	}
+	desiredTags := make(map[string]string, len(rawTags)+1+len(chunks))
+	for k, v := range rawTags {
 		desiredTags[k] = v
 	}
-	desiredTags[discovery.TagEstate] = estate
+	set := func(key, value string) { desiredTags[key] = value }
+	if e.armTagged {
+		set = func(key, value string) { markers.SetARMMarkerTag(desiredTags, key, value) }
+	}
+	set(discovery.TagEstate, estate)
 	for i, chunk := range chunks {
-		desiredTags[discovery.AddressTagKey(i)] = chunk
+		set(discovery.AddressTagKey(i), chunk)
 	}
 	if slot != "" {
-		desiredTags[discovery.TagSlot] = slot
+		set(discovery.TagSlot, slot)
 	}
 
 	desired, err := withTags(e.schema.Block, e.applied, desiredTags)
@@ -861,7 +888,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 	if slot != "" {
 		out.Detail = fmt.Sprintf("Wrote tofu-estate, tofu-address and tofu-slot = %q.", slot)
 	}
-	newTags, newOK := tagsFromObject(e.schema, applyResp.NewState)
+	newTags, newOK := e.markerTags(applyResp.NewState)
 	newRaw, newCorrupt := discovery.GatherAddress(newTags)
 	if !newOK || newCorrupt || discovery.EscapeAddress(newRaw) != wantAddress || newTags[discovery.TagEstate] != estate ||
 		(slot != "" && newTags[discovery.TagSlot] != slot) {

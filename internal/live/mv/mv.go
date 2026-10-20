@@ -1212,7 +1212,7 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 		return m.locateLabelled(obj, resolution)
 	}
 
-	tags, taggable := tagsFromObject(m.schema, obj.Value)
+	tags, taggable := m.markerTags(obj.Value)
 	if !taggable {
 		return nil, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,

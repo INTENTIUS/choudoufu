@@ -38,4 +38,11 @@ const (
 	// label, inside the dynamic manifest argument at
 	// manifest.metadata.labels.
 	SurfaceManifest Surface = "manifest"
+
+	// SurfaceARMTags is the Azure Resource Manager shape (GitHub issue
+	// #1120, ruled on #1122): the AWS marker keys in a settable top-level
+	// tags map, written lowercase and read case-insensitively, because ARM
+	// tag keys are case-insensitive. azapi_resource's body.tags is the same
+	// surface written at another path; see armtags.go.
+	SurfaceARMTags Surface = "arm-tags"
 )

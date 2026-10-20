@@ -149,6 +149,8 @@ func sweepFacts(kind substrate.Sweep) SweepFacts {
 		desc = "runs through the configured provider itself; no separate client is built from the provider block"
 	case substrate.SweepLabelList:
 		desc = "a cluster client built from the provider block's own connection arguments (Substrate.NewSweeper)"
+	case substrate.SweepResourceGraph:
+		desc = "one Azure Resource Graph query per subscription the estate's resources resolve to, matching the marker case-insensitively; no leg is built yet (GitHub issue #1120), so a plan names the gap"
 	}
 	return SweepFacts{Kind: string(kind), Description: desc}
 }
@@ -209,6 +211,9 @@ func controllerHeldFacts(s substrate.Substrate) ControllerHeldFacts {
 var fenceByFamily = map[string]string{
 	"aws":        "IAM conditions on aws:ResourceTag, reads and writes, per principal (live/MARKERS.md).",
 	"kubernetes": "One ValidatingAdmissionPolicy, writes only, enforced per principal through the cluster's authorizer.",
+	// GitHub issue #1122's ruling (2026-10-19): Azure RBAC cannot condition
+	// on tags, so the estate is a set of resource groups.
+	"azurerm": "Resource-group RBAC per principal (a custom role or Contributor on the estate's groups), plus Azure Policy on the tofu-estate tag: deny a write that lacks it or changes it, denyAction on deleting a tagged resource. Template files an operator applies, never plan resources.",
 }
 
 func fenceFor(family string) (string, error) {
@@ -239,12 +244,22 @@ var harnessByFamily = map[string]struct {
 		PinFile: "live/kind-node-image",
 		Notes:   "a kind cluster on the pinned node image; no per-service capability probe like floci's exists for it.",
 	},
+	// GitHub issue #1120: the lex00/floci-az fork, which no file pins yet.
+	// An empty PinFile is the not-yet-pinned state: the row says so rather
+	// than reading a file that does not exist.
+	"azurerm": {
+		Name:  "floci-az",
+		Notes: "the lex00/floci-az fork; not yet pinned by digest, and no lane runs on it until it is.",
+	},
 }
 
 func harnessFor(root, family string) (HarnessFacts, error) {
 	h, ok := harnessByFamily[family]
 	if !ok {
 		return HarnessFacts{}, fmt.Errorf("harness: no entry for family %q in harnessByFamily", family)
+	}
+	if h.PinFile == "" {
+		return HarnessFacts{Name: h.Name, Notes: h.Notes}, nil
 	}
 	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(h.PinFile)))
 	if err != nil {
@@ -316,6 +331,10 @@ func untaggableFor(family string, rf readinessFacts) UntaggableFacts {
 	case "kubernetes":
 		return tallyUntaggable(rf.k8sTypes, func(t readinessType) bool { return !t.Facts.LabelSurface },
 			"an admitted Kubernetes type whose schema carries no metadata.labels block (live/readiness.json kubernetes.types facts.label_surface=false)")
+	case "azurerm":
+		// GitHub issue #2119: the Azure section of live/readiness.json is a
+		// later unit of #1120; until it lands there is nothing to tally.
+		return UntaggableFacts{Definition: "not yet counted: live/readiness.json has no Azure section (GitHub issue #2119)", ByTier: map[string]int{}, NotCounted: true}
 	}
 	return UntaggableFacts{Definition: "no definition recorded for family " + family, ByTier: map[string]int{}}
 }

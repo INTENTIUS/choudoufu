@@ -2817,6 +2817,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot encode a projected object | error | `internal/live/projection` | "Cannot encode a projected object" |
 | - | - | projection | Cannot import for projection | error | `internal/live/projection` | "Cannot import for projection" |
 | - | - | projection | Cannot list the record store | error | `internal/live/projection` | "Cannot list the record store" |
+| - | - | projection | Cannot merge ownership markers into this azapi body value | warning | `internal/live/projection` | "Cannot merge ownership markers into this azapi body value" |
 | - | - | projection | Cannot merge ownership markers into this labels value | error | `internal/live/projection` | "Cannot merge ownership markers into this labels value" |
 | - | - | projection | Cannot merge ownership markers into this manifest value | error | `internal/live/projection` | "Cannot merge ownership markers into this manifest value" |
 | - | - | projection | Cannot merge ownership markers into this metadata block | error | `internal/live/projection` | "Cannot merge ownership markers into this metadata block" |
@@ -2839,6 +2840,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Cannot set ownership markers on an unresolved tags value | error | `internal/live/projection` | "Cannot set ownership markers on an unresolved tags value" |
 | - | - | projection | Cannot set the address annotation on an unresolved annotations value | error | `internal/live/projection` | "Cannot set the address annotation on an unresolved annotations value" |
 | - | - | projection | Cannot set the field manager on an unresolved value | error | `internal/live/projection` | "Cannot set the field manager on an unresolved value" |
+| - | - | projection | Cannot tell where an azapi resource carries its tags | error | `internal/live/projection` | "Cannot tell where an azapi resource carries its tags" |
 | - | - | projection | Could not write the discovery hint | error | `internal/live/projection` | "Could not write the discovery hint" |
 | - | - | projection | Could not write the state cache | error | `internal/live/projection` | "Could not write the state cache" |
 | - | - | projection | Created object is not marked | error | `internal/live/projection` | "Created object is not marked" |
@@ -2865,6 +2867,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Ownership marker is not a legal field manager name | error | `internal/live/projection` | "Ownership marker is not a legal field manager name" |
 | - | - | projection | Ownership marker is not a legal label value | error | `internal/live/projection` | "Ownership marker is not a legal label value" |
 | - | - | projection | Ownership marker was not stored | error | `internal/live/projection` | "Ownership marker was not stored" |
+| - | - | projection | Ownership markers not set on an azapi resource type not known to take tags | warning | `internal/live/projection` | "Ownership markers not set on an azapi resource type not known to take tags" |
 | - | - | projection | Parent-derived identity with no formula | error | `internal/live/projection` | "Parent-derived identity with no formula" |
 | - | - | projection | Persisted record does not match the current schema | error | `internal/live/projection` | "Persisted record does not match the current schema" |
 | - | - | projection | Provider produced an invalid object | error | `internal/live/projection` | "Provider produced an invalid object" |
@@ -2891,7 +2894,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**280 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**283 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4345,6 +4348,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Cannot merge ownership markers into this azapi body value
+
+**What.** GitHub issue #1120's ARM branch of the node-path stamp found an azapi_resource body, or a body.tags, it cannot add the ownership markers into - a body that is marked or is not an object, or a tags entry that is not a string - so it left the configuration value as evaluated and wrote no marker.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Cannot merge ownership markers into this labels value
 
 **What.** GitHub issue #1061's label branch of the node-path stamp (NodeResolver.stampedMetadata) found a Kubernetes metadata.labels value it does not know how to add the tofu-estate marker into - a non-map value, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated. The Kubernetes sibling of "Cannot merge ownership markers into this tags value".
@@ -4516,6 +4527,14 @@ reserved for the limits wing's fixture directories, and
 #### Cannot set the field manager on an unresolved value
 
 **What.** GitHub issue #1191: a field-granular Kubernetes resource (kubernetes_labels, kubernetes_annotations, kubernetes_env, the *_v1_data types, kubernetes_node_taint) declares a field_manager whose value is not known until apply. Under a live block the field manager is the ownership marker for a resource that owns fields rather than an object, so the plan stops rather than write under a name it cannot check. Remove the argument and the run writes under choudoufu:<estate>.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Cannot tell where an azapi resource carries its tags
+
+**What.** GitHub issue #1120: an azapi_resource whose body is not known at plan time, so the stamp cannot tell whether its tags go in body.tags or in the top-level tags argument. azapi refuses both and ignores the top-level argument when body carries tags, so the stamp refuses rather than guess.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -4724,6 +4743,14 @@ reserved for the limits wing's fixture directories, and
 #### Ownership marker was not stored
 
 **What.** GitHub issue #1192: the object the provider returned after ApplyResourceChange does not carry a marker this run sent, so something between the write and the stored object discarded it - a Kubernetes admission policy or controller enforcing a label scheme, or an AWS Organizations tag policy. A create is reported as a warning, because the object was really added and the next plan reads it as a resource outside the estate and says so. An update that lost tofu-estate is an error, because its whole content was the marker, nothing it wrote lasted, and every later run would otherwise repeat it and report a change that did not happen. Permit tofu-estate wherever labels or tags are governed, or set markers = record for the type. No live read is issued: the value judged is the one the provider already returned.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Ownership markers not set on an azapi resource type not known to take tags
+
+**What.** GitHub issue #1120: an azapi_resource whose ARM type and API version are not known to take tags (the taggability table generated from azapi's type data says it does not, or does not know it), so the stamp writes no marker rather than one Azure would refuse.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

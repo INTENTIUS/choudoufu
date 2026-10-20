@@ -505,6 +505,7 @@ const bindingSurface markers.Surface = "graph-binding-surface"
 type bindingFamily struct{ substrate.Substrate }
 
 func (bindingFamily) Name() string                  { return "graph" }
+func (bindingFamily) ProviderTypes() []string       { return []string{"graph"} }
 func (bindingFamily) Surfaces() []markers.Surface   { return []markers.Surface{bindingSurface} }
 func (bindingFamily) CarriesAddress() bool          { return true }
 func (bindingFamily) MarkerWriter() substrate.Write { return "graph-binding" }
@@ -624,6 +625,7 @@ const widgetSurface markers.Surface = "widget-binding-surface"
 type widgetFamily struct{ substrate.Substrate }
 
 func (widgetFamily) Name() string                { return "widget" }
+func (widgetFamily) ProviderTypes() []string     { return []string{"widget"} }
 func (widgetFamily) Surfaces() []markers.Surface { return []markers.Surface{widgetSurface} }
 func (widgetFamily) CarriesAddress() bool        { return true }
 func (widgetFamily) MarkerWriter() substrate.Write {

@@ -62,6 +62,56 @@
       }
     },
     {
+      "family": "azurerm",
+      "identity": {
+        "carries_address": true,
+        "address_in_markers": true,
+        "description": "the block address is a key of the marker map itself, beside tofu-estate"
+      },
+      "surfaces": [
+        {
+          "surface": "arm-tags",
+          "marker_noun": "tag",
+          "carrier_phrase": "tags attribute",
+          "carrier_paths": [
+            "tags"
+          ],
+          "collides_on_key": false,
+          "writes": {
+            "create": "in-create",
+            "adopt": "tags-only-plan",
+            "post_create": "never-needed"
+          },
+          "post_create_writer": "never-needed"
+        }
+      ],
+      "sweep": {
+        "kind": "resource-graph",
+        "description": "one Azure Resource Graph query per subscription the estate's resources resolve to, matching the marker case-insensitively; no leg is built yet (GitHub issue #1120), so a plan names the gap"
+      },
+      "controller_held": {
+        "recognized": true,
+        "mechanism": "the object's ARM managedBy property, or a tag AKS writes on its node resource group (aks-managed- prefix, case-insensitive; AKS FAQ)",
+        "keys": [
+          "managedBy",
+          "aks-managed-*"
+        ]
+      },
+      "untaggable": {
+        "definition": "not yet counted: live/readiness.json has no Azure section (GitHub issue #2119)",
+        "count": 0,
+        "by_tier": {},
+        "not_counted": true
+      },
+      "fence": "Resource-group RBAC per principal (a custom role or Contributor on the estate's groups), plus Azure Policy on the tofu-estate tag: deny a write that lacks it or changes it, denyAction on deleting a tagged resource. Template files an operator applies, never plan resources.",
+      "harness": {
+        "name": "floci-az",
+        "pin_file": "",
+        "pin": "",
+        "notes": "the lex00/floci-az fork; not yet pinned by digest, and no lane runs on it until it is."
+      }
+    },
+    {
       "family": "kubernetes",
       "identity": {
         "carries_address": true,

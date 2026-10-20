@@ -111,6 +111,10 @@ type UntaggableFacts struct {
 	Definition string         `json:"definition"`
 	Count      int            `json:"count"`
 	ByTier     map[string]int `json:"by_tier"`
+	// NotCounted is true for a family whose untaggable types have no
+	// committed source to tally yet (Azure until GitHub issue #2119), so
+	// a zero Count is not read as "none".
+	NotCounted bool `json:"not_counted,omitempty"`
 }
 
 // HarnessFacts is the emulator this family's estates run against: its name,

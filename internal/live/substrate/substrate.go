@@ -212,7 +212,7 @@ type Substrate interface {
 // asked before it. TestTheCatchAllFamilyIsLast holds it (GitHub issue
 // #1742). The surface questions are asked of the provider's own family
 // ([SurfaceOf]), so for a claimed provider the order does not decide them.
-var All = []Substrate{Kubernetes, AWS}
+var All = []Substrate{Kubernetes, Azure, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
 // "kubernetes"): the one whose [Substrate.ProviderTypes] lists it. It
@@ -236,9 +236,11 @@ func ForProvider(providerType string) (Substrate, bool) {
 //
 // It is the family's [Substrate.SweepFindsUnadmitted] (GitHub issue
 // #1742: it used to compare the sweep kind to [SweepLabelList], which a
-// third family's own sweep could never answer). Only Kubernetes qualifies
-// today: its leg lists every kind the cluster serves and joins the result
-// against the estate's objects. AWS's own sweep ([SweepTaggingIndex]) is
+// third family's own sweep could never answer). Kubernetes qualifies: its
+// leg lists every kind the cluster serves and joins the result against the
+// estate's objects. Azure answers true from its Resource Graph sweep's
+// design ([azure.SweepFindsUnadmitted]); until that leg is built, the
+// plan's NO_SWEEP_LEG gap names the family instead. AWS's own sweep ([SweepTaggingIndex]) is
 // the admission table read a different way, so a type with no row gets
 // nothing extra from it, and neither does an unregistered provider
 // ForProvider does not recognise at all.
@@ -296,11 +298,25 @@ func SurfaceOf(providerType string, block *configschema.Block) (markers.Surface,
 		return s.SurfaceOf(block)
 	}
 	for _, s := range All {
+		if !askedByDefault(s) {
+			continue
+		}
 		if surface, ok := s.SurfaceOf(block); ok {
 			return surface, true
 		}
 	}
 	return "", false
+}
+
+// askedByDefault reports whether [SurfaceOf]'s compatible default asks
+// family s about a provider no family claims. Every family is, except
+// [Azure] (GitHub issue #1120): its surface is the AWS tags shape with
+// case-insensitive keys, which is a property of Azure Resource Manager and
+// not of an unclaimed provider's API, and asked ahead of AWS in [All] it
+// would take every such provider's tags map from the AWS answer the
+// default has always given it.
+func askedByDefault(s Substrate) bool {
+	return s != Azure
 }
 
 // MarkersOf reads the marker map off an object from wherever surface keeps
@@ -712,6 +728,12 @@ type HoldEvidence struct {
 	Tags map[string]string
 	// Annotations are a Kubernetes object's metadata.annotations.
 	Annotations map[string]string
+	// ManagedBy is an Azure Resource Manager object's managedBy property:
+	// the id of the resource that manages it, empty when none does (#1122).
+	ManagedBy string
+	// ARMTags are an Azure Resource Manager object's tags, kept apart from
+	// Tags so that each family still reads only its own field.
+	ARMTags map[string]string
 }
 
 // Hold is a family's answer for a held object.
