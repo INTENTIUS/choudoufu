@@ -158,9 +158,6 @@ func TestDecideGlobalResource(t *testing.T) {
 	if !reflect.DeepEqual(d.Row.Components, want) {
 		t.Errorf("components\n got %#v\nwant %#v", d.Row.Components, want)
 	}
-	if got := surveyPath(d, false); got != PathClientNamed {
-		t.Errorf("path %s, want client-named", got)
-	}
 }
 
 func TestDecideDisagreeingProvidersHaveNoRow(t *testing.T) {
@@ -251,8 +248,5 @@ func TestDecideIAMMember(t *testing.T) {
 	last := d.Row.Components[len(d.Row.Components)-1]
 	if last.Block != "condition" || !last.OmitIfAbsent || last.Literal != " " || last.IdentityAttr != "condition_title" {
 		t.Errorf("condition component %#v", last)
-	}
-	if got := surveyPath(d, false); got != PathParentDerived {
-		t.Errorf("path %s, want parent-derived", got)
 	}
 }

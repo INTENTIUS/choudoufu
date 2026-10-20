@@ -54,3 +54,22 @@ func TestGoogleRowsRenderFromConfiguration(t *testing.T) {
 		t.Errorf("the reason does not name the missing project: %q", orphan.Reason)
 	}
 }
+
+// TestGoogleProjectFromCloudContext is the rest of the AWS account's path:
+// a project the provider block does not state is answered by the caller's
+// [CloudContext], as an account ID is, before the instance falls to
+// discovery.
+func TestGoogleProjectFromCloudContext(t *testing.T) {
+	cfg := loadConfig(t, "testdata/gcp-identity-rows", nil)
+	result, diags := ResolveIn(context.Background(), cfg, CloudContext{Project: "from-context"})
+	assertNoErrors(t, diags)
+
+	orphan := resolutionAt(t, result, "google_pubsub_topic.orphan")
+	if orphan.ImportID != "projects/from-context/topics/orphan" {
+		t.Errorf("orphan = %s %q, want the context's project", orphan.Class, orphan.ImportID)
+	}
+	vpc := resolutionAt(t, result, "google_compute_network.vpc")
+	if vpc.ImportID != "projects/estate-prod/global/networks/estate-vpc" {
+		t.Errorf("vpc import ID = %q; the provider block's project must win over the context's", vpc.ImportID)
+	}
+}

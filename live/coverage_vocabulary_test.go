@@ -66,20 +66,10 @@ func surveyVocabularyLiteral(v string) bool {
 }
 
 // surveyVocabularySites is the census: 28 literals in 6 files when #1845
-// landed, zero since the #696 retirement. A file that needs one of these
-// tokens back is a second classification of the identity axis, which is
-// what #696 removed for AWS.
-//
-// The three entries are #1119's GCP classification, asked for by the
-// maintainer for #2119: hashicorp/google types sorted by RECOVERY.md's
-// paths so the GCP column reads in the same terms as AWS's. The path is
-// not a second tier: tools/readiness-gen reads it only to choose the tier
-// (googlePathTiers), and live/gcp-survey.json is where it is recorded.
-var surveyVocabularySites = map[string]int{
-	"tools/gcp-row-gen/generate.go": 3,
-	"tools/readiness-gen/build.go":  3,
-	"tools/readiness-gen/render.go": 3,
-}
+// landed, zero since the #696 retirement. It only ever shrinks, so it is
+// empty for good; a file that needs one of these tokens back is a second
+// classification of the identity axis, which is what #696 removed.
+var surveyVocabularySites = map[string]int{}
 
 func TestNoNewCodeSpeaksTheSurveyVocabulary(t *testing.T) {
 	got := map[string]int{}

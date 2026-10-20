@@ -1,5 +1,5 @@
 {
-  "stamp": "`live/readiness.json` last committed at commit `1538dee628` on 2026-10-19T23:09:58-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
+  "stamp": "`live/readiness.json` last committed at commit `1a67958ee6` on 2026-10-19T23:48:54-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
   "statuses": [
     "in-contract",
     "pending-ratification",
@@ -9240,43 +9240,6 @@
       0
     ],
     "total": 1485,
-    "paths": [
-      {
-        "path": "marker",
-        "tier": "marker-carried",
-        "count": 320
-      },
-      {
-        "path": "client-named",
-        "tier": "declaration-carried",
-        "count": 301
-      },
-      {
-        "path": "parent-derived",
-        "tier": "declaration-carried",
-        "count": 545
-      },
-      {
-        "path": "project-derived",
-        "tier": "declaration-carried",
-        "count": 16
-      },
-      {
-        "path": "unique-name",
-        "tier": "declaration-carried",
-        "count": 0
-      },
-      {
-        "path": "server-minted",
-        "tier": "record-carried",
-        "count": 133
-      },
-      {
-        "path": "unbindable",
-        "tier": "record-carried",
-        "count": 170
-      }
-    ],
     "types": [
       {
         "type": "google_access_context_manager_access_level",

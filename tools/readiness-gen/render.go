@@ -299,8 +299,7 @@ type siteData struct {
 	Kubernetes siteSubstrate `json:"kubernetes"`
 
 	// Google is the hashicorp/google and google-beta substrate (#1119):
-	// its own tier-by-status cross tab, its survey-path tally, and every
-	// type with its reason.
+	// its own tier-by-status cross tab and every type with its reason.
 	Google siteGoogle `json:"google"`
 }
 
@@ -311,18 +310,8 @@ type siteGoogle struct {
 	Tiers        []siteTier `json:"tiers"`
 	ColumnTotals []int      `json:"column_totals"`
 	Total        int        `json:"total"`
-	Paths        []sitePath `json:"paths"`
 	Types        []siteType `json:"types"`
 }
-
-type sitePath struct {
-	Path  string `json:"path"`
-	Tier  string `json:"tier"`
-	Count int    `json:"count"`
-}
-
-// googlePathOrder fixes the order the path tally is rendered in.
-var googlePathOrder = []string{"marker", "client-named", "parent-derived", "project-derived", "unique-name", "server-minted", "unbindable"}
 
 // siteSubstrate is one non-AWS substrate's site-rendered summary.
 type siteSubstrate struct {
@@ -404,9 +393,6 @@ func buildSiteData(a Artifact, stamp string) siteData {
 		}
 		g.Total += row.Total
 		g.Tiers = append(g.Tiers, row)
-	}
-	for _, p := range googlePathOrder {
-		g.Paths = append(g.Paths, sitePath{Path: p, Tier: googlePathTiers[p], Count: a.Google.Paths[p]})
 	}
 	d.Google = g
 	return d

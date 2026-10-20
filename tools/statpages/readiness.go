@@ -38,14 +38,9 @@ type readinessData struct {
 			Counts []int  `json:"counts"`
 			Total  int    `json:"total"`
 		} `json:"tiers"`
-		ColumnTotals []int `json:"column_totals"`
-		Total        int   `json:"total"`
-		Paths        []struct {
-			Path  string `json:"path"`
-			Tier  string `json:"tier"`
-			Count int    `json:"count"`
-		} `json:"paths"`
-		Types []readinessType `json:"types"`
+		ColumnTotals []int           `json:"column_totals"`
+		Total        int             `json:"total"`
+		Types        []readinessType `json:"types"`
 	} `json:"google"`
 }
 
@@ -108,11 +103,7 @@ func readinessSpans(root string) (map[string]string, error) {
 	for _, n := range d.Google.ColumnTotals {
 		fmt.Fprintf(&gcp, " | %d", n)
 	}
-	fmt.Fprintf(&gcp, " | %d |\n\n| Survey path | Tier | Types |\n|---|---|---|\n", d.Google.Total)
-	for _, p := range d.Google.Paths {
-		fmt.Fprintf(&gcp, "| %s | %s | %d |\n", p.Path, p.Tier, p.Count)
-	}
-	gcp.WriteString("\n")
+	fmt.Fprintf(&gcp, " | %d |\n\n", d.Google.Total)
 	gcp.WriteString(typesTable(d.Google.Types))
 
 	return map[string]string{
