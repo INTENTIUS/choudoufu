@@ -2250,6 +2250,17 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		}
 		attrsSeed[metadataSeedKey] = cty.ObjectVal(meta)
 	}
+	if _, labelled := markers.GoogleLabelSurface(schema.Block); labelled {
+		// GitHub issue #1119: what the read side needs to rebuild
+		// terraform_labels, which the provider's read empties on a prior
+		// re-derived from configuration. See mirrorGoogleMarkerLabels.
+		if defaults, ok := b.googleLabelDefaults(ctx, providerAddr); ok {
+			if attrsSeed == nil {
+				attrsSeed = make(map[string]cty.Value, 1)
+			}
+			attrsSeed[googleLabelDefaultsKey] = defaults
+		}
+	}
 	if b.opts.Ownership != nil && markers.ManifestSurface(schema.Block) {
 		// GitHub issue #1079: a manifest-surface seed carries the
 		// estate's label the way the stamped configuration will, or the
@@ -4248,6 +4259,10 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	removed, removedDiags := manifestRemovalKeys(ctx, newVal, manifestKeys)
 	diags = diags.Append(removedDiags)
 	newVal = mirrorManifestComputedFields(newVal, schema.Block, removed)
+	// GitHub issue #1119: the GCP labels map keeps only the keys the prior
+	// names, so the markers the object carries are put back into it. See
+	// mirrorGoogleMarkerLabels.
+	newVal = mirrorGoogleMarkerLabels(newVal, schema.Block, attrsSeed[googleLabelDefaultsKey])
 
 	// Sensitivity declared by the schema has to be carried on the value,
 	// because that is where the plan renderer looks for it.

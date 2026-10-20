@@ -254,6 +254,27 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 		configElems[markers.ManifestSurfaceAttr] = newManifest
 		return cty.ObjectVal(configElems), diags
 
+	case markers.SurfaceGoogleLabels:
+		// The GCP shape (GitHub issue #1119): the tag branch's markers in
+		// the top-level labels map, the address encoded. See
+		// nodestamp_googlelabels.go.
+		newLabels, labelDiags := n.stampedGoogleLabels(addr, config.GetAttr(markers.GoogleLabelsAttr))
+		diags = diags.Append(labelDiags)
+		if labelDiags.HasErrors() {
+			return config, diags
+		}
+		if withhold, wdiags := n.withholdsAtCreate(addr, surface, creating); withhold || wdiags.HasErrors() {
+			diags = diags.Append(wdiags)
+			if wdiags.HasErrors() {
+				return config, diags
+			}
+			// GitHub issue #1653: see the SurfaceLabels arm above.
+			log.Printf("[DEBUG] live/projection: %s: markers withheld from the create call; written after the create", addr)
+			return config, diags
+		}
+		configElems[markers.GoogleLabelsAttr] = newLabels
+		return cty.ObjectVal(configElems), diags
+
 	case markers.SurfaceTags:
 		address := markers.EscapeAddress(addr.String())
 		tagsVal := config.GetAttr(tagsArgumentName)
@@ -341,6 +362,24 @@ func (n *NodeResolver) stampedTags(addr addrs.AbsResourceInstance, tagsVal cty.V
 		}
 	}
 
+	diags = diags.Append(n.mergeMarkers(addr, elems, address, address))
+	if diags.HasErrors() {
+		return tagsVal.WithMarks(tagsMarks), diags
+	}
+	return cty.MapVal(elems).WithMarks(tagsMarks), diags
+}
+
+// mergeMarkers checks the marker entries elems (the marker map this
+// instance's own configuration declared) already carries against what this
+// run writes, and on no conflict adds them: tofu-estate, address under
+// tofu-address, and tofu-slot when the sweep assigned one to slotKey (the
+// escaped address, which is how [NodeResolver.Slots] is keyed). It is the
+// body the AWS tags map and the GCP labels map share
+// (nodestamp_googlelabels.go): only the address value differs, escaped on
+// AWS and encoded on GCP.
+func (n *NodeResolver) mergeMarkers(addr addrs.AbsResourceInstance, elems map[string]cty.Value, address, slotKey string) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
 	// GitHub issue #451: before overwriting whatever this instance's
 	// configuration already declared for the two ownership-marker keys,
 	// check whether it declared one at all and, if it did, whether it
@@ -377,7 +416,7 @@ func (n *NodeResolver) stampedTags(addr addrs.AbsResourceInstance, tagsVal cty.V
 		diags = diags.Append(markerConflictDiag(addr, elems, markers.TagAddress, address))
 	}
 	if diags.HasErrors() {
-		return tagsVal.WithMarks(tagsMarks), diags
+		return diags
 	}
 
 	// GitHub issue #1002: each skipped write is also recorded, so the plan
@@ -396,7 +435,7 @@ func (n *NodeResolver) stampedTags(addr addrs.AbsResourceInstance, tagsVal cty.V
 	} else {
 		n.noteUntagRelease(addr, markers.TagAddress, elems)
 	}
-	if slot, ok := n.Slots[address]; ok {
+	if slot, ok := n.Slots[slotKey]; ok {
 		if untagKey != markers.TagSlot {
 			elems[markers.TagSlot] = cty.StringVal(slot)
 		} else {
@@ -404,7 +443,7 @@ func (n *NodeResolver) stampedTags(addr addrs.AbsResourceInstance, tagsVal cty.V
 		}
 	}
 
-	return cty.MapVal(elems).WithMarks(tagsMarks), diags
+	return diags
 }
 
 // SummaryMarkerConflict names the fatal diagnostic [markerConflictDiag]
