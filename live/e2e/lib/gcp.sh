@@ -39,7 +39,13 @@ gcp_floci_up() {
 # gcp_endpoint_paths: "<provider argument> <path>" per service a gcp-lane
 # estate reaches. The same list as live/smoke/lib.sh's, whose comment on gcp_up
 # says which paths the fork's own documentation confirms and which are
-# assumed (compute, cloud_asset and iam_credentials are assumed).
+# assumed (compute and iam_credentials are assumed), with one difference:
+# Cloud Asset is under /cloudasset. floci-gcp mounts it there because
+# /v1/projects belongs to IAM (docs/services/cloud-asset.md and
+# CloudAssetController at the pinned 842dd32), and only rewrites a bare
+# /v1/ path for a cloudasset.* host name, which 127.0.0.1 is not. The
+# sweep (internal/live/gcpsweep's serviceRoot) keeps the prefix and drops
+# the trailing v1, so it calls /cloudasset/v1/projects/<p>:searchAllResources.
 gcp_endpoint_paths() {
   cat <<'PATHS'
 compute_custom_endpoint compute/v1/
@@ -48,7 +54,7 @@ iam_custom_endpoint -
 pubsub_custom_endpoint v1/
 resource_manager_custom_endpoint v1/
 service_usage_custom_endpoint v1/
-cloud_asset_custom_endpoint v1/
+cloud_asset_custom_endpoint cloudasset/v1/
 iam_credentials_custom_endpoint v1/
 PATHS
 }
