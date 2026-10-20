@@ -344,6 +344,15 @@ A type outside the admission table has no adoption path at all. Hand-stamping
 markers does not help, because nothing sweeps for a type this configuration
 cannot declare. [Compatibility reference](https://intentius.io/choudoufu/docs/use/compatibility/) covers finding yours.
 
+On Azure, `live-import` and `live-mv` write the same markers into `tags`.
+ARM tag keys are case-insensitive, so a `Tofu-Estate` already on an object
+counts as the marker and is rewritten under that spelling, never beside a
+lowercase copy. An `azapi_resource` that keeps its tags in `body.tags` is
+written there. Whether an azapi object can carry a marker depends on its ARM
+type and API version, so a subnet declared through azapi is migrated like
+`azurerm_subnet`: no marker, its identity kept in the record store, and its
+removal later found from that record.
+
 ## If you are used to import, moved and removed
 
 Stock needs those three because state is authoritative and each edits that

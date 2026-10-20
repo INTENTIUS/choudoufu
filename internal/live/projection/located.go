@@ -14,6 +14,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/moved"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -363,6 +364,16 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 		// this real object), never on a type name.
 		if comps, ok := schemaFallbackComponentsRecord(resourceType, schema, obj); ok {
 			rec.Components = comps
+		} else if args, ok := substrate.AzapiRecordArguments(schema.Block, obj); ok {
+			// GitHub issue #2119: an azapi_resource's id is the whole of
+			// what the importer needs, but not the whole of what a record
+			// is read for. Whether the Resource Graph sweep can find the
+			// object depends on the ARM type and API version its `type`
+			// names, and once its block is removed the record is the only
+			// place left that says (internal/live/discovery's record leg).
+			// Kept beside the id, like the components above, never in
+			// place of it.
+			rec.Components = args
 		}
 	}
 	if !recordable || rec.Empty() {

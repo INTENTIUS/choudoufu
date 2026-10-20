@@ -164,6 +164,43 @@ func (r *resolver) armTypeSegmentParts(typeParts, parentParts []Part, attr *hcl.
 	return append(out, Part{Literal: seg}), true
 }
 
+// armJoin is [armTypeSegment] applied to a parent_id already rendered as a
+// string: parent, as azapi uses it for typ, followed by the joining text,
+// ready for the name. ok is false when typ is not a type azapi can name an
+// object of.
+func armJoin(parent, typ string) (string, bool) {
+	seg, use, problem := armTypeSegment(typ)
+	if problem != "" {
+		return "", false
+	}
+	switch use {
+	case armParentRootDropped:
+		if parent == "/" {
+			parent = ""
+		}
+	case armParentDropped:
+		parent = ""
+	}
+	return parent + seg, true
+}
+
+// AzapiResourceID is the id azapi_resource builds from its three arguments
+// (azapi 2.13.0's newResourceID; this file's comment has the rule), for a
+// caller holding them as strings rather than as configuration: the record
+// leg of internal/live/discovery, rebuilding a removed block's object from
+// what its record kept (GitHub issue #2119). ok is false when any value is
+// empty or typ is not of a form azapi accepts.
+func AzapiResourceID(parentID, typ, name string) (string, bool) {
+	if parentID == "" || typ == "" || name == "" {
+		return "", false
+	}
+	joined, ok := armJoin(parentID, typ)
+	if !ok {
+		return "", false
+	}
+	return joined + name, true
+}
+
 // armResourceGroupType is azcore's arm.ResourceGroupResourceType, the type
 // azapi gives a default parent ([resolver.armParentDefault]).
 const armResourceGroupType = "Microsoft.Resources/resourceGroups"
@@ -207,7 +244,7 @@ func (r *resolver) armParentDefault(entry TypeIdentity, attrs hcl.Attributes, sc
 		return "", Resolution{}, false
 	}
 	val, diags := r.evalPure(typeAttr.Expr, scope, r.identifier(addr, typeAttr.Name, typeAttr.Range))
-	if diags.HasErrors() || !val.IsWhollyKnown() || val.IsNull() || !val.Type().Equals(cty.String) {
+	if diags.HasErrors() || val.IsMarked() || !val.IsWhollyKnown() || val.IsNull() || !val.Type().Equals(cty.String) {
 		return "", Resolution{}, false
 	}
 	armType, _, _ := strings.Cut(val.AsString(), "@")
