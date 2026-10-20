@@ -87,9 +87,10 @@ type azurermIDsFile struct {
 		Commit  string `json:"commit"`
 	} `json:"pin"`
 	Types []struct {
-		Type     string `json:"type"`
-		Class    string `json:"class"`
-		Template string `json:"template"`
+		Type          string `json:"type"`
+		Class         string `json:"class"`
+		Template      string `json:"template"`
+		TemplateClass string `json:"template_class"`
 	} `json:"types"`
 }
 
@@ -133,7 +134,7 @@ func buildAzureSubstrate(root string) (AzureSubstrate, error) {
 		if _, ok := withheld[t.Type]; ok {
 			class = azurermClassWithheld
 		}
-		row, err := azurermRow(t.Type, class, armScope(t.Template), tagged && !notARM[t.Type])
+		row, err := azurermRow(t.Type, class, t.TemplateClass, armScope(t.Template), tagged && !notARM[t.Type])
 		if err != nil {
 			return AzureSubstrate{}, err
 		}
@@ -158,43 +159,40 @@ func buildAzureSubstrate(root string) (AzureSubstrate, error) {
 // azurermRow is one azurerm type's tier and status.
 //
 // Admission is the class: "template" and "parent-id" rows the substrate
-// does not withhold are admitted by the Azure family's own rule today.
-// "identity-schema" rows keep the identity-schema route (#1122), and at
-// this pin that route admits none of them: all 196 identity schemas
-// require subscription_id, which no azurerm argument supplies, so the
-// route refuses (internal/live/identity's
-// TestAzurermUnadmittedClassesKeepTheSchemaRoute pins the refusal). They
-// are tiered where they are destined, the way AWS tiers a type its schema
-// admission would carry ([destinedTier]): the identity is the
-// declaration's arguments plus the provider block's subscription, so an
-// untaggable one is declaration-carried, pending the route reading the
-// subscription from the provider block. Regenerate when that lands.
+// does not withhold are admitted by the Azure family's own rule.
+// "identity-schema" rows keep the identity-schema route (#1122), which
+// answers subscription_id from the provider block (#1120 unit 13) and,
+// where the identity schema names an attribute no argument supplies,
+// falls back to the generated template. A row whose template the generator
+// mapped is admitted one way or the other; the 19 it could not map are
+// refused, as the unit's own measurement over the 5.10.0 schema found.
 //
-// Server-minted identity: the veto AWS applies to an untaggable type whose
-// identity the provider mints (identity.MarkerlessTypes) has no Azure
-// member at this pin. Every component of every mapped row is a
-// configuration argument or the provider's subscription (measured against
-// the 5.10.0 schema: no component names a Computed-only attribute), so an
-// admitted untaggable type is declaration-carried. Seven admitted
-// untaggable types make the naming argument Optional and mint a GUID when
-// it is left out (azurerm_management_group's name, azurerm_role_definition's
-// role_definition_id, and five more); the resolver refuses such a block by
-// name ("Identity argument not set";
-// TestAzureOptionalNameOmittedIsRefusedByName), so the omitted case never
-// reaches apply. Whether an UNADMITTED type's create reads its id from the
-// response (azurerm_sentinel_threat_intelligence_indicator does) is not in
-// any committed artifact; those types are refused as unadmitted either way
+// Server-minted identity, #2119's D4: an untaggable type whose identity
+// the server mints is held by its record (record-located), and refused by
+// name only when no record can hold its identity. No Azure type is minted
+// outright: every component of every mapped row is a configuration
+// argument or the provider's subscription (measured against the 5.10.0
+// schema: no component names a Computed-only attribute), so the AWS veto
+// list (identity.MarkerlessTypes) gains no Azure member. Seven admitted
+// untaggable types make the naming argument Optional and Computed and mint
+// a GUID when it is left out (internal/live/substrate's
+// markProviderMintedIfAbsent); an instance that leaves it out is
+// record-located through the record fallback, as AWS's name_prefix
+// instances are. Whether an UNADMITTED type's create reads its id from
+// the response (azurerm_sentinel_threat_intelligence_indicator does) is in
+// no committed artifact; those types are refused as unadmitted either way
 // and are record-carried here.
-func azurermRow(typeName, class, scope string, taggable bool) (Row, error) {
+func azurermRow(typeName, class, templateClass, scope string, taggable bool) (Row, error) {
 	facts := Facts{Taggable: taggable, ARMIDClass: class, ARMScope: scope}
-	destined := false
 	status := StatusNeedsEvidence
 	switch class {
 	case azurermClassTemplate, azurermClassParentID:
 		facts.Admitted, status = true, StatusInContract
 	case azurermClassIdentitySchema:
-		facts.SchemaRoute, destined = true, true
-		status = StatusPendingRatification
+		facts.SchemaRoute = true
+		if templateClass == azurermClassTemplate || templateClass == azurermClassParentID {
+			facts.Admitted, status = true, StatusInContract
+		}
 	case azurermClassUnmapped, azurermClassWithheld:
 	default:
 		return Row{}, fmt.Errorf("%s gives %s the class %q, which the Azure readiness rule does not know", AzurermIDsJSONRel, typeName, class)
@@ -203,7 +201,7 @@ func azurermRow(typeName, class, scope string, taggable bool) (Row, error) {
 	switch {
 	case taggable:
 		tier = TierMarkerCarried
-	case facts.Admitted || destined:
+	case facts.Admitted:
 		tier = TierDeclarationCarried
 	}
 	return Row{Type: typeName, Tier: tier, Status: status, Facts: facts}, nil

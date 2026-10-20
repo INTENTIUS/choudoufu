@@ -132,7 +132,7 @@ func azureReasonFor(r Row) string {
 	case r.Facts.ARMIDClass == azurermClassWithheld:
 		return fmt.Sprintf("its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](%s#unadmitted-type).", limitationsMDURL)
 	case r.Facts.SchemaRoute:
-		return "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+		return fmt.Sprintf("the identity-schema route keeps it (#1122), and refuses it: no ARM id template could be read for it to fill the identity schema's attributes no argument supplies. See [LIMITATIONS.md](%s#unadmitted-type).", limitationsMDURL)
 	case r.Status == StatusNeedsEvidence:
 		return fmt.Sprintf("no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](%s#unadmitted-type).", limitationsMDURL)
 	}
