@@ -114,7 +114,7 @@
       "harness": {
         "name": "floci-gcp",
         "pin_file": "live/floci-gcp-image",
-        "pin": "ghcr.io/lex00/floci-gcp@sha256:1662f974900c4c42359cc91bba06bd7d4b14936a926027b0fafa010b8f1dd93d",
+        "pin": "ghcr.io/lex00/floci-gcp@sha256:ef732fe1c31bd8e04208071e7c2d2f9a88de8020cc14dd64177c23fcd278e583",
         "notes": "the lex00/floci-gcp fork's GHCR image pinned by digest; Resource Manager tags, Cloud Asset search and matchTag are still gaps on it (lex00/floci-gcp#4 to #8)."
       }
     },
