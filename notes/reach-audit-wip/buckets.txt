@@ -1,0 +1,277 @@
+===== 10 ID() argument is not an id field :: other
+    azurerm_private_endpoint_application_security_group_association | *ASGId | *privateEndpointId, *ASGId
+    azurerm_storage_blob | name | *accountId, containerName, name
+    azurerm_storage_data_lake_gen2_filesystem | filesystemName | *accountId, filesystemName
+    azurerm_storage_data_lake_gen2_path | path | *accountId, filesystemName, path
+    azurerm_storage_object_replication | dstId | srcId, dstId
+    azurerm_storage_share_directory | directoryName | *accountId, storageShareId.ShareName, directoryName
+    azurerm_storage_table_entity | rowKey | *accountId, tableName, partitionKey, rowKey
+    azurerm_virtual_desktop_scaling_plan_host_pool_association | *hostPoolId | *scalingPlanId, *hostPoolId
+    azurerm_virtual_desktop_workspace_application_group_association | *applicationGroupId | *workspaceId, *applicationGroupId
+    azurerm_virtual_machine_gallery_application_assignment | *galleryApplicationVersionId | *virtualMachineID, *galleryApplicationVersionId
+===== 5 ID() does not format a path with fmt.Sprintf :: no-call
+    azurerm_key_vault_access_policy | AccessPolicyId | internal/services/keyvault/key_vault_access_policy_data_source.go
+    azurerm_key_vault_certificate | NestedItemID | internal/services/keyvault/key_vault_certificate_data_source.go
+    azurerm_key_vault_key | NestedItemID | internal/services/keyvault/key_vault_key_data_source.go
+    azurerm_key_vault_managed_storage_account | NestedItemID | internal/services/keyvault/key_vault_managed_storage_account_resource.go
+    azurerm_key_vault_secret | NestedItemID | internal/services/keyvault/key_vault_secret_data_source.go
+===== 2 ID() does not format a path with fmt.Sprintf :: other
+    azurerm_key_vault_certificate_contacts | *keyVaultBaseUri | *keyVaultBaseUri
+    azurerm_marketplace_role_assignment | tenantId | MarketplaceScope, name, tenantId
+===== 5 ID() format is not an ARM path :: argument
+    azurerm_app_configuration_feature | model.Label | client.Endpoint, featureKey, model.Label
+    azurerm_app_configuration_key | model.Label | client.Endpoint, model.Key, model.Label
+    azurerm_key_vault_managed_hardware_security_module_key | config.Name | endpoint.ManagedHSMName, endpoint.DomainSuffix, config.Name
+    azurerm_key_vault_managed_hardware_security_module_role_assignment | config.Name | endpoint.ManagedHSMName, endpoint.DomainSuffix, config.Scope, config.Name
+    azurerm_key_vault_managed_hardware_security_module_role_definition | config.Name | endpoint.ManagedHSMName, endpoint.DomainSuffix, string(scope), config.Name
+===== 1 ID() format is not an ARM path :: no-call
+    azurerm_key_vault_managed_hardware_security_module_key_rotation_policy | ManagedHSMDataPlaneVersionlessKeyId | internal/services/managedhsm/key_vault_managed_hardware_security_module_key_rotation_policy_resource.go
+===== 1 ID() path segment combines several values :: constant
+    azurerm_container_registry_token_password | "password" | tokenId.SubscriptionId, tokenId.ResourceGroupName, tokenId.RegistryName, tokenId.TokenName, "password"
+===== 1 ID() path segment combines several values :: no-call
+    azurerm_network_manager_deployment | ManagerDeploymentId | internal/services/network/network_manager_deployment_resource.go
+===== 1 composite id (several ARM ids joined by |) :: no-call
+    azurerm_automation_job_schedule | CompositeResourceID | internal/services/automation/automation_job_schedule_resource.go
+===== 10 composite id (several ARM ids joined by |) :: other
+    azurerm_app_service_certificate_binding | certificateID | hostnameBindingID, certificateID
+    azurerm_communication_service_email_domain_association | eMailServiceDomainId | communicationServiceId, eMailServiceDomainId
+    azurerm_nat_gateway_public_ip_association | publicIpAddressId | natGatewayId, publicIpAddressId
+    azurerm_nat_gateway_public_ip_prefix_association | publicIpPrefixId | natGatewayId, publicIpPrefixId
+    azurerm_network_interface_application_gateway_backend_address_pool_association | backendAddressPoolId | &ipConfigId, backendAddressPoolId
+    azurerm_network_interface_application_security_group_association | applicationSecurityGroupId | networkInterfaceId, applicationSecurityGroupId
+    azurerm_network_interface_backend_address_pool_association | backendAddressPoolId | &ipConfigId, backendAddressPoolId
+    azurerm_network_interface_nat_rule_association | natRuleId | &ipConfigId, natRuleId
+    azurerm_network_interface_security_group_association | nsgId | nicId, nsgId
+    azurerm_postgresql_flexible_server_virtual_endpoint | &replicaEndpointId | &sourceEndpointId, &replicaEndpointId
+===== 1 data-plane id (a URL, not an ARM path) :: no-call
+    azurerm_key_vault_managed_storage_account_sas_token_definition | SasDefinitionId | internal/services/keyvault/key_vault_managed_storage_account_sas_token_definition_resource.go
+===== 1 data-plane id (a URL, not an ARM path) :: other
+    azurerm_key_vault_certificate_issuer | name | *keyVaultBaseUri, name
+===== 2 id type states no segments (a parser with its own grammar) :: no-call
+    azurerm_policy_definition | PolicyDefinitionId | internal/services/policy/policy_definition_data_source.go
+    azurerm_role_assignment | RoleAssignmentId | internal/services/authorization/role_assignment_resource.go
+===== 16 no argument for the last (name) segment :: argument
+    azurerm_aadb2c_directory | model.DomainName | subscriptionId, model.ResourceGroup, model.DomainName
+    azurerm_advanced_threat_protection | target_resource_id | d.Get("target_resource_id").(string)
+    azurerm_api_management_api_diagnostic | identifier | subscriptionId, d.Get("resource_group_name").(string), d.Get("api_management_name").(string), d.Get("api_name").(string), d.Get("identifier").(string)
+    azurerm_api_management_api_policy | api_name | subscriptionId, d.Get("resource_group_name").(string), d.Get("api_management_name").(string), d.Get("api_name").(string)
+    azurerm_api_management_diagnostic | identifier | subscriptionId, d.Get("resource_group_name").(string), d.Get("api_management_name").(string), d.Get("identifier").(string)
+    azurerm_api_management_gateway_certificate_authority | certificate_name | apimId.SubscriptionId, apimId.ResourceGroupName, apimId.ServiceName, d.Get("gateway_name").(string), d.Get("certificate_name").(string)
+    azurerm_api_management_product_api | api_name | subscriptionId, d.Get("resource_group_name").(string), d.Get("api_management_name").(string), d.Get("product_id").(string), d.Get("api_name").(string)
+    azurerm_api_management_product_group | group_name | subscriptionId, d.Get("resource_group_name").(string), d.Get("api_management_name").(string), d.Get("product_id").(string), d.Get("group_name").(string)
+    azurerm_app_service_public_certificate | certificate_name | subscriptionId, d.Get("resource_group_name").(string), d.Get("app_service_name").(string), d.Get("certificate_name").(string)
+    azurerm_automation_hybrid_runbook_worker | model.WorkerId | subscriptionID, model.ResourceGroupName, model.AutomationAccountName, model.WorkerGroupName, model.WorkerId
+    azurerm_chaos_studio_capability | config.CapabilityType | targetId.Scope, targetId.TargetName, config.CapabilityType
+    azurerm_express_route_circuit_peering | peering_type | subscriptionId, d.Get("resource_group_name").(string), d.Get("express_route_circuit_name").(string), d.Get("peering_type").(string)
+    azurerm_mongo_cluster_user | state.ObjectId | mongoClusterId.SubscriptionId, mongoClusterId.ResourceGroupName, mongoClusterId.MongoClusterName, state.ObjectId
+    azurerm_mssql_server_security_alert_policy | *model.Name | subscriptionId, resourceGroupName, serverName, *model.Name
+    azurerm_security_center_subscription_pricing | resource_type | subscriptionId, d.Get("resource_type").(string)
+    azurerm_static_web_app_custom_domain | model.DomainName | siteId.SubscriptionId, siteId.ResourceGroupName, siteId.StaticSiteName, model.DomainName
+===== 29 no argument for the last (name) segment :: constant
+    azurerm_api_management_custom_domain | "default" | apiMgmtId.SubscriptionId, apiMgmtId.ResourceGroupName, apiMgmtId.ServiceName, "default"
+    azurerm_arc_machine_automanage_configuration_assignment | "default" | subscriptionId, arcMachineId.ResourceGroupName, arcMachineId.MachineName, "default"
+    azurerm_container_registry_task_schedule_run_now | "schedule" | taskId.SubscriptionId, taskId.ResourceGroupName, taskId.RegistryName, taskId.TaskName, "schedule"
+    azurerm_iothub_fallback_route | "default" | subscriptionId, d.Get("resource_group_name").(string), d.Get("iothub_name").(string), "default"
+    azurerm_mssql_managed_instance_security_alert_policy | *result.Model.Name | subscriptionId, managedInstanceId.ResourceGroupName, managedInstanceId.ManagedInstanceName, *result.Model.Name
+    azurerm_mssql_managed_instance_start_stop_schedule | "default" | id.SubscriptionId, id.ResourceGroupName, id.ManagedInstanceName, "default"
+    azurerm_mssql_managed_instance_transparent_data_encryption | "current" | managedInstanceId.SubscriptionId, managedInstanceId.ResourceGroupName, managedInstanceId.ManagedInstanceName, "current"
+    azurerm_mssql_managed_instance_vulnerability_assessment | "default" | instanceId.SubscriptionId, instanceId.ResourceGroupName, instanceId.ManagedInstanceName, "default"
+    azurerm_mssql_server_extended_auditing_policy | "default" | subscriptionId, serverId.ResourceGroupName, serverId.ServerName, "default"
+    azurerm_mssql_server_microsoft_support_auditing_policy | "default" | subscriptionId, serverId.ResourceGroupName, serverId.ServerName, "default"
+    azurerm_mssql_server_transparent_data_encryption | "current" | serverId.SubscriptionId, serverId.ResourceGroupName, serverId.ServerName, "current"
+    azurerm_new_relic_tag_rule | "default" | monitorId.SubscriptionId, monitorId.ResourceGroupName, monitorId.MonitorName, "default"
+    azurerm_portal_tenant_configuration | "default" | "default"
+    azurerm_security_center_server_vulnerability_assessment_virtual_machine | "Default" | virtualMachineId.SubscriptionId, virtualMachineId.ResourceGroupName, virtualMachineId.VirtualMachineName, "Default"
+    azurerm_security_center_server_vulnerability_assessments_setting | "AzureServersSetting" | subscriptionId.SubscriptionId, "AzureServersSetting"
+    azurerm_sentinel_log_analytics_workspace_onboarding | "default" | parsedWorkspaceId.SubscriptionId, parsedWorkspaceId.ResourceGroupName, parsedWorkspaceId.WorkspaceName, "default"
+    azurerm_source_control_token | sourceControlToken.Type | sourceControlToken.Type
+    azurerm_stack_hci_deployment_setting | "default" | stackHCIClusterId.SubscriptionId, stackHCIClusterId.ResourceGroupName, stackHCIClusterId.ClusterName, "default"
+    azurerm_storage_management_policy | "default" | storageAccountId.SubscriptionId, storageAccountId.ResourceGroupName, storageAccountId.StorageAccountName, "default"
+    azurerm_stream_analytics_job_schedule | "default" | streamAnalyticsId.SubscriptionId, streamAnalyticsId.ResourceGroupName, streamAnalyticsId.StreamingJobName, "default"
+    azurerm_synapse_sql_pool_extended_auditing_policy | "default" | sqlPoolId.SubscriptionId, sqlPoolId.ResourceGroup, sqlPoolId.WorkspaceName, sqlPoolId.Name, "default"
+    azurerm_synapse_sql_pool_security_alert_policy | "Default" | sqlPoolId.SubscriptionId, sqlPoolId.ResourceGroup, sqlPoolId.WorkspaceName, sqlPoolId.Name, "Default"
+    azurerm_synapse_workspace_aad_admin | "activeDirectory" | workspaceId.SubscriptionId, workspaceId.ResourceGroupName, workspaceId.WorkspaceName, "activeDirectory"
+    azurerm_synapse_workspace_extended_auditing_policy | "default" | workspaceId.SubscriptionId, workspaceId.ResourceGroupName, workspaceId.WorkspaceName, "default"
+    azurerm_synapse_workspace_security_alert_policy | "Default" | workspaceId.SubscriptionId, workspaceId.ResourceGroupName, workspaceId.WorkspaceName, "Default"
+    azurerm_synapse_workspace_sql_aad_admin | "activeDirectory" | workspaceId.SubscriptionId, workspaceId.ResourceGroupName, workspaceId.WorkspaceName, "activeDirectory"
+    azurerm_virtual_desktop_host_pool_registration_info | "default" | hostPoolId.SubscriptionId, hostPoolId.ResourceGroupName, hostPoolId.HostPoolName, "default"
+    azurerm_virtual_machine_automanage_configuration_assignment | "default" | subscriptionId, vmId.ResourceGroupName, vmId.VirtualMachineName, "default"
+    azurerm_virtual_network_dns_servers | "default" | vnetId.SubscriptionId, vnetId.ResourceGroupName, vnetId.VirtualNetworkName, "default"
+===== 8 no argument for the last (name) segment :: no-call
+    azurerm_app_service_slot_virtual_network_swift_connection | SlotVirtualNetworkSwiftConnectionId | internal/services/web/app_service_slot_virtual_network_swift_connection_resource.go
+    azurerm_app_service_source_control_slot | SlotId | internal/services/appservice/app_service_source_control_slot_resource.go
+    azurerm_app_service_virtual_network_swift_connection | VirtualNetworkSwiftConnectionId | internal/services/web/app_service_virtual_network_swift_connection_resource.go
+    azurerm_chaos_studio_target | ChaosStudioTargetId | internal/services/chaosstudio/chaos_studio_target_resource_gen.go
+    azurerm_mssql_database_extended_auditing_policy | DatabaseExtendedAuditingPolicyId | internal/services/mssql/mssql_database_extended_auditing_policy_resource.go
+    azurerm_sentinel_threat_intelligence_indicator | IndicatorId | internal/services/sentinel/sentinel_threat_intelligence_indicator_resource.go
+    azurerm_subscription | AliasId | internal/services/subscription/subscription_data_source.go
+    azurerm_virtual_machine_data_disk_attachment | DataDiskId | internal/services/compute/virtual_machine_data_disk_attachment_resource.go
+===== 38 no argument for the last (name) segment :: other
+    azurerm_active_directory_domain_service | name | subscrptionId, resourceGroup, name
+    azurerm_active_directory_domain_service_replica_set | *r.ReplicaSetId | domainServiceId.SubscriptionId, domainServiceId.ResourceGroup, domainServiceId.Name, *r.ReplicaSetId
+    azurerm_api_management_gateway_api | apiName | gatewayID.SubscriptionId, gatewayID.ResourceGroupName, gatewayID.ServiceName, gatewayID.GatewayId, apiName
+    azurerm_api_management_identity_provider_aad | identityprovider.IdentityProviderTypeAad | subscriptionId, d.Get("resource_group_name").(string), d.Get("api_management_name").(string), identityprovider.IdentityProviderTypeAad
+    azurerm_api_management_identity_provider_aadb2c | identityprovider.IdentityProviderTypeAadBTwoC | meta.(*clients.Client).Account.SubscriptionId, resourceGroup, serviceName, identityprovider.IdentityProviderTypeAadBTwoC
+    azurerm_api_management_identity_provider_facebook | identityprovider.IdentityProviderTypeFacebook | subscriptionId, d.Get("resource_group_name").(string), d.Get("api_management_name").(string), identityprovider.IdentityProviderTypeFacebook
+    azurerm_api_management_identity_provider_google | identityprovider.IdentityProviderTypeGoogle | subscriptionId, d.Get("resource_group_name").(string), d.Get("api_management_name").(string), identityprovider.IdentityProviderTypeGoogle
+    azurerm_api_management_identity_provider_microsoft | identityprovider.IdentityProviderTypeMicrosoft | subscriptionId, d.Get("resource_group_name").(string), d.Get("api_management_name").(string), identityprovider.IdentityProviderTypeMicrosoft
+    azurerm_api_management_identity_provider_twitter | identityprovider.IdentityProviderTypeTwitter | subscriptionId, d.Get("resource_group_name").(string), d.Get("api_management_name").(string), identityprovider.IdentityProviderTypeTwitter
+    azurerm_api_management_subscription | subName | subscriptionId, d.Get("resource_group_name").(string), d.Get("api_management_name").(string), subName
+    azurerm_bot_channel_alexa | string(botservice.ChannelNameAlexaChannel) | subscriptionId, d.Get("resource_group_name").(string), d.Get("bot_name").(string), string(botservice.ChannelNameAlexaChannel)
+    azurerm_bot_channel_direct_line_speech | string(botservice.ChannelNameDirectLineSpeechChannel) | subscriptionId, d.Get("resource_group_name").(string), d.Get("bot_name").(string), string(botservice.ChannelNameDirectLineSpeechChannel)
+    azurerm_bot_channel_directline | string(botservice.ChannelNameBasicChannelChannelNameDirectLineChannel) | subscriptionId, d.Get("resource_group_name").(string), d.Get("bot_name").(string), string(botservice.ChannelNameBasicChannelChannelNameDirectLineChannel)
+    azurerm_bot_channel_email | string(channel.BotServiceChannelTypeEmailChannel) | subscriptionId, d.Get("resource_group_name").(string), d.Get("bot_name").(string), string(channel.BotServiceChannelTypeEmailChannel)
+    azurerm_bot_channel_facebook | string(botservice.ChannelNameFacebookChannel) | subscriptionId, d.Get("resource_group_name").(string), d.Get("bot_name").(string), string(botservice.ChannelNameFacebookChannel)
+    azurerm_bot_channel_line | string(botservice.ChannelNameLineChannel) | subscriptionId, d.Get("resource_group_name").(string), d.Get("bot_name").(string), string(botservice.ChannelNameLineChannel)
+    azurerm_bot_channel_ms_teams | string(botservice.ChannelNameMsTeamsChannel) | subscriptionId, d.Get("resource_group_name").(string), d.Get("bot_name").(string), string(botservice.ChannelNameMsTeamsChannel)
+    azurerm_bot_channel_slack | string(botservice.ChannelNameSlackChannel) | subscriptionId, d.Get("resource_group_name").(string), d.Get("bot_name").(string), string(botservice.ChannelNameSlackChannel)
+    azurerm_bot_channel_sms | string(botservice.ChannelNameSmsChannel) | subscriptionId, d.Get("resource_group_name").(string), d.Get("bot_name").(string), string(botservice.ChannelNameSmsChannel)
+    azurerm_bot_channel_web_chat | string(botservice.ChannelNameWebChatChannel) | subscriptionId, d.Get("resource_group_name").(string), d.Get("bot_name").(string), string(botservice.ChannelNameWebChatChannel)
+    azurerm_cosmosdb_sql_dedicated_gateway | string(sqldedicatedgateway.ServiceTypeSqlDedicatedGateway) | cosmosdbAccountId.SubscriptionId, cosmosdbAccountId.ResourceGroupName, cosmosdbAccountId.DatabaseAccountName, string(sqldedicatedgateway.ServiceTypeSqlDedicatedGateway)
+    azurerm_iothub_enrichment | enrichmentKey | subscriptionId, resourceGroup, iothubName, enrichmentKey
+    azurerm_ip_group_cidr | cidrName | ipGroupId.SubscriptionId, ipGroupId.ResourceGroupName, ipGroupId.IpGroupName, cidrName
+    azurerm_log_analytics_linked_service | LogAnalyticsLinkedServiceType(readAccess) | subscriptionId, resourceGroup, workspace.WorkspaceName, LogAnalyticsLinkedServiceType(readAccess)
+    azurerm_maintenance_assignment_dedicated_host | configurationId.MaintenanceConfigurationName | dedicatedHostId.ID(), configurationId.MaintenanceConfigurationName
+    azurerm_maintenance_assignment_virtual_machine | configurationId.MaintenanceConfigurationName | virtualMachineId.ID(), configurationId.MaintenanceConfigurationName
+    azurerm_maintenance_assignment_virtual_machine_scale_set | maintenanceConfigurationId.MaintenanceConfigurationName | virtualMachineScaleSetId.ID(), maintenanceConfigurationId.MaintenanceConfigurationName
+    azurerm_mssql_managed_instance_active_directory_administrator | string(managedinstanceadministrators.ManagedInstanceAdministratorTypeActiveDirectory) | managedInstanceId.SubscriptionId, managedInstanceId.ResourceGroupName, managedInstanceId.ManagedInstanceName, string(managedinstanceadministrators.ManagedInstanceAdministratorTypeActiveDirectory)
+    azurerm_mysql_flexible_server_active_directory_administrator | string(azureadadministrators.AdministratorTypeActiveDirectory) | flexibleServerId.SubscriptionId, flexibleServerId.ResourceGroupName, flexibleServerId.FlexibleServerName, string(azureadadministrators.AdministratorTypeActiveDirectory)
+    azurerm_nginx_configuration | defaultConfigurationName | subscriptionID, deployID.ResourceGroupName, deployID.NginxDeploymentName, defaultConfigurationName
+    azurerm_recovery_services_vault_resource_guard_association | name | vaultId.SubscriptionId, vaultId.ResourceGroupName, vaultId.VaultName, name
+    azurerm_security_center_assessment | metadataID.AssessmentMetadataName | d.Get("target_resource_id").(string), metadataID.AssessmentMetadataName
+    azurerm_security_center_assessment_policy | name | subscriptionId, name
+    azurerm_security_center_workspace | securityCenterWorkspaceName | subscriptionId, securityCenterWorkspaceName
+    azurerm_sentinel_alert_rule_anomaly_duplicate | uuid.New().String() | workspaceId.SubscriptionId, workspaceId.ResourceGroupName, workspaceId.WorkspaceName, uuid.New().String()
+    azurerm_sentinel_alert_rule_fusion | name | workspaceID.SubscriptionId, workspaceID.ResourceGroupName, workspaceID.WorkspaceName, name
+    azurerm_static_web_app_function_app_registration | functionAppId.SiteName | staticAppId.SubscriptionId, staticAppId.ResourceGroupName, staticAppId.StaticSiteName, functionAppId.SiteName
+    azurerm_synapse_workspace_key | actualKeyName | workspaceId.SubscriptionId, workspaceId.ResourceGroupName, workspaceId.WorkspaceName, actualKeyName
+===== 1 no argument for the last (name) segment :: response?
+    azurerm_iotcentral_organization | *org.ID | appId.SubscriptionId, appId.ResourceGroupName, appId.IotAppName, *org.ID
+===== 30 no argument for the parent segment :: argument
+    azurerm_api_management_notification_recipient_email | model.Email | subscriptionId, apiManagementId.ResourceGroupName, apiManagementId.ServiceName, notificationrecipientemail.NotificationName(model.NotificationName), model.Email
+    azurerm_api_management_notification_recipient_user | model.UserId | subscriptionId, apiManagementId.ResourceGroupName, apiManagementId.ServiceName, notificationrecipientuser.NotificationName(model.NotificationName), model.UserId
+    azurerm_backup_policy_file_share | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("recovery_vault_name").(string), d.Get("name").(string)
+    azurerm_backup_policy_vm_workload | model.Name | subscriptionId, model.ResourceGroupName, model.RecoveryVaultName, model.Name
+    azurerm_data_factory_managed_private_endpoint | name | subscriptionId, dataFactoryId.ResourceGroupName, dataFactoryId.FactoryName, *managedVirtualNetworkName, d.Get("name").(string)
+    azurerm_dns_aaaa_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), recordsets.RecordTypeAAAA, d.Get("name").(string)
+    azurerm_dns_caa_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), recordsets.RecordTypeCAA, d.Get("name").(string)
+    azurerm_dns_mx_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), recordsets.RecordTypeMX, d.Get("name").(string)
+    azurerm_dns_ns_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), recordsets.RecordTypeNS, d.Get("name").(string)
+    azurerm_dns_ptr_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), recordsets.RecordTypePTR, d.Get("name").(string)
+    azurerm_dns_srv_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), recordsets.RecordTypeSRV, d.Get("name").(string)
+    azurerm_eventgrid_system_topic_event_subscription | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("system_topic").(string), d.Get("name").(string)
+    azurerm_iothub_dps_certificate | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("iot_dps_name").(string), d.Get("name").(string)
+    azurerm_log_analytics_data_export_rule | name | workspace.SubscriptionId, d.Get("resource_group_name").(string), workspace.WorkspaceName, d.Get("name").(string)
+    azurerm_marketplace_agreement | plan | subscriptionId, d.Get("publisher").(string), d.Get("offer").(string), d.Get("plan").(string)
+    azurerm_private_dns_a_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), privatedns.RecordTypeA, d.Get("name").(string)
+    azurerm_private_dns_aaaa_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), privatedns.RecordTypeAAAA, d.Get("name").(string)
+    azurerm_private_dns_cname_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), privatedns.RecordTypeCNAME, d.Get("name").(string)
+    azurerm_private_dns_mx_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), privatedns.RecordTypeMX, d.Get("name").(string)
+    azurerm_private_dns_ptr_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), privatedns.RecordTypePTR, d.Get("name").(string)
+    azurerm_private_dns_srv_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), privatedns.RecordTypeSRV, d.Get("name").(string)
+    azurerm_private_dns_txt_record | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), privatedns.RecordTypeTXT, d.Get("name").(string)
+    azurerm_site_recovery_fabric | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("recovery_vault_name").(string), d.Get("name").(string)
+    azurerm_site_recovery_protection_container | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("recovery_vault_name").(string), d.Get("recovery_fabric_name").(string), d.Get("name").(string)
+    azurerm_site_recovery_replication_policy | name | subscriptionId, d.Get("resource_group_name").(string), d.Get("recovery_vault_name").(string), d.Get("name").(string)
+    azurerm_spring_cloud_builder | name | subscriptionId, springId.ResourceGroupName, springId.ServiceName, "default", d.Get("name").(string)
+    azurerm_synapse_managed_private_endpoint | name | workspaceId.SubscriptionId, workspaceId.ResourceGroupName, workspaceId.WorkspaceName, virtualNetworkName, d.Get("name").(string)
+    azurerm_traffic_manager_azure_endpoint | name | profileId.SubscriptionId, profileId.ResourceGroupName, profileId.TrafficManagerProfileName, trafficmanagers.EndpointTypeAzureEndpoints, d.Get("name").(string)
+    azurerm_traffic_manager_external_endpoint | name | profileId.SubscriptionId, profileId.ResourceGroupName, profileId.TrafficManagerProfileName, trafficmanagers.EndpointTypeExternalEndpoints, d.Get("name").(string)
+    azurerm_traffic_manager_nested_endpoint | name | profileId.SubscriptionId, profileId.ResourceGroupName, profileId.TrafficManagerProfileName, trafficmanagers.EndpointTypeNestedEndpoints, d.Get("name").(string)
+===== 1 no argument for the parent segment :: constant
+    azurerm_site_recovery_hyperv_replication_policy_association | plan.Name | subscriptionId, parsedContainerId.ResourceGroupName, parsedContainerId.VaultName, parsedContainerId.ReplicationFabricName, parsedContainerId.ReplicationProtectionContainerName, plan.Name
+===== 1 no argument for the parent segment :: no-call
+    azurerm_managed_redis_access_policy_assignment | AccessPolicyAssignmentId | internal/services/managedredis/resources/managed_redis_access_policy_assignment/resource.go
+===== 9 no argument for the parent segment :: other
+    azurerm_backup_container_storage_account | containerName | subscriptionId, d.Get("resource_group_name").(string), d.Get("recovery_vault_name").(string), "Azure", containerName
+    azurerm_backup_protected_file_share | fileShareSystemName | subscriptionId, d.Get("resource_group_name").(string), d.Get("recovery_vault_name").(string), "Azure", containerName, fileShareSystemName
+    azurerm_backup_protected_vm | protectedItemName | subscriptionId, resourceGroup, vaultName, "Azure", containerName, protectedItemName
+    azurerm_function_app_hybrid_connection | relayId.HybridConnectionName | appId.SubscriptionId, appId.ResourceGroupName, appId.SiteName, relayId.NamespaceName, relayId.HybridConnectionName
+    azurerm_redis_linked_server | cacheId.RedisName | subscriptionId, d.Get("resource_group_name").(string), d.Get("target_redis_cache_name").(string), cacheId.RedisName
+    azurerm_site_recovery_network_mapping | name | subscriptionId, resGroup, vaultName, fabricName, parsedSourceNetworkId.VirtualNetworkName, name
+    azurerm_site_recovery_protection_container_mapping | name | subscriptionId, resGroup, vaultName, fabricName, protectionContainerName, name
+    azurerm_site_recovery_replicated_vm | name | subscriptionId, resGroup, vaultName, fabricName, sourceProtectionContainerName, name
+    azurerm_web_app_hybrid_connection | relayId.HybridConnectionName | appId.SubscriptionId, appId.ResourceGroupName, appId.SiteName, relayId.NamespaceName, relayId.HybridConnectionName
+===== 10 no argument for the resource group segment :: argument
+    azurerm_ai_foundry_project | model.Name | subscriptionId, hubId.ResourceGroupName, model.Name
+    azurerm_app_service_slot_custom_hostname_binding | hostname | slotId.SubscriptionId, slotId.ResourceGroupName, slotId.SiteName, slotId.SlotName, d.Get("hostname").(string)
+    azurerm_mssql_job_agent | name | dbId.SubscriptionId, dbId.ResourceGroupName, dbId.ServerName, d.Get("name").(string)
+    azurerm_mssql_managed_instance_failover_group | model.Name | managedInstanceId.SubscriptionId, managedInstanceId.ResourceGroupName, model.Location, model.Name
+    azurerm_network_security_perimeter_association | config.Name | subscriptionId, profileId.ResourceGroupName, profileId.NetworkSecurityPerimeterName, config.Name
+    azurerm_palo_alto_virtual_network_appliance | model.Name | hubID.SubscriptionId, hubID.ResourceGroupName, model.Name
+    azurerm_servicebus_namespace_disaster_recovery_config | name | subscriptionId, resourceGroup, namespaceName, d.Get("name").(string)
+    azurerm_site_recovery_replication_recovery_plan | model.Name | subscriptionId, vaultId.ResourceGroupName, vaultId.VaultName, model.Name
+    azurerm_site_recovery_vmware_replicated_vm | model.Name | parsedContainerId.SubscriptionId, parsedContainerId.ResourceGroupName, parsedContainerId.VaultName, parsedContainerId.ReplicationFabricName, parsedContainerId.ReplicationProtectionContainerName, model
+    azurerm_site_recovery_vmware_replication_policy_association | model.Name | parsedContainerId.SubscriptionId, parsedContainerId.ResourceGroupName, parsedContainerId.VaultName, parsedContainerId.ReplicationFabricName, parsedContainerId.ReplicationProtectionContainerName, model
+===== 8 no argument for the resource group segment :: constant
+    azurerm_mssql_server_vulnerability_assessment | "default" | serverId.SubscriptionId, serverId.ResourceGroupName, serverId.ServerName, "default"
+    azurerm_site_recovery_hyperv_network_mapping | plan.Name | parsedNetworkId.SubscriptionId, parsedNetworkId.ResourceGroupName, parsedNetworkId.VaultName, parsedNetworkId.ReplicationFabricName, parsedNetworkId.ReplicationNetworkName, plan.Name
+    azurerm_site_recovery_hyperv_replication_policy | plan.Name | parsedVaultId.SubscriptionId, parsedVaultId.ResourceGroupName, parsedVaultId.VaultName, plan.Name
+    azurerm_site_recovery_services_vault_hyperv_site | metaModel.Name | subscriptionId, vaultId.ResourceGroupName, vaultId.VaultName, metaModel.Name
+    azurerm_site_recovery_vmware_replication_policy | plan.Name | parsedVaultId.SubscriptionId, parsedVaultId.ResourceGroupName, parsedVaultId.VaultName, plan.Name
+    azurerm_storage_container_immutability_policy | "default" | containerId.SubscriptionId, containerId.ResourceGroupName, containerId.StorageAccountName, "default", containerId.ContainerName, "default"
+    azurerm_synapse_sql_pool_vulnerability_assessment | "default" | policyId.SubscriptionId, policyId.ResourceGroup, policyId.WorkspaceName, policyId.SqlPoolName, "default"
+    azurerm_synapse_workspace_vulnerability_assessment | "default" | policyId.SubscriptionId, policyId.ResourceGroup, policyId.WorkspaceName, "default"
+===== 30 no argument for the resource group segment :: no-call
+    azurerm_app_service_source_control | AppServiceId | internal/services/appservice/app_service_source_control_resource.go
+    azurerm_cognitive_account_customer_managed_key | AccountId | internal/services/cognitive/cognitive_account_customer_managed_key_resource.go
+    azurerm_container_app_environment_custom_domain | ManagedEnvironmentId | internal/services/containerapps/container_app_environment_custom_domain_resource.go
+    azurerm_data_factory_customer_managed_key | FactoryId | internal/services/datafactory/data_factory_customer_managed_key_resource.go
+    azurerm_data_protection_backup_vault_customer_managed_key | BackupVaultId | internal/services/dataprotection/data_protection_backup_vault_customer_managed_key_resource.go
+    azurerm_databricks_workspace_root_dbfs_customer_managed_key | WorkspaceId | internal/services/databricks/databricks_workspace_root_dbfs_customer_managed_key_resource.go
+    azurerm_eventhub_namespace_customer_managed_key | NamespaceId | internal/services/eventhub/eventhub_namespace_customer_managed_key_resource.go
+    azurerm_iotcentral_application_network_rule_set | IotAppId | internal/services/iotcentral/iotcentral_application_network_rule_set_resource.go
+    azurerm_iothub_file_upload | IotHubId | internal/services/iothub/iothub_file_upload_resource.go
+    azurerm_kubernetes_cluster_deployment_safeguard | KubernetesClusterId | internal/services/containers/kubernetes_cluster_deployment_safeguard_resource.go
+    azurerm_kusto_cluster_customer_managed_key | KustoClusterId | internal/services/kusto/kusto_cluster_customer_managed_key_resource.go
+    azurerm_log_analytics_cluster_customer_managed_key | ClusterId | internal/services/loganalytics/log_analytics_cluster_customer_managed_key_resource.go
+    azurerm_managed_disk_sas_token | ManagedDiskId | internal/services/compute/managed_disk_sas_token_resource.go
+    azurerm_managed_redis_geo_replication | RedisEnterpriseId | internal/services/managedredis/resources/managed_redis_geo_replication/resource.go
+    azurerm_mssql_job_schedule | JobId | internal/services/mssql/mssql_job_schedule_resource.go
+    azurerm_netapp_account_encryption | NetAppAccountId | internal/services/netapp/netapp_account_encryption_resource.go
+    azurerm_security_center_storage_defender | StorageAccountId | internal/services/securitycenter/security_center_storage_defender_resource.go
+    azurerm_servicebus_namespace_customer_managed_key | NamespaceId | internal/services/servicebus/servicebus_namespace_customer_managed_key_resource.go
+    azurerm_signalr_service_network_acl | SignalRId | internal/services/signalr/signalr_service_network_acl_resource.go
+    azurerm_spring_cloud_active_deployment | AppId | internal/services/springcloud/spring_cloud_active_deployment_resource.go
+    azurerm_storage_account_customer_managed_key | StorageAccountId | internal/services/storage/storage_account_customer_managed_key_resource.go
+    azurerm_storage_account_network_rules | StorageAccountId | internal/services/storage/storage_account_network_rules_resource.go
+    azurerm_storage_account_queue_properties | StorageAccountId | internal/services/storage/storage_account_queue_properties_resource.go
+    azurerm_storage_account_static_website | StorageAccountId | internal/services/storage/storage_account_static_website_resource.go
+    azurerm_storage_account_table_properties | StorageAccountId | internal/services/storage/storage_account_table_properties_resource.go
+    azurerm_stream_analytics_job_storage_account | StreamingJobId | internal/services/streamanalytics/stream_analytics_job_storage_account_resource.go
+    azurerm_subnet_nat_gateway_association | SubnetId | internal/services/network/subnet_nat_gateway_association_resource.go
+    azurerm_subnet_network_security_group_association | SubnetId | internal/services/network/subnet_network_security_group_association_resource.go
+    azurerm_subnet_route_table_association | SubnetId | internal/services/network/subnet_route_table_association_resource.go
+    azurerm_web_pubsub_network_acl | WebPubSubId | internal/services/signalr/web_pubsub_network_acl_resource.go
+===== 17 no argument for the resource group segment :: other
+    azurerm_api_management_api_tag_description | apiTagId.TagId | apiTagId.SubscriptionId, apiTagId.ResourceGroupName, apiTagId.ServiceName, apiName, apiTagId.TagId
+    azurerm_api_management_policy | serviceName | apiMgmtId.SubscriptionId, resourceGroup, serviceName
+    azurerm_api_management_workspace_policy | id.WorkspaceId | id.SubscriptionId, id.ResourceGroupName, id.ServiceName, id.WorkspaceId
+    azurerm_app_service_managed_certificate | chbID.HostNameBindingName | subscriptionID, appServicePlanID.ResourceGroupName, chbID.HostNameBindingName
+    azurerm_cdn_frontdoor_custom_domain_association | cdId.CustomDomainName | cdId.SubscriptionId, cdId.ResourceGroupName, cdId.ProfileName, cdId.CustomDomainName
+    azurerm_cosmosdb_mongo_role_definition | mongoRoleDefinitionId | databaseId.SubscriptionId, databaseId.ResourceGroupName, databaseId.DatabaseAccountName, mongoRoleDefinitionId
+    azurerm_cosmosdb_mongo_user_definition | mongoUserDefinitionId | databaseId.SubscriptionId, databaseId.ResourceGroupName, databaseId.DatabaseAccountName, mongoUserDefinitionId
+    azurerm_dev_test_global_vm_shutdown_schedule | name | vmId.SubscriptionId, vmId.ResourceGroupName, name
+    azurerm_frontdoor_custom_https_configuration | id.FrontendEndpointName | id.SubscriptionId, id.ResourceGroupName, id.FrontDoorName, id.FrontendEndpointName
+    azurerm_function_app_active_slot | id.SiteName | id.SubscriptionId, id.ResourceGroupName, id.SiteName
+    azurerm_mssql_virtual_machine | vmId.VirtualMachineName | vmId.SubscriptionId, vmId.ResourceGroupName, vmId.VirtualMachineName
+    azurerm_palo_alto_local_rulestack_outbound_trust_certificate_association | pointer.From(secServices.OutboundTrustCertificate) | certificateId.SubscriptionId, certificateId.ResourceGroupName, certificateId.LocalRulestackName, pointer.From(secServices.OutboundTrustCertificate)
+    azurerm_palo_alto_local_rulestack_outbound_untrust_certificate_association | pointer.From(secServices.OutboundUnTrustCertificate) | certificateId.SubscriptionId, certificateId.ResourceGroupName, certificateId.LocalRulestackName, pointer.From(secServices.OutboundUnTrustCertificate)
+    azurerm_storage_blob_inventory_policy | accountId.StorageAccountName | subscriptionId, accountId.ResourceGroupName, accountId.StorageAccountName
+    azurerm_virtual_hub_route_table_route | name | routeTableId.SubscriptionId, routeTableId.ResourceGroupName, routeTableId.VirtualHubName, routeTableId.HubRouteTableName, name
+    azurerm_vmware_cluster | name | subscriptionId, privateCloudId.ResourceGroupName, privateCloudId.PrivateCloudName, name
+    azurerm_web_app_active_slot | id.SiteName | id.SubscriptionId, id.ResourceGroupName, id.SiteName
+===== 7 no argument for the scope segment :: argument
+    azurerm_arc_kubernetes_cluster_extension | model.Name | connectedClusterId.ID(), model.Name
+    azurerm_blueprint_assignment | name | d.Get("target_subscription_id").(string), d.Get("name").(string)
+    azurerm_cost_anomaly_alert | config.Name | subscriptionId, config.Name
+    azurerm_cost_management_scheduled_action | config.Name | viewId.Scope, config.Name
+    azurerm_kubernetes_cluster_extension | model.Name | clusterID.ID(), model.Name
+    azurerm_system_center_virtual_machine_manager_virtual_machine_instance | model.ScopedResourceId | model.ScopedResourceId
+    azurerm_system_center_virtual_machine_manager_virtual_machine_instance_guest_agent | model.ScopedResourceId | model.ScopedResourceId
+===== 1 no argument for the scope segment :: other
+    azurerm_storage_share_file | fileName | *accountId, storageShareId.ShareName, path, fileName
+===== 1 no argument for the scope segment :: response?
+    azurerm_synapse_role_assignment | *existing.ID | synapseScope, *existing.ID
+===== 1 no argument for the subscription segment :: other
+    azurerm_management_group_subscription_association | subscriptionId.SubscriptionId | managementGroupId.Name, subscriptionId.SubscriptionId
