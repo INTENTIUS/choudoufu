@@ -393,6 +393,7 @@ type fakeThirdSubstrate struct {
 }
 
 func (fakeThirdSubstrate) Name() string                { return "fake" }
+func (fakeThirdSubstrate) ProviderTypes() []string     { return []string{"fake"} }
 func (fakeThirdSubstrate) Surfaces() []markers.Surface { return nil }
 func (fakeThirdSubstrate) Sweep() substrate.Sweep      { return substrate.Sweep("fake-sweep") }
 func (fakeThirdSubstrate) CarriesAddress() bool        { return false }

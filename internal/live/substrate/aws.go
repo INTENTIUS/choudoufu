@@ -23,6 +23,8 @@ type aws struct{}
 
 func (aws) Name() string { return "aws" }
 
+func (aws) ProviderTypes() []string { return []string{"aws"} }
+
 func (aws) Surfaces() []markers.Surface { return []markers.Surface{markers.SurfaceTags} }
 
 func (aws) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {

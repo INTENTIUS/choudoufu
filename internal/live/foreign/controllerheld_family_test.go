@@ -24,6 +24,7 @@ type fakeHoldingFamily struct {
 const fakeHoldTag = "fake.example/held-by"
 
 func (fakeHoldingFamily) Name() string                { return "fakehold" }
+func (fakeHoldingFamily) ProviderTypes() []string     { return []string{"fakehold"} }
 func (fakeHoldingFamily) Surfaces() []markers.Surface { return nil }
 func (fakeHoldingFamily) ControllerHeld(ev substrate.HoldEvidence) (substrate.Hold, bool) {
 	if v, ok := ev.Tags[fakeHoldTag]; ok {
