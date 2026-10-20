@@ -46,6 +46,7 @@ must read `No changes.` from the emulator and the configuration alone.
 
 `BREAK=1` renames the azurerm subnet once the store and the cache are
 gone. The derived id now matches nothing live, so the plan must propose
-exactly one create and leave the old subnet alone. floci-az serves no
-Resource Graph yet (lex00/floci-az#4, [live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet,
-so the cell reads unproven.
+exactly one create and leave the old subnet alone. Resource Graph is served by floci-az since 30000b0, but the
+sweep's query uses `union`, `mv-expand` and `bag_keys`, which its KQL
+subset refuses ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It
+has no dated run yet, so the cell reads unproven.

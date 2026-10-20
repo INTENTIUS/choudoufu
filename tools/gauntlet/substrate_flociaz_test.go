@@ -184,7 +184,7 @@ func TestEveryStageHasAFlociAzNote(t *testing.T) {
 	}
 	// Where a stage leans on what floci-az does not serve, its note says
 	// so, so a first run's failure there reads as the emulator's gap.
-	for id, gap := range map[string]string{"test_plan": "Resource Graph", "test_apply": "Resource Graph", "no_local_state": "Resource Graph", "plan_approval": "Policy", "cold_deploy": "storage accounts"} {
+	for id, gap := range map[string]string{"test_plan": "Resource Graph", "test_apply": "Resource Graph", "no_local_state": "Resource Graph", "plan_approval": "Policy"} {
 		s, _ := StageByID(id)
 		if !strings.Contains(s.Substrates[SubstrateFlociAz], gap) {
 			t.Errorf("stage %s's floci-az note does not name %q, which floci-az lacks and the stage needs", id, gap)

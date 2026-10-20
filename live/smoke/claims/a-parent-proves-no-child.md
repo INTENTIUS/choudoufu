@@ -39,6 +39,7 @@ and keep `tofu-estate`, and the apply puts both back.
 
 `BREAK=1` runs the same deletes and holds the plan to what a plan that
 inferred the children from their parents would read, `No changes.`; that
-check must fail on the real plan, which proposes the two creates. floci-az
-serves no Resource Graph yet (lex00/floci-az#4). It has no dated run yet,
-so the cell reads unproven.
+check must fail on the real plan, which proposes the two creates.
+Resource Graph is served by floci-az since 30000b0, but the
+sweep's query uses `union`, `mv-expand` and `bag_keys`, which its KQL
+subset refuses ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads unproven.

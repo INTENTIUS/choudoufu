@@ -47,5 +47,7 @@ and its recovery from the record blob's previous version. Untaggable
 `azapi_resource` types are not read by that leg yet.
 
 `BREAK=1` loses the rules' records before the ssh rule's block is deleted,
-and the destroy must go with them. floci-az serves no Resource Graph yet
-(lex00/floci-az#4). It has no dated run yet, so the cell reads unproven.
+and the destroy must go with them. Resource Graph is served by floci-az since 30000b0, but the
+sweep's query uses `union`, `mv-expand` and `bag_keys`, which its KQL
+subset refuses ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated
+run yet, so the cell reads unproven.

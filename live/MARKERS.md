@@ -1783,10 +1783,12 @@ counts both, per tier.
 - Reads are not fenced: the sweep reader is subscription-wide read. The
   record store's read fence is separate: the ABAC condition in
   [`live/azure/record-store-abac.condition`](azure/record-store-abac.condition).
-- floci-az stores Policy definitions and
-  assignments and evaluates no rule, so nothing is denied there (`live/FLOCI.md`,
-  "Azure: floci-az"). Until the templates are applied on real Azure, every
-  statement in this list is from Azure's documentation, not measured.
+- floci-az evaluates `deny` and `denyAction` since `30000b0`, with tag names
+  matched in any case, but not yet run. It also approximates: `mode: Indexed`
+  skips only resource groups there, and `cascadeBehaviors` is not read
+  (`live/FLOCI.md`, "Azure: floci-az"). Until the templates are applied on
+  real Azure, every statement in this list is from Azure's documentation,
+  not measured.
 
 ## Protecting the markers
 

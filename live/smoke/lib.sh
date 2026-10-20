@@ -386,15 +386,51 @@ AZURE_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000001"
 AZURE_TENANT_ID="00000000-0000-0000-0000-000000000002"
 AZURE_CLIENT_ID="00000000-0000-0000-0000-000000000003"
 
+# azure_client_oid <client-id> prints the object id floci-az puts in the
+# oid claim of a client-credentials token for a client id its directory
+# does not hold: Java's UUID.nameUUIDFromBytes over the id's UTF-8 bytes,
+# an MD5 name-based (version 3) UUID with no namespace
+# (services/entra/TokenEndpoint.java and TokenIssuer.deterministicGuid at
+# lex00/floci-az 30000b0). RBAC enforcement keys on that claim.
+azure_client_oid() {
+  python3 -c 'import hashlib, sys, uuid; print(uuid.UUID(bytes=hashlib.md5(sys.argv[1].encode()).digest(), version=3))' "$1"
+}
+
 azure_up() {
   AZURE_UP=1
+  # The host port is chosen here rather than by the kernel at publish
+  # time, because the storage suffix below has to name it before the
+  # container starts. A port another process takes between this probe and
+  # the publish fails compose up by name.
+  if [ "${FLOCI_AZ_PORT:-0}" = "0" ]; then
+    FLOCI_AZ_PORT="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')" \
+      || fail "azure" "could not pick a free host port for floci-az"
+  fi
+  export FLOCI_AZ_PORT
+  # FLOCI_AZ_STORAGE_SUFFIX (lex00/floci-az c760e26): /metadata/endpoints
+  # and storage accounts' primaryEndpoints report this suffix in place of
+  # core.windows.net, so the stock azurerm backend and record_store
+  # "azurerm" address an account as https://<account>.blob.localhost:<port>,
+  # which is this container, instead of leaving for real Azure DNS. The
+  # certificate covers *.blob.localhost. That <account>.blob.localhost
+  # resolves to loopback is the client's resolver's doing, not measured yet.
+  export FLOCI_AZ_STORAGE_SUFFIX="localhost:${FLOCI_AZ_PORT}"
+  # RBAC enforcement is on in the compose service (lex00/floci-az bb225ad)
+  # so the fence claims can hold a second principal to its role
+  # assignments. The principal every provider block and backend here signs
+  # in as is listed as an admin and passes unchecked, so a scenario that
+  # never assigns a role behaves as before.
+  FLOCI_AZ_RBAC_ADMIN_PRINCIPALS="$(azure_client_oid "$AZURE_CLIENT_ID")" \
+    || fail "azure" "could not derive floci-az's object id for client $AZURE_CLIENT_ID"
+  export FLOCI_AZ_RBAC_ADMIN_PRINCIPALS
   logged compose-up-floci-az azure "docker compose up floci-az failed" \
     -- "${COMPOSE[@]}" --profile azure up -d floci-az
   local portlog
   portlog="$(smoke_log_dir)/compose-port-floci-az.log"
-  FLOCI_AZ_PORT="$("${COMPOSE[@]}" --profile azure port floci-az 4577 2>"$portlog" | sed 's/.*://')"
-  [ -n "$FLOCI_AZ_PORT" ] || fail "azure" "could not resolve floci-az's published port; docker compose port said: $(tr '\n' ' ' < "$portlog")"
-  export FLOCI_AZ_PORT
+  local published
+  published="$("${COMPOSE[@]}" --profile azure port floci-az 4577 2>"$portlog" | sed 's/.*://')"
+  [ -n "$published" ] || fail "azure" "could not resolve floci-az's published port; docker compose port said: $(tr '\n' ' ' < "$portlog")"
+  [ "$published" = "$FLOCI_AZ_PORT" ] || fail "azure" "floci-az is published on :$published, not the :$FLOCI_AZ_PORT its storage suffix names, so blob calls would miss it"
   # localhost, not 127.0.0.1: the generated certificate names localhost
   # and *.localhost, and no IP the provider would dial by name.
   AZURE_HOST="localhost:${FLOCI_AZ_PORT}"
@@ -512,8 +548,10 @@ azure_down() {
 # and no login. arm <METHOD> <path-with-api-version> [json-body] prints the
 # response body and fails (non-zero) on a non-2xx answer, so `|| fail`
 # after it names the call. floci-az accepts any bearer token on ARM
-# (live/FLOCI.md, Azure). Bounded per call like every other request a
-# scenario makes (#1457).
+# (live/FLOCI.md, Azure), and this one carries no oid claim, so RBAC
+# enforcement does not check it: it is the out-of-band hand that sets an
+# estate's role assignments up. Policy evaluation still applies to it.
+# Bounded per call like every other request a scenario makes (#1457).
 ARM_REQUEST_SECS="${ARM_REQUEST_SECS:-30}"
 arm() {
   local method="$1" path="$2" body="${3:-}"

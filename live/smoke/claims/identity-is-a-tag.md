@@ -103,6 +103,7 @@ state file and with the cache deleted. `BREAK=1` strips `tofu-estate` from
 the VNet with an ARM PATCH: the default replan must refuse the VNet by name
 ("Unmarked live object at the declared id would be overwritten") rather
 than PUT over it, and with `policy { declared_untagged = "adopt" }` the
-apply must write the tag back. A plan reaches the Resource Graph sweep,
-which floci-az does not serve yet (lex00/floci-az#4, [live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It
-has no dated run yet, so the cell reads unproven.
+apply must write the tag back. A plan reaches the Resource Graph sweep.
+Resource Graph is served by floci-az since 30000b0, but the
+sweep's query uses `union`, `mv-expand` and `bag_keys`, which its KQL
+subset refuses ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads unproven.

@@ -12,12 +12,12 @@
 #
 # Written for GitHub issue #1120 (unit 15). Not yet run, so its cell reads
 # unproven until the maintainer runs both arms on floci-az and the evidence
-# file lands. It waits on lex00/floci-az#4 (no Resource Graph).
+# file lands.
 #
-# What floci-az cannot answer today (live/FLOCI.md, Azure): it has no
-# Microsoft.ResourceGraph route, and the sweep is a Resource Graph query, so
-# step 2's plan is expected to be refused by name ("Microsoft.ResourceGraph
-# not registered") until the fork serves it. Neither arm can pass before
+# What floci-az cannot answer today (live/FLOCI.md, Azure): it serves
+# Resource Graph since 30000b0, but its KQL subset refuses the sweep query's
+# union, mv-expand and bag_keys, so step 2's plan is expected to be refused
+# with 400 InvalidQuery until one side changes. Neither arm can pass before
 # then; a BREAK run that passes against a sweep that never ran would prove
 # nothing, which is why step 2 requires the plan to propose the removal
 # before the control is read at all.
