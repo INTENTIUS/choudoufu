@@ -99,7 +99,7 @@ func (b *builder) fieldGranularHandover(ctx context.Context, w wanted, p readPre
 	}
 	seed[substrate.FieldManagerAttr] = cty.StringVal(rec.HandoverFrom)
 
-	obj, stub, status, diags := importAndRead(ctx, p.entry.provider, p.schema, w.addr.Resource.Resource.Type, p.target, w.importID, w.values, seed, p.attrsSeedMarks, p.manifestKeys)
+	obj, stub, status, diags := importAndRead(ctx, p.entry.provider, p.schema, w.addr.Resource.Resource.Type, p.providerAddr.Provider.Type, p.target, w.importID, w.values, seed, p.attrsSeedMarks, p.manifestKeys)
 	if status != statusMaterialized || obj == nil {
 		return nil, cty.NilVal, nil, false
 	}

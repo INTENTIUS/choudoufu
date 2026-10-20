@@ -2732,7 +2732,7 @@ func (b *builder) materializeDeposed(ctx context.Context, db DeposedBinding) {
 	// labels the configuration still declares changes nothing anyone will
 	// act on, and asking the cluster would buy a round trip and a
 	// possible warning for an analysis with no consumer.
-	obj, _, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), db.ImportID, db.Components, nil, nil, nil)
+	obj, _, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, providerAddr.Provider.Type, importTarget(w, schema), db.ImportID, db.Components, nil, nil, nil)
 	switch status {
 	case statusAbsent:
 		log.Printf("[TRACE] projection: %s's recorded deposed object %s (%s) no longer exists live; not folded into the projection", addr, db.DeposedKey, traceImportID(typeName, db.ImportID, cty.NilVal))
@@ -3905,6 +3905,10 @@ func withSeededAttrs(v cty.Value, seed map[string]cty.Value, block *configschema
 // ImportResourceState to turn an identity into a stub object, then
 // ReadResource to fill that stub in from the live system.
 //
+// providerType is the provider's type name ("azurerm", "aws"), which
+// decides whether its import errors are read for the Azure not-found shapes
+// at all ([absent.Object], GitHub issue #2140).
+//
 // target is the form the import is asked in - an identity object or an
 // import-ID string, never both, see [importTarget]. importID is carried
 // alongside whichever form was chosen because it is what every sentence here
@@ -3934,7 +3938,7 @@ func withSeededAttrs(v cty.Value, seed map[string]cty.Value, block *configschema
 // back is then bit-for-bit the same value that went in, and comparing the
 // two is the only way to tell that apart from a value ReadResource actually
 // produced - the schema itself carries no such signal to ask instead.
-func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, identityValues map[string]string, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks, manifestKeys *manifestKeyLookup) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
+func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, providerType string, target providers.ImportTarget, importID string, identityValues map[string]string, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks, manifestKeys *manifestKeyLookup) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if !target.IsIdentityBased() && !target.IsIDBased() {
@@ -3951,7 +3955,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		Target:   target,
 	})
 	if importResp.Diagnostics.HasErrors() {
-		if ok, detail := notFoundDiagnostics(importResp.Diagnostics, absent.Object{ID: target.ID, Identity: identityValues}); ok {
+		if ok, detail := notFoundDiagnostics(importResp.Diagnostics, absent.Object{ID: target.ID, Identity: identityValues, Provider: providerType}); ok {
 			// Some providers answer "there is no such object" as an error
 			// diagnostic out of ImportResourceState rather than an empty
 			// ImportedResources list - aws_lambda_permission is a confirmed

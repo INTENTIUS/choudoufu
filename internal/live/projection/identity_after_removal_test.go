@@ -78,7 +78,7 @@ func identityAfterRemovalProvider(newState cty.Value, summary string) *tofu.Mock
 func TestIdentityCheckAfterRemovalIsAbsence(t *testing.T) {
 	p := identityAfterRemovalProvider(cty.NilVal, "Missing Resource Identity After Read")
 	target := providers.ImportTarget{ID: "quickpizza"}
-	_, _, status, diags := importAndRead(t.Context(), p, identityAfterRemovalSchema(), "kubernetes_namespace_v1", target, target.ID, nil, nil, nil, nil)
+	_, _, status, diags := importAndRead(t.Context(), p, identityAfterRemovalSchema(), "kubernetes_namespace_v1", "kubernetes", target, target.ID, nil, nil, nil, nil)
 	if diags.HasErrors() {
 		t.Fatalf("a removed resource's identity complaint was reported as a failure: %s", diags.Err())
 	}
@@ -108,7 +108,7 @@ func TestIdentityCheckOnALiveObjectStillFails(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			target := providers.ImportTarget{ID: "quickpizza"}
-			_, _, status, diags := importAndRead(t.Context(), p, identityAfterRemovalSchema(), "kubernetes_namespace_v1", target, target.ID, nil, nil, nil, nil)
+			_, _, status, diags := importAndRead(t.Context(), p, identityAfterRemovalSchema(), "kubernetes_namespace_v1", "kubernetes", target, target.ID, nil, nil, nil, nil)
 			if !diags.HasErrors() || status != statusFailed {
 				t.Errorf("status = %v, errors = %v; want statusFailed with errors", status, diags.HasErrors())
 			}
