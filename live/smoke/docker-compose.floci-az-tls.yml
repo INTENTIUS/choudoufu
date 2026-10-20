@@ -1,0 +1,11 @@
+# Added to the smoke compose project by live/smoke/lib.sh's azure_up only
+# when the operator's floci-az certificate is in use
+# (scripts/floci-az-mac-cert.sh; live/e2e/lib/floci-az.sh). It mounts the
+# certificate and key read-only where FLOCI_AZ_TLS_CERT_PATH and
+# FLOCI_AZ_TLS_KEY_PATH, set in docker-compose.yml, point. Kept out of the
+# main file so a run with no certificate mounts nothing.
+services:
+  floci-az:
+    volumes:
+      - ${FLOCI_AZ_TLS_CERT_FILE:?azure_up exports this when a certificate is in use}:/etc/floci-az-tls/cert.pem:ro
+      - ${FLOCI_AZ_TLS_KEY_FILE:?azure_up exports this when a certificate is in use}:/etc/floci-az-tls/key.pem:ro

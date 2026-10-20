@@ -64,9 +64,9 @@
 #   bash live/e2e/corpus-azapi-role-assignment/run.sh           # asks for "run" at the terminal
 #
 # Needs `just corpus-fetch` first, then docker, curl, terraform (the stock
-# binary), python3 and Go on PATH. On macOS the floci-az CA has to be
-# trusted in the keychain by hand (Go there ignores SSL_CERT_FILE);
-# live/FLOCI.md says how.
+# binary), python3 and Go on PATH. On macOS run
+# scripts/floci-az-mac-cert.sh once and trust the certificate it prints in
+# the keychain (Go there ignores SSL_CERT_FILE); live/FLOCI.md says how.
 #
 # Env overrides:
 #   TOFU_BIN       path to a prebuilt choudoufu binary; skips the `go build`.

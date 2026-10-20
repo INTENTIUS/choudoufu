@@ -68,6 +68,11 @@ services:
       FLOCI_AZ_SERVICES_POLICY_EVALUATE: "true"
       FLOCI_AZ_SERVICES_RBAC_ENFORCE: "true"
       FLOCI_AZ_SERVICES_RBAC_ADMIN_PRINCIPALS: ${FLOCI_AZ_RBAC_ADMIN_PRINCIPALS:-}
+      # The operator's certificate (scripts/floci-az-mac-cert.sh), mounted
+      # by docker-compose.floci-az-tls.yml. azure_up sets both or neither;
+      # blank, floci-az generates its own CA.
+      FLOCI_AZ_TLS_CERT_PATH: ${FLOCI_AZ_TLS_CERT_PATH:-}
+      FLOCI_AZ_TLS_KEY_PATH: ${FLOCI_AZ_TLS_KEY_PATH:-}
     ports:
       - "127.0.0.1:${FLOCI_AZ_PORT:-0}:4577"
 

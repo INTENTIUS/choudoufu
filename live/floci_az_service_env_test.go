@@ -17,9 +17,10 @@ import (
 // to the smoke compose service's (#2140): every FLOCI_AZ_* variable the
 // compose service sets, gauntlet_floci_az_up passes too, either as a
 // literal -e or through live/e2e/lib/floci-az.sh's floci_az_service_env,
-// which live/smoke/lib.sh sources as well. The audit found the gauntlet
-// start without the storage suffix, Policy evaluation and RBAC
-// enforcement the compose service had.
+// which live/smoke/lib.sh sources as well, or its floci_az_tls_env (the
+// operator's certificate, scripts/floci-az-mac-cert.sh). The audit found
+// the gauntlet start without the storage suffix, Policy evaluation and
+// RBAC enforcement the compose service had.
 func TestFlociAzServiceEnvMatchesCompose(t *testing.T) {
 	compose := flociAzComposeEnvKeys(t, readFile(t, "smoke/docker-compose.yml"))
 	gauntlet := flociAzGauntletEnvKeys(t, readFile(t, "e2e/lib/gauntlet.sh"), readFile(t, "e2e/lib/floci-az.sh"))
@@ -79,18 +80,26 @@ func flociAzGauntletEnvKeys(t *testing.T, gauntlet, lib string) []string {
 	for _, m := range regexp.MustCompile(`-e (FLOCI_AZ_[A-Z_]+)=`).FindAllStringSubmatch(body, -1) {
 		keys = append(keys, m[1])
 	}
-	if strings.Contains(body, "floci_az_service_env ") {
-		j := strings.Index(lib, "\nfloci_az_service_env() {")
-		if j < 0 {
-			t.Fatal("floci-az.sh has no floci_az_service_env")
+	for _, fn := range []string{"floci_az_service_env", "floci_az_tls_env"} {
+		if !regexp.MustCompile(`\b` + fn + `\b`).MatchString(body) {
+			continue
 		}
-		fn := lib[j:]
-		fn = fn[:strings.Index(fn, "\n}\n")]
-		for _, m := range regexp.MustCompile(`"(FLOCI_AZ_[A-Z_]+)=`).FindAllStringSubmatch(fn, -1) {
+		for _, m := range regexp.MustCompile(`"(FLOCI_AZ_[A-Z_]+)=`).FindAllStringSubmatch(shellFunc(t, lib, fn), -1) {
 			keys = append(keys, m[1])
 		}
 	}
 	return keys
+}
+
+// shellFunc is the body of the shell function name in src.
+func shellFunc(t *testing.T, src, name string) string {
+	t.Helper()
+	j := strings.Index(src, "\n"+name+"() {")
+	if j < 0 {
+		t.Fatalf("floci-az.sh has no %s", name)
+	}
+	fn := src[j:]
+	return fn[:strings.Index(fn, "\n}\n")]
 }
 
 func minus(a, b []string) []string {

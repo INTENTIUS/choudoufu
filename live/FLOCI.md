@@ -320,8 +320,45 @@ different variable, `ARM_METADATA_HOST`. azapi has no metadata host: it
 takes `ARM_ENVIRONMENT=custom` plus `ARM_ACTIVE_DIRECTORY_AUTHORITY_HOST`,
 `ARM_RESOURCE_MANAGER_ENDPOINT` and `ARM_RESOURCE_MANAGER_AUDIENCE`, with
 instance discovery off. Both providers need TLS. On Linux the harness adds
-the CA to `SSL_CERT_FILE`. On macOS Go ignores that variable, so the CA has
-to be trusted in the keychain by hand.
+the CA to `SSL_CERT_FILE`. On macOS Go ignores that variable and trusts
+only the keychain, so the harness needs a certificate trusted there in
+advance (below).
+
+**TLS certificate and hosts.** With TLS on and no certificate given,
+floci-az generates a new CA every time a container starts. Given
+`FLOCI_AZ_TLS_CERT_PATH` and `FLOCI_AZ_TLS_KEY_PATH` (both PEM, both
+required), it serves that certificate as given, adds no SAN of its own, and
+answers `/_floci/tls-cert` with the certificate file itself
+(`TlsConfigSource` at 30000b0). `scripts/floci-az-mac-cert.sh` makes one
+such certificate, and `live/e2e/lib/floci-az.sh` mounts it read-only into
+every floci-az the smoke harness and the gauntlet start, estate and oracle
+alike, whenever it exists. It names exactly the hosts the harness and the
+providers dial:
+
+| SAN | Who dials it |
+|---|---|
+| `localhost` | ARM, `/metadata/endpoints`, the token endpoint: `AZURE_HOST`, `FLOCI_AZ_HOST`, every `ARM_*` endpoint |
+| `127.0.0.1`, `::1` | the published address, and a client that dials the address |
+| `*.blob.localhost` | the stock azurerm backend and `record_store "azurerm"`, `https://<account>.blob.localhost:<port>` under `FLOCI_AZ_STORAGE_SUFFIX=localhost:<port>` |
+| `*.dfs.localhost`, `*.file.localhost`, `*.queue.localhost`, `*.table.localhost` | azurerm reading a storage account's data plane, which it addresses as `<account>.<type>.<suffix>` |
+| `*.localhost` | nothing in the harness; floci-az's own certificate names it. macOS refuses a wildcard directly under one label, so there it covers nothing |
+
+Ports are not part of a SAN, so the one certificate serves every container
+on every port. `live/floci_az_tls_test.go` fails when the harness starts
+dialing a host the list lacks.
+
+**On a Mac.** Run `bash scripts/floci-az-mac-cert.sh` once. It writes
+`cert.pem` and `key.pem` to `~/.config/choudoufu/floci-az-tls/` (or
+`$FLOCI_AZ_TLS_DIR`), reuses them on later runs, and prints the one
+`security add-trusted-cert` command that trusts the certificate in your
+login keychain; run that yourself. The certificate is self-signed with
+`CA:true`, `serverAuth` and 825 days, and a critical name constraint keeps
+it to localhost and the loopback addresses, so even its key could not
+vouch for any other name. Before any provider runs, the harness checks
+with `security verify-cert` that the keychain trusts it, and stops by name
+when there is no certificate or it is not trusted, instead of failing
+later with x509. Linux needs none of this; with no certificate there the
+harness uses floci-az's own CA as before.
 
 **Settings the lane turns on.** Three surfaces are opt-in in the fork, and
 `live/smoke/docker-compose.yml` and the gauntlet's `gauntlet_floci_az_up`
@@ -349,7 +386,7 @@ lists the surfaces; #1 and #3 to #10 are closed at this pin.
 | Blob conditional writes | `If-None-Match: *` and `If-Match` are honoured on Put Blob and Delete Blob. A create over an existing blob answers 409 `BlobAlreadyExists`, as Azure does (b7464e6). ETags are quoted `"0x..."` hex, as Azure's are (8fc726b). |
 | Blob index tags | `x-ms-tags` on Put Blob, Get/Set Blob Tags and Find Blobs by Tags are served. |
 | Record store opening checks | Storage accounts keep their settable properties, `allowBlobPublicAccess` defaulting to false; `blobServices/default` keeps `isVersioningEnabled` and the rest; `managementPolicies/default` answers `PUT`, `GET` and `DELETE` (071516d). The settings are stored and read back only: the data plane makes no blob versions and runs no lifecycle rule. |
-| Stock backend reach | The storage suffix is configurable (c760e26), and the certificate covers `*.blob.localhost`, `*.dfs.localhost`, `*.queue.localhost` and `*.table.localhost`. That `<account>.blob.localhost` resolves to loopback is up to the client's resolver. |
+| Stock backend reach | The storage suffix is configurable (c760e26). floci-az's generated certificate covers `*.blob.localhost`, `*.dfs.localhost`, `*.queue.localhost` and `*.table.localhost`; the operator's adds `*.file.localhost` (above). That `<account>.blob.localhost` resolves to loopback is up to the client's resolver. |
 | ARM template deployments | `Microsoft.Resources/deployments` at resource-group and subscription scope, run to completion inside the `PUT`, each resource through the emulator's own handlers, so RBAC and Policy apply to it (30000b0). Nested deployments are not served, and both shipped templates (`live/azure/estate-boundary.json`, `live/azure/estate-grant.json`) assign through one, so the scenarios still install them with direct ARM calls. |
 
 Code in choudoufu that needs one of these waits for the fork (emulator
