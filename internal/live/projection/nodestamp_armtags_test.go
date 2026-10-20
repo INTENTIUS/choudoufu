@@ -270,6 +270,35 @@ func TestARMStampRefusesAnUnknownAzapiBody(t *testing.T) {
 	}
 }
 
+// TestARMStampUnknownBodyWithTopLevelTags: an unknown body does not stop the
+// stamp when the configuration sets the top-level tags argument to a known
+// value, because azapi then sends that argument or refuses the
+// configuration itself (GitHub issue #2142's Azure audit; azapi 2.13.0
+// tagsWithDefaultTags, expandBody and validateDuplicatedDefinitions). The
+// body is left unknown and untouched. A top-level tags value that is itself
+// unknown could still be null at apply, so it keeps the refusal.
+func TestARMStampUnknownBodyWithTopLevelTags(t *testing.T) {
+	requireTaggable(t, "Microsoft.Network/virtualNetworks", "2023-09-01", true)
+	own := cty.MapVal(map[string]cty.Value{"env": cty.StringVal("prod")})
+	config := azapiConfig("Microsoft.Network/virtualNetworks@2023-09-01", cty.DynamicVal, own)
+	got, diags := armFixture(t).AdjustConfigValue(context.Background(), armAddr(t, "azapi_resource.vnet"), config, azapiSchema())
+	if diags.HasErrors() {
+		t.Fatalf("refused: %v", diags.Err())
+	}
+	want := map[string]string{"env": "prod", markers.TagEstate: "prod", markers.TagAddress: "azapi_resource.vnet"}
+	if tags := stringMap(t, got.GetAttr("tags")); !reflect.DeepEqual(tags, want) {
+		t.Errorf("tags = %v, want %v", tags, want)
+	}
+	if got.GetAttr("body").IsKnown() {
+		t.Errorf("body became known: %#v", got.GetAttr("body"))
+	}
+
+	unknownTags := azapiConfig("Microsoft.Network/virtualNetworks@2023-09-01", cty.DynamicVal, cty.UnknownVal(cty.Map(cty.String)))
+	if _, diags := armFixture(t).AdjustConfigValue(context.Background(), armAddr(t, "azapi_resource.vnet"), unknownTags, azapiSchema()); !hasSummary(diags, SummaryARMTagsBodyUnknown) {
+		t.Errorf("unknown body and unknown tags: diags %v, want the %q refusal", diags.Err(), SummaryARMTagsBodyUnknown)
+	}
+}
+
 // TestARMVerifyReadsTheTopLevelTagsAfterABodyWrite: azapi copies the
 // response body's tags into the top-level attribute (Read and ImportState,
 // internal/services/azapi_resource.go lines 1182-1184 and 1419-1421 at
