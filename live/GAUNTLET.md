@@ -458,7 +458,7 @@ Check `live/estate-types.json` (`go run ./tools/estate-types`, issue #435)
 before proposing one: it lists, from real committed or fetched
 configuration and no gauntlet run, every resource type each estate in the
 manifest already exercises. As of that artifact's last run, it reports
-44 estates exercising 211 distinct types between them, of which 133 no
+45 estates exercising 219 distinct types between them, of which 141 no
 cohort fixture covers yet (`totals.estates`, `totals.distinct_types`,
 `totals.types_in_no_cohort`; these figures are rendered from the
 artifact by `gauntlet render`, so they can only be as current as the
