@@ -40,6 +40,14 @@ type GoogleAssetImport struct {
 	// Import is the import ID the parts parsed out of Asset are put into.
 	// Equal to Asset when the importer accepts the Asset path as it is.
 	Import GoogleImportFormat
+
+	// Documented is set when the provider source states no Asset name for
+	// the type, and Asset is the one Google documents for its asset type
+	// (https://docs.cloud.google.com/asset-inventory/docs/asset-names,
+	// last updated 2026-10-19, read into live/gcp-asset-names.json). The
+	// page's every variable is one path segment, so each placeholder of
+	// such an Asset matches exactly one: a bucket's is its bare name.
+	Documented bool
 }
 
 // AsIs reports whether the importer takes the Asset path unchanged.
@@ -83,14 +91,19 @@ var (
 
 // parseGoogleTemplate reads values out of path by tmpl. A placeholder
 // matches one path segment, except one that opens the template, which
-// names a parent and matches several ("{{key_ring}}/cryptoKeys/{{name}}").
-// A path-escaped placeholder is refused.
-func parseGoogleTemplate(tmpl, path string) (map[string]string, bool) {
+// names a parent and matches several ("{{key_ring}}/cryptoKeys/{{name}}"),
+// unless segments says every placeholder is one segment. A path-escaped
+// placeholder is refused.
+func parseGoogleTemplate(tmpl, path string, segments bool) (map[string]string, bool) {
 	if strings.Contains(tmpl, "{{%") {
 		return nil, false
 	}
+	key := tmpl
+	if segments {
+		key = "segments:" + tmpl
+	}
 	googleTemplateRegexMu.Lock()
-	re, ok := googleTemplateRegex[tmpl]
+	re, ok := googleTemplateRegex[key]
 	if !ok {
 		var b strings.Builder
 		b.WriteString("^")
@@ -104,7 +117,7 @@ func parseGoogleTemplate(tmpl, path string) (map[string]string, bool) {
 			}
 			b.WriteString(regexp.QuoteMeta(rest[:loc[0]]))
 			name := rest[loc[2]:loc[3]]
-			if first && loc[0] == 0 {
+			if first && loc[0] == 0 && !segments {
 				b.WriteString("(?P<" + name + ">.+)")
 			} else {
 				b.WriteString("(?P<" + name + ">[^/]+)")
@@ -114,7 +127,7 @@ func parseGoogleTemplate(tmpl, path string) (map[string]string, bool) {
 		}
 		b.WriteString("$")
 		re, _ = regexp.Compile(b.String())
-		googleTemplateRegex[tmpl] = re
+		googleTemplateRegex[key] = re
 	}
 	googleTemplateRegexMu.Unlock()
 	if re == nil {
@@ -150,9 +163,18 @@ func (f GoogleImportFormat) acceptedBy(id string) bool {
 // ("//compute.googleapis.com/projects/p/zones/z/disks/d") of a labelled
 // google type into the import ID that type's importer accepts, by the
 // generated [GoogleAssetImports] row: the path as it is, or its parts put
-// into an accepted form. ok is false when the type has no row (the source
-// at the pin does not say), or the name does not have the row's host and
-// shape; the caller refuses such a hit by name rather than import a guess.
+// into an accepted form. ok is false when the type has no row (neither the
+// source at the pin nor Google's documentation says), or the name does not
+// have the row's host and shape; the caller refuses such a hit by name
+// rather than import a guess.
+//
+// The name is read in the form Google documents for each asset type at
+// https://docs.cloud.google.com/asset-inventory/docs/asset-names (last
+// updated 2026-10-19): a Cloud Storage bucket is //storage.googleapis.com/BUCKET,
+// a Compute Engine instance
+// //compute.googleapis.com/projects/PROJECT_ID/zones/ZONE/instances/INSTANCE.
+// No other spelling is accepted: projects/_/buckets/BUCKET is the Cloud
+// Storage JSON API's and IAM's name for a bucket, not its Asset name.
 func GoogleAssetImportID(typeName, assetName string) (string, bool) {
 	row, ok := GoogleAssetImports[typeName]
 	if !ok {
@@ -166,7 +188,7 @@ func GoogleAssetImportID(typeName, assetName string) (string, bool) {
 	if !ok || host != row.Host {
 		return "", false
 	}
-	values, ok := parseGoogleTemplate(row.Asset, path)
+	values, ok := parseGoogleTemplate(row.Asset, path, row.Documented)
 	if !ok {
 		return "", false
 	}

@@ -313,6 +313,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"exceptions - this file is the same contract one level up.",
 		Data: 8, Code: 0,
 	},
+	"tools/gcp-row-gen/assetnames.go": {
+		Reason: "documentedAssets: the 22 labelled google types whose provider source at 8.6.0 states no Cloud Asset " +
+			"Inventory name (handwritten, no cai_asset_name_format), each mapped by hand to the asset type Google's asset " +
+			"names page lists for it, with a Basis field saying what the mapping rests on. Nothing in the provider source " +
+			"names the asset type, so it cannot be derived; the host half is checked against the type's api_service_name, " +
+			"and the derivation refuses an entry the page does not list or a type that no longer needs one.",
+		Data: 22, Code: 0,
+	},
 
 	"tools/survey-gen/untaggable_render.go": {
 		Reason: "nonAWSAdmittedUntaggable (issue #326): a named ledger, not hand-wiring in the sense this file exists to " +
@@ -710,7 +718,12 @@ const (
 	// IAM attachment types that write a parent's computed attributes plus
 	// the two parent types, aws_iam_role and aws_iam_policy. Seven new Data
 	// literals, none moved.
-	typeLiteralDataTotal = 1219
+	// 1219 -> 1241 data, code unchanged, on 2026-10-20 (#2139 item 7
+	// follow-up): gcp-row-gen's documentedAssets, the 22 labelled google
+	// types whose provider source states no Asset name, each mapped by hand
+	// to the asset type Google's asset names page lists for it. 22 new Data
+	// literals, none moved.
+	typeLiteralDataTotal = 1241
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

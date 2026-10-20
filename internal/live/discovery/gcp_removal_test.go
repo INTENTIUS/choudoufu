@@ -171,8 +171,8 @@ func TestGCPHitTheRecordRemovesIsNotAlsoWithheld(t *testing.T) {
 			{Addr: subnet, Class: identity.ClassConcrete, ImportID: "projects/p/regions/us-east1/subnetworks/edge", Undeclared: true, RecordRooted: true},
 		},
 		Orphans: []OwnedResource{
-			withheld("storage.googleapis.com/Bucket", "//storage.googleapis.com/projects/_/buckets/logs", bucket),
-			withheld("storage.googleapis.com/Bucket", "//storage.googleapis.com/projects/_/buckets/logs-copy", bucket),
+			withheld("storage.googleapis.com/Bucket", "//storage.googleapis.com/logs", bucket),
+			withheld("storage.googleapis.com/Bucket", "//storage.googleapis.com/logs-copy", bucket),
 			withheld("compute.googleapis.com/Subnetwork", "//compute.googleapis.com/projects/p/regions/us-east1/subnetworks/edge", subnet),
 			withheld("compute.googleapis.com/Subnetwork", "//compute.googleapis.com/projects/p/regions/us-west1/subnetworks/edge", subnet),
 			{TypeName: "pubsub.googleapis.com/Topic", ImportID: "//pubsub.googleapis.com/projects/p/topics/t", Marker: "aaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbbbbbbbbbbbb", Withheld: "reported"},
@@ -184,7 +184,7 @@ func TestGCPHitTheRecordRemovesIsNotAlsoWithheld(t *testing.T) {
 		got = append(got, o.ImportID)
 	}
 	want := []string{
-		"//storage.googleapis.com/projects/_/buckets/logs-copy",
+		"//storage.googleapis.com/logs-copy",
 		"//compute.googleapis.com/projects/p/regions/us-west1/subnetworks/edge",
 		"//pubsub.googleapis.com/projects/p/topics/t",
 	}
@@ -253,7 +253,7 @@ func TestGCPRenamedObjectDoesNotVouch(t *testing.T) {
 		t.Errorf("the network at the configured name was refused, want %q", want)
 	}
 	bucketRes := identity.Resolution{Addr: mustAddr(t, "google_storage_bucket.logs"), IdentityValues: map[string]string{"name": "logs-new"}}
-	if _, mismatched := configIdentityMismatch("google_storage_bucket", bucketRes, claimant{resourcePath: "projects/_/buckets/logs-old"}); !mismatched {
+	if _, mismatched := configIdentityMismatch("google_storage_bucket", bucketRes, claimant{resourcePath: "logs-old"}); !mismatched {
 		t.Error("a renamed bucket vouched")
 	}
 }

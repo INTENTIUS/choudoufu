@@ -94,8 +94,8 @@ func (o Output) Files() map[string][]byte {
 	return map[string][]byte{TableGoRel: o.Table, SurveyJSONRel: o.SurveyRaw, ImportIDsGoRel: o.ImportIDs}
 }
 
-// Generate is the whole derivation from the two evidence artifacts.
-func Generate(ev Evidence, facts Facts) (Output, error) {
+// Generate is the whole derivation from the three evidence artifacts.
+func Generate(ev Evidence, facts Facts, names AssetNames) (Output, error) {
 	byType := map[string]map[string]TypeFacts{}
 	for p, pf := range facts.Providers {
 		for t, tf := range pf.Types {
@@ -187,8 +187,11 @@ func Generate(ev Evidence, facts Facts) (Output, error) {
 	}
 	out.Table = table
 
-	out.Assets, out.Composites, out.ImportCounts = deriveImportIDs(ev, byType, out.Decisions)
-	importIDs, err := renderImportIDs(out.Assets, out.Composites, out.ImportCounts)
+	out.Assets, out.Composites, out.ImportCounts, err = deriveImportIDs(ev, names, byType, out.Decisions)
+	if err != nil {
+		return Output{}, err
+	}
+	importIDs, err := renderImportIDs(out.Assets, out.Composites, out.ImportCounts, names)
 	if err != nil {
 		return Output{}, err
 	}

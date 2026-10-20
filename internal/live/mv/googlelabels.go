@@ -193,11 +193,13 @@ func (m *mover) sweepAssets(ctx context.Context, estate string) ([]listed, int, 
 // match would take a same-named object in another region or of another
 // type for this one (GitHub issue #2134, item 8).
 //
-// The one other form is Cloud Storage's projects/_/buckets/<name>: a bucket
-// has no project-qualified name of its own (its self_link is .../b/<name>),
-// and its name is unique across GCP. So the form matches a bare name only
-// when none of the object's names is project-qualified, which no regional
-// or zonal object satisfies.
+// A bucket's Asset name is //storage.googleapis.com/<name>
+// (https://docs.cloud.google.com/asset-inventory/docs/asset-names, last
+// updated 2026-10-19), so its path is its bare name, which is also its id
+// and its import ID, and the exact match above covers it. A bare name
+// counts only when none of the object's names is project-qualified: an
+// object that has one, as every regional or zonal object does, is never
+// named by a bare path, and a bucket that shares its short name is not it.
 func (m *mover) isGoogleSelf(name string) bool {
 	path, ok := strings.CutPrefix(name, "//")
 	if !ok {
@@ -213,10 +215,10 @@ func (m *mover) isGoogleSelf(name string) bool {
 		}
 	}
 	for _, self := range m.googleSelf {
-		if self == "" {
+		if self == "" || (qualified && !strings.Contains(self, "projects/")) {
 			continue
 		}
-		if path == self || (!qualified && strings.HasPrefix(name, "//storage.googleapis.com/") && path == "projects/_/buckets/"+self) {
+		if path == self {
 			return true
 		}
 	}

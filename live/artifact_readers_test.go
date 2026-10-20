@@ -91,6 +91,7 @@ var writtenArtifacts = []string{
 	"live/gauntlet-scale.json",
 	"live/gauntlet.json",
 	"live/gauntlet/estates.json",
+	"live/gcp-asset-names.json",
 	"live/gcp-identity-evidence.json",
 	"live/gcp-schema-facts.json",
 	"live/gcp-survey.json",
