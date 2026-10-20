@@ -24,6 +24,9 @@ website/node_modules
 
 website/vendor
 vendor/
+# tools/azurerm-id-gen's fixture is a miniature provider checkout, and the
+# provider vendors its id types: the fixture's vendor/ is test data.
+!/tools/azurerm-id-gen/testdata/src/vendor/
 
 # "make golangci-lint" places its temprary golangci-lint executable here
 tools/golangci-lint*
@@ -80,6 +83,7 @@ tmp
 # stripped back out of a merge).
 /admission-pipeline
 /aws-paginators-gen
+/azurerm-id-gen
 /ci-gate
 /cloudcontrol-probe
 /contribute
