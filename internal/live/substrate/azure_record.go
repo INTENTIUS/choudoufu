@@ -7,6 +7,11 @@ package substrate
 
 import (
 	"strings"
+
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/armtypes"
 )
 
 // A removed azurerm block's record (GitHub issue #2119, #1120 unit 14).
@@ -99,4 +104,64 @@ func AzurermRecordImportID(typeName string, values map[string]string) (string, b
 		}
 	}
 	return b.String(), true
+}
+
+// A removed azapi_resource block's record (GitHub issue #2119). azapi
+// serves one resource type for every ARM type, so whether the Resource
+// Graph sweep can find an object it declared depends on the instance, not
+// on the Terraform type: on the ARM type and API version its `type`
+// argument names ([armtypes.Taggable]), which the stamp asked before it
+// wrote a marker (internal/live/projection's armTagTarget). A subnet
+// declared as Microsoft.Network/virtualNetworks/subnets@2024-05-01 takes no
+// tags, carries no marker, and once its block is gone only its record names
+// it, as an azurerm_subnet's does. So the record keeps the three arguments
+// beside the ARM id the provider read back: type says whether the sweep
+// covers the object, and parent_id and name are what azapi built the id
+// from ([AzapiRecordArguments]).
+
+// The azapi_resource arguments a record keeps, named as the provider names
+// them.
+const (
+	AzapiRecordType     = "type"
+	AzapiRecordParentID = "parent_id"
+	AzapiRecordName     = "name"
+)
+
+// AzapiRecordArguments reads the three arguments azapi_resource builds its
+// id from off an applied object of a block with azapi_resource's shape
+// ([AzapiResourceShape]), for the record to keep. ok is false for any other
+// block, or when one of the three is not a known, non-empty, unmarked
+// string: a record with a hole in it is never written.
+func AzapiRecordArguments(block *configschema.Block, obj cty.Value) (map[string]string, bool) {
+	if !AzapiResourceShape(block) || obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() {
+		return nil, false
+	}
+	out := make(map[string]string, 3)
+	for _, name := range []string{AzapiRecordType, AzapiRecordParentID, AzapiRecordName} {
+		if !obj.Type().HasAttribute(name) {
+			return nil, false
+		}
+		v := obj.GetAttr(name)
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String || v.AsString() == "" {
+			return nil, false
+		}
+		out[name] = v.AsString()
+	}
+	return out, true
+}
+
+// AzapiTypeCarriesMarker reports whether an azapi_resource whose `type`
+// argument is typ was stamped with a marker: its ARM type takes tags at that
+// API version by azapi's own type data ([armtypes.Taggable]). It is the
+// stamp's own question (internal/live/projection's armTagTarget), asked
+// again by a reader that has only the record: false for a type the table
+// says is untaggable, for one it does not know, and for a value that does
+// not parse, because the stamp writes nothing on any of them.
+func AzapiTypeCarriesMarker(typ string) bool {
+	armType, apiVersion, ok := armtypes.ParseAzapiType(typ)
+	if !ok {
+		return false
+	}
+	taggable, known := armtypes.Taggable(armType, apiVersion)
+	return taggable && known
 }

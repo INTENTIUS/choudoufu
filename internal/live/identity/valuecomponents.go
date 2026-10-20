@@ -108,6 +108,22 @@ func ComponentsFromValue(t TypeIdentity, val cty.Value) (importID string, values
 		} else if attrName != "" {
 			values[attrName] = rendered
 		}
+		if c.ARMTypeSegment {
+			// GitHub issue #1120: the `type` value is not itself part of
+			// the id; it decides the text azapi joins parent_id and name
+			// with, and what becomes of the parent_id already written
+			// ([armTypeSegment], the same rule the static evaluator's
+			// armTypeSegmentParts applies). Until this, the type was
+			// concatenated as written, and an azapi_resource's id came out
+			// as parent_id + "Microsoft.Network/...@2024-05-01" + name.
+			joined, ok := armJoin(sb.String(), rendered)
+			if !ok {
+				return "", nil, false
+			}
+			sb.Reset()
+			sb.WriteString(joined)
+			continue
+		}
 		sb.WriteString(segment)
 	}
 
