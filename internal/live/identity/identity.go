@@ -307,11 +307,12 @@ type cloudScopeKey struct {
 	regionKnown bool
 
 	// project and zone are the resolved provider configuration's own
-	// static `project` and `zone` arguments, empty when it states none or
-	// states them in a way this package cannot read without applying.
-	// They answer a [CloudProject] or [CloudZone] component and play no
-	// part in collision checks: a resource's project already shows in its
-	// identity whenever the identity embeds one.
+	// static `project` and `zone`, read by the same
+	// [resolver.providerStaticAttr] the region's provider fallback is, and
+	// empty under the same conditions. They answer a [CloudProject],
+	// [CloudZone] or [CloudLocation] component and play no part in
+	// collision checks: an identity that embeds a project already carries
+	// it.
 	project string
 	zone    string
 }
