@@ -133,8 +133,10 @@ func loadPathFacts(root string) (pathFacts, error) {
 	for _, t := range gs.Types {
 		pf.googleFacts[t.Type] = googlePathFact{Parents: t.Parents, Scoped: t.Scoped}
 	}
-	for t := range identity.DefaultTable {
-		if strings.HasPrefix(t, "aws_") {
+	// An AWS row is one the table does not mark as another provider's,
+	// read off the row rather than off a provider-name prefix.
+	for t, ti := range identity.DefaultTable {
+		if !ti.NonAWSProvider {
 			pf.awsTableType[t] = true
 		}
 	}

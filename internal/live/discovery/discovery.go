@@ -657,6 +657,11 @@ func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdia
 	// is a child of the phase.
 	scanCtx, endScan := discoverPhase(ctx, "scan")
 	for _, typeName := range decl.typeNames() {
+		if legScansDeclared(req, typeName) {
+			// A sweep leg below finds this type's declared instances
+			// itself ([declaredScanner]).
+			continue
+		}
 		diags = diags.Append(scanTypeReporting(scanCtx, req, schemas, decl, typeName, res, false, req.CollectUnclaimed, &typesScanned, &resourcesFound))
 	}
 

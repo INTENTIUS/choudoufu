@@ -77,6 +77,16 @@ type GCPAssetSweep struct {
 // Leg is [substrate.SweepAssetSearch].
 func (GCPAssetSweep) Leg() substrate.Sweep { return substrate.SweepAssetSearch }
 
+// ScansDeclared reports whether this leg, rather than the config-driven
+// scan, finds the declared needs-discovery instances of typeName: a
+// labelled google type, when there is a client to search with
+// (INTENTIUS/choudoufu#2134). hashicorp/google serves no list resource the
+// config-driven scan could use, so without this every such instance was
+// refused as unlistable and never bound by the label it carries.
+func (g GCPAssetSweep) ScansDeclared(typeName string) bool {
+	return g.Searcher != nil && strings.HasPrefix(typeName, "google_") && !g.Unlabelled[typeName]
+}
+
 // Sweep runs the leg.
 func (g GCPAssetSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.Diagnostics {
 	// The collision refusal runs whether or not there is a searcher: it is
@@ -84,24 +94,33 @@ func (g GCPAssetSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.Diagno
 	if _, collisions := declaredGoogleAddresses(in.Request.Resolutions); collisions.HasErrors() {
 		return collisions
 	}
-	diags := g.sweep(ctx, in.Request, in.Result)
+	diags := g.sweep(ctx, in.Request, in.decl, in.Result)
 	unlabelledNotSwept(in.Request, g.Unlabelled, in.Result)
 	return diags
 }
 
-func (g GCPAssetSweep) sweep(ctx context.Context, req Request, res *Result) tfdiags.Diagnostics {
+// sweep searches every project and files each hit. decl is the pass's
+// declared-instance index, nil in a caller with no binding demand: a hit
+// whose address label is a declared needs-discovery instance's becomes that
+// instance's claimant, and one whose block part names a declared count
+// block joins that block's set, so [bind] binds both the way it binds an
+// AWS tag sweep's, by tofu-slot where the set carries slots and by address
+// where it does not, and the slots it settles reach the stamp through
+// [Result.SlotTable].
+func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, res *Result) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if g.Searcher == nil {
 		return diags
 	}
 
 	declared, _ := declaredGoogleAddresses(req.Resolutions)
+	demand := g.googleDemand(decl)
 	projects := GCPSweepProjects(g.Project, req.Resolutions)
 	if len(projects) == 0 {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryGCPSweepIncomplete,
 			fmt.Sprintf("No GCP project is known for estate %q: the google provider block names none, GOOGLE_PROJECT and its siblings are unset, and no resource in the configuration names one. Nothing was searched, so a resource whose block was deleted is not reported until a run knows where to look.", req.Estate)))
 		res.SweepGaps = append(res.SweepGaps, SweepGap{TypeName: gcpGapType, Reason: SweepGapListFailed, Detail: "no GCP project to search"})
-		return diags
+		return diags.Append(demand.unsearched(decl, res, "no GCP project is known to search"))
 	}
 
 	cov := gcpsweep.Coverage{}
@@ -109,11 +128,32 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, res *Result) tfdi
 		cov[p] = g.Searcher
 	}
 	var orphans []string
+	fileOrphan := func(a gcpsweep.Asset, address, withheld string) {
+		display := a.AssetType + " " + a.Name
+		res.Orphans = append(res.Orphans, OwnedResource{
+			TypeName:    a.AssetType,
+			ImportID:    a.Name,
+			Marker:      address,
+			DisplayName: display,
+			Tags:        a.Labels,
+			Resource:    cty.NilVal,
+			Swept:       true,
+			Withheld:    withheld,
+		})
+		orphans = append(orphans, fmt.Sprintf("%s (%s)", display, withheld))
+	}
+	// pending is the hits whose block part names a declared count block
+	// and whose instance part names none of its declared instances, held
+	// until every project is searched: whether they join the set depends
+	// on whether the set carries slots at all.
+	pending := map[*countBlock][]gcpsweep.Asset{}
+	var failed []string
 	for _, pr := range gcpsweep.Sweep(ctx, cov, projects, req.Estate) {
 		if pr.Err != nil {
 			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryGCPSweepIncomplete,
 				fmt.Sprintf("Project %s was not searched for estate %q: %s. A resource there whose block was deleted is not reported until a run can search it.", pr.Project, req.Estate, gcpSweepReason(pr.Err))))
 			res.SweepGaps = append(res.SweepGaps, SweepGap{TypeName: gcpGapType, Reason: SweepGapListFailed, Detail: fmt.Sprintf("project %s: %s", pr.Project, pr.Err)})
+			failed = append(failed, pr.Project)
 			continue
 		}
 		res.Scans = append(res.Scans, TypeScan{
@@ -138,29 +178,59 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, res *Result) tfdi
 				continue
 			}
 			address := a.Labels[markers.TagAddress]
+			if entry, ok := demand.entries[address]; ok {
+				entry.addClaimant(gcpClaimant(a, address, entry.escaped))
+				continue
+			}
 			if _, isDeclared := declared.instances[address]; isDeclared {
+				continue
+			}
+			block, hasBlock := markers.GoogleAddressBlock(address)
+			if cb, ok := demand.counts[block]; hasBlock && ok {
+				pending[cb] = append(pending[cb], a)
 				continue
 			}
 			withheld := fmt.Sprintf("Its tofu-address label %q encodes no address this configuration declares, and a GCP address label is matched, never decoded, so nothing here says which block made it. It is reported and left alone; the estate's record for that block, when there is one, is what proposes its removal.", address)
 			if address == "" {
 				withheld = "It carries no tofu-address label, so nothing says which block made it. It is reported and left alone."
-			} else if block, ok := markers.GoogleAddressBlock(address); ok {
+			} else if hasBlock {
 				if blockAddr, known := declared.blocks[block]; known {
-					withheld = fmt.Sprintf("Its tofu-address label %q names an instance of %s that the configuration no longer declares. It is reported and left alone; the estate's record for that instance, when there is one, is what proposes its removal.", address, blockAddr)
+					withheld = gcpStaleInstanceWithheld(address, blockAddr.String())
 				}
 			}
-			res.Orphans = append(res.Orphans, OwnedResource{
-				TypeName:    a.AssetType,
-				ImportID:    a.Name,
-				Marker:      address,
-				DisplayName: display,
-				Tags:        a.Labels,
-				Resource:    cty.NilVal,
-				Swept:       true,
-				Withheld:    withheld,
-			})
-			orphans = append(orphans, fmt.Sprintf("%s (%s)", display, withheld))
+			fileOrphan(a, address, withheld)
 		}
+	}
+
+	// A count set whose members carry tofu-slot takes every hit naming its
+	// block: the slot says which member each one is, so a member whose
+	// label names a stale index binds by its slot and one past the count
+	// is surplus, removed as a scale-down removes it on AWS, and a member
+	// with no slot beside slotted ones is the mixed set [bindCountBlock]
+	// refuses. A set with no slots anywhere is told apart by address
+	// alone, and a hit naming an index it no longer declares stays the
+	// reported, never-removed orphan above.
+	for _, cb := range sortedPendingBlocks(pending) {
+		hits := pending[cb]
+		slotted := false
+		for _, c := range cb.claimants() {
+			slotted = slotted || c.slot != ""
+		}
+		for _, a := range hits {
+			slotted = slotted || a.Labels[markers.TagSlot] != ""
+		}
+		for _, a := range hits {
+			address := a.Labels[markers.TagAddress]
+			if slotted {
+				cb.extra = append(cb.extra, gcpClaimant(a, address, address))
+				continue
+			}
+			fileOrphan(a, address, gcpStaleInstanceWithheld(address, cb.addr))
+		}
+	}
+
+	if len(failed) > 0 {
+		diags = diags.Append(demand.unsearched(decl, res, "project "+strings.Join(failed, ", ")+" could not be searched"))
 	}
 	if len(orphans) > 0 {
 		sort.Strings(orphans)
@@ -168,6 +238,111 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, res *Result) tfdi
 			fmt.Sprintf("%d resource(s) carry estate %q's label and no address this configuration declares:\n  - %s", len(orphans), req.Estate, strings.Join(orphans, "\n  - "))))
 	}
 	return diags
+}
+
+// gcpStaleInstanceWithheld is why a hit naming an instance its declared
+// block no longer has is reported and left alone.
+func gcpStaleInstanceWithheld(address, block string) string {
+	return fmt.Sprintf("Its tofu-address label %q names an instance of %s that the configuration no longer declares. It is reported and left alone; the estate's record for that instance, when there is one, is what proposes its removal.", address, block)
+}
+
+// gcpDemand is the declared needs-discovery google instances the leg
+// binds, by the tofu-address label each carries ([markers.GoogleAddressValue]),
+// and their count blocks by the label's block part ([markers.GoogleBlockValue]).
+type gcpDemand struct {
+	entries map[string]*declaredEntry
+	counts  map[string]*countBlock
+	types   []string
+}
+
+// googleDemand indexes decl's entries of every type [GCPAssetSweep.ScansDeclared]
+// claims. A record-backed entry is indexed too, as [declared.entryFor]
+// finds it, so a second object claiming its address is a collision.
+func (g GCPAssetSweep) googleDemand(decl *declared) gcpDemand {
+	d := gcpDemand{entries: map[string]*declaredEntry{}, counts: map[string]*countBlock{}}
+	if decl == nil {
+		return d
+	}
+	for _, typeName := range decl.bindTypeNames() {
+		if !g.ScansDeclared(typeName) {
+			continue
+		}
+		if decl.types[typeName] != nil {
+			d.types = append(d.types, typeName)
+		}
+		for _, entries := range []map[string]*declaredEntry{decl.types[typeName], decl.recordBacked[typeName]} {
+			for _, entry := range entries {
+				d.entries[markers.GoogleAddressValue(entry.res.Addr)] = entry
+			}
+		}
+		for _, cb := range decl.counts[typeName] {
+			d.counts[markers.GoogleBlockValue(addrs.AbsResource{Module: cb.module, Resource: cb.resource})] = cb
+		}
+	}
+	return d
+}
+
+// unsearched marks every type the leg claimed unscanned, with the refusal
+// that says why, when a project could not be searched: a declared instance
+// the search never reached is not absent, and calling it unbound would
+// plan a create of something that may exist. The config-driven scan's
+// refusal for a type nothing lists is the same answer.
+func (d gcpDemand) unsearched(decl *declared, res *Result, why string) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	for _, typeName := range d.types {
+		decl.unscanned[typeName] = true
+		diags = diags.Append(problemDiag(res, Problem{
+			Kind:     ProblemTypeNotListable,
+			TypeName: typeName,
+			Detail: fmt.Sprintf(
+				"The %d declared instance(s) of %s are found by their tofu-address label through Cloud Asset Inventory, and %s, so this run cannot tell which exist. Fix the search and plan again.",
+				len(decl.types[typeName]), typeName, why),
+		}))
+	}
+	return diags
+}
+
+// gcpClaimant is one hit as a claimant of a declared instance. Its import
+// id is the asset's full resource name without the service host
+// ("//pubsub.googleapis.com/projects/p/topics/t" is "projects/p/topics/t"),
+// the projects/... form hashicorp/google's importers accept. An inference
+// from the provider's import formats, not measured on every type.
+func gcpClaimant(a gcpsweep.Asset, address, escaped string) claimant {
+	importID := gcpImportID(a.Name)
+	return claimant{
+		importID:     importID,
+		identityAttr: "id",
+		displayName:  a.AssetType + " " + a.Name,
+		marker:       address,
+		escaped:      escaped,
+		slot:         a.Labels[markers.TagSlot],
+		tags:         a.Labels,
+		noIdentity:   importID == "",
+	}
+}
+
+// gcpImportID is an asset's full resource name without its leading
+// "//host/".
+func gcpImportID(name string) string {
+	rest, ok := strings.CutPrefix(name, "//")
+	if !ok {
+		return name
+	}
+	_, path, ok := strings.Cut(rest, "/")
+	if !ok {
+		return ""
+	}
+	return path
+}
+
+// sortedPendingBlocks is pending's blocks in address order.
+func sortedPendingBlocks(pending map[*countBlock][]gcpsweep.Asset) []*countBlock {
+	out := make([]*countBlock, 0, len(pending))
+	for cb := range pending {
+		out = append(out, cb)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].addr < out[j].addr })
+	return out
 }
 
 // unlabelledNotSwept files a [SweepGapNotTaggable] gap for every google

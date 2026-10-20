@@ -104,7 +104,7 @@ func TestRecordFallbackTypeAgreesWithMarkersTaggable(t *testing.T) {
 	untaggable := locatedSchema(map[string]*configschema.Attribute{
 		"name": {Type: cty.String, Optional: true, Computed: true},
 	})
-	if !RecordFallbackType("aws_autoscaling_group", map[string]providers.Schema{"aws_autoscaling_group": untaggable}) {
+	if !RecordFallbackType("aws_autoscaling_group", "aws", map[string]providers.Schema{"aws_autoscaling_group": untaggable}) {
 		t.Fatal("RecordFallbackType(untaggable ASG-shaped schema) = false, want true")
 	}
 
@@ -112,7 +112,7 @@ func TestRecordFallbackTypeAgreesWithMarkersTaggable(t *testing.T) {
 		"name": {Type: cty.String, Optional: true, Computed: true},
 		"tags": {Type: cty.Map(cty.String), Optional: true},
 	})
-	if RecordFallbackType("aws_autoscaling_group", map[string]providers.Schema{"aws_autoscaling_group": taggable}) {
+	if RecordFallbackType("aws_autoscaling_group", "aws", map[string]providers.Schema{"aws_autoscaling_group": taggable}) {
 		t.Fatal("RecordFallbackType(taggable ASG-shaped schema) = true, want false: a settable top-level tags map means the ordinary marker-fallback path applies, not the record rung")
 	}
 }
@@ -241,5 +241,47 @@ func TestRecordFallbackClassifiesSiblingApplyUntaggable(t *testing.T) {
 	}
 	if bucket.Cause != DiscoverySiblingApply {
 		t.Errorf("aws_s3_bucket.logs resolved NEEDS_DISCOVERY with cause %s, want %s", bucket.Cause, DiscoverySiblingApply)
+	}
+}
+
+// googleLabelledSchema is a hashicorp/google resource reduced to what the
+// google-labels surface reads: a settable top-level labels map with the
+// computed effective_labels beside it ([markers.GoogleLabelSurface]).
+func googleLabelledSchema(extra map[string]*configschema.Attribute) providers.Schema {
+	s := locatedSchema(extra)
+	s.Block.Attributes["labels"] = &configschema.Attribute{Type: cty.Map(cty.String), Optional: true}
+	s.Block.Attributes["effective_labels"] = &configschema.Attribute{Type: cty.Map(cty.String), Computed: true}
+	return s
+}
+
+// TestRecordFallbackLeavesLabelledGoogleTypeToItsLabel is INTENTIUS/choudoufu#2134
+// item 6: a server-named google type whose schema carries the google-labels
+// surface has somewhere to carry a marker, so [RecordFallbackType] must not
+// clear it, and its instance stays needs-discovery for the GCP sweep to
+// bind by its tofu-address label rather than dropping to the record rung as
+// if it were markerless. Asking the AWS tags-map predicate answered the
+// opposite for every google type.
+func TestRecordFallbackLeavesLabelledGoogleTypeToItsLabel(t *testing.T) {
+	const typeName = "google_recaptcha_enterprise_key"
+	labelled := googleLabelledSchema(map[string]*configschema.Attribute{
+		"name":         {Type: cty.String, Computed: true},
+		"display_name": {Type: cty.String, Required: true},
+		"project":      {Type: cty.String, Optional: true, Computed: true},
+	})
+	schemas := map[string]providers.Schema{typeName: labelled}
+
+	if RecordFallbackType(typeName, "google", schemas) {
+		t.Fatalf("RecordFallbackType(%s with a labels map) = true, want false: its labels carry the marker", typeName)
+	}
+
+	cfg := loadConfig(t, filepath.Join("testdata", "record-fallback-google-labelled"), nil)
+	result, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
+	assertNoErrors(t, diags)
+	site := resolutionAt(t, result, typeName+".site")
+	if site.Class != ClassNeedsDiscovery {
+		t.Fatalf("%s.site resolved %s, want %s: a labelled google type is bound by its tofu-address label, never recorded as markerless", typeName, site.Class, ClassNeedsDiscovery)
+	}
+	if site.RecordFallback {
+		t.Fatalf("%s.site carries RecordFallback; the record is not its only carrier", typeName)
 	}
 }
