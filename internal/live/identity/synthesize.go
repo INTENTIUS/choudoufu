@@ -558,6 +558,10 @@ func fromSynthesized(typeName string, synth substrate.SynthesizedIdentity) TypeI
 			OmitIfAbsent:   c.OmitIfAbsent,
 			Cloud:          CloudValue(c.Cloud),
 			ARMTypeSegment: c.ARMTypeSegment,
+			// GitHub issue #2119: an Azure name the provider mints when it
+			// is omitted takes AWS's path for the same convention, the
+			// record rung through [resolver.recordFallback].
+			ServerAssignedIfAbsent: c.ServerAssignedIfAbsent,
 		}
 		if c.SameNameIdentity {
 			comp.IdentityAttr = SameNameIdentity

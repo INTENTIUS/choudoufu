@@ -36,9 +36,8 @@ type substratesData struct {
 			Mechanism  string `json:"mechanism"`
 		} `json:"controller_held"`
 		Untaggable struct {
-			Count      int            `json:"count"`
-			ByTier     map[string]int `json:"by_tier"`
-			NotCounted bool           `json:"not_counted"`
+			Count  int            `json:"count"`
+			ByTier map[string]int `json:"by_tier"`
 		} `json:"untaggable"`
 		Fence   string `json:"fence"`
 		Harness struct {
@@ -99,9 +98,6 @@ func substratesSpans(root string) (map[string]string, error) {
 	})
 	row("Untaggable types", func(i int) string {
 		u := d.Rows[i].Untaggable
-		if u.NotCounted {
-			return "not yet counted"
-		}
 		out := fmt.Sprint(u.Count)
 		var parts []string
 		for _, k := range sortedKeys(u.ByTier) {

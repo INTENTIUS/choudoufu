@@ -290,11 +290,21 @@ type readinessArtifact struct {
 	Kubernetes struct {
 		Types []readinessType `json:"types"`
 	} `json:"kubernetes"`
+	Azure struct {
+		Azurerm struct {
+			Types []readinessType `json:"types"`
+		} `json:"azurerm"`
+		Azapi struct {
+			Types []readinessType `json:"types"`
+		} `json:"azapi"`
+	} `json:"azure"`
 }
 
 type readinessFacts struct {
-	awsTypes []readinessType
-	k8sTypes []readinessType
+	awsTypes     []readinessType
+	k8sTypes     []readinessType
+	azurermTypes []readinessType
+	azapiTypes   []readinessType
 }
 
 func loadReadinessFacts(root string) (readinessFacts, error) {
@@ -302,7 +312,8 @@ func loadReadinessFacts(root string) (readinessFacts, error) {
 	if err := decodeJSON(root, ReadinessJSONRel, &art); err != nil {
 		return readinessFacts{}, err
 	}
-	return readinessFacts{awsTypes: art.Types, k8sTypes: art.Kubernetes.Types}, nil
+	return readinessFacts{awsTypes: art.Types, k8sTypes: art.Kubernetes.Types,
+		azurermTypes: art.Azure.Azurerm.Types, azapiTypes: art.Azure.Azapi.Types}, nil
 }
 
 func decodeJSON(root, rel string, v any) error {
@@ -333,9 +344,16 @@ func untaggableFor(family string, rf readinessFacts) UntaggableFacts {
 		return tallyUntaggable(rf.k8sTypes, func(t readinessType) bool { return !t.Facts.LabelSurface },
 			"an admitted Kubernetes type whose schema carries no metadata.labels block (live/readiness.json kubernetes.types facts.label_surface=false)")
 	case "azurerm":
-		// GitHub issue #2119: the Azure section of live/readiness.json is a
-		// later unit of #1120; until it lands there is nothing to tally.
-		return UntaggableFacts{Definition: "not yet counted: live/readiness.json has no Azure section (GitHub issue #2119)", ByTier: map[string]int{}, NotCounted: true}
+		// GitHub issue #2119: the azurerm resource types, which are what
+		// the AWS and Kubernetes rows count. azapi's ARM types are a
+		// different unit (one azapi_resource type declares all of them), so
+		// they are named in the definition rather than added in.
+		untagged := func(t readinessType) bool { return !t.Facts.Taggable }
+		azapi := tallyUntaggable(rf.azapiTypes, untagged, "")
+		return tallyUntaggable(rf.azurermTypes, untagged, fmt.Sprintf(
+			"an azurerm type whose schema carries no ARM tags map (live/readiness.json azure.azurerm.types facts.taggable=false); "+
+				"through azapi_resource, %d of %d ARM types take no tags at their latest API version (azure.azapi.types), all declaration-carried, not counted here",
+			azapi.Count, len(rf.azapiTypes)))
 	}
 	return UntaggableFacts{Definition: "no definition recorded for family " + family, ByTier: map[string]int{}}
 }

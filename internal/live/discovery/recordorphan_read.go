@@ -53,6 +53,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -198,11 +199,19 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// reach this population; the record store is the only place
 			// left that knows it.
 			schema, ok := providerSchemaFor(schemas, typeName)
-			if !ok || !identity.LocatedType(typeName, map[string]providers.Schema{typeName: schema}) {
+			located := ok && identity.LocatedType(typeName, map[string]providers.Schema{typeName: schema})
+			if !located && !substrate.AzurermRecordable(typeName) {
 				// Not an admitted type at all, by either door - a stray or
 				// foreign key, not this leg's to guess at, the same
 				// discipline [builder.discoverOrphanedRecords] applies to a
 				// key it cannot make sense of.
+				//
+				// The third door is GitHub issue #2119's: an azurerm type
+				// has no ratified row (the Azure family admits it by its
+				// ARM id template, or the identity-schema route does), and
+				// its record is turned back into an ARM id by that same
+				// template below. A type whose template the family cannot
+				// read is a stray key here as it is everywhere else.
 				continue
 			}
 		}
@@ -338,6 +347,29 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// on the SAME provider version.
 			var ok bool
 			importID, ok = composeImportIDFromComponents(typeName, rec.Components)
+			if !ok && substrate.AzurermRecordable(typeName) {
+				// GitHub issue #2119: an azurerm identity schema's
+				// attributes, rebuilt into the ARM id the importer takes by
+				// the template admission reads (substrate.AzurermRecordImportID).
+				importID, ok = substrate.AzurermRecordImportID(typeName, rec.Components)
+				if !ok && !elsewhere {
+					// Never silent for this family: the record is the only
+					// thing that still names the object. #2119's D3 says
+					// such a warning names the type and the estate rather
+					// than the address, because the address is what a lost
+					// or broken record no longer vouches for. A warning,
+					// the one #107 gives an owned object no removal can
+					// reach: refusing would hold the whole estate's plan
+					// over one object it cannot destroy anyway.
+					diags = diags.Append(problemDiag(res, Problem{
+						Kind:     ProblemUnsweepableOwnedType,
+						TypeName: typeName,
+						Detail: fmt.Sprintf("Estate %q holds a record of an %s whose configuration block was removed, and the record does not hold every segment of its Azure resource id, so its removal is not proposed and the object stays in the cloud. Find it among the estate's resource groups and delete it by hand.",
+							req.Estate, typeName),
+					}))
+					continue
+				}
+			}
 			if !ok && !elsewhere {
 				// A component this composer does not know how to resolve (a
 				// nested Block, a Default substitute, an OmitIfAbsent

@@ -1688,6 +1688,15 @@ declare" (`internal/live/identity/azure_resourcegroup.go`), once per group.
 
 #### What the Azure grant cannot reach
 
+The gap AWS states per service is narrower here. A declaration-carried
+Azure type (an untaggable child such as a subnet or a route) is fenced by
+the group's role assignment like any tagged resource beside it, and loses
+only the Policy half, which never evaluates an untaggable type. What the
+grant misses is scope rather than tags: a type whose id lives at the
+subscription or the tenant, or under a scope the configuration names, is
+outside every group. [`live/READINESS.md`](READINESS.md)'s Azure section
+counts both, per tier.
+
 - The role assignment reaches
   everything in the estate's groups, tagged or not, and nothing outside
   them. An untaggable child resource (a subnet, a route, a blob
