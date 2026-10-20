@@ -498,14 +498,18 @@ gauntlet_kind_up() {
 # which live/smoke/lib.sh's azure_up shares, the storage suffix naming the
 # host port (picked before the start, since the suffix names it), Policy
 # evaluation and RBAC enforcement with the signed-in client as admin
-# (#2140). It waits
-# for /ready, fetches the CA the container's TLS listener generated into
-# <workdir>/floci-az-ca.pem, and exports what azurerm, azapi and the stock
-# azurerm backend read, the set live/smoke/lib.sh's azure_provider_env
-# exports and for the reasons it gives there: FLOCI_AZ_HOST,
-# FLOCI_AZ_ENDPOINT, FLOCI_AZ_CA_FILE and the ARM_* variables. On Linux the
-# CA joins a bundle SSL_CERT_FILE names; on macOS Go reads the keychain, so
-# the CA has to be trusted there by hand.
+# (#2140). The certificate it serves is the operator's own from
+# scripts/floci-az-mac-cert.sh when floci_az_tls_select finds one, mounted
+# read-only (so estate A and oracle B, two calls, serve the same one), and
+# floci-az's per-start CA otherwise. macOS needs the operator's: Go there
+# reads only the keychain, so with none, or with one the keychain does not
+# trust, this fails by name before the container starts. It waits for
+# /ready, takes the CA (the operator's certificate itself, or the generated
+# one fetched into <workdir>/floci-az-ca.pem), and exports what azurerm,
+# azapi and the stock azurerm backend read, the set live/smoke/lib.sh's
+# azure_provider_env exports and for the reasons it gives there:
+# FLOCI_AZ_HOST, FLOCI_AZ_ENDPOINT, FLOCI_AZ_CA_FILE and the ARM_*
+# variables. On Linux the CA joins a bundle SSL_CERT_FILE names.
 # Prints the reason and returns 1 on any failure, so the script's own fail()
 # records the stage it was setting up.
 #
@@ -525,9 +529,14 @@ gauntlet_floci_az_up() {
     || { printf 'gauntlet_floci_az_up: could not pick a free host port for floci-az\n' >&2; return 1; }
   oid="$(floci_az_client_oid "$GAUNTLET_FLOCI_AZ_CLIENT_ID")" && [ -n "$oid" ] \
     || { printf 'gauntlet_floci_az_up: could not derive floci-az'"'"'s object id for client %s\n' "$GAUNTLET_FLOCI_AZ_CLIENT_ID" >&2; return 1; }
+  floci_az_tls_select || { printf 'gauntlet_floci_az_up: %s\n' "$FLOCI_AZ_TLS_PROBLEM" >&2; return 1; }
   while IFS= read -r line; do
     envargs+=(-e "$line")
-  done < <(floci_az_service_env "$port" "$oid")
+  done < <(floci_az_service_env "$port" "$oid"; floci_az_tls_env)
+  if [ -n "$FLOCI_AZ_TLS_CERT_FILE" ]; then
+    envargs+=(-v "$FLOCI_AZ_TLS_CERT_FILE:$FLOCI_AZ_TLS_IN_CONTAINER/cert.pem:ro"
+      -v "$FLOCI_AZ_TLS_KEY_FILE:$FLOCI_AZ_TLS_IN_CONTAINER/key.pem:ro")
+  fi
   gauntlet_floci_start "$name" -p "127.0.0.1:$port:4577" \
     -e FLOCI_AZ_TLS_ENABLED=true -e FLOCI_AZ_STORAGE_MODE=memory -e FLOCI_AZ_PARITY=azure \
     "${envargs[@]}" \
@@ -547,10 +556,14 @@ gauntlet_floci_az_up() {
     fi
     sleep 1
   done
-  FLOCI_AZ_CA_FILE="$work/floci-az-ca.pem"
-  curl -fsS --max-time 10 "http://$FLOCI_AZ_HOST/_floci/tls-cert" -o "$FLOCI_AZ_CA_FILE" \
-    && grep -q "BEGIN CERTIFICATE" "$FLOCI_AZ_CA_FILE" \
-    || { printf 'gauntlet_floci_az_up: could not fetch a PEM CA from http://%s/_floci/tls-cert\n' "$FLOCI_AZ_HOST" >&2; return 1; }
+  if [ -n "$FLOCI_AZ_TLS_CERT_FILE" ]; then
+    FLOCI_AZ_CA_FILE="$FLOCI_AZ_TLS_CERT_FILE"
+  else
+    FLOCI_AZ_CA_FILE="$work/floci-az-ca.pem"
+    curl -fsS --max-time 10 "http://$FLOCI_AZ_HOST/_floci/tls-cert" -o "$FLOCI_AZ_CA_FILE" \
+      && grep -q "BEGIN CERTIFICATE" "$FLOCI_AZ_CA_FILE" \
+      || { printf 'gauntlet_floci_az_up: could not fetch a PEM CA from http://%s/_floci/tls-cert\n' "$FLOCI_AZ_HOST" >&2; return 1; }
+  fi
   if [ "$(uname -s)" != "Darwin" ]; then
     for f in "${SSL_CERT_FILE:-}" /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/cert.pem; do
       if [ -n "$f" ] && [ -s "$f" ]; then system="$f"; break; fi

@@ -359,9 +359,11 @@ cluster_down() {
 # azure_up stands up the Azure emulator for an Azure scenario (#1120 unit
 # 7): lex00/floci-az at the live/floci-az-image pin, as the floci-az
 # service of this run's own compose project, on a kernel-chosen port. It
-# waits for floci-az's /ready, fetches the CA its TLS listener was
-# generated with, proves one HTTPS read of /metadata/endpoints through that
-# CA, and then exports the environment both providers read
+# waits for floci-az's /ready, takes the CA its TLS listener serves (the
+# operator's certificate from scripts/floci-az-mac-cert.sh when there is
+# one, which macOS requires, or the one floci-az generated at start),
+# proves one HTTPS read of /metadata/endpoints through that CA, and then
+# exports the environment both providers read
 # (azure_provider_env below), so a fixture's provider blocks need nothing
 # but `features {}`. live/FLOCI.md's Azure section says what the emulator
 # serves and what it does not.
@@ -427,6 +429,30 @@ azure_up() {
   FLOCI_AZ_RBAC_ADMIN_PRINCIPALS="$(azure_client_oid "$AZURE_CLIENT_ID")" \
     || fail "azure" "could not derive floci-az's object id for client $AZURE_CLIENT_ID"
   export FLOCI_AZ_RBAC_ADMIN_PRINCIPALS
+  # The certificate floci-az serves: the operator's own from
+  # scripts/floci-az-mac-cert.sh when there is one (required on macOS, and
+  # checked there to be trusted by the keychain before anything starts), or
+  # floci-az's own per-start CA on Linux when there is none
+  # (live/e2e/lib/floci-az.sh). The operator's is mounted read-only by the
+  # overlay compose file, which is added to COMPOSE so every later call on
+  # this project, azure_down's included, sees the same service.
+  floci_az_tls_select || fail "azure" "$FLOCI_AZ_TLS_PROBLEM"
+  FLOCI_AZ_TLS_CERT_PATH="" FLOCI_AZ_TLS_KEY_PATH=""
+  local tlsline
+  while IFS= read -r tlsline; do
+    case "$tlsline" in
+      FLOCI_AZ_TLS_CERT_PATH=*) FLOCI_AZ_TLS_CERT_PATH="${tlsline#*=}" ;;
+      FLOCI_AZ_TLS_KEY_PATH=*) FLOCI_AZ_TLS_KEY_PATH="${tlsline#*=}" ;;
+    esac
+  done < <(floci_az_tls_env)
+  export FLOCI_AZ_TLS_CERT_PATH FLOCI_AZ_TLS_KEY_PATH
+  if [ -n "$FLOCI_AZ_TLS_CERT_FILE" ]; then
+    export FLOCI_AZ_TLS_CERT_FILE FLOCI_AZ_TLS_KEY_FILE
+    case " ${COMPOSE[*]} " in
+      *" $SMOKE_DIR/docker-compose.floci-az-tls.yml "*) ;;
+      *) COMPOSE+=(-f "$SMOKE_DIR/docker-compose.floci-az-tls.yml") ;;
+    esac
+  fi
   logged compose-up-floci-az azure "docker compose up floci-az failed" \
     -- "${COMPOSE[@]}" --profile azure up -d floci-az
   local portlog
@@ -436,7 +462,8 @@ azure_up() {
   [ -n "$published" ] || fail "azure" "could not resolve floci-az's published port; docker compose port said: $(tr '\n' ' ' < "$portlog")"
   [ "$published" = "$FLOCI_AZ_PORT" ] || fail "azure" "floci-az is published on :$published, not the :$FLOCI_AZ_PORT its storage suffix names, so blob calls would miss it"
   # localhost, not 127.0.0.1: the generated certificate names localhost
-  # and *.localhost, and no IP the provider would dial by name.
+  # and *.localhost, and no IP the provider would dial by name. The
+  # operator's certificate names both.
   AZURE_HOST="localhost:${FLOCI_AZ_PORT}"
   AZURE_ENDPOINT="https://${AZURE_HOST}"
   export AZURE_HOST AZURE_ENDPOINT
@@ -460,13 +487,18 @@ azure_up() {
     sleep 1
   done
 
-  # The CA is generated at container start, so it is fetched per run and
-  # never committed. It is served over plain HTTP on the same port.
-  AZURE_CA_FILE="$SMOKE_WORKROOT/floci-az-ca.pem"
-  curl -fsS --max-time 10 "http://${AZURE_HOST}/_floci/tls-cert" -o "$AZURE_CA_FILE" 2>"$(smoke_log_dir)/floci-az-ca.err" \
-    || fail "azure" "could not fetch floci-az's CA from /_floci/tls-cert: $(cat "$(smoke_log_dir)/floci-az-ca.err")"
-  grep -q "BEGIN CERTIFICATE" "$AZURE_CA_FILE" \
-    || fail "azure" "/_floci/tls-cert answered without a PEM certificate, so TLS is off in the container: $(head -c 300 "$AZURE_CA_FILE")"
+  # The operator's certificate is its own CA. Without one, the CA is
+  # generated at container start, so it is fetched per run and never
+  # committed; it is served over plain HTTP on the same port.
+  if [ -n "$FLOCI_AZ_TLS_CERT_FILE" ]; then
+    AZURE_CA_FILE="$FLOCI_AZ_TLS_CERT_FILE"
+  else
+    AZURE_CA_FILE="$SMOKE_WORKROOT/floci-az-ca.pem"
+    curl -fsS --max-time 10 "http://${AZURE_HOST}/_floci/tls-cert" -o "$AZURE_CA_FILE" 2>"$(smoke_log_dir)/floci-az-ca.err" \
+      || fail "azure" "could not fetch floci-az's CA from /_floci/tls-cert: $(cat "$(smoke_log_dir)/floci-az-ca.err")"
+    grep -q "BEGIN CERTIFICATE" "$AZURE_CA_FILE" \
+      || fail "azure" "/_floci/tls-cert answered without a PEM certificate, so TLS is off in the container: $(head -c 300 "$AZURE_CA_FILE")"
+  fi
   export AZURE_CA_FILE
   azure_trust_bundle
 
@@ -484,11 +516,11 @@ azure_up() {
 # SSL_CERT_FILE on Linux, where CI runs, and the bundle keeps the system
 # roots too, because the same process still downloads providers from the
 # public registry during init. macOS's Go ignores SSL_CERT_FILE and asks
-# the keychain, so there it says so and does not touch the keychain: the
-# operator trusts $AZURE_CA_FILE by hand, or runs the scenario on Linux.
+# the keychain, which azure_up has already checked trusts the operator's
+# certificate (floci_az_tls_select), so there it adds nothing.
 azure_trust_bundle() {
   if [ "$(uname -s)" = "Darwin" ]; then
-    note "macOS: Go ignores SSL_CERT_FILE, so azurerm and azapi trust floci-az only once $AZURE_CA_FILE is in the keychain"
+    note "macOS: azurerm and azapi verify floci-az through the keychain, which trusts $AZURE_CA_FILE"
     return 0
   fi
   local system="" f
