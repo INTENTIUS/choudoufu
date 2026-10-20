@@ -12,15 +12,16 @@
 // without a provider resource identity schema are identified by a schema
 // rule over resource_group_name + name, "with the ARM type taken from a
 // table generated from azurerm's id parsers, committed with its generator
-// and pinned like the identity golden". This is that table. It is evidence
-// only: nothing in internal/live reads it yet, and wiring it into admission
-// is a later unit.
+// and pinned like the identity golden". This is that table; internal/live/substrate
+// embeds a copy and admits azurerm types by it (#1120 units 10 and 13).
 //
 // Where the template comes from. Each resource registers either an
 // Importer (untyped pluginsdk.Resource) or an IDValidationFunc (typed
 // sdk.Resource), and that expression is the provider's own statement of
 // which id it accepts. The generator follows it, with go/parser over the
-// checkout and its vendor/ tree, to the id type it parses: a go-azure-sdk
+// checkout and its vendor/ tree, to the id type it parses (a function
+// literal's body, never its signature), checked against the id type the
+// resource's Read parses its stored id with ([chooseSource]): a go-azure-sdk
 // or go-azure-helpers resourceids type (commonids included), read from its
 // Segments(), or a hand parser under internal/services/*/parse, read from
 // its ID() format string. No regular expression reads Go source here.
@@ -75,7 +76,8 @@ type pin struct {
 type entry struct {
 	Type  string `json:"type"`
 	Class string `json:"class"`
-	// Via is the expression the id was read from: Importer or IDValidationFunc.
+	// Via is the expression the id was read from: Importer,
+	// IDValidationFunc, or Read when [chooseSource] took Read's.
 	Via    string    `json:"via,omitempty"`
 	Source *idSource `json:"source,omitempty"`
 	// Template is the ARM id with value segments as {name}.
@@ -85,8 +87,14 @@ type entry struct {
 	// classifies as: template, parent-id or unmapped.
 	TemplateClass  string   `json:"template_class,omitempty"`
 	IdentitySchema []string `json:"identity_schema,omitempty"`
-	Reason         string   `json:"reason,omitempty"`
-	Detail         string   `json:"detail,omitempty"`
+	// Read is how the id type the resource's Read parses its stored id
+	// with bears on Source: readAgrees, readUsed (Source is Read's, and
+	// ImporterSource is what the importer's expression yielded) or
+	// readNotFound. See [chooseSource] and [loader.readIDTypeOf].
+	Read           string    `json:"read,omitempty"`
+	ImporterSource *idSource `json:"importer_source,omitempty"`
+	Reason         string    `json:"reason,omitempty"`
+	Detail         string    `json:"detail,omitempty"`
 }
 
 func main() {
@@ -153,6 +161,8 @@ func generate(src, schemaPath string) (*artifact, error) {
 	// which type owns a given prefix.
 	sources := map[string]*idSource{}
 	problems := map[string]string{}
+	importers := map[string]*idSource{}
+	verdicts := map[string]string{}
 	unresolved := map[string]*idSource{}
 	for name := range schemas {
 		r, ok := byType[name]
@@ -162,7 +172,16 @@ func generate(src, schemaPath string) (*artifact, error) {
 		case r.Problem != "":
 			problems[name] = r.Problem
 		default:
-			src, problem := l.idTypeOf(r)
+			var read *idSource
+			if k := l.readIDTypeOf(r); k != nil {
+				read, _ = l.segmentsOf(k.p, k.name)
+			}
+			imp, impProblem := l.idTypeOf(r)
+			src, verdict, problem := chooseSource(imp, read, impProblem)
+			verdicts[name] = verdict
+			if verdict == readUsed {
+				importers[name] = imp
+			}
 			if problem != "" {
 				problems[name] = problem
 				unresolved[name] = src
@@ -193,7 +212,12 @@ func generate(src, schemaPath string) (*artifact, error) {
 		if src == nil {
 			src = unresolved[name]
 		}
-		entries = append(entries, classify(name, ts, byType[name], src, problems[name], parentTypes, typeTemplate))
+		e := classify(name, ts, byType[name], src, problems[name], parentTypes, typeTemplate)
+		e.Read, e.ImporterSource = verdicts[name], importers[name]
+		if e.Read == readUsed {
+			e.Via = "Read"
+		}
+		entries = append(entries, e)
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Type < entries[j].Type })
 
@@ -234,6 +258,7 @@ func classify(name string, ts typeSchema, r registration, src *idSource, problem
 		Type:         name,
 		Schema:       ts,
 		SubForm:      subscriptionFormIn(r.File),
+		ArgForms:     argFormsIn(r.File),
 		ParentTypes:  parentTypes,
 		TypeTemplate: typeTemplate,
 	})
@@ -246,6 +271,98 @@ func classify(name string, ts typeSchema, r registration, src *idSource, problem
 		return finish(classParentID)
 	}
 	return finish(classTemplate)
+}
+
+// Read's verdicts ([entry.Read]).
+const (
+	// readAgrees: Read parses the id with the importer's type, or with one
+	// whose ids can be the importer's ([templatesMeet]).
+	readAgrees = "agrees"
+	// readUsed: Read's type is the source. The importer's type states no
+	// segments, or no id of it can be one Read parses, so the importer's
+	// expression did not yield the resource's own id; [entry.ImporterSource]
+	// keeps what it yielded.
+	readUsed = "used"
+	// readNotFound: no Read was found, or it does not parse its id with a
+	// type that states its segments; the importer's type stands unchecked.
+	readNotFound = "not-found"
+)
+
+// chooseSource is the id source a row is built from, and Read's verdict
+// (#1120 unit 13). The importer is the provider's statement of the id it
+// accepts and stays the source wherever Read confirms it, because it is
+// often the more specific of the two (a cost management export's importer
+// names the billing account segments that Read's scoped type folds into one
+// scope). Read wins where they cannot both be right: the id Read takes
+// apart is the one the resource holds.
+func chooseSource(importer, read *idSource, importerProblem string) (src *idSource, verdict string, problem string) {
+	switch {
+	case read == nil || read.Segments == nil:
+		return importer, readNotFound, importerProblem
+	case importer != nil && importer.Package == read.Package && importer.TypeName == read.TypeName:
+		return importer, readAgrees, importerProblem
+	case importerProblem == "" && importer != nil && templatesMeet(importer.Segments, read.Segments):
+		return importer, readAgrees, ""
+	}
+	return read, readUsed, ""
+}
+
+// templatesMeet reports whether some ARM id is an id of both templates: a
+// static or provider segment matches the same text (ARM compares ids
+// case-insensitively), a value segment matches any one path segment, and
+// a scope (or a data-plane URL) matches one or more.
+func templatesMeet(a, b []segment) bool {
+	pa, pb := idPattern(a), idPattern(b)
+	memo := map[[2]int]bool{}
+	seen := map[[2]int]bool{}
+	var meet func(i, j int) bool
+	meet = func(i, j int) bool {
+		k := [2]int{i, j}
+		if seen[k] {
+			return memo[k]
+		}
+		seen[k] = true
+		var ok bool
+		switch {
+		case i == len(pa) && j == len(pb):
+			ok = true
+		case i < len(pa) && pa[i].star:
+			// The star stops, or takes the other side's next segment.
+			ok = meet(i+1, j) || (j < len(pb) && meet(i, j+1))
+		case j < len(pb) && pb[j].star:
+			ok = meet(i, j+1) || (i < len(pa) && meet(i+1, j))
+		case i < len(pa) && j < len(pb):
+			x, y := pa[i], pb[j]
+			ok = (x.lit == "" || y.lit == "" || strings.EqualFold(x.lit, y.lit)) && meet(i+1, j+1)
+		}
+		memo[k] = ok
+		return ok
+	}
+	return meet(0, 0)
+}
+
+// patternElem is one element of [idPattern]: a literal path segment, any
+// one segment (lit empty), or any run of zero or more (star).
+type patternElem struct {
+	lit  string
+	star bool
+}
+
+// idPattern is a template as path-segment patterns. A scope stands for one
+// or more segments: any one, then a star.
+func idPattern(segs []segment) []patternElem {
+	var out []patternElem
+	for _, s := range segs {
+		switch s.Kind {
+		case segStatic, segProvider:
+			out = append(out, patternElem{lit: s.Value})
+		case segScope, segResourceID, segDataPlane:
+			out = append(out, patternElem{}, patternElem{star: true})
+		default:
+			out = append(out, patternElem{})
+		}
+	}
+	return out
 }
 
 // readSchema loads the azurerm half of a providers-schema document and

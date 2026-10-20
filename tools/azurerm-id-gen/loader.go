@@ -234,3 +234,18 @@ func (p *pkg) method(typeName, name string) *ast.FuncDecl {
 	}
 	return nil
 }
+
+// uniqueMethod finds the one method named name declared on any type of
+// the package, or nil when none or several are.
+func (p *pkg) uniqueMethod(name string) *ast.FuncDecl {
+	var found *ast.FuncDecl
+	for _, ms := range p.methods {
+		if m := ms[name]; m != nil {
+			if found != nil {
+				return nil
+			}
+			found = m
+		}
+	}
+	return found
+}

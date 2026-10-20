@@ -58,10 +58,27 @@ type azurermIDsFile struct {
 }
 
 type azurermIDType struct {
-	Type       string               `json:"type"`
-	Class      string               `json:"class"`
-	Template   string               `json:"template"`
-	Components []azurermIDComponent `json:"components"`
+	Type          string               `json:"type"`
+	Class         string               `json:"class"`
+	TemplateClass string               `json:"template_class"`
+	Template      string               `json:"template"`
+	Components    []azurermIDComponent `json:"components"`
+}
+
+// templateClass is what the row's template alone classifies as: the class
+// itself, or for an identity-schema row the template_class recorded beside
+// it.
+func (t azurermIDType) templateClass() string {
+	if t.Class == azurermClassIdentitySchema {
+		return t.TemplateClass
+	}
+	return t.Class
+}
+
+// templateBearing reports whether the row maps a whole ARM id.
+func (t azurermIDType) templateBearing() bool {
+	c := t.templateClass()
+	return c == azurermClassTemplate || c == azurermClassParentID
 }
 
 type azurermIDComponent struct {
@@ -106,26 +123,88 @@ func parseAzurermIDs(raw []byte) (*azurermIDs, error) {
 	byTemplate := map[string][]string{}
 	for _, t := range f.Types {
 		out.rows[t.Type] = t
-		if t.Class == azurermClassTemplate || t.Class == azurermClassParentID {
-			byTemplate[t.Template] = append(byTemplate[t.Template], t.Type)
+		if t.templateBearing() {
+			k := normalizedARMTemplate(t.Template)
+			byTemplate[k] = append(byTemplate[k], t.Type)
 		}
 	}
 	for _, t := range f.Types {
-		if t.Class != azurermClassTemplate && t.Class != azurermClassParentID {
+		if !t.templateBearing() {
 			continue
 		}
 		if why := azurermRowShapeProblem(t); why != "" {
 			out.withheld[t.Type] = why
 			continue
 		}
-		for _, other := range byTemplate[t.Template] {
-			if other != t.Type && strings.HasPrefix(t.Type, other+"_") {
-				out.withheld[t.Type] = fmt.Sprintf("its id template is the one %s's id parser gives, and %s is named as a part of %s, so the parser named is the parent's and the id would be the parent's object", other, t.Type, other)
-				break
-			}
+		if why := azurermSharedTemplateProblem(t, byTemplate[normalizedARMTemplate(t.Template)]); why != "" {
+			out.withheld[t.Type] = why
 		}
 	}
 	return out, nil
+}
+
+// normalizedARMTemplate is a template with every value segment's name
+// dropped and its letters folded: two parsers that spell one id's segments
+// differently ({resourceGroup}, {resourceGroupName}) state one id.
+func normalizedARMTemplate(template string) string {
+	var b strings.Builder
+	in := false
+	for _, r := range strings.ToLower(template) {
+		switch {
+		case r == '{':
+			in = true
+			b.WriteRune(r)
+		case r == '}':
+			in = false
+			b.WriteRune(r)
+		case !in:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// azurermSharedTemplateProblem is the second guard (#1120 unit 13). Two
+// types share one ARM id template legitimately when they are variants of
+// one ARM resource type, each naming the object with its own name argument:
+// the data factory datasets, the automation connections, the Oracle
+// autonomous database and its clone types. A wrong marker is the case where
+// the type's own object is not at that id at all and the id is borrowed
+// from the type it configures, which the provider marks by giving the
+// borrowed id's last segment to an argument other than name:
+// azurerm_api_management_api_operation_policy's id is its operation's
+// (operation_id), azurerm_eventgrid_partner_configuration's is its
+// resource group's (resource_group_name). Such a row is withheld unless it
+// is the type the others extend (azurerm_api_management_api_operation,
+// whose operation_id is the operation's own name), because only that one
+// owns the object at the id.
+//
+// It replaces unit 10's coarser rule, which withheld every row whose type
+// name extended another's on the same template: that caught the load
+// balancer rules, whose rows recorded azurerm_lb's id because the
+// generator read a wrapper's signature (tools/azurerm-id-gen now reads the
+// wrapped parser and checks it against Read), and it withheld fourteen
+// variants that were never wrong.
+func azurermSharedTemplateProblem(t azurermIDType, group []string) string {
+	if len(group) < 2 {
+		return ""
+	}
+	last := t.Components[len(t.Components)-1]
+	if len(last.Attrs) == 1 && last.Attrs[0] == "name" {
+		return ""
+	}
+	var others []string
+	for _, other := range group {
+		if other == t.Type {
+			continue
+		}
+		if strings.HasPrefix(other, t.Type+"_") {
+			return ""
+		}
+		others = append(others, other)
+	}
+	sort.Strings(others)
+	return fmt.Sprintf("its id template is also %s's, and its last segment is %s rather than its own name, so the id is the object it configures and not one it owns", strings.Join(others, " and "), strings.Join(last.Attrs, " or "))
 }
 
 // azurermRowShapeProblem is the first of two guards a template-bearing row
@@ -141,14 +220,8 @@ func parseAzurermIDs(raw []byte) (*azurermIDs, error) {
 // at 5.10.0, whose parsers have their own grammar the generator does not
 // read.
 //
-// The second, in [parseAzurermIDs], is a sub-resource borrowing its parent's
-// parser: a row whose template is shared with a type whose name is a prefix
-// of its own (azurerm_lb_nat_rule and azurerm_lb_nat_pool share
-// azurerm_lb's LoadBalancerId, because their importer parses the rule's id
-// and returns the load balancer's). Variants of one ARM type that share a
-// template legitimately (the data factory datasets, the automation
-// connections) are withheld too when one's name extends another's; that
-// costs admission, never a marker.
+// The second is [azurermSharedTemplateProblem]: a type whose id is another
+// type's object.
 func azurermRowShapeProblem(t azurermIDType) string {
 	if len(t.Components) == 0 {
 		return "it has no components"
@@ -164,36 +237,64 @@ func azurermRowShapeProblem(t azurermIDType) string {
 	return "its id is a single argument with no typed segment, the id of a scope rather than of an object in it"
 }
 
-// azurermAdmits is the azurerm answer to [Substrate.SynthesizeIdentity]:
-// the row's ARM id template as identity components, for a type the artifact
-// classes "template" (every segment mapped to an argument or to the
-// subscription) or "parent-id" (a leading run of segments supplied by an
-// argument holding a parent's or a scope's ARM id), that passes the guards
-// above.
+// azurermAdmits is the azurerm answer to [Substrate.SynthesizeIdentity].
 //
-// Every other class answers false, deliberately:
-//
-//   - "identity-schema": the provider serves a resource identity schema for
-//     the type, and #1122 rules that route keeps it. The identity-schema
-//     route is the AWS family's answer, which [SynthesizeIdentity] reaches
-//     next.
-//   - "unmapped": no template. The type gets what an AWS type with no row
-//     and no identity schema gets: the identity-schema route's refusal,
-//     which names the type (internal/live/identity's synthesizeTypeIdentity,
-//     "serves no resource identity schema"), and so lint's unadmitted-type.
-//     Never a guess from resource_group_name and name.
+//   - A type the artifact classes "template" (every segment mapped to an
+//     argument or to the subscription) or "parent-id" (a leading run of
+//     segments supplied by an argument holding a parent's or a scope's ARM
+//     id), that passes the guards above: the row's ARM id template as
+//     identity components.
+//   - Every other azurerm type: the identity-schema route
+//     ([SynthesizedIdentity.FromIdentitySchema]), told the one thing it
+//     cannot read from the schemas, that an identity attribute named
+//     subscription_id with no argument by that name is the provider
+//     configuration's subscription ([azurermCloudIdentityAttrs], #1120 unit
+//     13), and handed the row's template where it has one that passes the
+//     guards. #1122 rules that the 196 types serving a resource identity
+//     schema keep that route; an "unmapped" or withheld type with none gets
+//     the route's refusal, which names the type ("serves no resource
+//     identity schema"), and so lint's unadmitted-type, as an AWS type with
+//     no row and no identity schema does. Never a guess from
+//     resource_group_name and name.
 func azurermAdmits(typeName string) (SynthesizedIdentity, bool) {
+	route := SynthesizedIdentity{
+		FromIdentitySchema: true,
+		NonAWSProvider:     true,
+		CloudIdentityAttrs: azurermCloudIdentityAttrs(),
+	}
 	tab, err := loadAzurermIDs()
 	if err != nil {
-		return SynthesizedIdentity{}, false
+		return route, true
 	}
 	row, ok := tab.rows[typeName]
-	if !ok || (row.Class != azurermClassTemplate && row.Class != azurermClassParentID) {
-		return SynthesizedIdentity{}, false
+	if !ok || !row.templateBearing() {
+		return route, true
 	}
 	if _, withheld := tab.withheld[typeName]; withheld {
-		return SynthesizedIdentity{}, false
+		return route, true
 	}
+	synth := azurermTemplate(row)
+	if row.Class == azurermClassIdentitySchema {
+		route.ARMTemplate = &synth
+		return route, true
+	}
+	return synth, true
+}
+
+// azurermCloudIdentityAttrs is the azurerm provider's answer to the
+// identity-schema route's one open question (#1120 unit 13): every
+// identity schema azurerm 5.10.0 serves requires subscription_id for
+// import, and the subscription is the provider block's subscription_id,
+// the one azurerm builds every id it creates with
+// (meta.(*clients.Client).Account.SubscriptionId). It is the AWS identity
+// schemas' account_id and region, answered from the same place AWS's
+// region is.
+func azurermCloudIdentityAttrs() map[string]string {
+	return map[string]string{"subscription_id": azurermCloudSubscription}
+}
+
+// azurermTemplate is a row's ARM id template as a synthesized identity.
+func azurermTemplate(row azurermIDType) SynthesizedIdentity {
 	comps := make([]IdentityComponent, 0, len(row.Components))
 	for _, c := range row.Components {
 		comps = append(comps, IdentityComponent{
@@ -211,7 +312,7 @@ func azurermAdmits(typeName string) (SynthesizedIdentity, bool) {
 		// reference to .id is a reference to this identity.
 		IdentityAttrs: []string{"id"},
 		ARMResourceID: true,
-	}, true
+	}
 }
 
 // AzurermIDSource is the azurerm version and commit the embedded artifact
@@ -225,10 +326,12 @@ func AzurermIDSource() (version, commit string) {
 }
 
 // AzurermAdmission is how many azurerm types the embedded artifact gives
-// each answer: "template" and "parent-id" for the two routes this family
-// admits by, "withheld" for the template-bearing rows the guards above
-// refuse, "identity-schema" and "unmapped" for the two it leaves to the
-// identity-schema route.
+// each answer: "template" and "parent-id" for the two classes this family
+// admits by template alone, "withheld" for the template-bearing rows of
+// those classes the guards above refuse, "unmapped" for the rows with no
+// template, and for the types with a resource identity schema
+// "identity-schema+template" (handed a template that passes the guards)
+// or "identity-schema" (none, or one the guards withhold).
 func AzurermAdmission() map[string]int {
 	tab, err := loadAzurermIDs()
 	if err != nil {
@@ -236,11 +339,17 @@ func AzurermAdmission() map[string]int {
 	}
 	out := map[string]int{}
 	for name, row := range tab.rows {
-		if _, withheld := tab.withheld[name]; withheld {
+		_, withheld := tab.withheld[name]
+		switch {
+		case row.Class == azurermClassIdentitySchema && row.templateBearing() && !withheld:
+			out["identity-schema+template"]++
+		case row.Class == azurermClassIdentitySchema:
+			out[azurermClassIdentitySchema]++
+		case withheld:
 			out["withheld"]++
-			continue
+		default:
+			out[row.Class]++
 		}
-		out[row.Class]++
 	}
 	return out
 }

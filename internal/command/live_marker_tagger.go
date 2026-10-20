@@ -6,9 +6,12 @@
 package command
 
 import (
+	"context"
 	"fmt"
+	"sync"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/registry"
@@ -82,6 +85,41 @@ var markerWriters = map[substrate.Write]func(*projectionProviders, addrs.AbsProv
 			SignEndpointOverride: explicit,
 		})}
 	},
+
+	// ARM's Tags API (#1120 unit 12), authenticated from the azurerm or
+	// azapi provider configuration's own arguments and the ARM_*
+	// environment through the credential chain the Resource Graph sweep
+	// uses (internal/live/azsweep). The client is built at the first write,
+	// where there is a context, and a configuration that names no usable
+	// credential fails that write by name rather than the whole run: like
+	// the Tagging API client above, it is reached only after a real create
+	// of a type whose create call carries no tags.
+	substrate.WriteARMTagsAPI: func(p *projectionProviders, addr addrs.AbsProviderConfig) projection.MarkerWriter {
+		p.mu.Lock()
+		val, ok := p.configVals[providerCacheKey(addr)]
+		p.mu.Unlock()
+		attrs := azsweep.ProviderAttrs(addr.Provider.Type, val, ok)
+		return projection.ARMTagsWriter{Tagger: &lazyARMTagger{build: func(ctx context.Context) (projection.ARMTagger, error) {
+			return azsweep.NewTagger(ctx, attrs)
+		}}}
+	},
+}
+
+// lazyARMTagger builds its client on the first merge and keeps it, or the
+// error building it gave, for the run.
+type lazyARMTagger struct {
+	build  func(context.Context) (projection.ARMTagger, error)
+	once   sync.Once
+	tagger projection.ARMTagger
+	err    error
+}
+
+func (l *lazyARMTagger) MergeTags(ctx context.Context, id string, tags map[string]string) error {
+	l.once.Do(func() { l.tagger, l.err = l.build(ctx) })
+	if l.err != nil {
+		return l.err
+	}
+	return l.tagger.MergeTags(ctx, id, tags)
 }
 
 // markerRoster is the roster the node writer reads tag_on_create from: the

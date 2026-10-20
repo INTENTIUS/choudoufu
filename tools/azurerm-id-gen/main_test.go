@@ -227,3 +227,48 @@ func TestRegeneratingFromThePinReproducesTheArtifact(t *testing.T) {
 		t.Fatalf("regenerating from the pin differs from live/azurerm-ids.json in length (%d vs %d lines)", len(gl), len(cl))
 	}
 }
+
+// TestTemplatesMeet (#1120 unit 13): Read's id type confirms the
+// importer's when some id is an id of both, and replaces it when none is.
+func TestTemplatesMeet(t *testing.T) {
+	st := func(v string) segment { return segment{Kind: segStatic, Value: v} }
+	user := segment{Kind: segUser}
+	scope := segment{Kind: segScope}
+	lb := []segment{st("subscriptions"), user, st("resourceGroups"), user, st("providers"), st("Microsoft.Network"), st("loadBalancers"), user}
+	rule := append(append([]segment(nil), lb...), st("inboundNatRules"), user)
+	scoped := []segment{scope, st("providers"), st("Microsoft.CostManagement"), st("exports"), user}
+	billing := []segment{st("providers"), st("Microsoft.Billing"), st("billingAccounts"), user, st("providers"), st("microsoft.costmanagement"), st("exports"), user}
+	tableDefault := []segment{st("tableServices"), st("default"), st("tables"), user}
+	tableAny := []segment{st("tableServices"), user, st("tables"), user}
+	for _, c := range []struct {
+		a, b []segment
+		want bool
+	}{
+		{lb, rule, false},
+		{rule, rule, true},
+		{scoped, billing, true},
+		{tableDefault, tableAny, true},
+		{scoped, lb[:2], false},
+	} {
+		if got := templatesMeet(c.a, c.b); got != c.want {
+			t.Errorf("templatesMeet(%s, %s) = %v, want %v", template(c.a), template(c.b), got, c.want)
+		}
+	}
+}
+
+// TestValidatorForm: a validator naming an id parses a full ARM id, and
+// such an argument never fills one segment.
+func TestValidatorForm(t *testing.T) {
+	for text, want := range map[string]subscriptionForm{
+		"validation.IsUUID.":                "guid",
+		"commonids.ValidateSubscriptionID.": "arm-id",
+		"validate.ManagementGroupID.":       "arm-id",
+		"api.ValidateApiID.":                "arm-id",
+		"validation.StringIsNotEmpty.":      "",
+		"validate.ApiManagementChildName.":  "",
+	} {
+		if got := validatorForm(text); got != want {
+			t.Errorf("validatorForm(%q) = %q, want %q", text, got, want)
+		}
+	}
+}
