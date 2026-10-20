@@ -15,21 +15,21 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 )
 
-// SUSPECTED DEFECT, pinned as today's behaviour, not as a demand. The
-// discovery half is internal/live/discovery/renamebind_suspected_test.go.
+// GitHub issue #2136, the projection's half. The discovery half is
+// internal/live/discovery/renamebind_test.go.
 //
 // A block's identity argument renamed (rt-old -> rt-new, b-old -> b-new)
 // while the old object still carries tofu-address = the unchanged address.
-// On Azure the Resource Graph sweep files that sighting as a vouch for the
-// address (discovery's verdictOwnObject), the command layer hands
-// MarkerVerified to the projection as Ownership.Verified, and
 // [builder.checkOwnershipAt]'s own.verified case returns ownershipOK before
-// reading the tags of the object the projection fetched at the NEW id.
-// These tests pin that the projection's half is platform-neutral: given the
-// vouch it admits the object at the new id unread on either platform, and
-// without it it reads the tags and refuses. What differs per platform is
-// whether discovery hands out the vouch, which it does on Azure and does
-// not on AWS.
+// reading the tags of the object the projection fetched at the NEW id, so
+// whether that object is judged depends entirely on whether discovery hands
+// the address over in Ownership.Verified. Before #2136 the Azure sweep did
+// (the old object's sighting vouched); it now reports that object displaced
+// and vouches for nothing, as AWS's sweep always did. These tests pin that
+// the projection's half is platform-neutral: given the vouch it admits the
+// object at the new id unread on either platform, and without it, which is
+// what both platforms' discovery now leaves after a rename, it reads the
+// tags and refuses.
 
 func renameBuilder(t *testing.T, own *Ownership) *builder {
 	t.Helper()
@@ -87,34 +87,34 @@ var renameShapes = map[string]map[string]string{
 	"another estate":      {"tofu-estate": "platform", "tofu-address": "azurerm_route_table.x"},
 }
 
-// TestSuspectedRenameBind_verifiedAdmitsTheNewIDUnread: with the address in
-// Ownership.Verified (what discovery hands over on Azure after a rename),
-// the object at the new id is admitted - ownershipOK, no diagnostic, no
-// omission - whatever its tags say. Platform-neutral.
-func TestSuspectedRenameBind_verifiedAdmitsTheNewIDUnread(t *testing.T) {
+// TestRenameBind_verifiedAdmitsTheNewIDUnread: with the address in
+// Ownership.Verified (what discovery handed over on Azure after a rename
+// before #2136), the object at the new id is admitted - ownershipOK, no
+// diagnostic, no omission - whatever its tags say. Platform-neutral. It is
+// why discovery must not vouch on the old object's sighting.
+func TestRenameBind_verifiedAdmitsTheNewIDUnread(t *testing.T) {
 	for _, c := range renameCases {
 		for name, tags := range renameShapes {
 			t.Run(c.typ+"/"+name, func(t *testing.T) {
 				b := renameBuilder(t, &Ownership{Estate: aksEstate, Verified: map[string]bool{c.addr().String(): true}})
 				if got := b.checkOwnership(c.addr(), c.typ, c.newID, armTagsSchema(), renameLive(c, tags), true, false, false); got != ownershipOK {
-					t.Fatalf("verdict %d; this pin records ownershipOK (admitted unread) today", got)
+					t.Fatalf("verdict %d, want ownershipOK (a vouched address is admitted unread)", got)
 				}
 				if len(b.diags) != 0 {
-					t.Errorf("diagnostics; this pin records silence:\n%s", renderDiags(b.diags))
+					t.Errorf("diagnostics, want none for a vouched address:\n%s", renderDiags(b.diags))
 				}
 				if _, ok := b.omitted[c.addr().String()]; ok {
-					t.Errorf("the instance was omitted; this pin records it admitted")
+					t.Errorf("the instance was omitted, want it admitted")
 				}
 			})
 		}
 	}
 }
 
-// TestSuspectedRenameBind_unverifiedReadsAndRefuses is the control: the
-// same objects without the vouch (what AWS's sweep leaves after the same
-// rename, where the old bucket is reported displaced instead) are read and
-// left out of the prior state as unowned.
-func TestSuspectedRenameBind_unverifiedReadsAndRefuses(t *testing.T) {
+// TestRenameBind_unverifiedReadsAndRefuses: the same objects without the
+// vouch (what both sweeps leave after the rename, the old object reported
+// displaced instead) are read and left out of the prior state as unowned.
+func TestRenameBind_unverifiedReadsAndRefuses(t *testing.T) {
 	for _, c := range renameCases {
 		for name, tags := range renameShapes {
 			t.Run(c.typ+"/"+name, func(t *testing.T) {
