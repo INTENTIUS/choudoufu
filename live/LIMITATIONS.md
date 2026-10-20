@@ -2889,6 +2889,7 @@ refused, and each says so in its own entry.
 | - | - | projection | This estate does not declare that it reads another estate's outputs | error | `internal/live/projection` | "This estate does not declare that it reads another estate's outputs" |
 | - | - | projection | This estate may not read another estate's outputs | error | `internal/live/projection` | "This estate may not read another estate's outputs" |
 | - | - | projection | Unlabelled live object holds the declared name | error | `internal/live/projection` | "Unlabelled live object holds the declared name" |
+| - | - | projection | Unmarked live object at the declared id would be overwritten | error | `internal/live/projection` | "Unmarked live object at the declared id would be overwritten" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
 | - | - | projection | Values from another estate are as of its last apply | warning | `internal/live/projection` | "Values from another estate are as of its last apply" |
 | - | - | projection | Values from another estate are as that estate's plan proposes them | warning | `internal/live/projection` | "Values from another estate are as that estate's plan proposes them" |
@@ -4922,6 +4923,14 @@ reserved for the limits wing's fixture directories, and
 #### Unlabelled live object holds the declared name
 
 **What.** GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = "adopt" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Unmarked live object at the declared id would be overwritten
+
+**What.** GitHub issue #1120, ruled on #1122: a declared Azure resource (azurerm, or azapi_resource) was read at the ARM id its block declares, and it carries no tofu-estate tag. Under declared_untagged's default the plan would propose creating it, and an ARM create is a PUT, which updates an object already at that id instead of failing, so the apply would take the object over silently; the run stops instead. policy { declared_untagged = "adopt" } adopts the object, and writing the tofu-estate and tofu-address tags onto it does the same by hand. An absent object never triggers this, nor does an object carrying another estate's marker, which is refused as another estate's; AWS and Kubernetes types are unaffected.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

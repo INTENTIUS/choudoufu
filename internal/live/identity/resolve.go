@@ -360,7 +360,9 @@ func childSubject(name string) string {
 }
 
 // checkCollisions reports two instances of the same type that resolve to
-// the same identity. They would bind to one live resource, so the plan
+// the same identity, or, for an Azure Resource Manager id
+// ([TypeIdentity.ARMResourceID]), two instances of any types that resolve
+// to the same id up to letter case. They would bind to one live resource, so the plan
 // would treat one cloud object as two managed resources, the same class of
 // ambiguity the marker path treats as a named error rather than picking a
 // winner.
@@ -395,6 +397,21 @@ func (r *resolver) checkCollisions(result *Result) {
 		}
 		key := res.Type() + "\x00" + ident + "\x00" + res.cloudScope.base
 		ctx := r.scopeContextValues(res)
+		if entry, ok := r.lookupType(res.Type()); ok && entry.ARMResourceID {
+			// GitHub issue #1120: an ARM id is the object's whole address -
+			// subscription, resource group, provider namespace and type are
+			// all in it - and ARM compares it case-insensitively. So the
+			// key is the folded id alone ([armCollisionKey]): not the type,
+			// because azurerm_virtual_network and an azapi_resource of type
+			// Microsoft.Network/virtualNetworks are one object declared
+			// twice, and not the provider configuration, because those two
+			// blocks never share one. The region and the scope context have
+			// nothing left to tell apart, and a context value an ARM id does
+			// not carry cannot be read off two blocks of two providers, so
+			// neither is consulted.
+			key = "arm\x00" + armCollisionKey(res)
+			ctx = nil
+		}
 
 		var collidesWith *Resolution
 		for i := range seen[key] {
@@ -1440,7 +1457,13 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			sibArgs = append(sibArgs, argName)
 		}
 	}
+	// prevStart and curStart bound the parts the previous component
+	// contributed, which is what an [Component.ARMTypeSegment] component
+	// rewrites: azapi drops a tenant-root parent_id, or the whole parent_id
+	// for a subscription (see [armTypeSegment]).
+	prevStart, curStart := 0, 0
 	for i, comp := range entry.Components {
+		prevStart, curStart = curStart, len(parts)
 		sibBefore := len(r.pendingSiblingApply)
 		if comp.Cloud != CloudNone {
 			// A cloud-bearing component may also carry the argument the
@@ -1731,6 +1754,18 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			fail(sibBefore, attr.Name)
 			continue
 		}
+		if comp.ARMTypeSegment {
+			// GitHub issue #1120: azapi_resource's type contributes the text
+			// azapi joins parent_id and name with, not its own value. See
+			// [Component.ARMTypeSegment] and [armTypeSegment].
+			seg, ok := r.armTypeSegmentParts(got, parts[prevStart:curStart], attr, addr)
+			if !ok {
+				fail(sibBefore, "")
+				continue
+			}
+			parts = append(parts[:prevStart], seg...)
+			continue
+		}
 		// The identity-attribute formula gets the resolved value alone; a
 		// prefix Literal (see [Component.Literal] and [Component.OmitIfAbsent])
 		// is punctuation in the import-ID STRING, not part of the identity
@@ -1939,9 +1974,24 @@ func (r *resolver) missingCloudComponent(entry TypeIdentity, attrs hcl.Attribute
 //
 // [CloudAccountID] has no config-only source and is not answered here. See
 // [CloudContext] for where the account first becomes knowable.
+//
+// [CloudSubscriptionID] is answered the way the region's provider-block
+// fallback is (GitHub issue #1120): the resolved provider configuration's
+// own static `subscription_id`, which azurerm and azapi both take as the
+// subscription every request is made in. No resource argument defaults to
+// it, so there is no per-resource override to read first. A subscription
+// the block does not state statically (ARM_SUBSCRIPTION_ID, a variable with
+// no default) falls through to the [CloudContext], which never knows one,
+// so the run answers exactly as it does for an AWS account it is not told:
+// [ClassNeedsDiscovery] with [cloudReason]'s sentence.
 func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bool) {
 	if which == CloudRegion && cs.regionKnown && cs.region != "" {
 		return cs.region, true
+	}
+	if which == CloudSubscriptionID {
+		if sub, ok := r.providerStaticAttr(cs.provider, "subscription_id"); ok && sub != "" {
+			return sub, true
+		}
 	}
 	return r.cloud.value(which)
 }
@@ -3588,7 +3638,7 @@ func (r *resolver) identifier(addr addrs.AbsResourceInstance, attrName string, r
 func (r *resolver) resourceCloudScope(rc *configs.Resource, scope instScope) cloudScopeKey {
 	abs := providerscope.ResolveResource(r.curCfg, rc)
 	region, ok := r.effectiveRegion(rc, abs, scope)
-	return cloudScopeKey{base: abs.String(), region: region, regionKnown: ok}
+	return cloudScopeKey{base: abs.String(), region: region, regionKnown: ok, provider: abs}
 }
 
 // recordTypeProvider memoizes rc's own resolved provider's short type name
@@ -3711,6 +3761,15 @@ func (r *resolver) staticRegionAttr(rc *configs.Resource, scope instScope) (stri
 // (and #217's own safety direction) treats as "cannot distinguish these two
 // resources by region", not as a value of "no region".
 func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool) {
+	return r.providerStaticAttr(abs, "region")
+}
+
+// providerStaticAttr is [resolver.providerRegionAttr] for any one argument
+// of abs's own provider configuration block: the block found by the same
+// deterministic match, the argument evaluated by the same rules, and every
+// failure the same ok=false. [CloudSubscriptionID] reads `subscription_id`
+// through it (GitHub issue #1120).
+func (r *resolver) providerStaticAttr(abs addrs.AbsProviderConfig, name string) (string, bool) {
 	if r.rootCfg == nil || r.rootCfg.Module == nil {
 		return "", false
 	}
@@ -3743,12 +3802,12 @@ func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool
 	}
 
 	content, _, diags := pc.Config.PartialContent(&hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{{Name: "region"}},
+		Attributes: []hcl.AttributeSchema{{Name: name}},
 	})
 	if diags.HasErrors() {
 		return "", false
 	}
-	attr, ok := content.Attributes["region"]
+	attr, ok := content.Attributes[name]
 	if !ok || r.isSymbolic(attr.Expr, instScope{}) {
 		return "", false
 	}
@@ -3766,7 +3825,7 @@ func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool
 
 	ident := configs.StaticIdentifier{
 		Module:    abs.Module,
-		Subject:   fmt.Sprintf("provider.%s.region", pc.Name),
+		Subject:   fmt.Sprintf("provider.%s.%s", pc.Name, name),
 		DeclRange: attr.Range,
 	}
 	val, evalDiags := r.evalPure(attr.Expr, instScope{}, ident)

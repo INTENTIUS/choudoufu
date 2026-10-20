@@ -475,6 +475,21 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		return ownershipUnowned
 	}
 
+	if declared && !nonDefault && estate == "" && own.Estate != "" && atDeclaredKey && substrate.CreateOverwritesAtKey(surface) {
+		// GitHub issue #1120, ruled on #1122: the opposite server and the
+		// same refusal. Everything the #1546 branch above establishes holds
+		// here too - the object was positively read at the identity this
+		// block's own configuration computes, it carries no tofu-estate at
+		// all, and the verb is declared_untagged's default - but this
+		// surface's create does not fail at a held key, it updates the
+		// object there ([substrate.CreateOverwritesAtKey]: an ARM create is
+		// a PUT). The warning the default below raises would then sit
+		// beside a plan whose apply silently takes the object over, so the
+		// run stops here instead, by name, before any create is proposed.
+		b.overwritesAtKey(addr, typeName, importID)
+		return ownershipUnowned
+	}
+
 	var detail string
 	switch {
 	case own.Estate == "":
@@ -545,6 +560,31 @@ func (b *builder) conflictsOnKey(addr addrs.AbsResourceInstance, typeName, impor
 		Detail:   detail,
 	})
 	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryNameHeld, detail))
+	b.omit(addr, ReasonUnowned, detail, noMarkerCause(typeName))
+}
+
+// SummaryOverwriteAtKey is the Error GitHub issue #1120's create-or-update
+// refusal carries.
+const SummaryOverwriteAtKey = "Unmarked live object at the declared id would be overwritten"
+
+// overwritesAtKey records #1120's refusal ([substrate.CreateOverwritesAtKey]):
+// the Unowned entry, the omission, and an Error, the shape
+// [builder.conflictsOnKey] records for the opposite server.
+func (b *builder) overwritesAtKey(addr addrs.AbsResourceInstance, typeName, importID string) {
+	own := b.opts.Ownership
+	detail := fmt.Sprintf(
+		"A live %s already exists at %q, the id %s declares, and carries no %s tag, so this estate does not own it. Creating this resource is a PUT to that id, and a PUT to an id that already exists updates the object there instead of failing, so the apply would take that object over with nothing to say it was ever this estate's; this plan stops here instead of proposing it. To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, or write the tags %s=%q and %s=%q onto it and re-run. To keep it out of this estate, point this resource at a name nobody is using.",
+		typeName, importID, addr, markers.TagEstate,
+		markers.TagEstate, own.Estate,
+		markers.TagAddress, markers.EscapeAddress(addr.String()))
+	b.unownedList = append(b.unownedList, Unowned{
+		Addr:          addr,
+		TypeName:      typeName,
+		ImportID:      importID,
+		AddressMarker: true,
+		Detail:        detail,
+	})
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryOverwriteAtKey, detail))
 	b.omit(addr, ReasonUnowned, detail, noMarkerCause(typeName))
 }
 

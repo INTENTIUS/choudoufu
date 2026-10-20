@@ -402,6 +402,12 @@ type surfaceWording interface {
 	// duplicate. See the package-level [CreateCollidesOnKey].
 	CreateCollidesOnKey(surface markers.Surface) bool
 
+	// CreateOverwritesAtKey reports whether, for a declared resource on
+	// surface, the resource's own create sent at an identity where an
+	// object already exists would update that object in place rather than
+	// fail. See the package-level [CreateOverwritesAtKey].
+	CreateOverwritesAtKey(surface markers.Surface) bool
+
 	// CarrierPhrase names where surface's marker map lives on an object,
 	// for a message telling an operator the provider returned no such map.
 	CarrierPhrase(surface markers.Surface) string
@@ -424,6 +430,24 @@ type surfaceWording interface {
 func CreateCollidesOnKey(surface markers.Surface) bool {
 	s := For(surface)
 	return s != nil && s.CreateCollidesOnKey(surface)
+}
+
+// CreateOverwritesAtKey reports whether, for a declared resource on
+// surface, a create sent at an identity where an object already exists
+// updates that object in place instead of failing: [CreateCollidesOnKey]'s
+// opposite case, and the dangerous one (GitHub issue #1120, ruled on #1122).
+// A server that refuses the duplicate stops the plan by itself; one that
+// accepts it hands the existing object, with whatever it holds, to the
+// configuration that "created" it, with no estate marker ever read. So the
+// projection refuses such a create by name before it is proposed (its
+// SummaryOverwriteAtKey), the declared_untagged quadrant's default refusal
+// made an error. False for the zero Surface.
+//
+// True for Azure's arm-tags surface only: an ARM create is a PUT, which is
+// create-or-update ([azure.CreateOverwritesAtKey]).
+func CreateOverwritesAtKey(surface markers.Surface) bool {
+	s := For(surface)
+	return s != nil && s.CreateOverwritesAtKey(surface)
 }
 
 // CarrierPhrase names where surface's marker map lives ("tags attribute",

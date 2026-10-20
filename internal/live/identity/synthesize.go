@@ -502,11 +502,13 @@ func fromSynthesized(typeName string, synth substrate.SynthesizedIdentity) TypeI
 	components := make([]Component, 0, len(synth.Components))
 	for _, c := range synth.Components {
 		comp := Component{
-			Literal:      c.Literal,
-			Attrs:        c.Attrs,
-			Block:        c.Block,
-			Path:         c.Path,
-			OmitIfAbsent: c.OmitIfAbsent,
+			Literal:        c.Literal,
+			Attrs:          c.Attrs,
+			Block:          c.Block,
+			Path:           c.Path,
+			OmitIfAbsent:   c.OmitIfAbsent,
+			Cloud:          CloudValue(c.Cloud),
+			ARMTypeSegment: c.ARMTypeSegment,
 		}
 		if c.SameNameIdentity {
 			comp.IdentityAttr = SameNameIdentity
@@ -519,6 +521,7 @@ func fromSynthesized(typeName string, synth substrate.SynthesizedIdentity) TypeI
 		Components:     components,
 		ImportSyntax:   synth.ImportSyntax,
 		IdentityAttrs:  synth.IdentityAttrs,
+		ARMResourceID:  synth.ARMResourceID,
 		Synthesized:    true,
 		Admits:         AdmitSchema,
 	}

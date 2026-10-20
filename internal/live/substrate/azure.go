@@ -129,6 +129,18 @@ func (azure) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
 // and the provider source; it awaits measurement on floci-az.
 func (azure) CreateCollidesOnKey(markers.Surface) bool { return false }
 
+// CreateOverwritesAtKey is true on the arm-tags surface: the same PUT that
+// never collides updates whatever object is at its id, so a declared
+// object found there without this estate's marker is refused by name
+// before any create (#1122; internal/live/projection's
+// SummaryOverwriteAtKey). From ARM's REST guidance (PUT is
+// create-or-update) and azapi's CreateUpdate, which sends one PUT for both
+// (internal/services/azapi_resource.go at 2.13.0); it awaits measurement
+// on floci-az.
+func (azure) CreateOverwritesAtKey(surface markers.Surface) bool {
+	return surface == markers.SurfaceARMTags
+}
+
 func (azure) CarrierPhrase(surface markers.Surface) string {
 	if surface == markers.SurfaceARMTags {
 		return "tags attribute"
@@ -251,17 +263,86 @@ func (azure) HoldRecognition() HoldRecognition {
 
 // ---- GitHub issue #1586: admission ----
 
-// SynthesizeIdentity answers false for every type for now, so azurerm and
-// azapi types reach the identity-schema route exactly as they did before the
-// family existed. #1122 rules a resource_group_name + name schema rule for
-// azurerm (with the ARM type from a table generated from its id parsers) and
-// the type + parent_id + name natural key for azapi_resource; both are the
-// identity unit of #1120 (unit 3). The azapi key cannot be expressed in
-// [IdentityComponent]s without that unit: its type argument carries the API
-// version after an "@", which is not part of the object's identity, and the
-// ARM id joins parent_id and name by a rule that depends on whether the type
-// is a child of the parent's own type.
-// TODO(#1120 unit 3): answer both from the identity unit's rule.
-func (azure) SynthesizeIdentity(string, providers.Schema) (SynthesizedIdentity, bool) {
+// SynthesizeIdentity is the Azure family's identity rule (#1122, #1120
+// unit 10). Every identity it builds is an ARM resource id, which ARM
+// compares case-insensitively, so each answer sets
+// [SynthesizedIdentity.ARMResourceID].
+//
+//   - azurerm: the ARM id template generated from azurerm's own id parsers
+//     (live/azurerm-ids.json, embedded; see [azurermAdmits] for which rows
+//     are admitted and what the rest get). The subscription is the
+//     provider configuration's subscription_id, the way an AWS region is
+//     the provider configuration's region.
+//   - azapi_resource: type + parent_id + name, the natural key inside the
+//     resource's own arguments ([azapiResourceIdentity]).
+//
+// A type of neither answers false and reaches the identity-schema route
+// exactly as it did before the family existed.
+func (azure) SynthesizeIdentity(typeName string, schema providers.Schema) (SynthesizedIdentity, bool) {
+	if strings.HasPrefix(typeName, "azapi_") {
+		if AzapiResourceShape(schema.Block) {
+			return azapiResourceIdentity(), true
+		}
+		return SynthesizedIdentity{}, false
+	}
+	if strings.HasPrefix(typeName, "azurerm_") {
+		return azurermAdmits(typeName)
+	}
 	return SynthesizedIdentity{}, false
+}
+
+// AzapiResourceShape reports whether block is azapi_resource's shape: a
+// required string type, settable string parent_id and name, a settable tags
+// map ([markers.ARMTaggable]), and no resource_id. Read from the schema
+// rather than the type name alone, because azapi serves three more types
+// carrying type and a parent or name (azapi 2.13.0): azapi_update_resource
+// and azapi_resource_action act on an object they do not create, named by
+// resource_id, and azapi_data_plane_resource is a data-plane object with no
+// tags and no ARM id. None of them owns the object its arguments name, so
+// none may be identified by it.
+func AzapiResourceShape(block *configschema.Block) bool {
+	if block == nil {
+		return false
+	}
+	typ, ok := block.Attributes["type"]
+	if !ok || typ == nil || typ.Type != cty.String || !typ.Required {
+		return false
+	}
+	for _, name := range []string{"parent_id", "name"} {
+		a, ok := block.Attributes[name]
+		if !ok || a == nil || a.Type != cty.String || (!a.Required && !a.Optional) {
+			return false
+		}
+	}
+	if _, has := block.Attributes["resource_id"]; has {
+		return false
+	}
+	return markers.ARMTaggable(block)
+}
+
+// AzapiImportSyntax documents azapi_resource's identity: the ARM id azapi
+// builds from its three arguments (internal/services/parse/resource.go's
+// newResourceID at azapi 2.13.0), which is also its import id.
+const AzapiImportSyntax = "PARENT_ID/providers/NAMESPACE/TYPE/NAME, or PARENT_ID/CHILDTYPE/NAME for a child type"
+
+// azapiResourceIdentity is azapi_resource's natural key, read from its own
+// arguments the way kubernetes_manifest's is read from its manifest
+// (#1079): parent_id, then the segment azapi joins parent_id and name with,
+// derived from type, then name. The middle component is
+// [IdentityComponent.ARMTypeSegment]; internal/live/identity's
+// armTypeSegment is the rule, cited line by line.
+func azapiResourceIdentity() SynthesizedIdentity {
+	return SynthesizedIdentity{
+		NonAWSProvider: true,
+		Components: []IdentityComponent{
+			{Attrs: []string{"parent_id"}},
+			{Attrs: []string{"type"}, ARMTypeSegment: true},
+			{Attrs: []string{"name"}},
+		},
+		ImportSyntax: AzapiImportSyntax,
+		// azapi_resource's id is the ARM id it built (parse.ResourceId.ID),
+		// so a reference to .id is a reference to this identity.
+		IdentityAttrs: []string{"id"},
+		ARMResourceID: true,
+	}
 }
