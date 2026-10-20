@@ -91,7 +91,7 @@
       },
       "controller_held": {
         "recognized": true,
-        "mechanism": "the object's ARM managedBy property, or a tag AKS writes on its node resource group (aks-managed- prefix, case-insensitive; AKS FAQ)",
+        "mechanism": "the object's ARM managedBy property when it names an AKS managed cluster or a managed application (the lifecycle owners of a node or managed resource group; an attached disk's managedBy is its VM and is not a hold), or a tag AKS writes on its node resource group (aks-managed- prefix, case-insensitive; AKS FAQ)",
         "keys": [
           "managedBy",
           "aks-managed-*"

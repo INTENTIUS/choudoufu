@@ -1015,7 +1015,7 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema, estate stri
 
 	var mine []listed
 	for _, r := range results {
-		tags, taggable := tagsFromListed(r.Resource)
+		tags, taggable := m.listedMarkerTags(r.Resource)
 		if !taggable {
 			continue
 		}

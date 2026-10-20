@@ -355,6 +355,21 @@ func (m *mover) markerTags(obj cty.Value) (map[string]string, bool) {
 	return tags, ok
 }
 
+// listedMarkerTags is [tagsFromListed] read for this move's surface, the
+// sweep's counterpart of [mover.markerTags]: on the ARM tags map (GitHub
+// issue #1120) the marker keys come back in their canonical lowercase
+// spelling ([markers.CanonicalARMMarkers]), so [mover.sweep] finds an
+// object a configuration tagged Tofu-Estate and Tofu-Address, and
+// [mover.checkDestinationFree] sees a destination held under any spelling
+// (#2133 finding 3). Every other surface reads the map as listed.
+func (m *mover) listedMarkerTags(obj cty.Value) (map[string]string, bool) {
+	tags, ok := tagsFromListed(obj)
+	if ok && m.res.Surface == markers.SurfaceARMTags {
+		tags = markers.CanonicalARMMarkers(tags)
+	}
+	return tags, ok
+}
+
 // setMarkerTag sets the marker key to value in tags: with fold (the ARM
 // tags map) under the spelling the map already uses for it
 // ([markers.SetARMMarkerTag]), and as spelled otherwise.

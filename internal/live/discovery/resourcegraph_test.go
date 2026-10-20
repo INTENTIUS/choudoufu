@@ -80,6 +80,12 @@ func rgResource(sub, group, address string, spell func(string) string) azsweep.R
 
 func azConfig(t *testing.T) *configs.Config {
 	t.Helper()
+	return azConfigWith(t, "")
+}
+
+// azConfigWith is azConfig with extra appended to its source.
+func azConfigWith(t *testing.T, extra string) *configs.Config {
+	t.Helper()
 	dir := t.TempDir()
 	src := `
 provider "azurerm" {
@@ -89,7 +95,7 @@ resource "azurerm_resource_group" "kept" {
   name     = "Kept"
   location = "westeurope"
 }
-`
+` + extra
 	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -108,9 +114,14 @@ func keptResolution(sub string) identity.Resolution {
 
 func discoverAzure(t *testing.T, leg ResourceGraphSweep, resolutions ...identity.Resolution) (*Result, tfdiags.Diagnostics) {
 	t.Helper()
+	return discoverAzureWith(t, azConfig(t), leg, resolutions...)
+}
+
+func discoverAzureWith(t *testing.T, cfg *configs.Config, leg ResourceGraphSweep, resolutions ...identity.Resolution) (*Result, tfdiags.Diagnostics) {
+	t.Helper()
 	return Discover(context.Background(), Request{
 		Estate:      rgEstate,
-		Config:      azConfig(t),
+		Config:      cfg,
 		Provider:    newFakeCloud(),
 		Resolutions: resolutions,
 		Sweepers:    []Sweeper{leg},
@@ -189,6 +200,104 @@ func TestResourceGraphLegHoldsControllerHeldObjects(t *testing.T) {
 	}
 	if h, ok := held[tagged.ID]; !ok || h.Controller != "AKS" || !h.Marked || h.Addr.String() != "azurerm_resource_group.tagged" {
 		t.Errorf("aks-managed group held as %+v (found %v); want held by AKS and marked at its undeclared address", h, ok)
+	}
+}
+
+// A managed disk attached to a virtual machine: ARM sets the disk's
+// managedBy to the VM's id. An attachment is not a lifecycle owner, so the
+// disk is the estate's like any other (#2133 finding 2).
+func attachedDisk(name, address string) azsweep.Resource {
+	return azsweep.Resource{
+		ID:             strings.ToLower(rgID(rgSub1, "Kept")) + "/providers/microsoft.compute/disks/" + name,
+		Type:           "microsoft.compute/disks",
+		Name:           name,
+		ResourceGroup:  "kept",
+		SubscriptionID: rgSub1,
+		ManagedBy:      rgID(rgSub1, "Kept") + "/providers/Microsoft.Compute/virtualMachines/vm1",
+		Tags:           map[string]string{markers.TagEstate: rgEstate, markers.TagAddress: markers.EscapeAddress(address)},
+	}
+}
+
+func TestResourceGraphLegProposesRemovingAnAttachedDiskWhoseBlockIsGone(t *testing.T) {
+	disk := attachedDisk("data", "azurerm_managed_disk.data")
+	graph := &fakeGraph{answers: map[string][]azsweep.Resource{rgSub1: {disk}}}
+	res, diags := discoverAzure(t, ResourceGraphSweep{Coverage: azsweep.Coverage{rgSub1: graph}, Subscriptions: []string{rgSub1}}, keptResolution(rgSub1))
+	assertNoErrors(t, diags)
+	if len(res.ControllerHeld) != 0 {
+		t.Errorf("the attached disk read as held: %+v", res.ControllerHeld)
+	}
+	if o, ok := removalsByAddr(res)["azurerm_managed_disk.data"]; !ok || !strings.EqualFold(o.ImportID, disk.ID) {
+		t.Errorf("no removal proposed for the attached disk whose block is gone (got %+v, %v); orphans %+v, problems %+v", o, ok, res.Orphans, res.Problems)
+	}
+}
+
+func TestResourceGraphLegBindsADeclaredAttachedDisk(t *testing.T) {
+	disk := attachedDisk("data", "azurerm_managed_disk.data")
+	cfg := azConfigWith(t, `
+resource "azurerm_managed_disk" "data" {
+  name                 = "data"
+  resource_group_name  = "Kept"
+  location             = "westeurope"
+  storage_account_type = "Standard_LRS"
+  create_option        = "Empty"
+  disk_size_gb         = 1
+}
+`)
+	declared := identity.Resolution{
+		Addr:     addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "azurerm_managed_disk", Name: "data"}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
+		Class:    identity.ClassConcrete,
+		ImportID: rgID(rgSub1, "Kept") + "/providers/Microsoft.Compute/disks/data",
+	}
+	graph := &fakeGraph{answers: map[string][]azsweep.Resource{rgSub1: {disk}}}
+	res, diags := discoverAzureWith(t, cfg, ResourceGraphSweep{Coverage: azsweep.Coverage{rgSub1: graph}, Subscriptions: []string{rgSub1}}, keptResolution(rgSub1), declared)
+	assertNoErrors(t, diags)
+	if len(res.ControllerHeld) != 0 {
+		t.Errorf("the declared attached disk read as held: %+v", res.ControllerHeld)
+	}
+	if len(res.Removals()) != 0 || len(res.Problems) != 0 {
+		t.Errorf("the declared attached disk did not bind: removals %v, problems %+v", removalsByAddr(res), res.Problems)
+	}
+	vouched := false
+	for _, a := range res.VerifiedDeclared {
+		if a.String() == "azurerm_managed_disk.data" {
+			vouched = true
+		}
+	}
+	if !vouched {
+		t.Errorf("the declared disk's sighting did not vouch for it; VerifiedDeclared %v", res.VerifiedDeclared)
+	}
+}
+
+// TestResourceGraphLegNeverHoldsADeclaredObject: a declared instance's own
+// ARM id binds before a hold is asked, so a declared group that names a
+// lifecycle owner in managedBy (azurerm_resource_group's managed_by
+// argument can set it to anything) still binds.
+func TestResourceGraphLegNeverHoldsADeclaredObject(t *testing.T) {
+	kept := rgResource(rgSub1, "Kept", "azurerm_resource_group.kept", nil)
+	kept.ManagedBy = rgID(rgSub1, "Apps") + "/providers/Microsoft.Solutions/applications/app"
+	kept.Tags["aks-managed-cluster-name"] = "aks"
+	graph := &fakeGraph{answers: map[string][]azsweep.Resource{rgSub1: {kept}}}
+	res, diags := discoverAzure(t, ResourceGraphSweep{Coverage: azsweep.Coverage{rgSub1: graph}, Subscriptions: []string{rgSub1}}, keptResolution(rgSub1))
+	assertNoErrors(t, diags)
+	if len(res.ControllerHeld) != 0 {
+		t.Errorf("the declared group read as held: %+v", res.ControllerHeld)
+	}
+	if len(res.Removals()) != 0 || len(res.Problems) != 0 {
+		t.Errorf("removals %v, problems %+v", removalsByAddr(res), res.Problems)
+	}
+}
+
+func TestResourceGraphLegHoldsAManagedApplicationsGroup(t *testing.T) {
+	managed := rgResource(rgSub1, "mrg-app", "azurerm_resource_group.app_managed", nil)
+	managed.ManagedBy = rgID(rgSub1, "Apps") + "/providers/Microsoft.Solutions/applications/app"
+	graph := &fakeGraph{answers: map[string][]azsweep.Resource{rgSub1: {managed}}}
+	res, diags := discoverAzure(t, ResourceGraphSweep{Coverage: azsweep.Coverage{rgSub1: graph}, Subscriptions: []string{rgSub1}}, keptResolution(rgSub1))
+	assertNoErrors(t, diags)
+	if len(res.Removals()) != 0 {
+		t.Errorf("a managed application's group was proposed for removal: %v", removalsByAddr(res))
+	}
+	if len(res.ControllerHeld) != 1 || res.ControllerHeld[0].Controller != "ARM managedBy" {
+		t.Errorf("held %+v; want the managed resource group held by managedBy", res.ControllerHeld)
 	}
 }
 
