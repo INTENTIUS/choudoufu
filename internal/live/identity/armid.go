@@ -244,7 +244,7 @@ func (r *resolver) armParentDefault(entry TypeIdentity, attrs hcl.Attributes, sc
 		return "", Resolution{}, false
 	}
 	val, diags := r.evalPure(typeAttr.Expr, scope, r.identifier(addr, typeAttr.Name, typeAttr.Range))
-	if diags.HasErrors() || !val.IsWhollyKnown() || val.IsNull() || !val.Type().Equals(cty.String) {
+	if diags.HasErrors() || val.IsMarked() || !val.IsWhollyKnown() || val.IsNull() || !val.Type().Equals(cty.String) {
 		return "", Resolution{}, false
 	}
 	armType, _, _ := strings.Cut(val.AsString(), "@")

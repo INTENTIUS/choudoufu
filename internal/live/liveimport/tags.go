@@ -446,6 +446,9 @@ func withARMBodyTags(obj cty.Value, tags map[string]string) (cty.Value, error) {
 	if !ok {
 		return cty.NilVal, fmt.Errorf("its %s is not an object a tags key can be set in", markers.ARMBodyArgument)
 	}
+	if obj.IsMarked() {
+		return cty.NilVal, fmt.Errorf("it is marked as a whole")
+	}
 	vals := obj.AsValueMap()
 	vals[markers.ARMBodyArgument] = body
 	return cty.ObjectVal(vals), nil
@@ -459,6 +462,9 @@ func withARMBodyTags(obj cty.Value, tags map[string]string) (cty.Value, error) {
 // value from. Without it, [claimTagsOnly] nulls the Optional+Computed body
 // as something the provider may fill in, and the plan writes nothing.
 func armBodyConfig(candidate, desired cty.Value) cty.Value {
+	if candidate.IsMarked() {
+		return candidate
+	}
 	vals := candidate.AsValueMap()
 	vals[markers.ARMBodyArgument] = desired.GetAttr(markers.ARMBodyArgument)
 	vals[markers.ARMTagsArgument] = cty.NullVal(candidate.GetAttr(markers.ARMTagsArgument).Type())
