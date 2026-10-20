@@ -265,6 +265,10 @@ listed below.
 Fixed: a pinned image and a per-run lifecycle in `lib.sh`. GCP and Azure
 run on floci forks (policy below).
 
+Azure's harness is lex00/floci-az, pinned by digest in `live/floci-az-image`;
+`azure_up` / `azure_down` in `live/smoke/lib.sh` start it, export the
+provider environment, and remove it. What it serves is in `live/FLOCI.md`.
+
 ### 13. Claims with a BREAK control
 
 The Kubernetes bar on #1119: bind, mark on create, sweep and a governed

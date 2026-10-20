@@ -232,7 +232,7 @@ cleanup() {
   # exits 124 as before (#1457). `builtin exit` below: the shadowing exit
   # above would write to a work directory this trap has just removed.
   [ -d "$SMOKE_WORKROOT/stalled" ] || smoke_verdict
-  stack_down; cluster_down
+  azure_down; stack_down; cluster_down
   if [ -d "$SMOKE_WORKROOT/stalled" ]; then rm -rf "$SMOKE_WORKROOT"; builtin exit 124; fi
   rm -rf "$SMOKE_WORKROOT"
   [ -z "$VERDICT_RC" ] || builtin exit "$VERDICT_RC"

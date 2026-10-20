@@ -28,6 +28,34 @@ services:
           # alias is the same convention inside the compose network.
           - 000000000000.floci
 
+  # The Azure emulator (#1120 unit 7), lex00/floci-az pinned by digest in
+  # live/floci-az-image. Profile "azure" keeps it out of every AWS run:
+  # only lib.sh's azure_up starts it, and azure_down removes it.
+  #
+  # TLS is on because both providers refuse plain HTTP here: azurerm reads
+  # https://<metadata_host>/metadata/endpoints, and azapi's azidentity
+  # credential refuses an authority host that is not https. floci-az serves
+  # HTTP and HTTPS on the one port (a protocol-sniffing proxy), so the
+  # readiness probe and the CA download stay plain HTTP.
+  #
+  # No docker.sock mount, on purpose: with one, floci-az starts sidecar
+  # containers (AKS's k3s, SQL, Functions) that belong to no compose project
+  # and that azure_down would leave running. A scenario that needs one of
+  # those services needs a teardown that knows about them first.
+  #
+  # FLOCI_AZ_PARITY=azure turns on Azure's resource-group semantics (re-PUT
+  # answers 200, a group DELETE deletes its resources and is polled), which
+  # is what the lane is measured against; the emulator's default is compat.
+  floci-az:
+    image: ${FLOCI_AZ_IMAGE:?lib.sh exports this from live/floci-az-image}
+    profiles: ["azure"]
+    environment:
+      FLOCI_AZ_TLS_ENABLED: "true"
+      FLOCI_AZ_STORAGE_MODE: memory
+      FLOCI_AZ_PARITY: ${FLOCI_AZ_PARITY:-azure}
+    ports:
+      - "127.0.0.1:${FLOCI_AZ_PORT:-0}:4577"
+
   opentofu:
     image: ${OPENTOFU_IMAGE:?smoke.sh exports this from live/oracle-versions.json}
     profiles: ["oracle"]
