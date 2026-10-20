@@ -80,9 +80,9 @@
           "writes": {
             "create": "in-create",
             "adopt": "tags-only-plan",
-            "post_create": "never-needed"
+            "post_create": "arm-tags-api"
           },
-          "post_create_writer": "never-needed"
+          "post_create_writer": "arm-tags-api"
         }
       ],
       "sweep": {
