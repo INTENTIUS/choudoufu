@@ -111,10 +111,11 @@ func TestOneRowPerFamily(t *testing.T) {
 	}
 }
 
-// TestGCPAndAzureRowsAreNotAdded pins the ruling on #1119/#1120 the issue
-// body states ("GCP and Azure rows are not added"): the artifact carries
-// exactly aws and kubernetes today.
-func TestGCPAndAzureRowsAreNotAdded(t *testing.T) {
+// TestGCPRowIsNotAddedAndAzureIs pins the ruling on #1119/#1120 the issue
+// body states ("GCP and Azure rows are not added" until their epics), as
+// it stands once #1120 registered substrate.Azure: aws, azurerm and
+// kubernetes, and no GCP row.
+func TestGCPRowIsNotAddedAndAzureIs(t *testing.T) {
 	root := testRepoRoot(t)
 	art, err := Build(root)
 	if err != nil {
@@ -123,12 +124,12 @@ func TestGCPAndAzureRowsAreNotAdded(t *testing.T) {
 	var families []string
 	for _, r := range art.Rows {
 		families = append(families, r.Family)
-		if r.Family == "gcp" || r.Family == "azure" || r.Family == "google" || r.Family == "azurerm" || r.Family == "azapi" {
-			t.Errorf("row %q is a GCP or Azure row; #1588 rules those out until #1119/#1120", r.Family)
+		if r.Family == "gcp" || r.Family == "google" || r.Family == "azure" || r.Family == "azapi" {
+			t.Errorf("row %q: GCP has no row until #1119, and the Azure family is the one row named azurerm (#1122)", r.Family)
 		}
 	}
-	if len(families) != 2 {
-		t.Errorf("got families %v, want exactly aws and kubernetes", families)
+	if want := []string{"aws", "azurerm", "kubernetes"}; !reflect.DeepEqual(families, want) {
+		t.Errorf("got families %v, want %v", families, want)
 	}
 }
 
@@ -213,6 +214,14 @@ func TestHarnessPinFilesAreReadFromDisk(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, r := range art.Rows {
+		if r.Harness.PinFile == "" {
+			// Not yet pinned (floci-az, GitHub issue #1120): no pin may be
+			// claimed without a file to read it from.
+			if r.Harness.Pin != "" {
+				t.Errorf("%s: harness.pin = %q with no pin file", r.Family, r.Harness.Pin)
+			}
+			continue
+		}
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(r.Harness.PinFile)))
 		if err != nil {
 			t.Fatalf("%s: reading %s: %v", r.Family, r.Harness.PinFile, err)
@@ -231,7 +240,8 @@ func TestHarnessPinFilesAreReadFromDisk(t *testing.T) {
 // controller-held recognition.
 type holdingFamily struct{ substrate.Substrate }
 
-func (holdingFamily) Name() string { return "fakehold" }
+func (holdingFamily) Name() string            { return "fakehold" }
+func (holdingFamily) ProviderTypes() []string { return []string{"fakehold"} }
 func (holdingFamily) HoldRecognition() substrate.HoldRecognition {
 	return substrate.HoldRecognition{Mechanism: "the fake controller's tag", Keys: []string{"fake.example/held-by"}}
 }

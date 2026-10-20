@@ -110,6 +110,11 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1639's address annotation found a Kubernetes metadata.annotations value that is not yet known at plan time, so it could not add the choudoufu.intentius.io/tofu-address annotation and left the annotations exactly as evaluated. The tofu-estate label beside it is still written.",
 	},
 	{
+		Summary: SummaryARMBodyNotMergeable,
+		What:    "GitHub issue #1120's ARM branch of the node-path stamp found an azapi_resource body, or a body.tags, it cannot add the ownership markers into - a body that is not an object, or a tags entry that is not a string - so it left the configuration value as evaluated and wrote no marker.",
+		Warning: true,
+	},
+	{
 		Summary: "Cannot merge ownership markers into this labels value",
 		What:    "GitHub issue #1061's label branch of the node-path stamp (NodeResolver.stampedMetadata) found a Kubernetes metadata.labels value it does not know how to add the tofu-estate marker into - a non-map value, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated. The Kubernetes sibling of \"Cannot merge ownership markers into this tags value\".",
 	},
@@ -180,6 +185,10 @@ var refusals = []Refusal{
 	{
 		Summary: "Cannot set ownership markers on an unresolved tags value",
 		What:    "GitHub issue #388's node-path stamp found a resource's tags argument not yet known at plan time, so it could not merge the two ownership markers into it; the resource's configuration value is used unchanged.",
+	},
+	{
+		Summary: SummaryARMTagsBodyUnknown,
+		What:    "GitHub issue #1120: an azapi_resource whose body is not known at plan time, so the stamp cannot tell whether its tags go in body.tags or in the top-level tags argument. azapi refuses both and ignores the top-level argument when body carries tags, so the stamp refuses rather than guess.",
 	},
 	{
 		Summary: "Could not write the discovery hint",
@@ -280,6 +289,11 @@ var refusals = []Refusal{
 	{
 		Summary: "Ownership marker is not a legal label value",
 		What:    "GitHub issue #1061: the estate name cannot be written as a Kubernetes label value - over 63 characters, or ending in a hyphen, both legal estate names - so the node-path stamp refuses to mark a Kubernetes resource with it rather than write a label the API server rejects. Rename the estate, or keep the resource out of a Kubernetes estate. See live/MARKERS.md, \"Kubernetes: one label\".",
+	},
+	{
+		Summary: SummaryARMTypeNotStamped,
+		What:    "GitHub issue #1120: an azapi_resource whose ARM type and API version are not known to take tags (the taggability table generated from azapi's type data says it does not, or does not know it), so the stamp writes no marker rather than one Azure would refuse.",
+		Warning: true,
 	},
 	{
 		Summary: "Parent-derived identity with no formula",

@@ -241,6 +241,23 @@ func carrierMarkers(providerType string, obj cty.Value, schema providers.Schema)
 		}
 		return out, found
 
+	case markers.SurfaceARMTags:
+		// GitHub issue #1120: the top-level tags map, present, known,
+		// unmarked and non-null, with the marker keys read
+		// case-insensitively ([markers.ARMTagsOf]), so a configuration's
+		// own Tofu-Estate compares as the tofu-estate it is. azapi copies a
+		// body.tags write back to the top-level attribute after the apply;
+		// before it, a planned body.tags leaves the top-level map unknown,
+		// which reads as nothing sent and is never a false positive.
+		if !obj.Type().HasAttribute(markers.ARMTagsArgument) {
+			return nil, false
+		}
+		v := obj.GetAttr(markers.ARMTagsArgument)
+		if v.IsMarked() || v.IsNull() || !v.IsKnown() || !v.CanIterateElements() {
+			return nil, false
+		}
+		return markers.ARMTagsOf(obj)
+
 	case markers.SurfaceLabels:
 		labels, ok := labelSurfaceLabels(obj)
 		if !ok {

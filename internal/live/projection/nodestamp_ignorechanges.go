@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -58,6 +59,18 @@ func (n *NodeResolver) AdjustIgnoreChanges(_ context.Context, addr addrs.AbsReso
 	}
 	if !n.recordSelected(addr, schema) {
 		return nil
+	}
+	if surface, ok := substrate.SurfaceOf(n.providerType(addr), schema.Block); ok && surface == markers.SurfaceARMTags {
+		// The ARM shape (GitHub issue #1120): the same two tag paths as
+		// AWS, asked of the provider's family first because an azurerm
+		// schema is shaped exactly like an AWS one. The paths name the
+		// lowercase spelling the stamp writes; a live marker an operator
+		// wrote under another spelling is not covered by them, since an
+		// ignore_changes path indexes a map by its exact key.
+		return []cty.Path{
+			markerTagPath(markers.TagEstate),
+			markerTagPath(markers.TagAddress),
+		}
 	}
 	if _, labelled := markers.LabelSurface(schema.Block); labelled {
 		// The Kubernetes shape (GitHub issue #1061): the one label the

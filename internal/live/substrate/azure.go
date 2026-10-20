@@ -1,0 +1,267 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package substrate
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/providers"
+)
+
+// Azure is the Azure Resource Manager family (GitHub issue #1120, ruled on
+// #1122 2026-10-19): hashicorp/azurerm and azure/azapi as one family, the
+// AWS marker keys in the tags argument both providers already accept,
+// written lowercase and read case-insensitively ([markers.SurfaceARMTags]).
+//
+// Several answers below are facts about Azure's API rather than about this
+// fork's design: [azure.MarkerOutlivesObject], [azure.CreateCollidesOnKey],
+// [azure.SweepFindsUnadmitted] and [azure.PostCreateNeeded]. In this build
+// round they come from Azure's documentation and the two providers' source
+// at the pinned versions (azurerm 5.10.0, azapi 2.13.0), and each says so;
+// they stand until the maintainer measures them on floci-az
+// (live/ADDING-A-PLATFORM.md, requirement 2).
+var Azure Substrate = azure{}
+
+type azure struct{}
+
+func (azure) Name() string { return "azurerm" }
+
+// ProviderTypes: both providers serve ARM resources and one object can be
+// declared through either, so they are one family (#1122).
+func (azure) ProviderTypes() []string { return []string{"azurerm", "azapi"} }
+
+func (azure) Surfaces() []markers.Surface { return []markers.Surface{markers.SurfaceARMTags} }
+
+func (azure) SurfaceOf(block *configschema.Block) (markers.Surface, bool) {
+	if markers.ARMTaggable(block) {
+		return markers.SurfaceARMTags, true
+	}
+	return "", false
+}
+
+// MarkersOf reads the top-level tags with marker keys case-folded
+// ([markers.ARMTagsOf]); azapi copies a body.tags write back to the
+// top-level attribute, so it is the one read for both write paths.
+func (azure) MarkersOf(surface markers.Surface, obj cty.Value) (map[string]string, bool) {
+	if surface == markers.SurfaceARMTags {
+		return markers.ARMTagsOf(obj)
+	}
+	return nil, false
+}
+
+// Writes: the tags map rides the create call (azurerm's tags argument, or
+// azapi's top-level tags or body.tags), and an existing object is marked by
+// a plan-then-apply confined to the tags, as on AWS. PostCreate is the
+// tagging write a later unit adds for the azurerm types that tag in a
+// separate call after create; until then [azure.PostCreateNeeded] never
+// answers true, so the write is never asked for.
+func (azure) Writes(surface markers.Surface) Writes {
+	if surface == markers.SurfaceARMTags {
+		return Writes{Create: WriteInCreate, Adopt: WriteTagsPlan, PostCreate: WriteNeverNeeded}
+	}
+	return Writes{}
+}
+
+// CarriesAddress: the tofu-address tag, with continuations and tofu-slot,
+// exactly as on AWS (#1122's capability row).
+func (azure) CarriesAddress() bool { return true }
+
+// AddressInMarkers: the address is a key of the tag map.
+func (azure) AddressInMarkers() bool { return true }
+
+// AddressCarrier: the tofu-address tag, inside the tag map.
+func (azure) AddressCarrier(surface markers.Surface) (key, noun string) {
+	if surface == markers.SurfaceARMTags {
+		return markers.TagAddress, "tag"
+	}
+	return "", ""
+}
+
+// SweepResourceGraph is the Azure sweep (#1122): one Azure Resource Graph
+// query per subscription the estate's resources resolve to, matching the
+// marker case-insensitively.
+const SweepResourceGraph Sweep = "resource-graph"
+
+func (azure) Sweep() Sweep { return SweepResourceGraph }
+
+// SweepFindsUnadmitted is true, from the sweep's design rather than a
+// measurement: a Resource Graph query over the Resources table returns every
+// ARM resource in the subscription whose tags match, whatever its type, and
+// its universe is the service's index, never internal/live/identity's
+// admission table. A type with no row is therefore still found once its last
+// block is removed, as on Kubernetes. Taken from Azure Resource Graph's
+// documentation (the Resources table and its tags column); it awaits
+// measurement on floci-az, which has to serve the same query.
+func (azure) SweepFindsUnadmitted() bool { return true }
+
+// MarkerOutlivesObject is true: Azure Resource Graph is an index refreshed
+// from ARM change notifications, and its documentation describes deletes
+// reaching it after a lag, during which a deleted resource and its tags are
+// still listed. A record tombstone is how the estate tells that lingering
+// marker from a second claimant, as on AWS. From Azure's docs; it awaits
+// measurement on floci-az.
+func (azure) MarkerOutlivesObject() bool { return true }
+
+// NewSweeper builds no client yet: the Resource Graph sweep is its own unit
+// of #1120 (item 3), which builds the client from the azurerm provider
+// block. Until then the family has no sweep leg, and nil with no error is
+// what a family whose leg is not built answers.
+func (azure) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
+
+// ---- GitHub issue #1584 ----
+
+// CreateCollidesOnKey is false: an ARM create is a PUT, and a PUT at a name
+// that already exists updates the object there instead of answering 409
+// (Azure Resource Manager's REST guidance; azurerm's own requiresImport
+// check is a read before the PUT, not a server conflict). A declared
+// natural-key object that already exists without this estate's marker is
+// refused by name before any create through the DeclaredUntagged path
+// (internal/live/policy), never left to the PUT (#1122). From Azure's docs
+// and the provider source; it awaits measurement on floci-az.
+func (azure) CreateCollidesOnKey(markers.Surface) bool { return false }
+
+func (azure) CarrierPhrase(surface markers.Surface) string {
+	if surface == markers.SurfaceARMTags {
+		return "tags attribute"
+	}
+	return ""
+}
+
+// NotACarrier: an Azure type with no settable top-level tags map. It never
+// borrows the AWS sentence, which describes tag-vocabulary refusals that do
+// not exist on ARM.
+func (azure) NotACarrier(_ *configschema.Block, typeName string) string {
+	return fmt.Sprintf("%s has no tags map this configuration can set, so there is nowhere on it to carry an ownership marker.", typeName)
+}
+
+// ---- GitHub issue #1587 ----
+
+// MarkerWriter is [WriteNeverNeeded] until the post-create unit adds a
+// tagging write (ARM's Tags API) for the types that need one.
+func (azure) MarkerWriter() Write { return WriteNeverNeeded }
+
+// ---- GitHub issue #1642 ----
+
+// PostCreateNeeded is false for every type for now. #1122 rules that the
+// azurerm types which tag in a separate call after create answer true, from
+// a list generated from azurerm's source; that generated list is a later
+// unit of #1120, and no list is written by hand here. With it absent every
+// create carries the marker in its create call, which is what azurerm does
+// for a type whose create request includes tags.
+func (azure) PostCreateNeeded(markers.Surface, Created, Facts) (string, bool) {
+	return "", false
+}
+
+// ---- GitHub issue #1653 ----
+
+// ManualMarkFix is the Azure CLI's merge of the marker tags onto the object
+// by its ARM id, the object's id attribute in both providers; the generic
+// sentence when the object has no id.
+func (azure) ManualMarkFix(created Created, want map[string]string, _ Facts) string {
+	id := ObjectString(created.Object, "id")
+	if id == "" {
+		return genericMarkFix(want)
+	}
+	keys := make([]string, 0, len(want))
+	for k := range want {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	pairs := make([]string, 0, len(keys))
+	for _, k := range keys {
+		pairs = append(pairs, "'"+k+"="+want[k]+"'")
+	}
+	return fmt.Sprintf("Mark it, then plan again:\n\n  az tag update --resource-id %s --operation Merge --tags %s", id, strings.Join(pairs, " "))
+}
+
+// ---- GitHub issue #1708 ----
+
+// CreatedObject is the object's ARM id.
+func (azure) CreatedObject(created Created) string {
+	return idPhrase(created.Object)
+}
+
+// ---- GitHub issue #1649 ----
+
+// CarrierPaths: the top-level tags map, the one [markers.ARMTagsOf] reads.
+func (azure) CarrierPaths(surface markers.Surface) []cty.Path {
+	if surface == markers.SurfaceARMTags {
+		return []cty.Path{cty.GetAttrPath("tags")}
+	}
+	return nil
+}
+
+func (azure) MarkerNoun(surface markers.Surface) string {
+	if surface == markers.SurfaceARMTags {
+		return "tag"
+	}
+	return ""
+}
+
+// ---- GitHub issue #1706: controller-held ----
+
+// AKSManagedTagPrefix is the prefix of the tags AKS writes on its node
+// resource group and the resources in it. The AKS FAQ ("Can I modify tags
+// and other properties of the AKS resources in the node resource group?",
+// learn.microsoft.com/azure/aks/faq, read 2026-10-19) names the aks-managed
+// tags as Azure-created and not to be modified. Neither provider's source
+// writes or names them.
+const AKSManagedTagPrefix = "aks-managed-"
+
+// ControllerHeld reads two fixed things off an ARM object (#1122):
+//
+//   - its managedBy property, which ARM sets to the id of the resource that
+//     manages it (an AKS cluster on its node resource group, a managed
+//     application on its managed resource group, and so on); the object is
+//     held by that resource.
+//   - an aks-managed- tag ([AKSManagedTagPrefix]), compared
+//     case-insensitively as every ARM tag key is.
+func (azure) ControllerHeld(ev HoldEvidence) (Hold, bool) {
+	if ev.ManagedBy != "" {
+		return Hold{Controller: "ARM managedBy", HeldBy: "the ARM resource " + ev.ManagedBy + " (managedBy)"}, true
+	}
+	var aks []string
+	for k, v := range ev.ARMTags {
+		if strings.HasPrefix(strings.ToLower(k), AKSManagedTagPrefix) {
+			aks = append(aks, k+"="+v)
+		}
+	}
+	if len(aks) == 0 {
+		return Hold{}, false
+	}
+	sort.Strings(aks)
+	return Hold{Controller: "AKS", HeldBy: "AKS node resource group (" + strings.Join(aks, ", ") + ")"}, true
+}
+
+func (azure) HoldRecognition() HoldRecognition {
+	return HoldRecognition{
+		Mechanism: "the object's ARM managedBy property, or a tag AKS writes on its node resource group (aks-managed- prefix, case-insensitive; AKS FAQ)",
+		Keys:      []string{"managedBy", AKSManagedTagPrefix + "*"},
+	}
+}
+
+// ---- GitHub issue #1586: admission ----
+
+// SynthesizeIdentity answers false for every type for now, so azurerm and
+// azapi types reach the identity-schema route exactly as they did before the
+// family existed. #1122 rules a resource_group_name + name schema rule for
+// azurerm (with the ARM type from a table generated from its id parsers) and
+// the type + parent_id + name natural key for azapi_resource; both are the
+// identity unit of #1120 (unit 3). The azapi key cannot be expressed in
+// [IdentityComponent]s without that unit: its type argument carries the API
+// version after an "@", which is not part of the object's identity, and the
+// ARM id joins parent_id and name by a rule that depends on whether the type
+// is a child of the parent's own type.
+// TODO(#1120 unit 3): answer both from the identity unit's rule.
+func (azure) SynthesizeIdentity(string, providers.Schema) (SynthesizedIdentity, bool) {
+	return SynthesizedIdentity{}, false
+}

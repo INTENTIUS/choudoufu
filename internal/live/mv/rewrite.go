@@ -64,9 +64,14 @@ func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObjec
 	for k, v := range tags {
 		desiredTags[k] = v
 	}
-	desiredTags[discovery.TagEstate] = m.req.Estate
+	// GitHub issue #1120: an ARM tag key is case-insensitive, so a marker
+	// the object already carries as Tofu-Estate is rewritten under that
+	// spelling rather than joined by a second, lowercase key ARM would
+	// refuse. Every other surface sets and deletes the key as spelled.
+	fold := m.res.Surface == markers.SurfaceARMTags
+	setMarkerTag(desiredTags, discovery.TagEstate, m.req.Estate, fold)
 	for i, chunk := range chunks {
-		desiredTags[discovery.AddressTagKey(i)] = chunk
+		setMarkerTag(desiredTags, discovery.AddressTagKey(i), chunk, fold)
 	}
 	// A rename onto a shorter address needs fewer continuation tags than the
 	// old one did. Unlike stamp (which only ever adds a marker it did not
@@ -77,7 +82,7 @@ func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObjec
 	// shorter tofu-address and read back something this resource never
 	// declared.
 	for i := len(chunks); i < discovery.MaxContinuations; i++ {
-		delete(desiredTags, discovery.AddressTagKey(i))
+		deleteMarkerTag(desiredTags, discovery.AddressTagKey(i), fold)
 	}
 
 	desired, err := withTags(m.schema.Block, priorVal, desiredTags)
@@ -293,7 +298,7 @@ func (m *mover) verify(newState cty.Value) tfdiags.Diagnostics {
 		))
 	}
 
-	tags, taggable := tagsFromObject(m.schema, newState)
+	tags, taggable := m.markerTags(newState)
 	raw, corrupt := discovery.GatherAddress(tags)
 	// A cross-estate move is verified on both tags: the address alone
 	// would read as verified on a move that kept its address and changed
@@ -316,6 +321,40 @@ func (m *mover) verify(newState cty.Value) tfdiags.Diagnostics {
 // ---------------------------------------------------------------------------
 // Reading and rebuilding tags
 // ---------------------------------------------------------------------------
+
+// markerTags is [tagsFromObject] read for this move's surface: on the ARM
+// tags map (GitHub issue #1120) the marker keys come back in their
+// canonical lowercase spelling whatever case the object carries them in
+// ([markers.CanonicalARMMarkers]), so the comparisons below read Tofu-Estate
+// as tofu-estate the way ARM does.
+func (m *mover) markerTags(obj cty.Value) (map[string]string, bool) {
+	tags, ok := tagsFromObject(m.schema, obj)
+	if ok && m.res.Surface == markers.SurfaceARMTags {
+		tags = markers.CanonicalARMMarkers(tags)
+	}
+	return tags, ok
+}
+
+// setMarkerTag sets the marker key to value in tags: with fold (the ARM
+// tags map) under the spelling the map already uses for it
+// ([markers.SetARMMarkerTag]), and as spelled otherwise.
+func setMarkerTag(tags map[string]string, key, value string, fold bool) {
+	if fold {
+		markers.SetARMMarkerTag(tags, key, value)
+		return
+	}
+	tags[key] = value
+}
+
+// deleteMarkerTag deletes the marker key from tags, every spelling of it
+// with fold.
+func deleteMarkerTag(tags map[string]string, key string, fold bool) {
+	if fold {
+		markers.DeleteARMMarkerTag(tags, key)
+		return
+	}
+	delete(tags, key)
+}
 
 // tagsFromObject reads the marker tags off a resource object.
 //

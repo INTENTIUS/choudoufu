@@ -217,6 +217,13 @@ type eligible struct {
 	// Kubernetes marker is one label and carries no address.
 	manifested bool
 
+	// armTagged says the marker is carried in an Azure Resource Manager tags
+	// map ([markers.SurfaceARMTags], GitHub issue #1120): the same tags-only
+	// write [approveOne] makes on AWS, with the marker keys read
+	// case-insensitively and written under the spelling the object already
+	// uses, because ARM tag keys are case-insensitive.
+	armTagged bool
+
 	// manifestKey is the natural key read out of the state's own recorded
 	// object, [markers.ManifestKeyOf]. Set only when manifested.
 	manifestKey markers.ManifestKey
@@ -815,7 +822,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	// Each carrier is named here, so a surface this switch has not learned
 	// is one the completeness guard (internal/live/markers/seams_test.go)
 	// reports rather than one a migration silently leaves unmarked.
-	var labelled, manifested bool
+	var labelled, manifested, armTagged bool
 	// GitHub issue #1863: a field-granular Kubernetes type carries no
 	// surface - its marker is the field manager its writes are made under
 	// (#1191) - and is not untaggable for that: what a migration owes it is
@@ -830,6 +837,8 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	switch {
 	case fieldGranular:
 	case surface == markers.SurfaceTags:
+	case surface == markers.SurfaceARMTags:
+		armTagged = true
 	case surface == markers.SurfaceLabels:
 		labelled = !selected
 	case surface == markers.SurfaceManifest:
@@ -911,7 +920,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		// see [located]'s doc comment.
 		return entry, carriers{located: &located{sub}}
 	}
-	elig := &eligible{residuable: sub, labelled: labelled, manifested: manifested}
+	elig := &eligible{residuable: sub, labelled: labelled, manifested: manifested, armTagged: armTagged}
 	if fieldGranular {
 		// GitHub issue #1863: the write the state records and the manager
 		// it was made under, read from the state's own object, never from
