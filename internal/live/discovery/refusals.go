@@ -207,7 +207,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Live resource displaced from the address it is marked for",
-		What:    "A live resource carries this estate's marker for an address the configuration still declares, but the identity that address resolves to names a different live resource - so two resources answer to one address. Nothing is proposed for it; a human says which is which.",
+		What:    "A live resource carries this estate's marker for an address the configuration still declares, but the identity that address resolves to names a different live resource - so two resources answer to one address. Nothing is proposed for it on that address's behalf; a human says which is which. An object at an identity nothing declares is not read at all; one at the identity another declared instance computes (a renumbered count list's leftover) is read there by that instance and judged by its own markers, and the warning names that instance. An Azure object at a declared instance's ARM id gets no such warning: that instance's read refuses it under \"Live object marked for another owner at the declared id would be overwritten\" (GitHub issue #2135), one diagnostic for one object.",
 	},
 	{
 		Summary: "Located identity record unreadable",

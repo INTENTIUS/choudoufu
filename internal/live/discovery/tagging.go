@@ -1187,6 +1187,16 @@ type taggedCandidate struct {
 	importID     string
 	identityAttr string
 	tags         map[string]string
+
+	// refusedAt is the declared instance whose own read refuses this object
+	// (GitHub issue #2135's "Live object marked for another owner at the
+	// declared id would be overwritten"), set only by the Resource Graph leg
+	// ([ResourceGraphSweep.fileHit]) and only for an object at that
+	// instance's ARM id carrying this estate's marker for another declared
+	// address. [fileCandidate] then files no displaced marker for it: one
+	// object, one diagnostic, and the refusal is the one that says what
+	// happens to it.
+	refusedAt string
 }
 
 // sweepViaTagging is the sweep's Tagging API path (issue #51): one
@@ -1555,7 +1565,15 @@ func fileCandidate(ctx context.Context, req Request, decl *declared, typeName st
 		// displaced.go.
 		switch want, verdict := decl.displacedFrom(ctx, bindType, escaped, claim); verdict {
 		case verdictDisplaced:
-			return diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, claim)))
+			if c.refusedAt != "" {
+				// The projection reads this object at c.refusedAt's own id
+				// and refuses it there by name, as an Error naming the
+				// marker found: see [taggedCandidate.refusedAt]. A warning
+				// beside it about the same object would only say less.
+				log.Printf("[DEBUG] live/discovery: %s carries %q at %s's ARM id; the projection's overwrite refusal reports it", c.importID, escaped, c.refusedAt)
+				return diags
+			}
+			return diags.Append(problemDiag(res, displacedProblem(req, decl, bindType, escaped, want, claim)))
 		case verdictOwnObject:
 			// Issue #692: see Result.VerifiedDeclared - the sighting
 			// vouches for the declared instance instead of being
@@ -1566,6 +1584,10 @@ func fileCandidate(ctx context.Context, req Request, decl *declared, typeName st
 		case verdictIdentityChanging:
 			// Issue #885: neither reported nor vouched. See
 			// [verdictIdentityChanging].
+		case verdictUncompared:
+			// An Azure sighting with no ARM id on the address's side to
+			// compare it with: neither reported nor vouched. See
+			// [verdictUncompared].
 		}
 		return diags
 	}

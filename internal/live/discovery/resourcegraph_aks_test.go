@@ -68,13 +68,18 @@ func aksResolution(typ, name, id string) identity.Resolution {
 // is not proposed for removal and not held (AKS sets no managedBy on a
 // resource it was given).
 //
-// Since GitHub issue #2136 it is reported as a displaced marker: it carries
-// the cluster's address, and its ARM id is not the one the cluster's
-// address resolves to, which [configIdentityMismatch] now compares for two
-// ARM ids. So it no longer vouches for the cluster (only the cluster's own
-// sighting does), and it never vouched for the route table's own instance,
-// so the projection reads its tags and refuses it (ownership_aks_test.go in
-// internal/live/projection).
+// It carries the cluster's address at an ARM id that is not the one the
+// cluster's address resolves to, which [configIdentityMismatch] compares
+// for two ARM ids (#2136), so it does not vouch for the cluster (only the
+// cluster's own sighting does), and it never vouches for the route table's
+// own instance. The projection therefore reads it at the route table's id
+// and refuses it by name (#2135, ownership_aks_test.go in
+// internal/live/projection), and that refusal is the one diagnostic for
+// this object: the displaced marker the comparison would also file is left
+// out ([taggedCandidate.refusedAt]), since it said the object was "not
+// read" while the route table's own read was refusing it.
+// internal/command's TestAKSCopiedMarkerIsOneRefusalNoDisplacedWarning runs
+// the pair through both layers.
 func TestResourceGraphLegAKSCopiedClusterMarker(t *testing.T) {
 	cfg := azConfigWith(t, `
 resource "azurerm_kubernetes_cluster" "aks" {
@@ -103,9 +108,8 @@ resource "azurerm_route_table" "rt" {
 	if len(res.Orphans) != 0 || len(res.ControllerHeld) != 0 {
 		t.Errorf("orphans %+v, held %+v; want none", res.Orphans, res.ControllerHeld)
 	}
-	findDisplaced(t, res, aksRouteTableID())
-	if len(res.Problems) != 1 {
-		t.Errorf("problems %+v; want only the route table's displaced marker", res.Problems)
+	if len(res.Problems) != 0 {
+		t.Errorf("problems %+v; want none: the route table's own read refuses it, and a displaced marker beside that refusal is a second diagnostic for one object", res.Problems)
 	}
 	vouched := map[string]int{}
 	for _, a := range res.VerifiedDeclared {
