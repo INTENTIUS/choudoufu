@@ -1,42 +1,32 @@
 ---
 title: What it is
-description: choudoufu writes ownership on each resource as a marker, keeps what cannot be read back in a record, and treats the state file as a cache.
+description: How choudoufu keeps ownership on the resources.
 prompt: >-
-  Read https://intentius.io/choudoufu/how-it-works/ and explain to me, for the
-  OpenTofu or Terraform configuration in this repository, what would change
-  under choudoufu: where ownership would live, where the records would go, and
-  what our state file would become. Change no files.
+  Read https://intentius.io/choudoufu/how-it-works/ and explain what choudoufu
+  would change for the configuration in this repository. Change no files.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-OpenTofu keeps a state file: which real resource each block created, plus the
-values it cannot read back. Whoever can write that file can change anything in
-it, and losing it loses track of what you own.
-
-choudoufu is OpenTofu with a different backend, the live backend. Ownership
-goes on the resources and the rest goes in small records, so no single file
-needs guarding.
+OpenTofu's state file records which resource each block created. Whoever can
+write that file can change anything in it. choudoufu is OpenTofu with the live
+backend. Ownership goes on the resources and the rest in small records.
 
 ![What choudoufu keeps, and where](../../../assets/diagram-pieces.svg)
 
-## Four words
+## Three words
 
-An estate is one configuration and everything it owns. You name it once, in
-`estate.chdf.hcl`, and the name is the unit of ownership and of access control.
+An estate is one configuration and everything it owns, named once in
+`estate.chdf.hcl`. The name is the unit of ownership and access control.
 
-A marker is the estate's name written on a resource, with the address of the
-block that declares it. On AWS it is two tags, `tofu-estate` and
-`tofu-address`; on Kubernetes it is one label. The apply writes it on the
-create call. [Identity](identity/) has the rules.
+A marker is a tag or label holding the estate name and block address. [Identity](identity/) has the rules.
 
-A record holds what cannot be read back from the live resource: a password the
-API never returns, a random name, the fact that a script ran. There is one per
-resource, in the record store. [Records](values/) has the kinds and stores.
+A record holds what the live resource cannot return, such as a generated
+password. [Records](values/) has the kinds and stores.
 
 ## The marker says what you own
 
-A plan finds your resources by their markers and reads each one live. Any cloud tool can list an estate, and your own IAM
-or RBAC decides who may change which resource.
+A plan finds resources by marker and reads each one live. Your IAM or RBAC
+decides who may change each resource. Any cloud tool can list an estate:
 
 ```
 aws resourcegroupstaggingapi get-resources \
@@ -45,10 +35,8 @@ aws resourcegroupstaggingapi get-resources \
 
 ## The state file becomes a cache
 
-Every run still writes an ordinary state file on the machine that ran it. It is
-never asked who owns what, and deleting it changes no plan. Remove the `live`
-block, keep that file, and stock OpenTofu carries on with it.
-[The cache](cache/) says what it buys.
+Every run writes a local state file. Remove the `live` block and stock
+OpenTofu carries on with it ([the cache](cache/)).
 
 ## What changes from a state file
 
@@ -63,14 +51,12 @@ block, keep that file, and stock OpenTofu carries on with it.
 
 ## What it costs
 
-A plan reads the live system and not a file, so it does more work;
-[`live/PLAN-CONE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/PLAN-CONE.md)
-has the numbers. A marker has to be knowable before the resource exists, which
-limits what a configuration may compute in a name.
+Reading the live system makes a plan slower
+([`live/PLAN-CONE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/PLAN-CONE.md)). A marker must be knowable before the resource exists.
 [Compatibility](../aws/compatibility/) lists what that rules out.
 
 ## Upstream
 
-choudoufu forks [opentofu/opentofu](https://github.com/opentofu/opentofu),
-tracks it, and is licensed MPL-2.0 like OpenTofu. It is not affiliated with
-OpenTofu or the Linux Foundation, which owns the OpenTofu trademark.
+choudoufu forks and tracks [opentofu/opentofu](https://github.com/opentofu/opentofu)
+under MPL-2.0. It is not affiliated with OpenTofu or the Linux Foundation,
+owner of the OpenTofu trademark.
