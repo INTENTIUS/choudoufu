@@ -22,6 +22,7 @@ type lsHoldingFamily struct {
 const lsFakeHoldTag = "fake.example/held-by"
 
 func (lsHoldingFamily) Name() string                { return "fakehold" }
+func (lsHoldingFamily) ProviderTypes() []string     { return []string{"fakehold"} }
 func (lsHoldingFamily) Surfaces() []markers.Surface { return nil }
 func (lsHoldingFamily) ControllerHeld(ev substrate.HoldEvidence) (substrate.Hold, bool) {
 	if v, ok := ev.Tags[lsFakeHoldTag]; ok {

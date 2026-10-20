@@ -32,7 +32,8 @@ type clusterFamily struct {
 	built substrate.Sweeper
 }
 
-func (clusterFamily) Name() string { return "fakecluster" }
+func (clusterFamily) Name() string            { return "fakecluster" }
+func (clusterFamily) ProviderTypes() []string { return []string{"fakecluster"} }
 func (f clusterFamily) NewSweeper(cty.Value, bool) (substrate.Sweeper, error) {
 	return f.built, nil
 }
