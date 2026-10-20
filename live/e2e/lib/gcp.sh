@@ -46,16 +46,30 @@ gcp_floci_up() {
 # /v1/ path for a cloudasset.* host name, which 127.0.0.1 is not. The
 # sweep (internal/live/gcpsweep's serviceRoot) keeps the prefix and drops
 # the trailing v1, so it calls /cloudasset/v1/projects/<p>:searchAllResources.
+#
+# Two arguments are not the service's own name. google_service_account's
+# client is the iambeta product (services/iambeta/client.go at v8.6.0), read
+# from iam_beta_custom_endpoint, not iam_custom_endpoint. And a google_project
+# read, the data source included, always calls Cloud Billing's
+# GetBillingInfo (resource_google_project.go's resourceGoogleProjectRead),
+# from cloud_billing_custom_endpoint. Unset, either goes to the real
+# googleapis.com with the fake token and fails "authError, Invalid
+# Credentials", which is how reference-gcp's first run stopped at cold_deploy
+# on 2026-10-20. Both clients strip the trailing version
+# (transport_tpg.RemoveBasePathVersion), so v1/ lands on the emulator's
+# /v1/projects/... routes.
 gcp_endpoint_paths() {
   cat <<'PATHS'
 compute_custom_endpoint compute/v1/
 storage_custom_endpoint storage/v1/
 iam_custom_endpoint -
+iam_beta_custom_endpoint v1/
 pubsub_custom_endpoint v1/
 resource_manager_custom_endpoint v1/
 service_usage_custom_endpoint v1/
 cloud_asset_custom_endpoint cloudasset/v1/
 iam_credentials_custom_endpoint v1/
+cloud_billing_custom_endpoint v1/
 PATHS
 }
 

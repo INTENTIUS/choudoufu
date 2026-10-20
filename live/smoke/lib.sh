@@ -447,11 +447,13 @@ gcp_endpoint_paths() {
 compute_custom_endpoint compute/v1/
 storage_custom_endpoint storage/v1/
 iam_custom_endpoint -
+iam_beta_custom_endpoint v1/
 pubsub_custom_endpoint v1/
 resource_manager_custom_endpoint v1/
 service_usage_custom_endpoint v1/
 cloud_asset_custom_endpoint cloudasset/v1/
 iam_credentials_custom_endpoint v1/
+cloud_billing_custom_endpoint v1/
 secret_manager_custom_endpoint v1/
 PATHS
 }
