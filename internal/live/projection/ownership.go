@@ -483,16 +483,21 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// at all - but this surface's create does not fail at a held key,
 		// it updates the object there ([substrate.CreateOverwritesAtKey]:
 		// an ARM create is a PUT). The warning the default below raises
-		// would then sit beside a plan whose apply silently takes the
-		// object over, so the run stops here instead, by name, before any
-		// create is proposed.
+		// would then sit beside a plan whose apply either takes the object
+		// over or, where the provider reads the id first, fails partway
+		// through ([overwriteProviderGuard] says which, per provider), so
+		// the run stops here instead, by name, before any create is
+		// proposed.
 		//
 		// Under every verb that reaches this line, not only the default.
 		// #1546's branch keeps "keep" and "report" as softer refusals
-		// because there the server refuses the create anyway; here those
-		// two verbs leave the object out of the prior state exactly as
-		// refuse does, the plan proposes the create, and the PUT takes the
-		// object over - "keep" would even have done it without a warning.
+		// because there the server refuses the create before anything is
+		// changed; here those two verbs leave the object out of the prior
+		// state exactly as refuse does and the plan proposes the create,
+		// whose only guard against the takeover is then a provider's own
+		// pre-read, which azurerm lets a features flag turn off and does
+		// not do for every type - "keep" would even have proposed it
+		// without a warning.
 		// The verbs that admit the object (adopt, converge) returned
 		// above, and they are the deliberate route: the object enters the
 		// prior state and the plan writes the marker onto it in the open.
@@ -589,15 +594,24 @@ const SummaryOverwriteAtKey = "Unmarked live object at the declared id would be 
 // object instead). A verb other than the default is named in the message,
 // because the operator asked for something in writing and is owed the
 // reason it did not apply.
+//
+// The message says what the resource's own provider would do at apply
+// ([overwriteProviderGuard]), because ARM's PUT is only half the story:
+// both providers the family covers read the id before that PUT in their
+// default configuration, so the refusal is usually earlier than an error
+// the apply would raise anyway, not the only thing between the plan and a
+// takeover (GitHub issue #2133, finding 5). It stays on both, for the
+// reasons that function gives.
 func (b *builder) overwritesAtKey(addr addrs.AbsResourceInstance, typeName, importID string, verb policy.Verb) {
 	own := b.opts.Ownership
 	var asked string
 	if verb != "" && verb != policy.DefaultVerb[policy.DeclaredUntagged] {
-		asked = fmt.Sprintf(" policy { %s = %q } does not change this: that verb leaves the object out of this estate and lets the plan propose the create, and on Azure the create is the takeover.", policy.DeclaredUntagged.Attribute(), verb)
+		asked = fmt.Sprintf(" policy { %s = %q } does not change this: that verb leaves the object out of this estate and lets the plan propose the create, which is the PUT above.", policy.DeclaredUntagged.Attribute(), verb)
 	}
 	detail := fmt.Sprintf(
-		"A live %s already exists at %q, the id %s declares, and carries no %s tag, so this estate does not own it. Creating this resource is a PUT to that id, and a PUT to an id that already exists updates the object there instead of failing, so the apply would take that object over with nothing to say it was ever this estate's; this plan stops here instead of proposing it.%s To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, or write the tags %s=%q and %s=%q onto it and re-run. To keep it out of this estate, point this resource at a name nobody is using. This is #1546's refusal for a server that overwrites instead of refusing (GitHub issue #1120).",
-		typeName, importID, addr, markers.TagEstate, asked,
+		"A live %s already exists at %q, the id %s declares, and carries no %s tag, so this estate does not own it. Creating this resource is a PUT to that id, and ARM answers a PUT to an id that already exists by updating the object there instead of failing. %s%s To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, or write the tags %s=%q and %s=%q onto it and re-run. To keep it out of this estate, point this resource at a name nobody is using. This is #1546's refusal for a server that overwrites instead of refusing (GitHub issue #1120).",
+		typeName, importID, addr, markers.TagEstate,
+		overwriteProviderGuard(b.providerType(addr, typeName)), asked,
 		markers.TagEstate, own.Estate,
 		markers.TagAddress, markers.EscapeAddress(addr.String()))
 	b.unownedList = append(b.unownedList, Unowned{
@@ -609,6 +623,57 @@ func (b *builder) overwritesAtKey(addr addrs.AbsResourceInstance, typeName, impo
 	})
 	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryOverwriteAtKey, detail))
 	b.omit(addr, ReasonUnowned, detail, noMarkerCause(typeName))
+}
+
+// overwriteProviderGuard is the sentence [builder.overwritesAtKey] says
+// about what providerType, the resource's provider, does when its create
+// finds an object already at the id, and why this plan refuses anyway.
+// GitHub issue #2133, finding 5, answered from each provider's source at
+// the pinned version:
+//
+//   - hashicorp/azurerm 5.10.0 reads the id before the PUT and fails the
+//     create with tf.ImportAsExistsError ("a resource with the ID %q
+//     already exists - to be managed via Terraform this resource needs to
+//     be imported into the State", helpers/tf/errors.go:9-12), e.g.
+//     internal/services/resource/resource_group_resource.go:76-87. The read
+//     is skipped when the provider block's features block sets
+//     skip_import_check_on_create_and_allow_overwriting_existing_resources
+//     = true (internal/provider/features.go:26-31 and 544-546, default
+//     false), and a few create functions do no such read at all: 61 of the
+//     1,086 *_resource.go files under internal/services name neither the
+//     error nor the flag, among them
+//     containerapps/container_app_environment_certificate_resource.go:164-213,
+//     a taggable type whose create is a bare CreateOrUpdate. So under
+//     azurerm the refusal is usually earlier than an apply-time error and
+//     occasionally the only guard.
+//   - azure/azapi 2.13.0's azapi_resource, the one azapi type with a
+//     top-level tags map, reads the id before every create
+//     (internal/services/azapi_resource.go:873-893, CreateUpdate's
+//     isNewResource branch) and fails with "Resource already exists"
+//     (tf.ImportAsExistsError) when the read succeeds. Nothing turns it off:
+//     the branch is conditioned on isNewResource alone, with no provider
+//     feature and no ignore_* argument consulted, and only a not-found (or a
+//     403 at management-group scope) lets the create proceed. So under azapi
+//     the refusal is always earlier than the apply-time error, never the only
+//     guard.
+//
+// The refusal stays on both because it is a plan-time stop: an apply-time
+// "already exists" comes after the apply has created whatever was ordered
+// before this resource, and leaves the operator a half-applied estate to
+// reason about; the plan-time one leaves nothing applied, and its
+// remedies (adopt, or tag the object) are this estate's, where the
+// provider's says to import it into a state file this estate does not
+// keep.
+func overwriteProviderGuard(providerType string) string {
+	const first = "This plan stops here, before anything is applied, instead of proposing the create."
+	switch providerType {
+	case "azurerm":
+		return "hashicorp/azurerm reads the id before that PUT and fails the apply with \"a resource with the ID ... already exists\" for most of its types, but not when the provider block's features block sets skip_import_check_on_create_and_allow_overwriting_existing_resources = true, and not for the few types whose create does no such read, where the apply would take the object over. " + first + " It refuses before azurerm would, so that neither that setting nor the type decides whether the object is taken over, and so that the failure comes before any other resource in this apply has been created."
+	case "azapi":
+		return "azure/azapi reads the id before that PUT and fails the apply with \"Resource already exists\", with no setting that turns the read off. " + first + " It refuses before azapi would, so the failure comes before any other resource in this apply has been created, rather than partway through the apply."
+	default:
+		return "Nothing in this provider is known to read the id first, so the apply would take that object over with nothing to say it was ever this estate's. " + first
+	}
 }
 
 // anotherEstateDetail is the refusal an object carrying a DIFFERENT

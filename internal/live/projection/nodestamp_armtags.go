@@ -45,10 +45,27 @@ import (
 // That choice is made here, per configuration, and not by a second marker
 // surface. A surface is answered from the schema alone (substrate.SurfaceOf
 // takes a block, never a value), and the schema is the same for both
-// paths; the read side is the same too, since azapi copies the response
-// body's tags back into the top-level attribute (markers.ARMTagsOf). What
-// differs is one write path, so it is one named function the completeness
-// guard sees, not a surface every seam would have to answer twice.
+// paths; the read side is the same too, since azapi puts body.tags into
+// the top-level attribute on every path that writes state, so the marker
+// reader reads top-level tags in both cases (markers.ARMTagsOf). GitHub
+// issue #2133, finding 5 checked each path in azapi 2.13.0's
+// internal/services/azapi_resource.go:
+//
+//   - plan: ModifyPlan sets plan.Tags from tagsWithDefaultTags (line 724),
+//     which takes the top-level argument when set and otherwise body.tags
+//     (lines 1555-1568, its steps 1 and 2);
+//   - create and update: CreateUpdate writes that plan into state
+//     (responseState.Set(ctx, plan), line 1103; Create at 802-809 and
+//     Update at 811-833 both go through it), so state's top-level tags
+//     after an apply are the planned body.tags, marker included;
+//   - read (refresh): the response body's tags replace state's top-level
+//     tags whenever either is non-empty (lines 1182-1184);
+//   - import: the response body's tags become top-level tags when
+//     non-empty (lines 1419-1421).
+//
+// So body.tags needs no read-back path of its own. What differs is one
+// write path, so it is one named function the completeness guard sees,
+// not a surface every seam would have to answer twice.
 //
 // # Which azapi types take tags
 //
