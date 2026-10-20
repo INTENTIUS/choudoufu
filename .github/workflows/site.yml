@@ -29,6 +29,8 @@ jobs:
           cache-dependency-path: site/package-lock.json
       - name: Install
         run: npm ci
+      - name: Lint prose
+        run: npm run lint:prose
       - name: Build
         run: npm run build
       - name: Check every old URL resolves

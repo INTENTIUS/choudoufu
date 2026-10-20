@@ -1,0 +1,65 @@
+{
+ "site/src/content/docs/404.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/aws/adopt.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/aws/compatibility.mdx": {
+  "discourse/punchy-fragments": 1,
+  "tricolon/comma-series": 1
+ },
+ "site/src/content/docs/aws/gate.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/aws/operate.mdx": {
+  "discourse/punchy-fragments": 2,
+  "tricolon/comma-series": 1
+ },
+ "site/src/content/docs/aws/proof.mdx": {
+  "discourse/punchy-fragments": 1,
+  "anaphora/repeated-opening": 1
+ },
+ "site/src/content/docs/docs/tutorial.md": {
+  "tricolon/comma-series": 3
+ },
+ "site/src/content/docs/docs/use/migrate.md": {
+  "tricolon/comma-series": 2,
+  "anaphora/repeated-opening": 1
+ },
+ "site/src/content/docs/docs/use/reference.md": {
+  "tricolon/comma-series": 2
+ },
+ "site/src/content/docs/kubernetes/adopt.mdx": {
+  "discourse/punchy-fragments": 1,
+  "tricolon/comma-series": 1
+ },
+ "site/src/content/docs/kubernetes/compatibility.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/kubernetes/gate.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/kubernetes/operate.mdx": {
+  "discourse/punchy-fragments": 1,
+  "claude/colon-reveal": 2
+ },
+ "site/src/content/docs/kubernetes/proof.mdx": {
+  "discourse/punchy-fragments": 1,
+  "anaphora/repeated-opening": 1
+ },
+ "site/src/data/rooms.ts": {
+  "discourse/staccato-register": 1,
+  "claude/colon-reveal": 6,
+  "discourse/punchy-fragments": 9,
+  "repetition/near-duplicate": 4,
+  "anaphora/repeated-opening": 2,
+  "tricolon/comma-series": 1
+ },
+ "README.md": {
+  "tricolon/comma-series": 2,
+  "claude/colon-reveal": 2,
+  "claude/figurative-suffixes": 1,
+  "discourse/punchy-fragments": 2
+ }
+}
