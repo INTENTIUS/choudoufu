@@ -85,6 +85,7 @@ tmp
 /armtypes-gen
 /aws-paginators-gen
 /azurerm-id-gen
+/azurerm-tags-gen
 /ci-gate
 /cloudcontrol-probe
 /contribute

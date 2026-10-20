@@ -35,7 +35,8 @@ type bicepRef struct {
 }
 
 type bicepProp struct {
-	Flags int `json:"flags"`
+	Flags       int    `json:"flags"`
+	Description string `json:"description"`
 }
 
 // bicepType decodes only the fields this table reads. The rest of a type
@@ -79,15 +80,75 @@ func SourcePin(repoDir string) (version, commit string, err error) {
 // in-file - is an error here rather than a silently absent row, so a pin
 // bump that changes the data's shape fails loudly.
 func Generate(repoDir, version, commit string) (*Table, error) {
+	tbl := &Table{AzapiVersion: version, AzapiCommit: commit, rows: map[string]*typeRow{}}
+	type entry struct {
+		version string
+		caps    Caps
+	}
+	byType := map[string]map[string]Caps{}
+	err := walkBodies(repoDir, func(typ, ver string, discriminated bool, props map[string]bicepProp) error {
+		var caps Caps
+		for name, bit := range map[string]Caps{"tags": CapTags, "name": CapName, "location": CapLocation} {
+			if p, ok := props[name]; ok && p.Flags&flagReadOnly == 0 {
+				caps |= bit
+			}
+		}
+		if discriminated && caps.Has(CapTags) {
+			tbl.DiscriminatedTags++
+		}
+
+		lower := strings.ToLower(typ)
+		if byType[lower] == nil {
+			byType[lower] = map[string]Caps{}
+		}
+		if prev, dup := byType[lower][ver]; dup {
+			// Two index keys differing only by case. azapi's lookup
+			// would pick one by map order; refuse unless they agree.
+			if prev != caps {
+				return fmt.Errorf("%s@%s appears twice with different capabilities (%d, %d)", lower, ver, prev, caps)
+			}
+			return nil
+		}
+		byType[lower][ver] = caps
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for typ, vs := range byType {
+		es := make([]entry, 0, len(vs))
+		for v, c := range vs {
+			es = append(es, entry{v, c})
+		}
+		sort.Slice(es, func(i, j int) bool { return es[i].version < es[j].version })
+		r := &typeRow{}
+		for _, e := range es {
+			r.versions = append(r.versions, e.version)
+			r.caps = append(r.caps, e.caps)
+		}
+		tbl.rows[typ] = r
+	}
+	return tbl, nil
+}
+
+// walkBodies loads every "<type>@<api-version>" in azapi's index.json,
+// resolves its ResourceType's body, and hands visit the body's properties
+// in key order: an ObjectType's properties, or a DiscriminatedObjectType's
+// baseProperties (discriminated true). Anything azapi itself could not
+// load - a non-ResourceType entry, a body reference that is not in-file -
+// is an error rather than a silently absent row, so a pin bump that
+// changes the data's shape fails loudly.
+func walkBodies(repoDir string, visit func(typ, ver string, discriminated bool, props map[string]bicepProp) error) error {
 	root := filepath.Join(repoDir, filepath.FromSlash(GeneratedDir))
 	var index struct {
 		Resources map[string]bicepRef `json:"resources"`
 	}
 	if err := readJSON(filepath.Join(root, "index.json"), &index); err != nil {
-		return nil, err
+		return err
 	}
 	if len(index.Resources) == 0 {
-		return nil, fmt.Errorf("%s/index.json lists no resources", GeneratedDir)
+		return fmt.Errorf("%s/index.json lists no resources", GeneratedDir)
 	}
 
 	files := map[string][]json.RawMessage{}
@@ -109,12 +170,6 @@ func Generate(repoDir, version, commit string) (*Table, error) {
 		return &t, nil
 	}
 
-	tbl := &Table{AzapiVersion: version, AzapiCommit: commit, rows: map[string]*typeRow{}}
-	type entry struct {
-		version string
-		caps    Caps
-	}
-	byType := map[string]map[string]Caps{}
 	keys := make([]string, 0, len(index.Resources))
 	for k := range index.Resources {
 		keys = append(keys, k)
@@ -125,80 +180,46 @@ func Generate(repoDir, version, commit string) (*Table, error) {
 		// Schema.UnmarshalJSON); a second one would be ambiguous.
 		typ, ver, ok := strings.Cut(key, "@")
 		if !ok || strings.Contains(ver, "@") || typ == "" || ver == "" {
-			return nil, fmt.Errorf("index.json key %q is not <type>@<api-version>", key)
+			return fmt.Errorf("index.json key %q is not <type>@<api-version>", key)
 		}
 		file, idx, err := splitRef(index.Resources[key].Ref)
 		if err != nil {
-			return nil, fmt.Errorf("index.json %q: %w", key, err)
+			return fmt.Errorf("index.json %q: %w", key, err)
 		}
 		if file == "" {
 			file = "index.json"
 		}
 		rt, err := load(file, idx)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if rt.Type != "ResourceType" || rt.Body == nil {
-			return nil, fmt.Errorf("index.json %q references a %s, not a ResourceType with a body", key, rt.Type)
+			return fmt.Errorf("index.json %q references a %s, not a ResourceType with a body", key, rt.Type)
 		}
 		bfile, bidx, err := splitRef(rt.Body.Ref)
 		if err != nil || bfile != "" {
 			// azapi resolves only "#/N" (types/type_reference.go,
 			// UpdateType); any other body reference leaves its body
 			// nil, and canResourceHaveProperty false.
-			return nil, fmt.Errorf("%s#/%d (%s): body reference %q is not in-file", file, idx, key, rt.Body.Ref)
+			return fmt.Errorf("%s#/%d (%s): body reference %q is not in-file", file, idx, key, rt.Body.Ref)
 		}
 		body, err := load(file, bidx)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		props := body.Properties
 		switch body.Type {
 		case "ObjectType":
+			err = visit(typ, ver, false, body.Properties)
 		case "DiscriminatedObjectType":
-			props = body.BaseProperties
+			err = visit(typ, ver, true, body.BaseProperties)
 		default:
-			return nil, fmt.Errorf("%s#/%d (%s): body is a %s", file, bidx, key, body.Type)
+			return fmt.Errorf("%s#/%d (%s): body is a %s", file, bidx, key, body.Type)
 		}
-		var caps Caps
-		for name, bit := range map[string]Caps{"tags": CapTags, "name": CapName, "location": CapLocation} {
-			if p, ok := props[name]; ok && p.Flags&flagReadOnly == 0 {
-				caps |= bit
-			}
+		if err != nil {
+			return err
 		}
-		if body.Type == "DiscriminatedObjectType" && caps.Has(CapTags) {
-			tbl.DiscriminatedTags++
-		}
-
-		lower := strings.ToLower(typ)
-		if byType[lower] == nil {
-			byType[lower] = map[string]Caps{}
-		}
-		if prev, dup := byType[lower][ver]; dup {
-			// Two index keys differing only by case. azapi's lookup
-			// would pick one by map order; refuse unless they agree.
-			if prev != caps {
-				return nil, fmt.Errorf("%s@%s appears twice with different capabilities (%d, %d)", lower, ver, prev, caps)
-			}
-			continue
-		}
-		byType[lower][ver] = caps
 	}
-
-	for typ, vs := range byType {
-		es := make([]entry, 0, len(vs))
-		for v, c := range vs {
-			es = append(es, entry{v, c})
-		}
-		sort.Slice(es, func(i, j int) bool { return es[i].version < es[j].version })
-		r := &typeRow{}
-		for _, e := range es {
-			r.versions = append(r.versions, e.version)
-			r.caps = append(r.caps, e.caps)
-		}
-		tbl.rows[typ] = r
-	}
-	return tbl, nil
+	return nil
 }
 
 // splitRef splits a bicep-types reference, "file.json#/N" or "#/N", into
