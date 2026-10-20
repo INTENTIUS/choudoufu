@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/listclient"
@@ -26,6 +27,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/servicetags"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -182,6 +184,22 @@ type Request struct {
 	// lands rather than when the whole run finishes. It is never called on a
 	// dry run, on a refusal, or when there was nothing to write.
 	OnWritten func(*Result)
+
+	// AssetSearch supplies the Cloud Asset Inventory search a GCP move
+	// asks before it writes, whether anything else in the destination
+	// estate already carries the new tofu-address label (googlelabels.go,
+	// [mover.sweep]). internal/command's projectionProviders builds it from
+	// the provider block's own credential, as a plan's GCP sweep leg is
+	// built. Nil, or a client that cannot be built, refuses a GCP move by
+	// name; it never skips the check.
+	AssetSearch AssetSearchers
+}
+
+// AssetSearchers is [Request.AssetSearch]'s interface: the address search
+// for one provider configuration, and the project that configuration
+// names ("" when it names none).
+type AssetSearchers interface {
+	AssetSearcher(ctx context.Context, addr addrs.AbsProviderConfig) (searcher gcpsweep.AddressSearcher, project string, err error)
 }
 
 // Clusters is [Request.Clusters]'s interface: internal/command's
@@ -486,6 +504,12 @@ type mover struct {
 	provider     providers.Interface
 	providerAddr addrs.AbsProviderConfig
 	schema       providers.Schema
+
+	// googleSelf is what the GCP object being moved may be named as in an
+	// Asset Inventory result, and googleProject the project it reports,
+	// both read off the object by [mover.locateGoogleLabelled].
+	googleSelf    []string
+	googleProject string
 }
 
 // written records that the marker write returned successfully and tells
@@ -991,8 +1015,16 @@ type listed struct {
 // provider can see of this type crosses the wire once, and the estate and
 // address comparisons happen here, against escaped values, never by decoding
 // a tag back into an address.
+//
+// A family whose sweep is Cloud Asset Inventory's search
+// ([substrate.SweepAssetSearch], GCP) is swept by [mover.sweepAssets]
+// instead, and ts goes unused: listclient reads AWS tag maps.
 func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema, estate string) ([]listed, int, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
+
+	if sub, ok := substrate.ForProvider(m.providerAddr.Provider.Type); ok && sub.Sweep() == substrate.SweepAssetSearch {
+		return m.sweepAssets(ctx, estate)
+	}
 
 	vals := make(map[string]cty.Value)
 	if ts.Config != nil && m.req.Region != "" {
@@ -1076,17 +1108,21 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema, estate stri
 	return mine, len(results), diags
 }
 
-// claimants returns the swept resources carrying the address declared,
-// unescaped (addrs.AbsResourceInstance.String()). The comparison is
-// [discovery.AddressMatches] rather than a bare equality, so a live
-// resource still carrying a marker a prior run wrote before issue #178
-// widened the for_each key grammar is still found - see that function's
-// doc comment for which keys this can matter for (only ones containing
-// "@") and why.
-func claimants(mine []listed, declared string) []listed {
+// claimants returns the swept resources carrying the address declared.
+// The comparison is [discovery.AddressMatches] against the unescaped
+// address rather than a bare equality, so a live resource still carrying
+// a marker a prior run wrote before issue #178 widened the for_each key
+// grammar is still found - see that function's doc comment for which keys
+// this can matter for (only ones containing "@") and why. A GCP marker is
+// an encoding, matched whole against [markers.GoogleAddressValue].
+func (m *mover) claimants(mine []listed, declared addrs.AbsResourceInstance) []listed {
 	var out []listed
 	for _, l := range mine {
-		if discovery.AddressMatches(l.marker, declared) {
+		match := discovery.AddressMatches(l.marker, declared.String())
+		if relabelsGoogle(m.res.Surface) {
+			match = l.marker == markers.GoogleAddressValue(declared)
+		}
+		if match {
 			out = append(out, l)
 		}
 	}
@@ -1103,7 +1139,7 @@ func (m *mover) checkDestinationFree(ctx context.Context, ts listclient.TypeSche
 	if diags.HasErrors() {
 		return diags
 	}
-	return diags.Append(m.destinationDiags(claimants(mine, m.res.New.String())))
+	return diags.Append(m.destinationDiags(m.claimants(mine, m.res.New)))
 }
 
 // destinationDiags is the refusal itself, shared by both paths.
@@ -1138,8 +1174,8 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 		return "", cty.NilVal, diags
 	}
 
-	claimOld := claimants(mine, m.res.Old.String())
-	claimNew := claimants(mine, m.res.New.String())
+	claimOld := m.claimants(mine, m.res.Old)
+	claimNew := m.claimants(mine, m.res.New)
 	if m.req.FromEstate != "" {
 		// The destination address has to be free in the DESTINATION
 		// estate, which is not the estate just swept. One more sweep of the
@@ -1149,7 +1185,7 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 		if destDiags.HasErrors() {
 			return "", cty.NilVal, diags
 		}
-		claimNew = claimants(dest, m.res.New.String())
+		claimNew = m.claimants(dest, m.res.New)
 	}
 
 	switch len(claimOld) {

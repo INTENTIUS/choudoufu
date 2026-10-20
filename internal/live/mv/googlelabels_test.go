@@ -6,6 +6,8 @@
 package mv
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -36,7 +39,10 @@ import (
 // every case reads the object through the tag path and fails with
 // "Resource type with no tags"; drop the relabelsGoogle arm from checkPlan
 // and the rename and the move are refused, the labels write itself read
-// as a change outside the tags.
+// as a change outside the tags; drop findGoogle's checkDestinationFree and
+// the claimed-destination and search-unavailable cases write; make
+// isGoogleSelf answer false and the already-marked case refuses the object
+// as its own claimant.
 
 const (
 	googleTestType   = "google_storage_bucket"
@@ -150,7 +156,50 @@ func googleTestRequest(cloud *labelTestCluster, cfg *configs.Config, old, new ad
 			Class:    identity.ClassConcrete,
 			ImportID: googleTestLiveID,
 		}},
-		Providers: projection.SingleProvider(googleTestProviderAddr, cloud),
+		Providers:   projection.SingleProvider(googleTestProviderAddr, cloud),
+		AssetSearch: &googleTestSearch{project: "p1"},
+	}
+}
+
+// googleTestSearch stands in for Cloud Asset Inventory: assets is the
+// index, searched by both labels the way gcpsweep.Client.SearchAddress
+// filters; buildErr fails building the client and err every search.
+type googleTestSearch struct {
+	project  string
+	assets   []gcpsweep.Asset
+	buildErr error
+	err      error
+	calls    []string
+}
+
+func (s *googleTestSearch) AssetSearcher(context.Context, addrs.AbsProviderConfig) (gcpsweep.AddressSearcher, string, error) {
+	if s.buildErr != nil {
+		return nil, "", s.buildErr
+	}
+	return s, s.project, nil
+}
+
+func (s *googleTestSearch) SearchAddress(_ context.Context, project, estate, address string) ([]gcpsweep.Asset, error) {
+	s.calls = append(s.calls, project+" "+gcpsweep.AddressQuery(estate, address))
+	if s.err != nil {
+		return nil, s.err
+	}
+	var out []gcpsweep.Asset
+	for _, a := range s.assets {
+		if a.Labels[markers.TagEstate] == estate && a.Labels[markers.TagAddress] == address {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+// googleTestAsset is a bucket in the index carrying estate and address.
+func googleTestAsset(bucket, estate, address string) gcpsweep.Asset {
+	return gcpsweep.Asset{
+		AssetType: "storage.googleapis.com/Bucket",
+		Name:      "//storage.googleapis.com/projects/_/buckets/" + bucket,
+		Project:   "projects/111111111111",
+		Labels:    map[string]string{markers.TagEstate: estate, markers.TagAddress: address},
 	}
 }
 
@@ -168,9 +217,14 @@ func TestMove_GoogleLabelsRenameWithinEstate(t *testing.T) {
 	renamed := mustAddr(t, googleTestType+".archive")
 	cloud := newGoogleTestCloud(t, googleTestMarked("app", markers.GoogleAddressValue(old)), nil)
 
-	res, diags := Move(t.Context(), googleTestRequest(cloud, googleTestConfig(t, "archive"), old, renamed, "", "app"))
+	req := googleTestRequest(cloud, googleTestConfig(t, "archive"), old, renamed, "", "app")
+	search := req.AssetSearch.(*googleTestSearch)
+	res, diags := Move(t.Context(), req)
 	if diags.HasErrors() {
 		t.Fatalf("the rename was refused: %s", diags.Err())
+	}
+	if want := "p1 " + gcpsweep.AddressQuery("app", markers.GoogleAddressValue(renamed)); len(search.calls) != 1 || search.calls[0] != want {
+		t.Errorf("destination searches %q, want one: %q", search.calls, want)
 	}
 	if res.Surface != markers.SurfaceGoogleLabels {
 		t.Errorf("Surface = %q, want %q", res.Surface, markers.SurfaceGoogleLabels)
@@ -178,8 +232,8 @@ func TestMove_GoogleLabelsRenameWithinEstate(t *testing.T) {
 	if !res.Written || !res.Verified || res.AlreadyMarked {
 		t.Errorf("Written = %v, Verified = %v, AlreadyMarked = %v; want true, true, false", res.Written, res.Verified, res.AlreadyMarked)
 	}
-	if res.Path != PathIdentity || res.Swept {
-		t.Errorf("Path = %s, Swept = %v; want IDENTITY and no sweep", res.Path, res.Swept)
+	if res.Path != PathIdentity || !res.Swept {
+		t.Errorf("Path = %s, Swept = %v; want IDENTITY and the destination searched", res.Path, res.Swept)
 	}
 	if res.OldMarker != markers.GoogleAddressValue(old) || res.NewMarker != markers.GoogleAddressValue(renamed) {
 		t.Errorf("markers %q -> %q, want the two address label values", res.OldMarker, res.NewMarker)
@@ -201,9 +255,17 @@ func TestMove_GoogleLabelsMoveBetweenEstates(t *testing.T) {
 	moved := mustAddr(t, googleTestType+".archive")
 	cloud := newGoogleTestCloud(t, googleTestMarked("app", markers.GoogleAddressValue(old)), nil)
 
-	res, diags := Move(t.Context(), googleTestRequest(cloud, googleTestConfig(t, "archive"), old, moved, "app", "data"))
+	// The source estate's own copy of the address is no claim on the
+	// destination: only tofu-estate=data is searched.
+	req := googleTestRequest(cloud, googleTestConfig(t, "archive"), old, moved, "app", "data")
+	search := req.AssetSearch.(*googleTestSearch)
+	search.assets = []gcpsweep.Asset{googleTestAsset("other-bucket", "app", markers.GoogleAddressValue(moved))}
+	res, diags := Move(t.Context(), req)
 	if diags.HasErrors() {
 		t.Fatalf("the move was refused: %s", diags.Err())
+	}
+	if want := "p1 " + gcpsweep.AddressQuery("data", markers.GoogleAddressValue(moved)); len(search.calls) != 1 || search.calls[0] != want {
+		t.Errorf("destination searches %q, want one: %q", search.calls, want)
 	}
 	if !res.Written || !res.Verified {
 		t.Errorf("Written = %v, Verified = %v, want both true", res.Written, res.Verified)
@@ -222,7 +284,11 @@ func TestMove_GoogleLabelsAlreadyMarked(t *testing.T) {
 	renamed := mustAddr(t, googleTestType+".archive")
 	cloud := newGoogleTestCloud(t, googleTestMarked("app", markers.GoogleAddressValue(renamed)), nil)
 
-	res, diags := Move(t.Context(), googleTestRequest(cloud, googleTestConfig(t, "archive"), old, renamed, "", "app"))
+	// The index lists the object itself under the new address; it is the
+	// object being moved, and no claim against it.
+	req := googleTestRequest(cloud, googleTestConfig(t, "archive"), old, renamed, "", "app")
+	req.AssetSearch.(*googleTestSearch).assets = []gcpsweep.Asset{googleTestAsset(googleTestLiveID, "app", markers.GoogleAddressValue(renamed))}
+	res, diags := Move(t.Context(), req)
 	if diags.HasErrors() {
 		t.Fatalf("the rename was refused: %s", diags.Err())
 	}
@@ -275,6 +341,73 @@ func TestMove_GoogleLabelsRefusals(t *testing.T) {
 			}
 			if got := googleTestLabels(t, cloud)[markers.TagAddress]; got != tc.address {
 				t.Errorf("the live address label changed under a refusal: %q", got)
+			}
+		})
+	}
+}
+
+func TestMove_GoogleLabelsDestinationClaimed(t *testing.T) {
+	old := mustAddr(t, googleTestType+".logs")
+	renamed := mustAddr(t, googleTestType+".archive")
+	cloud := newGoogleTestCloud(t, googleTestMarked("app", markers.GoogleAddressValue(old)), nil)
+
+	req := googleTestRequest(cloud, googleTestConfig(t, "archive"), old, renamed, "", "app")
+	req.AssetSearch.(*googleTestSearch).assets = []gcpsweep.Asset{googleTestAsset("other-bucket", "app", markers.GoogleAddressValue(renamed))}
+	_, diags := Move(t.Context(), req)
+	if got := RefusalFrom(diags); got != RefusalNewAddressClaimed {
+		t.Fatalf("refusal code = %q, want %q: %v", got, RefusalNewAddressClaimed, diags.Err())
+	}
+	if !strings.Contains(diags.Err().Error(), "other-bucket") {
+		t.Errorf("the refusal does not name the other claimant:\n%s", diags.Err())
+	}
+	if cloud.plans != 0 || cloud.applies != 0 {
+		t.Errorf("a claimed destination still planned %d and applied %d times", cloud.plans, cloud.applies)
+	}
+}
+
+func TestMove_GoogleLabelsDestinationSearchUnavailable(t *testing.T) {
+	old := mustAddr(t, googleTestType+".logs")
+	renamed := mustAddr(t, googleTestType+".archive")
+	cases := map[string]struct {
+		search *googleTestSearch
+		want   string
+	}{
+		"no client": {
+			search: &googleTestSearch{project: "p1", buildErr: errors.New("no credentials found")},
+			want:   "no credentials found",
+		},
+		"the API is disabled": {
+			search: &googleTestSearch{project: "p1", err: &gcpsweep.ServiceDisabledError{Project: "p1", Service: gcpsweep.Service, Err: errors.New("403")}},
+			want:   "is not enabled there",
+		},
+		"permission denied": {
+			search: &googleTestSearch{project: "p1", err: &gcpsweep.PermissionDeniedError{Project: "p1", Permission: gcpsweep.Permission, Err: errors.New("403")}},
+			want:   gcpsweep.Permission,
+		},
+		"a partial page": {
+			search: &googleTestSearch{project: "p1", err: &gcpsweep.PartialError{Project: "p1", PagesRead: 1, Err: errors.New("503")}},
+			want:   "a page after the first failed",
+		},
+		"no project": {
+			search: &googleTestSearch{},
+			want:   "no GCP project is known",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			cloud := newGoogleTestCloud(t, googleTestMarked("app", markers.GoogleAddressValue(old)), nil)
+			req := googleTestRequest(cloud, googleTestConfig(t, "archive"), old, renamed, "", "app")
+			req.AssetSearch = tc.search
+			_, diags := Move(t.Context(), req)
+			if !diags.HasErrors() {
+				t.Fatal("the rename went ahead without its destination search")
+			}
+			err := diags.Err().Error()
+			if !strings.Contains(err, SummaryGCPDestinationSearchFailed) || !strings.Contains(err, tc.want) {
+				t.Errorf("the refusal does not say %q under %q:\n%s", tc.want, SummaryGCPDestinationSearchFailed, err)
+			}
+			if cloud.plans != 0 || cloud.applies != 0 {
+				t.Errorf("planned %d and applied %d times with no destination search", cloud.plans, cloud.applies)
 			}
 		})
 	}

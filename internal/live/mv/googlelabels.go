@@ -7,14 +7,20 @@ package mv
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"slices"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/states"
@@ -56,11 +62,17 @@ import (
 //     identity path checks one. A cross-estate move has no record path
 //     (the source estate's store is not this run's).
 //   - Never by listing. listclient's sweep reads AWS tag maps and the
-//     Resource Groups Tagging API, so it neither finds a GCP object nor
-//     answers whether another one already carries the new address. That
-//     second check is therefore not made on GCP and [Result.Swept] stays
-//     false; the identity the configuration names is the whole binding,
-//     as on the Kubernetes label path.
+//     Resource Groups Tagging API, so it cannot find a GCP object.
+//
+// Once found, the object goes through the same destination check the AWS
+// identity path makes ([mover.checkDestinationFree]): [mover.sweep] asks
+// Cloud Asset Inventory, through internal/live/gcpsweep, for every
+// resource carrying tofu-estate=<destination> and tofu-address=<the new
+// value> in the projects the estate names ([mover.sweepAssets]), and
+// [mover.destinationDiags] refuses a move onto an address another object
+// already carries. A search that cannot be made (no client, no project,
+// the API disabled, permission denied, a page that failed) refuses the
+// move by name, as the AWS path refuses when its list call fails.
 
 // relabelsGoogle reports whether a move on surface writes its markers by
 // the GCP labels-only plan-then-apply ([substrate.WriteGoogleLabelsPlan]).
@@ -79,7 +91,11 @@ func (m *mover) findGoogle(ctx context.Context, resolution identity.Resolution) 
 
 	if classTable[resolution.Class].findByListing {
 		if obj, recDiags, tried := m.locateByRecord(ctx); tried {
-			return obj, diags.Append(recDiags)
+			diags = diags.Append(recDiags)
+			if recDiags.HasErrors() {
+				return nil, diags
+			}
+			return obj, diags.Append(m.checkDestinationFree(ctx, listclient.TypeSchema{}))
 		}
 		why := "this estate's record store holds no identity for it"
 		if m.req.FromEstate != "" {
@@ -95,7 +111,109 @@ func (m *mover) findGoogle(ctx context.Context, resolution identity.Resolution) 
 	}
 
 	m.res.Path = PathIdentity
-	return m.locateByIdentity(ctx, resolution)
+	obj, idDiags := m.locateByIdentity(ctx, resolution)
+	diags = diags.Append(idDiags)
+	if idDiags.HasErrors() {
+		return nil, diags
+	}
+	diags = diags.Append(m.checkDestinationFree(ctx, listclient.TypeSchema{}))
+	if diags.HasErrors() {
+		return nil, diags
+	}
+	return obj, diags
+}
+
+// SummaryGCPDestinationSearchFailed is the refusal for a GCP move whose
+// destination search could not be made ([mover.sweepAssets]).
+const SummaryGCPDestinationSearchFailed = "Cannot search for the destination address"
+
+// sweepAssets is [mover.sweep] for a GCP resource: the resources in the
+// estate's projects carrying tofu-estate=estate and the new tofu-address
+// value, which is the one question the GCP path asks a sweep
+// ([mover.checkDestinationFree]). The object being moved is reported under
+// [Result.LiveID] when a result names it ([mover.isGoogleSelf]), so
+// [mover.destinationDiags] leaves it out, as it leaves out the listed AWS
+// object whose identity is the one found.
+func (m *mover) sweepAssets(ctx context.Context, estate string) ([]listed, int, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	refused := func(why string) ([]listed, int, tfdiags.Diagnostics) {
+		return nil, 0, diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			SummaryGCPDestinationSearchFailed,
+			fmt.Sprintf(
+				"Before writing tofu-address = %q on the %s at %s, live-mv searches Cloud Asset Inventory for anything else in estate %q already carrying it, and %s. Nothing was written: a move that cannot answer that question is refused, as one whose list call fails is.",
+				m.res.NewMarker, m.res.TypeName, m.res.LiveID, estate, why),
+		))
+	}
+
+	if m.req.AssetSearch == nil {
+		return refused("this run built no Cloud Asset Inventory client")
+	}
+	searcher, project, err := m.req.AssetSearch.AssetSearcher(ctx, m.providerAddr)
+	if err == nil && searcher == nil {
+		err = fmt.Errorf("no client was built")
+	}
+	if err != nil {
+		return refused(fmt.Sprintf("no client could be built from provider configuration %s: %s", m.providerAddr, err))
+	}
+
+	projects := discovery.GCPSweepProjects(project, m.req.Resolutions)
+	if m.googleProject != "" && !slices.Contains(projects, m.googleProject) {
+		projects = append(projects, m.googleProject)
+	}
+	if len(projects) == 0 {
+		return refused("no GCP project is known to search: the provider block names none, GOOGLE_PROJECT and its siblings are unset, and neither the object nor the configuration names one")
+	}
+
+	var out []listed
+	total := 0
+	for _, p := range projects {
+		assets, err := searcher.SearchAddress(ctx, p, estate, m.res.NewMarker)
+		if err != nil {
+			return refused(fmt.Sprintf("the search of project %s failed: %s", p, assetSearchReason(err)))
+		}
+		total += len(assets)
+		for _, a := range assets {
+			l := listed{liveID: a.Name, displayName: a.AssetType + " " + a.Name, marker: a.Labels[markers.TagAddress]}
+			if m.isGoogleSelf(a.Name) {
+				l.liveID = m.res.LiveID
+			}
+			out = append(out, l)
+		}
+	}
+	m.res.Swept = true
+	return out, total, diags
+}
+
+// isGoogleSelf reports whether an Asset Inventory full resource name
+// ("//storage.googleapis.com/projects/_/buckets/logs") names the object
+// being moved: it ends in one of the names the provider gave the object
+// (its id, its self_link's path from projects/ on, its import ID), on a
+// path boundary.
+func (m *mover) isGoogleSelf(name string) bool {
+	for _, self := range m.googleSelf {
+		if self != "" && (name == self || strings.HasSuffix(name, "/"+self)) {
+			return true
+		}
+	}
+	return false
+}
+
+// assetSearchReason is the clause naming why a project's search failed,
+// with the fix where the error says what it is.
+func assetSearchReason(err error) string {
+	var disabled *gcpsweep.ServiceDisabledError
+	var denied *gcpsweep.PermissionDeniedError
+	var partial *gcpsweep.PartialError
+	switch {
+	case errors.As(err, &disabled):
+		return fmt.Sprintf("the Cloud Asset API (%s) is not enabled there; enable it and run live-mv again", gcpsweep.Service)
+	case errors.As(err, &denied):
+		return fmt.Sprintf("the provider's credential lacks %s there", denied.Permission)
+	case errors.As(err, &partial):
+		return fmt.Sprintf("a page after the first failed, so none of the answer is used (%s)", err)
+	}
+	return err.Error()
 }
 
 // locateGoogleLabelled is [mover.locateByIdentity]'s GCP half: the object
@@ -118,6 +236,11 @@ func (m *mover) locateGoogleLabelled(obj *states.ResourceInstanceObject, resolut
 	if m.res.LiveID == "" {
 		m.res.LiveID = liveIDFromObject(m.res.TypeName, objVal)
 	}
+	m.googleSelf = []string{resolution.ImportID, substrate.ObjectString(objVal, "id")}
+	if link := substrate.ObjectString(objVal, "self_link"); strings.Contains(link, "/projects/") {
+		m.googleSelf = append(m.googleSelf, link[strings.Index(link, "/projects/")+1:])
+	}
+	m.googleProject = substrate.ObjectString(objVal, "project")
 
 	labels, ok := markers.GoogleLabelsOf(objVal)
 	if !ok {
