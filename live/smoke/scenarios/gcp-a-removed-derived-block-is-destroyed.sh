@@ -171,7 +171,7 @@ grep -qF 'google_compute_network' <<< "$GAP" \
 if grep -qF 'google_compute_subnetwork.edge' <<< "$LOUT"; then
   fail "gcp-a-removed-derived-block-is-destroyed" "the plan names google_compute_subnetwork.edge, an address nothing left in this run can know"
 fi
-grep -qF 'A removed block of an unlabelled type, its record lost' "$ROOT/live/RECOVERY.md" \
+grep -qF 'A removed block of an untaggable type, record lost' "$ROOT/live/RECOVERY.md" \
   && grep -qF 'google_compute_subnetwork' "$ROOT/live/RECOVERY.md" \
   || fail "gcp-a-removed-derived-block-is-destroyed" "live/RECOVERY.md no longer documents the lost-record leak with the subnetwork as its example"
 gcpl GET "$SUB_PATH" >/dev/null 2>&1 \

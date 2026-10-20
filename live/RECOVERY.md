@@ -153,7 +153,7 @@ The tombstone and deposed seeds live here too, and they are what make a crash
 between a destroy and a create recoverable. Losing them costs that
 recoverability, silently, until the next crash.
 
-### A removed block of an unlabelled type, its record lost
+### A removed block of an untaggable type, record lost
 
 A type with no marker surface (an untaggable AWS type, or a GCP type with
 no labels map such as `google_compute_subnetwork`) is declaration-carried:
