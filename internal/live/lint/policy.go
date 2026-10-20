@@ -156,7 +156,8 @@ func scopeIsSet(s *configs.LivePolicyScope) bool {
 // the same create is a silent takeover of the unmarked object. So a
 // configuration declaring any resource of such a family is refused here,
 // before any plan, by name. internal/live/projection refuses the object
-// itself under every verb that reaches it, for a run that never linted.
+// itself under refuse, keep and report, for a run that never linted;
+// adopt and converge admit it first, so they never reach that refusal.
 //
 // Whole configuration: the policy block governs the estate, not one block,
 // and the resource it names is the first such one in address order, as

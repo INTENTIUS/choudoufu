@@ -1659,14 +1659,19 @@ alone. Neither is ever a resource in a plan.
   Contributor's actions without deleting the group itself. `role=Contributor`
   uses the built-in role instead, which can delete the group and can be
   assigned anywhere.
-- [`live/azure/estate-boundary.json`](azure/estate-boundary.json) defines two
-  Policy definitions at the subscription and assigns both at each of the
-  estate's groups, never at the subscription. The first denies a create or
+- [`live/azure/estate-boundary.json`](azure/estate-boundary.json) defines a
+  Policy definition at the subscription and assigns it at each of the
+  estate's groups, never at the subscription. It denies a create or
   update of a taggable resource whose `tags['tofu-estate']` names another
   estate, or is missing on a type outside the template's
-  `taggedAfterCreate` parameter (below). The second is `denyAction` on
-  delete of a resource tagged with the estate, with
-  `cascadeBehaviors.resourceGroup = deny`.
+  `taggedAfterCreate` parameter (below). It does not touch deletes: the
+  group's role assignment alone governs who may delete, as on AWS and
+  Kubernetes (ruled on #1122, 2026-10-20).
+- `deleteLock=true` on the same template adds an opt-in delete lock, a
+  second definition and assignment: `denyAction` on delete of a resource
+  tagged with the estate, with `cascadeBehaviors.resourceGroup = deny`.
+  It is off by default because Policy is not per principal, so the lock
+  also refuses the estate's own destroys and replaces (below).
 
 ```
 az deployment sub create --location <region> \
@@ -1733,20 +1738,33 @@ counts both, per tier.
   them. An untaggable child resource (a subnet, a route, a blob
   container) is still covered by the group's RBAC, where an AWS tag
   condition matches nothing on an untaggable type.
-- The tag guard is Policy, so it is not per principal. Both definitions apply to
+- The tag guard is Policy, so it is not per principal. It applies to
   every caller at the group, the estate's own principal included. A
   principal granted the group can still write anything the deny allows,
-  and the `denyAction` refuses the estate's own deletes, so removing a
-  resource from the estate takes a policy exemption on the delete guard
-  (`az policy exemption create`) for the duration of the change. Handover
-  between estates is assigning the group to the other estate, because the
-  deny refuses a write that changes `tofu-estate` to another name.
+  and delete anything its role allows. Handover between estates is
+  assigning the group to the other estate, because the deny refuses a
+  write that changes `tofu-estate` to another name.
+- With `deleteLock=true` the `denyAction` refuses the estate's own
+  deletes too, so a destroy or a replace (which deletes the old object)
+  takes a policy exemption on the delete-lock assignment, scoped to the
+  resource (or to the group for a whole-estate destroy), for the duration
+  of the change, deleted with `az policy exemption delete` after the apply:
+
+  ```
+  az policy exemption create --name <change> --exemption-category Waiver \
+    --policy-assignment /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Authorization/policyAssignments/choudoufu-estate-delete-guard \
+    --scope <resource-id> --expires-on <time>
+  ```
+
+  Redeploying with `deleteLock=false` leaves an assignment an earlier
+  deploy made, because the deployment is incremental; remove it with
+  `az policy assignment delete --name choudoufu-estate-delete-guard --resource-group <rg>`.
 - `mode: Indexed` evaluates only types that
   support tags and location, so untaggable types, resource groups and
-  subscriptions are outside both definitions. A type in
+  subscriptions are outside every definition. A type in
   `taggedAfterCreate` may exist in the group without `tofu-estate` (see
   above); the deny still refuses one naming another estate.
-- `denyAction` covers only the `delete` action
+- With the lock on, `denyAction` covers only the `delete` action
   ([effect-deny-action](https://learn.microsoft.com/azure/governance/policy/concepts/effect-deny-action)). A subscription deletion is never blocked.
   Deleting a parent removes its child and extension resources without the
   guard seeing them. A resource-group delete is blocked only by an indexed

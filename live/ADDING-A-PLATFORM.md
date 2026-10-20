@@ -258,7 +258,7 @@ opening checks are storage-account properties.
 
 | | AWS | Kubernetes | Azure |
 |---|---|---|---|
-| Mechanism | IAM conditions on `aws:ResourceTag`, reads and writes, per principal (`live/MARKERS.md`, "Granting an estate") | one `ValidatingAdmissionPolicy`, writes only, per principal through the authorizer: `live/kubernetes/estate-boundary.yaml` and `estate-grant.yaml`, held by `live/kubernetes_gate_test.go` | resource-group RBAC per principal plus Azure Policy `deny` and `denyAction` on `tofu-estate`: `live/azure/estate-grant.json` and `estate-boundary.json`, held by `live/azure_fence_test.go` |
+| Mechanism | IAM conditions on `aws:ResourceTag`, reads and writes, per principal (`live/MARKERS.md`, "Granting an estate") | one `ValidatingAdmissionPolicy`, writes only, per principal through the authorizer: `live/kubernetes/estate-boundary.yaml` and `estate-grant.yaml`, held by `live/kubernetes_gate_test.go` | resource-group RBAC per principal, which alone governs deletes, plus Azure Policy `deny` on writes lacking or changing `tofu-estate`, with an opt-in `denyAction` delete lock (`deleteLock`, off by default, ruled on #1122 2026-10-20): `live/azure/estate-grant.json` and `estate-boundary.json`, held by `live/azure_fence_test.go` |
 | Landed | | [#1066](https://github.com/INTENTIUS/choudoufu/issues/1066), PR [#1071](https://github.com/INTENTIUS/choudoufu/pull/1071) | #1120 unit 8 (merged at `154b238fd2`) |
 
 Fixed: the fence is never code here; it is a template a person installs,

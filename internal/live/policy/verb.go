@@ -246,8 +246,10 @@ func ValidVerbNames(q Quadrant) string {
 // Kubernetes, where the server's 409 made a softer verb harmless and so
 // the softer verbs were kept; here nothing on the server stops the create,
 // so internal/live/lint refuses the verbs by name for such an estate and
-// internal/live/projection refuses the object under every verb that
-// reaches it.
+// internal/live/projection refuses the object under each verb that
+// reaches it: refuse, keep and report. adopt and converge admit the
+// object before that check, so under them the plan writes the markers
+// onto it in the open and nothing is refused.
 func LeavesCreateStanding(v Verb) bool {
 	return v == Keep || v == Report
 }

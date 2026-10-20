@@ -7,6 +7,7 @@ package residue
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -19,15 +20,17 @@ import (
 // applies with az alone: live/azure/estate-grant.json (RBAC at the estate's
 // resource groups, plus the sweep's read at the subscription) and
 // live/azure/estate-boundary.json (Policy deny on a missing or foreign
-// tofu-estate tag, denyAction on delete). floci-az stores Policy and never
+// tofu-estate tag, and the opt-in delete lock, a denyAction on delete that
+// is assigned only when deleteLock=true; ruled on #1122, 2026-10-20).
+// floci-az stores Policy and never
 // evaluates it (live/FLOCI.md), so nothing exercises the rules; this test is
 // what holds the templates to what live/MARKERS.md, "Granting an Azure
 // estate", says they do.
 //
 // Proving it red: change the deny's tag to tags['tofu-estat'], drop
-// "delete" from the denyAction's actionNames, or write a literal estate
-// name where [parameters('estate')] stands; each fails a different check
-// below.
+// "delete" from the denyAction's actionNames, write a literal estate
+// name where [parameters('estate')] stands, or drop the condition from the
+// delete-lock assignment; each fails a different check below.
 
 const (
 	azGrantTemplate    = "azure/estate-grant.json"
@@ -54,6 +57,66 @@ func armTemplate(t *testing.T, path string) map[string]any {
 		t.Fatalf("%s: not valid JSON: %v", path, err)
 	}
 	return tmpl
+}
+
+// armDeployed is the resources a deployment of tmpl with params would
+// make, nested deployments' inline templates included: a resource whose
+// condition is false is left out, with everything inside it. params
+// override the template's defaults. The only condition form it reads is
+// [parameters('<bool>')], and a nested template's parameter only as a
+// value passed straight through from [parameters('<name>')]; any other
+// form fails the test rather than being guessed at.
+func armDeployed(t *testing.T, tmpl map[string]any, params map[string]any) []map[string]any {
+	t.Helper()
+	vals := map[string]any{}
+	decl, _ := tmpl["parameters"].(map[string]any)
+	for name, d := range decl {
+		if dv, ok := d.(map[string]any)["defaultValue"]; ok {
+			vals[name] = dv
+		}
+	}
+	for k, v := range params {
+		vals[k] = v
+	}
+	paramRef := regexp.MustCompile(`^\[parameters\('([A-Za-z]+)'\)\]$`)
+	var out []map[string]any
+	res, _ := tmpl["resources"].([]any)
+	for _, r := range res {
+		m, _ := r.(map[string]any)
+		if m == nil {
+			continue
+		}
+		if c, ok := m["condition"]; ok {
+			sm := paramRef.FindStringSubmatch(fmt.Sprint(c))
+			if sm == nil {
+				t.Fatalf("resource %v has condition %v, which this test cannot evaluate", m["name"], c)
+			}
+			on, ok := vals[sm[1]].(bool)
+			if !ok {
+				t.Fatalf("resource %v's condition reads parameter %s, which is %v, not a bool", m["name"], sm[1], vals[sm[1]])
+			}
+			if !on {
+				continue
+			}
+		}
+		out = append(out, m)
+		props, _ := m["properties"].(map[string]any)
+		inner, _ := props["template"].(map[string]any)
+		if inner == nil {
+			continue
+		}
+		passed := map[string]any{}
+		pp, _ := props["parameters"].(map[string]any)
+		for name, p := range pp {
+			v := p.(map[string]any)["value"]
+			if sm := paramRef.FindStringSubmatch(fmt.Sprint(v)); sm != nil {
+				v = vals[sm[1]]
+			}
+			passed[name] = v
+		}
+		out = append(out, armDeployed(t, inner, passed)...)
+	}
+	return out
 }
 
 // armResources is every resource in a template, nested deployments'
@@ -137,8 +200,9 @@ func perGroupDeployment(t *testing.T, path string, tmpl map[string]any) map[stri
 
 // TestAzureBoundaryTemplateGuardsTheMarker: the deny reads tofu-estate and
 // refuses both a missing tag and a different estate, the denyAction covers
-// delete, both are mode Indexed, and both are assigned at each of the
-// estate's groups with the estate passed through as a parameter.
+// delete, both are mode Indexed, and each is assigned at each of the
+// estate's groups with the estate passed through as a parameter (the
+// denyAction only when deleteLock is on: TestAzureDeleteLockIsOptIn).
 func TestAzureBoundaryTemplateGuardsTheMarker(t *testing.T) {
 	tmpl := armTemplate(t, azBoundaryTemplate)
 	requireEstateParameters(t, azBoundaryTemplate, tmpl)
@@ -227,7 +291,7 @@ func TestAzureBoundaryTemplateGuardsTheMarker(t *testing.T) {
 	perGroupDeployment(t, azBoundaryTemplate, tmpl)
 	assignments := ofType(res, "Microsoft.Authorization/policyAssignments")
 	if len(assignments) != 2 {
-		t.Fatalf("%s makes %d policy assignments, want the two definitions assigned per group", azBoundaryTemplate, len(assignments))
+		t.Fatalf("%s declares %d policy assignments, want the marker guard and the delete lock, each assigned per group", azBoundaryTemplate, len(assignments))
 	}
 	for _, a := range assignments {
 		if v := dig(a, "properties", "parameters", "estate", "value"); v != "[parameters('estate')]" {
@@ -245,6 +309,84 @@ func TestAzureBoundaryTemplateGuardsTheMarker(t *testing.T) {
 	}
 	if !passed {
 		t.Errorf("%s: no assignment passes the template's taggedAfterCreate through to the marker guard", azBoundaryTemplate)
+	}
+}
+
+// TestAzureDeleteLockIsOptIn (#2133 finding 1, ruled on #1122 2026-10-20):
+// deployed with its defaults, the boundary template assigns the marker
+// guard at each group and no denyAction at all, so resource-group RBAC
+// alone governs deletes, as on AWS and Kubernetes. deleteLock=true adds
+// the denyAction's definition and its assignment, and that denyAction
+// still covers delete. The marker guard is assigned either way.
+func TestAzureDeleteLockIsOptIn(t *testing.T) {
+	tmpl := armTemplate(t, azBoundaryTemplate)
+	p, _ := dig(tmpl, "parameters", "deleteLock").(map[string]any)
+	if p == nil || p["type"] != "bool" || p["defaultValue"] != false {
+		t.Fatalf("%s: parameter deleteLock is %v, want a bool defaulting to false", azBoundaryTemplate, p)
+	}
+
+	// effects returns the effect of each policy definition the deployment
+	// makes and of the definition each of its assignments names. An
+	// assignment gets its definition's id through the per-group
+	// deployment's parameters, built from the definition's name variable.
+	declared := map[string]string{}
+	for _, d := range ofType(armResources(tmpl), "Microsoft.Authorization/policyDefinitions") {
+		declared[fmt.Sprint(d["name"])] = fmt.Sprint(dig(d, "properties", "policyRule", "then", "effect"))
+	}
+	defVar := regexp.MustCompile(`variables\('([A-Za-z]+)'\)`)
+	effects := func(params map[string]any) (defs, assigned []string) {
+		res := armDeployed(t, tmpl, params)
+		made := map[string]bool{}
+		for _, d := range ofType(res, "Microsoft.Authorization/policyDefinitions") {
+			made[fmt.Sprint(d["name"])] = true
+			defs = append(defs, declared[fmt.Sprint(d["name"])])
+		}
+		deps := ofType(res, "Microsoft.Resources/deployments")
+		if len(deps) != 1 {
+			t.Fatalf("%s with %v makes %d deployments, want the one per-group deployment", azBoundaryTemplate, params, len(deps))
+		}
+		for _, a := range ofType(res, "Microsoft.Authorization/policyAssignments") {
+			ref := strings.TrimSuffix(strings.TrimPrefix(fmt.Sprint(dig(a, "properties", "policyDefinitionId")), "[parameters('"), "')]")
+			sm := defVar.FindStringSubmatch(fmt.Sprint(dig(deps[0], "properties", "parameters", ref, "value")))
+			if sm == nil {
+				t.Fatalf("%s: assignment %v's definition id is not built from a definition name variable", azBoundaryTemplate, a["name"])
+			}
+			def := "[variables('" + sm[1] + "')]"
+			if !made[def] {
+				t.Errorf("%s with %v assigns %s, which that deployment does not define", azBoundaryTemplate, params, def)
+			}
+			assigned = append(assigned, declared[def])
+		}
+		return defs, assigned
+	}
+
+	for _, tc := range []struct {
+		name   string
+		params map[string]any
+		want   []string
+	}{
+		{"default", map[string]any{"deleteLock": false}, []string{"deny"}},
+		{"deleteLock=true", map[string]any{"deleteLock": true}, []string{"deny", "denyAction"}},
+	} {
+		defs, assigned := effects(tc.params)
+		if strings.Join(defs, ",") != strings.Join(tc.want, ",") {
+			t.Errorf("%s with %s defines policies with effects %v, want %v", azBoundaryTemplate, tc.name, defs, tc.want)
+		}
+		if strings.Join(assigned, ",") != strings.Join(tc.want, ",") {
+			t.Errorf("%s with %s assigns policies with effects %v, want %v", azBoundaryTemplate, tc.name, assigned, tc.want)
+		}
+	}
+
+	// Turned on, the lock is the delete guard the other test reads: it
+	// still names delete.
+	for _, d := range ofType(armDeployed(t, tmpl, map[string]any{"deleteLock": true}), "Microsoft.Authorization/policyDefinitions") {
+		if dig(d, "properties", "policyRule", "then", "effect") != "denyAction" {
+			continue
+		}
+		actions, _ := dig(d, "properties", "policyRule", "then", "details", "actionNames").([]any)
+		if len(actions) != 1 || actions[0] != "delete" {
+			t.Errorf("%s: with deleteLock=true the denyAction names %v, want [delete]", azBoundaryTemplate, actions)
+		}
 	}
 }
 
@@ -364,7 +506,7 @@ func TestAzureGrantTemplateGrantsTheGroups(t *testing.T) {
 			}
 		}
 		if !noGroupDelete {
-			t.Errorf("%s: the estate role can delete its resource group, which removes untaggable children past the delete guard", azGrantTemplate)
+			t.Errorf("%s: the estate role can delete its resource group, which removes every resource in it at once, untaggable children included", azGrantTemplate)
 		}
 	}
 	if sweepRole == nil {

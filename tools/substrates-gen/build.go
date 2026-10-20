@@ -213,7 +213,7 @@ var fenceByFamily = map[string]string{
 	"kubernetes": "One ValidatingAdmissionPolicy, writes only, enforced per principal through the cluster's authorizer.",
 	// GitHub issue #1122's ruling (2026-10-19): Azure RBAC cannot condition
 	// on tags, so the estate is a set of resource groups.
-	"azurerm": "Resource-group RBAC per principal (a custom role or Contributor on the estate's groups), plus Azure Policy on the tofu-estate tag: deny a write that lacks it or changes it, denyAction on deleting a tagged resource. Template files an operator applies, never plan resources.",
+	"azurerm": "Resource-group RBAC per principal (a custom role or Contributor on the estate's groups), plus Azure Policy on the tofu-estate tag: deny a write that lacks it or changes it. The RBAC alone governs deletes; a denyAction delete lock is opt-in (deleteLock, off by default). Template files an operator applies, never plan resources.",
 }
 
 func fenceFor(family string) (string, error) {

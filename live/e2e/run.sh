@@ -2268,7 +2268,9 @@ fi
 # exceptions (a module to install, or a provider to resolve because the
 # fixture pins one explicitly) are called out at their own call sites below.
 #
-# Three tables, and every directory must be in exactly one of them. The
+# Three tables, and every directory must be in exactly one of them (the
+# Azure fixtures sit in the first and third, with LINT_AZURE saying how
+# they run). The
 # second is the honest one: PE.1 asked for constructs with no rule yet to be
 # ASSERTED as unenforced rather than quietly skipped, so an enforcement gap is
 # visible in the harness output instead of hidden by omission. The day a rule
@@ -2308,7 +2310,6 @@ unadmitted-type:unadmitted-type
 markerless-type:markerless-type
 count-index-in-tag:count-index
 foreach-invalid-key:for-each-key
-reserved-symbol:reserved-symbol
 strict-marker-repair:strict-marker-repair
 strict-markers:strict-markers
 strict-markers-unrecordable:strict-markers-unrecordable
@@ -2322,7 +2323,12 @@ undeclared-provider-alias:undeclared-provider-alias
 child-live-config:child-live-config
 policy-verb:policy-verb
 policy-scope:policy-scope
-policy-threshold:policy-threshold"
+policy-threshold:policy-threshold
+policy-overwrite-at-key:policy-overwrite-at-key
+generate-name:generate-name
+retry:retry
+strict-provider-change:strict-provider-change
+strict-secrets-ssm:strict-secrets-ssm"
 
   # Directories no LINT rule catches. Each still has to be REFUSED — by
   # something — and each is asserted to produce no "Rule:" line, which is
@@ -2349,18 +2355,24 @@ policy-threshold:policy-threshold"
   # never reads mod.Backend or mod.CloudConfig, so the block is inert rather
   # than merely unwise, and gating a clean verdict on deleting it serves no
   # purpose). backend-block and cloud-block are its two fixtures.
+  # arm-tag-limit (GitHub issue #1120, RuleARMTagLimit) is the third
+  # warning rule; see LINT_AZURE below for how its plan ends.
   LINT_WARNED="backend-block:state-backend
-cloud-block:state-backend"
+cloud-block:state-backend
+arm-tag-limit:arm-tag-limit"
 
-  # Directories this AWS harness cannot plan at all: their fixture declares
-  # another platform's provider, which needs that platform's credentials
-  # and emulator to configure, so live-plan refuses before lint for a
-  # reason unrelated to the rule. Each is still listed, so the completeness
-  # check below holds, and each is asserted by
-  # internal/live/lint/limits_test.go's TestLimitsEnforced instead.
-  #   arm-tag-limit            GitHub issue #1120: an azurerm resource.
-  #   policy-overwrite-at-key  GitHub issue #1120: an azurerm resource.
-  LINT_OTHER_PLATFORM="arm-tag-limit policy-overwrite-at-key"
+  # The Azure fixtures (GitHub issue #1120, #2133 finding 9). They declare
+  # hashicorp/azurerm with a pinned version, so each is init'ed first: with
+  # only a copy the run refuses with "Inconsistent dependency lock file"
+  # before lint, and with no schemas lint also refuses every azurerm type as
+  # unadmitted-type. Lint needs the provider's schema, never its
+  # credentials, so each runs with every Azure credential source removed
+  # (lint_no_azure): a machine logged in with az must not have this step
+  # read a real subscription. A warning fixture's plan therefore goes on
+  # past lint and stops where azurerm builds its authorizer, so for these
+  # LINT_WARNED's "exits 0, no Error" becomes "the only Error is azurerm's
+  # authorizer".
+  LINT_AZURE="arm-tag-limit policy-overwrite-at-key"
 
   # Completeness: every subdirectory of the limits wing appears in exactly
   # one table. Without this a new fixture directory would be silently
@@ -2370,7 +2382,7 @@ cloud-block:state-backend"
     [ -n "$LDIR" ] || continue
     LINT_LISTED="$LINT_LISTED $LDIR"
   done <<< "$LINT_ENFORCED"
-  LINT_LISTED="$LINT_LISTED $LINT_TODO $LINT_OTHER_PLATFORM"
+  LINT_LISTED="$LINT_LISTED $LINT_TODO"
   while IFS=: read -r LDIR _; do
     [ -n "$LDIR" ] || continue
     LINT_LISTED="$LINT_LISTED $LDIR"
@@ -2378,7 +2390,7 @@ cloud-block:state-backend"
   for LPATH in "$LIMITS_DIR"/*/; do
     LDIR="$(basename "$LPATH")"
     in_list "$LDIR" "$LINT_LISTED" \
-      || fail "lint-rejects" "live/e2e/limits/$LDIR is in neither table — add it to LINT_ENFORCED with its rule, to LINT_WARNED if the rule is advisory-only (#210), to LINT_TODO with why nothing catches it yet, or to LINT_OTHER_PLATFORM if this harness cannot plan its provider"
+      || fail "lint-rejects" "live/e2e/limits/$LDIR is in neither table — add it to LINT_ENFORCED with its rule, to LINT_WARNED if the rule is advisory-only (#210), or to LINT_TODO with why nothing catches it yet"
   done
   for LDIR in $LINT_LISTED; do
     [ -d "$LIMITS_DIR/$LDIR" ] \
@@ -2387,6 +2399,23 @@ cloud-block:state-backend"
 
   LINT_WORK="$WORK/limits"
   LINT_N=0
+
+  # lint_no_azure runs live-plan in $LINT_WORK with no Azure credential in
+  # reach: the ARM_* variables azurerm reads are unset and az's own config
+  # directory is an empty one, so the provider can neither find a service
+  # principal nor fall back to an az login.
+  lint_no_azure() {
+    mkdir -p "$LINT_WORK/.azure-none"
+    set +e
+    TF_OUT="$(cd "$LINT_WORK" && env -u ARM_CLIENT_ID -u ARM_CLIENT_SECRET -u ARM_CLIENT_CERTIFICATE_PATH \
+      -u ARM_CLIENT_CERTIFICATE_PASSWORD -u ARM_TENANT_ID -u ARM_SUBSCRIPTION_ID -u ARM_OIDC_TOKEN \
+      -u ARM_OIDC_REQUEST_TOKEN -u ARM_OIDC_REQUEST_URL -u ARM_USE_OIDC -u ARM_USE_MSI -u ARM_MSI_ENDPOINT \
+      -u AZURE_CLIENT_ID -u AZURE_CLIENT_SECRET -u AZURE_TENANT_ID -u AZURE_SUBSCRIPTION_ID \
+      ARM_USE_CLI=false AZURE_CONFIG_DIR="$LINT_WORK/.azure-none" \
+      "$TOFU" live-plan -input=false -no-color 2>&1)"
+    TF_RC=$?
+    set -e
+  }
   while IFS=: read -r LDIR LRULE; do
     [ -n "$LDIR" ] || continue
 
@@ -2425,13 +2454,18 @@ cloud-block:state-backend"
     # SECRET_REFUSED classification needs hashicorp/random's resolved
     # schema, so with only a copy the run refuses earlier and differently
     # (dependency lock) before RuleLogicalResource can fire.
-    if [ "$LDIR" = "child-live-config" ] || [ "$LDIR" = "strict-secrets-refusal" ]; then
+    # The Azure fixtures need init for the same reason (LINT_AZURE).
+    if [ "$LDIR" = "child-live-config" ] || [ "$LDIR" = "strict-secrets-refusal" ] || in_list "$LDIR" "$LINT_AZURE"; then
       run_tf "$LINT_WORK" init -input=false -no-color
       [ "$TF_RC" -eq 0 ] \
         || fail "lint-rejects" "$LDIR: choudoufu init could not resolve providers/modules: $TF_OUT"
     fi
 
-    run_tf "$LINT_WORK" live-plan -input=false -no-color
+    if in_list "$LDIR" "$LINT_AZURE"; then
+      lint_no_azure
+    else
+      run_tf "$LINT_WORK" live-plan -input=false -no-color
+    fi
     [ "$TF_RC" -ne 0 ] \
       || fail "lint-rejects" "$LDIR: live-plan exited 0 — the fixture is supposed to be refused by rule '$LRULE': $TF_OUT"
 
@@ -2479,21 +2513,43 @@ cloud-block:state-backend"
     cp -R "$LIMITS_DIR/$LDIR"/. "$LINT_WORK/" \
       || fail "lint-rejects" "$LDIR: could not copy the fixture"
 
-    run_tf "$LINT_WORK" live-plan -input=false -no-color
-    # The inverse of LINT_ENFORCED's exit check: a SeverityWarning rule does
-    # not refuse, so live-plan is expected to SUCCEED despite firing. A
-    # nonzero exit here means the rule (or something else) escalated to
-    # fatal and this entry belongs in LINT_ENFORCED now, not here.
-    [ "$TF_RC" -eq 0 ] \
-      || fail "lint-rejects" "$LDIR: live-plan exited $TF_RC — rule '$LRULE' is registered SeverityWarning (advisory only); if it now blocks the plan, move this entry into LINT_ENFORCED: $TF_OUT"
+    if in_list "$LDIR" "$LINT_AZURE"; then
+      run_tf "$LINT_WORK" init -input=false -no-color
+      [ "$TF_RC" -eq 0 ] \
+        || fail "lint-rejects" "$LDIR: choudoufu init could not resolve providers: $TF_OUT"
+      lint_no_azure
+      # Past lint the plan configures azurerm, which has no credential
+      # here by construction, so the run ends on that one Error and on
+      # nothing else. Any other Error is the rule (or another check)
+      # refusing, and the entry belongs in LINT_ENFORCED.
+      [ "$TF_RC" -ne 0 ] \
+        || fail "lint-rejects" "$LDIR: live-plan exited 0 with no Azure credential in reach; it should have stopped at azurerm's authorizer: $TF_OUT"
+      LINT_OTHER_ERRORS="$(grep -E '^Error: ' <<< "$TF_OUT" | grep -v '^Error: unable to build authorizer' || true)"
+      [ -z "$LINT_OTHER_ERRORS" ] \
+        || fail "lint-rejects" "$LDIR: an Error other than azurerm's authorizer stopped the plan ($LINT_OTHER_ERRORS); if rule '$LRULE' now blocks the plan, move this entry into LINT_ENFORCED: $TF_OUT"
+      grep -qE '^Error: unable to build authorizer' <<< "$TF_OUT" \
+        || fail "lint-rejects" "$LDIR: live-plan exited $TF_RC without azurerm's authorizer error: $TF_OUT"
+      LINT_WARN_ERROR_OK=1
+    else
+      run_tf "$LINT_WORK" live-plan -input=false -no-color
+      # The inverse of LINT_ENFORCED's exit check: a SeverityWarning rule does
+      # not refuse, so live-plan is expected to SUCCEED despite firing. A
+      # nonzero exit here means the rule (or something else) escalated to
+      # fatal and this entry belongs in LINT_ENFORCED now, not here.
+      [ "$TF_RC" -eq 0 ] \
+        || fail "lint-rejects" "$LDIR: live-plan exited $TF_RC — rule '$LRULE' is registered SeverityWarning (advisory only); if it now blocks the plan, move this entry into LINT_ENFORCED: $TF_OUT"
+      LINT_WARN_ERROR_OK=0
+    fi
     LINT_RULES="$(echo "$TF_OUT" | sed -n 's/^Rule: \([a-z-]*\)\..*$/\1/p' | sort -u | tr '\n' ' ')"
     LINT_RULES="${LINT_RULES% }"
     [ "$LINT_RULES" = "$LRULE" ] \
       || fail "lint-rejects" "$LDIR: expected exactly rule '$LRULE' and no other, got [$LINT_RULES]: $TF_OUT"
     grep -qE '^Warning: ' <<< "$TF_OUT" \
       || fail "lint-rejects" "$LDIR: rule '$LRULE' fired but nothing was reported as a Warning: $TF_OUT"
-    grep -qE '^Error: ' <<< "$TF_OUT" \
-      && fail "lint-rejects" "$LDIR: rule '$LRULE' fired as an Error, not just a Warning — SeverityWarning no longer holds for it, move this entry into LINT_ENFORCED: $TF_OUT"
+    if [ "$LINT_WARN_ERROR_OK" -eq 0 ]; then
+      grep -qE '^Error: ' <<< "$TF_OUT" \
+        && fail "lint-rejects" "$LDIR: rule '$LRULE' fired as an Error, not just a Warning — SeverityWarning no longer holds for it, move this entry into LINT_ENFORCED: $TF_OUT"
+    fi
 
     echo "  $LDIR -> $LRULE WARN (advisory, plan still succeeds)"
   done <<< "$LINT_WARNED"
