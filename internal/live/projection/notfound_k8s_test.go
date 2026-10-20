@@ -8,6 +8,7 @@ package projection
 import (
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/live/absent"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -31,7 +32,7 @@ func TestNotFoundDiagnosticsRecognisesKubernetesNotFound(t *testing.T) {
 		"credentials":        {"Unauthorized", "serviceaccounts is forbidden: User \"x\" cannot get resource", false},
 		"aws sdk convention": {"couldn't find resource", "", true},
 	} {
-		got, _ := notFoundDiagnostics(notFound(tc.summary, tc.detail))
+		got, _ := notFoundDiagnostics(notFound(tc.summary, tc.detail), absent.Object{})
 		if got != tc.want {
 			t.Errorf("%s: notFoundDiagnostics = %v, want %v", name, got, tc.want)
 		}

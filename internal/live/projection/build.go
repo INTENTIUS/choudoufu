@@ -3161,7 +3161,10 @@ const (
 // stop applies untouched. That also means a warning-only response (no
 // errors at all) never reaches this function, since it is only consulted
 // under importResp.Diagnostics.HasErrors().
-func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
+//
+// object is what the import asked for: an Azure 404 reads as absence only
+// when it is about that object ([absent.Object], GitHub issue #2133).
+func notFoundDiagnostics(diags tfdiags.Diagnostics, object absent.Object) (bool, string) {
 	sawError := false
 	detail := ""
 	for _, d := range diags {
@@ -3171,7 +3174,7 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 		sawError = true
 		desc := d.Description()
 		text := strings.TrimSpace(desc.Summary + ": " + desc.Detail)
-		if !absent.Matches(desc.Summary, desc.Detail) {
+		if !absent.Matches(desc.Summary, desc.Detail, object) {
 			return false, ""
 		}
 		if detail == "" {
@@ -3948,7 +3951,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		Target:   target,
 	})
 	if importResp.Diagnostics.HasErrors() {
-		if ok, detail := notFoundDiagnostics(importResp.Diagnostics); ok {
+		if ok, detail := notFoundDiagnostics(importResp.Diagnostics, absent.Object{ID: target.ID, Identity: identityValues}); ok {
 			// Some providers answer "there is no such object" as an error
 			// diagnostic out of ImportResourceState rather than an empty
 			// ImportedResources list - aws_lambda_permission is a confirmed

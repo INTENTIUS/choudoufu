@@ -147,6 +147,42 @@ resource "azurerm_cosmosdb_account" "a" {
 }`,
 			want: []string{"would carry 16 tags"},
 		},
+		// GitHub issue #2133, finding 8: API Management documents 10 tags
+		// at 2016-07-07 and no count in any version since, so the block's
+		// own API version decides.
+		"azapi at a version documenting fewer": {
+			src: `resource "azapi_resource" "a" {
+  type      = "Microsoft.ApiManagement/service@2016-07-07"
+  name      = "a"
+  parent_id = "/subscriptions/0/resourceGroups/rg"
+  tags      = ` + nTags(9) + `
+}`,
+			want: []string{"would carry 11 tags", "the most it takes is 10", "the tags description of Microsoft.ApiManagement/service@2016-07-07"},
+		},
+		"azapi at a version documenting no count": {
+			src: `resource "azapi_resource" "a" {
+  type      = "Microsoft.ApiManagement/service@2024-05-01"
+  name      = "a"
+  parent_id = "/subscriptions/0/resourceGroups/rg"
+  tags      = ` + nTags(12) + `
+}`,
+		},
+		"azapi at a version documenting no count, over ARM's 50": {
+			src: `resource "azapi_resource" "a" {
+  type      = "Microsoft.ApiManagement/service@2024-05-01"
+  name      = "a"
+  parent_id = "/subscriptions/0/resourceGroups/rg"
+  tags      = ` + nTags(49) + `
+}`,
+			want: []string{"the most it takes is 50", "Microsoft.ApiManagement/service@2024-05-01 documents no count"},
+		},
+		"azurerm names no version and takes the lowest": {
+			src: `resource "azurerm_api_management" "a" {
+  name = "a"
+  tags = ` + nTags(9) + `
+}`,
+			want: []string{"the most it takes is 10", "the lowest any API version documents; no API version was given"},
+		},
 		"azapi type that takes no tags": {
 			src: `resource "azapi_resource" "a" {
   type      = "Microsoft.Network/virtualNetworks/subnets@2023-09-01"

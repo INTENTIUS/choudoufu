@@ -530,7 +530,7 @@ func TestResolverImportAbsentDiagnostics(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			got := resolverImportAbsentDiagnostics(test.diags)
+			got := resolverImportAbsentDiagnostics(test.diags, providers.ImportTarget{})
 			if got != test.want {
 				t.Errorf("resolverImportAbsentDiagnostics(...) = %v, want %v", got, test.want)
 			}
