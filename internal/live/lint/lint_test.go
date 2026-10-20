@@ -904,17 +904,25 @@ func TestStateBackendIsWarningSeverity(t *testing.T) {
 	}
 }
 
-// TestOnlyStateBackendIsWarningSeverity is the mechanism check for #210: it
+// warningRules is every rule that declares [SeverityWarning]: state-backend
+// (#210) and arm-tag-limit (#1120, which Azure refuses with its own error
+// and nothing is created wrongly).
+var warningRules = map[Rule]bool{
+	RuleStateBackend: true,
+	RuleARMTagLimit:  true,
+}
+
+// TestOnlyDeclaredRulesAreWarningSeverity is the mechanism check for #210: it
 // declares severity as a property of a rule, derived by [Rule.Severity] and
 // consulted by [Diagnostics] and [HasErrors], never special-cased on a rule
 // name in control flow. If a future rule wants warning severity, the change
-// is a one-line ruleInfo entry - so every rule constant except
-// RuleStateBackend must still answer SeverityError, or something started
+// is a one-line ruleInfo entry and one line in [warningRules] - so every
+// other rule constant must still answer SeverityError, or something started
 // branching on identity instead of reading the declared field.
-func TestOnlyStateBackendIsWarningSeverity(t *testing.T) {
+func TestOnlyDeclaredRulesAreWarningSeverity(t *testing.T) {
 	for _, rule := range Rules() {
 		want := SeverityError
-		if rule == RuleStateBackend {
+		if warningRules[rule] {
 			want = SeverityWarning
 		}
 		if got := rule.Severity(); got != want {

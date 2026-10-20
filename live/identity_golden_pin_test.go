@@ -3262,7 +3262,14 @@ const (
 	// outputs and no resources. It adds no row, so instances and
 	// body-sha256 are unchanged. fixture-dirs 670 -> 671 on the same row;
 	// the cohort pins are untouched.
-	identityGoldenPinDirs = 702
+	//
+	// 702 -> 703 for GitHub issue #1120 unit 12: one new fixture,
+	// live/e2e/limits/arm-tag-limit, an azurerm_cosmosdb_account the
+	// schemaless sweep leaves unadmitted (no azurerm type has a table row).
+	// It adds no row, so instances and body-sha256 are unchanged.
+	// fixture-dirs 671 -> 672 on the same row; the cohort pins are
+	// untouched.
+	identityGoldenPinDirs = 703
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).
