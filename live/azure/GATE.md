@@ -44,9 +44,14 @@ itself, assignable only at the estate's groups. `role=Contributor` uses the
 built-in role, which can delete the group.
 
 [`estate-boundary.json`](estate-boundary.json) is the Policy half, assigned
-at each of the estate's groups. One definition denies a create or update
-whose `tofu-estate` tag is missing or names another estate. The other is a
-`denyAction` on deleting a resource tagged with the estate.
+at each of the estate's groups. It denies a create or update whose
+`tofu-estate` tag is missing or names another estate. It does not guard
+deletes: the role assignment alone decides who may delete, as on AWS and
+Kubernetes (ruled on [#1122](https://github.com/INTENTIUS/choudoufu/issues/1122), 2026-10-20).
+
+`deleteLock=true` adds an opt-in delete lock, a `denyAction` on deleting a
+resource tagged with the estate. It is off by default because it refuses
+the estate's own destroys too (below).
 
 `live/MARKERS.md`, "Granting an Azure estate", has both in full, with the
 `taggedAfterCreate` parameter the two after-create types need.
@@ -73,14 +78,25 @@ Reads are not fenced. The sweep reads the whole subscription, and the
 grant's subscription-wide read role lets the principal read every resource
 in it.
 
-Policy is not per principal. Both definitions apply to every caller at the
-group, the estate's own principal included. So the `denyAction` refuses the
-estate's own deletes too, and removing a resource from the estate takes an
-exemption on the delete guard for the duration of the change.
+Policy is not per principal. The marker guard applies to every caller at
+the group, the estate's own principal included. So does the delete lock
+when it is on: it refuses the estate's own destroys and replaces, and each
+one takes a policy exemption on the lock's assignment, scoped to the
+resource (or the group, for a whole-estate destroy), removed with
+`az policy exemption delete` once the change is applied:
+
+```
+az policy exemption create --name <change> --exemption-category Waiver \
+  --policy-assignment /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Authorization/policyAssignments/choudoufu-estate-delete-guard \
+  --scope <resource-id> --expires-on <time>
+```
+
+With the lock off, the default, deletes are governed by the role alone.
 
 Policy's `Indexed` mode evaluates only types that support tags and
 location. An untaggable child (a subnet, a route) gets the group's RBAC and
-nothing from Policy, and deleting its parent removes it unseen.
+nothing from Policy, and deleting its parent removes it even with the lock
+on.
 
 Scope is the gap, more than tags. A type whose id lives at the subscription
 or the tenant is outside every group, and the grant does not reach it.

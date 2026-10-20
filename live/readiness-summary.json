@@ -9315,7 +9315,7 @@
           3,
           7
         ],
-        "fence": "the deny on a write lacking or changing tofu-estate, and the denyAction on deleting a tagged resource"
+        "fence": "the deny on a write lacking or changing tofu-estate, and the delete lock when deleteLock is on"
       },
       {
         "tier": "declaration-carried",

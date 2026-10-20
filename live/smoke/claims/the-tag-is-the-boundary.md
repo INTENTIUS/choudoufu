@@ -113,8 +113,9 @@ Open. The proof is a draft that has not run:
     BREAK=1 just smoke az-the-tag-is-the-boundary
 
 `live/smoke/drafts/az-the-tag-is-the-boundary.sh` installs the two Policy
-definitions in `live/azure/estate-boundary.json` and assigns them at
-Alice's resource group. Bob's apply into that group, an untagged ARM
+definitions in `live/azure/estate-boundary.json`, the marker guard and the
+delete lock (the template's `deleteLock=true`; off by default since the
+2026-10-20 ruling on #1122), and assigns them at Alice's resource group. Bob's apply into that group, an untagged ARM
 create and an ARM delete of Alice's identity must each be refused by
 Policy. `BREAK=1` deletes the assignments, and the same three writes must
 land. floci-az stores Policy and evaluates no rule, and has no role

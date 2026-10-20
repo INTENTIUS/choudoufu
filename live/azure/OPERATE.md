@@ -82,9 +82,11 @@ empty. An unregistered `Microsoft.ResourceGraph` provider is refused by
 name, with the `az provider register` line.
 
 Two hazards are the operator's. Deleting a resource group takes every
-resource in it, untaggable children included, and with the boundary
-template applied the `denyAction` refuses the estate's own deletes until an
-exemption covers them. The plan names the object; the approval is yours.
+resource in it, untaggable children included, and the group's role is all
+that stands in the way. If the boundary template was applied with
+`deleteLock=true`, its `denyAction` refuses the estate's own destroys and
+replaces until a policy exemption covers them ([GATE.md](GATE.md#what-it-does-not-fence)).
+The plan names the object; the approval is yours.
 
 ## Two runs at once
 

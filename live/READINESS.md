@@ -130,7 +130,7 @@ The fence for azurerm, by tier and by where the type lives:
 
 | Tier | resource-group | from-argument | subscription | tenant | unknown | What Policy adds to the group RBAC |
 |---|---|---|---|---|---|---|
-| marker-carried | 375 | 1 | 1 | 3 | 7 | the deny on a write lacking or changing tofu-estate, and the denyAction on deleting a tagged resource |
+| marker-carried | 375 | 1 | 1 | 3 | 7 | the deny on a write lacking or changing tofu-estate, and the delete lock when deleteLock is on |
 | declaration-carried | 448 | 21 | 12 | 8 | 0 | nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen |
 | record-carried | 171 | 20 | 5 | 3 | 31 | nothing, and the type is not admitted |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | not admitted |
