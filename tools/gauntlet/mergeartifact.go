@@ -450,6 +450,6 @@ func MergeArtifact(root, baseRev, oursRev, theirsRev string) (*Artifact, error) 
 		return nil, err
 	}
 	merged := &Artifact{Estates: rows}
-	merged.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
+	merged.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
 	return merged, nil
 }

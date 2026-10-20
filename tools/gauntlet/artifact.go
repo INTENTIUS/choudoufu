@@ -505,24 +505,33 @@ func IsStale(r EstateResult, currentEmulator string) bool {
 	return r.LastRun != nil && r.LastRun.Emulator != currentEmulator
 }
 
+// SubstratePins is the image each substrate that does not run on floci is
+// pinned to, read from the checkout by substratePins (main.go) and handed
+// to everything that judges a row current: the kind node image
+// (live/kind-node-image, #1594) and the floci-az image
+// (live/floci-az-image, #1120). Both are rendering-time facts rather than
+// artifact state, the reason the kind pin was a bare parameter before the
+// floci-az one joined it. floci's own pin stays a.Emulator.
+type SubstratePins struct {
+	Kind    string
+	FlociAz string
+}
+
 // IsSubstrateStale is IsStale for whichever substrate r ran on: a
-// kind-substrate row's LastRun.SubstrateImage against kindImage (the
-// live/kind-node-image pin), every other row's LastRun.Emulator against
-// emulator (issue #1739). The same carve-out and the same "unrecorded
-// reads as stale" rule as IsStale apply to both.
+// kind-substrate row's LastRun.SubstrateImage against pins.Kind, a floci-az
+// row's (#1120) against pins.FlociAz, every other row's LastRun.Emulator
+// against emulator (issue #1739). The same carve-out and the same
+// "unrecorded reads as stale" rule as IsStale apply to all three.
 //
-// A floci-az row (#1120) records the floci-az image it ran against in
-// LastRun.SubstrateImage, and nothing here holds live/floci-az-image's pin
-// yet, so a measured floci-az row always reads stale: never verified, and
-// listed by `next` with the image it recorded. That is the direction that
-// cannot claim a measurement is current when it is not; comparing against
-// the pin is the follow-up that threads it beside kindImage.
-func IsSubstrateStale(r EstateResult, emulator, kindImage string) bool {
+// A floci-az row read stale whatever it recorded until the floci-az pin
+// was threaded through beside the kind one, so a measured floci-az row
+// could never count as verified.
+func IsSubstrateStale(r EstateResult, emulator string, pins SubstratePins) bool {
 	switch r.Substrate {
 	case SubstrateKind:
-		return r.LastRun != nil && r.LastRun.SubstrateImage != kindImage
+		return r.LastRun != nil && r.LastRun.SubstrateImage != pins.Kind
 	case SubstrateFlociAz:
-		return r.LastRun != nil
+		return r.LastRun != nil && r.LastRun.SubstrateImage != pins.FlociAz
 	}
 	return IsStale(r, emulator)
 }
@@ -534,12 +543,12 @@ func IsSubstrateStale(r EstateResult, emulator, kindImage string) bool {
 // so a row the board marks **Stale** is never counted as verified. A row
 // with no run, or a run that recorded no oracle, has no evidence of being
 // current and is not.
-func (a *Artifact) pinCurrent(kindImage string) func(EstateResult) bool {
+func (a *Artifact) pinCurrent(pins SubstratePins) func(EstateResult) bool {
 	return func(r EstateResult) bool {
 		if r.LastRun == nil || r.LastRun.Oracle == nil {
 			return false
 		}
-		return !IsSubstrateStale(r, a.Emulator, kindImage) &&
+		return !IsSubstrateStale(r, a.Emulator, pins) &&
 			*r.LastRun.Oracle == a.Oracle &&
 			!IsEngineStale(r, a.UpstreamVersion)
 	}
@@ -657,7 +666,7 @@ func loadArtifactFile(path string) (*Artifact, error) {
 //
 // engine is a.UpstreamVersion's fresh value (#1778 ruling 6), the engine
 // base read from version/VERSION (engineVersion, engine.go).
-func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions, engine, kindImage string) {
+func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, oracle OracleVersions, providers ProviderVersions, engine string, pins SubstratePins) {
 	prev := map[string]EstateResult{}
 	for _, r := range a.Estates {
 		prev[r.Name] = r
@@ -741,7 +750,7 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 
 	a.Sets = map[string]SetSummary{}
 	for key, label := range SetLabels {
-		a.Sets[key] = tallyRows(label, rows, a.pinCurrent(kindImage), func(r EstateResult) bool {
+		a.Sets[key] = tallyRows(label, rows, a.pinCurrent(pins), func(r EstateResult) bool {
 			// The two headline bars are the emulator's: a kind-substrate
 			// row is counted in its lane below and nowhere else (#1067),
 			// and so is a floci-az row (#1120). A floci-eks row (#1113)
@@ -755,7 +764,7 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 	a.Lanes = map[string]SetSummary{}
 	for _, lane := range KnownLanes {
 		lane := lane
-		sum := tallyRows(lane+" lane", rows, a.pinCurrent(kindImage), func(r EstateResult) bool { return r.Lane == lane })
+		sum := tallyRows(lane+" lane", rows, a.pinCurrent(pins), func(r EstateResult) bool { return r.Lane == lane })
 		if sum.Estates > 0 {
 			a.Lanes[lane] = sum
 		}

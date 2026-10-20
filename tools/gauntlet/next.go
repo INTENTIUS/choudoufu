@@ -49,19 +49,20 @@ type Unit struct {
 // first unit is always "convert the script to the protocol and re-run",
 // which the worker brief says.
 //
-// kindImage is the current live/kind-node-image pin (kindNodeImagePin): a
-// clear kind-substrate row whose LastRun.SubstrateImage differs from it is
-// stale the same way a floci row whose LastRun.Emulator differs from
-// a.Emulator is (issue #1739).
-func NextUnits(a *Artifact, set, kindImage string) []Unit {
-	return nextUnitsAgainst(HeadlineStages(), a, set, kindImage)
+// pins are the current live/kind-node-image and live/floci-az-image pins
+// (substratePins): a clear kind-substrate or floci-az row whose
+// LastRun.SubstrateImage differs from its pin is stale the same way a
+// floci row whose LastRun.Emulator differs from a.Emulator is (issue
+// #1739, #1120).
+func NextUnits(a *Artifact, set string, pins SubstratePins) []Unit {
+	return nextUnitsAgainst(HeadlineStages(), a, set, pins)
 }
 
 // nextUnitsAgainst is NextUnits' logic against an explicit headline stage
 // list. Split out so a test can pin the headline-exemption behavior against
 // a synthetic stage list, independent of which real stage in Stages()
 // happens to be both active and non-headline today (next_test.go).
-func nextUnitsAgainst(headline []Stage, a *Artifact, set, kindImage string) []Unit {
+func nextUnitsAgainst(headline []Stage, a *Artifact, set string, pins SubstratePins) []Unit {
 	active := headline
 	type cand struct {
 		r         EstateResult
@@ -98,7 +99,7 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set, kindImage string) []Un
 			//
 			// IsEngineStale (#1778 ruling 6) is the same for the engine
 			// base: every substrate runs the one binary.
-			if IsSubstrateStale(r, a.Emulator, kindImage) || IsProviderStale(r, a.Providers) || IsEngineStale(r, a.UpstreamVersion) {
+			if IsSubstrateStale(r, a.Emulator, pins) || IsProviderStale(r, a.Providers) || IsEngineStale(r, a.UpstreamVersion) {
 				staleClear = append(staleClear, r)
 			}
 			continue
@@ -156,20 +157,20 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set, kindImage string) []Un
 	})
 	for _, r := range staleClear {
 		var reasons []string
-		if IsSubstrateStale(r, a.Emulator, kindImage) {
+		if IsSubstrateStale(r, a.Emulator, pins) {
 			switch r.Substrate {
 			case SubstrateKind:
 				img := "unrecorded"
 				if r.LastRun != nil && r.LastRun.SubstrateImage != "" {
 					img = r.LastRun.SubstrateImage
 				}
-				reasons = append(reasons, fmt.Sprintf("last verified against kind node image %s; the current pin is %s", img, kindImage))
+				reasons = append(reasons, fmt.Sprintf("last verified against kind node image %s; the current pin is %s", img, pins.Kind))
 			case SubstrateFlociAz:
 				img := "unrecorded"
 				if r.LastRun != nil && r.LastRun.SubstrateImage != "" {
 					img = r.LastRun.SubstrateImage
 				}
-				reasons = append(reasons, fmt.Sprintf("last measured against floci-az image %s; a floci-az row is not compared with live/floci-az-image yet, so it never reads current (#1120)", img))
+				reasons = append(reasons, fmt.Sprintf("last verified against floci-az image %s; the current pin is %s", img, orNone(pins.FlociAz)))
 			default:
 				emu := "unrecorded"
 				if r.LastRun != nil && r.LastRun.Emulator != "" {

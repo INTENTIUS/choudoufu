@@ -709,7 +709,7 @@ func TestNonHeadlineActiveStageDoesNotGateOrGetPicked(t *testing.T) {
 	}
 	a.Estates = []EstateResult{sideOnlyFails, headlineFails}
 
-	units := nextUnitsAgainst(headlineOnly, a, "all", "")
+	units := nextUnitsAgainst(headlineOnly, a, "all", SubstratePins{})
 	for _, u := range units {
 		if u.Estate == sideOnlyFails.Name {
 			t.Errorf("estate failing only a non-headline stage was selected as next work: %+v", u)
@@ -772,9 +772,9 @@ func TestRebuildIsDeterministic(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := &Artifact{}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 	b1, _ := a.Canonical()
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 	b2, _ := a.Canonical()
 	if !bytes.Equal(b1, b2) {
 		t.Error("rebuild is not deterministic")

@@ -146,7 +146,7 @@ func cmdNext(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	units := NextUnits(a, *set, kindNodeImagePin(root))
+	units := NextUnits(a, *set, substratePins(root))
 	wanted := ParseTypes(*types)
 	if len(wanted) > 0 {
 		idx, err := LoadTypeIndex(root)
@@ -290,6 +290,13 @@ func flociAzImagePin(root string) string {
 	return strings.TrimSpace(string(b))
 }
 
+// substratePins reads both non-floci substrate pins from the checkout
+// (kindNodeImagePin, flociAzImagePin), the value every freshness judgement
+// takes beside floci's own emulator pin.
+func substratePins(root string) SubstratePins {
+	return SubstratePins{Kind: kindNodeImagePin(root), FlociAz: flociAzImagePin(root)}
+}
+
 // loadAll loads manifest and artifact and rebuilds the derived parts,
 // including the #522 behaviors-proven metric from live/behaviors.json (a
 // missing file loads as an empty index, same rule as LoadArtifact).
@@ -306,7 +313,7 @@ func loadAll(root string) (*Manifest, *Artifact, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
 	return m, a, nil
 }
 
@@ -443,7 +450,7 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
 
 	// The regression ratchet (issue #553): a stage this run reports as
 	// anything other than pass, for an estate/stage the committed artifact
@@ -520,7 +527,7 @@ func planRun(root string, m *Manifest, a *Artifact, sel runSelection, parallelFl
 // rows the way a hand-merged artifact once did (3/25 against four rows
 // reading clear). The rendered pages are not written here, only at the end.
 func saveRunCheckpoint(root string, m *Manifest, bi *BehaviorIndex, a *Artifact) error {
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
 	return SaveArtifact(root, a)
 }
 
@@ -581,7 +588,7 @@ func cmdBehaviors(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
 	tt, err := LoadTypeIndexTotals(root)
 	if err != nil {
 		return err
@@ -1089,7 +1096,7 @@ func cmdImportLegacy(root string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
 	tt, err := LoadTypeIndexTotals(root)
 	if err != nil {
 		return err
@@ -1162,7 +1169,7 @@ func StaleFilesReport(root string) (stale, scriptOnly []string, err error) {
 	}
 	// Same fresh emulator pin `render` itself would use - there is no
 	// stamp left to freeze for content-only comparison (#414).
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
 	// tt is read from the real checkout root, never from tmp below: tmp is
 	// a write-only scratch directory with no live/estate-types.json of its
 	// own, the same reason m, a and bi are all loaded from root rather than
@@ -1187,11 +1194,15 @@ func StaleFilesReport(root string) (stale, scriptOnly []string, err error) {
 	// into (#1700's lastRunNote). The temp dir has none, so a kind row that
 	// records its SubstrateImage would render differently here than in the
 	// committed tree and read as stale; carry the pin across.
-	if pin := kindNodeImagePin(root); pin != "" {
+	// The floci-az pin (#1120) is carried the same way, for the same reason.
+	for file, pin := range map[string]string{"kind-node-image": kindNodeImagePin(root), "floci-az-image": flociAzImagePin(root)} {
+		if pin == "" {
+			continue
+		}
 		if err := os.MkdirAll(filepath.Join(tmp, "live"), 0o755); err != nil {
 			return nil, nil, err
 		}
-		if err := os.WriteFile(filepath.Join(tmp, "live", "kind-node-image"), []byte(pin+"\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(tmp, "live", file), []byte(pin+"\n"), 0o644); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -1370,7 +1381,7 @@ func cmdCombineShards(root string, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	combined, err := CombineShards(root, base, shards, expect, *commit, *emulator, *kindImage)
+	combined, err := CombineShards(root, base, shards, expect, *commit, *emulator, SubstratePins{Kind: *kindImage, FlociAz: flociAzImagePin(root)})
 	if err != nil {
 		return err
 	}

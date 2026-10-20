@@ -72,6 +72,22 @@ type Refusal struct {
 	// undocumented refusal - a measure that stopped meaning anything the
 	// moment the document was generated from the table it measures.
 	Doc string
+
+	// Warning marks a refusal whose diagnostic is a warning, which does not
+	// stop the run. tools/limits-gen reads it through [IsWarning], the same
+	// field internal/live/projection's registry carries, so the generated
+	// table does not rank a warning as a blocker. It rendered every row of
+	// this registry "error" until it existed, three warnings among them.
+	// TestRegisteredSeverityMatchesWhatTheCodeRaises raises each warning
+	// and checks it against this field.
+	Warning bool
+}
+
+// IsWarning reports whether the registered refusal with this summary is a
+// warning rather than an error. An unregistered summary is not a warning.
+func IsWarning(summary string) bool {
+	r, ok := LookupRefusal(summary)
+	return ok && r.Warning
 }
 
 // DocsRef is where a user is sent to read about this refusal, in the form
@@ -93,51 +109,52 @@ func (r Refusal) DocsRef() string {
 // sets, but a sorted literal keeps its diffs readable.
 //
 // The third field is [Refusal.Doc], an override, not the reference itself:
-// empty means "the generated entry", which is the ordinary case.
+// empty means "the generated entry", which is the ordinary case. The fourth
+// is [Refusal.Warning]: true for the three that do not stop the run.
 var refusals = []Refusal{
-	{"Ambiguous list-valued identity argument", "A Component.SoleElement identity argument is a statically-written list or set construct with zero elements or more than one, or more than one of the alternation's candidate arguments genuinely carries a value at once; the AWS API, not the configuration's own list order, decides how more than one value composes, so this package will not guess which one to use.", ""},
-	{"Circular for_each reference", "A resource's for_each depends on its own instances, directly or through another resource's for_each.", ""},
-	{"Circular identity reference", "A resource's identity is composed, directly or transitively, from its own identity.", ""},
-	{"Configuration loaded without a static evaluator", "The configuration was not loaded through configs.Parser.LoadConfigDir or the configload package. A caller error, not a configuration one.", ""},
-	{"Empty per-element identity argument", "A Component.PerElement identity argument is a collection with no elements at all; the provider's import identity for such a type is one segment per value, so an empty one names no object.", ""},
-	{"Expression not evaluable here", "Static evaluation of an identity argument panicked and was recovered; most often an expression inside a keyed module resolving, several layers down, back to the module call's own each.key or each.value.", ""},
-	{"Identity argument not set", "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.", ""},
-	{"Identity derived from a sensitive value", "An identity argument reads a sensitive or ephemeral value. Import identities are written to logs and plan output, so neither can be part of one. When the value is not genuinely secret - tfe_outputs marking its whole result sensitive is the common case - the remedy is nonsensitive(...) around the specific value.", ""},
-	{"Identity derived from an impure function", "An identity argument calls uuid(), timestamp() or bcrypt(), which return a different value on every evaluation.", ""},
-	{"Identity not resolvable from configuration", "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.", ""},
-	{"Invalid count", "A count expression is not a whole non-negative number.", ""},
-	{"Invalid for_each condition", "The if clause of a for_each comprehension over another resource's keys did not evaluate to a known boolean, even though it never reads the comprehension's value variable.", ""},
-	{"Invalid for_each key", "The key clause of a for_each comprehension over another resource's keys did not evaluate to a known string, even though it never reads the comprehension's value variable.", ""},
-	{"Invalid for_each set", "A for_each set's element type is not a string.", ""},
-	{"Invalid for_each value", "A for_each value is neither a map nor a set of strings.", ""},
-	{"No configuration to resolve", "Resolution was handed an empty configuration. A caller error, not a configuration one.", ""},
-	{"No configuration to scan", "Signal collection was handed an empty configuration. A caller error, not a configuration one.", ""},
-	{"Non-static count expression", "A count expression evaluates to null, or to a value not knowable from configuration alone.", ""},
-	{"Non-static for_each expression", "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.", ""},
-	{"Non-static identity argument", "An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.", ""},
-	{"Non-static lifecycle.enabled expression", "A lifecycle.enabled expression cannot be resolved from configuration alone.", ""},
-	{"Non-string identity argument", "An identity argument evaluates to a value that is not a string.", ""},
-	{"Not an identity attribute", "An identity argument reads an attribute of another resource that is not part of that resource's identity.", ""},
-	{"Null identity argument", "An identity argument evaluates to null.", ""},
-	{"Per-element identity argument not resolvable", "A Component.PerElement identity argument is neither a list written in configuration, nor a variable or local holding one, nor a for_each element bound to one, so this package cannot say how many segments the identity has or what they are.", ""},
-	{"Reference to a module instance that does not exist", "A reference names a module instance the configuration does not expand to.", ""},
-	{"Reference to a resource instance that does not exist", "A reference names an instance key the target resource does not expand to, or omits one it requires.", ""},
-	{"Reference to undeclared resource", "A reference, or a for_each parent, names a resource the module does not declare.", ""},
-	{"Resource in a resource group this estate does not declare", "On Azure an estate is the set of resource groups its configuration declares (GitHub issue #1122). A declared azurerm or azapi resource whose resource_group_name, resource_group_id or parent_id names a group no azurerm_resource_group or azapi Microsoft.Resources/resourceGroups block declares is outside the estate's role assignment and Policy guard. Reported as a warning, once per group.", `live/MARKERS.md, "Granting an Azure estate"`},
-	{"Resource type has no orphan recovery", "The type is admitted by the provider's identity schema rather than by the generated admission table, so it plans and applies but the estate-wide sweep will not list it: deleting its last block leaves the live resource with no run proposing to remove it. Reported as a warning.", ""},
-	{"Resource type outside the live-markers subset", "The type is absent from the admission table, and neither the provider's identity schema nor the configuration's own arguments settle its identity.", `live/LIMITATIONS.md, "unadmitted-type"`},
-	{"Identity table and provider schema disagree", "The identity table and the installed provider's schema differ about a type in a way that is not fatal; reported as a warning.", ""},
-	{"Secret-generating resource refused", `A record-backed type whose schema carries secret material (identity.TypeIdentity.SecretMaterial) is named by a configuration whose live block sets strict { secrets = "refuse" }. The record holding such a type's whole prior state would hold the secret in clear, which that setting is the instruction not to do. internal/live/lint refuses the configuration first; this is the same question asked again at the layer that acts.`, `live/LIMITATIONS.md, "strict-secrets"`},
-	{"Sensitive count expression", "A count expression reads an ephemeral value; the instance keys it produces become marker values. A sensitive count is unmarked, as stock does, since keys 0..n-1 disclose nothing.", ""},
-	{"Sensitive lifecycle.enabled expression", "A lifecycle.enabled expression reads a sensitive or ephemeral value, so whether the resource exists is decided by something this run may not record.", ""},
-	{"Sensitive for_each expression", "A for_each expression reads a sensitive or ephemeral value; instance keys become marker values, which are written to the cloud.", ""},
-	{"The identity table names something the provider does not have", "The identity table builds a type's identity from an argument the installed provider's schema has no such name for; usually provider-version skew.", ""},
-	{"Two resources with the same identity", "Two resource blocks resolve to one identity, so one live object would have two owners.", `live/LIMITATIONS.md, "duplicate-identity"`},
-	{"Unresolvable identity", "An identity could not be built because a reference it depends on failed; the reference's own error explains why.", ""},
-	{"Unusable data-source result", "The data-read phase handed resolution a result it cannot index: not an absolute data resource instance address, or one resource's instances mixing key kinds. A caller error, not a configuration one.", ""},
-	{"Unsupported each.value reference", "each.value is used as other than each.value.<attr> when for_each iterates over a resource.", ""},
-	{"for_each key cannot be recorded as a marker", "A for_each key contains a character the tofu-address marker cannot carry.", `live/MARKERS.md, "Ownership semantics"`},
-	{"for_each over a resource that is not keyed", "for_each iterates a resource that has no instance keys to iterate - one expanded with count, or one using neither count nor for_each.", ""},
+	{"Ambiguous list-valued identity argument", "A Component.SoleElement identity argument is a statically-written list or set construct with zero elements or more than one, or more than one of the alternation's candidate arguments genuinely carries a value at once; the AWS API, not the configuration's own list order, decides how more than one value composes, so this package will not guess which one to use.", "", false},
+	{"Circular for_each reference", "A resource's for_each depends on its own instances, directly or through another resource's for_each.", "", false},
+	{"Circular identity reference", "A resource's identity is composed, directly or transitively, from its own identity.", "", false},
+	{"Configuration loaded without a static evaluator", "The configuration was not loaded through configs.Parser.LoadConfigDir or the configload package. A caller error, not a configuration one.", "", false},
+	{"Empty per-element identity argument", "A Component.PerElement identity argument is a collection with no elements at all; the provider's import identity for such a type is one segment per value, so an empty one names no object.", "", false},
+	{"Expression not evaluable here", "Static evaluation of an identity argument panicked and was recovered; most often an expression inside a keyed module resolving, several layers down, back to the module call's own each.key or each.value.", "", false},
+	{"Identity argument not set", "The argument carrying this type's identity has no value - most often a *_prefix argument used in place of the name itself.", "", false},
+	{"Identity derived from a sensitive value", "An identity argument reads a sensitive or ephemeral value. Import identities are written to logs and plan output, so neither can be part of one. When the value is not genuinely secret - tfe_outputs marking its whole result sensitive is the common case - the remedy is nonsensitive(...) around the specific value.", "", false},
+	{"Identity derived from an impure function", "An identity argument calls uuid(), timestamp() or bcrypt(), which return a different value on every evaluation.", "", false},
+	{"Identity not resolvable from configuration", "An identity argument reads something resolution cannot follow: a value through a function or operator, an indexed or two-step traversal, an ephemeral resource, or a root it does not evaluate.", "", false},
+	{"Invalid count", "A count expression is not a whole non-negative number.", "", false},
+	{"Invalid for_each condition", "The if clause of a for_each comprehension over another resource's keys did not evaluate to a known boolean, even though it never reads the comprehension's value variable.", "", false},
+	{"Invalid for_each key", "The key clause of a for_each comprehension over another resource's keys did not evaluate to a known string, even though it never reads the comprehension's value variable.", "", false},
+	{"Invalid for_each set", "A for_each set's element type is not a string.", "", false},
+	{"Invalid for_each value", "A for_each value is neither a map nor a set of strings.", "", false},
+	{"No configuration to resolve", "Resolution was handed an empty configuration. A caller error, not a configuration one.", "", false},
+	{"No configuration to scan", "Signal collection was handed an empty configuration. A caller error, not a configuration one.", "", false},
+	{"Non-static count expression", "A count expression evaluates to null, or to a value not knowable from configuration alone.", "", false},
+	{"Non-static for_each expression", "A for_each expression cannot be resolved from configuration alone - computed from another resource's attributes, or reading a root that is not statically evaluable.", "", false},
+	{"Non-static identity argument", "An identity argument cannot be evaluated from configuration alone, including an impure call reached through a local or written in .tf.json.", "", false},
+	{"Non-static lifecycle.enabled expression", "A lifecycle.enabled expression cannot be resolved from configuration alone.", "", false},
+	{"Non-string identity argument", "An identity argument evaluates to a value that is not a string.", "", false},
+	{"Not an identity attribute", "An identity argument reads an attribute of another resource that is not part of that resource's identity.", "", false},
+	{"Null identity argument", "An identity argument evaluates to null.", "", false},
+	{"Per-element identity argument not resolvable", "A Component.PerElement identity argument is neither a list written in configuration, nor a variable or local holding one, nor a for_each element bound to one, so this package cannot say how many segments the identity has or what they are.", "", false},
+	{"Reference to a module instance that does not exist", "A reference names a module instance the configuration does not expand to.", "", false},
+	{"Reference to a resource instance that does not exist", "A reference names an instance key the target resource does not expand to, or omits one it requires.", "", false},
+	{"Reference to undeclared resource", "A reference, or a for_each parent, names a resource the module does not declare.", "", false},
+	{"Resource in a resource group this estate does not declare", "On Azure an estate is the set of resource groups its configuration declares (GitHub issue #1122). A declared azurerm or azapi resource whose resource_group_name, resource_group_id or parent_id names a group no azurerm_resource_group or azapi Microsoft.Resources/resourceGroups block declares is outside the estate's role assignment and Policy guard. Reported as a warning, once per group.", `live/MARKERS.md, "Granting an Azure estate"`, true},
+	{"Resource type has no orphan recovery", "The type is admitted by the provider's identity schema rather than by the generated admission table, so it plans and applies but the estate-wide sweep will not list it: deleting its last block leaves the live resource with no run proposing to remove it. Reported as a warning.", "", true},
+	{"Resource type outside the live-markers subset", "The type is absent from the admission table, and neither the provider's identity schema nor the configuration's own arguments settle its identity.", `live/LIMITATIONS.md, "unadmitted-type"`, false},
+	{"Identity table and provider schema disagree", "The identity table and the installed provider's schema differ about a type in a way that is not fatal; reported as a warning.", "", true},
+	{"Secret-generating resource refused", `A record-backed type whose schema carries secret material (identity.TypeIdentity.SecretMaterial) is named by a configuration whose live block sets strict { secrets = "refuse" }. The record holding such a type's whole prior state would hold the secret in clear, which that setting is the instruction not to do. internal/live/lint refuses the configuration first; this is the same question asked again at the layer that acts.`, `live/LIMITATIONS.md, "strict-secrets"`, false},
+	{"Sensitive count expression", "A count expression reads an ephemeral value; the instance keys it produces become marker values. A sensitive count is unmarked, as stock does, since keys 0..n-1 disclose nothing.", "", false},
+	{"Sensitive lifecycle.enabled expression", "A lifecycle.enabled expression reads a sensitive or ephemeral value, so whether the resource exists is decided by something this run may not record.", "", false},
+	{"Sensitive for_each expression", "A for_each expression reads a sensitive or ephemeral value; instance keys become marker values, which are written to the cloud.", "", false},
+	{"The identity table names something the provider does not have", "The identity table builds a type's identity from an argument the installed provider's schema has no such name for; usually provider-version skew.", "", false},
+	{"Two resources with the same identity", "Two resource blocks resolve to one identity, so one live object would have two owners.", `live/LIMITATIONS.md, "duplicate-identity"`, false},
+	{"Unresolvable identity", "An identity could not be built because a reference it depends on failed; the reference's own error explains why.", "", false},
+	{"Unusable data-source result", "The data-read phase handed resolution a result it cannot index: not an absolute data resource instance address, or one resource's instances mixing key kinds. A caller error, not a configuration one.", "", false},
+	{"Unsupported each.value reference", "each.value is used as other than each.value.<attr> when for_each iterates over a resource.", "", false},
+	{"for_each key cannot be recorded as a marker", "A for_each key contains a character the tofu-address marker cannot carry.", `live/MARKERS.md, "Ownership semantics"`, false},
+	{"for_each over a resource that is not keyed", "for_each iterates a resource that has no instance keys to iterate - one expanded with count, or one using neither count nor for_each.", "", false},
 }
 
 // Refusals returns every refusal this package can produce, sorted by Summary.
