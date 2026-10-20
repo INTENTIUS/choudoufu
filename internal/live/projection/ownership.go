@@ -475,18 +475,31 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		return ownershipUnowned
 	}
 
-	if declared && !nonDefault && estate == "" && own.Estate != "" && atDeclaredKey && substrate.CreateOverwritesAtKey(surface) {
+	if declared && estate == "" && own.Estate != "" && atDeclaredKey && substrate.CreateOverwritesAtKey(surface) {
 		// GitHub issue #1120, ruled on #1122: the opposite server and the
 		// same refusal. Everything the #1546 branch above establishes holds
 		// here too - the object was positively read at the identity this
-		// block's own configuration computes, it carries no tofu-estate at
-		// all, and the verb is declared_untagged's default - but this
-		// surface's create does not fail at a held key, it updates the
-		// object there ([substrate.CreateOverwritesAtKey]: an ARM create is
-		// a PUT). The warning the default below raises would then sit
-		// beside a plan whose apply silently takes the object over, so the
-		// run stops here instead, by name, before any create is proposed.
-		b.overwritesAtKey(addr, typeName, importID)
+		// block's own configuration computes and it carries no tofu-estate
+		// at all - but this surface's create does not fail at a held key,
+		// it updates the object there ([substrate.CreateOverwritesAtKey]:
+		// an ARM create is a PUT). The warning the default below raises
+		// would then sit beside a plan whose apply silently takes the
+		// object over, so the run stops here instead, by name, before any
+		// create is proposed.
+		//
+		// Under every verb that reaches this line, not only the default.
+		// #1546's branch keeps "keep" and "report" as softer refusals
+		// because there the server refuses the create anyway; here those
+		// two verbs leave the object out of the prior state exactly as
+		// refuse does, the plan proposes the create, and the PUT takes the
+		// object over - "keep" would even have done it without a warning.
+		// The verbs that admit the object (adopt, converge) returned
+		// above, and they are the deliberate route: the object enters the
+		// prior state and the plan writes the marker onto it in the open.
+		// internal/live/lint's policy-overwrite-at-key refuses the two
+		// verbs before any plan for an estate this reaches; this is the
+		// projection's own guard, for a run that bypassed lint.
+		b.overwritesAtKey(addr, typeName, importID, verb)
 		return ownershipUnowned
 	}
 
@@ -570,11 +583,21 @@ const SummaryOverwriteAtKey = "Unmarked live object at the declared id would be 
 // overwritesAtKey records #1120's refusal ([substrate.CreateOverwritesAtKey]):
 // the Unowned entry, the omission, and an Error, the shape
 // [builder.conflictsOnKey] records for the opposite server.
-func (b *builder) overwritesAtKey(addr addrs.AbsResourceInstance, typeName, importID string) {
+//
+// verb is the declared_untagged verb this run resolved, which is refuse,
+// keep or report by the time this is called (adopt and converge admit the
+// object instead). A verb other than the default is named in the message,
+// because the operator asked for something in writing and is owed the
+// reason it did not apply.
+func (b *builder) overwritesAtKey(addr addrs.AbsResourceInstance, typeName, importID string, verb policy.Verb) {
 	own := b.opts.Ownership
+	var asked string
+	if verb != "" && verb != policy.DefaultVerb[policy.DeclaredUntagged] {
+		asked = fmt.Sprintf(" policy { %s = %q } does not change this: that verb leaves the object out of this estate and lets the plan propose the create, and on Azure the create is the takeover.", policy.DeclaredUntagged.Attribute(), verb)
+	}
 	detail := fmt.Sprintf(
-		"A live %s already exists at %q, the id %s declares, and carries no %s tag, so this estate does not own it. Creating this resource is a PUT to that id, and a PUT to an id that already exists updates the object there instead of failing, so the apply would take that object over with nothing to say it was ever this estate's; this plan stops here instead of proposing it. To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, or write the tags %s=%q and %s=%q onto it and re-run. To keep it out of this estate, point this resource at a name nobody is using.",
-		typeName, importID, addr, markers.TagEstate,
+		"A live %s already exists at %q, the id %s declares, and carries no %s tag, so this estate does not own it. Creating this resource is a PUT to that id, and a PUT to an id that already exists updates the object there instead of failing, so the apply would take that object over with nothing to say it was ever this estate's; this plan stops here instead of proposing it.%s To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, or write the tags %s=%q and %s=%q onto it and re-run. To keep it out of this estate, point this resource at a name nobody is using. This is #1546's refusal for a server that overwrites instead of refusing (GitHub issue #1120).",
+		typeName, importID, addr, markers.TagEstate, asked,
 		markers.TagEstate, own.Estate,
 		markers.TagAddress, markers.EscapeAddress(addr.String()))
 	b.unownedList = append(b.unownedList, Unowned{

@@ -196,3 +196,97 @@ func TestARMPostCreateFailureNamesTheFix(t *testing.T) {
 		t.Error("an object with no ARM id was written to")
 	}
 }
+
+// TestARMPostCreateConvergesOnTheNextPlan is the convergence half of the
+// after-create seam, for the one azurerm type whose create PUT refuses tags
+// at the pin: the object core stores once the Tags API merge has landed is
+// exactly what the next plan's stamped configuration asks for, so that plan
+// proposes no change to tags - in particular, never the removal of a
+// marker the merge wrote. It is the AWS path's #1316 convergence, through
+// the same two seams (AdjustCreateConfigValue withholds, WriteAppliedMarkers
+// stores what the write left on the object), plus ARM's case rule: a
+// configuration's own Tofu-Estate is the marker, the Merge updates it in
+// place, and the stored map holds one key for it, the spelling the next
+// stamp keeps.
+func TestARMPostCreateConvergesOnTheNextPlan(t *testing.T) {
+	const id = "/subscriptions/0/resourceGroups/rg/providers/Microsoft.Web/certificates/c"
+	const address = "azurerm_app_service_managed_certificate.c"
+	for name, tc := range map[string]struct {
+		// own is the configuration's own tags.
+		own map[string]string
+		// stored is what the stored object's tags must be after the write.
+		stored map[string]string
+	}{
+		"the operator's tags and the markers": {
+			own:    map[string]string{"env": "prod", "owner": "team-a"},
+			stored: map[string]string{"env": "prod", "owner": "team-a", markers.TagEstate: "prod", markers.TagAddress: address},
+		},
+		"no tags of its own": {
+			stored: map[string]string{markers.TagEstate: "prod", markers.TagAddress: address},
+		},
+		"the configuration spells the estate marker itself": {
+			own:    map[string]string{"env": "prod", "Tofu-Estate": "prod"},
+			stored: map[string]string{"env": "prod", "Tofu-Estate": "prod", markers.TagAddress: address},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			tagger := &fakeARMTagger{}
+			var writes []substrate.Write
+			n := armResolver(t, tagger, &writes)
+			cert := locatedTestAddr(t, "azurerm_app_service_managed_certificate", "c")
+			own := cty.NullVal(cty.Map(cty.String))
+			if tc.own != nil {
+				own = tagMap(tc.own)
+			}
+			config := armCreatedObject(map[string]cty.Value{"id": cty.NullVal(cty.String), "name": cty.StringVal("c")}, own)
+
+			// The create: unstamped, so the provider returns the object
+			// with the configuration's own tags and no marker.
+			sent, diags := n.AdjustCreateConfigValue(ctx, cert, config, armSchema())
+			if diags.HasErrors() {
+				t.Fatal(diags.Err())
+			}
+			applied := armCreatedObject(map[string]cty.Value{"id": cty.StringVal(id), "name": cty.StringVal("c")}, sent.GetAttr("tags"))
+			stored, diags := n.WriteAppliedMarkers(ctx, cert, azurermProvider(), plans.Create, applied, armSchema())
+			if diags.HasErrors() {
+				t.Fatal(diags.Err())
+			}
+			if len(tagger.ids) != 1 {
+				t.Fatalf("merges %v, want one", tagger.ids)
+			}
+			storedTags := requireTags(t, stored)
+			if !mapsEqual(storedTags, tc.stored) {
+				t.Errorf("stored tags %v, want %v", storedTags, tc.stored)
+			}
+
+			// The next plan: the same configuration, not a create, is
+			// stamped in full, and must ask for exactly what is stored.
+			planned, diags := n.AdjustConfigValue(ctx, cert, config, armSchema())
+			if diags.HasErrors() {
+				t.Fatal(diags.Err())
+			}
+			plannedTags := requireTags(t, planned)
+			if !mapsEqual(plannedTags, storedTags) {
+				t.Errorf("the next plan does not converge: it asks for tags %v over the stored %v", plannedTags, storedTags)
+			}
+			for k := range storedTags {
+				if _, ok := plannedTags[k]; !ok {
+					t.Errorf("the next plan would remove %q, which the post-create write put there", k)
+				}
+			}
+		})
+	}
+}
+
+func mapsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if w, ok := b[k]; !ok || w != v {
+			return false
+		}
+	}
+	return true
+}

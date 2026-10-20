@@ -84,3 +84,54 @@ func TestTaggerReportsARMErrors(t *testing.T) {
 		t.Error("a data-plane URL was accepted as an ARM id")
 	}
 }
+
+// TestTaggerNeverReplacesTheOperatorsTags: the post-create write leaves
+// every tag the object already carries as it is. The fake ARM applies the
+// Tags API's three documented operations to a stored tag set (Merge adds and
+// replaces the named keys, matching case-insensitively and keeping the
+// stored spelling; Replace swaps the whole set; Delete removes named keys)
+// and treats a PUT to tags/default, Create Or Update At Scope, as the
+// replacement it is. Whatever the Tagger sends, the operator's tags must
+// survive it, and a marker the object already spells differently must be
+// updated in place rather than added beside it.
+func TestTaggerNeverReplacesTheOperatorsTags(t *testing.T) {
+	const id = "/subscriptions/" + sub1 + "/resourceGroups/rg/providers/Microsoft.Web/certificates/c"
+	stored := map[string]string{"env": "prod", "owner": "team-a", "Tofu-Estate": "prod"}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body tagsPatch
+		data, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(data, &body)
+		op := body.Operation
+		if r.Method == http.MethodPut {
+			op = "Replace"
+		}
+		switch op {
+		case "Merge":
+			for k, v := range body.Properties.Tags {
+				key := k
+				for have := range stored {
+					if strings.EqualFold(have, k) {
+						key = have
+					}
+				}
+				stored[key] = v
+			}
+		case "Replace":
+			stored = body.Properties.Tags
+		case "Delete":
+			for k := range body.Properties.Tags {
+				delete(stored, k)
+			}
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+	tg := NewTaggerWith(Endpoints{ResourceManager: srv.URL, Audience: "https://management.core.windows.net/"}, &fakeCred{}, srv.Client())
+	if err := tg.MergeTags(t.Context(), id, map[string]string{"tofu-estate": "prod", "tofu-address": "azurerm_app_service_managed_certificate.c"}); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"env": "prod", "owner": "team-a", "Tofu-Estate": "prod", "tofu-address": "azurerm_app_service_managed_certificate.c"}
+	if !reflect.DeepEqual(stored, want) {
+		t.Errorf("the object's tags after the write are %v, want %v", stored, want)
+	}
+}

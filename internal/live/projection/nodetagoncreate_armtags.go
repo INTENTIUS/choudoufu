@@ -44,3 +44,13 @@ func (w ARMTagsWriter) WriteMarkers(ctx context.Context, created CreatedInstance
 	}
 	return w.Tagger.MergeTags(ctx, scope, tags)
 }
+
+// writeFoldsKeys reports whether a post-create write matches tag keys
+// case-insensitively, so that what it stores has to be merged the same way
+// ([mergeMarkersAt]). True for ARM's Tags API ([substrate.WriteARMTagsAPI]):
+// its Merge replaces a key the object already carries in another spelling
+// under that spelling (internal/live/azsweep's Tagger.MergeTags). The
+// Tagging API's TagResources and a label patch match keys exactly.
+func writeFoldsKeys(write substrate.Write) bool {
+	return write == substrate.WriteARMTagsAPI
+}

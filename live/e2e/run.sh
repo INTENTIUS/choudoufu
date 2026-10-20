@@ -2359,7 +2359,8 @@ cloud-block:state-backend"
   # check below holds, and each is asserted by
   # internal/live/lint/limits_test.go's TestLimitsEnforced instead.
   #   arm-tag-limit            GitHub issue #1120: an azurerm resource.
-  LINT_OTHER_PLATFORM="arm-tag-limit"
+  #   policy-overwrite-at-key  GitHub issue #1120: an azurerm resource.
+  LINT_OTHER_PLATFORM="arm-tag-limit policy-overwrite-at-key"
 
   # Completeness: every subdirectory of the limits wing appears in exactly
   # one table. Without this a new fixture directory would be silently

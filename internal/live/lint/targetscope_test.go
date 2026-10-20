@@ -165,6 +165,7 @@ var lintRuleTargetScope = map[Rule]struct {
 	RulePolicyVerb:                {ruleWholeConfig, "the live block's ownership policy"},
 	RulePolicyScope:               {ruleWholeConfig, "same block"},
 	RulePolicyThreshold:           {ruleWholeConfig, "same block"},
+	RulePolicyOverwriteAtKey:      {ruleWholeConfig, "same block; the resource it names is evidence the estate has an overwriting family, and the verb governs every declared object whatever this run targets"},
 	RuleRetry:                     {ruleWholeConfig, "the live block's retry setting"},
 	RuleStrictMarkerRepair:        {ruleWholeConfig, "the live block's strict settings"},
 	RuleStrictSecrets:             {ruleWholeConfig, "same block"},

@@ -294,6 +294,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkChildLiveConfig(mod, path, issues)
 	checkMovedBlocks(cfg, mod, path, issues)
 	checkLivePolicy(mod, path, issues)
+	checkPolicyOverwriteAtKey(cfg, path, issues)
 	checkLiveStrict(mod, path, issues)
 	checkLiveRetry(mod, path, issues)
 	checkManagedResources(ctx, cfg, path, schemas, scope, signal, recordStoreConfigured, secrets, markersRecord, issues)
