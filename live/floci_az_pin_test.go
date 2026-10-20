@@ -61,7 +61,7 @@ func TestFlociAzImagePinIsADigestReference(t *testing.T) {
 // that is not the pin: a full digest reference that differs, any tag
 // reference, and a bare 64-hex digest on a line that names floci-az. A
 // bare digest that is live/floci-image's own pin, or part of a full
-// reference judged above or by the AWS guard, is left alone.
+// reference to any image (judged above, by the AWS guard, or by its own), is left alone.
 func flociAzDigestFindings(path, src, pin, flociPinDigest string) []string {
 	_, pinDigest, _ := strings.Cut(pin, "@")
 	var out []string
@@ -80,8 +80,11 @@ func flociAzDigestFindings(path, src, pin, flociPinDigest string) []string {
 			continue
 		}
 		for _, d := range bareDigest.FindAllString(line, -1) {
-			if d == pinDigest || d == flociPinDigest ||
-				strings.Contains(line, "floci-az@"+d) || strings.Contains(line, "floci@"+d) {
+			// A digest inside any full image reference (`<image>@sha256:...`)
+			// is not bare: a table row naming floci-az can also carry the
+			// kind node image's pin in another cell (live/SUBSTRATES.md's
+			// harness row), and that reference is its own guard's to judge.
+			if d == pinDigest || d == flociPinDigest || strings.Contains(line, "@"+d) {
 				continue
 			}
 			out = append(out, fmt.Sprintf("%s:%d attributes the bare digest %s to floci-az, but live/floci-az-image pins %s.\n"+

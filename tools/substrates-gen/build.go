@@ -244,12 +244,13 @@ var harnessByFamily = map[string]struct {
 		PinFile: "live/kind-node-image",
 		Notes:   "a kind cluster on the pinned node image; no per-service capability probe like floci's exists for it.",
 	},
-	// GitHub issue #1120: the lex00/floci-az fork, which no file pins yet.
-	// An empty PinFile is the not-yet-pinned state: the row says so rather
-	// than reading a file that does not exist.
+	// GitHub issue #1120: the lex00/floci-az fork, pinned by digest in
+	// live/floci-az-image. Nothing on it is measured yet: no lane runs on
+	// it, and live/FLOCI.md's Azure section lists the surfaces it lacks.
 	"azurerm": {
-		Name:  "floci-az",
-		Notes: "the lex00/floci-az fork; not yet pinned by digest, and no lane runs on it until it is.",
+		Name:    "floci-az",
+		PinFile: "live/floci-az-image",
+		Notes:   "the lex00/floci-az fork, pinned by digest; no lane runs on it yet, and live/FLOCI.md lists the surfaces it lacks.",
 	},
 }
 
