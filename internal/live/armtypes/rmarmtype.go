@@ -225,3 +225,21 @@ func (t *RMARMTypes) Rows() map[string]string {
 	}
 	return out
 }
+
+// AzurermTypesForARMType is every azurerm resource type whose id template
+// names armType, compared without regard to case (Resource Graph lowercases
+// the types it lists), sorted, with the join's own spelling of armType.
+// Several azurerm types can create one ARM type (the Linux and Windows
+// virtual machines), so a caller naming an object by it says which it is
+// only when exactly one does. GitHub issue #2138: the Resource Graph leg
+// names a listed object by its own type this way.
+func AzurermTypesForARMType(armType string) (tfTypes []string, spelled string) {
+	for tf, arm := range DefaultRMARMTypes().rows {
+		if strings.EqualFold(arm, armType) {
+			tfTypes = append(tfTypes, tf)
+			spelled = arm
+		}
+	}
+	sort.Strings(tfTypes)
+	return tfTypes, spelled
+}

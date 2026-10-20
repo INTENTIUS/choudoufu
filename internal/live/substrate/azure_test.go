@@ -305,6 +305,18 @@ func TestAzapiResourceShape(t *testing.T) {
 // to identity-schema: azurerm publishes no resource identity test for
 // either, so azurermContractProblem withholds their templates. The
 // per-route figures are TestAzurermRoutesAreTheGuardsVerdicts'.
+//
+// GitHub issue #2138 moved six from identity-schema to
+// identity-schema+template: their segments' argument names found nothing,
+// and azurerm's identity test says which argument or constant holds each
+// (tools/azurerm-id-gen's sourcedComponents). azurerm_dns_a_record,
+// azurerm_dns_cname_record and azurerm_dns_txt_record (zone_name for
+// dns_zone_name, the record type a constant), azurerm_backup_policy_vm
+// (recovery_vault_name for vault_name),
+// azurerm_app_service_custom_hostname_binding (app_service_name for
+// site_name, hostname for name) and
+// azurerm_email_communication_service_domain_sender_username (its domain's
+// id, email_service_domain_id, as the leading parent id).
 func TestAzurermAdmissionCounts(t *testing.T) {
 	if v, c := AzurermIDSource(); v != "5.10.0" || c != "b24dfdc1dafe6d0721572b0f6debecb7ab5e81c6" {
 		t.Errorf("embedded artifact is from azurerm %s (%s)", v, c)
@@ -313,8 +325,8 @@ func TestAzurermAdmissionCounts(t *testing.T) {
 		"template":                 317,
 		"parent-id":                351,
 		"withheld":                 7,
-		"identity-schema+template": 175,
-		"identity-schema":          21,
+		"identity-schema+template": 181,
+		"identity-schema":          15,
 		"unmapped":                 235,
 	}
 	got := AzurermAdmission()

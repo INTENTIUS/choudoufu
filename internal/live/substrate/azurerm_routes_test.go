@@ -165,13 +165,18 @@ func TestAzurermServedSchemaGuard(t *testing.T) {
 // azurermRoutesPinned is how many azurerm 5.10.0 types the artifact
 // records on each route. TO CHANGE A NUMBER, regenerate
 // live/azurerm-ids.json and say in the commit which types moved and why.
+//
+// GitHub issue #2138 moved six identity-schema types from unmapped to
+// template-fallback, their templates taken from azurerm's identity test
+// where segment names found no argument; TestAzurermAdmissionCounts names
+// them.
 var azurermRoutesPinned = map[string]int{
 	AzurermRouteIdentitySchema:   103,
-	AzurermRouteTemplateFallback: 72,
+	AzurermRouteTemplateFallback: 78,
 	AzurermRouteTemplate:         317,
 	AzurermRouteParentID:         351,
 	AzurermRouteWithheld:         9,
-	AzurermRouteUnmapped:         254,
+	AzurermRouteUnmapped:         248,
 }
 
 // TestAzurermRoutesAreTheGuardsVerdicts is condition (c)'s guard on this

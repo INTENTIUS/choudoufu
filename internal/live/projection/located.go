@@ -297,7 +297,7 @@ func LocatedRecordFromIn(resourceType string, schema providers.Schema, obj cty.V
 			// reads back as a whole identity - the exact defect this
 			// branch exists to close.
 			rec.Components, recordable = identity.LocatedIdentity(obj, plan.Components)
-			if recordable && plan.FromProvider() {
+			if recordable && (plan.FromProvider() || plan.Derived()) {
 				rec.Components, recordable = withProviderComponents(resourceType, obj, plan, rec.Components, values)
 			}
 			if recordable {
@@ -406,26 +406,45 @@ func LocatedRecordFromIn(resourceType string, schema providers.Schema, obj cty.V
 	return rec, true
 }
 
-// withProviderComponents adds plan's provider components to comps, the
-// components [identity.LocatedIdentity] read off obj, and checks the whole
-// against obj's own id. See [LocatedRecordFromIn]. comps is never mutated:
-// the answer is a new map.
+// withProviderComponents adds plan's provider components and its derived
+// components (GitHub issue #2138) to comps, the components
+// [identity.LocatedIdentity] read off obj, and checks the whole against
+// obj's own id. See [LocatedRecordFromIn]. comps is never mutated: the
+// answer is a new map.
+//
+// A derived component is a value read out of another argument (a parent's
+// name parsed out of the parent's ARM id) or a constant, not off an
+// attribute of its own name, so for a plan with one the check is not
+// optional: the record has to rebuild into an ARM id, and the object has to
+// carry an id equal to it, or nothing is written. That is the backstop
+// #2138's ruling keeps, against a parse that succeeds and names another
+// object.
 func withProviderComponents(resourceType string, obj cty.Value, plan identity.LocatedIdentityPlan, comps map[string]string, values identity.ProviderValue) (map[string]string, bool) {
 	fromProvider, ok := identity.LocatedProviderIdentity(plan, values)
 	if !ok {
 		return nil, false
 	}
-	out := make(map[string]string, len(comps)+len(fromProvider))
+	derived, ok := identity.LocatedDerivedIdentity(plan, obj)
+	if !ok {
+		return nil, false
+	}
+	out := make(map[string]string, len(comps)+len(fromProvider)+len(derived))
 	for k, v := range comps {
 		out[k] = v
 	}
 	for k, v := range fromProvider {
 		out[k] = v
 	}
-	if rebuilt, ok := substrate.AzurermRecordImportID(resourceType, out); ok {
-		if own := substrate.ObjectString(obj, "id"); own != "" && !strings.EqualFold(own, rebuilt) {
-			return nil, false
-		}
+	for k, v := range derived {
+		out[k] = v
+	}
+	rebuilt, ok := substrate.AzurermRecordImportID(resourceType, out)
+	own := substrate.ObjectString(obj, "id")
+	if plan.Derived() && (!ok || own == "") {
+		return nil, false
+	}
+	if ok && own != "" && !strings.EqualFold(own, rebuilt) {
+		return nil, false
 	}
 	return out, true
 }

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/live/armtypes"
 	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -292,6 +293,7 @@ func (g ResourceGraphSweep) fileHit(ctx context.Context, req Request, decl *decl
 		identityAttr: "id",
 		tags:         tags,
 		refusedAt:    refusedAt,
+		objectType:   azureObjectType(hit.Type),
 	}, res, " (via Azure Resource Graph)", true))
 	for i := before; i < len(res.Orphans); i++ {
 		if res.Orphans[i].DisplayName == "" {
@@ -432,4 +434,26 @@ func resourceGraphDiag(estate string, sr azsweep.SubscriptionResult, listing boo
 		sev = tfdiags.Error
 	}
 	return diags.Append(tfdiags.Sourceless(sev, resourceGraphSummaries[summary], detail))
+}
+
+// azureObjectType names a listed object by its own type, for a message
+// about the object rather than the address its marker names (GitHub issue
+// #2138): the azurerm type that creates its ARM type, with the ARM type
+// beside it, where exactly one azurerm type does
+// ([armtypes.AzurermTypesForARMType]), and otherwise the ARM type alone, as
+// Resource Graph listed it. An azapi_resource can create any ARM type, so
+// the azurerm name is a name for the kind of object, never a claim about
+// which block made it.
+func azureObjectType(armType string) string {
+	if armType == "" {
+		return ""
+	}
+	tfTypes, spelled := armtypes.AzurermTypesForARMType(armType)
+	if len(tfTypes) == 1 {
+		return fmt.Sprintf("%s (%s)", tfTypes[0], spelled)
+	}
+	if spelled != "" {
+		return spelled
+	}
+	return armType
 }

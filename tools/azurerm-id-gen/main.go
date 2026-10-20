@@ -99,6 +99,17 @@ type entry struct {
 	// resource identity test for the type ([contract]), absent when the
 	// provider publishes none.
 	IdentityContract *contract `json:"identity_contract,omitempty"`
+	// IdentitySources, on an identity-schema row, is where the record rung
+	// reads each identity attribute from (#2138, [identitySources]): the
+	// segment of the type's own id it is, and the argument, the parent ARM
+	// id segment, the provider value or the constant azurerm's identity
+	// test says holds it. Absent when IdentitySourcesProblem is set.
+	IdentitySources map[string]identitySource `json:"identity_sources,omitempty"`
+	// IdentitySourcesProblem is why an identity-schema row has no
+	// IdentitySources: the first attribute that has no source both of
+	// azurerm's statements agree on, which is the reason the record rung
+	// refuses the type by name.
+	IdentitySourcesProblem string `json:"identity_sources_problem,omitempty"`
 	// Route is how choudoufu admits the type (#1120 unit 17), one of
 	// internal/live/substrate's AzurermRoute* values: identity-schema,
 	// template-fallback, template, parent-id, withheld or unmapped. See
@@ -215,13 +226,22 @@ func generate(src, schemaPath string) (*artifact, error) {
 		return "", false
 	}
 
+	contracts, err := readContracts(src)
+	if err != nil {
+		return nil, err
+	}
+
 	var entries []entry
 	for name, ts := range schemas {
-		src := sources[name]
-		if src == nil {
-			src = unresolved[name]
+		idSrc := sources[name]
+		if idSrc == nil {
+			idSrc = unresolved[name]
 		}
-		e := classify(name, ts, byType[name], src, problems[name], parentTypes, typeTemplate)
+		var c *contract
+		if ts.Identity != nil {
+			c = contracts[name]
+		}
+		e := classify(l, name, ts, byType[name], idSrc, problems[name], c, parentTypes, typeTemplate)
 		e.Read, e.ImporterSource = verdicts[name], importers[name]
 		if e.Read == readUsed {
 			e.Via = "Read"
@@ -229,16 +249,6 @@ func generate(src, schemaPath string) (*artifact, error) {
 		entries = append(entries, e)
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Type < entries[j].Type })
-
-	contracts, err := readContracts(src)
-	if err != nil {
-		return nil, err
-	}
-	for i := range entries {
-		if entries[i].Class == classIdentitySchema {
-			entries[i].IdentityContract = contracts[entries[i].Type]
-		}
-	}
 
 	a := &artifact{
 		GeneratedBy: "go run ./tools/azurerm-id-gen -src <azurerm checkout> -schema <providers schema json>",
@@ -261,8 +271,19 @@ func generate(src, schemaPath string) (*artifact, error) {
 	return a, nil
 }
 
-func classify(name string, ts typeSchema, r registration, src *idSource, problem string, parentTypes func([]segment) []string, typeTemplate func(string) (string, bool)) entry {
-	e := entry{Type: name, IdentitySchema: ts.Identity, Via: r.Via}
+func classify(l *loader, name string, ts typeSchema, r registration, src *idSource, problem string, c *contract, parentTypes func([]segment) []string, typeTemplate func(string) (string, bool)) entry {
+	e := entry{Type: name, IdentitySchema: ts.Identity, Via: r.Via, IdentityContract: c}
+	var at map[string]int
+	if ts.Identity != nil {
+		var segs []segment
+		if problem == "" && src != nil {
+			segs = src.Segments
+		}
+		e.IdentitySources, e.IdentitySourcesProblem = l.identitySources(ts, r, segs, c)
+		if e.IdentitySources != nil {
+			at, _ = identitySegments(segs, ts.Identity)
+		}
+	}
 	finish := func(class string) entry {
 		if ts.Identity != nil {
 			e.TemplateClass = class
@@ -286,6 +307,18 @@ func classify(name string, ts typeSchema, r registration, src *idSource, problem
 		ParentTypes:  parentTypes,
 		TypeTemplate: typeTemplate,
 	})
+	if m.Reason != "" && e.IdentitySources != nil {
+		// #2138: where the segment names find no argument, azurerm's
+		// identity test may: a renamed argument, a constant record type.
+		if comps, ok := sourcedComponents(src.Segments, at, e.IdentitySources); ok {
+			m = mapping{Components: comps}
+			for _, c := range comps {
+				if c.ARMID {
+					m.ParentID = true
+				}
+			}
+		}
+	}
 	if m.Reason != "" {
 		e.Reason, e.Detail = m.Reason, m.Detail
 		return finish(classUnmapped)

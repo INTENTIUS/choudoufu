@@ -38,28 +38,28 @@ Every azurerm type whose ARM id template could be read from azurerm's own
 id parsers is admitted ([`live/azurerm-ids.json`](../azurerm-ids.json)),
 and so is every ARM type declared through `azapi_resource`.
 [`live/READINESS.md`](../READINESS.md#azure) generates the counts: of
-azurerm's 1,106 types, 843 are in contract, and all 3,397 of azapi's ARM
+azurerm's 1,106 types, 849 are in contract, and all 3,397 of azapi's ARM
 types are.
 
 ### Readiness tiers
 
 The tiers are AWS's. For azurerm at 5.10.0, 387 types have an ARM tags map
-and are marker-carried, 489 untaggable types bind from their declaration,
-and 230 untaggable types nothing admits are record-carried. For azapi at
+and are marker-carried, 492 untaggable types bind from their declaration,
+and 227 untaggable types nothing admits are record-carried. For azapi at
 2.13.0, 1,031 ARM types take tags at their latest API version and 2,366 do
 not; 84 change between versions, and the stamp reads the version the
 block's `type` names.
 
 ### Refused
 
-The 263 azurerm types short of in-contract, each listed with its reason in
+The 257 azurerm types short of in-contract, each listed with its reason in
 `live/READINESS.md`:
 
 | Why | What happens |
 |---|---|
 | No id template could be read from azurerm's parsers (235 types) | Refused as `unadmitted-type`. No template is guessed from the schema |
 | The template names the parent or is not the object's own or fails a guard (9 types) | Withheld rather than risk a wrong marker |
-| On the identity-schema route with no template for an attribute no argument supplies (19 types) | Refused as unadmitted |
+| On the identity-schema route with no template for an attribute no argument supplies (13 types) | Refused as unadmitted |
 
 On `azapi_resource`, three things stop the stamp:
 
@@ -163,7 +163,17 @@ it set, and the plan refuses the unmarked object instead.
 `strict { markers "record" { types =
 ["azurerm_route_table"] } }` holds the type's identity in the record store,
 with the subscription from the provider block, so the copied tags decide
-nothing ([#2135](https://github.com/INTENTIUS/choudoufu/issues/2135)). Or
+nothing ([#2135](https://github.com/INTENTIUS/choudoufu/issues/2135)).
+The same selection works for 191 of the 196 azurerm types with an identity
+schema, including those whose identity names a parent the block states only
+as the parent's id (`azurerm_storage_container`'s `storage_account_name`,
+parsed out of `storage_account_id` by the id grammar azurerm parses it
+with), a renamed argument or a constant (`azurerm_dns_cname_record`'s
+`dns_zone_name` and `record_type`), as azurerm's own identity tests state
+them. A record is written only when it rebuilds into the object's own ARM id.
+The other five are refused by name, with the attribute azurerm states no
+configurable source for
+([#2138](https://github.com/INTENTIUS/choudoufu/issues/2138)). Or
 keep the resource out of the estate, or in a resource group no cluster is
 given. Copying the estate's tags through the cluster's own `tags` does not
 help: AKS writes one tag set, with the cluster's address, onto every

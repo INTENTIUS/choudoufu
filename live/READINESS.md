@@ -68,11 +68,16 @@ An untaggable type nothing admits is record-carried. The 196 azurerm
 types the provider serves an identity schema for (subnets, routes and
 security rules among them) keep that route (#1122), which reads
 `subscription_id` from the provider block. It admits 103 of them on the
-schema alone and 72 through the generated template, once a guard has held
-the template to the identity attributes azurerm's own identity tests read;
-the 19 with no template and the 2 whose template the guard withholds are
-refused. Each type's route is recorded in `live/azurerm-ids.json`
-(#1120 unit 17).
+schema alone and 78 through the generated template, once a guard has held
+the template to the identity attributes azurerm's own identity tests read
+(six of those templates take a segment's argument or constant from that
+test, where the segment's name found none, #2138); the 13 with no template
+and the 2 whose template the guard withholds are refused. Each type's route
+is recorded in `live/azurerm-ids.json` (#1120 unit 17). A record can hold
+the whole identity of 191 of the 196, each attribute the block does not
+declare read from the source azurerm's identity test states for it (a
+parent's id parsed by its id grammar, a renamed argument, a constant), and
+refuses the other 5 by name (#2138).
 
 No stock carrier exists for an untaggable Azure type. azurerm and azapi
 write nothing onto an ARM object but its own properties, and ARM keeps no
@@ -108,11 +113,11 @@ hashicorp/azurerm 5.10.0: 1106 resource types.
 
 | Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
 |---|---|---|---|---|---|---|---|
-| marker-carried | 354 | 0 | 0 | 33 | 0 | 0 | 387 |
-| declaration-carried | 489 | 0 | 0 | 0 | 0 | 0 | 489 |
-| record-carried | 0 | 0 | 0 | 230 | 0 | 0 | 230 |
+| marker-carried | 357 | 0 | 0 | 30 | 0 | 0 | 387 |
+| declaration-carried | 492 | 0 | 0 | 0 | 0 | 0 | 492 |
+| record-carried | 0 | 0 | 0 | 227 | 0 | 0 | 227 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Total | 843 | 0 | 0 | 263 | 0 | 0 | 1106 |
+| Total | 849 | 0 | 0 | 257 | 0 | 0 | 1106 |
 
 azure/azapi 2.13.0: 3397 ARM resource types declared through azapi_resource.
 
@@ -131,8 +136,8 @@ The fence for azurerm, by tier and by where the type lives:
 | Tier | resource-group | from-argument | subscription | tenant | unknown | What Policy adds to the group RBAC |
 |---|---|---|---|---|---|---|
 | marker-carried | 375 | 1 | 1 | 3 | 7 | the deny on a write lacking or changing tofu-estate, and the delete lock when deleteLock is on |
-| declaration-carried | 448 | 21 | 12 | 8 | 0 | nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen |
-| record-carried | 171 | 20 | 5 | 3 | 31 | nothing, and the type is not admitted |
+| declaration-carried | 451 | 21 | 12 | 8 | 0 | nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen |
+| record-carried | 168 | 20 | 5 | 3 | 31 | nothing, and the type is not admitted |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | not admitted |
 
 | Scope | What the estate's group RBAC reaches |
@@ -183,7 +188,6 @@ The azurerm types short of in-contract:
 | `azurerm_app_configuration_feature` | marker-carried | needs-evidence | 1 |
 | `azurerm_app_configuration_key` | marker-carried | needs-evidence | 1 |
 | `azurerm_app_service_certificate_binding` | record-carried | needs-evidence | 1 |
-| `azurerm_app_service_custom_hostname_binding` | record-carried | needs-evidence | 3 |
 | `azurerm_app_service_managed_certificate` | marker-carried | needs-evidence | 1 |
 | `azurerm_app_service_public_certificate` | record-carried | needs-evidence | 1 |
 | `azurerm_app_service_slot_custom_hostname_binding` | record-carried | needs-evidence | 1 |
@@ -198,7 +202,6 @@ The azurerm types short of in-contract:
 | `azurerm_automation_job_schedule` | record-carried | needs-evidence | 1 |
 | `azurerm_backup_container_storage_account` | record-carried | needs-evidence | 1 |
 | `azurerm_backup_policy_file_share` | record-carried | needs-evidence | 1 |
-| `azurerm_backup_policy_vm` | record-carried | needs-evidence | 3 |
 | `azurerm_backup_policy_vm_workload` | record-carried | needs-evidence | 1 |
 | `azurerm_backup_protected_file_share` | record-carried | needs-evidence | 1 |
 | `azurerm_backup_protected_vm` | record-carried | needs-evidence | 1 |
@@ -231,16 +234,12 @@ The azurerm types short of in-contract:
 | `azurerm_data_protection_backup_vault_customer_managed_key` | record-carried | needs-evidence | 3 |
 | `azurerm_databricks_workspace_root_dbfs_customer_managed_key` | record-carried | needs-evidence | 3 |
 | `azurerm_dev_test_global_vm_shutdown_schedule` | marker-carried | needs-evidence | 1 |
-| `azurerm_dns_a_record` | marker-carried | needs-evidence | 3 |
 | `azurerm_dns_aaaa_record` | marker-carried | needs-evidence | 1 |
 | `azurerm_dns_caa_record` | marker-carried | needs-evidence | 1 |
-| `azurerm_dns_cname_record` | marker-carried | needs-evidence | 3 |
 | `azurerm_dns_mx_record` | marker-carried | needs-evidence | 1 |
 | `azurerm_dns_ns_record` | marker-carried | needs-evidence | 1 |
 | `azurerm_dns_ptr_record` | marker-carried | needs-evidence | 1 |
 | `azurerm_dns_srv_record` | marker-carried | needs-evidence | 1 |
-| `azurerm_dns_txt_record` | marker-carried | needs-evidence | 3 |
-| `azurerm_email_communication_service_domain_sender_username` | record-carried | needs-evidence | 3 |
 | `azurerm_eventgrid_partner_configuration` | marker-carried | needs-evidence | 2 |
 | `azurerm_eventgrid_system_topic_event_subscription` | record-carried | needs-evidence | 1 |
 | `azurerm_eventhub_namespace_customer_managed_key` | record-carried | needs-evidence | 1 |

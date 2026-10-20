@@ -288,7 +288,7 @@ func RecordFallbackType(resourceType string, schemas map[string]providers.Schema
 		// has always gotten.
 		return false
 	}
-	if plan, _ := LocatedIdentityPlanFor(resourceType, schema); plan.FromProvider() {
+	if plan, _ := LocatedIdentityPlanFor(resourceType, schema); plan.FromProvider() || plan.Derived() {
 		// GitHub issue #2135 made an identity with a provider-configuration
 		// component recordable, for a writer that can answer it
 		// ([LocatedProviderIdentity]). This door is not one: the instance
@@ -297,6 +297,8 @@ func RecordFallbackType(resourceType string, schemas map[string]providers.Schema
 		// subscription_id set from a variable the run cannot see), which the
 		// record could then not hold either. It keeps the answer it had
 		// before #2135, and the instance its needs-discovery refusal.
+		// GitHub issue #2138's derived components keep it too: this door
+		// was never opened for them, and nothing here asks for it.
 		return false
 	}
 	return recordableIdentitySchema(resourceType, schema)
@@ -467,6 +469,24 @@ type LocatedIdentityPlan struct {
 	// [LocatedIdentity]'s all-or-nothing rule exists to refuse.
 	ProviderComponents map[string]CloudValue
 
+	// DerivedComponents are the required identity attributes, set only
+	// alongside Components, that the type's block declares no attribute by
+	// that name for and whose value the family says how to read anyway
+	// (GitHub issue #2138, [substrate.SynthesizedIdentity.IdentitySources]):
+	// a parent's name parsed out of a parent's ARM id argument with the id
+	// grammar azurerm parses it with (azurerm_storage_container's
+	// storage_account_name, inside storage_account_id), an argument azurerm
+	// maps to the attribute under another name (azurerm_dns_cname_record's
+	// dns_zone_name is zone_name), or a constant (its record_type, "CNAME").
+	// Each source is generated, and pinned against azurerm's own identity
+	// tests (TestAzurermIdentitySourcesAgreeWithTheIdentityTest).
+	//
+	// [LocatedDerivedIdentity] reads them off the applied object. Because
+	// the record then holds a value read out of an argument rather than off
+	// an attribute of that name, the writer holds the whole record to the
+	// object's own id before writing it ([projection.LocatedRecordFromIn]).
+	DerivedComponents map[string]substrate.IdentitySource
+
 	// ImportIDParts are the attributes whose values compose the documented
 	// import STRING, in the documented order, joined by ImportIDSeparator.
 	// Set only where [DocumentedImportIDs] carries a grammar for the type
@@ -520,8 +540,12 @@ type LocatedIdentityPlan struct {
 
 // Composite reports whether p carries the provider's identity object.
 func (p LocatedIdentityPlan) Composite() bool {
-	return len(p.Components) > 0 || len(p.ProviderComponents) > 0
+	return len(p.Components) > 0 || len(p.ProviderComponents) > 0 || len(p.DerivedComponents) > 0
 }
+
+// Derived reports whether some of p's identity is read out of another
+// argument, or is a constant ([LocatedIdentityPlan.DerivedComponents]).
+func (p LocatedIdentityPlan) Derived() bool { return len(p.DerivedComponents) > 0 }
 
 // FromProvider reports whether some of p's identity comes from the
 // provider configuration rather than the applied object
@@ -669,9 +693,24 @@ func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan 
 	// ([LocatedProviderIdentity]) and the plan carries it apart from the
 	// components read off the object.
 	fromProvider := providerIdentityAttrs(resourceType, schema)
+	// GitHub issue #2138: a required attribute the block does not declare
+	// at all, and the family has a generated source for, is read from that
+	// source. Checked ahead of the provider value, because where azurerm's
+	// identity test says a subscription_id sits inside a parent's id, that
+	// is where it is; a source naming the provider leaves it to the
+	// provider value, as before.
+	sources := familyIdentitySources(resourceType, schema)
 	var fromObject []string
 	var providerComps map[string]CloudValue
+	var derived map[string]substrate.IdentitySource
 	for _, name := range required {
+		if src, ok := sources[name]; ok && src.Provider == "" && schema.Block.Attributes[name] == nil {
+			if derived == nil {
+				derived = make(map[string]substrate.IdentitySource, len(sources))
+			}
+			derived[name] = src
+			continue
+		}
 		if cloud, ok := fromProvider[name]; ok {
 			if providerComps == nil {
 				providerComps = make(map[string]CloudValue, len(fromProvider))
@@ -704,7 +743,75 @@ func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan 
 	// component is never a reason to refuse the whole identity the way it
 	// is for a required one. Filtering here would only duplicate that
 	// check, at the cost of a second place it could drift from it.
-	return LocatedIdentityPlan{Components: fromObject, OptionalComponents: optional, ProviderComponents: providerComps}, true
+	return LocatedIdentityPlan{Components: fromObject, OptionalComponents: optional, ProviderComponents: providerComps, DerivedComponents: derived}, true
+}
+
+// familyIdentitySources is the family's generated source for each identity
+// attribute of resourceType ([substrate.SynthesizedIdentity.IdentitySources],
+// GitHub issue #2138), and why there is none. Both empty for every family
+// but Azure.
+func familyIdentitySources(resourceType string, schema providers.Schema) map[string]substrate.IdentitySource {
+	synth, ok := substrate.SynthesizeIdentity(resourceType, schema)
+	if !ok {
+		return nil
+	}
+	return synth.IdentitySources
+}
+
+// FamilyIdentitySourcesProblem is why the family names no source for some
+// identity attribute of resourceType a record would need (GitHub issue
+// #2138), naming the attribute, or "" when it has nothing to say: every
+// family but Azure, and an azurerm type whose sources are complete.
+// strict-markers-unrecordable gives it as the reason in place of the
+// generic one.
+func FamilyIdentitySourcesProblem(resourceType string, schema providers.Schema) string {
+	synth, ok := substrate.SynthesizeIdentity(resourceType, schema)
+	if !ok {
+		return ""
+	}
+	return synth.IdentitySourcesProblem
+}
+
+// LocatedDerivedIdentity reads [LocatedIdentityPlan.DerivedComponents] off
+// an applied object (GitHub issue #2138). All or nothing, for
+// [LocatedIdentity]'s reason: a record missing one of them is a partial
+// identity. An argument source is that argument's string value; a parent's
+// id source is the named segment of that argument's value, parsed as an
+// ARM id of the recorded shape ([substrate.ARMIDSegment]), and a value that
+// does not parse refuses rather than yields a near miss; a constant is
+// itself. A plan with none answers a nil map and true.
+func LocatedDerivedIdentity(plan LocatedIdentityPlan, obj cty.Value) (map[string]string, bool) {
+	if len(plan.DerivedComponents) == 0 {
+		return nil, true
+	}
+	out := make(map[string]string, len(plan.DerivedComponents))
+	for name, src := range plan.DerivedComponents {
+		var v string
+		switch {
+		case src.Constant != "":
+			v = src.Constant
+		case src.Argument != "":
+			s, ok := locatedAttrString(obj, src.Argument)
+			if !ok {
+				return nil, false
+			}
+			v = s
+		case src.Within != "":
+			s, ok := locatedAttrString(obj, src.Within)
+			if !ok {
+				return nil, false
+			}
+			seg, ok := substrate.ARMIDSegment(src.ParentTemplate, s, src.ParentSegment)
+			if !ok {
+				return nil, false
+			}
+			v = seg
+		default:
+			return nil, false
+		}
+		out[name] = v
+	}
+	return out, true
 }
 
 // providerIdentityAttrs is the identity attributes resourceType's family
