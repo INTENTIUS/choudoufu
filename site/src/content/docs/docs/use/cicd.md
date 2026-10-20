@@ -9,12 +9,14 @@ prompt: >-
 
 Three jobs read. Three write, on a push, after an approval.
 
-- `live-check` lists what would be refused, offline, on a pull request.
-- `live-plan` reports drift and unmarked matches on a pull request.
-- `live-apply` plans to a file and applies it once approved, on a push to `main`.
-- `live-adopt` shows the adoptions and writes markers once approved, on a push to `staging`.
-- `live-discover` lists marked resources nobody declares, on a schedule.
-- `backend-prepare` creates or updates the record store bucket, on a push to `bootstrap`.
+| Job | Runs on | Does |
+|---|---|---|
+| `live-check` | Pull request | Lists what would be refused, offline |
+| `live-plan` | Pull request | Reports drift and unmarked matches |
+| `live-apply` | Push to `main` | Plans to a file, applies it once approved |
+| `live-adopt` | Push to `staging` | Shows the adoptions, writes markers once approved |
+| `live-discover` | Schedule | Lists marked resources nobody declares |
+| `backend-prepare` | Push to `bootstrap` | Creates or updates the record store bucket |
 
 Give each job the narrowest role. `backend-prepare` gets its own, because a
 role that can rewrite the bucket policy can lock every run out. An apply that
