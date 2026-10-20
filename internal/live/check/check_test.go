@@ -145,6 +145,11 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// internal/live/discovery's own Kubernetes leg, which is where
 		// every verdict about what it finds is made and classified.
 		"kubesweep": true,
+		// GitHub issue #1119's GCP sweep client: one Cloud Asset Inventory
+		// search per project, returning assets or a typed error. Every
+		// verdict about what it finds is the discovery leg's, as for
+		// kubesweep.
+		"gcpsweep": true,
 		// GitHub issue #1524: asks EKS, GKE or AKS whether a managed
 		// cluster encrypts Secrets at rest and returns the provider's
 		// answer as data. It emits no diagnostic; the encryption_at_rest
