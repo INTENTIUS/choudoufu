@@ -95,6 +95,11 @@ type IdentityComponent struct {
 
 	// ARMTypeSegment is identity.Component's field of the same name.
 	ARMTypeSegment bool
+
+	// ServerAssignedIfAbsent is identity.Component's field of the same
+	// name: leaving every one of Attrs unset asks the provider to mint the
+	// value (GitHub issue #2119; see [markProviderMintedIfAbsent]).
+	ServerAssignedIfAbsent bool
 }
 
 // SynthesizeIdentity asks every family in [All]'s order how typeName's

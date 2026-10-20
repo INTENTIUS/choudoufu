@@ -394,7 +394,11 @@ func (azure) SynthesizeIdentity(typeName string, schema providers.Schema) (Synth
 		return SynthesizedIdentity{}, false
 	}
 	if strings.HasPrefix(typeName, "azurerm_") {
-		return azurermAdmits(typeName)
+		synth, ok := azurermAdmits(typeName)
+		if ok {
+			markProviderMintedIfAbsent(synth.Components, schema.Block)
+		}
+		return synth, ok
 	}
 	return SynthesizedIdentity{}, false
 }

@@ -354,18 +354,18 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				importID, ok = substrate.AzurermRecordImportID(typeName, rec.Components)
 				if !ok && !elsewhere {
 					// Never silent for this family: the record is the only
-					// thing that still names the object, so a record that
-					// cannot be turned into an id is said by address. A
-					// warning, the one #107 gives an owned object no
-					// removal can reach: refusing would hold the whole
-					// estate's plan over one object it cannot destroy
-					// anyway.
+					// thing that still names the object. #2119's D3 says
+					// such a warning names the type and the estate rather
+					// than the address, because the address is what a lost
+					// or broken record no longer vouches for. A warning,
+					// the one #107 gives an owned object no removal can
+					// reach: refusing would hold the whole estate's plan
+					// over one object it cannot destroy anyway.
 					diags = diags.Append(problemDiag(res, Problem{
 						Kind:     ProblemUnsweepableOwnedType,
 						TypeName: typeName,
-						Addr:     addr,
-						Detail: fmt.Sprintf("The record for %s, whose configuration block was removed, does not hold every segment of its Azure resource id, so its removal is not proposed and the object stays in the cloud. Delete it by hand, or restore the block and remove it again once the record is rewritten.",
-							addr),
+						Detail: fmt.Sprintf("Estate %q holds a record of an %s whose configuration block was removed, and the record does not hold every segment of its Azure resource id, so its removal is not proposed and the object stays in the cloud. Find it among the estate's resource groups and delete it by hand.",
+							req.Estate, typeName),
 					}))
 					continue
 				}

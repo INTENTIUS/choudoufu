@@ -263,7 +263,14 @@ func RecordFallbackType(resourceType string, schemas map[string]providers.Schema
 		// the table itself do (live/admission_coverage_test.go), and this
 		// condition is what holds that disjointness from the other
 		// direction.
-		return false
+		//
+		// GitHub issue #2119: an Azure type has no table row because the
+		// family admits it by its ARM id template instead, so the row this
+		// condition stands for is that synthesized entry. No Azure type is
+		// in [MarkerlessTypes], so the disjointness holds for it too.
+		if ti, synthesized := SynthesizeTypeIdentity(resourceType, schemas, nil); !synthesized || !ti.ARMResourceID {
+			return false
+		}
 	}
 	schema, ok := schemas[resourceType]
 	if !ok || schema.Block == nil {

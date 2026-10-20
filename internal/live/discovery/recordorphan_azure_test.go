@@ -134,7 +134,8 @@ func TestRemovedAzureSubnetIsForgottenWithoutTheRecordLeg(t *testing.T) {
 
 // TestAzureRecordMissingASegmentWarnsByName: a record that does not hold
 // every segment of the ARM id is not guessed at, and it is not dropped
-// silently either. The plan warns, naming the address, and proposes
+// silently either. The plan warns, naming the type and the estate (#2119's
+// D3: the address is what the record no longer vouches for), and proposes
 // nothing for it.
 func TestAzureRecordMissingASegmentWarnsByName(t *testing.T) {
 	comps := subnetComponents()
@@ -149,7 +150,8 @@ func TestAzureRecordMissingASegmentWarnsByName(t *testing.T) {
 			t.Fatalf("%s was proposed from a record missing its subscription: %+v", addr, r)
 		}
 	}
-	if !hasDiag(diags, problemSummaries[ProblemUnsweepableOwnedType], addr.String()) {
-		t.Errorf("no warning names %s:\n%s", addr, renderDiags(diags))
+	want := `Estate "` + estateName + `" holds a record of an azurerm_subnet`
+	if !hasDiag(diags, problemSummaries[ProblemUnsweepableOwnedType], want) {
+		t.Errorf("no warning names the type and the estate (%q):\n%s", want, renderDiags(diags))
 	}
 }

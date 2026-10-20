@@ -26,10 +26,14 @@ func TestAzurermRecordImportID(t *testing.T) {
 		t.Errorf("azurerm_subnet with no virtual_network_name composed %q", got)
 	}
 
-	// A template admission withholds (azurerm_lb_nat_rule borrows
-	// azurerm_lb's) and a type with no template (azurerm_role_assignment's
-	// parser has its own grammar) are not this rule's.
-	for _, typ := range []string{"azurerm_lb_nat_rule", "azurerm_role_assignment", "aws_iam_role_policy"} {
+	// A template admission withholds and a type with no template
+	// (azurerm_role_assignment's parser has its own grammar) are not this
+	// rule's.
+	withheld := AzurermWithheld()
+	if len(withheld) == 0 {
+		t.Fatal("no withheld azurerm type to check against")
+	}
+	for _, typ := range []string{withheld[0][0], "azurerm_role_assignment", "aws_iam_role_policy"} {
 		if AzurermRecordable(typ) {
 			t.Errorf("%s is recordable; it has no template admission would build", typ)
 		}

@@ -18,16 +18,18 @@ import (
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
-// GitHub issue #2119: no Azure type is in the markerless veto, because
-// every admitted azurerm type's id is built from arguments. Seven admitted
-// untaggable types make the naming argument Optional and Computed at
-// azurerm 5.10.0, and the provider mints a GUID when it is left out
-// (azurerm_management_group's create sets `groupName = uuid.New().String()`
-// when the name is empty). Such a block is refused by name rather than created with an id
-// nothing could find again: there is no tag to carry a marker. Pinned here
-// so a change that starts admitting the omitted case has to say how the
-// object would be found.
-func TestAzureOptionalNameOmittedIsRefusedByName(t *testing.T) {
+// GitHub issue #2119, D4 as #2119 states it: an untaggable, server-minted
+// Azure type is held by its record (record-located), as on AWS. No Azure
+// type is in the markerless veto, because every admitted azurerm type's id
+// is built from arguments, but seven admitted untaggable types make the
+// naming argument Optional and Computed at azurerm 5.10.0 and the provider
+// mints a GUID when it is left out (azurerm_management_group's create sets
+// `groupName = uuid.New().String()` for an empty name). Such an instance
+// has no name to compute and no tag to carry a marker, so with the record
+// store a live block implies it drops to the record rung through
+// [resolver.recordFallback], exactly as aws_autoscaling_group's name_prefix
+// instance does; a named one resolves from configuration.
+func TestAzureMintedNameIsRecordLocated(t *testing.T) {
 	schemas := map[string]providers.Schema{
 		// azurerm_management_group at 5.10.0, reduced: name optional and
 		// computed, no tags, no identity schema (template class).
@@ -37,13 +39,14 @@ func TestAzureOptionalNameOmittedIsRefusedByName(t *testing.T) {
 			"display_name": {Type: cty.String, Optional: true, Computed: true},
 		}}},
 	}
-	resolve := func(body string) (*Result, string) {
+	resolve := func(live, body string) *Result {
 		dir := t.TempDir()
 		if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`
 terraform {
   required_providers {
     azurerm = { source = "hashicorp/azurerm" }
   }
+`+live+`
 }
 `+azureProviders[:strings.Index(azureProviders, `provider "azapi"`)]+body), 0o600); err != nil {
 			t.Fatal(err)
@@ -51,29 +54,37 @@ terraform {
 		cfg := loadConfig(t, dir, nil)
 		res, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
 		if diags.HasErrors() {
-			return res, diags.Err().Error()
+			t.Fatalf("resolving: %s", diags.Err())
 		}
-		return res, ""
+		return res
 	}
-
-	res, errs := resolve(`
+	const blocks = `
 resource "azurerm_management_group" "named" {
   name = "mg-platform"
 }
-`)
-	if errs != "" {
-		t.Fatalf("a named management group: %s", errs)
-	}
-	if got := azureResolution(t, res, "azurerm_management_group.named").ImportID; got != "/providers/Microsoft.Management/managementGroups/mg-platform" {
-		t.Errorf("named management group resolved to %q", got)
-	}
-
-	_, errs = resolve(`
 resource "azurerm_management_group" "minted" {
   display_name = "Platform"
 }
-`)
-	if !strings.Contains(errs, "Identity argument not set") || !strings.Contains(errs, "azurerm_management_group.minted") {
-		t.Errorf("a management group with no name: %q, want the refusal naming the address", errs)
+`
+	res := resolve(`
+  live {
+    estate = "mg"
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }`, blocks)
+	if got := azureResolution(t, res, "azurerm_management_group.named"); got.Class != ClassConcrete || got.ImportID != "/providers/Microsoft.Management/managementGroups/mg-platform" {
+		t.Errorf("named management group: %s %q", got.Class, got.ImportID)
+	}
+	minted := azureResolution(t, res, "azurerm_management_group.minted")
+	if minted.Class != ClassRecordLocated || !minted.RecordFallback || minted.ImportID != "" {
+		t.Errorf("minted management group: %+v, want record-located through the record fallback with no import id of its own", minted)
+	}
+
+	// No record store: the omitted name is a value the run cannot know,
+	// AWS's NAME_OMITTED, never a guess.
+	res = resolve("", blocks)
+	if got := azureResolution(t, res, "azurerm_management_group.minted"); got.Class != ClassNeedsDiscovery || got.Cause != DiscoveryNameOmitted {
+		t.Errorf("minted management group with no record store: %s %s, want needs-discovery, name omitted", got.Class, got.Cause)
 	}
 }
