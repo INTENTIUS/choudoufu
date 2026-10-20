@@ -7,9 +7,14 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-A lost cache or working copy costs one slower plan. Lost markers make
-resources look unowned; find who untagged them. A lost record store needs the
-procedure below. Most resources come back from their markers.
+| Lost | Cost | Action |
+|---|---|---|
+| The cache | One slower plan | Run `choudoufu plan` |
+| Your working copy | One slower plan | Check it out and plan |
+| Markers on live resources | Those resources look unowned | Find who untagged them |
+| The record store | Record-backed resources and a few untagged AWS types | The steps below |
+
+Most resources come back from their markers.
 
 1. Leave records and tags as they are.
 2. Restore the record store if you can. Removing a bucket record's delete
