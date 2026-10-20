@@ -26,7 +26,6 @@ import (
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
 	"github.com/intentius/choudoufu/internal/live/servicetags"
-	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -220,7 +219,8 @@ type Result struct {
 
 	// OldMarker and NewMarker are those addresses escaped per
 	// live/MARKERS.md: the tag value that was matched and the tag value
-	// that was written.
+	// that was written. On a GCP resource they are the tofu-address label
+	// values instead ([markers.GoogleAddressValue]).
 	OldMarker, NewMarker string
 
 	// TypeName is the resource type both addresses name.
@@ -252,7 +252,8 @@ type Result struct {
 	// Surface is where the marker lives on the live object (label.go):
 	// [markers.SurfaceTags] for the AWS tag map, [markers.SurfaceLabels]
 	// for a Kubernetes metadata block, [markers.SurfaceManifest] for a
-	// manifest-declared object, and the zero Surface for a type with none
+	// manifest-declared object, [markers.SurfaceGoogleLabels] for a
+	// hashicorp/google labels map, and the zero Surface for a type with none
 	// (which takes the tag path). Read off the provider's schema for the
 	// type, never off its name.
 	Surface markers.Surface
@@ -271,10 +272,11 @@ type Result struct {
 
 	// AlreadyMarked is true when a same-estate rename of a Kubernetes
 	// object found the object already carrying the new address in its
-	// address annotation (GitHub issue #1639) - a plan and apply of the
-	// renamed block wrote it first - so nothing was written, and the
-	// marker it carries is the one this rename would have written.
-	// Verified is true beside it.
+	// address annotation (GitHub issue #1639), or a GCP resource already
+	// carrying the new address's encoding in its tofu-address label
+	// (googlelabels.go) - a plan and apply of the renamed block wrote it
+	// first - so nothing was written, and the marker it carries is the one
+	// this rename would have written. Verified is true beside it.
 	AlreadyMarked bool
 
 	// Swept is true when the whole resource type was enumerated, which is
@@ -295,10 +297,6 @@ type Result struct {
 	// warning rather than treated as a failure.
 	Verified bool
 }
-
-// SummaryGCPMoveNotBuilt is live-mv's refusal for a GCP resource until its
-// label rewrite is built (GitHub issue #1119).
-const SummaryGCPMoveNotBuilt = "live-mv cannot rewrite a GCP resource's labels yet"
 
 // Move rewrites the tofu-address marker on the one live resource that carries
 // the old address, and returns what it did.
@@ -427,15 +425,15 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// metadata-block shape that is a markers-only plan and apply through
 	// the provider; on the manifest shape it is one merge patch to the API
 	// server under the run's own credential (manifest.go; the move is
-	// GitHub issue #1104).
+	// GitHub issue #1104). A GCP resource takes the tag path's shape with
+	// its labels map in place of the tags (googlelabels.go).
 	res.Surface = surfaceOf(providerAddr.Provider.Type, schema.Block)
-	if substrate.WritesOf(res.Surface).Adopt == substrate.WriteGoogleLabelsPlan {
-		// GitHub issue #1119: the GCP rewrite (the encoded address label,
-		// and the estate label on a move) is not built yet. Refused by
-		// name rather than sent down the tag path, which would look for a
-		// tags argument the type does not have.
-		return res, diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryGCPMoveNotBuilt,
-			fmt.Sprintf("%s is a GCP resource, whose markers are labels, and live-mv cannot rewrite them yet. Nothing was written. Its records still follow the address; the next plan rewrites the tofu-address label as an ordinary in-place label change.", req.Old)))
+	if relabelsGoogle(res.Surface) {
+		// GitHub issue #1119: a GCP resource carries its address as an
+		// encoded label (googlelabels.go), so the values matched and
+		// written are those, not the escaped tag form.
+		res.OldMarker = markers.GoogleAddressValue(req.Old)
+		res.NewMarker = markers.GoogleAddressValue(req.New)
 	}
 	switch {
 	case res.MarkerCarriesAddress():
@@ -907,6 +905,12 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 		))
 	}
 
+	if relabelsGoogle(m.res.Surface) {
+		// GCP never takes the listing path below: listclient's sweep reads
+		// AWS tag maps (googlelabels.go, findGoogle).
+		return m.findGoogle(ctx, resolution)
+	}
+
 	schemas, schemaDiags := listclient.ListSchemas(ctx, m.provider)
 	// A provider that cannot list at all is not an error here; it is the
 	// identity path's ordinary condition. Errors from the call itself travel.
@@ -1223,6 +1227,9 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 
 	if relabels(m.res.Surface) {
 		return m.locateLabelled(obj, resolution)
+	}
+	if relabelsGoogle(m.res.Surface) {
+		return m.locateGoogleLabelled(obj, resolution)
 	}
 
 	tags, taggable := tagsFromObject(m.schema, obj.Value)
