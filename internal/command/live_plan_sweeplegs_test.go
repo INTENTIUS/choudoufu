@@ -103,8 +103,9 @@ func TestSweepLegsChosenBySweepProperty(t *testing.T) {
 // graphFamily is a family whose sweep no leg serves.
 type graphFamily struct{ substrate.Substrate }
 
-func (graphFamily) Name() string           { return "graph" }
-func (graphFamily) Sweep() substrate.Sweep { return "graph-query" }
+func (graphFamily) Name() string            { return "graph" }
+func (graphFamily) ProviderTypes() []string { return []string{"graph"} }
+func (graphFamily) Sweep() substrate.Sweep  { return "graph-query" }
 
 // TestUnclaimedProviderGetsNoAWSLegs (GitHub issue #1707): a provider no
 // family claims used to get the AWS tagging-index legs, which list the
