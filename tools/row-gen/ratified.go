@@ -112,6 +112,7 @@ type ratifiedRow struct {
 	RecordBacked       bool                 `json:"record_backed,omitempty"`
 	SecretMaterial     bool                 `json:"secret_material,omitempty"`
 	NonAWSProvider     bool                 `json:"non_aws_provider,omitempty"`
+	ARMResourceID      bool                 `json:"arm_resource_id,omitempty"`
 	Components         *[]ratifiedComponent `json:"components,omitempty"`
 	ImportSyntax       string               `json:"import_syntax,omitempty"`
 	IdentityAttrs      *[]string            `json:"identity_attrs,omitempty"`
@@ -151,6 +152,7 @@ type ratifiedComponent struct {
 	IdentityAttr           string              `json:"identity_attr,omitempty"`
 	SoleElement            bool                `json:"sole_element,omitempty"`
 	PerElement             bool                `json:"per_element,omitempty"`
+	ARMTypeSegment         bool                `json:"arm_type_segment,omitempty"`
 }
 
 // toRatified converts one live row to its stored form.
@@ -162,6 +164,7 @@ func toRatified(e identity.TypeIdentity) ratifiedRow {
 		RecordBacked:       e.RecordBacked,
 		SecretMaterial:     e.SecretMaterial,
 		NonAWSProvider:     e.NonAWSProvider,
+		ARMResourceID:      e.ARMResourceID,
 		ImportSyntax:       e.ImportSyntax,
 		IdentityAttrs:      strsPtr(e.IdentityAttrs),
 		IdentityObjectOnly: e.IdentityObjectOnly,
@@ -186,6 +189,7 @@ func toRatified(e identity.TypeIdentity) ratifiedRow {
 				IdentityAttr:           c.IdentityAttr,
 				SoleElement:            c.SoleElement,
 				PerElement:             c.PerElement,
+				ARMTypeSegment:         c.ARMTypeSegment,
 			})
 		}
 		r.Components = &comps
@@ -204,6 +208,7 @@ func fromRatified(r ratifiedRow) identity.TypeIdentity {
 		RecordBacked:       r.RecordBacked,
 		SecretMaterial:     r.SecretMaterial,
 		NonAWSProvider:     r.NonAWSProvider,
+		ARMResourceID:      r.ARMResourceID,
 		ImportSyntax:       r.ImportSyntax,
 		IdentityAttrs:      strsValue(r.IdentityAttrs),
 		IdentityObjectOnly: r.IdentityObjectOnly,
@@ -228,6 +233,7 @@ func fromRatified(r ratifiedRow) identity.TypeIdentity {
 				IdentityAttr:           c.IdentityAttr,
 				SoleElement:            c.SoleElement,
 				PerElement:             c.PerElement,
+				ARMTypeSegment:         c.ARMTypeSegment,
 			})
 		}
 		e.Components = comps
