@@ -223,6 +223,18 @@ type Request struct {
 	// right one.
 	Sweep bool
 
+	// RecordRemoval runs the record-orphan leg ([recordOrphanReadSweep])
+	// on a pass that does not ask for [Request.Sweep]: a family whose
+	// sweep leg is its whole sweep ([Request.Sweepers]) and so has no use
+	// for the admission-table loops, but whose untaggable types are still
+	// held by nothing but the estate's record once their block is removed.
+	// The Azure Resource Graph pass sets it (GitHub issue #2119): without
+	// it, deleting an azurerm_subnet block left the subnet in the cloud and
+	// out of the plan, where an AWS estate proposes destroying an
+	// untaggable aws_iam_role_policy from the same record. With Sweep set
+	// the leg runs anyway, and this changes nothing.
+	RecordRemoval bool
+
 	// SweepTypes overrides the sweep's type universe. Empty means the
 	// default in [sweepTypes], which is the admission table. It exists for
 	// tests and for a future in which the admitted set is derived from
@@ -611,7 +623,7 @@ func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdia
 	if declDiags.HasErrors() {
 		return res, diags
 	}
-	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep && len(req.CacheVouchTypes) == 0 && len(req.Sweepers) == 0 {
+	if len(decl.types) == 0 && len(decl.recordBacked) == 0 && !req.Sweep && !req.RecordRemoval && len(req.CacheVouchTypes) == 0 && len(req.Sweepers) == 0 {
 		// Nothing waits on discovery, no sweep was asked for and no cache
 		// vouching either, which is a legitimate configuration: every
 		// instance was named by static analysis, and without a sweep or a
@@ -806,6 +818,16 @@ func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdia
 		// itself be untaggable and composite rather than concrete. See
 		// internal/live/discovery/fold_read.go's package doc comment.
 		diags = diags.Append(foldChildReadSweep(legsCtx, req, schemas, res))
+		endLegs()
+	}
+	if req.RecordRemoval && !req.Sweep {
+		// GitHub issue #2119: the record leg alone, for a family whose own
+		// sweep leg replaced the admission-table loops. The parent-read and
+		// fold-child legs list a parent's children through this provider's
+		// list resources, which only the AWS provider serves, so they stay
+		// behind Sweep.
+		legsCtx, endLegs := discoverPhase(ctx, "removal-legs")
+		diags = diags.Append(recordOrphanReadSweep(legsCtx, req, schemas, res))
 		endLegs()
 	}
 

@@ -1816,6 +1816,7 @@ func liveDiscoverOne(ctx context.Context, config *configs.Config, resolutions []
 	diags = diags.Append(legDiags)
 	req.Sweepers = legs
 	req.Sweep = sweep
+	req.RecordRemoval = known && recordRemovalLegs[sub.Sweep()]
 
 	// The Cloud Control fallback (issue #47): a type with no native provider
 	// list resource can still be enumerated when its mapped CFN type is
@@ -4691,6 +4692,20 @@ var sweepLegBuilders = map[substrate.Sweep]sweepLegBuilder{
 		leg, diags := p.resourceGraphLeg(ctx, sub, addr)
 		return leg, false, diags
 	},
+}
+
+// recordRemovalLegs are the sweeps whose pass runs the record-store
+// removal leg without [discovery.Request.Sweep] (GitHub issue #2119). The
+// tagging-index sweep needs no entry: its builder turns Sweep on, which
+// runs every removal leg. The Resource Graph sweep lists only tagged
+// objects, so an untaggable azurerm object whose block was removed is
+// found by its record or not at all, as an untaggable AWS one is; the
+// leg is AWS's, run alone. The label-list sweep has no entry: every
+// admitted Kubernetes kind carries the label (live/readiness.json counts
+// no untaggable one), so the label sweep finds a removed block's object
+// itself.
+var recordRemovalLegs = map[substrate.Sweep]bool{
+	substrate.SweepResourceGraph: true,
 }
 
 // liveSweepLegs is one provider configuration's sweep legs and its
