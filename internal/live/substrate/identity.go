@@ -46,6 +46,11 @@ type SynthesizedIdentity struct {
 	Components    []IdentityComponent
 	ImportSyntax  string
 	IdentityAttrs []string
+
+	// ARMResourceID is identity.TypeIdentity's field of the same name: the
+	// identity is an Azure Resource Manager resource id (GitHub issue
+	// #1120), whole and case-insensitive.
+	ARMResourceID bool
 }
 
 // IdentityComponent is the subset of identity.Component a family's
@@ -59,6 +64,13 @@ type IdentityComponent struct {
 	Path             []string
 	OmitIfAbsent     bool
 	SameNameIdentity bool
+
+	// Cloud is identity.Component's Cloud, as its string ("subscription-id"
+	// for the Azure subscription the provider configuration targets).
+	Cloud string
+
+	// ARMTypeSegment is identity.Component's field of the same name.
+	ARMTypeSegment bool
 }
 
 // SynthesizeIdentity asks every family in [All]'s order how typeName's

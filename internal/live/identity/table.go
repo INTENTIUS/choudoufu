@@ -208,6 +208,18 @@ type TypeIdentity struct {
 	// internal/live/uniquename.Asserted). A type with one source, or none,
 	// leaves this zero and never reaches the binding leg at all.
 	UniqueName UniqueName
+
+	// ARMResourceID is true when the identity this entry builds is an Azure
+	// Resource Manager resource id (GitHub issue #1120, ruled on #1122): a
+	// whole address, subscription and resource group and provider namespace
+	// included, that ARM compares case-insensitively. Two consequences
+	// follow, and [resolver.checkCollisions] applies both: two resolutions
+	// with such ids that differ only in letter case name one object, and
+	// they name it whatever type or provider declares them, because an
+	// azurerm block and an azapi_resource block for one virtual network are
+	// one object declared twice. Only the Azure family's synthesis sets it
+	// (substrate.Azure.SynthesizeIdentity); no ratified row does.
+	ARMResourceID bool
 }
 
 // UniqueName says where a type's account-unique, client-supplied name lives
@@ -579,6 +591,18 @@ type Component struct {
 	// that gives this type an identity schema is the point at which the
 	// question becomes real, and [checkIdentity] is what would raise it.
 	PerElement bool
+
+	// ARMTypeSegment is true on the one component of azapi_resource's
+	// identity that reads its `type` argument (GitHub issue #1120): the value
+	// is an ARM resource type with an API version
+	// ("Microsoft.Network/virtualNetworks/subnets@2024-05-01"), and what the
+	// component contributes is not that value but the text azapi puts
+	// between parent_id and name when it builds the object's id. The rule is
+	// [armTypeSegment]'s, read from azapi's own builder. The value has to be
+	// known from configuration alone: the joining text depends on how many
+	// segments the type has, so a type only a parent's live value supplies
+	// is refused rather than rendered later.
+	ARMTypeSegment bool
 }
 
 // PerElementShrinkCaveat records what a per-element identity does NOT
@@ -682,6 +706,20 @@ const (
 
 	// CloudRegion is the region the run is against, e.g. "us-east-1".
 	CloudRegion CloudValue = "region"
+
+	// CloudSubscriptionID is the Azure subscription the run is against, a
+	// GUID (GitHub issue #1120). It is a third kind rather than
+	// [CloudAccountID] because the two are answered from different places:
+	// an AWS account is never stated in the configuration and comes only
+	// from the [CloudContext], while azurerm and azapi take the subscription
+	// as the provider block's own subscription_id, which
+	// [resolver.cloudValueFor] reads statically the way it reads a
+	// provider block's region. Reusing the account value would either answer
+	// an AWS account from a provider argument the AWS provider does not have,
+	// or describe an Azure subscription as an AWS account ID in the one
+	// sentence an operator reads. The spelling is tools/azurerm-id-gen's,
+	// so live/azurerm-ids.json's components carry it unchanged.
+	CloudSubscriptionID CloudValue = "subscription-id"
 )
 
 // describe renders a cloud value for an operator-facing sentence.
@@ -691,6 +729,8 @@ func (c CloudValue) describe() string {
 		return "AWS account ID"
 	case CloudRegion:
 		return "region"
+	case CloudSubscriptionID:
+		return "Azure subscription ID (the provider block's subscription_id)"
 	default:
 		return string(c)
 	}

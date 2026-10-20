@@ -305,6 +305,11 @@ type cloudScopeKey struct {
 	// itself a known (if odd) value to compare.
 	region      string
 	regionKnown bool
+
+	// provider is the resolved provider configuration base names, kept so
+	// a [CloudSubscriptionID] component can read that configuration's own
+	// subscription_id ([resolver.cloudValueFor]). Never compared.
+	provider addrs.AbsProviderConfig
 }
 
 // Type returns the resource type name, e.g. "aws_route".
