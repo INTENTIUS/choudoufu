@@ -297,7 +297,32 @@ type siteData struct {
 	// admitted types, rendered separately from Tiers/Types above because
 	// they carry no tier yet - see [Substrate]'s own doc comment.
 	Kubernetes siteSubstrate `json:"kubernetes"`
+
+	// Google is the hashicorp/google and google-beta substrate (#1119):
+	// its own tier-by-status cross tab, its survey-path tally, and every
+	// type with its reason.
+	Google siteGoogle `json:"google"`
 }
+
+// siteGoogle is the Google substrate's site-rendered summary.
+type siteGoogle struct {
+	Provider     string     `json:"provider"`
+	Statuses     []string   `json:"statuses"`
+	Tiers        []siteTier `json:"tiers"`
+	ColumnTotals []int      `json:"column_totals"`
+	Total        int        `json:"total"`
+	Paths        []sitePath `json:"paths"`
+	Types        []siteType `json:"types"`
+}
+
+type sitePath struct {
+	Path  string `json:"path"`
+	Tier  string `json:"tier"`
+	Count int    `json:"count"`
+}
+
+// googlePathOrder fixes the order the path tally is rendered in.
+var googlePathOrder = []string{"marker", "client-named", "parent-derived", "project-derived", "unique-name", "server-minted", "unbindable"}
 
 // siteSubstrate is one non-AWS substrate's site-rendered summary.
 type siteSubstrate struct {
@@ -357,7 +382,53 @@ func buildSiteData(a Artifact, stamp string) siteData {
 	for _, r := range a.Kubernetes.Types {
 		d.Kubernetes.Types = append(d.Kubernetes.Types, siteType{Type: r.Type, Tier: r.Tier, Status: r.Status, Reason: reasonFor(r)})
 	}
+
+	g := siteGoogle{
+		Provider:     a.Google.Provider,
+		Statuses:     append([]string(nil), statusOrder...),
+		ColumnTotals: make([]int, len(statusOrder)),
+		Types:        []siteType{},
+	}
+	gcross := map[crossKey]int{}
+	for _, r := range a.Google.Types {
+		gcross[crossKey{Tier: r.Tier, Status: r.Status}]++
+		g.Types = append(g.Types, siteType{Type: r.Type, Tier: r.Tier, Status: r.Status, Reason: googleReasonFor(r)})
+	}
+	for _, tier := range tierOrder {
+		row := siteTier{Tier: tier}
+		for i, s := range statusOrder {
+			n := gcross[crossKey{Tier: tier, Status: s}]
+			row.Counts = append(row.Counts, n)
+			row.Total += n
+			g.ColumnTotals[i] += n
+		}
+		g.Total += row.Total
+		g.Tiers = append(g.Tiers, row)
+	}
+	for _, p := range googlePathOrder {
+		g.Paths = append(g.Paths, sitePath{Path: p, Tier: googlePathTiers[p], Count: a.Google.Paths[p]})
+	}
+	d.Google = g
 	return d
+}
+
+// googleReasonFor is [reasonFor] for a Google substrate row, whose reasons
+// are about the provider source rather than a ratification batch.
+func googleReasonFor(r Row) string {
+	switch r.Status {
+	case StatusInContract:
+		return ""
+	case StatusPendingMechanism:
+		return "the API mints its identity and it has no labels, so it is vetoed as markerless; the located-record route is not established for GCP yet."
+	case StatusNeedsEvidence:
+		return "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+	case StatusPendingRatification:
+		if r.Facts.SchemaRoute {
+			return "no row; the provider's identity schema admits it at run time, as it would an unrowed AWS type."
+		}
+		return "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+	}
+	return reasonFor(r)
 }
 
 // renderSiteData is SiteDataRel's on-disk form: two-space indented with a

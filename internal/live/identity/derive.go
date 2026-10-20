@@ -147,7 +147,7 @@ func derivable(schemas map[string]providers.Schema, typeName string, schema prov
 		}
 	}
 
-	_, inTable := DefaultTable[typeName]
+	_, inTable := LookupType(typeName)
 	return DerivableType{
 		Type:          typeName,
 		IdentityAttrs: required,

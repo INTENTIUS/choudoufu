@@ -20,7 +20,7 @@ around the generated markers, never inside them.
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
 | Total | 1119 | 492 | 4 | 19 | 62 | 3 | 1699 |
 
-`live/readiness.json` last committed at commit `c3f1ee1756` on 2026-10-03T19:41:48-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
+`live/readiness.json` last committed at commit `1538dee628` on 2026-10-19T23:09:58-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
 <!-- readiness-gen:end tiers -->
 
 ## Two counts called record-carried
@@ -52,6 +52,1533 @@ hashicorp/kubernetes 3.2.1: 4 admitted type(s), 0 awaiting a tier ruling.
 | `kubernetes_namespace` | marker-carried | in-contract |
 | `kubernetes_storage_class` | marker-carried | in-contract |
 <!-- readiness-gen:end k8s-types -->
+
+## Google Cloud
+
+hashicorp/google and google-beta, counted apart from the AWS tiers above.
+Each type's survey path is its tier's input: the marker path is a type
+with the google-labels surface (a settable `labels` beside the computed
+`effective_labels`); client-named, parent-derived and project-derived
+are re-derived from the declaration; server-minted and unbindable are
+record-carried. Rows, paths and reasons come from `tools/gcp-row-gen`
+(`live/gcp-survey.json`), read from the provider's own source at the pin.
+
+<!-- readiness-gen:begin gcp-types -->
+hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
+
+| Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
+|---|---|---|---|---|---|---|---|
+| marker-carried | 264 | 46 | 0 | 10 | 0 | 0 | 320 |
+| declaration-carried | 834 | 28 | 0 | 0 | 0 | 0 | 862 |
+| record-carried | 0 | 57 | 0 | 113 | 133 | 0 | 303 |
+| excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Total | 1098 | 131 | 0 | 123 | 133 | 0 | 1485 |
+
+| Survey path | Tier | Types |
+|---|---|---|
+| marker | marker-carried | 320 |
+| client-named | declaration-carried | 301 |
+| parent-derived | declaration-carried | 545 |
+| project-derived | declaration-carried | 16 |
+| unique-name | declaration-carried | 0 |
+| server-minted | record-carried | 133 |
+| unbindable | record-carried | 170 |
+
+| Reason | Why the type is not in contract |
+|---|---|
+| 1 | no row; the provider's identity schema admits it at run time, as it would an unrowed AWS type. |
+| 2 | the API mints its identity and it has no labels, so it is vetoed as markerless; the located-record route is not established for GCP yet. |
+| 3 | the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it. |
+| 4 | no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason). |
+
+| Type | Tier | Status | Reason |
+|---|---|---|---|
+| `google_access_context_manager_access_level` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_access_level_condition` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_access_levels` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_access_policy` | record-carried | pending-mechanism | 2 |
+| `google_access_context_manager_access_policy_iam_binding` | declaration-carried | in-contract |  |
+| `google_access_context_manager_access_policy_iam_member` | declaration-carried | in-contract |  |
+| `google_access_context_manager_access_policy_iam_policy` | declaration-carried | in-contract |  |
+| `google_access_context_manager_authorized_orgs_desc` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_egress_policy` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_gcp_user_access_binding` | record-carried | pending-mechanism | 2 |
+| `google_access_context_manager_ingress_policy` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_service_perimeter` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_service_perimeter_dry_run_egress_policy` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_service_perimeter_dry_run_ingress_policy` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_service_perimeter_dry_run_resource` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_service_perimeter_egress_policy` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_service_perimeter_ingress_policy` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_service_perimeter_resource` | declaration-carried | pending-ratification | 1 |
+| `google_access_context_manager_service_perimeters` | declaration-carried | pending-ratification | 1 |
+| `google_active_directory_domain` | marker-carried | in-contract |  |
+| `google_active_directory_domain_trust` | declaration-carried | in-contract |  |
+| `google_active_directory_peering` | marker-carried | needs-evidence | 3 |
+| `google_agent_identity_auth_provider` | marker-carried | in-contract |  |
+| `google_agent_registry_binding` | declaration-carried | in-contract |  |
+| `google_agent_registry_service` | declaration-carried | in-contract |  |
+| `google_agentic_applications_analyst_agent_persona` | declaration-carried | in-contract |  |
+| `google_alloydb_backup` | marker-carried | in-contract |  |
+| `google_alloydb_cluster` | marker-carried | in-contract |  |
+| `google_alloydb_instance` | marker-carried | in-contract |  |
+| `google_alloydb_user` | declaration-carried | in-contract |  |
+| `google_api_gateway_api` | marker-carried | in-contract |  |
+| `google_api_gateway_api_config` | marker-carried | in-contract |  |
+| `google_api_gateway_api_config_iam_binding` | declaration-carried | in-contract |  |
+| `google_api_gateway_api_config_iam_member` | declaration-carried | in-contract |  |
+| `google_api_gateway_api_config_iam_policy` | declaration-carried | in-contract |  |
+| `google_api_gateway_api_iam_binding` | declaration-carried | in-contract |  |
+| `google_api_gateway_api_iam_member` | declaration-carried | in-contract |  |
+| `google_api_gateway_api_iam_policy` | declaration-carried | in-contract |  |
+| `google_api_gateway_gateway` | marker-carried | in-contract |  |
+| `google_api_gateway_gateway_iam_binding` | declaration-carried | in-contract |  |
+| `google_api_gateway_gateway_iam_member` | declaration-carried | in-contract |  |
+| `google_api_gateway_gateway_iam_policy` | declaration-carried | in-contract |  |
+| `google_apigee_addons_config` | declaration-carried | in-contract |  |
+| `google_apigee_api` | declaration-carried | in-contract |  |
+| `google_apigee_api_deployment` | declaration-carried | in-contract |  |
+| `google_apigee_api_product` | declaration-carried | in-contract |  |
+| `google_apigee_app_group` | declaration-carried | in-contract |  |
+| `google_apigee_control_plane_access` | declaration-carried | in-contract |  |
+| `google_apigee_data_collector` | declaration-carried | in-contract |  |
+| `google_apigee_datastore` | record-carried | pending-mechanism | 2 |
+| `google_apigee_developer` | declaration-carried | in-contract |  |
+| `google_apigee_developer_app` | declaration-carried | in-contract |  |
+| `google_apigee_dns_zone` | record-carried | pending-ratification | 4 |
+| `google_apigee_endpoint_attachment` | declaration-carried | pending-ratification | 1 |
+| `google_apigee_env_keystore` | declaration-carried | in-contract |  |
+| `google_apigee_env_references` | declaration-carried | in-contract |  |
+| `google_apigee_envgroup` | declaration-carried | in-contract |  |
+| `google_apigee_envgroup_attachment` | record-carried | pending-mechanism | 2 |
+| `google_apigee_environment` | declaration-carried | in-contract |  |
+| `google_apigee_environment_addons_config` | declaration-carried | pending-ratification | 1 |
+| `google_apigee_environment_api_revision_deployment` | declaration-carried | in-contract |  |
+| `google_apigee_environment_debugmask` | declaration-carried | in-contract |  |
+| `google_apigee_environment_iam_binding` | declaration-carried | in-contract |  |
+| `google_apigee_environment_iam_member` | declaration-carried | in-contract |  |
+| `google_apigee_environment_iam_policy` | declaration-carried | in-contract |  |
+| `google_apigee_environment_keyvaluemaps` | declaration-carried | in-contract |  |
+| `google_apigee_environment_keyvaluemaps_entries` | declaration-carried | in-contract |  |
+| `google_apigee_flowhook` | declaration-carried | in-contract |  |
+| `google_apigee_instance` | declaration-carried | in-contract |  |
+| `google_apigee_instance_attachment` | record-carried | pending-mechanism | 2 |
+| `google_apigee_keystores_aliases_key_cert_file` | record-carried | needs-evidence | 3 |
+| `google_apigee_keystores_aliases_pkcs12` | declaration-carried | in-contract |  |
+| `google_apigee_keystores_aliases_self_signed_cert` | declaration-carried | in-contract |  |
+| `google_apigee_nat_address` | declaration-carried | in-contract |  |
+| `google_apigee_organization` | record-carried | pending-mechanism | 2 |
+| `google_apigee_security_action` | declaration-carried | in-contract |  |
+| `google_apigee_security_feedback` | declaration-carried | in-contract |  |
+| `google_apigee_security_monitoring_condition` | declaration-carried | in-contract |  |
+| `google_apigee_security_profile_v2` | declaration-carried | in-contract |  |
+| `google_apigee_sharedflow` | declaration-carried | in-contract |  |
+| `google_apigee_sharedflow_deployment` | declaration-carried | in-contract |  |
+| `google_apigee_space` | declaration-carried | in-contract |  |
+| `google_apigee_sync_authorization` | declaration-carried | in-contract |  |
+| `google_apigee_target_server` | declaration-carried | in-contract |  |
+| `google_apihub_api_hub_instance` | marker-carried | in-contract |  |
+| `google_apihub_curation` | declaration-carried | in-contract |  |
+| `google_apihub_host_project_registration` | declaration-carried | in-contract |  |
+| `google_apihub_plugin` | declaration-carried | in-contract |  |
+| `google_apihub_plugin_instance` | declaration-carried | in-contract |  |
+| `google_apihub_runtime_project_attachment` | declaration-carried | in-contract |  |
+| `google_apikeys_key` | declaration-carried | in-contract |  |
+| `google_app_engine_application` | record-carried | needs-evidence | 3 |
+| `google_app_engine_application_url_dispatch_rules` | declaration-carried | in-contract |  |
+| `google_app_engine_domain_mapping` | declaration-carried | in-contract |  |
+| `google_app_engine_firewall_rule` | record-carried | pending-ratification | 4 |
+| `google_app_engine_flexible_app_version` | record-carried | pending-ratification | 4 |
+| `google_app_engine_service_network_settings` | declaration-carried | in-contract |  |
+| `google_app_engine_service_split_traffic` | declaration-carried | in-contract |  |
+| `google_app_engine_standard_app_version` | record-carried | pending-ratification | 4 |
+| `google_apphub_application` | declaration-carried | in-contract |  |
+| `google_apphub_boundary` | declaration-carried | in-contract |  |
+| `google_apphub_service` | declaration-carried | in-contract |  |
+| `google_apphub_service_project_attachment` | declaration-carried | in-contract |  |
+| `google_apphub_workload` | declaration-carried | in-contract |  |
+| `google_artifact_registry_project_config` | record-carried | pending-ratification | 4 |
+| `google_artifact_registry_repository` | marker-carried | pending-ratification | 1 |
+| `google_artifact_registry_repository_iam_binding` | declaration-carried | in-contract |  |
+| `google_artifact_registry_repository_iam_member` | declaration-carried | in-contract |  |
+| `google_artifact_registry_repository_iam_policy` | declaration-carried | in-contract |  |
+| `google_artifact_registry_rule` | declaration-carried | pending-ratification | 1 |
+| `google_artifact_registry_vpcsc_config` | record-carried | pending-ratification | 4 |
+| `google_assured_workloads_workload` | marker-carried | in-contract |  |
+| `google_backup_dr_backup_plan` | declaration-carried | in-contract |  |
+| `google_backup_dr_backup_plan_association` | declaration-carried | in-contract |  |
+| `google_backup_dr_backup_vault` | marker-carried | in-contract |  |
+| `google_backup_dr_management_server` | declaration-carried | in-contract |  |
+| `google_backup_dr_restore_workload` | record-carried | pending-ratification | 4 |
+| `google_backup_dr_service_config` | record-carried | pending-ratification | 4 |
+| `google_beyondcorp_security_gateway` | declaration-carried | in-contract |  |
+| `google_beyondcorp_security_gateway_application` | declaration-carried | in-contract |  |
+| `google_beyondcorp_security_gateway_application_iam_binding` | declaration-carried | in-contract |  |
+| `google_beyondcorp_security_gateway_application_iam_member` | declaration-carried | in-contract |  |
+| `google_beyondcorp_security_gateway_application_iam_policy` | declaration-carried | in-contract |  |
+| `google_beyondcorp_security_gateway_iam_binding` | declaration-carried | in-contract |  |
+| `google_beyondcorp_security_gateway_iam_member` | declaration-carried | in-contract |  |
+| `google_beyondcorp_security_gateway_iam_policy` | declaration-carried | in-contract |  |
+| `google_biglake_catalog` | declaration-carried | in-contract |  |
+| `google_biglake_database` | declaration-carried | in-contract |  |
+| `google_biglake_hive_catalog` | declaration-carried | in-contract |  |
+| `google_biglake_hive_catalog_iam_binding` | declaration-carried | in-contract |  |
+| `google_biglake_hive_catalog_iam_member` | declaration-carried | in-contract |  |
+| `google_biglake_hive_catalog_iam_policy` | declaration-carried | in-contract |  |
+| `google_biglake_hive_database` | declaration-carried | in-contract |  |
+| `google_biglake_hive_database_iam_binding` | declaration-carried | in-contract |  |
+| `google_biglake_hive_database_iam_member` | declaration-carried | in-contract |  |
+| `google_biglake_hive_database_iam_policy` | declaration-carried | in-contract |  |
+| `google_biglake_hive_table` | declaration-carried | in-contract |  |
+| `google_biglake_hive_table_iam_binding` | declaration-carried | in-contract |  |
+| `google_biglake_hive_table_iam_member` | declaration-carried | in-contract |  |
+| `google_biglake_hive_table_iam_policy` | declaration-carried | in-contract |  |
+| `google_biglake_iceberg_catalog` | declaration-carried | in-contract |  |
+| `google_biglake_iceberg_catalog_iam_binding` | declaration-carried | in-contract |  |
+| `google_biglake_iceberg_catalog_iam_member` | declaration-carried | in-contract |  |
+| `google_biglake_iceberg_catalog_iam_policy` | declaration-carried | in-contract |  |
+| `google_biglake_iceberg_namespace` | declaration-carried | in-contract |  |
+| `google_biglake_iceberg_namespace_iam_binding` | declaration-carried | in-contract |  |
+| `google_biglake_iceberg_namespace_iam_member` | declaration-carried | in-contract |  |
+| `google_biglake_iceberg_namespace_iam_policy` | declaration-carried | in-contract |  |
+| `google_biglake_iceberg_table` | declaration-carried | in-contract |  |
+| `google_biglake_iceberg_table_iam_binding` | declaration-carried | in-contract |  |
+| `google_biglake_iceberg_table_iam_member` | declaration-carried | in-contract |  |
+| `google_biglake_iceberg_table_iam_policy` | declaration-carried | in-contract |  |
+| `google_biglake_table` | record-carried | pending-ratification | 4 |
+| `google_bigquery_analytics_hub_data_exchange` | declaration-carried | in-contract |  |
+| `google_bigquery_analytics_hub_data_exchange_iam_binding` | declaration-carried | in-contract |  |
+| `google_bigquery_analytics_hub_data_exchange_iam_member` | declaration-carried | in-contract |  |
+| `google_bigquery_analytics_hub_data_exchange_iam_policy` | declaration-carried | in-contract |  |
+| `google_bigquery_analytics_hub_data_exchange_subscription` | declaration-carried | in-contract |  |
+| `google_bigquery_analytics_hub_listing` | declaration-carried | in-contract |  |
+| `google_bigquery_analytics_hub_listing_iam_binding` | declaration-carried | in-contract |  |
+| `google_bigquery_analytics_hub_listing_iam_member` | declaration-carried | in-contract |  |
+| `google_bigquery_analytics_hub_listing_iam_policy` | declaration-carried | in-contract |  |
+| `google_bigquery_analytics_hub_listing_subscription` | record-carried | pending-mechanism | 2 |
+| `google_bigquery_analytics_hub_query_template` | declaration-carried | in-contract |  |
+| `google_bigquery_bi_reservation` | declaration-carried | in-contract |  |
+| `google_bigquery_capacity_commitment` | record-carried | pending-mechanism | 2 |
+| `google_bigquery_connection` | record-carried | pending-ratification | 4 |
+| `google_bigquery_connection_iam_binding` | declaration-carried | in-contract |  |
+| `google_bigquery_connection_iam_member` | declaration-carried | in-contract |  |
+| `google_bigquery_connection_iam_policy` | declaration-carried | in-contract |  |
+| `google_bigquery_data_transfer_config` | record-carried | pending-mechanism | 2 |
+| `google_bigquery_data_transfer_data_source_enrollment` | declaration-carried | in-contract |  |
+| `google_bigquery_datapolicy_data_policy` | declaration-carried | in-contract |  |
+| `google_bigquery_datapolicy_data_policy_iam_binding` | declaration-carried | in-contract |  |
+| `google_bigquery_datapolicy_data_policy_iam_member` | declaration-carried | in-contract |  |
+| `google_bigquery_datapolicy_data_policy_iam_policy` | declaration-carried | in-contract |  |
+| `google_bigquery_datapolicyv2_data_policy` | declaration-carried | in-contract |  |
+| `google_bigquery_datapolicyv2_data_policy_iam_binding` | declaration-carried | in-contract |  |
+| `google_bigquery_datapolicyv2_data_policy_iam_member` | declaration-carried | in-contract |  |
+| `google_bigquery_datapolicyv2_data_policy_iam_policy` | declaration-carried | in-contract |  |
+| `google_bigquery_dataset` | marker-carried | in-contract |  |
+| `google_bigquery_dataset_access` | declaration-carried | pending-ratification | 1 |
+| `google_bigquery_dataset_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_bigquery_dataset_iam_member` | record-carried | needs-evidence | 3 |
+| `google_bigquery_dataset_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_bigquery_job` | marker-carried | in-contract |  |
+| `google_bigquery_reservation` | marker-carried | in-contract |  |
+| `google_bigquery_reservation_assignment` | record-carried | pending-ratification | 4 |
+| `google_bigquery_reservation_group` | declaration-carried | in-contract |  |
+| `google_bigquery_routine` | declaration-carried | in-contract |  |
+| `google_bigquery_routine_iam_binding` | declaration-carried | in-contract |  |
+| `google_bigquery_routine_iam_member` | declaration-carried | in-contract |  |
+| `google_bigquery_routine_iam_policy` | declaration-carried | in-contract |  |
+| `google_bigquery_row_access_policy` | declaration-carried | in-contract |  |
+| `google_bigquery_table` | marker-carried | in-contract |  |
+| `google_bigquery_table_iam_binding` | declaration-carried | in-contract |  |
+| `google_bigquery_table_iam_member` | declaration-carried | in-contract |  |
+| `google_bigquery_table_iam_policy` | declaration-carried | in-contract |  |
+| `google_bigtable_app_profile` | record-carried | pending-ratification | 4 |
+| `google_bigtable_authorized_view` | declaration-carried | in-contract |  |
+| `google_bigtable_gc_policy` | record-carried | needs-evidence | 3 |
+| `google_bigtable_instance` | marker-carried | in-contract |  |
+| `google_bigtable_instance_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_bigtable_instance_iam_member` | record-carried | needs-evidence | 3 |
+| `google_bigtable_instance_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_bigtable_logical_view` | record-carried | pending-ratification | 4 |
+| `google_bigtable_materialized_view` | record-carried | pending-ratification | 4 |
+| `google_bigtable_schema_bundle` | record-carried | pending-ratification | 4 |
+| `google_bigtable_table` | declaration-carried | in-contract |  |
+| `google_bigtable_table_iam_binding` | declaration-carried | in-contract |  |
+| `google_bigtable_table_iam_member` | declaration-carried | in-contract |  |
+| `google_bigtable_table_iam_policy` | declaration-carried | in-contract |  |
+| `google_billing_account_iam_binding` | declaration-carried | in-contract |  |
+| `google_billing_account_iam_member` | declaration-carried | in-contract |  |
+| `google_billing_account_iam_policy` | declaration-carried | in-contract |  |
+| `google_billing_budget` | record-carried | pending-mechanism | 2 |
+| `google_billing_project_info` | declaration-carried | in-contract |  |
+| `google_billing_subaccount` | record-carried | needs-evidence | 3 |
+| `google_binary_authorization_attestor` | declaration-carried | in-contract |  |
+| `google_binary_authorization_attestor_iam_binding` | declaration-carried | in-contract |  |
+| `google_binary_authorization_attestor_iam_member` | declaration-carried | in-contract |  |
+| `google_binary_authorization_attestor_iam_policy` | declaration-carried | in-contract |  |
+| `google_binary_authorization_policy` | declaration-carried | in-contract |  |
+| `google_blockchain_node_engine_blockchain_nodes` | marker-carried | in-contract |  |
+| `google_certificate_manager_certificate` | marker-carried | in-contract |  |
+| `google_certificate_manager_certificate_issuance_config` | marker-carried | in-contract |  |
+| `google_certificate_manager_certificate_map` | marker-carried | in-contract |  |
+| `google_certificate_manager_certificate_map_entry` | marker-carried | in-contract |  |
+| `google_certificate_manager_dns_authorization` | marker-carried | in-contract |  |
+| `google_certificate_manager_trust_config` | marker-carried | in-contract |  |
+| `google_ces_agent` | record-carried | pending-mechanism | 2 |
+| `google_ces_app` | record-carried | pending-mechanism | 2 |
+| `google_ces_app_root_agent_association` | declaration-carried | pending-ratification | 1 |
+| `google_ces_app_version` | record-carried | pending-mechanism | 2 |
+| `google_ces_deployment` | record-carried | pending-mechanism | 2 |
+| `google_ces_evaluation` | declaration-carried | in-contract |  |
+| `google_ces_example` | record-carried | pending-mechanism | 2 |
+| `google_ces_guardrail` | record-carried | pending-mechanism | 2 |
+| `google_ces_security_settings` | declaration-carried | in-contract |  |
+| `google_ces_tool` | record-carried | pending-mechanism | 2 |
+| `google_ces_toolset` | declaration-carried | in-contract |  |
+| `google_chronicle_big_query_export` | declaration-carried | in-contract |  |
+| `google_chronicle_case_close_definition` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_case_stage_definition` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_case_tag_definition` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_custom_list` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_dashboard_chart` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_data_access_label` | declaration-carried | in-contract |  |
+| `google_chronicle_data_access_scope` | declaration-carried | in-contract |  |
+| `google_chronicle_data_export` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_data_table` | declaration-carried | in-contract |  |
+| `google_chronicle_data_table_row` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_environment` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_environment_group` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_feed` | declaration-carried | in-contract |  |
+| `google_chronicle_findings_refinement` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_findings_refinement_deployment` | declaration-carried | in-contract |  |
+| `google_chronicle_native_dashboard` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_parser` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_parser_extension` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_reference_list` | declaration-carried | in-contract |  |
+| `google_chronicle_retrohunt` | declaration-carried | in-contract |  |
+| `google_chronicle_rule` | declaration-carried | in-contract |  |
+| `google_chronicle_rule_deployment` | declaration-carried | in-contract |  |
+| `google_chronicle_soar_domain` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_soar_network` | record-carried | pending-mechanism | 2 |
+| `google_chronicle_watchlist` | declaration-carried | in-contract |  |
+| `google_cloud_asset_folder_feed` | record-carried | pending-mechanism | 2 |
+| `google_cloud_asset_organization_feed` | record-carried | pending-mechanism | 2 |
+| `google_cloud_asset_project_feed` | record-carried | pending-mechanism | 2 |
+| `google_cloud_identity_group` | record-carried | pending-mechanism | 2 |
+| `google_cloud_identity_group_membership` | record-carried | pending-mechanism | 2 |
+| `google_cloud_identity_policy` | record-carried | pending-mechanism | 2 |
+| `google_cloud_ids_endpoint` | declaration-carried | in-contract |  |
+| `google_cloud_quotas_quota_adjuster_settings` | declaration-carried | in-contract |  |
+| `google_cloud_quotas_quota_preference` | declaration-carried | in-contract |  |
+| `google_cloud_run_domain_mapping` | declaration-carried | in-contract |  |
+| `google_cloud_run_service` | declaration-carried | in-contract |  |
+| `google_cloud_run_service_iam_binding` | declaration-carried | in-contract |  |
+| `google_cloud_run_service_iam_member` | declaration-carried | in-contract |  |
+| `google_cloud_run_service_iam_policy` | declaration-carried | in-contract |  |
+| `google_cloud_run_v2_job` | marker-carried | in-contract |  |
+| `google_cloud_run_v2_job_iam_binding` | declaration-carried | in-contract |  |
+| `google_cloud_run_v2_job_iam_member` | declaration-carried | in-contract |  |
+| `google_cloud_run_v2_job_iam_policy` | declaration-carried | in-contract |  |
+| `google_cloud_run_v2_service` | marker-carried | in-contract |  |
+| `google_cloud_run_v2_service_iam_binding` | declaration-carried | in-contract |  |
+| `google_cloud_run_v2_service_iam_member` | declaration-carried | in-contract |  |
+| `google_cloud_run_v2_service_iam_policy` | declaration-carried | in-contract |  |
+| `google_cloud_run_v2_worker_pool` | marker-carried | in-contract |  |
+| `google_cloud_run_v2_worker_pool_iam_binding` | declaration-carried | in-contract |  |
+| `google_cloud_run_v2_worker_pool_iam_member` | declaration-carried | in-contract |  |
+| `google_cloud_run_v2_worker_pool_iam_policy` | declaration-carried | in-contract |  |
+| `google_cloud_scheduler_job` | declaration-carried | in-contract |  |
+| `google_cloud_security_compliance_cloud_control` | record-carried | needs-evidence | 3 |
+| `google_cloud_security_compliance_framework` | record-carried | needs-evidence | 3 |
+| `google_cloud_security_compliance_framework_deployment` | record-carried | pending-ratification | 4 |
+| `google_cloud_support_support_event_subscription` | record-carried | pending-mechanism | 2 |
+| `google_cloud_tasks_queue` | declaration-carried | in-contract |  |
+| `google_cloud_tasks_queue_iam_binding` | declaration-carried | in-contract |  |
+| `google_cloud_tasks_queue_iam_member` | declaration-carried | in-contract |  |
+| `google_cloud_tasks_queue_iam_policy` | declaration-carried | in-contract |  |
+| `google_cloudbuild_bitbucket_server_config` | declaration-carried | in-contract |  |
+| `google_cloudbuild_trigger` | record-carried | pending-ratification | 4 |
+| `google_cloudbuild_worker_pool` | declaration-carried | in-contract |  |
+| `google_cloudbuildv2_connection` | declaration-carried | in-contract |  |
+| `google_cloudbuildv2_connection_iam_binding` | declaration-carried | in-contract |  |
+| `google_cloudbuildv2_connection_iam_member` | declaration-carried | in-contract |  |
+| `google_cloudbuildv2_connection_iam_policy` | declaration-carried | in-contract |  |
+| `google_cloudbuildv2_repository` | declaration-carried | pending-ratification | 1 |
+| `google_clouddeploy_automation` | marker-carried | in-contract |  |
+| `google_clouddeploy_custom_target_type` | marker-carried | in-contract |  |
+| `google_clouddeploy_custom_target_type_iam_binding` | declaration-carried | in-contract |  |
+| `google_clouddeploy_custom_target_type_iam_member` | declaration-carried | in-contract |  |
+| `google_clouddeploy_custom_target_type_iam_policy` | declaration-carried | in-contract |  |
+| `google_clouddeploy_delivery_pipeline` | marker-carried | in-contract |  |
+| `google_clouddeploy_delivery_pipeline_iam_binding` | declaration-carried | in-contract |  |
+| `google_clouddeploy_delivery_pipeline_iam_member` | declaration-carried | in-contract |  |
+| `google_clouddeploy_delivery_pipeline_iam_policy` | declaration-carried | in-contract |  |
+| `google_clouddeploy_deploy_policy` | marker-carried | in-contract |  |
+| `google_clouddeploy_target` | marker-carried | in-contract |  |
+| `google_clouddeploy_target_iam_binding` | declaration-carried | in-contract |  |
+| `google_clouddeploy_target_iam_member` | declaration-carried | in-contract |  |
+| `google_clouddeploy_target_iam_policy` | declaration-carried | in-contract |  |
+| `google_clouddomains_registration` | marker-carried | in-contract |  |
+| `google_cloudfunctions2_function` | marker-carried | in-contract |  |
+| `google_cloudfunctions2_function_iam_binding` | declaration-carried | in-contract |  |
+| `google_cloudfunctions2_function_iam_member` | declaration-carried | in-contract |  |
+| `google_cloudfunctions2_function_iam_policy` | declaration-carried | in-contract |  |
+| `google_cloudfunctions_function` | marker-carried | needs-evidence | 3 |
+| `google_cloudfunctions_function_iam_binding` | declaration-carried | in-contract |  |
+| `google_cloudfunctions_function_iam_member` | declaration-carried | in-contract |  |
+| `google_cloudfunctions_function_iam_policy` | declaration-carried | in-contract |  |
+| `google_colab_notebook_execution` | declaration-carried | in-contract |  |
+| `google_colab_runtime` | record-carried | pending-ratification | 4 |
+| `google_colab_runtime_template` | marker-carried | in-contract |  |
+| `google_colab_runtime_template_iam_binding` | declaration-carried | in-contract |  |
+| `google_colab_runtime_template_iam_member` | declaration-carried | in-contract |  |
+| `google_colab_runtime_template_iam_policy` | declaration-carried | in-contract |  |
+| `google_colab_schedule` | record-carried | pending-mechanism | 2 |
+| `google_composer_environment` | marker-carried | in-contract |  |
+| `google_composer_user_workloads_config_map` | declaration-carried | in-contract |  |
+| `google_composer_user_workloads_secret` | declaration-carried | in-contract |  |
+| `google_compute_address` | marker-carried | in-contract |  |
+| `google_compute_attached_disk` | record-carried | needs-evidence | 3 |
+| `google_compute_autoscaler` | declaration-carried | in-contract |  |
+| `google_compute_backend_bucket` | declaration-carried | in-contract |  |
+| `google_compute_backend_bucket_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_backend_bucket_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_backend_bucket_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_backend_bucket_signed_url_key` | declaration-carried | pending-ratification | 1 |
+| `google_compute_backend_service` | declaration-carried | in-contract |  |
+| `google_compute_backend_service_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_backend_service_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_backend_service_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_backend_service_signed_url_key` | declaration-carried | pending-ratification | 1 |
+| `google_compute_bulk_per_instance_config` | declaration-carried | in-contract |  |
+| `google_compute_cross_site_network` | declaration-carried | in-contract |  |
+| `google_compute_disk` | marker-carried | in-contract |  |
+| `google_compute_disk_async_replication` | record-carried | needs-evidence | 3 |
+| `google_compute_disk_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_disk_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_disk_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_disk_resource_policy_attachment` | declaration-carried | in-contract |  |
+| `google_compute_external_vpn_gateway` | marker-carried | in-contract |  |
+| `google_compute_firewall` | declaration-carried | in-contract |  |
+| `google_compute_firewall_policy` | record-carried | pending-mechanism | 2 |
+| `google_compute_firewall_policy_association` | declaration-carried | in-contract |  |
+| `google_compute_firewall_policy_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_firewall_policy_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_firewall_policy_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_firewall_policy_rule` | declaration-carried | in-contract |  |
+| `google_compute_firewall_policy_with_rules` | record-carried | pending-mechanism | 2 |
+| `google_compute_forwarding_rule` | marker-carried | in-contract |  |
+| `google_compute_future_reservation` | declaration-carried | in-contract |  |
+| `google_compute_global_address` | marker-carried | in-contract |  |
+| `google_compute_global_forwarding_rule` | marker-carried | in-contract |  |
+| `google_compute_global_network_endpoint` | record-carried | pending-ratification | 4 |
+| `google_compute_global_network_endpoint_group` | declaration-carried | in-contract |  |
+| `google_compute_global_vm_extension_policy` | declaration-carried | in-contract |  |
+| `google_compute_ha_vpn_gateway` | marker-carried | in-contract |  |
+| `google_compute_health_check` | declaration-carried | in-contract |  |
+| `google_compute_http_health_check` | declaration-carried | in-contract |  |
+| `google_compute_https_health_check` | declaration-carried | in-contract |  |
+| `google_compute_image` | marker-carried | in-contract |  |
+| `google_compute_image_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_image_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_image_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_instance` | marker-carried | in-contract |  |
+| `google_compute_instance_from_machine_image` | marker-carried | needs-evidence | 3 |
+| `google_compute_instance_from_template` | marker-carried | needs-evidence | 3 |
+| `google_compute_instance_group` | declaration-carried | in-contract |  |
+| `google_compute_instance_group_manager` | declaration-carried | in-contract |  |
+| `google_compute_instance_group_membership` | declaration-carried | in-contract |  |
+| `google_compute_instance_group_named_port` | declaration-carried | in-contract |  |
+| `google_compute_instance_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_instance_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_instance_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_instance_settings` | declaration-carried | in-contract |  |
+| `google_compute_instance_template` | marker-carried | in-contract |  |
+| `google_compute_instance_template_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_instance_template_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_instance_template_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_instant_snapshot` | marker-carried | in-contract |  |
+| `google_compute_instant_snapshot_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_instant_snapshot_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_instant_snapshot_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_interconnect` | marker-carried | in-contract |  |
+| `google_compute_interconnect_attachment` | marker-carried | in-contract |  |
+| `google_compute_interconnect_attachment_group` | declaration-carried | in-contract |  |
+| `google_compute_interconnect_group` | declaration-carried | in-contract |  |
+| `google_compute_machine_image` | declaration-carried | in-contract |  |
+| `google_compute_machine_image_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_machine_image_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_machine_image_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_managed_ssl_certificate` | record-carried | pending-ratification | 4 |
+| `google_compute_network` | declaration-carried | in-contract |  |
+| `google_compute_network_attachment` | declaration-carried | in-contract |  |
+| `google_compute_network_edge_security_service` | declaration-carried | in-contract |  |
+| `google_compute_network_endpoint` | record-carried | pending-ratification | 4 |
+| `google_compute_network_endpoint_group` | declaration-carried | in-contract |  |
+| `google_compute_network_endpoints` | declaration-carried | pending-ratification | 1 |
+| `google_compute_network_firewall_policy` | declaration-carried | in-contract |  |
+| `google_compute_network_firewall_policy_association` | declaration-carried | in-contract |  |
+| `google_compute_network_firewall_policy_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_network_firewall_policy_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_network_firewall_policy_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_network_firewall_policy_packet_mirroring_rule` | declaration-carried | in-contract |  |
+| `google_compute_network_firewall_policy_rule` | declaration-carried | in-contract |  |
+| `google_compute_network_firewall_policy_with_rules` | declaration-carried | in-contract |  |
+| `google_compute_network_peering` | record-carried | needs-evidence | 3 |
+| `google_compute_network_peering_routes_config` | declaration-carried | in-contract |  |
+| `google_compute_node_group` | declaration-carried | in-contract |  |
+| `google_compute_node_template` | declaration-carried | in-contract |  |
+| `google_compute_organization_security_policy` | record-carried | pending-mechanism | 2 |
+| `google_compute_organization_security_policy_association` | declaration-carried | in-contract |  |
+| `google_compute_organization_security_policy_rule` | declaration-carried | in-contract |  |
+| `google_compute_packet_mirroring` | declaration-carried | in-contract |  |
+| `google_compute_per_instance_config` | declaration-carried | in-contract |  |
+| `google_compute_preview_feature` | declaration-carried | in-contract |  |
+| `google_compute_project_cloud_armor_tier` | declaration-carried | in-contract |  |
+| `google_compute_project_default_network_tier` | record-carried | needs-evidence | 3 |
+| `google_compute_project_metadata` | record-carried | needs-evidence | 3 |
+| `google_compute_project_metadata_item` | declaration-carried | in-contract |  |
+| `google_compute_public_advertised_prefix` | declaration-carried | in-contract |  |
+| `google_compute_public_delegated_prefix` | declaration-carried | in-contract |  |
+| `google_compute_region_autoscaler` | declaration-carried | in-contract |  |
+| `google_compute_region_backend_bucket` | declaration-carried | in-contract |  |
+| `google_compute_region_backend_bucket_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_region_backend_bucket_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_region_backend_bucket_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_region_backend_service` | declaration-carried | in-contract |  |
+| `google_compute_region_backend_service_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_region_backend_service_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_region_backend_service_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_region_commitment` | declaration-carried | in-contract |  |
+| `google_compute_region_composite_health_check` | declaration-carried | in-contract |  |
+| `google_compute_region_disk` | marker-carried | in-contract |  |
+| `google_compute_region_disk_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_region_disk_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_region_disk_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_region_disk_resource_policy_attachment` | declaration-carried | in-contract |  |
+| `google_compute_region_health_aggregation_policy` | declaration-carried | in-contract |  |
+| `google_compute_region_health_check` | declaration-carried | in-contract |  |
+| `google_compute_region_health_source` | declaration-carried | in-contract |  |
+| `google_compute_region_instance_group_manager` | declaration-carried | in-contract |  |
+| `google_compute_region_instance_template` | marker-carried | in-contract |  |
+| `google_compute_region_instant_snapshot` | marker-carried | in-contract |  |
+| `google_compute_region_instant_snapshot_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_region_instant_snapshot_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_region_instant_snapshot_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_region_network_endpoint` | record-carried | pending-ratification | 4 |
+| `google_compute_region_network_endpoint_group` | declaration-carried | in-contract |  |
+| `google_compute_region_network_firewall_policy` | declaration-carried | in-contract |  |
+| `google_compute_region_network_firewall_policy_association` | declaration-carried | in-contract |  |
+| `google_compute_region_network_firewall_policy_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_region_network_firewall_policy_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_region_network_firewall_policy_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_region_network_firewall_policy_rule` | declaration-carried | in-contract |  |
+| `google_compute_region_network_firewall_policy_with_rules` | declaration-carried | in-contract |  |
+| `google_compute_region_network_policy` | declaration-carried | in-contract |  |
+| `google_compute_region_network_policy_traffic_classification_rule` | declaration-carried | in-contract |  |
+| `google_compute_region_per_instance_config` | declaration-carried | in-contract |  |
+| `google_compute_region_resize_request` | declaration-carried | in-contract |  |
+| `google_compute_region_security_policy` | declaration-carried | in-contract |  |
+| `google_compute_region_security_policy_rule` | declaration-carried | in-contract |  |
+| `google_compute_region_ssl_certificate` | declaration-carried | in-contract |  |
+| `google_compute_region_ssl_policy` | declaration-carried | in-contract |  |
+| `google_compute_region_target_http_proxy` | declaration-carried | in-contract |  |
+| `google_compute_region_target_https_proxy` | declaration-carried | in-contract |  |
+| `google_compute_region_target_tcp_proxy` | declaration-carried | in-contract |  |
+| `google_compute_region_url_map` | declaration-carried | in-contract |  |
+| `google_compute_reservation` | declaration-carried | in-contract |  |
+| `google_compute_resize_request` | declaration-carried | in-contract |  |
+| `google_compute_resource_policy` | declaration-carried | in-contract |  |
+| `google_compute_resource_policy_attachment` | declaration-carried | in-contract |  |
+| `google_compute_rollout_plan` | declaration-carried | in-contract |  |
+| `google_compute_route` | declaration-carried | in-contract |  |
+| `google_compute_router` | declaration-carried | in-contract |  |
+| `google_compute_router_interface` | record-carried | needs-evidence | 3 |
+| `google_compute_router_named_set` | declaration-carried | in-contract |  |
+| `google_compute_router_nat` | declaration-carried | in-contract |  |
+| `google_compute_router_nat_address` | declaration-carried | in-contract |  |
+| `google_compute_router_peer` | declaration-carried | in-contract |  |
+| `google_compute_router_route_policy` | declaration-carried | in-contract |  |
+| `google_compute_security_policy` | marker-carried | in-contract |  |
+| `google_compute_security_policy_rule` | declaration-carried | in-contract |  |
+| `google_compute_service_attachment` | declaration-carried | in-contract |  |
+| `google_compute_shared_vpc_host_project` | record-carried | needs-evidence | 3 |
+| `google_compute_shared_vpc_service_project` | record-carried | needs-evidence | 3 |
+| `google_compute_snapshot` | marker-carried | in-contract |  |
+| `google_compute_snapshot_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_snapshot_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_snapshot_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_snapshot_settings` | record-carried | pending-ratification | 4 |
+| `google_compute_ssl_certificate` | declaration-carried | in-contract |  |
+| `google_compute_ssl_policy` | declaration-carried | in-contract |  |
+| `google_compute_storage_pool` | marker-carried | in-contract |  |
+| `google_compute_storage_pool_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_storage_pool_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_storage_pool_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_subnetwork` | declaration-carried | in-contract |  |
+| `google_compute_subnetwork_iam_binding` | declaration-carried | in-contract |  |
+| `google_compute_subnetwork_iam_member` | declaration-carried | in-contract |  |
+| `google_compute_subnetwork_iam_policy` | declaration-carried | in-contract |  |
+| `google_compute_target_grpc_proxy` | declaration-carried | in-contract |  |
+| `google_compute_target_http_proxy` | declaration-carried | in-contract |  |
+| `google_compute_target_https_proxy` | declaration-carried | in-contract |  |
+| `google_compute_target_instance` | declaration-carried | in-contract |  |
+| `google_compute_target_pool` | declaration-carried | in-contract |  |
+| `google_compute_target_ssl_proxy` | declaration-carried | in-contract |  |
+| `google_compute_target_tcp_proxy` | declaration-carried | in-contract |  |
+| `google_compute_url_map` | declaration-carried | in-contract |  |
+| `google_compute_vpn_gateway` | declaration-carried | in-contract |  |
+| `google_compute_vpn_tunnel` | marker-carried | in-contract |  |
+| `google_compute_wire_group` | declaration-carried | in-contract |  |
+| `google_compute_zone_vm_extension_policy` | declaration-carried | in-contract |  |
+| `google_config_deployment` | marker-carried | in-contract |  |
+| `google_contact_center_insights_analysis_rule` | record-carried | pending-mechanism | 2 |
+| `google_contact_center_insights_assessment_rule` | record-carried | pending-mechanism | 2 |
+| `google_contact_center_insights_auto_labeling_rule` | record-carried | pending-mechanism | 2 |
+| `google_contact_center_insights_encryption_spec` | declaration-carried | in-contract |  |
+| `google_contact_center_insights_qa_question` | record-carried | pending-mechanism | 2 |
+| `google_contact_center_insights_qa_scorecard` | declaration-carried | in-contract |  |
+| `google_contact_center_insights_qa_scorecard_revision` | declaration-carried | in-contract |  |
+| `google_contact_center_insights_view` | record-carried | pending-mechanism | 2 |
+| `google_container_analysis_note` | declaration-carried | in-contract |  |
+| `google_container_analysis_note_iam_binding` | declaration-carried | in-contract |  |
+| `google_container_analysis_note_iam_member` | declaration-carried | in-contract |  |
+| `google_container_analysis_note_iam_policy` | declaration-carried | in-contract |  |
+| `google_container_analysis_occurrence` | record-carried | pending-mechanism | 2 |
+| `google_container_attached_cluster` | declaration-carried | in-contract |  |
+| `google_container_aws_cluster` | declaration-carried | in-contract |  |
+| `google_container_aws_node_pool` | declaration-carried | in-contract |  |
+| `google_container_azure_client` | declaration-carried | in-contract |  |
+| `google_container_azure_cluster` | declaration-carried | in-contract |  |
+| `google_container_azure_node_pool` | declaration-carried | in-contract |  |
+| `google_container_cluster` | record-carried | needs-evidence | 3 |
+| `google_container_node_pool` | record-carried | pending-ratification | 4 |
+| `google_container_registry` | record-carried | needs-evidence | 3 |
+| `google_data_catalog_entry` | record-carried | pending-mechanism | 2 |
+| `google_data_catalog_entry_group` | record-carried | pending-mechanism | 2 |
+| `google_data_catalog_entry_group_iam_binding` | declaration-carried | in-contract |  |
+| `google_data_catalog_entry_group_iam_member` | declaration-carried | in-contract |  |
+| `google_data_catalog_entry_group_iam_policy` | declaration-carried | in-contract |  |
+| `google_data_catalog_policy_tag` | record-carried | pending-mechanism | 2 |
+| `google_data_catalog_policy_tag_iam_binding` | declaration-carried | in-contract |  |
+| `google_data_catalog_policy_tag_iam_member` | declaration-carried | in-contract |  |
+| `google_data_catalog_policy_tag_iam_policy` | declaration-carried | in-contract |  |
+| `google_data_catalog_tag` | record-carried | pending-mechanism | 2 |
+| `google_data_catalog_tag_template` | record-carried | pending-mechanism | 2 |
+| `google_data_catalog_tag_template_iam_binding` | declaration-carried | in-contract |  |
+| `google_data_catalog_tag_template_iam_member` | declaration-carried | in-contract |  |
+| `google_data_catalog_tag_template_iam_policy` | declaration-carried | in-contract |  |
+| `google_data_catalog_taxonomy` | record-carried | pending-mechanism | 2 |
+| `google_data_catalog_taxonomy_iam_binding` | declaration-carried | in-contract |  |
+| `google_data_catalog_taxonomy_iam_member` | declaration-carried | in-contract |  |
+| `google_data_catalog_taxonomy_iam_policy` | declaration-carried | in-contract |  |
+| `google_data_fusion_instance` | marker-carried | in-contract |  |
+| `google_data_fusion_instance_iam_binding` | declaration-carried | in-contract |  |
+| `google_data_fusion_instance_iam_member` | declaration-carried | in-contract |  |
+| `google_data_fusion_instance_iam_policy` | declaration-carried | in-contract |  |
+| `google_data_lineage_config` | declaration-carried | in-contract |  |
+| `google_data_loss_prevention_content_policy` | record-carried | pending-mechanism | 2 |
+| `google_data_loss_prevention_deidentify_template` | record-carried | pending-mechanism | 2 |
+| `google_data_loss_prevention_discovery_config` | record-carried | pending-mechanism | 2 |
+| `google_data_loss_prevention_inspect_template` | record-carried | pending-mechanism | 2 |
+| `google_data_loss_prevention_job_trigger` | record-carried | pending-mechanism | 2 |
+| `google_data_loss_prevention_stored_info_type` | record-carried | pending-mechanism | 2 |
+| `google_data_pipeline_pipeline` | declaration-carried | in-contract |  |
+| `google_database_migration_service_connection_profile` | marker-carried | pending-ratification | 4 |
+| `google_database_migration_service_migration_job` | marker-carried | pending-ratification | 4 |
+| `google_database_migration_service_private_connection` | marker-carried | in-contract |  |
+| `google_dataflow_flex_template_job` | marker-carried | needs-evidence | 3 |
+| `google_dataflow_job` | marker-carried | needs-evidence | 3 |
+| `google_dataform_config` | declaration-carried | in-contract |  |
+| `google_dataform_folder` | record-carried | pending-mechanism | 2 |
+| `google_dataform_repository` | marker-carried | in-contract |  |
+| `google_dataform_repository_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataform_repository_iam_member` | declaration-carried | in-contract |  |
+| `google_dataform_repository_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataform_repository_release_config` | record-carried | pending-ratification | 4 |
+| `google_dataform_repository_workflow_config` | record-carried | pending-ratification | 4 |
+| `google_dataform_team_folder` | record-carried | pending-mechanism | 2 |
+| `google_dataplex_aspect_type` | marker-carried | pending-ratification | 4 |
+| `google_dataplex_aspect_type_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataplex_aspect_type_iam_member` | declaration-carried | in-contract |  |
+| `google_dataplex_aspect_type_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataplex_asset` | marker-carried | in-contract |  |
+| `google_dataplex_asset_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataplex_asset_iam_member` | declaration-carried | in-contract |  |
+| `google_dataplex_asset_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataplex_data_asset` | marker-carried | in-contract |  |
+| `google_dataplex_data_product` | marker-carried | in-contract |  |
+| `google_dataplex_data_product_data_asset` | marker-carried | in-contract |  |
+| `google_dataplex_data_product_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataplex_data_product_iam_member` | declaration-carried | in-contract |  |
+| `google_dataplex_data_product_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataplex_datascan` | marker-carried | in-contract |  |
+| `google_dataplex_datascan_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataplex_datascan_iam_member` | declaration-carried | in-contract |  |
+| `google_dataplex_datascan_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataplex_entry` | record-carried | pending-ratification | 4 |
+| `google_dataplex_entry_group` | marker-carried | pending-ratification | 4 |
+| `google_dataplex_entry_group_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataplex_entry_group_iam_member` | declaration-carried | in-contract |  |
+| `google_dataplex_entry_group_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataplex_entry_link` | declaration-carried | in-contract |  |
+| `google_dataplex_entry_type` | marker-carried | pending-ratification | 4 |
+| `google_dataplex_entry_type_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataplex_entry_type_iam_member` | declaration-carried | in-contract |  |
+| `google_dataplex_entry_type_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataplex_glossary` | marker-carried | in-contract |  |
+| `google_dataplex_glossary_category` | marker-carried | pending-ratification | 4 |
+| `google_dataplex_glossary_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataplex_glossary_iam_member` | declaration-carried | in-contract |  |
+| `google_dataplex_glossary_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataplex_glossary_term` | marker-carried | pending-ratification | 4 |
+| `google_dataplex_lake` | marker-carried | in-contract |  |
+| `google_dataplex_lake_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataplex_lake_iam_member` | declaration-carried | in-contract |  |
+| `google_dataplex_lake_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataplex_metadata_feed` | marker-carried | in-contract |  |
+| `google_dataplex_task` | marker-carried | pending-ratification | 4 |
+| `google_dataplex_task_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataplex_task_iam_member` | declaration-carried | in-contract |  |
+| `google_dataplex_task_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataplex_zone` | marker-carried | in-contract |  |
+| `google_dataplex_zone_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataplex_zone_iam_member` | declaration-carried | in-contract |  |
+| `google_dataplex_zone_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataproc_autoscaling_policy` | declaration-carried | in-contract |  |
+| `google_dataproc_autoscaling_policy_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataproc_autoscaling_policy_iam_member` | declaration-carried | in-contract |  |
+| `google_dataproc_autoscaling_policy_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataproc_batch` | marker-carried | pending-ratification | 4 |
+| `google_dataproc_cluster` | marker-carried | needs-evidence | 3 |
+| `google_dataproc_cluster_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_dataproc_cluster_iam_member` | record-carried | needs-evidence | 3 |
+| `google_dataproc_cluster_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_dataproc_gdc_application_environment` | marker-carried | pending-ratification | 4 |
+| `google_dataproc_gdc_service_instance` | marker-carried | in-contract |  |
+| `google_dataproc_gdc_spark_application` | marker-carried | in-contract |  |
+| `google_dataproc_job` | marker-carried | needs-evidence | 3 |
+| `google_dataproc_job_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_dataproc_job_iam_member` | record-carried | needs-evidence | 3 |
+| `google_dataproc_job_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_dataproc_metastore_database_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_dataproc_metastore_database_iam_member` | record-carried | needs-evidence | 3 |
+| `google_dataproc_metastore_database_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_dataproc_metastore_federation` | marker-carried | pending-ratification | 4 |
+| `google_dataproc_metastore_federation_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataproc_metastore_federation_iam_member` | declaration-carried | in-contract |  |
+| `google_dataproc_metastore_federation_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataproc_metastore_service` | marker-carried | in-contract |  |
+| `google_dataproc_metastore_service_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataproc_metastore_service_iam_member` | declaration-carried | in-contract |  |
+| `google_dataproc_metastore_service_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataproc_metastore_table_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_dataproc_metastore_table_iam_member` | record-carried | needs-evidence | 3 |
+| `google_dataproc_metastore_table_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_dataproc_session_template` | marker-carried | pending-ratification | 1 |
+| `google_dataproc_workflow_template` | marker-carried | needs-evidence | 3 |
+| `google_datastream_connection_profile` | marker-carried | in-contract |  |
+| `google_datastream_private_connection` | marker-carried | in-contract |  |
+| `google_datastream_stream` | marker-carried | in-contract |  |
+| `google_deployment_manager_deployment` | declaration-carried | in-contract |  |
+| `google_developer_connect_account_connector` | marker-carried | in-contract |  |
+| `google_developer_connect_connection` | marker-carried | in-contract |  |
+| `google_developer_connect_git_repository_link` | marker-carried | in-contract |  |
+| `google_developer_connect_insights_config` | marker-carried | in-contract |  |
+| `google_dialogflow_agent` | declaration-carried | in-contract |  |
+| `google_dialogflow_conversation_profile` | record-carried | pending-mechanism | 2 |
+| `google_dialogflow_cx_agent` | record-carried | pending-mechanism | 2 |
+| `google_dialogflow_cx_entity_type` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_cx_environment` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_cx_flow` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_cx_generative_settings` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_cx_generator` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_cx_intent` | marker-carried | pending-ratification | 4 |
+| `google_dialogflow_cx_page` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_cx_playbook` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_cx_security_settings` | record-carried | pending-mechanism | 2 |
+| `google_dialogflow_cx_test_case` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_cx_tool` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_cx_tool_version` | record-carried | pending-mechanism | 2 |
+| `google_dialogflow_cx_version` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_cx_webhook` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_encryption_spec` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_entity_type` | record-carried | pending-mechanism | 2 |
+| `google_dialogflow_environment` | declaration-carried | in-contract |  |
+| `google_dialogflow_fulfillment` | record-carried | pending-mechanism | 2 |
+| `google_dialogflow_generator` | record-carried | pending-mechanism | 2 |
+| `google_dialogflow_intent` | record-carried | pending-mechanism | 2 |
+| `google_dialogflow_sip_trunk` | record-carried | pending-mechanism | 2 |
+| `google_dialogflow_tool` | record-carried | pending-mechanism | 2 |
+| `google_dialogflow_version` | record-carried | pending-ratification | 4 |
+| `google_discovery_engine_acl_config` | declaration-carried | in-contract |  |
+| `google_discovery_engine_assistant` | declaration-carried | in-contract |  |
+| `google_discovery_engine_chat_engine` | declaration-carried | in-contract |  |
+| `google_discovery_engine_cmek_config` | declaration-carried | in-contract |  |
+| `google_discovery_engine_control` | declaration-carried | in-contract |  |
+| `google_discovery_engine_data_connector` | declaration-carried | in-contract |  |
+| `google_discovery_engine_data_store` | declaration-carried | in-contract |  |
+| `google_discovery_engine_license_config` | declaration-carried | in-contract |  |
+| `google_discovery_engine_recommendation_engine` | declaration-carried | in-contract |  |
+| `google_discovery_engine_schema` | declaration-carried | in-contract |  |
+| `google_discovery_engine_search_engine` | declaration-carried | in-contract |  |
+| `google_discovery_engine_search_engine_iam_binding` | declaration-carried | in-contract |  |
+| `google_discovery_engine_search_engine_iam_member` | declaration-carried | in-contract |  |
+| `google_discovery_engine_search_engine_iam_policy` | declaration-carried | in-contract |  |
+| `google_discovery_engine_serving_config` | declaration-carried | in-contract |  |
+| `google_discovery_engine_sitemap` | record-carried | pending-mechanism | 2 |
+| `google_discovery_engine_target_site` | record-carried | pending-mechanism | 2 |
+| `google_discovery_engine_user_store` | declaration-carried | in-contract |  |
+| `google_discovery_engine_widget_config` | declaration-carried | in-contract |  |
+| `google_dns_managed_zone` | marker-carried | in-contract |  |
+| `google_dns_managed_zone_iam_binding` | declaration-carried | in-contract |  |
+| `google_dns_managed_zone_iam_member` | declaration-carried | in-contract |  |
+| `google_dns_managed_zone_iam_policy` | declaration-carried | in-contract |  |
+| `google_dns_policy` | declaration-carried | in-contract |  |
+| `google_dns_record_set` | declaration-carried | in-contract |  |
+| `google_dns_response_policy` | declaration-carried | in-contract |  |
+| `google_dns_response_policy_rule` | declaration-carried | in-contract |  |
+| `google_document_ai_processor` | record-carried | pending-mechanism | 2 |
+| `google_document_ai_processor_default_version` | declaration-carried | in-contract |  |
+| `google_document_ai_schema` | marker-carried | in-contract |  |
+| `google_document_ai_warehouse_document_schema` | record-carried | pending-mechanism | 2 |
+| `google_document_ai_warehouse_location` | record-carried | needs-evidence | 3 |
+| `google_edgecontainer_cluster` | marker-carried | in-contract |  |
+| `google_edgecontainer_node_pool` | marker-carried | in-contract |  |
+| `google_edgecontainer_vpn_connection` | marker-carried | in-contract |  |
+| `google_edgenetwork_interconnect_attachment` | marker-carried | in-contract |  |
+| `google_edgenetwork_network` | marker-carried | in-contract |  |
+| `google_edgenetwork_subnet` | marker-carried | in-contract |  |
+| `google_endpoints_service` | record-carried | needs-evidence | 3 |
+| `google_endpoints_service_consumers_iam_binding` | declaration-carried | in-contract |  |
+| `google_endpoints_service_consumers_iam_member` | declaration-carried | in-contract |  |
+| `google_endpoints_service_consumers_iam_policy` | declaration-carried | in-contract |  |
+| `google_endpoints_service_iam_binding` | declaration-carried | in-contract |  |
+| `google_endpoints_service_iam_member` | declaration-carried | in-contract |  |
+| `google_endpoints_service_iam_policy` | declaration-carried | in-contract |  |
+| `google_essential_contacts_contact` | record-carried | pending-mechanism | 2 |
+| `google_eventarc_channel` | marker-carried | in-contract |  |
+| `google_eventarc_enrollment` | marker-carried | in-contract |  |
+| `google_eventarc_google_api_source` | marker-carried | in-contract |  |
+| `google_eventarc_google_channel_config` | declaration-carried | in-contract |  |
+| `google_eventarc_message_bus` | marker-carried | in-contract |  |
+| `google_eventarc_pipeline` | marker-carried | in-contract |  |
+| `google_eventarc_pipeline_iam_binding` | declaration-carried | in-contract |  |
+| `google_eventarc_pipeline_iam_member` | declaration-carried | in-contract |  |
+| `google_eventarc_pipeline_iam_policy` | declaration-carried | in-contract |  |
+| `google_eventarc_trigger` | marker-carried | in-contract |  |
+| `google_filestore_backup` | marker-carried | in-contract |  |
+| `google_filestore_instance` | marker-carried | pending-ratification | 1 |
+| `google_filestore_snapshot` | marker-carried | in-contract |  |
+| `google_firebase_ai_logic_config` | declaration-carried | in-contract |  |
+| `google_firebase_ai_logic_prompt_template` | declaration-carried | in-contract |  |
+| `google_firebase_ai_logic_prompt_template_lock` | declaration-carried | in-contract |  |
+| `google_firebase_android_app` | record-carried | pending-mechanism | 2 |
+| `google_firebase_app_check_app_attest_config` | declaration-carried | in-contract |  |
+| `google_firebase_app_check_debug_token` | record-carried | pending-mechanism | 2 |
+| `google_firebase_app_check_device_check_config` | declaration-carried | in-contract |  |
+| `google_firebase_app_check_play_integrity_config` | declaration-carried | in-contract |  |
+| `google_firebase_app_check_recaptcha_enterprise_config` | declaration-carried | in-contract |  |
+| `google_firebase_app_check_recaptcha_v3_config` | declaration-carried | in-contract |  |
+| `google_firebase_app_check_resource_policy` | record-carried | pending-mechanism | 2 |
+| `google_firebase_app_check_service_config` | declaration-carried | in-contract |  |
+| `google_firebase_app_hosting_backend` | marker-carried | in-contract |  |
+| `google_firebase_app_hosting_build` | marker-carried | in-contract |  |
+| `google_firebase_app_hosting_default_domain` | declaration-carried | in-contract |  |
+| `google_firebase_app_hosting_domain` | declaration-carried | in-contract |  |
+| `google_firebase_app_hosting_traffic` | declaration-carried | in-contract |  |
+| `google_firebase_apple_app` | record-carried | pending-mechanism | 2 |
+| `google_firebase_data_connect_service` | marker-carried | in-contract |  |
+| `google_firebase_database_instance` | declaration-carried | in-contract |  |
+| `google_firebase_extensions_instance` | declaration-carried | in-contract |  |
+| `google_firebase_hosting_channel` | marker-carried | in-contract |  |
+| `google_firebase_hosting_custom_domain` | declaration-carried | in-contract |  |
+| `google_firebase_hosting_release` | record-carried | pending-mechanism | 2 |
+| `google_firebase_hosting_site` | record-carried | pending-ratification | 4 |
+| `google_firebase_hosting_version` | record-carried | pending-mechanism | 2 |
+| `google_firebase_project` | declaration-carried | in-contract |  |
+| `google_firebase_remote_config_remote_config` | declaration-carried | in-contract |  |
+| `google_firebase_storage_bucket` | record-carried | pending-ratification | 4 |
+| `google_firebase_storage_default_bucket` | declaration-carried | in-contract |  |
+| `google_firebase_web_app` | record-carried | pending-mechanism | 2 |
+| `google_firebaserules_release` | record-carried | needs-evidence | 3 |
+| `google_firebaserules_ruleset` | record-carried | needs-evidence | 3 |
+| `google_firestore_backup_schedule` | record-carried | pending-mechanism | 2 |
+| `google_firestore_change_stream` | declaration-carried | in-contract |  |
+| `google_firestore_database` | declaration-carried | in-contract |  |
+| `google_firestore_document` | record-carried | pending-mechanism | 2 |
+| `google_firestore_field` | record-carried | pending-mechanism | 2 |
+| `google_firestore_index` | record-carried | pending-mechanism | 2 |
+| `google_firestore_user_creds` | declaration-carried | in-contract |  |
+| `google_folder` | record-carried | needs-evidence | 3 |
+| `google_folder_access_approval_settings` | declaration-carried | in-contract |  |
+| `google_folder_iam_audit_config` | declaration-carried | in-contract |  |
+| `google_folder_iam_binding` | declaration-carried | in-contract |  |
+| `google_folder_iam_member` | declaration-carried | in-contract |  |
+| `google_folder_iam_policy` | declaration-carried | in-contract |  |
+| `google_folder_organization_policy` | record-carried | needs-evidence | 3 |
+| `google_folder_service_identity` | record-carried | needs-evidence | 3 |
+| `google_gemini_code_repository_index` | marker-carried | in-contract |  |
+| `google_gemini_code_tools_setting` | marker-carried | pending-ratification | 4 |
+| `google_gemini_code_tools_setting_binding` | marker-carried | pending-ratification | 4 |
+| `google_gemini_data_sharing_with_google_setting` | marker-carried | pending-ratification | 4 |
+| `google_gemini_data_sharing_with_google_setting_binding` | marker-carried | pending-ratification | 4 |
+| `google_gemini_gda_observability_setting` | marker-carried | in-contract |  |
+| `google_gemini_gda_observability_setting_binding` | marker-carried | pending-ratification | 4 |
+| `google_gemini_gemini_gcp_enablement_setting` | marker-carried | in-contract |  |
+| `google_gemini_gemini_gcp_enablement_setting_binding` | marker-carried | pending-ratification | 4 |
+| `google_gemini_gibq_observability_setting` | marker-carried | pending-ratification | 4 |
+| `google_gemini_gibq_observability_setting_binding` | marker-carried | pending-ratification | 4 |
+| `google_gemini_logging_setting` | marker-carried | in-contract |  |
+| `google_gemini_logging_setting_binding` | marker-carried | pending-ratification | 4 |
+| `google_gemini_release_channel_setting` | marker-carried | in-contract |  |
+| `google_gemini_release_channel_setting_binding` | marker-carried | pending-ratification | 4 |
+| `google_gemini_repository_group` | marker-carried | in-contract |  |
+| `google_gemini_repository_group_iam_binding` | declaration-carried | in-contract |  |
+| `google_gemini_repository_group_iam_member` | declaration-carried | in-contract |  |
+| `google_gemini_repository_group_iam_policy` | declaration-carried | in-contract |  |
+| `google_gke_backup_backup_channel` | marker-carried | in-contract |  |
+| `google_gke_backup_backup_plan` | marker-carried | in-contract |  |
+| `google_gke_backup_backup_plan_iam_binding` | declaration-carried | in-contract |  |
+| `google_gke_backup_backup_plan_iam_member` | declaration-carried | in-contract |  |
+| `google_gke_backup_backup_plan_iam_policy` | declaration-carried | in-contract |  |
+| `google_gke_backup_restore_channel` | marker-carried | in-contract |  |
+| `google_gke_backup_restore_plan` | marker-carried | in-contract |  |
+| `google_gke_backup_restore_plan_iam_binding` | declaration-carried | in-contract |  |
+| `google_gke_backup_restore_plan_iam_member` | declaration-carried | in-contract |  |
+| `google_gke_backup_restore_plan_iam_policy` | declaration-carried | in-contract |  |
+| `google_gke_hub_feature` | marker-carried | pending-ratification | 4 |
+| `google_gke_hub_feature_iam_binding` | declaration-carried | in-contract |  |
+| `google_gke_hub_feature_iam_member` | declaration-carried | in-contract |  |
+| `google_gke_hub_feature_iam_policy` | declaration-carried | in-contract |  |
+| `google_gke_hub_feature_membership` | record-carried | needs-evidence | 3 |
+| `google_gke_hub_fleet` | marker-carried | in-contract |  |
+| `google_gke_hub_membership` | marker-carried | in-contract |  |
+| `google_gke_hub_membership_binding` | marker-carried | in-contract |  |
+| `google_gke_hub_membership_iam_binding` | declaration-carried | in-contract |  |
+| `google_gke_hub_membership_iam_member` | declaration-carried | in-contract |  |
+| `google_gke_hub_membership_iam_policy` | declaration-carried | in-contract |  |
+| `google_gke_hub_membership_rbac_role_binding` | declaration-carried | in-contract |  |
+| `google_gke_hub_namespace` | marker-carried | in-contract |  |
+| `google_gke_hub_rollout_sequence` | marker-carried | in-contract |  |
+| `google_gke_hub_scope` | marker-carried | in-contract |  |
+| `google_gke_hub_scope_iam_binding` | declaration-carried | in-contract |  |
+| `google_gke_hub_scope_iam_member` | declaration-carried | in-contract |  |
+| `google_gke_hub_scope_iam_policy` | declaration-carried | in-contract |  |
+| `google_gke_hub_scope_rbac_role_binding` | marker-carried | in-contract |  |
+| `google_gkeonprem_bare_metal_admin_cluster` | declaration-carried | in-contract |  |
+| `google_gkeonprem_bare_metal_cluster` | declaration-carried | in-contract |  |
+| `google_gkeonprem_bare_metal_node_pool` | declaration-carried | in-contract |  |
+| `google_gkeonprem_vmware_admin_cluster` | declaration-carried | in-contract |  |
+| `google_gkeonprem_vmware_cluster` | declaration-carried | in-contract |  |
+| `google_gkeonprem_vmware_node_pool` | declaration-carried | in-contract |  |
+| `google_healthcare_consent_store` | marker-carried | in-contract |  |
+| `google_healthcare_consent_store_iam_binding` | declaration-carried | in-contract |  |
+| `google_healthcare_consent_store_iam_member` | declaration-carried | in-contract |  |
+| `google_healthcare_consent_store_iam_policy` | declaration-carried | in-contract |  |
+| `google_healthcare_dataset` | declaration-carried | in-contract |  |
+| `google_healthcare_dataset_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_healthcare_dataset_iam_member` | record-carried | needs-evidence | 3 |
+| `google_healthcare_dataset_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_healthcare_dicom_store` | marker-carried | pending-ratification | 1 |
+| `google_healthcare_dicom_store_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_healthcare_dicom_store_iam_member` | record-carried | needs-evidence | 3 |
+| `google_healthcare_dicom_store_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_healthcare_fhir_store` | marker-carried | pending-ratification | 1 |
+| `google_healthcare_fhir_store_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_healthcare_fhir_store_iam_member` | record-carried | needs-evidence | 3 |
+| `google_healthcare_fhir_store_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_healthcare_hl7_v2_store` | marker-carried | pending-ratification | 1 |
+| `google_healthcare_hl7_v2_store_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_healthcare_hl7_v2_store_iam_member` | record-carried | needs-evidence | 3 |
+| `google_healthcare_hl7_v2_store_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_healthcare_pipeline_job` | marker-carried | in-contract |  |
+| `google_healthcare_workspace` | marker-carried | in-contract |  |
+| `google_hypercomputecluster_cluster` | marker-carried | in-contract |  |
+| `google_iam_access_boundary_policy` | declaration-carried | in-contract |  |
+| `google_iam_deny_policy` | declaration-carried | in-contract |  |
+| `google_iam_folder_access_policy` | declaration-carried | in-contract |  |
+| `google_iam_folders_policy_binding` | declaration-carried | in-contract |  |
+| `google_iam_oauth_client` | declaration-carried | in-contract |  |
+| `google_iam_oauth_client_credential` | declaration-carried | in-contract |  |
+| `google_iam_organization_access_policy` | declaration-carried | in-contract |  |
+| `google_iam_organizations_policy_binding` | declaration-carried | in-contract |  |
+| `google_iam_principal_access_boundary_policy` | declaration-carried | in-contract |  |
+| `google_iam_project_access_policy` | declaration-carried | in-contract |  |
+| `google_iam_projects_policy_binding` | declaration-carried | in-contract |  |
+| `google_iam_workforce_pool` | declaration-carried | in-contract |  |
+| `google_iam_workforce_pool_iam_binding` | declaration-carried | in-contract |  |
+| `google_iam_workforce_pool_iam_member` | declaration-carried | in-contract |  |
+| `google_iam_workforce_pool_iam_policy` | declaration-carried | in-contract |  |
+| `google_iam_workforce_pool_provider` | declaration-carried | in-contract |  |
+| `google_iam_workforce_pool_provider_key` | declaration-carried | in-contract |  |
+| `google_iam_workforce_pool_provider_scim_tenant` | declaration-carried | in-contract |  |
+| `google_iam_workforce_pool_provider_scim_token` | declaration-carried | in-contract |  |
+| `google_iam_workload_identity_pool` | declaration-carried | in-contract |  |
+| `google_iam_workload_identity_pool_iam_binding` | declaration-carried | in-contract |  |
+| `google_iam_workload_identity_pool_iam_member` | declaration-carried | in-contract |  |
+| `google_iam_workload_identity_pool_iam_policy` | declaration-carried | in-contract |  |
+| `google_iam_workload_identity_pool_managed_identity` | declaration-carried | in-contract |  |
+| `google_iam_workload_identity_pool_namespace` | declaration-carried | in-contract |  |
+| `google_iam_workload_identity_pool_provider` | declaration-carried | in-contract |  |
+| `google_iap_agent_registry_agent_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_agent_registry_agent_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_agent_registry_agent_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_agent_registry_endpoint_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_agent_registry_endpoint_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_agent_registry_endpoint_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_agent_registry_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_agent_registry_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_agent_registry_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_agent_registry_mcp_server_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_agent_registry_mcp_server_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_agent_registry_mcp_server_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_app_engine_service_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_iap_app_engine_service_iam_member` | record-carried | needs-evidence | 3 |
+| `google_iap_app_engine_service_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_iap_app_engine_version_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_iap_app_engine_version_iam_member` | record-carried | needs-evidence | 3 |
+| `google_iap_app_engine_version_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_iap_location_web_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_location_web_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_location_web_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_settings` | declaration-carried | in-contract |  |
+| `google_iap_tunnel_dest_group` | declaration-carried | in-contract |  |
+| `google_iap_tunnel_dest_group_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_tunnel_dest_group_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_tunnel_dest_group_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_tunnel_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_tunnel_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_tunnel_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_tunnel_instance_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_tunnel_instance_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_tunnel_instance_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_web_backend_service_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_web_backend_service_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_web_backend_service_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_web_cloud_run_service_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_web_cloud_run_service_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_web_cloud_run_service_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_web_forwarding_rule_service_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_web_forwarding_rule_service_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_web_forwarding_rule_service_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_web_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_web_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_web_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_web_region_backend_service_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_web_region_backend_service_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_web_region_backend_service_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_web_region_forwarding_rule_service_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_web_region_forwarding_rule_service_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_web_region_forwarding_rule_service_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_web_type_app_engine_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_iap_web_type_app_engine_iam_member` | record-carried | needs-evidence | 3 |
+| `google_iap_web_type_app_engine_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_iap_web_type_compute_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_web_type_compute_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_web_type_compute_iam_policy` | declaration-carried | in-contract |  |
+| `google_identity_platform_config` | declaration-carried | in-contract |  |
+| `google_identity_platform_default_supported_idp_config` | declaration-carried | in-contract |  |
+| `google_identity_platform_inbound_saml_config` | declaration-carried | in-contract |  |
+| `google_identity_platform_oauth_idp_config` | declaration-carried | in-contract |  |
+| `google_identity_platform_tenant` | record-carried | pending-mechanism | 2 |
+| `google_identity_platform_tenant_default_supported_idp_config` | declaration-carried | in-contract |  |
+| `google_identity_platform_tenant_inbound_saml_config` | declaration-carried | in-contract |  |
+| `google_identity_platform_tenant_oauth_idp_config` | declaration-carried | in-contract |  |
+| `google_integration_connectors_connection` | marker-carried | in-contract |  |
+| `google_integration_connectors_endpoint_attachment` | marker-carried | in-contract |  |
+| `google_integration_connectors_managed_zone` | marker-carried | in-contract |  |
+| `google_integrations_auth_config` | record-carried | pending-mechanism | 2 |
+| `google_integrations_client` | declaration-carried | in-contract |  |
+| `google_kms_autokey_config` | declaration-carried | in-contract |  |
+| `google_kms_crypto_key` | marker-carried | pending-ratification | 1 |
+| `google_kms_crypto_key_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_kms_crypto_key_iam_member` | record-carried | needs-evidence | 3 |
+| `google_kms_crypto_key_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_kms_crypto_key_version` | record-carried | pending-mechanism | 2 |
+| `google_kms_ekm_connection` | declaration-carried | in-contract |  |
+| `google_kms_ekm_connection_iam_binding` | declaration-carried | in-contract |  |
+| `google_kms_ekm_connection_iam_member` | declaration-carried | in-contract |  |
+| `google_kms_ekm_connection_iam_policy` | declaration-carried | in-contract |  |
+| `google_kms_folder_kaj_policy_config` | declaration-carried | in-contract |  |
+| `google_kms_key_handle` | declaration-carried | in-contract |  |
+| `google_kms_key_ring` | declaration-carried | in-contract |  |
+| `google_kms_key_ring_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_kms_key_ring_iam_member` | record-carried | needs-evidence | 3 |
+| `google_kms_key_ring_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_kms_key_ring_import_job` | record-carried | pending-mechanism | 2 |
+| `google_kms_organization_kaj_policy_config` | declaration-carried | in-contract |  |
+| `google_kms_project_autokey_config` | declaration-carried | in-contract |  |
+| `google_kms_project_kaj_policy_config` | declaration-carried | in-contract |  |
+| `google_kms_secret_ciphertext` | record-carried | pending-mechanism | 2 |
+| `google_license_manager_configuration` | marker-carried | in-contract |  |
+| `google_logging_billing_account_bucket_config` | record-carried | needs-evidence | 3 |
+| `google_logging_billing_account_exclusion` | record-carried | needs-evidence | 3 |
+| `google_logging_billing_account_sink` | record-carried | needs-evidence | 3 |
+| `google_logging_folder_bucket_config` | record-carried | needs-evidence | 3 |
+| `google_logging_folder_exclusion` | record-carried | needs-evidence | 3 |
+| `google_logging_folder_settings` | declaration-carried | in-contract |  |
+| `google_logging_folder_sink` | record-carried | needs-evidence | 3 |
+| `google_logging_linked_dataset` | declaration-carried | pending-ratification | 1 |
+| `google_logging_log_scope` | declaration-carried | pending-ratification | 1 |
+| `google_logging_log_view` | declaration-carried | pending-ratification | 1 |
+| `google_logging_log_view_iam_binding` | declaration-carried | in-contract |  |
+| `google_logging_log_view_iam_member` | declaration-carried | in-contract |  |
+| `google_logging_log_view_iam_policy` | declaration-carried | in-contract |  |
+| `google_logging_metric` | declaration-carried | pending-ratification | 1 |
+| `google_logging_organization_bucket_config` | record-carried | needs-evidence | 3 |
+| `google_logging_organization_exclusion` | record-carried | needs-evidence | 3 |
+| `google_logging_organization_settings` | declaration-carried | in-contract |  |
+| `google_logging_organization_sink` | record-carried | needs-evidence | 3 |
+| `google_logging_project_bucket_config` | record-carried | needs-evidence | 3 |
+| `google_logging_project_exclusion` | record-carried | needs-evidence | 3 |
+| `google_logging_project_sink` | record-carried | needs-evidence | 3 |
+| `google_logging_saved_query` | declaration-carried | in-contract |  |
+| `google_looker_instance` | declaration-carried | in-contract |  |
+| `google_lustre_instance` | marker-carried | in-contract |  |
+| `google_managed_kafka_acl` | declaration-carried | in-contract |  |
+| `google_managed_kafka_cluster` | marker-carried | in-contract |  |
+| `google_managed_kafka_connect_cluster` | marker-carried | in-contract |  |
+| `google_managed_kafka_connector` | declaration-carried | in-contract |  |
+| `google_managed_kafka_topic` | declaration-carried | in-contract |  |
+| `google_memcache_instance` | marker-carried | in-contract |  |
+| `google_memorystore_acl_policy` | declaration-carried | in-contract |  |
+| `google_memorystore_instance` | marker-carried | in-contract |  |
+| `google_memorystore_instance_desired_user_created_endpoints` | declaration-carried | in-contract |  |
+| `google_migration_center_assets_export_job` | marker-carried | in-contract |  |
+| `google_migration_center_discovery_client` | marker-carried | in-contract |  |
+| `google_migration_center_group` | marker-carried | in-contract |  |
+| `google_migration_center_import_data_file` | declaration-carried | in-contract |  |
+| `google_migration_center_import_job` | marker-carried | in-contract |  |
+| `google_migration_center_preference_set` | declaration-carried | in-contract |  |
+| `google_migration_center_report` | declaration-carried | in-contract |  |
+| `google_migration_center_report_config` | declaration-carried | in-contract |  |
+| `google_migration_center_settings` | declaration-carried | in-contract |  |
+| `google_migration_center_source` | declaration-carried | in-contract |  |
+| `google_model_armor_floorsetting` | declaration-carried | in-contract |  |
+| `google_model_armor_template` | marker-carried | in-contract |  |
+| `google_monitoring_alert_policy` | record-carried | pending-mechanism | 2 |
+| `google_monitoring_custom_service` | record-carried | pending-mechanism | 2 |
+| `google_monitoring_dashboard` | record-carried | needs-evidence | 3 |
+| `google_monitoring_group` | record-carried | pending-mechanism | 2 |
+| `google_monitoring_metric_descriptor` | record-carried | pending-mechanism | 2 |
+| `google_monitoring_monitored_project` | declaration-carried | in-contract |  |
+| `google_monitoring_notification_channel` | record-carried | pending-mechanism | 2 |
+| `google_monitoring_service` | declaration-carried | in-contract |  |
+| `google_monitoring_slo` | record-carried | pending-mechanism | 2 |
+| `google_monitoring_snooze` | record-carried | pending-mechanism | 2 |
+| `google_monitoring_uptime_check_config` | record-carried | pending-mechanism | 2 |
+| `google_netapp_active_directory` | marker-carried | in-contract |  |
+| `google_netapp_backup` | marker-carried | in-contract |  |
+| `google_netapp_backup_policy` | marker-carried | in-contract |  |
+| `google_netapp_backup_vault` | marker-carried | in-contract |  |
+| `google_netapp_host_group` | marker-carried | in-contract |  |
+| `google_netapp_kmsconfig` | marker-carried | in-contract |  |
+| `google_netapp_storage_pool` | marker-carried | in-contract |  |
+| `google_netapp_volume` | marker-carried | in-contract |  |
+| `google_netapp_volume_quota_rule` | marker-carried | pending-ratification | 4 |
+| `google_netapp_volume_replication` | marker-carried | in-contract |  |
+| `google_netapp_volume_snapshot` | marker-carried | in-contract |  |
+| `google_network_connectivity_destination` | marker-carried | in-contract |  |
+| `google_network_connectivity_gateway_advertised_route` | marker-carried | in-contract |  |
+| `google_network_connectivity_group` | marker-carried | in-contract |  |
+| `google_network_connectivity_hub` | marker-carried | in-contract |  |
+| `google_network_connectivity_hub_iam_binding` | declaration-carried | in-contract |  |
+| `google_network_connectivity_hub_iam_member` | declaration-carried | in-contract |  |
+| `google_network_connectivity_hub_iam_policy` | declaration-carried | in-contract |  |
+| `google_network_connectivity_internal_range` | marker-carried | in-contract |  |
+| `google_network_connectivity_multicloud_data_transfer_config` | marker-carried | in-contract |  |
+| `google_network_connectivity_policy_based_route` | marker-carried | in-contract |  |
+| `google_network_connectivity_regional_endpoint` | marker-carried | in-contract |  |
+| `google_network_connectivity_service_connection_policy` | marker-carried | in-contract |  |
+| `google_network_connectivity_spoke` | marker-carried | in-contract |  |
+| `google_network_connectivity_transport` | marker-carried | in-contract |  |
+| `google_network_management_connectivity_test` | marker-carried | in-contract |  |
+| `google_network_management_network_monitoring_provider` | declaration-carried | in-contract |  |
+| `google_network_management_organization_vpc_flow_logs_config` | marker-carried | in-contract |  |
+| `google_network_management_vpc_flow_logs_config` | marker-carried | in-contract |  |
+| `google_network_security_address_group` | marker-carried | pending-ratification | 4 |
+| `google_network_security_address_group_iam_binding` | declaration-carried | in-contract |  |
+| `google_network_security_address_group_iam_member` | declaration-carried | in-contract |  |
+| `google_network_security_address_group_iam_policy` | declaration-carried | in-contract |  |
+| `google_network_security_authorization_policy` | marker-carried | in-contract |  |
+| `google_network_security_authz_policy` | marker-carried | in-contract |  |
+| `google_network_security_backend_authentication_config` | marker-carried | in-contract |  |
+| `google_network_security_client_tls_policy` | marker-carried | in-contract |  |
+| `google_network_security_dns_threat_detector` | marker-carried | in-contract |  |
+| `google_network_security_firewall_endpoint` | marker-carried | in-contract |  |
+| `google_network_security_firewall_endpoint_association` | marker-carried | pending-ratification | 4 |
+| `google_network_security_gateway_security_policy` | declaration-carried | in-contract |  |
+| `google_network_security_gateway_security_policy_rule` | declaration-carried | in-contract |  |
+| `google_network_security_intercept_deployment` | marker-carried | in-contract |  |
+| `google_network_security_intercept_deployment_group` | marker-carried | in-contract |  |
+| `google_network_security_intercept_endpoint_group` | marker-carried | in-contract |  |
+| `google_network_security_intercept_endpoint_group_association` | marker-carried | pending-ratification | 4 |
+| `google_network_security_mirroring_deployment` | marker-carried | in-contract |  |
+| `google_network_security_mirroring_deployment_group` | marker-carried | in-contract |  |
+| `google_network_security_mirroring_endpoint` | marker-carried | in-contract |  |
+| `google_network_security_mirroring_endpoint_group` | marker-carried | in-contract |  |
+| `google_network_security_mirroring_endpoint_group_association` | marker-carried | pending-ratification | 4 |
+| `google_network_security_sac_attachment` | marker-carried | in-contract |  |
+| `google_network_security_sac_realm` | marker-carried | in-contract |  |
+| `google_network_security_security_profile` | marker-carried | pending-ratification | 4 |
+| `google_network_security_security_profile_group` | marker-carried | pending-ratification | 4 |
+| `google_network_security_server_tls_policy` | marker-carried | in-contract |  |
+| `google_network_security_tls_inspection_policy` | record-carried | pending-ratification | 4 |
+| `google_network_security_ull_mirroring_collector` | marker-carried | in-contract |  |
+| `google_network_security_ull_mirroring_collector_rule` | marker-carried | in-contract |  |
+| `google_network_security_ull_mirroring_engine` | marker-carried | in-contract |  |
+| `google_network_security_url_lists` | declaration-carried | in-contract |  |
+| `google_network_services_agent_connectivity_template` | marker-carried | in-contract |  |
+| `google_network_services_agent_gateway` | marker-carried | in-contract |  |
+| `google_network_services_authz_extension` | marker-carried | in-contract |  |
+| `google_network_services_edge_cache_keyset` | marker-carried | in-contract |  |
+| `google_network_services_edge_cache_origin` | marker-carried | in-contract |  |
+| `google_network_services_edge_cache_service` | marker-carried | in-contract |  |
+| `google_network_services_endpoint_policy` | marker-carried | in-contract |  |
+| `google_network_services_gateway` | marker-carried | in-contract |  |
+| `google_network_services_grpc_route` | marker-carried | in-contract |  |
+| `google_network_services_http_route` | marker-carried | in-contract |  |
+| `google_network_services_lb_edge_extension` | marker-carried | in-contract |  |
+| `google_network_services_lb_route_extension` | marker-carried | in-contract |  |
+| `google_network_services_lb_traffic_extension` | marker-carried | in-contract |  |
+| `google_network_services_mesh` | marker-carried | in-contract |  |
+| `google_network_services_multicast_consumer_association` | marker-carried | in-contract |  |
+| `google_network_services_multicast_domain` | marker-carried | in-contract |  |
+| `google_network_services_multicast_domain_activation` | marker-carried | in-contract |  |
+| `google_network_services_multicast_domain_group` | marker-carried | in-contract |  |
+| `google_network_services_multicast_group_consumer_activation` | marker-carried | in-contract |  |
+| `google_network_services_multicast_group_producer_activation` | marker-carried | in-contract |  |
+| `google_network_services_multicast_group_range` | marker-carried | in-contract |  |
+| `google_network_services_multicast_group_range_activation` | marker-carried | in-contract |  |
+| `google_network_services_multicast_producer_association` | marker-carried | in-contract |  |
+| `google_network_services_service_binding` | marker-carried | in-contract |  |
+| `google_network_services_service_lb_policies` | marker-carried | in-contract |  |
+| `google_network_services_tcp_route` | marker-carried | in-contract |  |
+| `google_network_services_tls_route` | declaration-carried | in-contract |  |
+| `google_network_services_wasm_plugin` | marker-carried | in-contract |  |
+| `google_observability_bucket` | declaration-carried | in-contract |  |
+| `google_observability_folder_settings` | declaration-carried | in-contract |  |
+| `google_observability_link` | declaration-carried | in-contract |  |
+| `google_observability_organization_settings` | declaration-carried | in-contract |  |
+| `google_observability_project_settings` | declaration-carried | in-contract |  |
+| `google_observability_trace_scope` | declaration-carried | in-contract |  |
+| `google_oracle_database_autonomous_database` | marker-carried | in-contract |  |
+| `google_oracle_database_cloud_exadata_infrastructure` | marker-carried | in-contract |  |
+| `google_oracle_database_cloud_exadata_infrastructure_exascale_config` | declaration-carried | in-contract |  |
+| `google_oracle_database_cloud_vm_cluster` | marker-carried | in-contract |  |
+| `google_oracle_database_db_system` | marker-carried | in-contract |  |
+| `google_oracle_database_exadb_vm_cluster` | marker-carried | in-contract |  |
+| `google_oracle_database_exascale_db_storage_vault` | marker-carried | in-contract |  |
+| `google_oracle_database_goldengate_connection` | marker-carried | in-contract |  |
+| `google_oracle_database_goldengate_connection_assignment` | marker-carried | in-contract |  |
+| `google_oracle_database_goldengate_deployment` | marker-carried | in-contract |  |
+| `google_oracle_database_odb_network` | marker-carried | in-contract |  |
+| `google_oracle_database_odb_subnet` | marker-carried | in-contract |  |
+| `google_org_policy_custom_constraint` | declaration-carried | in-contract |  |
+| `google_org_policy_policy` | declaration-carried | in-contract |  |
+| `google_organization_access_approval_settings` | declaration-carried | in-contract |  |
+| `google_organization_iam_audit_config` | declaration-carried | in-contract |  |
+| `google_organization_iam_binding` | declaration-carried | in-contract |  |
+| `google_organization_iam_custom_role` | record-carried | needs-evidence | 3 |
+| `google_organization_iam_member` | declaration-carried | in-contract |  |
+| `google_organization_iam_policy` | declaration-carried | in-contract |  |
+| `google_organization_policy` | record-carried | needs-evidence | 3 |
+| `google_organization_service_identity` | record-carried | needs-evidence | 3 |
+| `google_os_config_guest_policies` | declaration-carried | in-contract |  |
+| `google_os_config_os_policy_assignment` | declaration-carried | in-contract |  |
+| `google_os_config_patch_deployment` | record-carried | pending-mechanism | 2 |
+| `google_os_config_v2_policy_orchestrator` | marker-carried | in-contract |  |
+| `google_os_config_v2_policy_orchestrator_for_folder` | marker-carried | in-contract |  |
+| `google_os_config_v2_policy_orchestrator_for_organization` | marker-carried | in-contract |  |
+| `google_os_login_ssh_public_key` | record-carried | pending-mechanism | 2 |
+| `google_parallelstore_instance` | marker-carried | in-contract |  |
+| `google_parameter_manager_parameter` | marker-carried | in-contract |  |
+| `google_parameter_manager_parameter_version` | record-carried | needs-evidence | 3 |
+| `google_parameter_manager_regional_parameter` | marker-carried | in-contract |  |
+| `google_parameter_manager_regional_parameter_version` | record-carried | needs-evidence | 3 |
+| `google_parameter_manager_template` | marker-carried | in-contract |  |
+| `google_privateca_ca_pool` | marker-carried | in-contract |  |
+| `google_privateca_ca_pool_iam_binding` | declaration-carried | in-contract |  |
+| `google_privateca_ca_pool_iam_member` | declaration-carried | in-contract |  |
+| `google_privateca_ca_pool_iam_policy` | declaration-carried | in-contract |  |
+| `google_privateca_certificate` | marker-carried | in-contract |  |
+| `google_privateca_certificate_authority` | marker-carried | in-contract |  |
+| `google_privateca_certificate_template` | marker-carried | in-contract |  |
+| `google_privateca_certificate_template_iam_binding` | declaration-carried | in-contract |  |
+| `google_privateca_certificate_template_iam_member` | declaration-carried | in-contract |  |
+| `google_privateca_certificate_template_iam_policy` | declaration-carried | in-contract |  |
+| `google_privileged_access_manager_entitlement` | declaration-carried | in-contract |  |
+| `google_privileged_access_manager_settings` | declaration-carried | in-contract |  |
+| `google_project` | marker-carried | pending-ratification | 1 |
+| `google_project_access_approval_settings` | declaration-carried | in-contract |  |
+| `google_project_default_service_accounts` | record-carried | needs-evidence | 3 |
+| `google_project_iam_audit_config` | declaration-carried | in-contract |  |
+| `google_project_iam_binding` | declaration-carried | in-contract |  |
+| `google_project_iam_custom_role` | declaration-carried | in-contract |  |
+| `google_project_iam_member` | declaration-carried | in-contract |  |
+| `google_project_iam_member_remove` | record-carried | needs-evidence | 3 |
+| `google_project_iam_policy` | declaration-carried | in-contract |  |
+| `google_project_organization_policy` | record-carried | needs-evidence | 3 |
+| `google_project_service` | declaration-carried | pending-ratification | 1 |
+| `google_project_service_identity` | record-carried | needs-evidence | 3 |
+| `google_project_usage_export_bucket` | record-carried | needs-evidence | 3 |
+| `google_public_ca_external_account_key` | record-carried | pending-mechanism | 2 |
+| `google_pubsub_lite_reservation` | declaration-carried | in-contract |  |
+| `google_pubsub_lite_subscription` | declaration-carried | in-contract |  |
+| `google_pubsub_lite_topic` | declaration-carried | in-contract |  |
+| `google_pubsub_schema` | declaration-carried | in-contract |  |
+| `google_pubsub_schema_iam_binding` | declaration-carried | in-contract |  |
+| `google_pubsub_schema_iam_member` | declaration-carried | in-contract |  |
+| `google_pubsub_schema_iam_policy` | declaration-carried | in-contract |  |
+| `google_pubsub_subscription` | marker-carried | in-contract |  |
+| `google_pubsub_subscription_iam_binding` | declaration-carried | in-contract |  |
+| `google_pubsub_subscription_iam_member` | declaration-carried | in-contract |  |
+| `google_pubsub_subscription_iam_policy` | declaration-carried | in-contract |  |
+| `google_pubsub_topic` | marker-carried | in-contract |  |
+| `google_pubsub_topic_iam_binding` | declaration-carried | in-contract |  |
+| `google_pubsub_topic_iam_member` | declaration-carried | in-contract |  |
+| `google_pubsub_topic_iam_policy` | declaration-carried | in-contract |  |
+| `google_recaptcha_enterprise_key` | marker-carried | in-contract |  |
+| `google_redis_cluster` | marker-carried | in-contract |  |
+| `google_redis_cluster_acl_policy` | declaration-carried | in-contract |  |
+| `google_redis_cluster_user_created_connections` | declaration-carried | in-contract |  |
+| `google_redis_instance` | marker-carried | in-contract |  |
+| `google_resource_manager_capability` | declaration-carried | in-contract |  |
+| `google_resource_manager_capability_config` | declaration-carried | in-contract |  |
+| `google_resource_manager_lien` | record-carried | pending-mechanism | 2 |
+| `google_runtimeconfig_config` | declaration-carried | in-contract |  |
+| `google_runtimeconfig_config_iam_binding` | declaration-carried | in-contract |  |
+| `google_runtimeconfig_config_iam_member` | declaration-carried | in-contract |  |
+| `google_runtimeconfig_config_iam_policy` | declaration-carried | in-contract |  |
+| `google_runtimeconfig_variable` | declaration-carried | in-contract |  |
+| `google_saas_runtime_release` | marker-carried | in-contract |  |
+| `google_saas_runtime_rollout_kind` | marker-carried | in-contract |  |
+| `google_saas_runtime_saas` | marker-carried | in-contract |  |
+| `google_saas_runtime_tenant` | marker-carried | in-contract |  |
+| `google_saas_runtime_unit` | marker-carried | in-contract |  |
+| `google_saas_runtime_unit_kind` | marker-carried | in-contract |  |
+| `google_saas_runtime_unit_operation` | marker-carried | in-contract |  |
+| `google_scc_event_threat_detection_custom_module` | record-carried | pending-mechanism | 2 |
+| `google_scc_folder_custom_module` | record-carried | pending-mechanism | 2 |
+| `google_scc_folder_notification_config` | declaration-carried | in-contract |  |
+| `google_scc_folder_scc_big_query_export` | declaration-carried | in-contract |  |
+| `google_scc_management_folder_security_health_analytics_custom_module` | record-carried | pending-ratification | 4 |
+| `google_scc_management_organization_event_threat_detection_custom_module` | record-carried | pending-mechanism | 2 |
+| `google_scc_management_organization_security_health_analytics_custom_module` | record-carried | pending-ratification | 4 |
+| `google_scc_management_project_security_health_analytics_custom_module` | record-carried | pending-ratification | 4 |
+| `google_scc_mute_config` | record-carried | pending-mechanism | 2 |
+| `google_scc_notification_config` | record-carried | pending-mechanism | 2 |
+| `google_scc_notification_service_account` | record-carried | needs-evidence | 3 |
+| `google_scc_organization_custom_module` | record-carried | pending-mechanism | 2 |
+| `google_scc_organization_scc_big_query_export` | declaration-carried | in-contract |  |
+| `google_scc_project_custom_module` | record-carried | pending-mechanism | 2 |
+| `google_scc_project_notification_config` | record-carried | pending-mechanism | 2 |
+| `google_scc_project_scc_big_query_export` | declaration-carried | in-contract |  |
+| `google_scc_source` | record-carried | pending-mechanism | 2 |
+| `google_scc_source_iam_binding` | declaration-carried | in-contract |  |
+| `google_scc_source_iam_member` | declaration-carried | in-contract |  |
+| `google_scc_source_iam_policy` | declaration-carried | in-contract |  |
+| `google_scc_v2_folder_mute_config` | declaration-carried | in-contract |  |
+| `google_scc_v2_folder_notification_config` | declaration-carried | in-contract |  |
+| `google_scc_v2_folder_scc_big_query_export` | declaration-carried | in-contract |  |
+| `google_scc_v2_organization_mute_config` | declaration-carried | in-contract |  |
+| `google_scc_v2_organization_notification_config` | record-carried | pending-mechanism | 2 |
+| `google_scc_v2_organization_scc_big_query_export` | declaration-carried | in-contract |  |
+| `google_scc_v2_organization_scc_big_query_exports` | declaration-carried | in-contract |  |
+| `google_scc_v2_organization_source` | record-carried | pending-mechanism | 2 |
+| `google_scc_v2_organization_source_iam_binding` | declaration-carried | in-contract |  |
+| `google_scc_v2_organization_source_iam_member` | declaration-carried | in-contract |  |
+| `google_scc_v2_organization_source_iam_policy` | declaration-carried | in-contract |  |
+| `google_scc_v2_project_mute_config` | declaration-carried | in-contract |  |
+| `google_scc_v2_project_notification_config` | record-carried | pending-mechanism | 2 |
+| `google_scc_v2_project_scc_big_query_export` | declaration-carried | in-contract |  |
+| `google_secret_manager_regional_secret` | marker-carried | in-contract |  |
+| `google_secret_manager_regional_secret_iam_binding` | declaration-carried | in-contract |  |
+| `google_secret_manager_regional_secret_iam_member` | declaration-carried | in-contract |  |
+| `google_secret_manager_regional_secret_iam_policy` | declaration-carried | in-contract |  |
+| `google_secret_manager_regional_secret_version` | record-carried | pending-mechanism | 2 |
+| `google_secret_manager_secret` | marker-carried | in-contract |  |
+| `google_secret_manager_secret_iam_binding` | declaration-carried | in-contract |  |
+| `google_secret_manager_secret_iam_member` | declaration-carried | in-contract |  |
+| `google_secret_manager_secret_iam_policy` | declaration-carried | in-contract |  |
+| `google_secret_manager_secret_version` | record-carried | pending-mechanism | 2 |
+| `google_secure_source_manager_branch_rule` | declaration-carried | in-contract |  |
+| `google_secure_source_manager_hook` | declaration-carried | in-contract |  |
+| `google_secure_source_manager_instance` | marker-carried | in-contract |  |
+| `google_secure_source_manager_instance_iam_binding` | declaration-carried | in-contract |  |
+| `google_secure_source_manager_instance_iam_member` | declaration-carried | in-contract |  |
+| `google_secure_source_manager_instance_iam_policy` | declaration-carried | in-contract |  |
+| `google_secure_source_manager_repository` | declaration-carried | in-contract |  |
+| `google_secure_source_manager_repository_iam_binding` | declaration-carried | in-contract |  |
+| `google_secure_source_manager_repository_iam_member` | declaration-carried | in-contract |  |
+| `google_secure_source_manager_repository_iam_policy` | declaration-carried | in-contract |  |
+| `google_security_scanner_scan_config` | record-carried | pending-mechanism | 2 |
+| `google_securityposture_posture` | declaration-carried | in-contract |  |
+| `google_securityposture_posture_deployment` | declaration-carried | in-contract |  |
+| `google_service_account` | declaration-carried | in-contract |  |
+| `google_service_account_iam_binding` | declaration-carried | in-contract |  |
+| `google_service_account_iam_member` | declaration-carried | in-contract |  |
+| `google_service_account_iam_policy` | declaration-carried | in-contract |  |
+| `google_service_account_key` | record-carried | needs-evidence | 3 |
+| `google_service_directory_endpoint` | record-carried | pending-mechanism | 2 |
+| `google_service_directory_namespace` | marker-carried | in-contract |  |
+| `google_service_directory_namespace_iam_binding` | record-carried | pending-ratification | 4 |
+| `google_service_directory_namespace_iam_member` | record-carried | pending-ratification | 4 |
+| `google_service_directory_namespace_iam_policy` | record-carried | pending-ratification | 4 |
+| `google_service_directory_service` | record-carried | pending-mechanism | 2 |
+| `google_service_directory_service_iam_binding` | record-carried | pending-ratification | 4 |
+| `google_service_directory_service_iam_member` | record-carried | pending-ratification | 4 |
+| `google_service_directory_service_iam_policy` | record-carried | pending-ratification | 4 |
+| `google_service_networking_connection` | record-carried | needs-evidence | 3 |
+| `google_service_networking_peered_dns_domain` | record-carried | needs-evidence | 3 |
+| `google_service_networking_vpc_service_controls` | declaration-carried | in-contract |  |
+| `google_service_usage_consumer_quota_override` | record-carried | pending-mechanism | 2 |
+| `google_service_usage_v2_consumer_policy` | declaration-carried | in-contract |  |
+| `google_site_verification_owner` | declaration-carried | in-contract |  |
+| `google_site_verification_web_resource` | record-carried | pending-mechanism | 2 |
+| `google_sourcerepo_repository` | declaration-carried | in-contract |  |
+| `google_sourcerepo_repository_iam_binding` | declaration-carried | in-contract |  |
+| `google_sourcerepo_repository_iam_member` | declaration-carried | in-contract |  |
+| `google_sourcerepo_repository_iam_policy` | declaration-carried | in-contract |  |
+| `google_spanner_backup_schedule` | record-carried | pending-ratification | 4 |
+| `google_spanner_database` | declaration-carried | in-contract |  |
+| `google_spanner_database_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_spanner_database_iam_member` | record-carried | needs-evidence | 3 |
+| `google_spanner_database_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_spanner_instance` | marker-carried | in-contract |  |
+| `google_spanner_instance_config` | marker-carried | in-contract |  |
+| `google_spanner_instance_iam_binding` | record-carried | needs-evidence | 3 |
+| `google_spanner_instance_iam_member` | record-carried | needs-evidence | 3 |
+| `google_spanner_instance_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_spanner_instance_partition` | declaration-carried | in-contract |  |
+| `google_sql_database` | declaration-carried | in-contract |  |
+| `google_sql_database_instance` | declaration-carried | in-contract |  |
+| `google_sql_provision_script` | record-carried | needs-evidence | 3 |
+| `google_sql_source_representation_instance` | declaration-carried | in-contract |  |
+| `google_sql_ssl_cert` | record-carried | needs-evidence | 3 |
+| `google_sql_user` | record-carried | needs-evidence | 3 |
+| `google_storage_anywhere_cache` | record-carried | pending-mechanism | 2 |
+| `google_storage_batch_operations_job` | record-carried | pending-ratification | 4 |
+| `google_storage_bucket` | marker-carried | pending-ratification | 1 |
+| `google_storage_bucket_access_control` | declaration-carried | in-contract |  |
+| `google_storage_bucket_acl` | record-carried | needs-evidence | 3 |
+| `google_storage_bucket_iam_binding` | declaration-carried | in-contract |  |
+| `google_storage_bucket_iam_member` | declaration-carried | in-contract |  |
+| `google_storage_bucket_iam_policy` | declaration-carried | in-contract |  |
+| `google_storage_bucket_object` | record-carried | needs-evidence | 3 |
+| `google_storage_control_folder_intelligence_config` | declaration-carried | in-contract |  |
+| `google_storage_control_organization_intelligence_config` | declaration-carried | in-contract |  |
+| `google_storage_control_project_intelligence_config` | declaration-carried | in-contract |  |
+| `google_storage_default_object_access_control` | declaration-carried | in-contract |  |
+| `google_storage_default_object_acl` | record-carried | needs-evidence | 3 |
+| `google_storage_folder` | declaration-carried | in-contract |  |
+| `google_storage_ftp_server` | marker-carried | in-contract |  |
+| `google_storage_ftp_user` | marker-carried | in-contract |  |
+| `google_storage_hmac_key` | record-carried | pending-mechanism | 2 |
+| `google_storage_insights_dataset_config` | declaration-carried | in-contract |  |
+| `google_storage_insights_report_config` | record-carried | pending-mechanism | 2 |
+| `google_storage_managed_folder` | declaration-carried | in-contract |  |
+| `google_storage_managed_folder_iam_binding` | declaration-carried | in-contract |  |
+| `google_storage_managed_folder_iam_member` | declaration-carried | in-contract |  |
+| `google_storage_managed_folder_iam_policy` | declaration-carried | in-contract |  |
+| `google_storage_notification` | record-carried | needs-evidence | 3 |
+| `google_storage_object_access_control` | declaration-carried | in-contract |  |
+| `google_storage_object_acl` | record-carried | needs-evidence | 3 |
+| `google_storage_transfer_agent_pool` | declaration-carried | in-contract |  |
+| `google_storage_transfer_job` | record-carried | needs-evidence | 3 |
+| `google_tags_location_tag_binding` | record-carried | pending-ratification | 4 |
+| `google_tags_tag_binding` | record-carried | pending-mechanism | 2 |
+| `google_tags_tag_binding_collection` | record-carried | needs-evidence | 3 |
+| `google_tags_tag_key` | record-carried | pending-mechanism | 2 |
+| `google_tags_tag_key_iam_binding` | declaration-carried | in-contract |  |
+| `google_tags_tag_key_iam_member` | declaration-carried | in-contract |  |
+| `google_tags_tag_key_iam_policy` | declaration-carried | in-contract |  |
+| `google_tags_tag_value` | record-carried | pending-mechanism | 2 |
+| `google_tags_tag_value_iam_binding` | declaration-carried | in-contract |  |
+| `google_tags_tag_value_iam_member` | declaration-carried | in-contract |  |
+| `google_tags_tag_value_iam_policy` | declaration-carried | in-contract |  |
+| `google_tpu_v2_queued_resource` | declaration-carried | in-contract |  |
+| `google_tpu_v2_vm` | marker-carried | in-contract |  |
+| `google_transcoder_job` | marker-carried | in-contract |  |
+| `google_transcoder_job_template` | marker-carried | in-contract |  |
+| `google_vector_search_collection` | marker-carried | in-contract |  |
+| `google_vector_search_data_object` | declaration-carried | in-contract |  |
+| `google_vector_search_index` | marker-carried | in-contract |  |
+| `google_vertex_ai_agent_anomaly_detection_scope` | declaration-carried | in-contract |  |
+| `google_vertex_ai_cache_config` | declaration-carried | in-contract |  |
+| `google_vertex_ai_dataset` | marker-carried | in-contract |  |
+| `google_vertex_ai_deployment_resource_pool` | declaration-carried | in-contract |  |
+| `google_vertex_ai_endpoint` | marker-carried | in-contract |  |
+| `google_vertex_ai_endpoint_iam_binding` | declaration-carried | in-contract |  |
+| `google_vertex_ai_endpoint_iam_member` | declaration-carried | in-contract |  |
+| `google_vertex_ai_endpoint_iam_policy` | declaration-carried | in-contract |  |
+| `google_vertex_ai_endpoint_with_model_garden_deployment` | record-carried | pending-mechanism | 2 |
+| `google_vertex_ai_evaluation_metric` | marker-carried | in-contract |  |
+| `google_vertex_ai_feature_group` | marker-carried | pending-ratification | 4 |
+| `google_vertex_ai_feature_group_feature` | marker-carried | in-contract |  |
+| `google_vertex_ai_feature_group_iam_binding` | declaration-carried | in-contract |  |
+| `google_vertex_ai_feature_group_iam_member` | declaration-carried | in-contract |  |
+| `google_vertex_ai_feature_group_iam_policy` | declaration-carried | in-contract |  |
+| `google_vertex_ai_feature_online_store` | marker-carried | in-contract |  |
+| `google_vertex_ai_feature_online_store_featureview` | marker-carried | pending-ratification | 4 |
+| `google_vertex_ai_feature_online_store_featureview_iam_binding` | declaration-carried | in-contract |  |
+| `google_vertex_ai_feature_online_store_featureview_iam_member` | declaration-carried | in-contract |  |
+| `google_vertex_ai_feature_online_store_featureview_iam_policy` | declaration-carried | in-contract |  |
+| `google_vertex_ai_feature_online_store_iam_binding` | declaration-carried | in-contract |  |
+| `google_vertex_ai_feature_online_store_iam_member` | declaration-carried | in-contract |  |
+| `google_vertex_ai_feature_online_store_iam_policy` | declaration-carried | in-contract |  |
+| `google_vertex_ai_featurestore` | marker-carried | pending-ratification | 4 |
+| `google_vertex_ai_featurestore_entitytype` | marker-carried | pending-ratification | 4 |
+| `google_vertex_ai_featurestore_entitytype_feature` | marker-carried | pending-ratification | 4 |
+| `google_vertex_ai_featurestore_entitytype_iam_binding` | declaration-carried | in-contract |  |
+| `google_vertex_ai_featurestore_entitytype_iam_member` | declaration-carried | in-contract |  |
+| `google_vertex_ai_featurestore_entitytype_iam_policy` | declaration-carried | in-contract |  |
+| `google_vertex_ai_featurestore_iam_binding` | declaration-carried | in-contract |  |
+| `google_vertex_ai_featurestore_iam_member` | declaration-carried | in-contract |  |
+| `google_vertex_ai_featurestore_iam_policy` | declaration-carried | in-contract |  |
+| `google_vertex_ai_index` | marker-carried | in-contract |  |
+| `google_vertex_ai_index_endpoint` | marker-carried | in-contract |  |
+| `google_vertex_ai_index_endpoint_deployed_index` | declaration-carried | in-contract |  |
+| `google_vertex_ai_metadata_store` | record-carried | pending-ratification | 4 |
+| `google_vertex_ai_model_garden_enable_model` | record-carried | needs-evidence | 3 |
+| `google_vertex_ai_persistent_resource` | marker-carried | pending-ratification | 4 |
+| `google_vertex_ai_rag_corpus` | record-carried | pending-mechanism | 2 |
+| `google_vertex_ai_rag_engine_config` | declaration-carried | in-contract |  |
+| `google_vertex_ai_reasoning_engine` | marker-carried | in-contract |  |
+| `google_vertex_ai_reasoning_engine_iam_binding` | declaration-carried | in-contract |  |
+| `google_vertex_ai_reasoning_engine_iam_member` | declaration-carried | in-contract |  |
+| `google_vertex_ai_reasoning_engine_iam_policy` | declaration-carried | in-contract |  |
+| `google_vertex_ai_semantic_governance_policy` | declaration-carried | in-contract |  |
+| `google_vertex_ai_semantic_governance_policy_engine` | declaration-carried | in-contract |  |
+| `google_vertex_ai_tensorboard` | marker-carried | in-contract |  |
+| `google_vertex_ai_tensorboard_experiment` | marker-carried | in-contract |  |
+| `google_vertex_ai_tensorboard_run` | marker-carried | in-contract |  |
+| `google_vmwareengine_cluster` | declaration-carried | in-contract |  |
+| `google_vmwareengine_datastore` | declaration-carried | in-contract |  |
+| `google_vmwareengine_external_access_rule` | declaration-carried | in-contract |  |
+| `google_vmwareengine_external_address` | declaration-carried | in-contract |  |
+| `google_vmwareengine_network` | declaration-carried | in-contract |  |
+| `google_vmwareengine_network_peering` | declaration-carried | in-contract |  |
+| `google_vmwareengine_network_policy` | declaration-carried | in-contract |  |
+| `google_vmwareengine_private_cloud` | declaration-carried | in-contract |  |
+| `google_vmwareengine_subnet` | declaration-carried | in-contract |  |
+| `google_vpc_access_connector` | declaration-carried | in-contract |  |
+| `google_workbench_instance` | marker-carried | in-contract |  |
+| `google_workbench_instance_iam_binding` | declaration-carried | in-contract |  |
+| `google_workbench_instance_iam_member` | declaration-carried | in-contract |  |
+| `google_workbench_instance_iam_policy` | declaration-carried | in-contract |  |
+| `google_workflows_workflow` | marker-carried | needs-evidence | 3 |
+| `google_workload_identity_service_agent` | record-carried | pending-ratification | 4 |
+| `google_workstations_workstation` | marker-carried | in-contract |  |
+| `google_workstations_workstation_cluster` | marker-carried | pending-ratification | 4 |
+| `google_workstations_workstation_config` | marker-carried | in-contract |  |
+| `google_workstations_workstation_config_iam_binding` | declaration-carried | in-contract |  |
+| `google_workstations_workstation_config_iam_member` | declaration-carried | in-contract |  |
+| `google_workstations_workstation_config_iam_policy` | declaration-carried | in-contract |  |
+| `google_workstations_workstation_iam_binding` | declaration-carried | in-contract |  |
+| `google_workstations_workstation_iam_member` | declaration-carried | in-contract |  |
+| `google_workstations_workstation_iam_policy` | declaration-carried | in-contract |  |
+<!-- readiness-gen:end gcp-types -->
 
 ## Every AWS type
 

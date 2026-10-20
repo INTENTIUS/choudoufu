@@ -107,7 +107,7 @@ func Report(resourceTypes map[string]providers.Schema, signal *ConfigSignal) Der
 		if !ok {
 			continue
 		}
-		_, inTable := DefaultTable[typeName]
+		_, inTable := LookupType(typeName)
 
 		admits := AdmitNeedsConfigSignal
 		switch verdict, _ := signal.NamingOfType(typeName, required); verdict {

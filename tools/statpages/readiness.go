@@ -30,6 +30,23 @@ type readinessData struct {
 		Awaiting int             `json:"awaiting_ruling"`
 		Types    []readinessType `json:"types"`
 	} `json:"kubernetes"`
+	Google struct {
+		Provider string   `json:"provider"`
+		Statuses []string `json:"statuses"`
+		Tiers    []struct {
+			Tier   string `json:"tier"`
+			Counts []int  `json:"counts"`
+			Total  int    `json:"total"`
+		} `json:"tiers"`
+		ColumnTotals []int `json:"column_totals"`
+		Total        int   `json:"total"`
+		Paths        []struct {
+			Path  string `json:"path"`
+			Tier  string `json:"tier"`
+			Count int    `json:"count"`
+		} `json:"paths"`
+		Types []readinessType `json:"types"`
+	} `json:"google"`
 }
 
 type readinessType struct {
@@ -70,10 +87,39 @@ func readinessSpans(root string) (map[string]string, error) {
 	k8s := fmt.Sprintf("%s: %d admitted type(s), %d awaiting a tier ruling.\n\n", d.Kubernetes.Provider, d.Kubernetes.Total, d.Kubernetes.Awaiting) +
 		typesTable(d.Kubernetes.Types)
 
+	var gcp strings.Builder
+	fmt.Fprintf(&gcp, "%s: %d resource types.\n\n| Tier", d.Google.Provider, d.Google.Total)
+	for _, s := range d.Google.Statuses {
+		fmt.Fprintf(&gcp, " | %s", s)
+	}
+	gcp.WriteString(" | Total |\n|---")
+	for range d.Google.Statuses {
+		gcp.WriteString("|---")
+	}
+	gcp.WriteString("|---|\n")
+	for _, t := range d.Google.Tiers {
+		fmt.Fprintf(&gcp, "| %s", t.Tier)
+		for _, n := range t.Counts {
+			fmt.Fprintf(&gcp, " | %d", n)
+		}
+		fmt.Fprintf(&gcp, " | %d |\n", t.Total)
+	}
+	gcp.WriteString("| Total")
+	for _, n := range d.Google.ColumnTotals {
+		fmt.Fprintf(&gcp, " | %d", n)
+	}
+	fmt.Fprintf(&gcp, " | %d |\n\n| Survey path | Tier | Types |\n|---|---|---|\n", d.Google.Total)
+	for _, p := range d.Google.Paths {
+		fmt.Fprintf(&gcp, "| %s | %s | %d |\n", p.Path, p.Tier, p.Count)
+	}
+	gcp.WriteString("\n")
+	gcp.WriteString(typesTable(d.Google.Types))
+
 	return map[string]string{
 		"tiers":     tiers.String(),
 		"types":     typesTable(d.Types),
 		"k8s-types": k8s,
+		"gcp-types": gcp.String(),
 	}, nil
 }
 

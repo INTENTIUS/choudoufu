@@ -92,6 +92,7 @@ tmp
 /find-dep-upgrades
 /floci-capability-gen
 /forkdiff-gen
+/gcp-row-gen
 /harness-gen
 /iamref-gen
 /largeset-gen
