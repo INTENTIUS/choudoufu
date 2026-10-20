@@ -102,7 +102,10 @@ estates must then be refused by name with no blob written: versioning off,
 no lifecycle rule, public access allowed, and a rule that deletes current
 records. `BREAK=1` removes the fences and waives all three with
 `allow_insecure`, and the same apply must go through and name each waiver.
-floci-az keeps none of the three settings (lex00/floci-az#8) and points
-blob calls at `core.windows.net` (lex00/floci-az#9) ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)), so it
-cannot pass there yet. It has no dated run yet, so the cell reads
+The three settings and a configurable storage suffix, which `azure_up`
+sets so the store's blob calls stay on the emulator, are served by
+floci-az since 30000b0, not yet run. It stores the settings and reads them
+back, and makes no blob versions. Resource Graph is served by floci-az since 30000b0, but the
+sweep's query uses `union`, `mv-expand` and `bag_keys`, which its KQL
+subset refuses ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads
 unproven.

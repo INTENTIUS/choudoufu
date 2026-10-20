@@ -298,21 +298,23 @@ shape.
 
 The Azure lane (#1120) runs on lex00/floci-az, a fork of floci-io/floci-az,
 pinned by digest in `live/floci-az-image` and started by `azure_up` in
-`live/smoke/lib.sh`. The pin is the fork's main at `836d528`, a JVM image
+`live/smoke/lib.sh`. The pin is the fork's main at `30000b0`, a JVM image
 for linux/amd64 and linux/arm64. Everything below was read from that
-commit's source, not measured: no scenario has booted it yet.
+commit's source and docs, not measured: no scenario has booted it yet.
 
-**Endpoints.** One port, 4577 in the container, published on a free host
-port. It serves the ARM management plane, the Entra token endpoints
-(`/{tenant}/oauth2/v2.0/token`), `/metadata/endpoints`, `/ready`, and blob
-storage both path-style (`/{account}/{container}/{blob}`) and host-style
-(`{account}.blob.localhost`). The harness starts it with TLS on: floci-az
-then answers HTTP and HTTPS on the same port, and serves the CA it
+**Endpoints.** One port, 4577 in the container, published on a host port
+`azure_up` picks. It serves the ARM management plane, the Entra token
+endpoints (`/{tenant}/oauth2/v2.0/token`), `/metadata/endpoints`, `/ready`,
+and blob storage both path-style (`/{account}/{container}/{blob}`) and
+host-style (`{account}.blob.<anything>`). The harness starts it with TLS on:
+floci-az then answers HTTP and HTTPS on the same port, and serves the CA it
 generated at `GET /_floci/tls-cert`.
 
 **Auth and aiming.** floci-az issues a token to any client id and secret,
-and accepts any bearer token on ARM. `azure_provider_env` exports the
-variables. azurerm takes `ARM_METADATA_HOSTNAME` and builds everything from
+and accepts any bearer token on ARM. A client-credentials token's `oid` is
+a name-based UUID of the client id when the directory does not hold the
+client. `azure_provider_env` exports the variables. azurerm takes
+`ARM_METADATA_HOSTNAME` and builds everything from
 `https://<host>/metadata/endpoints`. The stock azurerm backend reads a
 different variable, `ARM_METADATA_HOST`. azapi has no metadata host: it
 takes `ARM_ENVIRONMENT=custom` plus `ARM_ACTIVE_DIRECTORY_AUTHORITY_HOST`,
@@ -321,22 +323,38 @@ instance discovery off. Both providers need TLS. On Linux the harness adds
 the CA to `SSL_CERT_FILE`. On macOS Go ignores that variable, so the CA has
 to be trusted in the keychain by hand.
 
-**Gaps against what the lane needs** (lex00/floci-az#2 lists the surfaces):
+**Settings the lane turns on.** Three surfaces are opt-in in the fork, and
+`live/smoke/docker-compose.yml` sets them:
 
-| Need | floci-az at the pin |
+- `FLOCI_AZ_STORAGE_SUFFIX=localhost:<host port>` (c760e26), so
+  `/metadata/endpoints` and storage accounts' `primaryEndpoints` name the
+  emulator and the stock backend's blob calls stay on it.
+- `FLOCI_AZ_SERVICES_POLICY_EVALUATE=true` (1ecb105).
+- `FLOCI_AZ_SERVICES_RBAC_ENFORCE=true` (bb225ad), with the scenarios' own
+  client listed in `FLOCI_AZ_SERVICES_RBAC_ADMIN_PRINCIPALS`, so only a
+  second principal a fence claim signs in as is held to its assignments.
+
+**What the pin serves**, against what the lane needs. lex00/floci-az#2
+lists the surfaces; #1 and #3 to #10 are closed at this pin.
+
+| Need | floci-az at 30000b0 |
 |---|---|
-| Tags round-trip | Kept on resource groups, network, VMs, AKS, ACR, Redis, SQL and the other database servers, managed identities. Dropped on storage accounts, key vaults, managed HSMs and web apps (all in `ArmHandler`), and on API Management, Event Grid and Monitor resources. Storage account and key vault `PATCH` answer 405, and azurerm updates both with `PATCH`. |
-| Generic resources | None: a provider namespace no handler claims answers 404. An azapi type works only where floci-az has a handler. |
-| Resource Graph | Absent. No `Microsoft.ResourceGraph` route. |
-| Role assignments | Absent. Role definitions, role assignments and ABAC conditions have no route. |
-| Policy `deny` / `denyAction` | Definitions and assignments are stored. Rules are never evaluated, so nothing is denied. |
-| Blob conditional writes | `If-None-Match: *` and `If-Match` are honoured on Put Blob and Delete Blob. A create over an existing blob answers 412 `ConditionNotMet`; Azure answers 409 `BlobAlreadyExists`. ETags are unquoted UUIDs. |
+| Tags round-trip | Kept on every type #3 found dropping them, since 95f1bc9: storage accounts, key vaults, managed HSMs, web apps, API Management, Event Grid topics, Log Analytics workspaces and the two data collection types. Resource groups, network, VMs, AKS, ACR, Redis, SQL, the database servers and managed identities kept them already. Storage account and key vault `PATCH` answer 200, a `tags` object replacing the whole set. Tag keys are still stored in the case they were sent, and nothing refuses two keys that differ only by case (the third point of #10, which no commit addressed). |
+| Generic resources | A store for every provider namespace no handler declares (27e040b): `PUT`, `GET`, `HEAD`, `PATCH`, `DELETE`, keyed by id case-insensitively, keeping `tags`, `managedBy` and the other envelope fields, listed in `/resources`. Subscription-scoped ids only: a tenant-scoped id such as `/providers/Microsoft.Management/managementGroups/{name}` still answers 404, and no server-set property such as `provisioningState` is added. |
+| Tags API | Not served. `.../providers/Microsoft.Resources/tags/default` reaches the deployments handler, which answers 404 for anything but `deployments`. The two azurerm types that tag after create, `azurerm_app_service_managed_certificate` and `azurerm_subscription`, need it, and floci-az models neither type's create: no handler names `Microsoft.Web/certificates`, and `Microsoft.Subscription/aliases` is tenant-scoped. |
+| Resource Graph | `POST /providers/Microsoft.ResourceGraph/resources` over `Resources` and `ResourceContainers`, scoped by `subscriptions`, paged by `$skipToken` (df5927b). The KQL is a subset: `where`, `project`, `extend`, `take`, `top`, `order by`, `count`, `distinct`, `summarize`, with `=~` and eight scalar functions. choudoufu's sweep query (`internal/live/azsweep/client.go`) uses `union`, `mv-expand` and `bag_keys`, which the subset answers with 400 `InvalidQuery`, so a plan's sweep is still refused there. Not filed. |
+| Role assignments | Role definitions (14 built-ins with Azure's ids, and custom roles), role assignments with `condition` and `conditionVersion`, and the permissions path, at every scope (02ae4a5). With enforcement on, an ARM request whose token carries an `oid` is refused with 403 `AuthorizationFailed` unless an assignment at the target's scope or above allows the action (bb225ad). Data actions and ABAC conditions are stored and never evaluated, so the record store's read fence is not measurable here. |
+| Policy `deny` / `denyAction` | Evaluated under `evaluate: true` (1ecb105): `deny` on `PUT` and `PATCH`, `denyAction` with `delete` on `DELETE`, 403 `RequestDisallowedByPolicy`, exemptions and initiatives honoured. Fields `type`, `name`, `id`, `kind`, `location` and `tags` in any form; an alias, `count` or another function fails closed. Two limits bear on the lane: `mode: Indexed` skips only resource groups, where Azure also skips every type without tags and location, so the marker guard denies an untagged subnet that Azure lets through; and `cascadeBehaviors` is not read, so a resource-group delete is not refused for the tagged resources in it. |
+| Blob conditional writes | `If-None-Match: *` and `If-Match` are honoured on Put Blob and Delete Blob. A create over an existing blob answers 409 `BlobAlreadyExists`, as Azure does (b7464e6). ETags are quoted `"0x..."` hex, as Azure's are (8fc726b). |
 | Blob index tags | `x-ms-tags` on Put Blob, Get/Set Blob Tags and Find Blobs by Tags are served. |
-| Record store opening checks | Blob versioning, lifecycle rules and `allowBlobPublicAccess` are not kept: `blobServices/default` always answers empty properties, and `managementPolicies` has no route. |
-| Stock backend reach | `/metadata/endpoints` returns the storage suffix `core.windows.net`. The stock backend builds `https://<account>.blob.<suffix>`, so its blob calls leave the emulator for real Azure DNS. |
+| Record store opening checks | Storage accounts keep their settable properties, `allowBlobPublicAccess` defaulting to false; `blobServices/default` keeps `isVersioningEnabled` and the rest; `managementPolicies/default` answers `PUT`, `GET` and `DELETE` (071516d). The settings are stored and read back only: the data plane makes no blob versions and runs no lifecycle rule. |
+| Stock backend reach | The storage suffix is configurable (c760e26), and the certificate covers `*.blob.localhost`, `*.dfs.localhost`, `*.queue.localhost` and `*.table.localhost`. That `<account>.blob.localhost` resolves to loopback is up to the client's resolver. |
+| ARM template deployments | `Microsoft.Resources/deployments` at resource-group and subscription scope, run to completion inside the `PUT`, each resource through the emulator's own handlers, so RBAC and Policy apply to it (30000b0). Nested deployments are not served, and both shipped templates (`live/azure/estate-boundary.json`, `live/azure/estate-grant.json`) assign through one, so the scenarios still install them with direct ARM calls. |
 
 Code in choudoufu that needs one of these waits for the fork (emulator
-policy, `live/ADDING-A-PLATFORM.md`).
+policy, `live/ADDING-A-PLATFORM.md`). Four gaps above are not filed on
+the fork yet: tenant-scoped generic resources, the Tags API, the sweep
+query's operators, and `Indexed` on untaggable types.
 
 ## Related
 

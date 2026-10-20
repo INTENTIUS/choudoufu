@@ -18,10 +18,13 @@ The Azure scenarios run against lex00/floci-az, pinned by digest in
 shape is the AWS one: a verdict line per step, exit 0 only when every
 claim held, and `BREAK=1` to manufacture the fault.
 
-floci-az at the pin lacks several things the claims need: Resource Graph,
-role assignments, Policy evaluation, and the storage settings the record
-store checks. [`live/FLOCI.md`](../FLOCI.md#azure-floci-az) lists each one.
-Code that needs a missing capability waits for the fork
+Since `30000b0`, floci-az serves what the claims were waiting on: Resource
+Graph, role assignments with enforcement, Policy `deny` and `denyAction`
+evaluation, and the storage settings the record store checks. None of it
+has run yet. One gap still stops every plan: the sweep's query uses
+`union`, `mv-expand` and `bag_keys`, which floci-az's KQL subset refuses.
+[`live/FLOCI.md`](../FLOCI.md#azure-floci-az) lists each surface and its
+limits. Code that needs a missing capability waits for the fork
 ([`live/ADDING-A-PLATFORM.md`](../ADDING-A-PLATFORM.md#emulator-policy)).
 
 ## Four drafts
@@ -56,9 +59,9 @@ written. Its `BREAK=1` removes the fences and waives all three settings,
 and the same apply must go through naming each waiver.
 
 Each draft's header says what floci-az cannot answer today. Against the
-pinned image, claims 7 and 1 stop at "Microsoft.ResourceGraph not
-registered", claim 13's main arm cannot see a deny, and claim 29 is refused
-on `blob_versioning` against the correct account.
+pinned image, read from its source and not run, claims 7, 1, 13 and 29
+reach a plan whose sweep floci-az answers with 400 `InvalidQuery`. Claim
+13's denies and claim 29's storage settings are served there now.
 
 ## The gauntlet lane
 
@@ -71,10 +74,10 @@ One estate is in it, `reference-azure`, a hand-written shape kept in this
 repository (`live/e2e/reference-azure/`): a resource group, a VNet with a
 subnet, a network security group with one rule, a storage account, a
 user-assigned identity, a public IP, two `count` identities, and one
-`azapi_resource` identity. It is built and has not been run. floci-az drops
-tags on storage accounts, so the storage account fails every stage that
-writes its marker until the fork keeps them, and a choudoufu plan's sweep
-is refused for want of Resource Graph before that.
+`azapi_resource` identity. It is built and has not been run. floci-az keeps
+tags on storage accounts and answers their `PATCH` since `30000b0`, but a
+choudoufu plan's sweep is refused there, its query being outside the
+emulator's KQL subset.
 
 Claim 6 (stock in, stock out) has no Azure scenario. Its intended proof is
 `reference-azure`'s `cold_deploy` and `migrate` stages.

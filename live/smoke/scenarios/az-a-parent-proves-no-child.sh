@@ -15,8 +15,10 @@
 # the plan instead proposes the two creates, because without it the
 # creates would read the same if every plan proposed them.
 #
-# Not yet run, so its cell reads unproven. It waits on lex00/floci-az#4: a
-# plan's sweep is a Resource Graph query, which floci-az does not serve.
+# Not yet run, so its cell reads unproven. It waits on the emulator:
+# a plan's sweep is a Resource Graph query. floci-az serves Resource Graph
+# since 30000b0, but its KQL subset refuses the query's union, mv-expand
+# and bag_keys with 400 InvalidQuery (live/FLOCI.md, Azure).
 # That floci-az serves security rules as children of a network security
 # group is assumed from live/FLOCI.md's network row, not confirmed.
 

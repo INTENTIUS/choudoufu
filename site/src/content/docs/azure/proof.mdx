@@ -11,7 +11,7 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 ## Claims you can run
 
-Four `az-*` drafts cover claims 7, 1, 13 and 29 on the floci-az emulator. None has run. The emulator has no Resource Graph or Policy yet ([FLOCI.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md#azure-floci-az)).
+Four `az-*` drafts cover claims 7, 1, 13 and 29 on the floci-az emulator. None has run. The emulator serves Resource Graph, Policy and role assignments since `30000b0`, but its query language refuses the sweep's query ([FLOCI.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md#azure-floci-az)).
 
 ## Where the numbers are
 
@@ -25,4 +25,4 @@ Four `az-*` drafts cover claims 7, 1, 13 and 29 on the floci-az emulator. None h
 just smoke az-identity-is-a-tag
 ```
 
-Against today's emulator it stops at `Microsoft.ResourceGraph not registered`.
+Against today's emulator it stops at the sweep, which floci-az answers `400 InvalidQuery`.

@@ -594,6 +594,6 @@ fi
 ( tofu_a "$GREEN" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  (the greenfield estate's destroy failed; the container is removed on exit)"
 
 gauntlet_stage strict not_run "not yet written for the azure lane (#1120)"
-gauntlet_stage no_local_state not_run "not yet written for the azure lane (#1120): the plan with no local state reaches the Resource Graph sweep, which floci-az does not serve"
+gauntlet_stage no_local_state not_run "not yet written for the azure lane (#1120): the plan with no local state reaches the Resource Graph sweep, whose query floci-az serves since 30000b0 but its KQL subset refuses"
 
 gauntlet_end

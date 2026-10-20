@@ -69,7 +69,9 @@ into the estate's record, and with the cache deleted the plan must read
 `BREAK=1` puts the same block in a root with no live block, so no record
 store exists to hold the minted name, and `live-check` must refuse
 `azurerm_management_group.minted` by name ("Unmarked apply of a
-marker-only resource", the name omitted). floci-az has no handler for
-`Microsoft.Management` (lex00/floci-az#7) and no Resource Graph
-(lex00/floci-az#4); the `BREAK=1` arm reads the configuration offline and
-needs neither. It has no dated run yet, so the cell reads unproven.
+marker-only resource", the name omitted). floci-az's generic ARM store,
+served since 30000b0, keeps subscription-scoped ids only, so a management
+group's tenant-scoped id still answers 404 there, and resource Graph is served by floci-az since 30000b0, but the
+sweep's query uses `union`, `mv-expand` and `bag_keys`, which its KQL
+subset refuses ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)); the
+`BREAK=1` arm reads the configuration offline and needs neither. It has no dated run yet, so the cell reads unproven.

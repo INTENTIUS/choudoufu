@@ -59,4 +59,4 @@ hits, so resources outside the estate's projects should cost nothing.
 
 ## On Azure
 
-Open. Nothing has run on Azure yet. A plan's sweep is one Resource Graph query per subscription, filtered on the estate's tag; nothing counts it, and floci-az does not serve Resource Graph.
+Open. Nothing has run on Azure yet. A plan's sweep is one Resource Graph query per subscription, filtered on the estate's tag; nothing counts it. Resource Graph is served by floci-az since 30000b0, not yet run, and its KQL subset refuses the sweep's `union`, `mv-expand` and `bag_keys`.

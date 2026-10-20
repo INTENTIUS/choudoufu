@@ -15,19 +15,19 @@
 #
 # Written for GitHub issue #1120 (unit 15). Not yet run, so its cell reads
 # unproven until the maintainer runs both arms on floci-az and the evidence
-# file lands. It waits on lex00/floci-az#8 (blob service properties and
-# lifecycle rules not kept), #9 (the storage suffix), #3 (tags dropped
-# on storage accounts) and #4 (no Resource Graph, which every plan's sweep
-# reads).
+# file lands. Blob service properties, the lifecycle policy and
+# allowBlobPublicAccess (071516d), tags on storage accounts (95f1bc9) and a
+# configurable storage suffix (c760e26), which azure_up sets so the store's
+# blob calls stay on the emulator, are served by floci-az since 30000b0, not
+# yet run.
 #
-# What floci-az cannot answer today (live/FLOCI.md, Azure): blob versioning,
-# lifecycle rules and allowBlobPublicAccess are not kept (blobServices
-# answers empty properties and managementPolicies has no route), so step 1
-# is expected to be refused on blob_versioning against the correct account;
-# and /metadata/endpoints returns the storage suffix core.windows.net, so
-# the store's blob calls leave the emulator until the fork answers a local
-# suffix. ABAC conditions and role assignments have no route either, so the
-# read fence (live/azure/record-store-abac.condition) is not measured here.
+# What floci-az cannot answer today (live/FLOCI.md, Azure): it stores the
+# three settings and reads them back, but makes no blob versions and runs
+# no lifecycle rule; every plan's sweep is a Resource Graph query, and its
+# KQL subset refuses the query's union, mv-expand and bag_keys; and it
+# stores ABAC conditions on role assignments without evaluating them, so
+# the read fence (live/azure/record-store-abac.condition) is not measured
+# here.
 
 SMOKE_WORK="$SMOKE_WORKROOT/az-records-in-a-storage-account"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

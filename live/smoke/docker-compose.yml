@@ -65,6 +65,17 @@ services:
   # FLOCI_AZ_PARITY=azure turns on Azure's resource-group semantics (re-PUT
   # answers 200, a group DELETE deletes its resources and is polled), which
   # is what the lane is measured against; the emulator's default is compat.
+  #
+  # Three settings the fork made opt-in, read from its source at 30000b0
+  # (live/FLOCI.md, Azure). FLOCI_AZ_STORAGE_SUFFIX (c760e26) keeps the
+  # stock azurerm backend's and record_store "azurerm"'s blob calls on this
+  # container; azure_up sets it to localhost:<host port>. Policy evaluation
+  # (1ecb105) makes deny and denyAction assignments refuse, which the fence
+  # claims measure; with no assignment it changes nothing. RBAC enforcement
+  # (bb225ad) holds a caller whose token carries an oid to its role
+  # assignments; azure_up lists the scenarios' own principal as an admin, so
+  # only a principal a fence claim signs in as is held. These variables are
+  # empty outside an azure_up, which is why they take defaults and not :?.
   floci-az:
     image: ${FLOCI_AZ_IMAGE:?lib.sh exports this from live/floci-az-image}
     profiles: ["azure"]
@@ -72,6 +83,10 @@ services:
       FLOCI_AZ_TLS_ENABLED: "true"
       FLOCI_AZ_STORAGE_MODE: memory
       FLOCI_AZ_PARITY: ${FLOCI_AZ_PARITY:-azure}
+      FLOCI_AZ_STORAGE_SUFFIX: ${FLOCI_AZ_STORAGE_SUFFIX:-}
+      FLOCI_AZ_SERVICES_POLICY_EVALUATE: "true"
+      FLOCI_AZ_SERVICES_RBAC_ENFORCE: "true"
+      FLOCI_AZ_SERVICES_RBAC_ADMIN_PRINCIPALS: ${FLOCI_AZ_RBAC_ADMIN_PRINCIPALS:-}
     ports:
       - "127.0.0.1:${FLOCI_AZ_PORT:-0}:4577"
 

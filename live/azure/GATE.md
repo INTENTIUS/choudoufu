@@ -7,10 +7,12 @@ resource's tags, so the Azure fence is drawn around resource groups instead
 (ruled on [#1122](https://github.com/INTENTIUS/choudoufu/issues/1122)).
 This page says what that fence holds and what it does not.
 
-None of it is measured. floci-az has no role assignments and evaluates no
-Policy rule ([`live/FLOCI.md`](../FLOCI.md#azure-floci-az)), so every
-statement here comes from Azure's documentation until the templates are
-applied on real Azure.
+None of it is measured, so every statement here comes from Azure's
+documentation. floci-az serves role assignments with enforcement and
+evaluates Policy `deny` and `denyAction` since `30000b0`, not yet run. It
+approximates both: ABAC conditions and data actions are never evaluated,
+`mode: Indexed` skips only resource groups, and `cascadeBehaviors` is not
+read ([`live/FLOCI.md`](../FLOCI.md#azure-floci-az)).
 
 ## An estate is a set of resource groups
 

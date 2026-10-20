@@ -83,4 +83,4 @@ nothing about that is GCP-specific.
 
 ## On Azure
 
-Open. The intended proof is the gauntlet's `plan_approval` stage on `reference-azure`, which is built and has not been run. floci-az evaluates no Policy, so the server's own refusal at apply time cannot be shown there.
+Open. The intended proof is the gauntlet's `plan_approval` stage on `reference-azure`, which is built and has not been run. floci-az evaluates Policy `deny` since 30000b0 once `FLOCI_AZ_SERVICES_POLICY_EVALUATE` is set, which the smoke compose service does and `gauntlet_floci_az_up` does not yet, so the server's own refusal at apply time is not shown by that stage; not yet run.
