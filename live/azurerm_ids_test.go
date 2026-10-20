@@ -19,13 +19,20 @@ import (
 // is a ruling, and this constant is where it shows up in a diff.
 const azurermIDsPinnedVersion = "5.10.0"
 
+// azurermRoutes is every route a row may record (#1120 unit 17,
+// internal/live/substrate's AzurermRoute* constants).
+var azurermRoutes = map[string]bool{
+	"identity-schema": true, "template-fallback": true, "template": true,
+	"parent-id": true, "withheld": true, "unmapped": true,
+}
+
 // TestAzurermIDsArtifactIsWhole reads live/azurerm-ids.json, the ARM id
 // table tools/azurerm-id-gen generates from azurerm's id parsers (#1122,
 // epic #1120), and checks what can be checked without the provider source:
 // it is pinned to the lane's version and a commit, its rows are sorted and
-// unique, every row has one of the four classes, a mapped row has
-// components and an unmapped one a reason, and the headline counts are the
-// rows' own. The regeneration check that needs the source is
+// unique, every row has one of the four classes and one of the six routes,
+// a mapped row has components and an unmapped one a reason, and the
+// headline counts are the rows' own. The regeneration check that needs the source is
 // TestRegeneratingFromThePinReproducesTheArtifact in the generator.
 func TestAzurermIDsArtifactIsWhole(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(repoRoot(t), "live", "azurerm-ids.json"))
@@ -45,6 +52,7 @@ func TestAzurermIDsArtifactIsWhole(t *testing.T) {
 			TemplateClass string            `json:"template_class"`
 			Components    []json.RawMessage `json:"components"`
 			Reason        string            `json:"reason"`
+			Route         string            `json:"route"`
 		} `json:"types"`
 	}
 	if err := json.Unmarshal(data, &a); err != nil {
@@ -62,6 +70,10 @@ func TestAzurermIDsArtifactIsWhole(t *testing.T) {
 	for _, r := range a.Types {
 		names = append(names, r.Type)
 		counts[r.Class]++
+		counts["route/"+r.Route]++
+		if !azurermRoutes[r.Route] {
+			t.Errorf("%s has route %q, not one of the six (#1120 unit 17)", r.Type, r.Route)
+		}
 		class := r.Class
 		if class == "identity-schema" {
 			counts["identity-schema/"+r.TemplateClass]++

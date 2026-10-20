@@ -146,15 +146,26 @@ func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 	}
 	full := schema
 	schema, cloudAttrs := withoutCloudIdentityAttrs(schema, family.CloudIdentityAttrs)
+	// The family's template exists and it will not offer it (GitHub issue
+	// #1120 unit 17): wherever this route does not admit the type itself,
+	// that is the refusal, naming the segment, because it is the reason
+	// the type is not admitted and the route's own wording ("no identity
+	// schema", "nothing supplies storage_account_name") would send a
+	// reader after the wrong thing.
+	withheld := func() string {
+		return fmt.Sprintf(" %s %s.", typeName, family.TemplateWithheld)
+	}
 	switch {
+	case schema.IdentitySchema == nil && family.TemplateWithheld != "":
+		return TypeIdentity{}, withheld()
 	case schema.IdentitySchema == nil:
 		return TypeIdentity{}, fmt.Sprintf(" The provider serves no resource identity schema for %s, so nothing but a table entry can say what identifies one.", typeName)
 	case schema.Block == nil:
 		return TypeIdentity{}, fmt.Sprintf(" The provider serves no configuration schema for %s, so nothing says which of its arguments an identity attribute is read from.", typeName)
 	}
 
-	d, admitted := derivableOne(schemas, typeName, schema, signal)
-	if (!admitted || len(d.IdentityAttrs) == 0) && family.ARMTemplate != nil {
+	d, admitted := schemaRouteDerives(schemas, typeName, schema, signal)
+	if !admitted && family.ARMTemplate != nil {
 		// The identity schema names something no argument supplies -
 		// azurerm_storage_container's storage_account_name, which the
 		// configuration states as the account's ARM id, storage_account_id
@@ -165,7 +176,10 @@ func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 		ti, _ := armTemplateEntry(typeName, *family.ARMTemplate, full, cloudAttrs, AdmitSchema)
 		return ti, ""
 	}
-	if !admitted || len(d.IdentityAttrs) == 0 {
+	if !admitted && family.TemplateWithheld != "" {
+		return TypeIdentity{}, withheld()
+	}
+	if !admitted {
 		candidates, _ := identityCandidates(schemas, typeName, schema)
 		required, _ := identityAttrs(schema.IdentitySchema)
 		switch {
@@ -285,6 +299,44 @@ func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 		Synthesized:        true,
 		Admits:             d.Admits,
 	}, ""
+}
+
+// schemaRouteDerives is the identity-schema route's own admission test,
+// the one [synthesizeTypeIdentity] decides the family's ARM template
+// fallback on (GitHub issue #1120 unit 13): the derivation rules admit the
+// type, through the schemas alone or this configuration's signal, and name
+// at least one identity attribute. schema is the type's schema after
+// [withoutCloudIdentityAttrs].
+func schemaRouteDerives(schemas map[string]providers.Schema, typeName string, schema providers.Schema, signal *ConfigSignal) (DerivableType, bool) {
+	d, ok := derivableOne(schemas, typeName, schema, signal)
+	if !ok || len(d.IdentityAttrs) == 0 {
+		return DerivableType{}, false
+	}
+	return d, true
+}
+
+// IdentitySchemaRouteAdmits reports whether the identity-schema route
+// admits typeName on the provider's schemas alone, with no configuration
+// to read, given the identity attributes the family's provider fills in
+// from its provider block (substrate.SynthesizedIdentity's
+// CloudIdentityAttrs). It is the question tools/azurerm-id-gen records as
+// each azurerm type's route in live/azurerm-ids.json (GitHub issue #1120
+// unit 17): a type it admits keeps that route, and one it refuses falls to
+// the ARM id template where the family has one. It answers false where
+// [synthesizeTypeIdentity] refuses an admitted type for an identity
+// attribute that is neither named nor context, since that refusal has no
+// fallback either.
+func IdentitySchemaRouteAdmits(schemas map[string]providers.Schema, typeName string, cloud map[string]string) bool {
+	schema, ok := schemas[typeName]
+	if !ok {
+		return false
+	}
+	schema, _ = withoutCloudIdentityAttrs(schema, cloud)
+	if schema.IdentitySchema == nil || schema.Block == nil {
+		return false
+	}
+	d, admitted := schemaRouteDerives(schemas, typeName, schema, nil)
+	return admitted && len(notContext(schemas, typeName, schema, d.Context)) == 0
 }
 
 // noSchemasRefusal is the reason [synthesizeTypeIdentity] gives when it was

@@ -12,6 +12,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/providers"
 )
 
 // This file is the azurerm half of the Azure family's admission (GitHub
@@ -58,11 +61,49 @@ type azurermIDsFile struct {
 }
 
 type azurermIDType struct {
-	Type          string               `json:"type"`
-	Class         string               `json:"class"`
-	TemplateClass string               `json:"template_class"`
-	Template      string               `json:"template"`
-	Components    []azurermIDComponent `json:"components"`
+	Type           string               `json:"type"`
+	Class          string               `json:"class"`
+	TemplateClass  string               `json:"template_class"`
+	Template       string               `json:"template"`
+	Components     []azurermIDComponent `json:"components"`
+	IdentitySchema []string             `json:"identity_schema"`
+	Contract       *azurermContract     `json:"identity_contract"`
+	// Route is the generator's record of the route this package and the
+	// identity-schema route give the type (#1120 unit 17), one of the
+	// AzurermRoute* constants. Admission does not read it; the guards
+	// below decide, and TestAzurermRoutesAreTheGuardsVerdicts holds the
+	// record to them.
+	Route string `json:"route"`
+}
+
+// azurermContract is azurerm's own statement, in the resource identity
+// acceptance test it generates for a type
+// (internal/services/<service>/<type>_resource_identity_gen_test.go), of
+// where each identity attribute's value comes from (#1120 unit 17). The
+// test fails unless every identity field is checked
+// (ExpectAllIdentityFieldsAreChecked), so it covers the whole identity.
+type azurermContract struct {
+	Source     string                         `json:"source"`
+	Attributes map[string]azurermContractAttr `json:"attributes"`
+}
+
+// azurermContractAttr is one identity attribute's check, exactly one field
+// set:
+//
+//   - Argument: ExpectIdentityValueMatchesStateAtPath, the value is that
+//     argument's.
+//   - Within: ExpectStateContainsIdentityValueAtPath, the value is a piece
+//     of that argument's, which holds an ARM id.
+//   - ProviderSubscription: ExpectIdentityValue with the test account's
+//     primary subscription, the one the provider block targets.
+//   - Constant: ExpectIdentityValue with a literal (a DNS record type).
+//   - Other: any other check, as written; nothing here can satisfy it.
+type azurermContractAttr struct {
+	Argument             string `json:"argument,omitempty"`
+	Within               string `json:"within,omitempty"`
+	ProviderSubscription bool   `json:"provider_subscription,omitempty"`
+	Constant             string `json:"constant,omitempty"`
+	Other                string `json:"other,omitempty"`
 }
 
 // templateClass is what the row's template alone classifies as: the class
@@ -86,7 +127,32 @@ type azurermIDComponent struct {
 	Attrs   []string `json:"attrs"`
 	Cloud   string   `json:"cloud"`
 	ARMID   bool     `json:"arm_id"`
+	Segment string   `json:"segment"`
 }
+
+// The routes the generator records per type (#1120 unit 17), the field
+// tools/readiness-gen reads as "route".
+const (
+	// AzurermRouteIdentitySchema: the provider's resource identity schema
+	// admits the type on its own (internal/live/identity's
+	// IdentitySchemaRouteAdmits), and its template, where it agrees, is
+	// the rendered id.
+	AzurermRouteIdentitySchema = "identity-schema"
+	// AzurermRouteTemplateFallback: the type serves an identity schema the
+	// route cannot satisfy from configuration, and its ARM id template,
+	// which passes every guard here including azurerm's own identity test,
+	// admits it.
+	AzurermRouteTemplateFallback = "template-fallback"
+	// AzurermRouteTemplate and AzurermRouteParentID: no identity schema,
+	// admitted by the template alone.
+	AzurermRouteTemplate = azurermClassTemplate
+	AzurermRouteParentID = azurermClassParentID
+	// AzurermRouteWithheld: the type has a template and a guard refuses
+	// it, and nothing else admits the type. Refused by name.
+	AzurermRouteWithheld = "withheld"
+	// AzurermRouteUnmapped: no template and no identity-schema admission.
+	AzurermRouteUnmapped = azurermClassUnmapped
+)
 
 // azurermIDs is the parsed artifact: every row by type, and the reason a
 // template-bearing row is withheld, by type.
@@ -132,15 +198,183 @@ func parseAzurermIDs(raw []byte) (*azurermIDs, error) {
 		if !t.templateBearing() {
 			continue
 		}
+		if why := azurermSegmentProblem(t); why != "" {
+			out.withheld[t.Type] = why
+			continue
+		}
 		if why := azurermRowShapeProblem(t); why != "" {
 			out.withheld[t.Type] = why
 			continue
 		}
 		if why := azurermSharedTemplateProblem(t, byTemplate[normalizedARMTemplate(t.Template)]); why != "" {
 			out.withheld[t.Type] = why
+			continue
+		}
+		if t.Class == azurermClassIdentitySchema {
+			if why := azurermContractProblem(t); why != "" {
+				out.withheld[t.Type] = why
+			}
 		}
 	}
 	return out, nil
+}
+
+// azurermSegmentProblem is the first guard (#1120 unit 17): every value
+// segment of the template has to be resolvable from this configuration
+// alone, statically and exactly, before anything else about the row is
+// worth asking. A segment qualifies in one of three ways, and in no other:
+//
+//   - one configuration argument whose value is the segment's value;
+//   - the provider block's subscription ([azurermCloudSubscription]),
+//     answered and refused by name as an AWS region is;
+//   - at the very start of the id, one argument holding a parent's or a
+//     scope's whole ARM id, which supplies every segment up to the one it
+//     is recorded against, verbatim. Nothing is ever parsed out of such an
+//     argument here: the parent's id is the prefix, as written.
+//
+// So a segment that reads several arguments, reads none, is a provider
+// value this family does not answer, or takes a whole ARM id after the id
+// has begun (the id would be two ids joined, not one) is refused, by the
+// segment's name. azurerm_application_insights_analytics_item at 5.10.0 is
+// the last of these: its {scopePath} was mapped to the scope argument,
+// whose value is "shared" or "user", not an id.
+func azurermSegmentProblem(t azurermIDType) string {
+	for i, c := range t.Components {
+		switch {
+		case c.Cloud != "":
+			if c.Cloud != azurermCloudSubscription || len(c.Attrs) > 0 {
+				return fmt.Sprintf("segment {%s} is the provider configuration's %q, which this family does not answer", c.Segment, c.Cloud)
+			}
+		case len(c.Attrs) == 0:
+			if c.Literal == "" {
+				return fmt.Sprintf("segment {%s} names no argument and no provider configuration value, so nothing in a configuration supplies it", c.Segment)
+			}
+		case len(c.Attrs) > 1:
+			return fmt.Sprintf("segment {%s} reads whichever of %s is set, so which argument names the object is a choice this table would be guessing", c.Segment, strings.Join(c.Attrs, ", "))
+		case c.ARMID && i > 0:
+			return fmt.Sprintf("segment {%s} is read from %s, an argument holding a whole ARM id, after the id has begun, so the id would be two ids joined rather than one", c.Segment, c.Attrs[0])
+		}
+	}
+	return ""
+}
+
+// azurermContractProblem is the last guard, for a type that serves a
+// resource identity schema (#1120 unit 17). Such a type's template is
+// rendered beside, or in place of, the identity the provider imports by,
+// so it has to read each identity attribute from exactly where azurerm's
+// own identity test says the provider reads it ([azurermContract]): a
+// segment reading an argument, the argument the test matches that
+// attribute to; a leading ARM id argument, the argument the test finds the
+// attributes inside; the provider's subscription, an attribute the test
+// expects to be the provider's. And every attribute the test checks has
+// to be read by some segment. A type azurerm publishes no such test for is
+// withheld too, because then nothing outside this table says the template
+// is exact. This is the condition the template fallback was approved on:
+// a storage_account_name read out of storage_account_id is admitted
+// because azurerm_storage_container's test states it is in there, not
+// because the names look alike.
+func azurermContractProblem(t azurermIDType) string {
+	if t.Contract == nil || len(t.Contract.Attributes) == 0 {
+		return "azurerm publishes no resource identity test for it, so nothing outside this table says its ARM id template reads its identity attributes from configuration exactly"
+	}
+	attrs := t.Contract.Attributes
+	for _, name := range t.IdentitySchema {
+		if _, ok := attrs[name]; !ok {
+			return fmt.Sprintf("azurerm's identity test (%s) does not say where identity attribute %s comes from", t.Contract.Source, name)
+		}
+	}
+	names := make([]string, 0, len(attrs))
+	for name := range attrs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	covered := map[string]bool{}
+	for _, c := range t.Components {
+		switch {
+		case c.Cloud != "":
+			n := 0
+			for _, name := range names {
+				if attrs[name].ProviderSubscription {
+					covered[name] = true
+					n++
+				}
+			}
+			if n == 0 {
+				return fmt.Sprintf("segment {%s} is the provider configuration's subscription, and azurerm's identity test (%s) expects no identity attribute to be", c.Segment, t.Contract.Source)
+			}
+		case len(c.Attrs) == 1 && c.ARMID:
+			n := 0
+			for _, name := range names {
+				if strings.EqualFold(attrs[name].Within, c.Attrs[0]) {
+					covered[name] = true
+					n++
+				}
+			}
+			if n == 0 {
+				return fmt.Sprintf("segments up to {%s} are read whole from %s, and azurerm's identity test (%s) finds no identity attribute inside it", c.Segment, c.Attrs[0], t.Contract.Source)
+			}
+		case len(c.Attrs) == 1:
+			var reads []string
+			for _, name := range names {
+				if strings.EqualFold(attrs[name].Argument, c.Attrs[0]) {
+					reads = append(reads, name)
+				}
+			}
+			if len(reads) != 1 {
+				return fmt.Sprintf("segment {%s} reads %s, and azurerm's identity test (%s) matches %d identity attributes to that argument, not one", c.Segment, c.Attrs[0], t.Contract.Source, len(reads))
+			}
+			if covered[reads[0]] {
+				return fmt.Sprintf("segment {%s} reads %s, identity attribute %s, a second time", c.Segment, c.Attrs[0], reads[0])
+			}
+			covered[reads[0]] = true
+		}
+	}
+	leadingID := len(t.Components) > 0 && t.Components[0].ARMID
+	for _, name := range names {
+		if covered[name] {
+			continue
+		}
+		a := attrs[name]
+		switch {
+		case a.ProviderSubscription && leadingID:
+			// The parent's id carries its own subscription, which the test
+			// asserts is the provider's.
+		case a.Constant != "" && azurermTemplateHasLiteral(t, a.Constant):
+		default:
+			return fmt.Sprintf("identity attribute %s is read by no segment of %s, where azurerm's identity test (%s) reads it from %s", name, t.Template, t.Contract.Source, a.describe())
+		}
+	}
+	return ""
+}
+
+// azurermTemplateHasLiteral reports whether one of the row's literal
+// segments is value, compared as ARM compares it.
+func azurermTemplateHasLiteral(t azurermIDType, value string) bool {
+	for _, c := range t.Components {
+		if len(c.Attrs) > 0 || c.Cloud != "" {
+			continue
+		}
+		for _, seg := range strings.Split(c.Literal, "/") {
+			if strings.EqualFold(seg, value) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (a azurermContractAttr) describe() string {
+	switch {
+	case a.Argument != "":
+		return "argument " + a.Argument
+	case a.Within != "":
+		return "inside argument " + a.Within
+	case a.ProviderSubscription:
+		return "the provider's subscription"
+	case a.Constant != "":
+		return fmt.Sprintf("the constant %q", a.Constant)
+	}
+	return a.Other
 }
 
 // normalizedARMTemplate is a template with every value segment's name
@@ -242,8 +476,9 @@ func azurermRowShapeProblem(t azurermIDType) string {
 //   - A type the artifact classes "template" (every segment mapped to an
 //     argument or to the subscription) or "parent-id" (a leading run of
 //     segments supplied by an argument holding a parent's or a scope's ARM
-//     id), that passes the guards above: the row's ARM id template as
-//     identity components.
+//     id), that passes the guards above and whose every argument the
+//     served schema lets a configuration set ([azurermServedSchemaProblem]):
+//     the row's ARM id template as identity components.
 //   - Every other azurerm type: the identity-schema route
 //     ([SynthesizedIdentity.FromIdentitySchema]), told the one thing it
 //     cannot read from the schemas, that an identity attribute named
@@ -251,12 +486,15 @@ func azurermRowShapeProblem(t azurermIDType) string {
 //     configuration's subscription ([azurermCloudIdentityAttrs], #1120 unit
 //     13), and handed the row's template where it has one that passes the
 //     guards. #1122 rules that the 196 types serving a resource identity
-//     schema keep that route; an "unmapped" or withheld type with none gets
-//     the route's refusal, which names the type ("serves no resource
-//     identity schema"), and so lint's unadmitted-type, as an AWS type with
-//     no row and no identity schema does. Never a guess from
+//     schema keep that route; an "unmapped" type with none gets the
+//     route's refusal, which names the type ("serves no resource identity
+//     schema"), and so lint's unadmitted-type, as an AWS type with no row
+//     and no identity schema does. A withheld template goes to the route
+//     as [SynthesizedIdentity.TemplateWithheld] and is the route's refusal
+//     wherever the route does not admit the type itself, so the refusal
+//     names the segment (#1120 unit 17). Never a guess from
 //     resource_group_name and name.
-func azurermAdmits(typeName string) (SynthesizedIdentity, bool) {
+func azurermAdmits(typeName string, schema providers.Schema) (SynthesizedIdentity, bool) {
 	route := SynthesizedIdentity{
 		FromIdentitySchema: true,
 		NonAWSProvider:     true,
@@ -270,7 +508,12 @@ func azurermAdmits(typeName string) (SynthesizedIdentity, bool) {
 	if !ok || !row.templateBearing() {
 		return route, true
 	}
-	if _, withheld := tab.withheld[typeName]; withheld {
+	if why, withheld := tab.withheld[typeName]; withheld {
+		route.TemplateWithheld = fmt.Sprintf("its ARM id template %s is withheld: %s", row.Template, why)
+		return route, true
+	}
+	if why := azurermServedSchemaProblem(row, schema); why != "" {
+		route.TemplateWithheld = fmt.Sprintf("its ARM id template %s is withheld: %s", row.Template, why)
 		return route, true
 	}
 	synth := azurermTemplate(row)
@@ -279,6 +522,28 @@ func azurermAdmits(typeName string) (SynthesizedIdentity, bool) {
 		return route, true
 	}
 	return synth, true
+}
+
+// azurermServedSchemaProblem is the segment guard's other half, the one
+// that needs the schema of the provider actually in use rather than the
+// pinned one the table was generated from (#1120 unit 17): every argument
+// a segment reads has to be one that provider declares and lets a
+// configuration set. An argument a later azurerm dropped, or made
+// computed-only, is a segment no configuration can supply, refused here by
+// name rather than left for each instance to fail on.
+func azurermServedSchemaProblem(row azurermIDType, schema providers.Schema) string {
+	for _, c := range row.Components {
+		for _, arg := range c.Attrs {
+			var a *configschema.Attribute
+			if schema.Block != nil {
+				a = schema.Block.Attributes[arg]
+			}
+			if a == nil || !(a.Required || a.Optional) {
+				return fmt.Sprintf("segment {%s} reads %s, which the %s schema this provider serves does not declare as an argument a configuration sets", c.Segment, arg, row.Type)
+			}
+		}
+	}
+	return ""
 }
 
 // azurermCloudIdentityAttrs is the azurerm provider's answer to the
@@ -291,6 +556,27 @@ func azurermAdmits(typeName string) (SynthesizedIdentity, bool) {
 // region is.
 func azurermCloudIdentityAttrs() map[string]string {
 	return map[string]string{"subscription_id": azurermCloudSubscription}
+}
+
+// AzurermCloudIdentityAttrs is [azurermCloudIdentityAttrs] for
+// tools/azurerm-id-gen, which asks the identity-schema route the same
+// question this family does when it records each type's route (#1120 unit
+// 17).
+func AzurermCloudIdentityAttrs() map[string]string {
+	return azurermCloudIdentityAttrs()
+}
+
+// AzurermWithheldIn is the guards above run over an artifact that is not
+// (yet) the embedded one: every template-bearing type in raw they refuse,
+// with the reason. tools/azurerm-id-gen calls it on the artifact it is
+// writing, so the route it records for a withheld row is this package's
+// verdict rather than a copy of its rules (#1120 unit 17).
+func AzurermWithheldIn(raw []byte) (map[string]string, error) {
+	tab, err := parseAzurermIDs(raw)
+	if err != nil {
+		return nil, err
+	}
+	return tab.withheld, nil
 }
 
 // azurermTemplate is a row's ARM id template as a synthesized identity.

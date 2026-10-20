@@ -106,10 +106,10 @@ hashicorp/azurerm 5.10.0: 1106 resource types.
 | Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
 |---|---|---|---|---|---|---|---|
 | marker-carried | 354 | 0 | 0 | 33 | 0 | 0 | 387 |
-| declaration-carried | 491 | 0 | 0 | 0 | 0 | 0 | 491 |
-| record-carried | 0 | 0 | 0 | 228 | 0 | 0 | 228 |
+| declaration-carried | 489 | 0 | 0 | 0 | 0 | 0 | 489 |
+| record-carried | 0 | 0 | 0 | 230 | 0 | 0 | 230 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Total | 845 | 0 | 0 | 261 | 0 | 0 | 1106 |
+| Total | 843 | 0 | 0 | 263 | 0 | 0 | 1106 |
 
 azure/azapi 2.13.0: 3397 ARM resource types declared through azapi_resource.
 
@@ -128,8 +128,8 @@ The fence for azurerm, by tier and by where the type lives:
 | Tier | resource-group | from-argument | subscription | tenant | unknown | What Policy adds to the group RBAC |
 |---|---|---|---|---|---|---|
 | marker-carried | 375 | 1 | 1 | 3 | 7 | the deny on a write lacking or changing tofu-estate, and the denyAction on deleting a tagged resource |
-| declaration-carried | 450 | 21 | 12 | 8 | 0 | nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen |
-| record-carried | 169 | 20 | 5 | 3 | 31 | nothing, and the type is not admitted |
+| declaration-carried | 448 | 21 | 12 | 8 | 0 | nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen |
+| record-carried | 171 | 20 | 5 | 3 | 31 | nothing, and the type is not admitted |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | not admitted |
 
 | Scope | What the estate's group RBAC reaches |
@@ -299,6 +299,8 @@ The azurerm types short of in-contract:
 | `azurerm_nat_gateway_public_ip_association` | record-carried | needs-evidence | 1 |
 | `azurerm_nat_gateway_public_ip_prefix_association` | record-carried | needs-evidence | 1 |
 | `azurerm_netapp_account_encryption` | record-carried | needs-evidence | 1 |
+| `azurerm_netapp_volume_bucket` | record-carried | needs-evidence | 2 |
+| `azurerm_netapp_volume_bucket_with_server` | record-carried | needs-evidence | 2 |
 | `azurerm_network_interface_application_gateway_backend_address_pool_association` | record-carried | needs-evidence | 1 |
 | `azurerm_network_interface_application_security_group_association` | record-carried | needs-evidence | 1 |
 | `azurerm_network_interface_backend_address_pool_association` | record-carried | needs-evidence | 1 |

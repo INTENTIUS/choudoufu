@@ -24520,13 +24520,13 @@
       "counts": {
         "types": 1106,
         "tiers": {
-          "declaration-carried": 491,
+          "declaration-carried": 489,
           "marker-carried": 387,
-          "record-carried": 228
+          "record-carried": 230
         },
         "statuses": {
-          "in-contract": 845,
-          "needs-evidence": 261
+          "in-contract": 843,
+          "needs-evidence": 263
         }
       },
       "types": [
@@ -34538,32 +34538,30 @@
         },
         {
           "type": "azurerm_netapp_volume_bucket",
-          "tier": "declaration-carried",
-          "status": "in-contract",
+          "tier": "record-carried",
+          "status": "needs-evidence",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "identity-schema",
-            "schema_route": true,
+            "arm_id_class": "withheld",
             "arm_scope": "resource-group",
             "rejected": false
           }
         },
         {
           "type": "azurerm_netapp_volume_bucket_with_server",
-          "tier": "declaration-carried",
-          "status": "in-contract",
+          "tier": "record-carried",
+          "status": "needs-evidence",
           "facts": {
             "taggable": false,
-            "admitted": true,
+            "admitted": false,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "identity-schema",
-            "schema_route": true,
+            "arm_id_class": "withheld",
             "arm_scope": "resource-group",
             "rejected": false
           }
