@@ -30,7 +30,7 @@ import (
 // [classifyOrphans] and [applyOrphanPolicy] decide with no Azure rule of
 // their own.
 //
-// Three things are Azure's own, and each is where it is because ARM is
+// Four things are Azure's own, three of them because ARM is
 // case-insensitive where AWS is not:
 //
 //   - The tags are read through markers.CanonicalARMMarkers, the arm-tags
@@ -39,8 +39,14 @@ import (
 //   - The resource's ARM id is respelled to the declared instance's
 //     spelling when the two differ only by case: Resource Graph returns ids
 //     in the casing its index holds (resource group names lowercased, for
-//     one), and [configIdentityMismatch] compares import ids exactly, so an
-//     unrespelled id would read as a displaced object.
+//     one). [configIdentityMismatch] and the record comparison treat two
+//     ARM ids equal but for case as one object (#2136), so the respelling
+//     is for the import id the declared instance reads, not for them.
+//   - An object whose marker names a declared address but whose ARM id is
+//     not the one that address resolves to (an identity argument renamed,
+//     the old object still standing) is a displaced marker, reported as AWS
+//     reports it and vouching for nothing (#2136), so the projection reads
+//     and judges the tags of whatever sits at the new id.
 //   - A resource whose ARM id is a declared instance's, but whose marker
 //     names an address the configuration does not declare, is that
 //     instance's object carrying a stale marker, never an orphan: filing it

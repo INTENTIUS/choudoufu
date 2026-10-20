@@ -65,18 +65,16 @@ func aksResolution(typ, name, id string) identity.Resolution {
 
 // TestResourceGraphLegAKSCopiedClusterMarker pins what the sweep does with
 // a declared route table that AKS retagged with the cluster's markers. It
-// is not proposed for removal, not held (AKS sets no managedBy on a
-// resource it was given), and nothing is reported about it. Its sighting is
-// filed under the address its marker names, the cluster's, and vouches for
-// the cluster's declared instance, as the cluster's own sighting does.
+// is not proposed for removal and not held (AKS sets no managedBy on a
+// resource it was given).
 //
-// No displaced-marker warning is raised for the second object at that
-// address: the displacement comparison ([configIdentityMismatch]) falls
-// back to the import id only for a type with a one-component row in
-// identity.DefaultTable, and no azurerm type has one (they bind through the
-// provider's identity schema), so it answers "own object". The route
-// table's own instance gets no vouch, so the projection reads its tags and
-// refuses it (ownership_aks_test.go in internal/live/projection).
+// Since GitHub issue #2136 it is reported as a displaced marker: it carries
+// the cluster's address, and its ARM id is not the one the cluster's
+// address resolves to, which [configIdentityMismatch] now compares for two
+// ARM ids. So it no longer vouches for the cluster (only the cluster's own
+// sighting does), and it never vouched for the route table's own instance,
+// so the projection reads its tags and refuses it (ownership_aks_test.go in
+// internal/live/projection).
 func TestResourceGraphLegAKSCopiedClusterMarker(t *testing.T) {
 	cfg := azConfigWith(t, `
 resource "azurerm_kubernetes_cluster" "aks" {
@@ -102,8 +100,12 @@ resource "azurerm_route_table" "rt" {
 		aksResolution("azurerm_route_table", "rt", aksRouteTableID()),
 	)
 	assertNoErrors(t, diags)
-	if len(res.Orphans) != 0 || len(res.Problems) != 0 || len(res.ControllerHeld) != 0 {
-		t.Errorf("orphans %+v, problems %+v, held %+v; want none", res.Orphans, res.Problems, res.ControllerHeld)
+	if len(res.Orphans) != 0 || len(res.ControllerHeld) != 0 {
+		t.Errorf("orphans %+v, held %+v; want none", res.Orphans, res.ControllerHeld)
+	}
+	findDisplaced(t, res, aksRouteTableID())
+	if len(res.Problems) != 1 {
+		t.Errorf("problems %+v; want only the route table's displaced marker", res.Problems)
 	}
 	vouched := map[string]int{}
 	for _, a := range res.VerifiedDeclared {
@@ -112,7 +114,7 @@ resource "azurerm_route_table" "rt" {
 	if vouched[aksRouteAddr] != 0 {
 		t.Errorf("the route table was vouched for by a sighting carrying the cluster's marker: %v", res.VerifiedDeclared)
 	}
-	if vouched[aksClusterAddr] != 2 {
-		t.Errorf("VerifiedDeclared %v; want the cluster vouched by both sightings", res.VerifiedDeclared)
+	if vouched[aksClusterAddr] != 1 {
+		t.Errorf("VerifiedDeclared %v; want the cluster vouched by its own sighting only", res.VerifiedDeclared)
 	}
 }

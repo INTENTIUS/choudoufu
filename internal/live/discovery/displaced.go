@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -252,6 +253,21 @@ func configIdentityMismatch(typeName string, res identity.Resolution, c claimant
 	if res.ImportID == "" || c.importID == "" {
 		return "", false
 	}
+	// GitHub issue #2136: an ARM id on both sides is an object's whole name,
+	// never a join, so it is compared whatever the type's table row says.
+	// No azurerm or azapi type has a DefaultTable row, and a Resource Graph
+	// claimant carries no identity object, so without this branch the
+	// comparison never ran on Azure: an object left at a renamed argument's
+	// old name read as the address's own object and vouched for it, and the
+	// projection then admitted whatever sat at the new name unread.
+	// Case-insensitive, as ARM compares ids and as Resource Graph returns
+	// them lowercased ([sameImportID]).
+	if isARMID(res.ImportID) && isARMID(c.importID) {
+		if sameImportID(res.ImportID, c.importID) {
+			return "", false
+		}
+		return res.ImportID, true
+	}
 	ti, ok := identity.LookupType(typeName)
 	if !ok || len(ti.Components) != 1 {
 		return "", false
@@ -260,6 +276,27 @@ func configIdentityMismatch(typeName string, res identity.Resolution, c claimant
 		return "", false
 	}
 	return res.ImportID, true
+}
+
+// isARMID reports whether id is an Azure Resource Manager id, the import id
+// every azurerm and azapi resolution carries ([ARMSubscription]).
+func isARMID(id string) bool {
+	_, ok := ARMSubscription(id)
+	return ok
+}
+
+// sameImportID reports whether two import ids name one object: equal
+// strings, or two ARM ids equal but for case (GitHub issue #2136). ARM ids,
+// resource group names and resource names are case-insensitive (the #1122
+// ruling), and Resource Graph returns ids in its index's casing, resource
+// group lowercased among them, so an exact comparison would read every Azure
+// object listed at its own id as another object. Every other import id is
+// compared exactly, as before: an AWS id is case-sensitive.
+func sameImportID(a, b string) bool {
+	if a == b {
+		return true
+	}
+	return isARMID(a) && isARMID(b) && strings.EqualFold(a, b)
 }
 
 // recordOwners answers, for one declared address, whether a live object is
