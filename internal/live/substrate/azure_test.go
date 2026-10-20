@@ -15,6 +15,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -65,9 +67,6 @@ func TestAzureFamilyAnswers(t *testing.T) {
 	}
 	if !Azure.SweepFindsUnadmitted() || Azure.Sweep() != SweepResourceGraph {
 		t.Errorf("sweep %q, finds unadmitted %v", Azure.Sweep(), Azure.SweepFindsUnadmitted())
-	}
-	if sw, err := Azure.NewSweeper(cty.NilVal, false); sw != nil || err != nil {
-		t.Errorf("NewSweeper = %v, %v; the Resource Graph client is a later unit", sw, err)
 	}
 	if w := Azure.Writes(s); w != (Writes{Create: WriteInCreate, Adopt: WriteTagsPlan, PostCreate: WriteNeverNeeded}) {
 		t.Errorf("Writes = %+v", w)
@@ -250,6 +249,63 @@ func TestCreateOverwritesAtKey(t *testing.T) {
 	for _, s := range []markers.Surface{markers.SurfaceTags, markers.SurfaceLabels, markers.SurfaceManifest, ""} {
 		if CreateOverwritesAtKey(s) {
 			t.Errorf("CreateOverwritesAtKey(%q) = true", s)
+		}
+	}
+}
+
+// TestAzureNewSweeperBuildsAResourceGraphClient (#1120 unit 11): the
+// client is built from the block's own arguments, names the block's
+// subscription, and serves the family's sweep; a block it cannot be built
+// from is an error and a nil Sweeper, never a client holding nil.
+func TestAzureNewSweeperBuildsAResourceGraphClient(t *testing.T) {
+	for _, name := range azsweep.EnvNames() {
+		t.Setenv(name, "")
+	}
+	const sub = "11111111-1111-1111-1111-111111111111"
+	block := cty.ObjectVal(map[string]cty.Value{
+		"features":        cty.EmptyObjectVal,
+		"subscription_id": cty.StringVal(sub),
+		"tenant_id":       cty.StringVal("22222222-2222-2222-2222-222222222222"),
+		"client_id":       cty.StringVal("33333333-3333-3333-3333-333333333333"),
+		"client_secret":   cty.StringVal("s3cret"),
+		"use_cli":         cty.False,
+	})
+	sw, err := Azure.NewSweeper(block, true)
+	if err != nil {
+		t.Fatalf("NewSweeper: %s", err)
+	}
+	if sw.SweepKind() != Azure.Sweep() {
+		t.Errorf("SweepKind = %q, want %q", sw.SweepKind(), Azure.Sweep())
+	}
+	rg, ok := sw.(ResourceGraphSweeper)
+	if !ok || rg.Client == nil || rg.Subscription() != sub {
+		t.Fatalf("NewSweeper = %#v; want a ResourceGraphSweeper over a client for %s", sw, sub)
+	}
+	var _ azsweep.Searcher = rg
+
+	marked := cty.ObjectVal(map[string]cty.Value{"subscription_id": cty.StringVal(sub).Mark(marks.Sensitive)})
+	if sw, err := Azure.NewSweeper(marked, true); err == nil || sw != nil {
+		t.Errorf("NewSweeper over a sensitive subscription_id = %v, %v; want a nil Sweeper and an error", sw, err)
+	}
+}
+
+// TestAzureSweepAttrsTellsTheProvidersApart: NewSweeper is handed the
+// block's value alone, so which provider it configures is read off its
+// shape, and decides which environment variables apply.
+func TestAzureSweepAttrsTellsTheProvidersApart(t *testing.T) {
+	azapi := cty.ObjectVal(map[string]cty.Value{"endpoint": cty.ListValEmpty(cty.EmptyObject), "default_tags": cty.NullVal(cty.Map(cty.String))})
+	azurerm := cty.ObjectVal(map[string]cty.Value{"features": cty.EmptyObjectVal, "metadata_host": cty.NullVal(cty.String)})
+	for _, tc := range []struct {
+		val  cty.Value
+		ok   bool
+		want string
+	}{
+		{azapi, true, azsweep.ProviderAzAPI},
+		{azurerm, true, azsweep.ProviderAzureRM},
+		{cty.NilVal, false, azsweep.ProviderAzureRM},
+	} {
+		if got := AzureSweepAttrs(tc.val, tc.ok).Provider; got != tc.want {
+			t.Errorf("AzureSweepAttrs(%#v).Provider = %q, want %q", tc.val, got, tc.want)
 		}
 	}
 }

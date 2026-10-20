@@ -3945,6 +3945,14 @@ type projectionProviders struct {
 	// and a cluster that cannot be reached must not be re-dialled once per
 	// custom resource in the state file. See live_import_kubernetes.go.
 	markerPatchers map[string]labelPatcher
+
+	// resourceGraphClients is the Resource Graph sweep's client
+	// ([substrate.SweepResourceGraph]) per azurerm or azapi provider
+	// configuration, with the subscription its block names (GitHub issue
+	// #1120): every pass's leg covers every block's subscription, so each
+	// client is built once and kept. Keyed by [providerCacheKey]. See
+	// live_plan_resourcegraph.go.
+	resourceGraphClients map[string]resourceGraphClient
 }
 
 var _ projection.Providers = (*projectionProviders)(nil)
@@ -4671,6 +4679,16 @@ var sweepLegBuilders = map[substrate.Sweep]sweepLegBuilder{
 	// provider handle cannot list, so this leg is the pass's whole sweep.
 	substrate.SweepLabelList: func(ctx context.Context, p *projectionProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
 		leg, diags := p.labelListLeg(ctx, sub, addr)
+		return leg, false, diags
+	},
+	// The Azure leg (GitHub issue #1120): one Resource Graph query per
+	// subscription the estate's resources resolve to, through clients built
+	// from the azurerm and azapi provider blocks' own connection arguments
+	// (live_plan_resourcegraph.go). Like the Kubernetes leg it is the pass's
+	// whole sweep: the AWS loops' admission-table universe is nothing an
+	// azurerm provider handle can list.
+	substrate.SweepResourceGraph: func(ctx context.Context, p *projectionProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
+		leg, diags := p.resourceGraphLeg(ctx, sub, addr)
 		return leg, false, diags
 	},
 }

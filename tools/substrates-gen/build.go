@@ -150,7 +150,7 @@ func sweepFacts(kind substrate.Sweep) SweepFacts {
 	case substrate.SweepLabelList:
 		desc = "a cluster client built from the provider block's own connection arguments (Substrate.NewSweeper)"
 	case substrate.SweepResourceGraph:
-		desc = "one Azure Resource Graph query per subscription the estate's resources resolve to, matching the marker case-insensitively; no leg is built yet (GitHub issue #1120), so a plan names the gap"
+		desc = "one Azure Resource Graph query per subscription the estate's resources resolve to, matching the marker case-insensitively, through clients built from the azurerm and azapi provider blocks' own connection arguments (Substrate.NewSweeper; GitHub issue #1120)"
 	}
 	return SweepFacts{Kind: string(kind), Description: desc}
 }

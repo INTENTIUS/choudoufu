@@ -28,8 +28,10 @@ const (
 	// credential cannot read a subscription, so its tagged resources are
 	// unknown, never zero.
 	SummarySubscriptionUnreadable = "Azure subscription not readable by the sweep"
-	// SummaryResourceGraphThrottled warns of an incomplete sweep: Resource
-	// Graph kept throttling past the retries its headers allow.
+	// SummaryResourceGraphThrottled refuses the sweep: Resource Graph kept
+	// throttling past the retries its headers allow, and a plan made
+	// without the subscription would propose no removal in it (#1120
+	// unit 11, internal/live/discovery's resourcegraph.go).
 	SummaryResourceGraphThrottled = "Azure Resource Graph throttled the sweep"
 	// SummarySubscriptionUncovered warns of an incomplete sweep: no
 	// configured azurerm or azapi credential covers the subscription.
