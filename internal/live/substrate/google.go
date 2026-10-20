@@ -121,6 +121,13 @@ func (google) CreateCollidesOnKey(surface markers.Surface) bool {
 	return surface == markers.SurfaceGoogleLabels
 }
 
+// CreateOverwritesAtKey is false: a GCP create at a name already held is
+// refused with 409 alreadyExists ([google.CreateCollidesOnKey]), never
+// written over the way an ARM PUT at an existing id is. Answered ahead of
+// the azure branch's interface method so the two branches agree when they
+// meet.
+func (google) CreateOverwritesAtKey(markers.Surface) bool { return false }
+
 func (google) CarrierPhrase(surface markers.Surface) string {
 	if surface == markers.SurfaceGoogleLabels {
 		return "labels map"
