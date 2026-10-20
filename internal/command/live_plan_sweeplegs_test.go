@@ -39,9 +39,10 @@ func TestEverySubstrateSweepHasALeg(t *testing.T) {
 // whose leg and live-ls listing are a later unit's work, each with that
 // unit. It bounds WHAT is excused, one sweep kind, and an entry whose sweep
 // has gained a leg fails TestSweepsAwaitingTheirUnitStillAwait.
-var sweepsAwaitingTheirUnit = map[substrate.Sweep]string{
-	substrate.SweepResourceGraph: "the Azure Resource Graph sweep, a later unit of GitHub issue #1120 (item 3)",
-}
+//
+// Empty since the Azure Resource Graph leg landed (GitHub issue #1120,
+// unit 11); kept for the next family written ahead of its leg.
+var sweepsAwaitingTheirUnit = map[substrate.Sweep]string{}
 
 func TestSweepsAwaitingTheirUnitStillAwait(t *testing.T) {
 	for sw, unit := range sweepsAwaitingTheirUnit {
@@ -50,28 +51,6 @@ func TestSweepsAwaitingTheirUnitStillAwait(t *testing.T) {
 		}
 		if _, ok := liveLsListings[sw]; ok {
 			t.Errorf("sweep %q has a live-ls listing now; remove it from sweepsAwaitingTheirUnit (%s)", sw, unit)
-		}
-	}
-}
-
-// TestAzurePlansNameTheirSweepGap (GitHub issue #1120): until the Resource
-// Graph leg is built, an azurerm or azapi provider configuration gets
-// discovery.NoSweepLeg naming the family, never the AWS legs it got while
-// no family claimed it.
-func TestAzurePlansNameTheirSweepGap(t *testing.T) {
-	p := &projectionProviders{}
-	for _, typ := range []string{"azurerm", "azapi"} {
-		sub, known := substrate.ForProvider(typ)
-		if !known || sub != substrate.Azure {
-			t.Fatalf("ForProvider(%q) = %v, %v; want the Azure family", typ, sub, known)
-		}
-		addr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider(typ)}
-		legs, sweep, _ := p.liveSweepLegs(context.Background(), sub, known, addr)
-		if sweep || len(legs) != 1 {
-			t.Fatalf("%s: legs %v, sweep %v; want one NoSweepLeg with Sweep off", typ, legs, sweep)
-		}
-		if got, ok := legs[0].(discovery.NoSweepLeg); !ok || got.Family != "azurerm" || got.Kind != substrate.SweepResourceGraph {
-			t.Errorf("%s: got %#v, want a NoSweepLeg naming azurerm and resource-graph", typ, legs[0])
 		}
 	}
 }

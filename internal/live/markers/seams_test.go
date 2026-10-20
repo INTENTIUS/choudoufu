@@ -82,6 +82,15 @@ type surfaceSeamExemption struct {
 // seam this guard measures.
 const discoveryAWSLeg = "an AWS discovery leg (tagging index, list, Cloud Control, direct read), run as discovery.TaggingIndexSweep. The Kubernetes leg is discovery.KubernetesSweep in kubernetes.go; internal/command picks a pass's discovery.Sweeper legs by the provider family's substrate.Sweep property (sweepLegBuilders in internal/command/live_plan.go), not by surface, so the choice is not a seam this guard measures"
 
+// discoveryAzureLeg is the reason the Azure discovery leg is exempt
+// (GitHub issue #1120): the discoveryAWSLeg reason, for the Resource Graph
+// leg.
+const discoveryAzureLeg = "the Azure discovery leg (Resource Graph), run as discovery.ResourceGraphSweep: it reads the ARM tag map case-insensitively and files each resource through the tag sweep's own fileCandidate. internal/command picks a pass's discovery.Sweeper legs by the provider family's substrate.Sweep property (sweepLegBuilders in internal/command/live_plan.go), not by surface, so the choice is not a seam this guard measures"
+
+// sweepFieldCredit is why the AWS discovery seams that read a Sweep field
+// are measured handling the ARM tag surface too.
+const sweepFieldCredit = "credited with the Azure leg's arm-tags arm by name alone: it reads a Sweep field (Request.Sweep or TypeScan.Sweep), which this guard's syntactic resolution takes for every method named Sweep in the package, discovery.ResourceGraphSweep.Sweep among them (GitHub issue #1120). Otherwise " + discoveryAWSLeg
+
 // synthConfigLabelArm is why the synthetic-configuration builders handle
 // the label surface alone.
 const synthConfigLabelArm = "the synthetic configurations a provider-planned marker write offers (epic #1885): markers.AssertMetadataMaps keeps a label-surface object's metadata labels and annotations claimed under either claim, and answers cfg unchanged for any other shape. A tag-surface write asserts its tags argument through configValue's assertedTagAttr without a markers member, and the manifest shape never plans through the provider"
@@ -104,16 +113,23 @@ const armTagsAreTaggable = "markers.ARMTagSurface is markers.TagSurface with a n
 // file or the function and never the package: #1108's hole sat in a
 // package whose other files handled every surface.
 var surfaceSeamExemptions = map[string]surfaceSeamExemption{
-	"internal/live/discovery/cloudcontrol.go":                                                  {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
 	"internal/live/discovery/directread.go":                                                    {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
 	"internal/live/discovery/discovery.go":                                                     {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
 	"internal/live/discovery/lookalikerelist.go":                                               {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
 	"internal/live/discovery/reconcile.go":                                                     {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
-	"internal/live/discovery/recordorphan_read.go":                                             {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
-	"internal/live/discovery/servicelist.go":                                                   {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
 	"internal/live/discovery/sweepconcurrency.go":                                              {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
 	"internal/live/discovery/tagging.go":                                                       {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
-	"internal/live/discovery/tagindexfallback.go":                                              {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
+	"internal/live/discovery/resourcegraph.go":                                                 {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: discoveryAzureLeg},
+	"internal/live/discovery/cloudcontrol.go:scanTypeCloudControl":                             {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/directread.go:directReadFallback":                                 {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/discovery.go:scanType":                                            {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/discovery.go:scanTypeReporting":                                   {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/lookalikerelist.go:relistForLookalikes":                           {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/recordorphan_read.go:recordOrphanReadSweep":                       {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/servicelist.go:scanTypeServiceList":                               {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/tagindexfallback.go:sweepTagIndexFallback":                        {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/tagging.go:sweepViaTagging":                                       {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/command/live_ls_resourcegraph.go":                                                {Handles: []Surface{SurfaceARMTags}, Why: "live-ls's Azure listing (GitHub issue #1120), the inventory beside the Resource Graph leg: it lists only through azurerm and azapi provider configurations, chosen by the family's substrate.Sweep property in liveLsSubstrates, never by surface"},
 	"internal/command/live_apply_kubernetes_held.go":                                           {Handles: []Surface{SurfaceManifest}, Why: "the Kubernetes sweep's type universe; its object-metadata arm asks identity.ObjectMetaShape, a label-shape predicate outside this package that the guard cannot see (named in the #1118 follow-up)"},
 	"internal/command/live_plan_kubernetes_fieldowners.go":                                     {Handles: []Surface{SurfaceManifest}, Why: "the Kubernetes field-granular boundary (#1191, #1885); a whole object's identity is read off a typed resource's metadata block by the schema directly, or off a manifest-surface value - a tag-surface type never reaches a cluster"},
 	"internal/command/live_plan_kubernetes_dryrun.go":                                          {Handles: []Surface{SurfaceLabels, SurfaceManifest}, Why: "the Kubernetes server-side dry run (#1101); a tag-surface type never reaches a cluster"},
@@ -137,8 +153,6 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 	"internal/live/projection/readconcurrency.go:builder.readFor":                              {Handles: []Surface{SurfaceLabels, SurfaceManifest, SurfaceTags}, Why: "credited with prepareRead's seeds; " + armTagsNeedNoSeed},
 	"internal/live/projection/readconcurrency.go:builder.startReadPrefetch":                    {Handles: []Surface{SurfaceLabels, SurfaceManifest, SurfaceTags}, Why: "credited with prepareRead's seeds; " + armTagsNeedNoSeed},
 	"internal/command/live_ls.go:liveLsRung":                                                   {Handles: []Surface{SurfaceLabels, SurfaceManifest, SurfaceTags}, Why: armTagsAreTaggable},
-	"internal/command/live_ls.go:LiveLsCommand.liveLsGaps":                                     {Handles: []Surface{SurfaceLabels, SurfaceManifest, SurfaceTags}, Why: "credited with liveLsRung's arms; " + armTagsAreTaggable},
-	"internal/command/live_plan.go:LivePlanCommand.livePlan":                                   {Handles: []Surface{SurfaceLabels, SurfaceManifest, SurfaceTags}, Why: "acts on no surface itself: it is credited with the Kubernetes-only seams it calls (the held-object universe, the dry run, the field owners) and with liveUnmarkedApplyGaps, whose check.NodeStampUnmarkedApply asks markers.TagSurface; " + armTagsAreTaggable},
 	"internal/live/mv/rewrite.go:mover.checkPlan":                                              {Handles: []Surface{SurfaceLabels}, Why: "judges a provider plan: the label arm's changedOutsideLabels reads markers.AnnotationsChangedBesides (#1639), the tag arm's changedOutsideTags compares attributes without a markers member, and the manifest shape never plans through the provider (mv/manifest.go judges a server dry run instead)"},
 	"internal/live/mv/label.go":                                                                {Handles: []Surface{SurfaceLabels}, Why: "the label path, reached only when relabels answered true for the surface surfaceOf read"},
 	"internal/live/mv/rewrite.go:mover.rewrite":                                                {Handles: []Surface{SurfaceARMTags, SurfaceLabels, SurfaceTags}, Why: "mv.go's Move sends SurfaceManifest to mv/manifest.go's rewriteManifest, the API merge patch (#1104), before rewrite runs; the ARM tag map takes the tag path with its keys folded (#1120)"},

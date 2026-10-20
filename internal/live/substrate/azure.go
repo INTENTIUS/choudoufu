@@ -6,6 +6,7 @@
 package substrate
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -111,11 +113,56 @@ func (azure) SweepFindsUnadmitted() bool { return true }
 // measurement on floci-az.
 func (azure) MarkerOutlivesObject() bool { return true }
 
-// NewSweeper builds no client yet: the Resource Graph sweep is its own unit
-// of #1120 (item 3), which builds the client from the azurerm provider
-// block. Until then the family has no sweep leg, and nil with no error is
-// what a family whose leg is not built answers.
-func (azure) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
+// NewSweeper is the Resource Graph client the provider block's own
+// connection arguments build ([AzureSweepAttrs], with the provider's
+// environment fallbacks applied by azsweep.New), so the sweep calls as the
+// provider does and covers the subscription the block names (#1120 unit
+// 11). On an error the client is a nil [Sweeper], never a
+// [ResourceGraphSweeper] holding a nil client.
+func (azure) NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error) {
+	client, err := azsweep.New(context.Background(), AzureSweepAttrs(providerConfig, ok))
+	if err != nil {
+		return nil, err
+	}
+	return ResourceGraphSweeper{Client: client}, nil
+}
+
+// ResourceGraphSweeper is the Azure family's client: the Resource Graph
+// client built from one azurerm or azapi provider block, whose methods it
+// carries (azsweep.Searcher, and Subscription, the subscription the block
+// names). internal/command's leg for [SweepResourceGraph] asks for those
+// capabilities, never for this type.
+type ResourceGraphSweeper struct {
+	*azsweep.Client
+}
+
+// SweepKind is [SweepResourceGraph].
+func (ResourceGraphSweeper) SweepKind() Sweep { return SweepResourceGraph }
+
+// AzureSweepAttrs reads the connection arguments the Resource Graph sweep
+// understands off an evaluated azurerm or azapi provider block
+// (azsweep.ProviderAttrs), before the environment fallbacks. Which of the
+// two providers the block configures is read off its shape, since
+// [Substrate.NewSweeper] is handed the value alone: azurerm's provider
+// schema has a features block and azapi's has none, and azapi's has an
+// endpoint block and default_tags, which azurerm's has not (both providers'
+// schemas at the pinned versions, azurerm 5.10.0 and azapi 2.13.0). A
+// value of neither shape, or none at all, reads as azurerm, the family's
+// name.
+func AzureSweepAttrs(val cty.Value, ok bool) azsweep.Attrs {
+	return azsweep.ProviderAttrs(azureProviderOf(val, ok), val, ok)
+}
+
+func azureProviderOf(val cty.Value, ok bool) string {
+	if !ok || val == cty.NilVal || !val.Type().IsObjectType() {
+		return azsweep.ProviderAzureRM
+	}
+	ty := val.Type()
+	if !ty.HasAttribute("features") && (ty.HasAttribute("endpoint") || ty.HasAttribute("default_tags")) {
+		return azsweep.ProviderAzAPI
+	}
+	return azsweep.ProviderAzureRM
+}
 
 // ---- GitHub issue #1584 ----
 

@@ -136,7 +136,9 @@ type LiveLsItem struct {
 	// asks for by name, because the tagging index does not serve IAM on a
 	// real account, or "kubernetes" for the cluster-wide, label-selected
 	// list per kind a Kubernetes provider configuration in DIR gets
-	// (GitHub issue #1081). An item the tagging pass already found is
+	// (GitHub issue #1081), or "resource-graph" for the Azure Resource
+	// Graph query per subscription the azurerm and azapi provider blocks
+	// in DIR name (GitHub issue #1120), whose item ID is the ARM id. An item the tagging pass already found is
 	// never reported a second time under "iam", even when the IAM pass
 	// would have found it too - see the command package's own
 	// dedup-by-ARN.

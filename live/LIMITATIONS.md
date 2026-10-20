@@ -2644,6 +2644,10 @@ refused, and each says so in its own entry.
 | 0 | 0 | dataread | Data source read failed | error | `internal/live/dataread` | "Data source read failed" |
 | - | - | discovery | Address too long to carry an ownership marker | error | `internal/live/discovery` | "overlong-address" |
 | - | - | discovery | Annotated with a live Helm release, not in its manifest | warning | `internal/live/discovery` | "Annotated with a live Helm release, not in its manifest" |
+| - | - | discovery | Azure Resource Graph throttled the sweep | error | `internal/live/discovery` | "Azure Resource Graph throttled the sweep" |
+| - | - | discovery | Azure subscription not covered by any provider block | warning | `internal/live/discovery` | "Azure subscription not covered by any provider block" |
+| - | - | discovery | Azure subscription not readable by the sweep | warning | `internal/live/discovery` | "Azure subscription not readable by the sweep" |
+| - | - | discovery | Azure sweep unavailable | warning | `internal/live/discovery` | "Azure sweep unavailable" |
 | - | - | discovery | Cannot list the record store | error | `internal/live/discovery` | "Cannot list the record store" |
 | - | - | discovery | Cloud Control identifier could not be composed | error | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
 | - | - | discovery | Content match found more than one live candidate | error | `internal/live/discovery` | "Content match found more than one live candidate" |
@@ -2677,6 +2681,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Malformed slot marker | error | `internal/live/discovery` | "Malformed slot marker" |
 | - | - | discovery | Marked resource abandoned by a provider configuration change | warning | `internal/live/discovery` | "strict-provider-change" |
 | - | - | discovery | Marked resource outside its address's provider configuration | error | `internal/live/discovery` | "Marked resource outside its address's provider configuration" |
+| - | - | discovery | Microsoft.ResourceGraph not registered | error | `internal/live/discovery` | "Microsoft.ResourceGraph not registered" |
 | - | - | discovery | No AWS account ID from the provider | warning | `internal/live/discovery` | "No AWS account ID from the provider" |
 | - | - | discovery | No configuration to discover against | error | `internal/live/discovery` | "No configuration to discover against" |
 | - | - | discovery | No configured provider serves a removed resource's type | error | `internal/live/discovery` | "No configured provider serves a removed resource's type" |
@@ -2894,7 +2899,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**283 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**288 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3127,6 +3132,38 @@ reserved for the limits wing's fixture directories, and
 #### Annotated with a live Helm release, not in its manifest
 
 **What.** The Kubernetes sweep found an object carrying the estate's label and Helm's meta.helm.sh/release-name annotation, naming a release that still exists, whose manifest does not list it (GitHub issue #1738 item 4, ruled 2026-09-30). The release's latest record and its last deployed one are read metadata-first and decoded the way Helm's storage driver wrote them, and the object is matched on kind, namespace (the release's, for a document that gives none) and name. Unmatched, it is not the release's, so it is not reported as controller-held; it is not proposed for destroy either, so a wrong match can only ever raise this warning. A chart that dropped the object under helm.sh/resource-policy: keep, or a copy of a Helm object's YAML applied by hand, leaves it in this state. A record that cannot be read or decoded holds the object instead. A warning: the plan is unchanged by it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Azure Resource Graph throttled the sweep
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) queries Azure Resource Graph once per subscription the estate's resources resolve to, and Resource Graph answered one of those queries 429 past the waits its Retry-After and x-ms-user-quota-resets-after headers allow (four waits, none longer than a minute). What the estate marks in that subscription is unknown, and a plan made without it would propose no removal there however many blocks were deleted, so the plan is refused, naming the subscription; plan again once the caller's Resource Graph quota has recovered.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Azure subscription not covered by any provider block
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) queries every subscription the estate's resources resolve to, with the credential of the azurerm or azapi provider block that names it. A declared resource's ARM id names a subscription no provider block of the configuration names, so no credential was set to query it. A warning naming the subscription, and an incomplete sweep rather than an empty one: a resource the estate marks there whose block was deleted is not proposed for removal. Adding a provider block (an alias will do) whose subscription_id is that subscription covers it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Azure subscription not readable by the sweep
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) asked Azure Resource Graph about one subscription the estate's resources resolve to, and the credential cannot read it: no role assignment grants read on it, it does not exist, or it belongs to a tenant the token was not issued for (Resource Graph's NoValidSubscriptionsInQueryRequest, ARM's AuthorizationFailed, SubscriptionNotFound, InvalidSubscriptionId, InvalidAuthenticationTokenTenant, or any 403). One query per subscription is what makes this visible: asked about several at once, Resource Graph leaves an unreadable one out without saying so. A warning naming the subscription and the credential, and an incomplete sweep rather than an empty one: a resource the estate marks there whose block was deleted is not proposed for removal until a run can read it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Azure sweep unavailable
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) could not query one subscription for a reason none of the other Azure summaries names: no Resource Graph client could be built from an azurerm or azapi provider block (it names no credential the sweep can use, or sets a connection argument from a sensitive value), the provider block names no subscription, Resource Graph answered an error it does not classify, or a page after the first failed, in which case the pages already read are discarded rather than used. A warning, and an incomplete sweep rather than an empty one: a resource the estate marks there whose block was deleted is not proposed for removal until a run can read it.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -3393,6 +3430,14 @@ reserved for the limits wing's fixture directories, and
 #### Marked resource outside its address's provider configuration
 
 **What.** A live resource carries this estate's marker for an address the configuration declares under a provider configuration that never listed it, and only passes that address does not belong to found it - a region or account change that left the old region's object behind. Proceeding would create a second live resource carrying one address's marker, so the plan refuses instead.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Microsoft.ResourceGraph not registered
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) queries Azure Resource Graph once per subscription the estate's resources resolve to, and one of those subscriptions has not registered the Microsoft.ResourceGraph resource provider (ARM's MissingSubscriptionRegistration and the other codes azure-sdk-for-go's registration policy acts on). The fix is registering it (az provider register --namespace Microsoft.ResourceGraph), never a retry or a grant. Refused by name, naming the subscription: a sweep that skipped it would read as one with nothing to remove there however many blocks were deleted.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 

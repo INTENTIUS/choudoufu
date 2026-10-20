@@ -87,7 +87,7 @@
       ],
       "sweep": {
         "kind": "resource-graph",
-        "description": "one Azure Resource Graph query per subscription the estate's resources resolve to, matching the marker case-insensitively; no leg is built yet (GitHub issue #1120), so a plan names the gap"
+        "description": "one Azure Resource Graph query per subscription the estate's resources resolve to, matching the marker case-insensitively, through clients built from the azurerm and azapi provider blocks' own connection arguments (Substrate.NewSweeper; GitHub issue #1120)"
       },
       "controller_held": {
         "recognized": true,
