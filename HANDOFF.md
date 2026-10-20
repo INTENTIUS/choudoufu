@@ -320,6 +320,8 @@ and the site leads with the claims everywhere else (#803).
 - Regenerate artifacts, never hand-edit them; a generator run twice and
   diffed proves determinism, not correctness.
 - A brief is a lead, not a fact: re-verify against the code before fixing.
+- Adding a platform (GCP, Azure): `live/ADDING-A-PLATFORM.md` has the
+  contract AWS and Kubernetes both meet, the build order and the registries.
 - `gh` defaults to upstream in this clone; pass `-R INTENTIUS/choudoufu`.
 - Status and completion reports lead with `bash scripts/pickup.sh`'s board
   line (clear counts, stale-evidence count, queue depth), never with an
