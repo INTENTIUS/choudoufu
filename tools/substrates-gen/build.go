@@ -334,7 +334,7 @@ func untaggableFor(family string, rf readinessFacts) UntaggableFacts {
 	case "azurerm":
 		// GitHub issue #2119: the Azure section of live/readiness.json is a
 		// later unit of #1120; until it lands there is nothing to tally.
-		return UntaggableFacts{Definition: "not yet counted: live/readiness.json has no Azure section (GitHub issue #2119)", ByTier: map[string]int{}}
+		return UntaggableFacts{Definition: "not yet counted: live/readiness.json has no Azure section (GitHub issue #2119)", ByTier: map[string]int{}, NotCounted: true}
 	}
 	return UntaggableFacts{Definition: "no definition recorded for family " + family, ByTier: map[string]int{}}
 }

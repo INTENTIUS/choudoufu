@@ -111,7 +111,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryARMBodyNotMergeable,
-		What:    "GitHub issue #1120's ARM branch of the node-path stamp found an azapi_resource body, or a body.tags, it cannot add the ownership markers into - a body that is not an object, or a tags entry that is not a string - so it left the configuration value as evaluated and wrote no marker.",
+		What:    "GitHub issue #1120's ARM branch of the node-path stamp found an azapi_resource body, or a body.tags, it cannot add the ownership markers into - a body that is marked or is not an object, or a tags entry that is not a string - so it left the configuration value as evaluated and wrote no marker.",
 		Warning: true,
 	},
 	{

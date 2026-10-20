@@ -7,12 +7,12 @@ package projection
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/armtypes"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -53,26 +53,12 @@ import (
 // # Which azapi types take tags
 //
 // Whether an ARM resource takes tags is a property of its type and API
-// version, and azapi's own type data says which ([ARMTypeTaggable]). The
+// version, and azapi's own type data says which ([armtypes.Taggable], a
+// table generated from the type data azapi embeds, keyed by type and API
+// version). The
 // stamp never writes a marker an ARM type cannot hold: a type the table
 // says is untaggable, or one it does not know, is left unstamped and the
 // plan says so.
-
-// ARMTypeTaggable reports whether the ARM resource type armType (say
-// "Microsoft.Network/virtualNetworks") takes tags at apiVersion, the
-// version the block's own type argument names after "@", and whether the
-// answer is known at all.
-//
-// It is a seam: the table behind it is generated from the type data azapi
-// embeds (internal/azure/generated, bicep-types format: taggable when the
-// body type has a non-ReadOnly tags property) by the taggability unit of
-// GitHub issue #1120, as internal/live/armtypes.Taggable, which assigns
-// itself here. Until it does, every answer is unknown, and an azapi
-// resource is never stamped: a marker an ARM type cannot hold is a wrong
-// marker, and the safety rule is never to write one.
-var ARMTypeTaggable = func(armType, apiVersion string) (taggable, known bool) {
-	return false, false
-}
 
 // The three summaries this arm raises. They are registered in refusals.go.
 const (
@@ -121,12 +107,6 @@ func azapiShaped(block *configschema.Block) bool {
 		hasBody && body != nil && body.Type == cty.DynamicPseudoType && (body.Required || body.Optional)
 }
 
-// splitARMType splits azapi's "<ARM type>@<API version>".
-func splitARMType(s string) (armType, apiVersion string, ok bool) {
-	armType, apiVersion, ok = strings.Cut(s, "@")
-	return armType, apiVersion, ok && armType != "" && apiVersion != ""
-}
-
 // armTagTarget decides where an ARM marker is written for config: the
 // top-level tags argument for an azurerm type, and for an azapi-shaped one
 // ([azapiShaped]) the top-level argument or body.tags, whichever the
@@ -149,12 +129,14 @@ func armTagTarget(addr addrs.AbsResourceInstance, block *configschema.Block, con
 		return armTagsNowhere, diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryARMTypeNotStamped, fmt.Sprintf(
 			"%s's type argument is not a known value at plan time, so this run cannot tell whether its ARM resource type takes tags and has written no ownership marker on it. The next plan reads it as carrying none.", addr)))
 	}
-	armType, apiVersion, ok := splitARMType(typeVal.AsString())
+	armType, apiVersion, ok := armtypes.ParseAzapiType(typeVal.AsString())
 	if !ok {
 		return armTagsNowhere, diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryARMTypeNotStamped, fmt.Sprintf(
 			"%s's type argument %q does not name an ARM resource type and API version as <type>@<api-version>, so no ownership marker was written on it.", addr, typeVal.AsString())))
 	}
-	taggable, known := ARMTypeTaggable(armType, apiVersion)
+	// The block's own API version, never the latest: taggability is per
+	// type and version (84 types differ between versions at azapi 2.13.0).
+	taggable, known := armtypes.Taggable(armType, apiVersion)
 	switch {
 	case !known:
 		return armTagsNowhere, diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryARMTypeNotStamped, fmt.Sprintf(
@@ -166,7 +148,13 @@ func armTagTarget(addr addrs.AbsResourceInstance, block *configschema.Block, con
 
 	body := cty.NullVal(cty.DynamicPseudoType)
 	if config.Type().HasAttribute(azapiBodyName) {
-		body, _ = config.GetAttr(azapiBodyName).Unmark()
+		body = config.GetAttr(azapiBodyName)
+	}
+	if body.IsMarked() {
+		// Refused rather than unmarked (internal/live/marksafe): which
+		// keys a sensitive body holds is not this pass's to read.
+		return armTagsNowhere, diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryARMBodyNotMergeable, fmt.Sprintf(
+			"%s's body is marked as a whole, which this pass will not unmark to see whether it carries tags, so no ownership marker was written on it.", addr)))
 	}
 	switch {
 	case !body.IsKnown():
@@ -180,7 +168,7 @@ func armTagTarget(addr addrs.AbsResourceInstance, block *configschema.Block, con
 		}
 		return armTagsTopLevel, diags
 	case body.Type().IsMapType():
-		if body.LengthInt() > 0 && body.HasIndex(cty.StringVal(markers.ARMTagsArgument)).True() {
+		if _, has := body.AsValueMap()[markers.ARMTagsArgument]; has {
 			return armTagsInBody, diags
 		}
 		return armTagsTopLevel, diags

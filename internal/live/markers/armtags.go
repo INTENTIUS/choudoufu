@@ -149,7 +149,7 @@ func ARMTagsOf(obj cty.Value) (map[string]string, bool) {
 	raw := map[string]string{}
 	for it := v.ElementIterator(); it.Next(); {
 		k, val := it.Element()
-		if k.Type() != cty.String || k.IsNull() || val.IsNull() || !val.IsKnown() || val.Type() != cty.String {
+		if k.Type() != cty.String || k.IsNull() || k.IsMarked() || val.IsMarked() || val.IsNull() || !val.IsKnown() || val.Type() != cty.String {
 			continue
 		}
 		raw[k.AsString()] = val.AsString()
