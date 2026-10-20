@@ -265,7 +265,7 @@ func gcpDeclaredHit(ctx context.Context, req Request, decl *declared, res *Resul
 	}
 	typeName := addr.Resource.Resource.Type
 	escaped := EscapeAddress(addr.String())
-	claim := gcpClaimant(a, address, escaped)
+	claim := gcpClaimant(a, typeName, address, escaped)
 	switch want, verdict := decl.displacedFrom(ctx, typeName, escaped, claim); verdict {
 	case verdictDisplaced:
 		diags = diags.Append(problemDiag(res, displacedProblem(req, typeName, escaped, want, claim)))
