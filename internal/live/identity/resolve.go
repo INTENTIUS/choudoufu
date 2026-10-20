@@ -1410,6 +1410,17 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}, true
 	}
 
+	// GitHub issue #1120 unit 13: azapi defaults an omitted parent_id of a
+	// resource group to the provider's subscription. See
+	// [resolver.armParentDefault].
+	armDefaultParent, res, done := r.armParentDefault(entry, attrs, scope, addr, cloudScope)
+	if done {
+		if fb, ok := r.recordFallback(addr, resAddr.Type); ok {
+			return fb, true
+		}
+		return res, true
+	}
+
 	var parts []Part
 	// The same pieces again, split by the identity attribute each component
 	// supplies. It is what makes an import ask the provider for
@@ -1462,6 +1473,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	// rewrites: azapi drops a tenant-root parent_id, or the whole parent_id
 	// for a subscription (see [armTypeSegment]).
 	prevStart, curStart := 0, 0
+	armID := false
 	for i, comp := range entry.Components {
 		prevStart, curStart = curStart, len(parts)
 		sibBefore := len(r.pendingSiblingApply)
@@ -1522,6 +1534,12 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			continue
 		}
 		if attr == nil {
+			if armDefaultParent != "" && i+1 < len(entry.Components) && entry.Components[i+1].ARMTypeSegment {
+				// The parent azapi gives a resource group whose parent_id
+				// is omitted ([resolver.armParentDefault]).
+				parts = append(parts, Part{Literal: armDefaultParent})
+				continue
+			}
 			if comp.OmitIfAbsent {
 				// The provider's own grammar says this segment - and any
 				// Literal it carries as a prefix - is absent entirely when
@@ -1764,6 +1782,16 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				continue
 			}
 			parts = append(parts[:prevStart], seg...)
+			// The type as written, API version and all, is azapi's
+			// identity attribute "type" (#1120 unit 13): an import by
+			// identity object {id, type} reads the object at the block's
+			// own API version (azapi 2.13.0 internal/services/azapi_resource.go
+			// ImportState, lines 1361-1369, parse.ResourceIDWithResourceType),
+			// where a bare id is read at the newest version azapi knows
+			// (parse.ResourceIDWithApiVersionInfo, internal/services/parse/resource.go
+			// lines 213-231).
+			addTo("type", got)
+			armID = true
 			continue
 		}
 		// The identity-attribute formula gets the resolved value alone; a
@@ -1824,7 +1852,13 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	}
 	r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
 
-	res := classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly)
+	if armID {
+		// azapi's other identity attribute, "id": the whole ARM id, which
+		// is this identity's import id too. With "type" beside it the
+		// identity object carries the API version the bare id cannot.
+		addTo("id", append([]Part(nil), parts...))
+	}
+	res = classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly)
 	res.cloudScope = cloudScope
 	return res, true
 }

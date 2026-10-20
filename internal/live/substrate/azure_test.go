@@ -114,20 +114,43 @@ func TestAzureManualMarkFix(t *testing.T) {
 	}
 }
 
-// TestAzureIdentityRoutes (#1120 unit 10): which azurerm and azapi types
-// the family answers for, and which it leaves to the identity-schema route
-// exactly as before the family existed.
+// TestAzureIdentityRoutes (#1120 units 10 and 13): which azurerm and azapi
+// types the family answers by template, and which it hands to the
+// identity-schema route - every other azurerm type, told that
+// subscription_id is the provider's, with the template where one passes the
+// guards.
 func TestAzureIdentityRoutes(t *testing.T) {
 	schema := providers.Schema{Block: tagsBlock(true, false)}
-	// identity-schema class, unmapped class, a withheld row, and an azapi
-	// type of the wrong shape: the identity-schema route.
-	for _, typ := range []string{"azurerm_resource_group", "azurerm_virtual_network", "azurerm_role_assignment", "azurerm_lb_nat_rule", "azurerm_pim_active_role_assignment", "azapi_update_resource", "azurerm_no_such_type"} {
-		if _, ok := Azure.SynthesizeIdentity(typ, schema); ok {
-			t.Errorf("Azure.SynthesizeIdentity(%s) answered", typ)
+	// An azapi type of the wrong shape: the identity-schema route, as
+	// before the family existed.
+	if _, ok := Azure.SynthesizeIdentity("azapi_update_resource", schema); ok {
+		t.Error("Azure.SynthesizeIdentity(azapi_update_resource) answered")
+	}
+	// identity-schema class with and without a usable template, the
+	// unmapped class, withheld rows, and a type with no row: the route,
+	// with the subscription answered.
+	for typ, wantTemplate := range map[string]bool{
+		"azurerm_resource_group":                      true,
+		"azurerm_virtual_network":                     true,
+		"azurerm_app_service_custom_hostname_binding": false,
+		"azurerm_role_assignment":                     false,
+		"azurerm_api_management_api_operation_policy": false,
+		"azurerm_pim_active_role_assignment":          false,
+		"azurerm_no_such_type":                        false,
+	} {
+		got, ok := Azure.SynthesizeIdentity(typ, schema)
+		if !ok || !got.FromIdentitySchema || got.CloudIdentityAttrs["subscription_id"] != "subscription-id" {
+			t.Errorf("Azure.SynthesizeIdentity(%s) = %+v, %v; want the identity-schema route with subscription_id answered", typ, got, ok)
+			continue
 		}
-		if got, ok := SynthesizeIdentity(typ, schema); !ok || !got.FromIdentitySchema {
-			t.Errorf("SynthesizeIdentity(%s) = %+v, %v; want the identity-schema route", typ, got, ok)
+		if (got.ARMTemplate != nil) != wantTemplate {
+			t.Errorf("%s: template offered %v, want %v", typ, got.ARMTemplate != nil, wantTemplate)
 		}
+	}
+	// The load balancer rules: their importer wraps a parser literal, and
+	// the regenerated row is the rule's own id, admitted by template.
+	if got, ok := Azure.SynthesizeIdentity("azurerm_lb_nat_rule", schema); !ok || got.FromIdentitySchema || got.ImportSyntax != "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/loadBalancers/{loadBalancerName}/inboundNatRules/{inboundNatRuleName}" {
+		t.Errorf("azurerm_lb_nat_rule = %+v, %v; want the inbound NAT rule's own template", got, ok)
 	}
 	// A type of another family is never claimed, whatever its name says.
 	if _, ok := Azure.SynthesizeIdentity("aws_dns_zone", schema); ok {
@@ -204,11 +227,12 @@ func TestAzurermAdmissionCounts(t *testing.T) {
 		t.Errorf("embedded artifact is from azurerm %s (%s)", v, c)
 	}
 	want := map[string]int{
-		"template":        314,
-		"parent-id":       337,
-		"withheld":        21,
-		"identity-schema": 196,
-		"unmapped":        238,
+		"template":                 317,
+		"parent-id":                351,
+		"withheld":                 7,
+		"identity-schema+template": 177,
+		"identity-schema":          19,
+		"unmapped":                 235,
 	}
 	got := AzurermAdmission()
 	for k, n := range want {

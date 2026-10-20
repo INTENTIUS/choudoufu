@@ -35,8 +35,32 @@ type SynthesizedIdentity struct {
 	// FromIdentitySchema: the provider's own resource identity schema
 	// decides, through internal/live/identity's identity-schema route (which
 	// reads the full schema map and the configuration signal, neither of
-	// which a family sees). Every other field is empty when it is set.
+	// which a family sees). Every other field is empty when it is set,
+	// except NonAWSProvider and the two below, which say how the family's
+	// provider answers what that route cannot read from the schemas alone.
 	FromIdentitySchema bool
+
+	// CloudIdentityAttrs, with FromIdentitySchema: identity attributes the
+	// family's provider fills in from its own provider configuration, by
+	// name, mapped to the identity package's CloudValue string. The route
+	// reads such an attribute from that value when the type has no
+	// argument by the same name, the way an AWS identity schema's
+	// account_id and region are the provider's (GitHub issue #1120: every
+	// azurerm 5.10.0 identity schema requires subscription_id, and no
+	// azurerm argument supplies it). An attribute the type does declare as
+	// an argument is read from the argument, as before.
+	CloudIdentityAttrs map[string]string
+
+	// ARMTemplate, with FromIdentitySchema: the type's ARM id built from
+	// its own arguments, when the family has one (azurerm's generated
+	// template, live/azurerm-ids.json). The route renders this as the
+	// import id where the template supplies exactly the identity schema's
+	// attributes, so the identity is an ARM id other blocks can collide
+	// with ([SynthesizedIdentity.ARMResourceID]); and it is the route's
+	// answer where the identity schema names an attribute no argument
+	// supplies (a parent's name the type takes as the parent's ARM id).
+	// Nil otherwise.
+	ARMTemplate *SynthesizedIdentity
 
 	// NonAWSProvider is identity.TypeIdentity's field of the same name.
 	NonAWSProvider bool

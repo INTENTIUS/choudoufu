@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 )
@@ -161,4 +162,67 @@ func (r *resolver) armTypeSegmentParts(typeParts, parentParts []Part, attr *hcl.
 	case armParentDropped:
 	}
 	return append(out, Part{Literal: seg}), true
+}
+
+// armResourceGroupType is azcore's arm.ResourceGroupResourceType, the type
+// azapi gives a default parent ([resolver.armParentDefault]).
+const armResourceGroupType = "Microsoft.Resources/resourceGroups"
+
+// armParentDefault is the parent_id azapi gives an azapi_resource that
+// omits it (GitHub issue #1120 unit 13). azapi 2.13.0 refuses an omitted
+// parent_id for every type but a resource group
+// (internal/services/azapi_resource.go ModifyPlan, lines 516-523, "The
+// argument \"parent_id\" is required"), and for a resource group it plans
+// "/subscriptions/" + the provider's subscription (lines 594-597,
+// r.ProviderData.Account.GetSubscriptionId()), comparing the type with
+// strings.EqualFold. The subscription is the provider block's
+// subscription_id, answered as [CloudSubscriptionID] is everywhere else.
+//
+// It answers "" when the entry has no [Component.ARMTypeSegment], when the
+// configuration sets parent_id, or when the type is not a resource group or
+// cannot be read here (the component loop then refuses the missing
+// parent_id, as azapi does). When the type is a resource group and the
+// subscription is not known, done is true and res is the answer an
+// identity embedding an unknown AWS account gets: NEEDS_DISCOVERY, naming
+// the subscription and parent_id as the argument that would settle it.
+func (r *resolver) armParentDefault(entry TypeIdentity, attrs hcl.Attributes, scope instScope, addr addrs.AbsResourceInstance, cs cloudScopeKey) (parent string, res Resolution, done bool) {
+	k := -1
+	for i, c := range entry.Components {
+		if c.ARMTypeSegment {
+			k = i
+			break
+		}
+	}
+	if k < 1 || len(entry.Components[k].Attrs) == 0 {
+		return "", Resolution{}, false
+	}
+	parentComp := entry.Components[k-1]
+	for _, name := range parentComp.Attrs {
+		if _, set := attrs[name]; set {
+			return "", Resolution{}, false
+		}
+	}
+	typeAttr, ok := attrs[entry.Components[k].Attrs[0]]
+	if !ok {
+		return "", Resolution{}, false
+	}
+	val, diags := r.evalPure(typeAttr.Expr, scope, r.identifier(addr, typeAttr.Name, typeAttr.Range))
+	if diags.HasErrors() || !val.IsWhollyKnown() || val.IsNull() || !val.Type().Equals(cty.String) {
+		return "", Resolution{}, false
+	}
+	armType, _, _ := strings.Cut(val.AsString(), "@")
+	if !strings.EqualFold(armType, armResourceGroupType) {
+		return "", Resolution{}, false
+	}
+	sub, known := r.cloudValueFor(CloudSubscriptionID, cs)
+	if !known || sub == "" {
+		return "", Resolution{
+			Addr:      addr,
+			Class:     ClassNeedsDiscovery,
+			Reason:    cloudReason(entry, CloudSubscriptionID),
+			Cause:     DiscoveryCloudUnknown,
+			CauseArgs: append([]string{string(CloudSubscriptionID)}, parentComp.Attrs...),
+		}, true
+	}
+	return "/subscriptions/" + sub, Resolution{}, false
 }
