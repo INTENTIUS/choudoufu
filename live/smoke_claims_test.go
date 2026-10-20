@@ -1113,7 +1113,7 @@ func TestSmokeClaimTitlesAreShortPromises(t *testing.T) {
 // note names live/smoke/drafts/<name>.sh. The other direction too: an open
 // cell's note that names a draft names one on disk.
 //
-// Proving it red: set claim 7's azure cell to "unproven", or change the
+// Proving it red: set claim 47's kubernetes cell to "unproven", or change the
 // path its note names; each fails a different check below.
 func TestSmokeDraftsNameAnOpenCell(t *testing.T) {
 	f := readSmokeClaims(t)

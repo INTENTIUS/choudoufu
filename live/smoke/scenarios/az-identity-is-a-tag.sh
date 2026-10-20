@@ -11,15 +11,15 @@
 # "adopt" } the replan must propose the tag write and the apply must restore
 # the tag, read back through ARM.
 #
-# DRAFT: written for GitHub issue #1120 (unit 15) and never run
-# (live/smoke/drafts/README.md). Claim 7's azure cell stays open until the
-# maintainer runs both arms green on floci-az and promotes it.
+# Written for GitHub issue #1120 (unit 15). Not yet run, so its cell reads
+# unproven until the maintainer runs both arms on floci-az and the evidence
+# file lands. It waits on lex00/floci-az#4 (no Resource Graph).
 #
 # What floci-az cannot answer today (live/FLOCI.md, Azure): it keeps tags on
 # resource groups, network resources and managed identities, which is every
 # type here, but it has no Resource Graph, so a plan whose sweep reaches for
 # it is refused by name (azsweep's "Microsoft.ResourceGraph not
-# registered"); that refusal is the first thing this draft will report if
+# registered"); that refusal is the first thing this scenario will report if
 # the fork still lacks the route. And every type here is on azurerm's
 # identity-schema route, so it plans only once that route answers a
 # subscription from the provider block (#1120 unit 10's note).
