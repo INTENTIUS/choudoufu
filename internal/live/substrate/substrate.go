@@ -712,6 +712,11 @@ type HoldEvidence struct {
 	Tags map[string]string
 	// Annotations are a Kubernetes object's metadata.annotations.
 	Annotations map[string]string
+	// Labels are a GCP resource's labels, and AssetType its Cloud Asset
+	// Inventory asset type (compute.googleapis.com/Instance): a GCP hold
+	// is recognised by a reserved label key on a given kind of asset.
+	Labels    map[string]string
+	AssetType string
 }
 
 // Hold is a family's answer for a held object.

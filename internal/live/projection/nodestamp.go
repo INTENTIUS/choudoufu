@@ -152,7 +152,10 @@ func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResour
 	// it by name ([NodeResolver.stampSurface]).
 	surface, ok := substrate.SurfaceOf(n.providerType(addr), schema.Block)
 	if !ok {
-		return config, diags
+		// GitHub issue #1119: an instance template's labels are copied
+		// onto every VM made from it, so a marker written there by hand
+		// is refused, never stamped. See nodestamp_googlelabels.go.
+		return config, diags.Append(propagatedMarkerDiag(addr, config, schema))
 	}
 
 	if n.recordSelected(addr, schema) {

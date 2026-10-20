@@ -91,6 +91,51 @@ func GoogleLabelSurface(block *configschema.Block) (*configschema.Attribute, boo
 	if !ok || eff == nil || !eff.Computed || eff.Optional || eff.Required || !stringMap(eff.Type) {
 		return nil, false
 	}
+	if googlePropagationOnly(attr.Description) {
+		return nil, false
+	}
+	return attr, true
+}
+
+// googlePropagationOnlyPattern is how hashicorp/google describes a labels
+// map that is not the resource's own: at v8.6.0,
+// google_compute_instance_template's "A set of key/value label pairs to
+// assign to instances created from this template." and
+// google_compute_region_instance_template's same sentence. The provider
+// sends that map as the template's instanceProperties.labels; the template
+// carries no labels of its own.
+var googlePropagationOnlyPattern = regexp.MustCompile(`(?i)\binstances created from this template\b`)
+
+// googlePropagationOnly reports whether a labels map's description says it
+// labels what the resource creates rather than the resource. Read from the
+// description, as [VocabularyRefusal] reads one, because the schema has no
+// other channel that says so; googlelabels_schema_test.go pins it against
+// the provider's own words, so a release that rewords them fails there
+// rather than silently starting to stamp.
+func googlePropagationOnly(desc string) bool {
+	return googlePropagationOnlyPattern.MatchString(flattenDescription(desc))
+}
+
+// GooglePropagatedLabels reports whether a resource type has a settable
+// labels map that GCP copies onto the resources it creates and never keeps
+// itself: an instance template's. A marker written there lands on every VM
+// a managed instance group makes from it, owned by no block, and on nothing
+// the template is, so it is never stamped and a configuration that writes
+// one by hand is refused (GitHub issue #1119's ruling of 2026-10-20, the
+// AWS precedent being aws_launch_template's tag_specifications).
+//
+//markers:surface google-labels
+func GooglePropagatedLabels(block *configschema.Block) (*configschema.Attribute, bool) {
+	if block == nil {
+		return nil, false
+	}
+	attr, ok := block.Attributes[GoogleLabelsAttr]
+	if !ok || attr == nil || (!attr.Optional && !attr.Required) || !stringMap(attr.Type) {
+		return nil, false
+	}
+	if !googlePropagationOnly(attr.Description) {
+		return nil, false
+	}
 	return attr, true
 }
 

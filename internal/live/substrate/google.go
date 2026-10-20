@@ -7,6 +7,7 @@ package substrate
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -195,6 +196,67 @@ func (google) NewSweeper(cty.Value, bool) (Sweeper, error) {
 
 // ---- GitHub issue #1706 ----
 
-func (google) ControllerHeld(HoldEvidence) (Hold, bool) { return Hold{}, false }
+// The asset types a GCP controller creates copies of a declared resource as,
+// and the label keys each controller reserves on its copies. Measured from
+// Google's documentation and hashicorp/google v8.6.0 for GitHub issue #1119:
+// GKE copies a cluster's resource_labels onto its node VMs and their disks,
+// Dataproc a cluster's labels onto its VMs and disks, Batch a job's
+// allocation-policy labels onto its VMs and disks, and Cloud Functions gen2
+// a function's labels onto the Cloud Run service it runs on. Exact keys,
+// never a goog- prefix: the provider writes goog-terraform-provisioned on
+// everything it creates, and the declared Dataproc cluster itself carries
+// goog-dataproc-* keys, so a prefix would hold a leaked declared resource.
+const (
+	assetComputeInstance = "compute.googleapis.com/Instance"
+	assetComputeDisk     = "compute.googleapis.com/Disk"
+	assetRunService      = "run.googleapis.com/Service"
+)
 
-func (google) HoldRecognition() HoldRecognition { return HoldRecognition{} }
+// googleHeldKeys is each reserved key on a Compute instance or disk, with
+// the controller that writes it.
+var googleHeldKeys = []struct{ key, controller string }{
+	{"goog-gke-node", "GKE"},
+	{"goog-gke-volume", "GKE"},
+	{"goog-k8s-cluster-name", "GKE"},
+	{"goog-k8s-node-pool-name", "GKE"},
+	{"goog-dataproc-cluster-uuid", "Dataproc"},
+	{"goog-dataproc-cluster-name", "Dataproc"},
+	{"batch-job-uid", "Batch"},
+}
+
+// googleManagedByKey is the Cloud Run service label naming the product that
+// manages it. An empty value means the service was detached from its
+// function and is the operator's own again, so only a non-empty value holds.
+const googleManagedByKey = "goog-managed-by"
+
+// ControllerHeld: a Compute instance or disk carrying a key GKE, Dataproc or
+// Batch reserves for what it creates, or a Cloud Run service whose
+// goog-managed-by label names a product.
+func (google) ControllerHeld(ev HoldEvidence) (Hold, bool) {
+	switch ev.AssetType {
+	case assetComputeInstance, assetComputeDisk:
+		for _, k := range googleHeldKeys {
+			if v, ok := ev.Labels[k.key]; ok {
+				return Hold{Controller: k.controller, HeldBy: fmt.Sprintf("%s (%s=%s)", k.controller, k.key, v)}, true
+			}
+		}
+	case assetRunService:
+		if v := ev.Labels[googleManagedByKey]; v != "" {
+			return Hold{Controller: v, HeldBy: fmt.Sprintf("%s (%s=%s)", v, googleManagedByKey, v)}, true
+		}
+	}
+	return Hold{}, false
+}
+
+func (google) HoldRecognition() HoldRecognition {
+	keys := make([]string, 0, len(googleHeldKeys)+1)
+	for _, k := range googleHeldKeys {
+		keys = append(keys, k.key)
+	}
+	keys = append(keys, googleManagedByKey)
+	sort.Strings(keys)
+	return HoldRecognition{
+		Mechanism: "a Compute Engine instance or disk carrying a label key GKE, Dataproc or Batch reserves for the VMs and disks they create, or a Cloud Run service whose goog-managed-by label names a product; never a goog- prefix, which the provider writes on everything it creates",
+		Keys:      keys,
+	}
+}

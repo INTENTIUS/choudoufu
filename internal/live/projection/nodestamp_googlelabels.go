@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -277,4 +278,56 @@ func (b *builder) googleLabelDefaults(ctx context.Context, providerAddr addrs.Ab
 		}
 	}
 	return defaults(keys, attribution), true
+}
+
+// SummaryGoogleLabelDefaultsUnread names the warning
+// [builder.warnGoogleDefaultsUnread] raises.
+const SummaryGoogleLabelDefaultsUnread = "Provider default labels not known at plan time"
+
+// warnGoogleDefaultsUnread says, once per provider configuration, that its
+// default_labels or add_terraform_attribution_label could not be read
+// statically, so terraform_labels was not rebuilt and the plan shows it.
+// Guessing the map would hide a real change behind an invented one.
+func (b *builder) warnGoogleDefaultsUnread(providerAddr addrs.AbsProviderConfig) {
+	key := providerAddr.String()
+	if b.googleDefaultsWarned[key] {
+		return
+	}
+	if b.googleDefaultsWarned == nil {
+		b.googleDefaultsWarned = map[string]bool{}
+	}
+	b.googleDefaultsWarned[key] = true
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryGoogleLabelDefaultsUnread,
+		fmt.Sprintf("%s sets default_labels or add_terraform_attribution_label from something not known until apply (a variable with no value yet, a data source, another resource), so this run could not rebuild the terraform_labels the provider reads back empty without a state file. Each labelled resource through it will show terraform_labels as a change on a plan built without the cache. The change is the provider's own bookkeeping and the apply leaves the resource as it is. Set those arguments from literals or variables with known values to remove it.", providerAddr)))
+}
+
+// propagatedMarkerDiag refuses a configuration that writes an ownership
+// marker by hand into a labels map GCP copies onto the resources the type
+// creates ([markers.GooglePropagatedLabels]): an instance template's,
+// which lands on every VM a managed instance group makes from it. Each VM
+// would then carry this estate's marker with no block declaring it, and
+// the sweep would report every one as an orphan. It is the
+// [SummaryMarkerConflict] refusal, for a marker this run never writes.
+func propagatedMarkerDiag(addr addrs.AbsResourceInstance, config cty.Value, schema providers.Schema) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if _, ok := markers.GooglePropagatedLabels(schema.Block); !ok {
+		return diags
+	}
+	if config == cty.NilVal || config.IsMarked() || config.IsNull() || !config.IsKnown() || !config.Type().IsObjectType() || !config.Type().HasAttribute(markers.GoogleLabelsAttr) {
+		return diags
+	}
+	labels := config.GetAttr(markers.GoogleLabelsAttr)
+	if labels.IsMarked() || labels.IsNull() || !labels.IsKnown() || !labels.CanIterateElements() {
+		return diags
+	}
+	for it := labels.ElementIterator(); it.Next(); {
+		k, _ := it.Element()
+		switch key := k.AsString(); key {
+		case markers.TagEstate, markers.TagAddress, markers.TagSlot:
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMarkerConflict, fmt.Sprintf(
+				"%s declares the %q label, but %s's labels are copied onto every instance created from it and are not the template's own, so this run never writes a marker there. Every VM a managed instance group makes from this template would carry the marker with no block declaring it, and each would read as an orphan of the estate. Remove %q from its labels.",
+				addr, key, addr.Resource.Resource.Type, key)))
+		}
+	}
+	return diags
 }
