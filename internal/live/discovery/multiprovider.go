@@ -327,6 +327,7 @@ func Merge(estate string, passes []Pass, recreateOnProviderChange bool) (*Result
 		res.Surplus = append(res.Surplus, p.Result.Surplus...)
 		res.Slots = append(res.Slots, p.Result.Slots...)
 		res.Problems = append(res.Problems, p.Result.Problems...)
+		res.PendingDisplaced = append(res.PendingDisplaced, p.Result.PendingDisplaced...)
 		res.Scans = append(res.Scans, p.Result.Scans...)
 		res.ParentReads = append(res.ParentReads, p.Result.ParentReads...)
 

@@ -103,7 +103,9 @@ import (
 //     object carries only "id" - and the branch #244's own tests exercise.
 //   - An ARM id on the listed side (GitHub issue #2136): compared whole,
 //     case-insensitively, with the address's own ARM id, before any of the
-//     above. With no ARM id on the address's side the answer is
+//     above, the ambiguous case included. With no single ARM id on the
+//     address's side (no entry, an ambiguous one, or one without an ARM
+//     id) the answer is
 //     [verdictUncompared], which neither reports nor vouches: an Azure
 //     sighting never reaches the "nothing to compare" vouch.
 //   - Anything else: not displaced.
@@ -201,16 +203,18 @@ const (
 // file's doc comment for the six ways it declines to answer.
 func (d *declared) displacedFrom(ctx context.Context, typeName, escaped string, c claimant) (want string, verdict addressVerdict) {
 	entry := d.all[typeName][escaped]
+	if isARMID(c.importID) && (entry == nil || entry.ambiguous || !classTable[entry.res.Class].comparableIdentity || !isARMID(entry.res.ImportID)) {
+		// An Azure sighting: its ARM id is the whole comparison, and with
+		// no single ARM id on the address's side there is none. See
+		// [verdictUncompared]. Asked before the nil and ambiguous checks
+		// below (GitHub issue #2140, finding 5), so no Azure sighting
+		// reaches their vouching default.
+		return "", verdictUncompared
+	}
 	if entry == nil || entry.ambiguous {
 		return "", verdictOwnObject
 	}
 	res := entry.res
-	if isARMID(c.importID) && (!classTable[res.Class].comparableIdentity || !isARMID(res.ImportID)) {
-		// An Azure sighting: its ARM id is the whole comparison, and with
-		// no ARM id on the address's side there is none. See
-		// [verdictUncompared].
-		return "", verdictUncompared
-	}
 	if !classTable[res.Class].comparableIdentity {
 		return "", verdictOwnObject
 	}

@@ -185,3 +185,33 @@ func TestDisplacedProblem_saysWhereTheObjectSits(t *testing.T) {
 		})
 	}
 }
+
+// TestDisplacedFrom_azureSightingWithNoSingleEntry is GitHub issue #2140,
+// finding 5: with no declared entry for the marker, or an ambiguous one,
+// an ARM-id sighting is still the ARM comparison's question and answers
+// verdictUncompared, never the vouching default the nil and ambiguous
+// checks give every other platform. The AWS controls keep that default.
+func TestDisplacedFrom_azureSightingWithNoSingleEntry(t *testing.T) {
+	addr := instanceAddr("azurerm_route_table", "rt", addrs.NoKey)
+	escaped := markers.EscapeAddress(addr.String())
+	armSighting := claimant{importID: strings.ToLower(renameRTID(renameNewRT)), identityAttr: "id", identity: cty.NilVal, marker: escaped, escaped: escaped}
+
+	ambiguous := declaredOf()
+	ambiguous.record("azurerm_route_table", escaped, identity.Resolution{Addr: addr, Class: identity.ClassConcrete, ImportID: renameRTID(renameNewRT)})
+	ambiguous.record("azurerm_route_table", escaped, identity.Resolution{Addr: instanceAddr("azurerm_route_table", "rt2", addrs.NoKey), Class: identity.ClassConcrete, ImportID: renameRTID(renameOldRT)})
+	if !ambiguous.all["azurerm_route_table"][escaped].ambiguous {
+		t.Fatal("setup: the entry is not ambiguous")
+	}
+
+	for name, d := range map[string]*declared{"no entry": declaredOf(), "ambiguous entry": ambiguous} {
+		if _, got := d.displacedFrom(context.Background(), "azurerm_route_table", escaped, armSighting); got != verdictUncompared {
+			t.Errorf("%s: ARM sighting verdict %d, want verdictUncompared (%d)", name, got, verdictUncompared)
+		}
+	}
+
+	bucket := instanceAddr("aws_s3_bucket", "b", addrs.NoKey)
+	be := markers.EscapeAddress(bucket.String())
+	if _, got := declaredOf().displacedFrom(context.Background(), "aws_s3_bucket", be, claimant{importID: "b-old", escaped: be}); got != verdictOwnObject {
+		t.Errorf("AWS no-entry verdict %d, want the unchanged default %d", got, verdictOwnObject)
+	}
+}

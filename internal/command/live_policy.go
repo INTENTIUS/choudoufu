@@ -105,6 +105,9 @@ func liveOwnershipWith(estate string, disco *discovery.Result, pol *policy.Polic
 		Verified:            verified,
 		Policy:              pol,
 		FieldGranularUnheld: unheld,
+		// GitHub issue #2140, finding 4: the displaced warnings discovery
+		// left for the projection to give or withhold.
+		PendingDisplaced: disco.PendingDisplacedWarnings(),
 	}
 }
 

@@ -530,11 +530,35 @@ func TestResolverImportAbsentDiagnostics(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			got := resolverImportAbsentDiagnostics(test.diags, providers.ImportTarget{})
+			got := resolverImportAbsentDiagnostics(test.diags, providers.ImportTarget{}, "")
 			if got != test.want {
 				t.Errorf("resolverImportAbsentDiagnostics(...) = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+// GitHub issue #2140, finding 1: a resolver-supplied import whose error
+// says `"x" was not found` about one of its own segments stays fatal from
+// an AWS or Kubernetes provider, and is an absence only from azurerm or
+// azapi.
+func TestResolverImportAbsentDiagnosticsAzureShapesNeedAzure(t *testing.T) {
+	notFound := func(detail string) tfdiags.Diagnostics {
+		return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, "Error", detail))
+	}
+	for name, tc := range map[string]struct {
+		diags    tfdiags.Diagnostics
+		id       string
+		provider string
+		want     bool
+	}{
+		"kubernetes namespace": {notFound(`namespace "team-a" was not found`), "team-a/app", "kubernetes", false},
+		"aws subnet":           {notFound(`subnet "subnet-0abc" was not found`), "subnet-0abc/rtb-0def", "aws", false},
+		"azurerm bot":          {notFound(`the Bot Channels Registration "bot" was not found in Resource Group "rg"`), "/subscriptions/s/resourceGroups/rg/providers/Microsoft.BotService/botServices/bot", "azurerm", true},
+	} {
+		if got := resolverImportAbsentDiagnostics(tc.diags, providers.ImportTarget{ID: tc.id}, tc.provider); got != tc.want {
+			t.Errorf("%s: resolverImportAbsentDiagnostics = %v, want %v", name, got, tc.want)
+		}
 	}
 }
 
