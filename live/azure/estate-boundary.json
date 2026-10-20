@@ -6,6 +6,7 @@
     "scope": "Definitions live at the subscription because a definition's location must be a subscription or a management group, and a subscription is the narrowest that can hold them. Assignments are made at each resource group the estate owns, never at the subscription, because a group belongs to exactly one estate and the deny below requires every taggable resource in the assigned scope to carry that one estate's name. Assigned at the subscription, it would refuse every other estate and every untagged resource there.",
     "modeIndexed": "Both definitions use mode Indexed, which evaluates only resource types that support tags and location. Excluded: resource types without tags (child resources such as Microsoft.Network/routeTables/routes, extension resources, most role and policy objects), resource groups and subscriptions themselves. Resource-group RBAC from estate-grant.json still covers those; the tag guard does not.",
     "caseSensitivity": "Azure Policy string conditions other than match and notMatch compare with InvariantCultureIgnoreCase (learn.microsoft.com/azure/governance/policy/concepts/definition-structure-policy-rule, Conditions), so notEquals and equals below ignore the value's case. Tag names are case-insensitive for ARM operations (learn.microsoft.com/azure/azure-resource-manager/management/tag-resources, the Important note); the Policy page does not state the key casing of a tags['<name>'] field lookup itself, so a Tofu-Estate key being read by tags['tofu-estate'] rests on the ARM statement and is unmeasured on real Azure. floci-az stores definitions and assignments and evaluates no rule (live/FLOCI.md, Azure).",
+    "taggedAfterCreate": "Some types are created untagged and tagged by a second call: azurerm writes an App Service managed certificate's tags in a PATCH after its PUT, because the PUT refuses them (azurerm 5.10.0, app_service_managed_certificate_resource.go; Azure/azure-rest-api-specs#14529), and choudoufu writes its markers onto such a type with the Tags API after the create returns (internal/live/armtypes, after-create; substrate PostCreateNeeded). A deny on a missing tofu-estate would refuse that create on every run. So the marker guard lets a type listed in taggedAfterCreate exist without tofu-estate, and still refuses one that carries tofu-estate naming another estate. The default is the ARM type of every after-create azurerm type that lives in a resource group, from generated facts that live/azure_fence_test.go holds this default to. The cost: an untagged resource of a listed type, from anyone with write on the group, is not refused, and one ARM type can serve azurerm types that tag in their create too (Microsoft.Web/certificates is also azurerm_app_service_certificate). Pass taggedAfterCreate='[]' to refuse every untagged create instead, and either exempt the post-create resources one by one (az policy exemption create on the marker-guard assignment) or accept that their creates are denied. azurerm_subscription, the other after-create type, is in no resource group, so no assignment here reaches it.",
     "denyActionLimits": "denyAction supports only the delete action (learn.microsoft.com/azure/governance/policy/concepts/effect-deny-action). It does not protect anything removed by a subscription deletion, or a child or extension resource removed because its parent was deleted. A resource-group deletion is blocked only for indexed resources and only when cascadeBehaviors.resourceGroup is deny (set below; it is also the documented default); non-indexed resources in the group are deleted. Policy assignments, locks, deny assignments, deployment stacks and subscriptions are exempt from denyAction. It is not per principal: it refuses the estate's own deletes too, so removing a resource from the estate is a policy exemption (az policy exemption create) on the delete-guard assignment, scoped to that resource, for the duration of the change."
   },
   "parameters": {
@@ -23,6 +24,15 @@
       "metadata": {
         "description": "The names of the resource groups this estate owns, in this subscription. Each must already exist."
       }
+    },
+    "taggedAfterCreate": {
+      "type": "array",
+      "defaultValue": [
+        "Microsoft.Web/certificates"
+      ],
+      "metadata": {
+        "description": "ARM resource types the marker guard lets exist without tofu-estate, because their create arrives untagged and the tags follow in a second call. See metadata.taggedAfterCreate."
+      }
     }
   },
   "variables": {
@@ -38,7 +48,7 @@
         "policyType": "Custom",
         "mode": "Indexed",
         "displayName": "choudoufu: every taggable resource carries this estate's tofu-estate marker",
-        "description": "Denies a create or update of a taggable resource whose tags['tofu-estate'] is missing or names another estate. Assigned at each of an estate's resource groups by live/azure/estate-boundary.json.",
+        "description": "Denies a create or update of a taggable resource whose tags['tofu-estate'] is missing (unless its type is one tagged after create) or names another estate. Assigned at each of an estate's resource groups by live/azure/estate-boundary.json.",
         "metadata": {
           "category": "Tags"
         },
@@ -49,18 +59,42 @@
               "displayName": "Estate",
               "description": "The estate that owns the resource group this is assigned at."
             }
+          },
+          "taggedAfterCreate": {
+            "type": "Array",
+            "defaultValue": [],
+            "metadata": {
+              "displayName": "Types tagged after create",
+              "description": "ARM resource types allowed to exist without tofu-estate, because their create arrives untagged and their tags follow in a second call."
+            }
           }
         },
         "policyRule": {
           "if": {
             "anyOf": [
               {
-                "field": "tags['tofu-estate']",
-                "exists": "false"
+                "allOf": [
+                  {
+                    "field": "tags['tofu-estate']",
+                    "exists": "false"
+                  },
+                  {
+                    "field": "type",
+                    "notIn": "[[parameters('taggedAfterCreate')]"
+                  }
+                ]
               },
               {
-                "field": "tags['tofu-estate']",
-                "notEquals": "[[parameters('estate')]"
+                "allOf": [
+                  {
+                    "field": "tags['tofu-estate']",
+                    "exists": "true"
+                  },
+                  {
+                    "field": "tags['tofu-estate']",
+                    "notEquals": "[[parameters('estate')]"
+                  }
+                ]
               }
             ]
           },
@@ -132,6 +166,9 @@
           "estate": {
             "value": "[parameters('estate')]"
           },
+          "taggedAfterCreate": {
+            "value": "[parameters('taggedAfterCreate')]"
+          },
           "markerGuardId": {
             "value": "[subscriptionResourceId('Microsoft.Authorization/policyDefinitions', variables('markerGuardName'))]"
           },
@@ -145,6 +182,9 @@
           "parameters": {
             "estate": {
               "type": "string"
+            },
+            "taggedAfterCreate": {
+              "type": "array"
             },
             "markerGuardId": {
               "type": "string"
@@ -165,6 +205,9 @@
                 "parameters": {
                   "estate": {
                     "value": "[parameters('estate')]"
+                  },
+                  "taggedAfterCreate": {
+                    "value": "[parameters('taggedAfterCreate')]"
                   }
                 }
               }

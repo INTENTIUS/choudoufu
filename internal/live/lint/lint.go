@@ -97,8 +97,9 @@ type Context struct {
 // route through it are [RuleProvisioner], [RuleLogicalResource],
 // [RuleUnadmittedType], [RuleMarkerlessType], [RuleCountIndex],
 // [RuleIgnoreChanges], [RuleGenerateName], [RuleForEachKey],
-// [RuleOverlongAddress], [RuleReceiptLeaf], [RuleReceiptValue] and
-// [RuleReceiptSecret], plus [CheckResidueAttributes]' warning. Every other
+// [RuleOverlongAddress], [RuleReceiptLeaf], [RuleReceiptValue],
+// [RuleReceiptSecret] and [RuleARMTagLimit], plus
+// [CheckResidueAttributes]' warning. Every other
 // rule is about the configuration, a module call or the live block itself,
 // and none of those is an [addrs.ConfigResource] for a scope to answer
 // about.
@@ -298,6 +299,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkManagedResources(ctx, cfg, path, schemas, scope, signal, recordStoreConfigured, secrets, markersRecord, issues)
 	checkForEachKeys(ctx, cfg, path, scope, issues)
 	checkOverlongAddresses(ctx, mod, modInst, scope, issues)
+	checkARMTagLimit(ctx, cfg, modInst, schemas, scope, issues)
 	checkReceiptLeafRule(mod, path, scope, issues)
 	checkReceiptValueRule(mod, path, scope, issues)
 	checkReceiptSecretRule(mod, path, scope, issues)

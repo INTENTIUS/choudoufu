@@ -1631,9 +1631,11 @@ alone. Neither is ever a resource in a plan.
 - [`live/azure/estate-boundary.json`](azure/estate-boundary.json) defines two
   Policy definitions at the subscription and assigns both at each of the
   estate's groups, never at the subscription. The first denies a create or
-  update of a taggable resource whose `tags['tofu-estate']` is missing or
-  names another estate. The second is `denyAction` on delete of a resource
-  tagged with the estate, with `cascadeBehaviors.resourceGroup = deny`.
+  update of a taggable resource whose `tags['tofu-estate']` names another
+  estate, or is missing on a type outside the template's
+  `taggedAfterCreate` parameter (below). The second is `denyAction` on
+  delete of a resource tagged with the estate, with
+  `cascadeBehaviors.resourceGroup = deny`.
 
 ```
 az deployment sub create --location <region> \
@@ -1648,6 +1650,33 @@ Both are ARM JSON rather than Bicep. `az deployment` takes ARM JSON with
 nothing else installed, where Bicep needs the Bicep CLI on the machine
 (az fetches it on first use, which an air-gapped runner cannot do), and
 `live/azure_fence_test.go` reads JSON with the standard library.
+
+Two azurerm types are created untagged and tagged by a second call
+(`internal/live/armtypes`, the after-create rows of
+`azurerm_tags_generated.json`, read off azurerm 5.10.0's Create functions):
+`azurerm_app_service_managed_certificate`, whose PUT refuses tags so azurerm
+PATCHes them after, and `azurerm_subscription`, whose alias PUT carries none
+and whose tags azurerm writes on the subscription. For these the stamp
+withholds the markers from the create and writes them once it returns,
+through ARM's Tags API (`PATCH {id}/providers/Microsoft.Resources/tags/default`,
+`operation: Merge`, the call `az tag update --operation Merge` makes), with
+the provider block's own credential; a failed write fails the apply naming
+the object and the `az` command that marks it.
+
+A deny on a missing `tofu-estate` would refuse the certificate's untagged create on every run,
+so `estate-boundary.json` takes a `taggedAfterCreate` parameter, an ARM type
+list the marker guard lets exist without `tofu-estate` (it still refuses one
+naming another estate). Its default is `["Microsoft.Web/certificates"]`, the
+resource-group ARM type of every after-create type, which
+`live/azure_fence_test.go` holds to the generated facts. The subscription is
+in no resource group, so no assignment reaches it.
+
+The default has a cost: an untagged `Microsoft.Web/certificates` resource from anyone with
+write on the group is not refused, and that ARM type is also
+`azurerm_app_service_certificate`, which tags in its create. Pass
+`taggedAfterCreate='[]'` to refuse every untagged create, and then either
+exempt each post-create resource on the marker-guard assignment
+(`az policy exemption create`) or accept that its create is denied.
 
 The estate's groups, as the plan sees them, are the `azurerm_resource_group`
 blocks and azapi `Microsoft.Resources/resourceGroups` blocks the
@@ -1674,9 +1703,9 @@ declare" (`internal/live/identity/azure_resourcegroup.go`), once per group.
   deny refuses a write that changes `tofu-estate` to another name.
 - `mode: Indexed` evaluates only types that
   support tags and location, so untaggable types, resource groups and
-  subscriptions are outside both definitions. An azurerm type that tags in
-  a separate call after create (PostCreateNeeded) is refused by the deny,
-  because its create arrives untagged.
+  subscriptions are outside both definitions. A type in
+  `taggedAfterCreate` may exist in the group without `tofu-estate` (see
+  above); the deny still refuses one naming another estate.
 - `denyAction` covers only the `delete` action
   ([effect-deny-action](https://learn.microsoft.com/azure/governance/policy/concepts/effect-deny-action)). A subscription deletion is never blocked.
   Deleting a parent removes its child and extension resources without the

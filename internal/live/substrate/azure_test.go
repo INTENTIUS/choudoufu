@@ -68,11 +68,11 @@ func TestAzureFamilyAnswers(t *testing.T) {
 	if !Azure.SweepFindsUnadmitted() || Azure.Sweep() != SweepResourceGraph {
 		t.Errorf("sweep %q, finds unadmitted %v", Azure.Sweep(), Azure.SweepFindsUnadmitted())
 	}
-	if w := Azure.Writes(s); w != (Writes{Create: WriteInCreate, Adopt: WriteTagsPlan, PostCreate: WriteNeverNeeded}) {
+	if w := Azure.Writes(s); w != (Writes{Create: WriteInCreate, Adopt: WriteTagsPlan, PostCreate: WriteARMTagsAPI}) {
 		t.Errorf("Writes = %+v", w)
 	}
-	if _, needed := Azure.PostCreateNeeded(s, Created{}, nil); needed || Azure.MarkerWriter() != WriteNeverNeeded {
-		t.Error("no post-create write until the generated list lands")
+	if Azure.MarkerWriter() != WriteARMTagsAPI {
+		t.Error("every Azure provider configuration writes through ARM's Tags API")
 	}
 	if got := CarrierPaths(s); len(got) != 1 || !got[0].Equals(cty.GetAttrPath("tags")) {
 		t.Errorf("CarrierPaths = %#v", got)
