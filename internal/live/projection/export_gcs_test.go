@@ -23,3 +23,7 @@ func GCSConnectionEnvForTest(rs *configs.LiveRecordStore) map[string]string {
 		"universe_domain":             c.universeDomain,
 	}
 }
+
+// GCSClientForTest is newGCSClient, so gcs_store_stock_test.go can build the
+// store's client the way the store does and watch which credential it sends.
+var GCSClientForTest = newGCSClient
