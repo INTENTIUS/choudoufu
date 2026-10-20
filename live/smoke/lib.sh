@@ -387,6 +387,10 @@ cluster_down() {
 #              has no path to confirm
 #   assumed    iam_credentials_custom_endpoint = <endpoint>/v1/, where the
 #              IAM guide says generateAccessToken lives but gives no path
+#   assumed    secret_manager_custom_endpoint = <endpoint>/v1/; Secret
+#              Manager is among the services the IAM guide says it
+#              evaluates, and its REST paths sit under v1/projects as
+#              Pub/Sub's do, but no test in the fork sets this argument
 SMOKE_GCP_PROJECT="${SMOKE_GCP_PROJECT:-chdf-smoke-a}"
 SMOKE_GCP_REGION="${SMOKE_GCP_REGION:-us-central1}"
 SMOKE_GCP_ZONE="${SMOKE_GCP_ZONE:-us-central1-a}"
@@ -434,8 +438,9 @@ gcp_down() {
 # service a GCP root reaches, the path joined to GCP_ENDPOINT. The reference
 # estate's services (Compute, Cloud Storage, IAM, Pub/Sub), Resource
 # Manager and Service Usage for project-level resources and the project
-# grant, Cloud Asset for the sweep, and IAM Credentials for an impersonated
-# token. Which of these are confirmed is gcp_up's comment above.
+# grant, Cloud Asset for the sweep, IAM Credentials for an impersonated
+# token, and Secret Manager for claim 51's record-located type. Which of
+# these are confirmed is gcp_up's comment above.
 gcp_endpoint_paths() {
   cat <<'PATHS'
 compute_custom_endpoint compute/v1/
@@ -446,6 +451,7 @@ resource_manager_custom_endpoint v1/
 service_usage_custom_endpoint v1/
 cloud_asset_custom_endpoint v1/
 iam_credentials_custom_endpoint v1/
+secret_manager_custom_endpoint v1/
 PATHS
 }
 

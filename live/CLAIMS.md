@@ -31,6 +31,6 @@ around the generated markers, never inside them.
 | 48 | [A derived identity needs no record and no cache](smoke/claims/a-derived-name-needs-no-record.md) | adopt | open | open | unproven<br>`just smoke gcp-a-derived-name-needs-no-record` ~3 min |
 | 49 | [A parent's marker never proves its child exists](smoke/claims/a-parent-proves-no-child.md) | adopt | open | n/a | unproven<br>`just smoke gcp-a-parent-proves-no-child` ~3 min |
 | 50 | [A removed derived block is destroyed from its record](smoke/claims/a-removed-derived-block-is-destroyed.md) | adopt | open | open | unproven<br>`just smoke gcp-a-removed-derived-block-is-destroyed` ~4 min |
-| 51 | [An untaggable server-minted type is refused by name](smoke/claims/a-markerless-type-is-refused.md) | operate | open | n/a | unproven<br>`just smoke gcp-a-markerless-type-is-refused` ~2 min |
+| 51 | [A markerless type is held by its record, or refused](smoke/claims/a-markerless-type-is-held-by-its-record.md) | operate | open | n/a | unproven<br>`just smoke gcp-a-markerless-type-is-held-by-its-record` ~3 min |
 | 52 | [The fence over derived types is what the docs say](smoke/claims/the-fence-gap-is-as-stated.md) | gate | open | open | unproven<br>`just smoke gcp-the-fence-gap-is-as-stated` ~5 min |
 <!-- claims-gen:end claims -->
