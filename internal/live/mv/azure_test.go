@@ -16,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -357,4 +358,132 @@ func azMvMapsEqual(a, b map[string]string) bool {
 		}
 	}
 	return true
+}
+
+// azMvListProvider serves azurerm_resource_group's list protocol over the
+// groups it holds, each listed with its tags as ARM stored them.
+type azMvListProvider struct {
+	*tofu.MockProvider
+	groups []cty.Value
+}
+
+func (p *azMvListProvider) ListResourceStream(_ context.Context, req providers.ListResourceRequest, emit func(providers.ListResourceEvent) bool) tfdiags.Diagnostics {
+	for _, g := range p.groups {
+		ev := providers.ListResourceEvent{
+			DisplayName: g.GetAttr("name").AsString(),
+			Identity:    cty.ObjectVal(map[string]cty.Value{"id": g.GetAttr("id")}),
+		}
+		if req.IncludeResourceObject {
+			ev.ResourceObject = g
+		}
+		if !emit(ev) {
+			break
+		}
+	}
+	return nil
+}
+
+func azMvListedGroup(name string, tags map[string]string) cty.Value {
+	return cty.ObjectVal(map[string]cty.Value{
+		"id":       cty.StringVal("/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/" + name),
+		"name":     cty.StringVal(name),
+		"location": cty.StringVal("westeurope"),
+		"tags":     azMvStrMap(tags),
+	})
+}
+
+// azMvListMover is a rename of azurerm_resource_group.old to .main on the
+// arm-tags surface, over a provider listing groups, and the list schema
+// [mover.locateByList] and [mover.checkDestinationFree] sweep with.
+func azMvListMover(t *testing.T, surface markers.Surface, groups ...cty.Value) (*mover, listclient.TypeSchema) {
+	t.Helper()
+	p := &tofu.MockProvider{GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
+		Provider:      providers.Schema{Block: &configschema.Block{}},
+		ResourceTypes: azMvSchemas(),
+		ListResourceTypes: map[string]providers.Schema{"azurerm_resource_group": {Block: &configschema.Block{
+			Attributes: map[string]*configschema.Attribute{"subscription_id": {Type: cty.String, Optional: true}},
+		}}},
+	}}
+	p.ConfigureProviderCalled = true
+	provider := &azMvListProvider{MockProvider: p, groups: groups}
+	oldAddr, newAddr := mustAddr(t, "azurerm_resource_group.old"), mustAddr(t, "azurerm_resource_group.main")
+	m := &mover{
+		req: Request{
+			Estate: "app",
+			Old:    oldAddr,
+			New:    newAddr,
+			Providers: projection.SingleProvider(addrs.AbsProviderConfig{
+				Module:   addrs.RootModule,
+				Provider: addrs.NewProvider(addrs.DefaultProviderRegistryHost, "hashicorp", "azurerm"),
+			}, provider),
+		},
+		res: &Result{
+			Old:       oldAddr,
+			New:       newAddr,
+			TypeName:  "azurerm_resource_group",
+			Anchor:    newAddr,
+			Surface:   surface,
+			LiveID:    azMvRGID,
+			OldMarker: markers.EscapeAddress(oldAddr.String()),
+			NewMarker: markers.EscapeAddress(newAddr.String()),
+		},
+		provider: provider,
+		schema:   azMvSchemas()["azurerm_resource_group"],
+	}
+	schemas, diags := listclient.ListSchemas(t.Context(), provider)
+	if diags.HasErrors() {
+		t.Fatalf("reading the fixture's list schemas: %s", diags.Err())
+	}
+	ts, ok := schemas.Get("azurerm_resource_group")
+	if !ok {
+		t.Fatal("the fixture serves no list schema for azurerm_resource_group, so this test would prove nothing")
+	}
+	return m, ts
+}
+
+// TestMove_ARMSweepReadsMarkersCaseInsensitively (#2133 finding 3): a
+// listed group whose configuration spelled its markers Tofu-Estate and
+// Tofu-Address is located by the sweep, and a destination held under that
+// spelling is seen as held. The same objects on the AWS tag surface, where
+// keys are case-sensitive, are not this estate's.
+//
+// Proving it red: read tagsFromListed in mover.sweep in place of
+// listedMarkerTags and both arm-tags subtests fail.
+func TestMove_ARMSweepReadsMarkersCaseInsensitively(t *testing.T) {
+	spelled := func(address string) map[string]string {
+		return map[string]string{"Tofu-Estate": "app", "Tofu-Address": address}
+	}
+
+	t.Run("located", func(t *testing.T) {
+		m, ts := azMvListMover(t, markers.SurfaceARMTags,
+			azMvListedGroup("rg-app", spelled("azurerm_resource_group.old")),
+			azMvListedGroup("rg-other", map[string]string{"tofu-estate": "app", "tofu-address": "azurerm_resource_group.other"}),
+		)
+		liveID, _, diags := m.locateByList(t.Context(), ts)
+		if diags.HasErrors() {
+			t.Fatalf("the group tagged Tofu-Estate/Tofu-Address was not located: %s", diags.Err())
+		}
+		if !strings.EqualFold(liveID, azMvRGID) {
+			t.Errorf("located %q, want %q", liveID, azMvRGID)
+		}
+	})
+
+	t.Run("destination held under another spelling", func(t *testing.T) {
+		m, ts := azMvListMover(t, markers.SurfaceARMTags,
+			azMvListedGroup("rg-squatter", map[string]string{"TOFU-ESTATE": "app", "TOFU-ADDRESS": "azurerm_resource_group.main"}),
+		)
+		diags := m.checkDestinationFree(t.Context(), ts)
+		if got := RefusalFrom(diags); got != RefusalNewAddressClaimed {
+			t.Errorf("refusal %q, want %q: the destination is held under TOFU-ADDRESS (%v)", got, RefusalNewAddressClaimed, diags.Err())
+		}
+	})
+
+	t.Run("AWS tag surface unchanged", func(t *testing.T) {
+		m, ts := azMvListMover(t, markers.SurfaceTags,
+			azMvListedGroup("rg-squatter", map[string]string{"TOFU-ESTATE": "app", "TOFU-ADDRESS": "azurerm_resource_group.main"}),
+		)
+		if diags := m.checkDestinationFree(t.Context(), ts); diags.HasErrors() {
+			t.Errorf("on the AWS tag surface a TOFU-ESTATE key is not a marker, but the destination read as held: %v", diags.Err())
+		}
+	})
 }
