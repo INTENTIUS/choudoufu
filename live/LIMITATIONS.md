@@ -2808,7 +2808,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Function calls not allowed | error | `hcl` | "Function calls not allowed" |
 | 0 | 0 | identity | Identity derived from a sensitive value | error | `internal/live/identity` | "Identity derived from a sensitive value" |
 | 0 | 0 | identity | Identity derived from an impure function | error | `internal/live/identity` | "Identity derived from an impure function" |
-| 0 | 0 | identity | Identity table and provider schema disagree | error | `internal/live/identity` | "Identity table and provider schema disagree" |
+| 0 | 0 | identity | Identity table and provider schema disagree | warning | `internal/live/identity` | "Identity table and provider schema disagree" |
 | 0 | 0 | identity | Inconsistent conditional result types | error | `hcl` | "Inconsistent conditional result types" |
 | 0 | 0 | identity | Incorrect condition type | error | `hcl` | "Incorrect condition type" |
 | 0 | 0 | identity | Incorrect key type | error | `hcl` | "Incorrect key type" |
@@ -2851,8 +2851,8 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Reference to undeclared resource | error | `internal/live/identity` | "Reference to undeclared resource" |
 | 0 | 0 | identity | Required variable not set | error | `internal/configs` | "Required variable not set" |
 | 0 | 0 | identity | Reserved symbol name | error | `internal/addrs` | "Reserved symbol name" |
-| - | - | identity | Resource in a resource group this estate does not declare | error | `internal/live/identity` | live/MARKERS.md, "Granting an Azure estate" |
-| 0 | 0 | identity | Resource type has no orphan recovery | error | `internal/live/identity` | "Resource type has no orphan recovery" |
+| - | - | identity | Resource in a resource group this estate does not declare | warning | `internal/live/identity` | live/MARKERS.md, "Granting an Azure estate" |
+| 0 | 0 | identity | Resource type has no orphan recovery | warning | `internal/live/identity` | "Resource type has no orphan recovery" |
 | 0 | 0 | identity | Secret-generating resource refused | error | `internal/live/identity` | "strict-secrets" |
 | 0 | 0 | identity | Sensitive for_each expression | error | `internal/live/identity` | "Sensitive for_each expression" |
 | 0 | 0 | identity | Sensitive lifecycle.enabled expression | error | `internal/live/identity` | "Sensitive lifecycle.enabled expression" |
@@ -2990,7 +2990,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**292 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**292 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
