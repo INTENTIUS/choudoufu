@@ -1,5 +1,5 @@
 {
-  "stamp": "`live/readiness.json` last committed at commit `e8af574bb1` on 2026-10-20T00:29:43-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
+  "stamp": "`live/readiness.json` last committed at commit `b899089c2b` on 2026-10-20T00:37:27-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
   "statuses": [
     "in-contract",
     "pending-ratification",
@@ -9186,8 +9186,8 @@
         {
           "tier": "marker-carried",
           "counts": [
-            352,
-            7,
+            245,
+            114,
             0,
             28,
             0,
@@ -9198,8 +9198,8 @@
         {
           "tier": "declaration-carried",
           "counts": [
-            476,
-            12,
+            406,
+            82,
             0,
             0,
             0,
@@ -9233,8 +9233,8 @@
         }
       ],
       "column_totals": [
-        828,
-        19,
+        651,
+        196,
         0,
         259,
         0,
@@ -9381,6 +9381,12 @@
         "tier": "marker-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_analysis_services_server",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_api_management_api_diagnostic",
@@ -9530,7 +9536,7 @@
         "type": "azurerm_app_service_custom_hostname_binding",
         "tier": "declaration-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_app_service_managed_certificate",
@@ -9575,10 +9581,52 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_application_gateway",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_application_insights",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_application_insights_analytics_item",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_application_insights_standard_web_test",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_application_insights_web_test",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_application_insights_workbook",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_application_insights_workbook_template",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_application_security_group",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_arc_kubernetes_cluster_extension",
@@ -9587,10 +9635,34 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_arc_kubernetes_provisioned_cluster",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_arc_machine_automanage_configuration_assignment",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_attestation_provider",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_automanage_configuration",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_automation_account",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_automation_connection_certificate",
@@ -9623,6 +9695,12 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_availability_set",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_backup_container_storage_account",
         "tier": "record-carried",
         "status": "needs-evidence",
@@ -9638,7 +9716,7 @@
         "type": "azurerm_backup_policy_vm",
         "tier": "declaration-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_backup_policy_vm_workload",
@@ -9657,6 +9735,30 @@
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_bastion_host",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_batch_account",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_batch_application",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_batch_pool",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_blueprint_assignment",
@@ -9725,10 +9827,40 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_capacity_reservation",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_capacity_reservation_group",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_cdn_frontdoor_batch_rule_set",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_cdn_frontdoor_custom_domain_association",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_cdn_frontdoor_origin",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_cdn_frontdoor_origin_group",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_chaos_studio_capability",
@@ -9743,10 +9875,58 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_cognitive_account",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_cognitive_account_connection_account_key",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_cognitive_account_connection_account_managed_identity",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_cognitive_account_connection_api_key",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_cognitive_account_connection_custom_keys",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_cognitive_account_connection_entra_id",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_cognitive_account_customer_managed_key",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_cognitive_deployment",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_communication_service",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_communication_service_email_domain_association",
@@ -9785,6 +9965,18 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_cosmosdb_postgresql_cluster",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_cosmosdb_postgresql_coordinator_configuration",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_cosmosdb_sql_dedicated_gateway",
         "tier": "record-carried",
         "status": "needs-evidence",
@@ -9801,6 +9993,24 @@
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_custom_provider",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_dashboard_grafana",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_dashboard_grafana_managed_private_endpoint",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_data_factory_customer_managed_key",
@@ -9827,16 +10037,166 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_data_protection_backup_instance_blob_storage",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_protection_backup_instance_data_lake_storage",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_protection_backup_instance_disk",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_protection_backup_instance_kubernetes_cluster",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_protection_backup_instance_postgresql_flexible_server",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_protection_backup_policy_blob_storage",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_protection_backup_policy_data_lake_storage",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_protection_backup_policy_disk",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_protection_backup_policy_kubernetes_cluster",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_protection_backup_policy_mysql_flexible_server",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_protection_backup_policy_postgresql_flexible_server",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_protection_backup_vault",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_data_protection_backup_vault_customer_managed_key",
         "tier": "declaration-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_protection_resource_guard",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_share",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_share_account",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_share_dataset_kusto_cluster",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_data_share_dataset_kusto_database",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_database_migration_project",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_database_migration_service",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_databox_edge_device",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_databricks_access_connector",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_databricks_virtual_network_peering",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_databricks_workspace",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_databricks_workspace_root_dbfs_customer_managed_key",
         "tier": "declaration-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_dedicated_host",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_dedicated_host_group",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_dev_test_global_vm_shutdown_schedule",
@@ -9848,7 +10208,7 @@
         "type": "azurerm_dns_a_record",
         "tier": "marker-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_dns_aaaa_record",
@@ -9866,7 +10226,7 @@
         "type": "azurerm_dns_cname_record",
         "tier": "marker-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_dns_mx_record",
@@ -9896,19 +10256,49 @@
         "type": "azurerm_dns_txt_record",
         "tier": "marker-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_email_communication_service",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_email_communication_service_domain",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_email_communication_service_domain_sender_username",
         "tier": "declaration-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_eventgrid_namespace_topic",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_eventgrid_system_topic_event_subscription",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_eventhub",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_eventhub_consumer_group",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_eventhub_namespace_customer_managed_key",
@@ -9921,6 +10311,30 @@
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_federated_identity_credential",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_firewall",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_firewall_policy",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_firewall_policy_rule_collection_group",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_frontdoor_custom_https_configuration",
@@ -9939,6 +10353,18 @@
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_gallery_application",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_gallery_application_version",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_iotcentral_application_network_rule_set",
@@ -9977,10 +10403,22 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_ip_group",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_ip_group_cidr",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_key_vault",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_key_vault_access_policy",
@@ -10055,6 +10493,12 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_kubernetes_automatic_cluster",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_kubernetes_cluster_deployment_safeguard",
         "tier": "record-carried",
         "status": "needs-evidence",
@@ -10067,10 +10511,22 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_kubernetes_cluster_node_pool",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_kusto_cluster_customer_managed_key",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_lb_backend_address_pool",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_lb_nat_pool",
@@ -10091,10 +10547,34 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_lb_probe",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_lb_rule",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_linux_function_app",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_linux_virtual_machine",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_local_network_gateway",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_log_analytics_cluster_customer_managed_key",
@@ -10113,6 +10593,12 @@
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_log_analytics_workspace",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_log_analytics_workspace_table_custom_log",
@@ -10143,6 +10629,12 @@
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_managed_disk",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_managed_disk_sas_token",
@@ -10193,16 +10685,64 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_monitor_action_group",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_monitor_activity_log_alert",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_monitor_metric_alert",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_monitor_scheduled_query_rules_alert",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_monitor_scheduled_query_rules_alert_v2",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_monitor_workspace",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_mssql_database",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_mssql_database_extended_auditing_policy",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_mssql_elasticpool",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_mssql_job_agent",
         "tier": "marker-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_mssql_job_schedule",
@@ -10247,6 +10787,12 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_mssql_server",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_mssql_server_extended_auditing_policy",
         "tier": "record-carried",
         "status": "needs-evidence",
@@ -10280,13 +10826,43 @@
         "type": "azurerm_mssql_virtual_machine",
         "tier": "marker-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_mysql_flexible_database",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_mysql_flexible_server",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_mysql_flexible_server_active_directory_administrator",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_mysql_flexible_server_configuration",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_mysql_flexible_server_firewall_rule",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_nat_gateway",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_nat_gateway_public_ip_association",
@@ -10305,6 +10881,30 @@
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_netapp_volume_bucket",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_netapp_volume_bucket_with_server",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_network_ddos_protection_plan",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_network_interface",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_network_interface_application_gateway_backend_address_pool_association",
@@ -10337,16 +10937,52 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_network_manager",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_network_manager_deployment",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_network_manager_routing_rule",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_network_profile",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_network_security_group",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_network_security_perimeter_association",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_network_security_rule",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_network_watcher_flow_log",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_new_relic_tag_rule",
@@ -10409,6 +11045,12 @@
         "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_playwright_workspace",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_policy_definition",
         "tier": "record-carried",
         "status": "needs-evidence",
@@ -10421,6 +11063,18 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_postgresql_flexible_server_configuration",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_postgresql_flexible_server_firewall_rule",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_postgresql_flexible_server_virtual_endpoint",
         "tier": "record-carried",
         "status": "needs-evidence",
@@ -10430,7 +11084,7 @@
         "type": "azurerm_private_dns_a_record",
         "tier": "marker-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_private_dns_aaaa_record",
@@ -10442,7 +11096,7 @@
         "type": "azurerm_private_dns_cname_record",
         "tier": "marker-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_private_dns_mx_record",
@@ -10457,6 +11111,12 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_private_dns_resolver_forwarding_rule",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_private_dns_srv_record",
         "tier": "marker-carried",
         "status": "needs-evidence",
@@ -10469,10 +11129,52 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_private_dns_zone",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_private_dns_zone_virtual_network_link",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_private_endpoint",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_private_endpoint_application_security_group_association",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_private_link_service",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_proximity_placement_group",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_public_ip",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_public_ip_prefix",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_recovery_services_vault_resource_guard_association",
@@ -10481,16 +11183,46 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_redhat_openshift_cluster",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_redis_cache",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_redis_firewall_rule",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_redis_linked_server",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_resource_group",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_resource_policy_remediation",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_resource_provider_feature_registration",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_role_assignment",
@@ -10503,6 +11235,42 @@
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_route",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_route_filter",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_route_map",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_route_server",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_route_server_bgp_connection",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_route_table",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_security_center_assessment",
@@ -10583,16 +11351,58 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_service_plan",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_servicebus_namespace",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_servicebus_namespace_customer_managed_key",
         "tier": "declaration-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_servicebus_namespace_disaster_recovery_config",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_shared_image",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_shared_image_gallery",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_signalr_service",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_signalr_service_custom_certificate",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_signalr_service_custom_domain",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_signalr_service_network_acl",
@@ -10721,34 +11531,46 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_storage_account",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_storage_account_customer_managed_key",
         "tier": "declaration-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_storage_account_local_user",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_storage_account_network_rules",
         "tier": "declaration-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_storage_account_queue_properties",
         "tier": "declaration-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_storage_account_static_website",
         "tier": "declaration-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_storage_account_table_properties",
         "tier": "declaration-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_storage_blob",
@@ -10760,7 +11582,13 @@
         "type": "azurerm_storage_blob_inventory_policy",
         "tier": "declaration-carried",
         "status": "pending-ratification",
-        "reason": "no id template was read for it; the provider's identity schema admits it at run time when the schema settles the identity, as it would an unrowed AWS type."
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_storage_container",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_storage_container_immutability_policy",
@@ -10781,10 +11609,58 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_storage_discovery_workspace",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_storage_encryption_scope",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_storage_management_policy",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_storage_mover",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_storage_mover_agent",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_storage_mover_job_definition",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_storage_mover_project",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_storage_mover_source_endpoint",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_storage_mover_target_endpoint",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_storage_object_replication",
@@ -10803,6 +11679,24 @@
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_storage_sync",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_storage_sync_cloud_endpoint",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_storage_sync_server_endpoint",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_storage_table_entity",
@@ -10829,6 +11723,12 @@
         "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_subnet",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_subnet_nat_gateway_association",
         "tier": "record-carried",
         "status": "needs-evidence",
@@ -10845,6 +11745,12 @@
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_subnet_service_endpoint_storage_policy",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_subscription",
@@ -10919,6 +11825,24 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_system_center_virtual_machine_manager_availability_set",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_system_center_virtual_machine_manager_cloud",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_system_center_virtual_machine_manager_server",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_system_center_virtual_machine_manager_virtual_machine_instance",
         "tier": "record-carried",
         "status": "needs-evidence",
@@ -10929,6 +11853,18 @@
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_system_center_virtual_machine_manager_virtual_machine_template",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_system_center_virtual_machine_manager_virtual_network",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_traffic_manager_azure_endpoint",
@@ -10949,6 +11885,24 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_traffic_manager_profile",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_user_assigned_identity",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_video_indexer_account",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_virtual_desktop_host_pool_registration_info",
         "tier": "record-carried",
         "status": "needs-evidence",
@@ -10967,10 +11921,46 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_virtual_hub",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_virtual_hub_bgp_connection",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_virtual_hub_connection",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_virtual_hub_ip",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_virtual_hub_route_table",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_virtual_hub_route_table_route",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_virtual_hub_routing_intent",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_virtual_machine_automanage_configuration_assignment",
@@ -10985,16 +11975,34 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_virtual_machine_extension",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_virtual_machine_gallery_application_assignment",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_virtual_network",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_virtual_network_dns_servers",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_virtual_network_peering",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       },
       {
         "type": "azurerm_vmware_cluster",
@@ -11015,10 +12023,64 @@
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
+        "type": "azurerm_web_application_firewall_policy",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_web_pubsub",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_web_pubsub_custom_certificate",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_web_pubsub_custom_domain",
+        "tier": "declaration-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
         "type": "azurerm_web_pubsub_network_acl",
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_web_pubsub_socketio",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_windows_virtual_machine",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_workloads_sap_discovery_virtual_instance",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_workloads_sap_single_node_virtual_instance",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
+      },
+      {
+        "type": "azurerm_workloads_sap_three_tier_virtual_instance",
+        "tier": "marker-carried",
+        "status": "pending-ratification",
+        "reason": "the identity-schema route keeps it (#1122), and refuses it today: its identity schema requires subscription_id, which no azurerm argument supplies, until the route reads it from the provider block."
       }
     ],
     "scopes": [
