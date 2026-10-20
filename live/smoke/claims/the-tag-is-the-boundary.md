@@ -112,6 +112,6 @@ fence is the project
 per project, granted by an ordinary project IAM binding,
 `live/gcp/estate-grant.sh`. Two estates sharing one project are not fenced
 from each other per principal, and nothing finer than an estate can be
-granted. Its `BREAK=1` grants the refused principal the binding and
-requires its write to go through. The cell is open until the scenario is
-registered and runs.
+granted. Its `BREAK=1` removes the principal's binding on its own
+estate's project and requires its own apply there to be refused, so the
+write the grant allows is the grant's. It has no dated run yet.

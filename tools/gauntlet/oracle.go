@@ -62,11 +62,12 @@ func providerVersions(root string) ProviderVersions {
 	var pin struct {
 		AWS        string `json:"aws_provider_version"`
 		Kubernetes string `json:"kubernetes_provider_version"`
+		Google     string `json:"google_provider_version"`
 	}
 	if err := json.Unmarshal(b, &pin); err != nil {
 		return ProviderVersions{}
 	}
-	return ProviderVersions{AWS: pin.AWS, Kubernetes: pin.Kubernetes}
+	return ProviderVersions{AWS: pin.AWS, Kubernetes: pin.Kubernetes, Google: pin.Google}
 }
 
 // oracleVersionProbe is overridden in tests so a probeOracle assertion never

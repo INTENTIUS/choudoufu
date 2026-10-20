@@ -98,7 +98,7 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set, kindImage string) []Un
 			//
 			// IsEngineStale (#1778 ruling 6) is the same for the engine
 			// base: every substrate runs the one binary.
-			if IsSubstrateStale(r, a.Emulator, kindImage) || IsProviderStale(r, a.Providers) || IsEngineStale(r, a.UpstreamVersion) {
+			if IsSubstrateStale(r, a, kindImage) || IsProviderStale(r, a.Providers) || IsEngineStale(r, a.UpstreamVersion) {
 				staleClear = append(staleClear, r)
 			}
 			continue
@@ -156,13 +156,13 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set, kindImage string) []Un
 	})
 	for _, r := range staleClear {
 		var reasons []string
-		if IsSubstrateStale(r, a.Emulator, kindImage) {
-			if r.Substrate == SubstrateKind {
+		if IsSubstrateStale(r, a, kindImage) {
+			if pin, ok := substrateImagePin(r.Substrate, a, kindImage); ok {
 				img := "unrecorded"
 				if r.LastRun != nil && r.LastRun.SubstrateImage != "" {
 					img = r.LastRun.SubstrateImage
 				}
-				reasons = append(reasons, fmt.Sprintf("last verified against kind node image %s; the current pin is %s", img, kindImage))
+				reasons = append(reasons, fmt.Sprintf("last verified against %s %s; the current pin is %s", substrateImageNoun(r.Substrate), img, pin))
 			} else {
 				emu := "unrecorded"
 				if r.LastRun != nil && r.LastRun.Emulator != "" {

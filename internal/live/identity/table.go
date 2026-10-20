@@ -661,21 +661,16 @@ type ContentMatchBinding struct {
 // CloudValue names one property of the cloud a run is against, for a
 // [Component] whose value the configuration does not carry.
 //
-// The AWS rows set the precedent: an SQS queue URL
-// (https://sqs.REGION.amazonaws.com/ACCOUNT/NAME) and an SNS topic ARN
-// (arn:aws:sns:REGION:ACCOUNT:NAME) embed the account and the region the
-// provider is configured for, and [resolver.cloudValueFor] answers them
-// from the resource's own argument, then the provider block, then
-// [CloudContext], and otherwise the instance needs discovery with
-// [DiscoveryCloudUnknown]. hashicorp/google's id formats embed the same
-// kind of value - the project, region, zone or location the provider
-// substitutes when the resource names none (tpgresource.GetProject,
-// GetRegion, GetZone, GetLocation) - and go through that same path, with
-// the same refusal. The partition ("aws", "aws-cn", "aws-us-gov") is not
-// one of them: it is written as a literal in the templates below because
-// every one of those identities is partition-specific in more places than
-// the partition segment, and a run against a non-commercial partition needs
-// a review rather than a substitution.
+// The set is deliberately tiny and closed. It covers the two substitutions
+// the AWS provider's account-embedded import identities need - an SQS queue
+// URL (https://sqs.REGION.amazonaws.com/ACCOUNT/NAME) and an SNS topic ARN
+// (arn:aws:sns:REGION:ACCOUNT:NAME) - and the two more hashicorp/google's
+// id formats need beside the region, its project and its zone (#1119). A third kind is a
+// decision to make deliberately, not a slot to fill: the partition ("aws",
+// "aws-cn", "aws-us-gov") is written as a literal in the templates below
+// because every one of those identities is partition-specific in more places
+// than the partition segment, and a run against a non-commercial partition
+// needs a review rather than a substitution.
 type CloudValue string
 
 const (
@@ -689,20 +684,23 @@ const (
 	// CloudRegion is the region the run is against, e.g. "us-east-1".
 	CloudRegion CloudValue = "region"
 
-	// CloudProject is the google provider's `project`, which
-	// tpgresource.GetProject substitutes into an id format's {{project}}
-	// when the resource names none: the account of a hashicorp/google
-	// identity, read the way [CloudRegion] is.
+	// CloudProject is the Google Cloud project a resource is created in
+	// when it does not name one itself: the google provider's own
+	// `project` argument. hashicorp/google's ReplaceVars substitutes it
+	// into every id format carrying {{project}} the same way, through
+	// tpgresource.GetProject, so a row built from that id format carries
+	// the same fallback. See [resolver.cloudValueFor] for where a run
+	// reads it.
 	CloudProject CloudValue = "project"
 
-	// CloudZone is the google provider's `zone`, GetZone's fallback for
-	// {{zone}}.
+	// CloudZone is the google provider's own `zone` argument, the fallback
+	// tpgresource.GetZone gives an id format carrying {{zone}}.
 	CloudZone CloudValue = "zone"
 
-	// CloudLocation is GetLocation's fallback on a type with no region or
-	// zone argument of its own: the provider's region, or its zone when it
-	// states no region. The hashicorp/google IAM types read their parent's
-	// location this way.
+	// CloudLocation is what tpgresource.GetLocation falls back to on a
+	// type with no region or zone argument of its own: the google
+	// provider's `region`, or its `zone` when it states no region. The
+	// hashicorp/google IAM types read their parent's location this way.
 	CloudLocation CloudValue = "location"
 )
 
@@ -751,12 +749,6 @@ type CloudContext struct {
 
 	// Region is the region the run is against.
 	Region string
-
-	// Project and Zone are the Google Cloud project and zone the run is
-	// against, the same kind of value for a hashicorp/google identity as
-	// AccountID and Region for an AWS one.
-	Project string
-	Zone    string
 }
 
 // value returns the context's value for one cloud property, and whether the
@@ -768,15 +760,6 @@ func (c CloudContext) value(which CloudValue) (string, bool) {
 		v = c.AccountID
 	case CloudRegion:
 		v = c.Region
-	case CloudProject:
-		v = c.Project
-	case CloudZone:
-		v = c.Zone
-	case CloudLocation:
-		v = c.Region
-		if v == "" {
-			v = c.Zone
-		}
 	default:
 		return "", false
 	}

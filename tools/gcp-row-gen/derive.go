@@ -52,6 +52,12 @@ type Decision struct {
 	// NoSource is set when the source states no id format at all, the GCP
 	// shape of AWS's "no import evidence".
 	NoSource bool
+	// Parents are the placeholders of a rowed type's template that name a
+	// containing resource rather than this one or its scope.
+	Parents []string
+	// Scoped is true when every configuration-supplied component is
+	// project, region or zone: one per project or region.
+	Scoped bool
 }
 
 // cloudPlaceholders are the three variables ReplaceVars never reads from the
@@ -61,6 +67,14 @@ var cloudPlaceholders = map[string]identity.CloudValue{
 	"project": identity.CloudProject,
 	"region":  identity.CloudRegion,
 	"zone":    identity.CloudZone,
+}
+
+// scopePlaceholders name where a resource lives rather than a resource it
+// lives under, for the parent-derived split.
+var scopePlaceholders = map[string]bool{
+	"project": true, "region": true, "zone": true, "location": true,
+	"organization": true, "org_id": true, "folder": true, "folder_id": true,
+	"billing_account": true, "parent": true,
 }
 
 // LabelSurface is the google-labels shape: a settable `labels` map with the
@@ -164,6 +178,8 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc
 
 	var comps []identity.Component
 	var serverAssigned []string
+	var configNamed []string
+	last := ""
 	for _, tok := range toks {
 		if tok.literal != "" {
 			lit := ""
@@ -177,6 +193,7 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc
 		if tok.escaped {
 			return unrowed(false, "the id format path-escapes {{%%%s}}, which a row cannot reproduce", name)
 		}
+		last = name
 		flag := attrFlags(tfs, name)
 		comp := identity.Component{IdentityAttr: idAttr(name)}
 		if tok.into != "" {
@@ -214,6 +231,7 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc
 		default:
 			return unrowed(false, "the id format names {{%s}}, which is %s in one provider and something else in the other", name, flag)
 		}
+		configNamed = append(configNamed, name)
 		comps = append(comps, comp)
 	}
 
@@ -259,6 +277,17 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc
 		Components:     comps,
 		ImportSyntax:   tmpl,
 		IdentityAttrs:  identityAttrs,
+	}
+	for _, n := range configNamed {
+		if n != last && !scopePlaceholders[n] {
+			d.Parents = append(d.Parents, n)
+		}
+	}
+	d.Scoped = true
+	for _, n := range configNamed {
+		if _, cloud := cloudPlaceholders[n]; !cloud {
+			d.Scoped = false
+		}
 	}
 	return d
 }
@@ -339,6 +368,7 @@ func decideIAM(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Dec
 		Components:     comps,
 		ImportSyntax:   d.Template,
 	}
+	d.Parents = []string{strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(d.Type, "_iam_member"), "_iam_binding"), "_iam_policy"), "_iam_audit_config")}
 	return d
 }
 

@@ -109,6 +109,13 @@ func IsValidEstateProtocol(p string) bool {
 type Artifact struct {
 	Schema   int    `json:"schema"`
 	Emulator string `json:"emulator"`
+	// EmulatorGCP is Emulator's counterpart for the gcp lane (#1119): the
+	// lex00/floci-gcp digest live/floci-gcp-image pins, the image the NEXT
+	// run of a floci-gcp row will launch. CONFIGURATION, stamped from the
+	// pin file wherever the artifact is rebuilt against the checkout
+	// (rebuildFromPins); a floci-gcp row's own LastRun.SubstrateImage is the
+	// evidence half and is judged against it (IsSubstrateStale).
+	EmulatorGCP string `json:"emulator_gcp,omitempty"`
 	// Oracle mirrors Emulator exactly, for the stock terraform/tofu releases
 	// hashicorp/setup-terraform and opentofu/setup-opentofu install instead
 	// of the floci digest (issue #544): CONFIGURATION, not evidence - a
@@ -188,9 +195,14 @@ type OracleVersions struct {
 // because a script that never applies the pin (terralith-scale) or inits
 // a root with only a lower bound (corpus-quickpizza) resolves something
 // else, and a copied pin could never read as stale.
+//
+// Google is the gcp lane's (#1119): hashicorp/google, from
+// live/oracle-versions.json's google_provider_version, judged against a
+// floci-gcp row's LastRun.GoogleProviderVersion.
 type ProviderVersions struct {
 	AWS        string `json:"aws,omitempty"`
 	Kubernetes string `json:"kubernetes,omitempty"`
+	Google     string `json:"google,omitempty"`
 }
 
 // SetSummary is one headline bar.
@@ -452,6 +464,9 @@ type LastRun struct {
 	// three read as stale against the pin, which is the point.
 	AWSProviderVersion        string `json:"aws_provider_version,omitempty"`
 	KubernetesProviderVersion string `json:"kubernetes_provider_version,omitempty"`
+	// GoogleProviderVersion is the same for a floci-gcp row (#1119): the
+	// hashicorp/google release the run's lock files say init resolved.
+	GoogleProviderVersion string `json:"google_provider_version,omitempty"`
 	// Oracle is the stock terraform and tofu releases this run actually
 	// found on PATH (issue #544) - measured, not configured: probeOracle
 	// (run.go) runs `terraform version -json` and `tofu version -json`
@@ -507,14 +522,37 @@ func IsStale(r EstateResult, currentEmulator string) bool {
 
 // IsSubstrateStale is IsStale for whichever substrate r ran on: a
 // kind-substrate row's LastRun.SubstrateImage against kindImage (the
-// live/kind-node-image pin), every other row's LastRun.Emulator against
-// emulator (issue #1739). The same carve-out and the same "unrecorded
-// reads as stale" rule as IsStale apply to both.
-func IsSubstrateStale(r EstateResult, emulator, kindImage string) bool {
-	if r.Substrate == SubstrateKind {
-		return r.LastRun != nil && r.LastRun.SubstrateImage != kindImage
+// live/kind-node-image pin), a floci-gcp row's against a.EmulatorGCP (the
+// live/floci-gcp-image pin, #1119), every other row's LastRun.Emulator
+// against a.Emulator (issue #1739). The same carve-out and the same
+// "unrecorded reads as stale" rule as IsStale apply to all three.
+func IsSubstrateStale(r EstateResult, a *Artifact, kindImage string) bool {
+	if pin, ok := substrateImagePin(r.Substrate, a, kindImage); ok {
+		return r.LastRun != nil && r.LastRun.SubstrateImage != pin
 	}
-	return IsStale(r, emulator)
+	return IsStale(r, a.Emulator)
+}
+
+// substrateImageNoun names what a row's SubstrateImage is an image of, in
+// the words `next` and the board print.
+func substrateImageNoun(substrate string) string {
+	if substrate == SubstrateFlociGCP {
+		return "floci-gcp image"
+	}
+	return "kind node image"
+}
+
+// substrateImagePin is the pin a row on substrate records its
+// LastRun.SubstrateImage against, and false for a row that records
+// LastRun.Emulator instead (RecordsSubstrateImage).
+func substrateImagePin(substrate string, a *Artifact, kindImage string) (string, bool) {
+	switch substrate {
+	case SubstrateKind:
+		return kindImage, true
+	case SubstrateFlociGCP:
+		return a.EmulatorGCP, true
+	}
+	return "", false
 }
 
 // pinCurrent returns the predicate SetSummary.Verified counts by (#1558):
@@ -529,7 +567,7 @@ func (a *Artifact) pinCurrent(kindImage string) func(EstateResult) bool {
 		if r.LastRun == nil || r.LastRun.Oracle == nil {
 			return false
 		}
-		return !IsSubstrateStale(r, a.Emulator, kindImage) &&
+		return !IsSubstrateStale(r, a, kindImage) &&
 			*r.LastRun.Oracle == a.Oracle &&
 			!IsEngineStale(r, a.UpstreamVersion)
 	}
@@ -565,6 +603,9 @@ func ProviderStaleReasons(r EstateResult, current ProviderVersions) []string {
 	}
 	if UsesKubernetesProvider(r.Substrate) && r.LastRun.KubernetesProviderVersion != current.Kubernetes {
 		out = append(out, fmt.Sprintf("last verified against hashicorp/kubernetes %s; the current pin is %s", orUnrecorded(r.LastRun.KubernetesProviderVersion), current.Kubernetes))
+	}
+	if UsesGoogleProvider(r.Substrate) && r.LastRun.GoogleProviderVersion != current.Google {
+		out = append(out, fmt.Sprintf("last verified against hashicorp/google %s; the current pin is %s", orUnrecorded(r.LastRun.GoogleProviderVersion), current.Google))
 	}
 	return out
 }

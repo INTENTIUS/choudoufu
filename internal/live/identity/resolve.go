@@ -1939,15 +1939,14 @@ func (r *resolver) missingCloudComponent(entry TypeIdentity, attrs hcl.Attribute
 // [CloudAccountID] has no config-only source and is not answered here. See
 // [CloudContext] for where the account first becomes knowable.
 //
-// [CloudProject], [CloudZone] and [CloudLocation] are the hashicorp/google
-// values of the same kind, and take exactly the region's path: the
-// resource's own argument through [resolver.cloudComponentAttr], then the
-// provider block's argument of the same name ([cloudScopeKey.project],
-// [cloudScopeKey.zone]; a location is the provider's region, or its zone),
-// then the [CloudContext], and otherwise the same needs-discovery answer
-// with the same [DiscoveryCloudUnknown] cause an AWS account or region gets.
-// A provider argument that is not known until apply is "not established",
-// as the region's is.
+// [CloudProject] and [CloudZone] are answered the same provider-block way,
+// from [cloudScopeKey.project] and [cloudScopeKey.zone], and
+// [CloudLocation] from the region or, failing that, the zone: the google
+// provider substitutes its own `project` and `zone` into an id format when
+// the resource names neither (tpgresource.GetProject, GetZone), which is
+// the defaulting the region answer above already follows. A provider block
+// that states neither leaves the component unanswered, and the instance
+// needs discovery exactly as an AWS account-embedded one does.
 func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bool) {
 	switch {
 	case which == CloudRegion && cs.regionKnown && cs.region != "":
