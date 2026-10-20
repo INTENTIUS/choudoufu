@@ -4,101 +4,78 @@
 
 **OpenTofu that respects the owner tag on each resource.** <img src="site/public/brand/cube-160.png" width="32" height="32" alt="">
 
-Each resource carries its own identity on the resource itself, as a marker
-the platform can select on: on AWS, two resource tags. The apply writes it
-and the next plan reads it back live. The state file is therefore a cache
-you are allowed to lose, and the policy engine you already run decides who
-may read or change what. AWS is proven;
-Kubernetes is proven on a smaller lane, one label on the object and one
-admission policy reading it
+Each resource carries its identity as a marker the platform can select on.
+On AWS that is two resource tags. The apply writes the marker and the next
+plan reads it back live. The state file becomes a cache you may lose. The
+policy engine you already run decides who may read or change what.
+
+AWS is proven. Kubernetes is proven on a smaller lane: one label on the
+object and one admission policy reading it
 ([#1016](https://github.com/INTENTIUS/choudoufu/issues/1016) is the ruling,
-[the Kubernetes hub](https://intentius.io/choudoufu/kubernetes/) the state);
-no other platform is planned.
+[the Kubernetes hub](https://intentius.io/choudoufu/kubernetes/) the state).
+These are the only two platforms.
 
-There are two ways in. Read [Migrate an existing
-estate](https://intentius.io/choudoufu/docs/use/migrate/) if AWS already holds
-resources your configuration manages, and [Start a new
-estate](https://intentius.io/choudoufu/docs/use/start/) if it does not.
+Three things persist between runs. A tag on the resource says which real
+resource an address refers to. Values with no home in AWS go in a
+`record_store`: an S3 bucket you own, or a local directory. Effects with
+nothing to read back get a receipt that tracks their staleness.
 
-Three things have to survive between runs, and each lives somewhere AWS
-already has. Which real resource an address refers to is a tag on the
-resource. Values AWS has nowhere to put go in a `record_store`: an S3 bucket
-you own, or a local directory. Effects that leave nothing behind
-to read back get a receipt, which tracks their staleness.
+AWS already scopes IAM by tag. choudoufu derives each marker from the
+configuration address and writes it in the create call, so every resource
+that exists carries one. Your IAM is the whole permission model. Concurrent
+runs settle at the API, with no lock table. Whoever inherits an estate can
+list it with any cloud tool before running the binary.
 
-**Tag-based IAM scoping is a feature AWS already has.** What it needs is tags
-that are reliably present and correct. A marker is derived from the
-configuration address and written as part of the create call, so a resource
-that exists carries one. Not a convention someone has to remember, and not a
-`default_tags` block that drifts.
+Handover is granting a role. Adoption and renames are tag writes.
 
-Three things follow. Your IAM is the whole permission model, with no bucket
-policy or lock table to keep in step with it. There is no lock to manage or
-force open, because concurrent runs settle at the API. And an estate is
-legible without the binary, so whoever inherits one can list what they got
-with any cloud tool before running anything.
-
-Handover is granting a role. Splitting an estate in two is rewriting tags.
-Adoption is a tag you write. A rename is a tag you rewrite.
-
-The name is stinky tofu, fermented and famously an acquired taste, a fit for
-an OpenTofu counterpart whose state is allowed to be stale. Off-putting at
-first, and people who like it like it a lot. Most people's first reaction to
-the fork is that letting the record of what you own go stale cannot possibly
-be a good idea.
+The name means stinky tofu, an acquired taste that suits a fork whose state
+may go stale.
 
 Built on OpenTofu v1.13.0 (fork point
 [`2b6193043d`](https://github.com/opentofu/opentofu/commit/2b6193043d)). The
 exact upstream version lives in [`version/VERSION`](version/VERSION), and
 each [release](https://github.com/INTENTIUS/choudoufu/releases)'s notes name
-both. Everything outside live markers is stock OpenTofu.
+both. Live markers are the only change from stock OpenTofu.
 
 ## Where this stands
 
-Most commonly used AWS resource types are admitted, connective tissue
-included: `aws_ecs_service` has its own ratified identity and is proven
-end to end (deploy, migrate, drift, rename, remove) on a real ECS/Fargate
-estate, and `aws_lambda_permission`, which AWS gives no tags to hang a
-marker on, is admitted too. It is
+Most commonly used AWS resource types are admitted. `aws_ecs_service` is
+proven end to end (deploy, migrate, drift, rename, remove) on a real
+ECS/Fargate estate. `aws_lambda_permission` takes no tags, so it is
 [declaration-carried](https://intentius.io/choudoufu/docs/use/resource-tiers/):
-no marker, and no identity held anywhere either, because the same formula -
-function name, optional qualifier, statement ID - recomputes it from the
-configuration on every run.
-[The gauntlet](https://intentius.io/choudoufu/docs/progress/) is the
-standing record of which estates clear which stages against a real
-emulator, updated by running them, not by hand.
+its identity is recomputed from the configuration on every run.
+[The gauntlet](https://intentius.io/choudoufu/docs/progress/) records which
+estates clear which stages against a real emulator.
 
-Type coverage is rarely what stops a configuration. A `backend "s3"` block, a
-non-default workspace, a `count.index` in a resource name, a `for_each` keyed
-by CIDRs, or an identity argument read from a data source will each stop one
-first. A CI pipeline that saves a plan file (`-out` plus `apply <planfile>`)
-runs: the apply re-reads the live system, and refuses by name if what it
-finds is not what the approved file describes
-([#878](https://github.com/INTENTIUS/choudoufu/issues/878)). Run
+Constructs such as a `backend "s3"` block stop a configuration more often
+than types do. A saved plan file (`-out` plus `apply <planfile>`) works:
+the apply re-reads the live system and refuses by name if it differs from
+the approved file ([#878](https://github.com/INTENTIUS/choudoufu/issues/878)).
+
+For a verdict on your own code, run this in your configuration directory.
+It runs offline.
 
 ```
 choudoufu live-check
 ```
 
-in your configuration directory for a verdict on your own code, with no cloud
-credentials. [Will my config work?](https://intentius.io/choudoufu/docs/use/compatibility/)
-covers the same ground, and [`live/LIMITATIONS.md`](live/LIMITATIONS.md) has
+[Will my config work?](https://intentius.io/choudoufu/docs/use/compatibility/)
+covers the same ground. [`live/LIMITATIONS.md`](live/LIMITATIONS.md) lists
 every limit with its reasoning.
 
 ## See it prove itself
 
-The smoke stack is the demo and the test suite: one `docker compose` stack
-(the pinned emulator plus a pinned stock OpenTofu oracle), one scenario
-per invocation, a verdict line per step, exit 0 only when every claim
-held. Docker, about two minutes per scenario.
+The smoke stack is the demo and the test suite. One `docker compose` stack
+runs the pinned emulator and a stock OpenTofu oracle. Each step prints a
+verdict line, and the run exits 0 when every claim held. A scenario needs
+Docker and takes about two minutes.
 
 ```
 just smoke roundtrip    # stock estate -> live-import -> no state file -> back to stock
 just smoke full         # the comprehensive 15-step harness
 ```
 
-Or paste this to a coding agent (Claude Code or similar) and let it run
-the demo end to end:
+Or paste this to a coding agent:
 
 ```
 Clone https://github.com/INTENTIUS/choudoufu, then do the following.
@@ -114,18 +91,15 @@ Clone https://github.com/INTENTIUS/choudoufu, then do the following.
 ```
 
 `BREAK=1` corrupts one expected fact mid-scenario, and the scenario passes
-only by catching it - the assertions are load-bearing, never scenery.
-[`live/smoke/README.md`](live/smoke/README.md) has every knob: pinning the
-emulator image and the choudoufu version, running from source (choudoufu
-only; the emulator is always the pinned image), and the optional
-request-count instrumentation.
+only by catching it. [`live/smoke/README.md`](live/smoke/README.md) has
+every knob.
 
 ## Install
 
-Every tagged release publishes prebuilt binaries for macOS, Linux and Windows
-(amd64 and arm64) with a `SHA256SUMS` file, on the
-[releases page](https://github.com/INTENTIUS/choudoufu/releases). To fetch the
-latest for macOS or Linux, run
+Every tagged release publishes binaries for macOS, Linux and Windows (amd64
+and arm64) with a `SHA256SUMS` file on the
+[releases page](https://github.com/INTENTIUS/choudoufu/releases). This
+fetches the latest on macOS or Linux.
 
 ```
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -134,26 +108,23 @@ gh release download -R INTENTIUS/choudoufu --pattern "*_${os}_${arch}.tar.gz"
 tar xzf choudoufu_*_"${os}"_"${arch}".tar.gz   # unpacks ./choudoufu
 ```
 
-Windows ships as `.zip`, which Explorer opens without extra tooling.
+On Windows (use `*_windows_arm64.zip` on ARM64):
 
 ```powershell
 gh release download -R INTENTIUS/choudoufu --pattern "*_windows_amd64.zip"
 Expand-Archive choudoufu_*_windows_amd64.zip .   # unpacks .\choudoufu.exe
 ```
 
-(use `*_windows_arm64.zip` on ARM64 Windows).
-
 ## Which path is yours
 
-**You have an estate already.** Adoption is a deliberate tag write. Until a
-resource's markers are on it, it is not yours, and applying too early creates
-a duplicate beside the real thing.
-[Migrate an existing estate](https://intentius.io/choudoufu/docs/use/migrate/) has
-the steps, which types adopt automatically, and which need a hand-written tag.
+If AWS already holds resources your configuration manages, read
+[Migrate an existing estate](https://intentius.io/choudoufu/docs/use/migrate/).
+Write the markers before the first apply; an early apply creates a duplicate
+beside the real resource.
 
-**You are starting fresh.** A greenfield estate is a `live` block and an
-apply. [Start a new estate](https://intentius.io/choudoufu/docs/use/start/) walks
-it end to end.
+For a new estate, read
+[Start a new estate](https://intentius.io/choudoufu/docs/use/start/). It is a
+`live` block and an apply.
 
 ## Building and testing
 
@@ -166,21 +137,13 @@ The integration tier needs Docker and `TF_FLOCI_TEST=1`.
 
 ## Docs
 
-The two user paths and the compatibility answer live on the docs site at
-https://intentius.io/choudoufu/. The repository carries the normative specs
-and the contributor material.
+The user guides live at https://intentius.io/choudoufu/. The repository
+holds the specs: [`live/MARKERS.md`](live/MARKERS.md) for marker tags,
+[`live/LIMITATIONS.md`](live/LIMITATIONS.md) for every bounded construct,
+[`live/RECEIPTS.md`](live/RECEIPTS.md) for receipts, and
+[`live/e2e/README.md`](live/e2e/README.md) for the demo harness.
 
-- [`live/MARKERS.md`](live/MARKERS.md) is the marker tag spec, the one
-  integration surface external tooling relies on.
-- [`live/LIMITATIONS.md`](live/LIMITATIONS.md) lists every construct the mode
-  bounds or rejects, each with its lint rule and fixture.
-- [`live/RECEIPTS.md`](live/RECEIPTS.md) covers receipts, the record that
-  tracks staleness for an effect with nothing in the live system to read back.
-- [`live/e2e/README.md`](live/e2e/README.md) documents the demo harness and
-  how to read its output.
-
-All stock OpenTofu documentation lives at
-[opentofu.org](https://opentofu.org/docs/).
+Stock OpenTofu documentation lives at [opentofu.org](https://opentofu.org/docs/).
 
 <p align="center">
   <img src="site/public/brand/cube-160.png" width="160" alt="a pixel-art block of dark fried tofu">
@@ -188,9 +151,9 @@ All stock OpenTofu documentation lives at
 
 ## License
 
-MPL-2.0. Forked from [opentofu/opentofu](https://github.com/opentofu/opentofu)
-at `2b6193043d` (v1.13.0). LICENSE and all copyright headers are unchanged from
-upstream.
+choudoufu is licensed MPL-2.0, forked from
+[opentofu/opentofu](https://github.com/opentofu/opentofu) at `2b6193043d`.
+LICENSE and all copyright headers match upstream.
 
 choudoufu is not affiliated with or endorsed by OpenTofu or the Linux
 Foundation. OpenTofu is a registered trademark of the Linux Foundation.
