@@ -86,10 +86,32 @@ func azureSchemas() map[string]providers.Schema {
 				"subscription_id":     {Type: cty.String, Required: true},
 			}},
 		},
+		// identity-schema class with a parent-id template: the identity
+		// schema names storage_account_name, which no argument supplies.
+		"azurerm_storage_container": {
+			Block: azurermSchema("name", "storage_account_id").Block,
+			IdentitySchema: &configschema.Object{Nesting: configschema.NestingSingle, Attributes: map[string]*configschema.Attribute{
+				"name":                 {Type: cty.String, Required: true},
+				"resource_group_name":  {Type: cty.String, Required: true},
+				"storage_account_name": {Type: cty.String, Required: true},
+				"subscription_id":      {Type: cty.String, Required: true},
+			}},
+		},
+		// No row at all, an identity schema the configuration supplies
+		// but for subscription_id: the route's identity object.
+		"azurerm_widget": {
+			Block: azurermSchema("name", "resource_group_name").Block,
+			IdentitySchema: &configschema.Object{Nesting: configschema.NestingSingle, Attributes: map[string]*configschema.Attribute{
+				"name":                {Type: cty.String, Required: true},
+				"resource_group_name": {Type: cty.String, Required: true},
+				"subscription_id":     {Type: cty.String, Required: true},
+			}},
+		},
 		// unmapped class: a parser with its own grammar.
 		"azurerm_role_assignment": azurermSchema("scope", "role_definition_name", "principal_id", "name"),
-		// withheld: shares azurerm_lb's LoadBalancerId template.
-		"azurerm_lb_nat_rule": azurermSchema("name", "resource_group_name", "loadbalancer_id"),
+		// withheld at unit 10 (it recorded azurerm_lb's id); the regenerated
+		// row is the rule's own, parent-id class.
+		"azurerm_lb_nat_rule": azurermSchema("name", "loadbalancer_id"),
 		"azapi_resource":      azapiResourceSchema(),
 	}
 }
@@ -200,25 +222,15 @@ resource "azurerm_active_directory_domain_service_trust" "t" {
 	}
 }
 
-// The two classes this unit does not admit get what they got before it:
-// the identity-schema route (whose refusal names the subscription_id no
-// azurerm argument supplies), and for an unmapped type the route's
-// no-identity-schema refusal. Neither is ever bound from
-// resource_group_name and name.
-func TestAzurermUnadmittedClassesKeepTheSchemaRoute(t *testing.T) {
+// An unmapped type gets the identity-schema route's no-identity-schema
+// refusal, never a binding from resource_group_name and name.
+func TestAzurermUnmappedKeepsTheSchemaRouteRefusal(t *testing.T) {
 	schemas := azureSchemas()
-	for typ, wantClause := range map[string]string{
-		"azurerm_virtual_network": `requires "name", "resource_group_name", or "subscription_id"`,
-		"azurerm_role_assignment": "serves no resource identity schema for azurerm_role_assignment",
-		"azurerm_lb_nat_rule":     "serves no resource identity schema for azurerm_lb_nat_rule",
-	} {
-		if ti, ok := SynthesizeTypeIdentity(typ, schemas, nil); ok {
-			t.Errorf("%s synthesized %+v; it must not be admitted by this unit", typ, ti)
-			continue
-		}
-		if got := SchemaRefusal(typ, schemas, nil); !strings.Contains(got, wantClause) {
-			t.Errorf("SchemaRefusal(%s) = %q, want it to contain %q", typ, got, wantClause)
-		}
+	if ti, ok := SynthesizeTypeIdentity("azurerm_role_assignment", schemas, nil); ok {
+		t.Errorf("azurerm_role_assignment synthesized %+v", ti)
+	}
+	if got := SchemaRefusal("azurerm_role_assignment", schemas, nil); !strings.Contains(got, "serves no resource identity schema for azurerm_role_assignment") {
+		t.Errorf("SchemaRefusal = %q", got)
 	}
 	_, errs := resolveAzure(t, azureProviders+`
 resource "azurerm_role_assignment" "r" {
@@ -230,6 +242,81 @@ resource "azurerm_role_assignment" "r" {
 `)
 	if !strings.Contains(errs, "Resource type outside the live-markers subset") {
 		t.Errorf("azurerm_role_assignment: %q, want the unadmitted-type refusal", errs)
+	}
+}
+
+// #1120 unit 13: the identity-schema route answers subscription_id from the
+// provider block. Where the generated template supplies exactly the
+// identity schema's attributes, the identity is that ARM id with the
+// identity object's values beside it.
+func TestAzurermIdentitySchemaRouteRendersTheTemplate(t *testing.T) {
+	result, errs := resolveAzure(t, azureProviders+`
+resource "azurerm_virtual_network" "v" {
+  name                = "vnet1"
+  resource_group_name = "rg"
+  location            = "westeurope"
+}
+`)
+	if errs != "" {
+		t.Fatalf("refused: %s", errs)
+	}
+	got := azureResolution(t, result, "azurerm_virtual_network.v")
+	want := "/subscriptions/" + azureSub + "/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet1"
+	if got.Class != ClassConcrete || got.ImportID != want {
+		t.Errorf("= %s, want CONCRETE %s", got, want)
+	}
+	if v := got.IdentityValues; v["subscription_id"] != azureSub || v["resource_group_name"] != "rg" || v["name"] != "vnet1" || len(v) != 3 {
+		t.Errorf("identity values %v, want the three identity schema attributes", v)
+	}
+}
+
+// Where the identity schema names something no argument supplies, the
+// template built from the arguments the type has is the route's answer.
+func TestAzurermIdentitySchemaRouteFallsToAParentIDTemplate(t *testing.T) {
+	account := "/subscriptions/" + azureSub + "/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sa1"
+	result, errs := resolveAzure(t, azureProviders+`
+resource "azurerm_storage_container" "c" {
+  name               = "logs"
+  storage_account_id = "`+account+`"
+}
+`)
+	if errs != "" {
+		t.Fatalf("refused: %s", errs)
+	}
+	got := azureResolution(t, result, "azurerm_storage_container.c")
+	if want := account + "/blobServices/default/containers/logs"; got.Class != ClassConcrete || got.ImportID != want {
+		t.Errorf("= %s, want CONCRETE %s", got, want)
+	}
+}
+
+// A type with no template: the identity object, the subscription read from
+// the provider block, or the unknown-account answer when it is not stated.
+func TestAzurermIdentitySchemaRouteWithoutATemplate(t *testing.T) {
+	ti, ok := SynthesizeTypeIdentity("azurerm_widget", azureSchemas(), nil)
+	if !ok || !ti.IdentityObjectOnly || ti.ARMResourceID {
+		t.Fatalf("azurerm_widget = %+v, %v; want an identity-object entry", ti, ok)
+	}
+	body := `
+resource "azurerm_widget" "w" {
+  name                = "w1"
+  resource_group_name = "rg"
+}
+`
+	result, errs := resolveAzure(t, azureProviders+body)
+	if errs != "" {
+		t.Fatalf("refused: %s", errs)
+	}
+	got := azureResolution(t, result, "azurerm_widget.w")
+	if got.Class != ClassConcrete || got.ImportID != "" || got.IdentityValues["subscription_id"] != azureSub || got.IdentityValues["name"] != "w1" {
+		t.Errorf("= %s values %v, want the identity object with the provider's subscription", got, got.IdentityValues)
+	}
+	result, errs = resolveAzure(t, "provider \"azurerm\" {\n  features {}\n}\n"+body)
+	if errs != "" {
+		t.Fatalf("refused: %s", errs)
+	}
+	got = azureResolution(t, result, "azurerm_widget.w")
+	if got.Class != ClassNeedsDiscovery || got.Cause != DiscoveryCloudUnknown || got.CauseArgs[0] != string(CloudSubscriptionID) {
+		t.Errorf("= %s cause %s %v, want NEEDS_DISCOVERY for the unknown subscription", got, got.Cause, got.CauseArgs)
 	}
 }
 
@@ -380,13 +467,10 @@ resource "azapi_resource" "` + label + `" {
 	}
 }
 
-// An azurerm_virtual_network (identity-schema route) and an azapi_resource
-// naming the same network: the brief's own duplicate case. The
-// identity-schema route cannot build the network's identity (its identity
-// schema requires subscription_id, which no azurerm argument supplies), so
-// there is no id to compare and no collision is found. Pinned so the gap
-// is visible and moves the day that route is changed.
-func TestAzurermVNetOnTheSchemaRouteCannotCollide(t *testing.T) {
+// An azurerm_virtual_network (identity-schema route, #1120 unit 13) and an
+// azapi_resource naming the same network in other letter case are one
+// object declared twice.
+func TestAzurermVNetAndAzapiVNetAreOneIdentity(t *testing.T) {
 	_, errs := resolveAzure(t, azureProviders+`
 resource "azurerm_virtual_network" "v" {
   name                = "VNet1"
@@ -399,8 +483,76 @@ resource "azapi_resource" "v" {
   name      = "vnet1"
 }
 `)
-	if strings.Contains(errs, "Two resources with the same identity") {
-		t.Errorf("the identity-schema route now builds a VNet id (%q); update this pin and the report", errs)
+	if !strings.Contains(errs, "Two resources with the same identity") || !strings.Contains(errs, "azurerm_virtual_network.v") || !strings.Contains(errs, "azapi_resource.v") {
+		t.Errorf("errors = %q, want the duplicate-identity refusal naming both blocks", errs)
+	}
+}
+
+// #1120 unit 13: azapi_resource's identity values are azapi's identity
+// schema, {id, type}, so an import by identity object reads the object at
+// the block's own API version.
+func TestAzapiIdentityCarriesTheAPIVersion(t *testing.T) {
+	result, errs := resolveAzure(t, azureProviders+`
+resource "azapi_resource" "v" {
+  type      = "Microsoft.Network/virtualNetworks@2024-05-01"
+  parent_id = "/subscriptions/`+azureSub+`/resourceGroups/rg"
+  name      = "vnet1"
+}
+`)
+	if errs != "" {
+		t.Fatalf("refused: %s", errs)
+	}
+	got := azureResolution(t, result, "azapi_resource.v")
+	id := "/subscriptions/" + azureSub + "/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet1"
+	if got.ImportID != id || got.IdentityValues["id"] != id || got.IdentityValues["type"] != "Microsoft.Network/virtualNetworks@2024-05-01" || len(got.IdentityValues) != 2 {
+		t.Errorf("= %s values %v, want id and type@api-version", got, got.IdentityValues)
+	}
+}
+
+// #1120 unit 13: a resource group with no parent_id is under the
+// provider's subscription, as azapi plans it; any other type without one is
+// refused, as azapi refuses it; and an unstated subscription is the
+// unknown-account answer.
+func TestAzapiResourceGroupDefaultsItsParent(t *testing.T) {
+	rg := func(typ string) string {
+		return `
+resource "azapi_resource" "rg" {
+  type = "` + typ + `"
+  name = "rg1"
+}
+`
+	}
+	for _, typ := range []string{"Microsoft.Resources/resourceGroups@2024-03-01", "microsoft.resources/RESOURCEGROUPS@2024-03-01"} {
+		result, errs := resolveAzure(t, azureProviders+rg(typ))
+		if errs != "" {
+			t.Fatalf("%s refused: %s", typ, errs)
+		}
+		got := azureResolution(t, result, "azapi_resource.rg")
+		// azapi's default compares the type case-insensitively; its id
+		// builder does not, so the second spelling takes the default branch.
+		want := "/subscriptions/" + azureSub + "/resourceGroups/rg1"
+		if strings.HasPrefix(typ, "microsoft") {
+			want = "/subscriptions/" + azureSub + "/providers/microsoft.resources/RESOURCEGROUPS/rg1"
+		}
+		if got.Class != ClassConcrete || got.ImportID != want {
+			t.Errorf("%s = %s, want CONCRETE %s", typ, got, want)
+		}
+	}
+	if _, errs := resolveAzure(t, azureProviders+`
+resource "azapi_resource" "v" {
+  type = "Microsoft.Network/virtualNetworks@2024-05-01"
+  name = "vnet1"
+}
+`); !strings.Contains(errs, "Identity argument not set") {
+		t.Errorf("a virtual network with no parent_id: %q, want the missing-argument refusal", errs)
+	}
+	result, errs := resolveAzure(t, "provider \"azapi\" {}\n"+rg("Microsoft.Resources/resourceGroups@2024-03-01"))
+	if errs != "" {
+		t.Fatalf("refused: %s", errs)
+	}
+	got := azureResolution(t, result, "azapi_resource.rg")
+	if got.Class != ClassNeedsDiscovery || got.Cause != DiscoveryCloudUnknown || len(got.CauseArgs) != 2 || got.CauseArgs[1] != "parent_id" {
+		t.Errorf("= %s cause %s %v, want NEEDS_DISCOVERY naming the subscription and parent_id", got, got.Cause, got.CauseArgs)
 	}
 }
 

@@ -376,10 +376,11 @@ func (azure) HoldRecognition() HoldRecognition {
 // [SynthesizedIdentity.ARMResourceID].
 //
 //   - azurerm: the ARM id template generated from azurerm's own id parsers
-//     (live/azurerm-ids.json, embedded; see [azurermAdmits] for which rows
-//     are admitted and what the rest get). The subscription is the
-//     provider configuration's subscription_id, the way an AWS region is
-//     the provider configuration's region.
+//     (live/azurerm-ids.json, embedded), or for the rest the identity-schema
+//     route told that subscription_id is the provider's; see
+//     [azurermAdmits]. The subscription is the provider configuration's
+//     subscription_id, the way an AWS region is the provider
+//     configuration's region.
 //   - azapi_resource: type + parent_id + name, the natural key inside the
 //     resource's own arguments ([azapiResourceIdentity]).
 //

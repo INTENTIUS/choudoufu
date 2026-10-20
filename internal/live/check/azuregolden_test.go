@@ -32,7 +32,10 @@ import (
 //
 // Three fixtures, as #1120 unit 10 asks: an azurerm virtual network with a
 // subnet (both on the identity-schema route, which #1122 keeps for the 196
-// types with an identity schema), an azapi virtual network with a subnet,
+// types with an identity schema; since unit 13 that route answers
+// subscription_id from the provider block and renders the generated ARM id
+// template), an azapi virtual network with a subnet (whose identity values
+// are azapi's identity schema, id and type@api-version),
 // and one DNS zone declared through azurerm and through azapi in different
 // letter case. Regenerate with
 //
