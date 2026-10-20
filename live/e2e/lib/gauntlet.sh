@@ -413,10 +413,22 @@ gauntlet_helm_required_provider() {
   gauntlet_required_provider helm hashicorp/helm helm_provider_version "${1:-    }"
 }
 
+# gauntlet_azurerm_required_provider [indent] and
+# gauntlet_azapi_required_provider [indent]: the same for hashicorp/azurerm
+# and azure/azapi, from live/oracle-versions.json's azurerm_provider_version
+# and azapi_provider_version (#1120, the pins #1122 ruled). The azure lane's
+# reference estate hand-authors its root the way reference-k8s does.
+gauntlet_azurerm_required_provider() {
+  gauntlet_required_provider azurerm hashicorp/azurerm azurerm_provider_version "${1:-    }"
+}
+gauntlet_azapi_required_provider() {
+  gauntlet_required_provider azapi azure/azapi azapi_provider_version "${1:-    }"
+}
+
 # gauntlet_required_provider <local-name> <source> <field> [indent]: prints
 # one required_providers entry pinned exactly to live/oracle-versions.json's
-# <field>. The three functions above are the only callers; a fourth provider
-# pin would be a fourth field and a fourth one-line wrapper.
+# <field>. The five functions above are the only callers; another provider
+# pin is another field and another one-line wrapper.
 gauntlet_required_provider() {
   local name="$1" source="$2" field="$3" indent="${4:-    }" pin
   pin="$(gauntlet_oracle_pin "$field")"
@@ -474,6 +486,96 @@ gauntlet_kind_up() {
   [ -n "$image" ] || { printf 'gauntlet_kind_up: could not read the pinned node image from %s/live/kind-node-image\n' "$ROOT" >&2; return 1; }
   kind create cluster --image "$image" --name "$name" --kubeconfig "$cfg" --wait 120s >"${cfg}.kind.log" 2>&1 \
     || { printf 'gauntlet_kind_up: kind create cluster %s failed:\n' "$name" >&2; tail -5 "${cfg}.kind.log" >&2; return 1; }
+}
+
+# gauntlet_floci_az_up <name> <workdir>: the floci-az substrate (#1120).
+# An azure-lane crossing script runs against lex00/floci-az, pinned by
+# digest in live/floci-az-image, instead of the floci AWS emulator. One
+# container per call, started through gauntlet_floci_start so it carries the
+# ownership labels the leak sweep reads (name it choudoufu-<estate>-<pid>),
+# on a port the kernel chooses, with the environment live/smoke's compose
+# file gives the same image: TLS on, memory storage, Azure parity. It waits
+# for /ready, fetches the CA the container's TLS listener generated into
+# <workdir>/floci-az-ca.pem, and exports what azurerm, azapi and the stock
+# azurerm backend read, the set live/smoke/lib.sh's azure_provider_env
+# exports and for the reasons it gives there: FLOCI_AZ_HOST,
+# FLOCI_AZ_ENDPOINT, FLOCI_AZ_CA_FILE and the ARM_* variables. On Linux the
+# CA joins a bundle SSL_CERT_FILE names; on macOS Go reads the keychain, so
+# the CA has to be trusted there by hand.
+# Prints the reason and returns 1 on any failure, so the script's own fail()
+# records the stage it was setting up.
+#
+# Built for #1120 and not yet run by anyone: the maintainer's first
+# reference-azure run is its first boot.
+FLOCI_AZ_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000001"
+gauntlet_floci_az_up() {
+  local name="$1" work="$2" image port deadline system="" f
+  command -v docker >/dev/null 2>&1 || { printf 'gauntlet_floci_az_up: docker is not installed\n' >&2; return 1; }
+  image="$(cat "$ROOT/live/floci-az-image" 2>/dev/null)"
+  [ -n "$image" ] || { printf 'gauntlet_floci_az_up: could not read the pinned image from %s/live/floci-az-image\n' "$ROOT" >&2; return 1; }
+  gauntlet_floci_start "$name" -p 127.0.0.1::4577 \
+    -e FLOCI_AZ_TLS_ENABLED=true -e FLOCI_AZ_STORAGE_MODE=memory -e FLOCI_AZ_PARITY=azure \
+    "$image" >"$work/floci-az.run.log" 2>&1 \
+    || { printf 'gauntlet_floci_az_up: starting %s failed:\n' "$name" >&2; tail -5 "$work/floci-az.run.log" >&2; return 1; }
+  port="$(docker port "$name" 4577 2>/dev/null | head -1 | sed 's/.*://')"
+  [ -n "$port" ] || { printf 'gauntlet_floci_az_up: could not read the published port of %s\n' "$name" >&2; return 1; }
+  FLOCI_AZ_HOST="localhost:$port"
+  FLOCI_AZ_ENDPOINT="https://$FLOCI_AZ_HOST"
+  deadline=$(( $(date +%s) + ${FLOCI_AZ_READY_SECS:-90} ))
+  until curl -fsS --max-time 2 "http://$FLOCI_AZ_HOST/ready" >/dev/null 2>&1; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      docker logs --tail 50 "$name" >"$work/floci-az.log" 2>&1 || true
+      printf 'gauntlet_floci_az_up: %s never answered /ready within %ss; its log is in %s\n' "$name" "${FLOCI_AZ_READY_SECS:-90}" "$work/floci-az.log" >&2
+      return 1
+    fi
+    sleep 1
+  done
+  FLOCI_AZ_CA_FILE="$work/floci-az-ca.pem"
+  curl -fsS --max-time 10 "http://$FLOCI_AZ_HOST/_floci/tls-cert" -o "$FLOCI_AZ_CA_FILE" \
+    && grep -q "BEGIN CERTIFICATE" "$FLOCI_AZ_CA_FILE" \
+    || { printf 'gauntlet_floci_az_up: could not fetch a PEM CA from http://%s/_floci/tls-cert\n' "$FLOCI_AZ_HOST" >&2; return 1; }
+  if [ "$(uname -s)" != "Darwin" ]; then
+    for f in "${SSL_CERT_FILE:-}" /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/cert.pem; do
+      if [ -n "$f" ] && [ -s "$f" ]; then system="$f"; break; fi
+    done
+    [ -n "$system" ] || { printf 'gauntlet_floci_az_up: found no system CA bundle to add the floci-az CA to\n' >&2; return 1; }
+    cat "$system" "$FLOCI_AZ_CA_FILE" > "$work/ca-bundle-with-floci-az.pem"
+    export SSL_CERT_FILE="$work/ca-bundle-with-floci-az.pem"
+  fi
+  export FLOCI_AZ_HOST FLOCI_AZ_ENDPOINT FLOCI_AZ_CA_FILE
+  export ARM_SUBSCRIPTION_ID="$FLOCI_AZ_SUBSCRIPTION_ID"
+  export ARM_TENANT_ID="00000000-0000-0000-0000-000000000002"
+  export ARM_CLIENT_ID="00000000-0000-0000-0000-000000000003"
+  export ARM_CLIENT_SECRET="floci-az-does-not-check-this"
+  export ARM_USE_CLI=false ARM_USE_MSI=false
+  export ARM_METADATA_HOSTNAME="$FLOCI_AZ_HOST" ARM_METADATA_HOST="$FLOCI_AZ_HOST"
+  export ARM_ENVIRONMENT=custom
+  export ARM_ACTIVE_DIRECTORY_AUTHORITY_HOST="$FLOCI_AZ_ENDPOINT/"
+  export ARM_RESOURCE_MANAGER_ENDPOINT="$FLOCI_AZ_ENDPOINT"
+  export ARM_RESOURCE_MANAGER_AUDIENCE="$FLOCI_AZ_ENDPOINT/"
+  export ARM_DISABLE_INSTANCE_DISCOVERY=true
+  export ARM_RESOURCE_PROVIDER_REGISTRATIONS=none ARM_SKIP_PROVIDER_REGISTRATION=true
+  export ARM_DISABLE_TERRAFORM_PARTNER_ID=true
+}
+
+# gauntlet_floci_az_down <name>: removes the container gauntlet_floci_az_up
+# started, and its anonymous volume. Idempotent and quiet, for a trap.
+gauntlet_floci_az_down() {
+  [ -n "${1:-}" ] || return 0
+  docker rm --force --volumes "$1" >/dev/null 2>&1 || true
+}
+
+# gauntlet_arm <METHOD> <path-with-api-version> [json-body]: one ARM call
+# against the floci-az gauntlet_floci_az_up started, the azure lane's
+# out-of-band hand (what the AWS CLI is to a floci estate and kubectl to a
+# kind one). Prints the body; non-zero on a non-2xx answer. floci-az accepts
+# any bearer token on ARM.
+gauntlet_arm() {
+  local method="$1" path="$2" body="${3:-}"
+  local args=(-sS --fail-with-body --max-time 30 --cacert "$FLOCI_AZ_CA_FILE"
+    -X "$method" -H "Authorization: Bearer floci-az" -H "Content-Type: application/json")
+  [ -n "$body" ] && args+=(--data "$body")
+  curl "${args[@]}" "${FLOCI_AZ_ENDPOINT}${path}"
 }
 
 # gauntlet_kind_down <name>: deletes the cluster gauntlet_kind_up made.

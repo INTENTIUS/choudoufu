@@ -278,6 +278,18 @@ func kindNodeImagePin(root string) string {
 	return strings.TrimSpace(string(b))
 }
 
+// flociAzImagePin reads live/floci-az-image (#1120), the floci-az
+// substrate's counterpart to kindNodeImagePin: the full image reference,
+// pinned by digest, a floci-az estate's container is started from. A
+// missing or unreadable file reads as the zero value, the same rule.
+func flociAzImagePin(root string) string {
+	b, err := os.ReadFile(filepath.Join(root, "live", "floci-az-image"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
 // loadAll loads manifest and artifact and rebuilds the derived parts,
 // including the #522 behaviors-proven metric from live/behaviors.json (a
 // missing file loads as an empty index, same rule as LoadArtifact).

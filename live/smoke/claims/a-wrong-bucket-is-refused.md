@@ -78,3 +78,24 @@ Step 7 of [claim 1's scenario](no-silent-orphans.md#on-kubernetes): the
 record store's namespace deleted under a converged estate is refused by
 name on the plan and the apply, and nothing is written (claim 46 until
 #1817).
+
+## On Azure
+
+Open. The proof is a draft that has not run:
+
+### az-records-in-a-storage-account (draft)
+
+    just smoke az-records-in-a-storage-account
+    BREAK=1 just smoke az-records-in-a-storage-account
+
+`live/smoke/drafts/az-records-in-a-storage-account.sh` writes an estate's
+records to a storage account with versioning on, a previous-versions
+lifecycle rule and public access off, and requires each blob to carry the
+blob index tag `tofu-estate`. Four new estates must then be refused by
+name with no blob written: versioning off, no lifecycle rule, public
+access allowed, and a rule that deletes current records. `BREAK=1` removes
+the fences and waives all three with `allow_insecure`, and the same apply
+must go through and name each waiver. floci-az keeps none of the three
+settings and points blob calls at `core.windows.net` ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)), so it
+cannot pass there yet. It moves to `scenarios/` after a green run of both
+arms (live/smoke/drafts/README.md).

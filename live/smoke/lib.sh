@@ -507,6 +507,73 @@ azure_down() {
   AZURE_UP=0
 }
 
+# arm is one ARM management-plane call against floci-az, the Azure
+# scenarios' out-of-band hand: what `az` would send, with no `az` on PATH
+# and no login. arm <METHOD> <path-with-api-version> [json-body] prints the
+# response body and fails (non-zero) on a non-2xx answer, so `|| fail`
+# after it names the call. floci-az accepts any bearer token on ARM
+# (live/FLOCI.md, Azure). Bounded per call like every other request a
+# scenario makes (#1457).
+ARM_REQUEST_SECS="${ARM_REQUEST_SECS:-30}"
+arm() {
+  local method="$1" path="$2" body="${3:-}"
+  local args=(-sS --fail-with-body --max-time "$ARM_REQUEST_SECS" --cacert "$AZURE_CA_FILE"
+    -X "$method" -H "Authorization: Bearer floci-az" -H "Content-Type: application/json")
+  [ -n "$body" ] && args+=(--data "$body")
+  curl "${args[@]}" "${AZURE_ENDPOINT}${path}"
+}
+
+# arm_tags <resource-id> <api-version> prints the resource's tags as one
+# JSON object, keys as ARM stored them. Read through ARM, not through
+# choudoufu, so a marker check here is a check of what the cloud holds.
+arm_tags() {
+  arm GET "$1?api-version=$2" | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin).get("tags") or {}, sort_keys=True))'
+}
+
+# azure_terraform_block <estate> [record-store-hcl] prints an Azure
+# fixture's terraform block and its two provider blocks: azurerm and azapi
+# pinned exactly to live/oracle-versions.json's azurerm_provider_version and
+# azapi_provider_version (#1122's pins), a live block for <estate>, and the
+# record store given (record_store "local" when none is). The subscription
+# is stated in the provider block because identity reads it from there,
+# the way AWS reads its region (#1120's corrections); everything else the
+# providers need is azure_provider_env's.
+azure_terraform_block() {
+  local estate="$1" store="${2:-}" azurerm_pin azapi_pin
+  azurerm_pin="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["azurerm_provider_version"])' "$ROOT/live/oracle-versions.json")" || return 1
+  azapi_pin="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["azapi_provider_version"])' "$ROOT/live/oracle-versions.json")" || return 1
+  [ -n "$store" ] || store='record_store "local" {
+      path = ".tofu-records"
+    }'
+  cat <<EOF
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "= ${azurerm_pin}"
+    }
+    azapi = {
+      source  = "azure/azapi"
+      version = "= ${azapi_pin}"
+    }
+  }
+  live {
+    estate = "${estate}"
+    ${store}
+  }
+}
+
+provider "azurerm" {
+  features {}
+  subscription_id = "${AZURE_SUBSCRIPTION_ID}"
+}
+
+provider "azapi" {
+  subscription_id = "${AZURE_SUBSCRIPTION_ID}"
+}
+EOF
+}
+
 # kc is kubectl against the run's own cluster, and kc_as is the same under
 # another kubeconfig (a ServiceAccount's, say). Both carry --request-timeout
 # because kubectl's default is to wait on the API server for ever: #1457 was

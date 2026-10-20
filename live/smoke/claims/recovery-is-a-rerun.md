@@ -81,3 +81,7 @@ gauntlet.
 stage replaced it. What it had that the stage does not is its control: it
 stripped the label after the kill and required the plan to refuse the
 object by name.
+
+## On Azure
+
+Open. The intended proof is the gauntlet's `day2_crash` stage on the `reference-azure` estate (the `azure` lane), which is built and has not been run.

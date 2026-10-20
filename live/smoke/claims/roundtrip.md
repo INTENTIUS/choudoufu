@@ -127,3 +127,7 @@ logs one line per request the client sent. The plan texts match once each
 tool's name is taken out, and the request counts are equal (8 each on the
 first run). `BREAK=1` turns the live block on for choudoufu's leg, and the
 measurement must move. Foreign objects and a plan's cost are claim 14's.
+
+## On Azure
+
+Open. The intended proof is the `reference-azure` estate's `cold_deploy` and `migrate` stages: stock applies, `live-import` writes the two ARM tags. The estate is built and has not been run, and no smoke scenario is written.

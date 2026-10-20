@@ -74,3 +74,7 @@ perpetual drift stock reads, marker intact. A policy that strips
 warns, the adopting update fails rather than reporting a change nothing
 kept (#1192). `BREAK=1` points the stripping policy at a decoy label, and
 the marker must land with no warning.
+
+## On Azure
+
+Open. The intended proof is the gauntlet's `plan_approval` stage on `reference-azure`, which is built and has not been run. floci-az evaluates no Policy, so the server's own refusal at apply time cannot be shown there.

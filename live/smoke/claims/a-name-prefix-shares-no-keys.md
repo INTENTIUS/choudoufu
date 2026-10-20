@@ -180,3 +180,7 @@ it is, and changes nothing of network's; after network's destroy deletes
 that output, the consumer is told so by name. `BREAK=1` declares the read
 and withholds the Role, and the plan must refuse, naming the estate, its
 namespace and the Role to grant.
+
+## On Azure
+
+Open. Nothing has run on Azure yet. Each blob carries `tofu-estate` as a blob index tag, and `live/azure/record-store-abac.condition` is the read fence on it; floci-az has no route for role assignments or ABAC conditions, so the fence is unmeasured.

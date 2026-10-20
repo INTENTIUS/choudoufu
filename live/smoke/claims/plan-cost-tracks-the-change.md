@@ -44,3 +44,7 @@ restricted to the cone. `BREAK=1` drops the cone's dependents, and the
 missed update must be caught. The unit half of the claim is in
 `internal/live/cone` and `internal/command/live_cone_plan_test.go`.
 
+
+## On Azure
+
+Open. Nothing has run on Azure yet (#1120), and no scenario is written for this promise there.

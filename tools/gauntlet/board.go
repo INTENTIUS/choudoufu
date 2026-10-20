@@ -312,11 +312,24 @@ func lastRunNote(r EstateResult, a *Artifact, kindImage string) (note, legacy st
 	if r.LastRun != nil && r.LastRun.DurationS > 0 {
 		durationNote = " Total run time " + formatDuration(r.LastRun.DurationS) + "."
 	}
+	// A row Rebuild added for a manifest entry that has never run (the
+	// first azure-lane estate, #1120, arrived this way) carries the legacy
+	// protocol only because nothing has replaced it; its not_run cells were
+	// written by Rebuild, never recorded by hand.
+	if r.Protocol != ProtocolGauntlet && r.LastRun == nil && neverMeasured(r) {
+		return "", "No run is recorded for this estate yet: every cell reads not_run because Rebuild wrote it, and the first run of the crossing script replaces them."
+	}
 	if r.Protocol != ProtocolGauntlet {
 		return "", "Verdicts were recorded from this estate's crossing script by hand before the script spoke the gauntlet protocol; the next run that does will replace them."
 	}
 	if r.LastRun == nil {
 		return "", ""
+	}
+	if r.Substrate == SubstrateFlociAz {
+		if r.LastRun.SubstrateImage == "" {
+			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d. This run's floci-az image was not recorded.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, durationNote), ""
+		}
+		return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d, against floci-az image `%s`.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.SubstrateImage, durationNote), ""
 	}
 	if r.Substrate == SubstrateKind {
 		switch {
@@ -376,6 +389,17 @@ func providerNote(r EstateResult, a *Artifact) string {
 		}
 	}
 	return strings.Join(notes, " ")
+}
+
+// neverMeasured reports whether every stage cell of r is not_run or n/a,
+// the cells Rebuild writes for a row no run has touched.
+func neverMeasured(r EstateResult) bool {
+	for _, v := range r.Stages {
+		if v != VerdictNotRun && v != VerdictNA {
+			return false
+		}
+	}
+	return true
 }
 
 // providerPinNote is one provider's half of providerNote.

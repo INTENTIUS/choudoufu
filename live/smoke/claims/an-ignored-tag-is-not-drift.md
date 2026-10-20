@@ -42,3 +42,7 @@ the cluster or in a bucket; the bucket step also needs the floci
 emulator. `BREAK=1` writes an undeclared key, which must plan `No
 changes.`, and runs the shared-store steps on the local store, where the
 second directory must see nothing.
+
+## On Azure
+
+Open. Nothing has run on Azure yet. azurerm has no provider-level `ignore_tags`, so the Azure form of this promise is `lifecycle { ignore_changes = [tags] }`, a different declaration from the AWS proof's, and it is not measured.
