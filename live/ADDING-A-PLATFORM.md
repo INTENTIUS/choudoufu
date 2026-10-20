@@ -40,16 +40,45 @@ restating it:
   ruling GitHub CI is gofmt, the Go unit tier and the ci-pipelines npm test;
   no workflow runs a smoke scenario or a lane. Build the scenario, merge it,
   and tell the maintainer it is ready to run.
+- Agents file issues on their own platform's floci fork and do nothing
+  else there: no branches, commits, PRs, image publishes or re-pins. That
+  work is the maintainer's. See "Emulator policy" below.
 - The safety rule from `HANDOFF.md` holds on every platform: never write a
   wrong marker; drop to the record rung, never refuse the estate.
 
 ## The contract, requirement by requirement
 
-Each subsection is one requirement. "Fixed" is what every platform must do
+Each subsection is one requirement, and the first one comes before all the others. "Fixed" is what every platform must do
 the same way. "Per platform" is what AWS and Kubernetes chose differently,
 so a new platform needs a ruling on it.
 
-### 1. A family value
+### 1. Stock provider compatibility
+
+Every platform is fully compatible with the stock provider for that
+platform, as published at the pin: `hashicorp/aws`, `hashicorp/kubernetes`,
+`hashicorp/google` and `google-beta`, `hashicorp/azurerm`, `azure/azapi`.
+
+- No provider fork, patch or wrapper.
+- The marker goes in only through arguments the stock provider already
+  accepts, on the create call it already makes.
+- Apart from that argument, the plan is what stock would show. No resources
+  are synthesized.
+- The exit holds: remove the `live` block, keep the cache, and stock
+  OpenTofu with the same provider carries on.
+- Every configuration stock accepts either works or is refused by name with
+  a lint rule.
+
+| | AWS | Kubernetes |
+|---|---|---|
+| Marker argument | the provider's own `tags` map | the provider's own `metadata.labels` (and `metadata.annotations` for the address) |
+| Exit | claim 6, `stock-when-you-need-it.sh` | claim 6, `k8s-stock-when-you-need-it.sh`; BREAK runs the leg with the `live` block still on |
+| Refused by name | the AWS lint rules in `internal/live/lint/issue.go` | the same, plus `generate-name` |
+
+Fixed: all of it. A carrier choice that needs a second resource in the plan
+(the post-create tag-binding option #1121 weighed for GCP) has to be
+squared with the no-synthesized-resources rule before it is ruled.
+
+### 2. A family value
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -64,7 +93,7 @@ registers a fake third family and shows the dispatch seams it would fall
 into. Today `hashicorp/google` falls through to the AWS identity-schema
 route (`substrate/identity.go`), which a GCP family replaces.
 
-### 2. Estate identity rule (admission of types)
+### 3. Estate identity rule (admission of types)
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -78,7 +107,7 @@ platform: the source. GCP's open question is Magic Modules rows versus a
 is azurerm's id parsers versus `resource_group_name` + `name`, plus azapi
 (#1122 items 4 and 5). Neither is ruled yet.
 
-### 3. Marker carrier, written in-create
+### 4. Marker carrier, written in-create
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -97,7 +126,7 @@ the carrier and its value grammar (labels cap at 63 characters). GCP is
 ruled: labels, in-create, estate-only, tag bindings later (#1121). Azure's
 carrier is expected to be `tags` (#1120 item 2) and is not yet ruled.
 
-### 4. Binding a live object back to its address
+### 5. Binding a live object back to its address
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -111,7 +140,7 @@ shipped first with no address on the object (#1016) and added the annotation
 later, so the contract permits both. GCP's ruling puts no `tofu-address` in
 a label (#1121); where else the address goes is not ruled.
 
-### 5. Not-found recogniser
+### 6. Not-found recogniser
 
 `internal/live/absent` (`absent.Matches`) decides whether a provider's
 import error means "no such object" or "could not answer". It is textual,
@@ -122,7 +151,7 @@ because only Summary and Detail cross the plugin wire. It holds AWS phrasings
 provider's not-found text is added here with a test, or its imports read as
 failures.
 
-### 6. Sweep and orphans
+### 7. Sweep and orphans
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -138,7 +167,7 @@ platform: the call shape and the consistency lag. GCP's is Cloud Asset
 Inventory, and sweep equivalence waits on lex00/floci-gcp#7 (#1121). Azure's
 is Resource Graph (#1120 item 3).
 
-### 7. Record store
+### 8. Record store
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -155,7 +184,7 @@ conditional write, the sentinel check on opening (`live/STORAGE.md`,
 Kubernetes had a lane (PR #1074, 2026-09-12) a week before its own store
 (PR #1435, 2026-09-20), so a native store is not the first unit.
 
-### 8. The fence
+### 9. The fence
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -169,7 +198,7 @@ not cover (Kubernetes's is write-only). GCP is ruled project-scoped for now
 (#1121). Azure RBAC cannot condition on tags, so resource groups versus a
 restated fence is the open ruling (#1122).
 
-### 9. Lint and refusals
+### 10. Lint and refusals
 
 Fixed: a construct the platform cannot honour is refused by name, with a
 lint rule and a fixture. Kubernetes added one, `generate-name`
@@ -178,7 +207,7 @@ no join key; AWS's rules (`count-index`, `markerless-type` and the rest) live
 beside it in `internal/live/lint/issue.go`. The registries a rule joins are
 listed below.
 
-### 10. Emulator and harness
+### 11. Emulator and harness
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -188,7 +217,7 @@ listed below.
 Fixed: a pinned image and a per-run lifecycle in `lib.sh`. GCP and Azure
 run on floci forks (policy below).
 
-### 11. Claims with a BREAK control
+### 12. Claims with a BREAK control
 
 The Kubernetes bar on #1119: bind, mark on create, sweep and a governed
 fence, each a claim with a BREAK control, then a lane.
@@ -209,7 +238,7 @@ header reads `# CLAIM <n> (<provider>) - <title>`; and each claim page under
 A scenario may start as a demo in `smokeDemoScenarios` before it can assert
 a marker, as `k8s-greenfield` did.
 
-### 12. Gauntlet lane
+### 13. Gauntlet lane
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -223,7 +252,7 @@ reading in `tools/gauntlet/stages.go`, so a stage whose oracle is
 AWS-shaped is marked per substrate rather than silently skipped. A
 hand-written reference estate comes first, then published roots.
 
-### 13. Docs pages
+### 14. Docs pages
 
 | | AWS | Kubernetes |
 |---|---|---|
@@ -295,19 +324,24 @@ Each was found by a red CI run.
 | A refusal | the stage's registry (for example `discovery/refusals.go`, `projection/refusals.go`); `internal/live/refusalscan` fails on a summary with no entry |
 | A marker surface | a `markers.Surface` constant; every seam in `TestEverySurfaceSeamHandlesEverySurface`, or an exemption with a reason |
 | A family | `substrate.All` before AWS; `TestEverySubstrateAnswersEveryQuestion`; `fenceByFamily` and `harnessByFamily` in `tools/substrates-gen`; regenerate `live/substrates.json` and `live/SUBSTRATES.md` |
-| A claim cell | see requirement 11 |
-| A site hub | see requirement 13 |
+| A claim cell | see requirement 12 |
+| A site hub | see requirement 14 |
 | A tool under `tools/` | a `.gitignore` entry (`TestEveryToolHasAGitignoreEntry`) |
 | An artifact measured on an emulator | its image field in `live/flociimage_test.go` |
 
 ## Emulator policy
 
-- One floci fork per platform: lex00/floci (AWS), lex00/floci-gcp and
-  lex00/floci-az. Never upstream floci-io (#1119, #1120).
-- Before fixing an emulator gap, check whether upstream floci-io already
-  fixed it; the forks lag.
-- Fixes stay on the fork, are published to GHCR, and are pinned by digest,
-  as `live/floci-image` pins AWS's.
-- Gaps are filed on the fork as the lane finds them (lex00/floci-gcp#2,
-  lex00/floci-az#2 list the surfaces). The maintainer reviews any text
-  before it is posted to a floci repository.
+Each platform has its own floci fork: lex00/floci for AWS, lex00/floci-gcp
+for GCP, lex00/floci-az for Azure.
+
+- Agents only file issues, and only on the fork for their platform.
+- Agents never do work on a floci fork: no branches, commits, PRs, image
+  publishes or re-pins. The maintainer does that work.
+- Before filing, check upstream floci-io to see whether the gap is already
+  known.
+- The issue's text is shown to the maintainer before it is filed.
+- Code in choudoufu that needs a missing emulator capability waits for the
+  fork. Do not route around it.
+- The image a harness runs is pinned by digest, as `live/floci-image` pins
+  AWS's (`ghcr.io/lex00/floci@sha256:...`). The surfaces each fork must
+  serve are listed in lex00/floci-gcp#2 and lex00/floci-az#2.
