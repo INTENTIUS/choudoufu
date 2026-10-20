@@ -9198,14 +9198,14 @@
         {
           "tier": "declaration-carried",
           "counts": [
-            491,
+            489,
             0,
             0,
             0,
             0,
             0
           ],
-          "total": 491
+          "total": 489
         },
         {
           "tier": "record-carried",
@@ -9213,11 +9213,11 @@
             0,
             0,
             0,
-            228,
+            230,
             0,
             0
           ],
-          "total": 228
+          "total": 230
         },
         {
           "tier": "excluded by design",
@@ -9233,10 +9233,10 @@
         }
       ],
       "column_totals": [
-        845,
+        843,
         0,
         0,
-        261,
+        263,
         0,
         0
       ],
@@ -9320,7 +9320,7 @@
       {
         "tier": "declaration-carried",
         "counts": [
-          450,
+          448,
           21,
           12,
           8,
@@ -9331,7 +9331,7 @@
       {
         "tier": "record-carried",
         "counts": [
-          169,
+          171,
           20,
           5,
           3,
@@ -10245,6 +10245,18 @@
         "tier": "record-carried",
         "status": "needs-evidence",
         "reason": "no ARM id template could be read from azurerm's id parsers for it (live/azurerm-ids.json's reason), so it is refused as unadmitted. See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_netapp_volume_bucket",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
+      },
+      {
+        "type": "azurerm_netapp_volume_bucket_with_server",
+        "tier": "record-carried",
+        "status": "needs-evidence",
+        "reason": "its id template is the parent's, or not an object's own, so admission withholds it rather than risk a wrong marker (internal/live/substrate's azurermRowShapeProblem). See [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type)."
       },
       {
         "type": "azurerm_network_interface_application_gateway_backend_address_pool_association",

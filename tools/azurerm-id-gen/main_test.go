@@ -272,3 +272,74 @@ func TestValidatorForm(t *testing.T) {
 		}
 	}
 }
+
+// TestFixtureRecordsContractsAndRoutes (#1120 unit 17): an identity-schema
+// row carries azurerm's identity test, and every row the route
+// internal/live/substrate and internal/live/identity give it.
+func TestFixtureRecordsContractsAndRoutes(t *testing.T) {
+	rows := fixtureRows(t)
+	want := map[string]string{
+		"azurerm_widget":              "template",
+		"azurerm_widget_gizmo":        "template",
+		"azurerm_widget_gizmo_legacy": "parent-id",
+		"azurerm_widget_storage":      "identity-schema",
+		"azurerm_widget_link":         "unmapped",
+		"azurerm_widget_ghost":        "unmapped",
+	}
+	for typ, route := range want {
+		if got := rows[typ].Route; got != route {
+			t.Errorf("%s: route %q, want %q", typ, got, route)
+		}
+	}
+	c := rows["azurerm_widget_storage"].IdentityContract
+	if c == nil {
+		t.Fatal("azurerm_widget_storage carries no identity contract")
+	}
+	if c.Source != "internal/services/widget/widget_storage_resource_identity_gen_test.go" {
+		t.Errorf("contract source %q", c.Source)
+	}
+	if !reflect.DeepEqual(c.Attributes, map[string]contractAttr{
+		"name":                {Argument: "name"},
+		"resource_group_name": {Argument: "resource_group_name"},
+		"subscription_id":     {ProviderSubscription: true},
+	}) {
+		t.Errorf("contract attributes %+v", c.Attributes)
+	}
+	if rows["azurerm_widget"].IdentityContract != nil {
+		t.Error("a type with no identity schema carries a contract")
+	}
+}
+
+// TestContractChecks reads each check azurerm's identity tests make.
+func TestContractChecks(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "x_resource_identity_gen_test.go")
+	src := `package x_test
+func TestX(t *testing.T) {
+	_ = []statecheck.StateCheck{
+		statecheck.ExpectIdentityValueMatchesStateAtPath("azurerm_x.test", tfjsonpath.New("name"), tfjsonpath.New("name")),
+		customstatecheck.ExpectStateContainsIdentityValueAtPath("azurerm_x.test", tfjsonpath.New("account_name"), tfjsonpath.New("account_id")),
+		statecheck.ExpectIdentityValue("azurerm_x.test", tfjsonpath.New("subscription_id"), knownvalue.StringExact(data.Subscriptions.Secondary)),
+		statecheck.ExpectIdentityValue("azurerm_x.test", tfjsonpath.New("record_type"), knownvalue.StringExact("TXT")),
+		statecheck.ExpectIdentityValue("azurerm_x.test", tfjsonpath.New("odd"), knownvalue.NotNull()),
+	}
+}
+`
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := contractsIn(path, "x_resource_identity_gen_test.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]contractAttr{
+		"name":            {Argument: "name"},
+		"account_name":    {Within: "account_id"},
+		"subscription_id": {ProviderSubscription: true},
+		"record_type":     {Constant: "TXT"},
+		"odd":             {Other: "knownvalue.NotNull."},
+	}
+	if got["azurerm_x"] == nil || !reflect.DeepEqual(got["azurerm_x"].Attributes, want) {
+		t.Errorf("contracts = %+v, want %+v", got["azurerm_x"], want)
+	}
+}

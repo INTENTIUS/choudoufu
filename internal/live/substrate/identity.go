@@ -62,6 +62,15 @@ type SynthesizedIdentity struct {
 	// Nil otherwise.
 	ARMTemplate *SynthesizedIdentity
 
+	// TemplateWithheld, with FromIdentitySchema: why the family has an ARM
+	// id template for the type and will not offer it (GitHub issue #1120
+	// unit 17), naming the segment or the row that fails. The route
+	// refuses with this reason, in place of its own, wherever it does not
+	// admit the type itself: a template that cannot be resolved exactly
+	// from configuration is refused by name, never guessed around. Empty
+	// otherwise.
+	TemplateWithheld string
+
 	// NonAWSProvider is identity.TypeIdentity's field of the same name.
 	NonAWSProvider bool
 

@@ -95,6 +95,15 @@ type entry struct {
 	ImporterSource *idSource `json:"importer_source,omitempty"`
 	Reason         string    `json:"reason,omitempty"`
 	Detail         string    `json:"detail,omitempty"`
+	// IdentityContract, on an identity-schema row, is azurerm's own
+	// resource identity test for the type ([contract]), absent when the
+	// provider publishes none.
+	IdentityContract *contract `json:"identity_contract,omitempty"`
+	// Route is how choudoufu admits the type (#1120 unit 17), one of
+	// internal/live/substrate's AzurermRoute* values: identity-schema,
+	// template-fallback, template, parent-id, withheld or unmapped. See
+	// [assignRoutes].
+	Route string `json:"route"`
 }
 
 func main() {
@@ -221,20 +230,35 @@ func generate(src, schemaPath string) (*artifact, error) {
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Type < entries[j].Type })
 
+	contracts, err := readContracts(src)
+	if err != nil {
+		return nil, err
+	}
+	for i := range entries {
+		if entries[i].Class == classIdentitySchema {
+			entries[i].IdentityContract = contracts[entries[i].Type]
+		}
+	}
+
+	a := &artifact{
+		GeneratedBy: "go run ./tools/azurerm-id-gen -src <azurerm checkout> -schema <providers schema json>",
+		Provider:    "hashicorp/azurerm",
+		Pin:         pin{Version: version, Commit: commit, SchemaSHA256: digest},
+		Types:       entries,
+	}
+	if err := assignRoutes(a, schemas); err != nil {
+		return nil, err
+	}
 	counts := map[string]int{}
 	for _, e := range entries {
 		counts[e.Class]++
 		if e.Class == classIdentitySchema {
 			counts["identity-schema/"+e.TemplateClass]++
 		}
+		counts["route/"+e.Route]++
 	}
-	return &artifact{
-		GeneratedBy: "go run ./tools/azurerm-id-gen -src <azurerm checkout> -schema <providers schema json>",
-		Provider:    "hashicorp/azurerm",
-		Pin:         pin{Version: version, Commit: commit, SchemaSHA256: digest},
-		Counts:      counts,
-		Types:       entries,
-	}, nil
+	a.Counts = counts
+	return a, nil
 }
 
 func classify(name string, ts typeSchema, r registration, src *idSource, problem string, parentTypes func([]segment) []string, typeTemplate func(string) (string, bool)) entry {
@@ -405,7 +429,9 @@ func readSchema(path string) (map[string]typeSchema, string, error) {
 			} `json:"block"`
 		} `json:"resource_schemas"`
 		ResourceIdentitySchemas map[string]struct {
-			Attributes map[string]json.RawMessage `json:"attributes"`
+			Attributes map[string]struct {
+				RequiredForImport bool `json:"required_for_import"`
+			} `json:"attributes"`
 		} `json:"resource_identity_schemas"`
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
@@ -419,8 +445,14 @@ func readSchema(path string) (map[string]typeSchema, string, error) {
 		}
 		if is, ok := p.ResourceIdentitySchemas[name]; ok {
 			ts.Identity = []string{}
-			for an := range is.Attributes {
+			for an, a := range is.Attributes {
 				ts.Identity = append(ts.Identity, an)
+				if !a.RequiredForImport {
+					if ts.IdentityOptional == nil {
+						ts.IdentityOptional = map[string]bool{}
+					}
+					ts.IdentityOptional[an] = true
+				}
 			}
 			sort.Strings(ts.Identity)
 		}
@@ -487,6 +519,7 @@ func printSummary(w *os.File, a *artifact) {
 	if len(rs) > 20 {
 		rs = rs[:20]
 	}
+	fmt.Fprintln(w, contractSummary(a.Types))
 	fmt.Fprintln(w, "largest unmapped reasons (including identity-schema rows whose template is unmapped):")
 	for _, r := range rs {
 		fmt.Fprintf(w, "  %5d  %s\n", r.n, r.r)
