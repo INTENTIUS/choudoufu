@@ -22,8 +22,8 @@ import (
 // live/azure/estate-boundary.json (Policy deny on a missing or foreign
 // tofu-estate tag, and the opt-in delete lock, a denyAction on delete that
 // is assigned only when deleteLock=true; ruled on #1122, 2026-10-20).
-// floci-az stores Policy and never
-// evaluates it (live/FLOCI.md), so nothing exercises the rules; this test is
+// floci-az evaluates Policy since 30000b0 (live/FLOCI.md), but no scenario
+// has run against it, so nothing has exercised the rules yet; this test is
 // what holds the templates to what live/MARKERS.md, "Granting an Azure
 // estate", says they do.
 //

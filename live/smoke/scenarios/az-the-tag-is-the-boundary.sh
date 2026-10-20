@@ -12,17 +12,18 @@
 #
 # Written for GitHub issue #1120 (unit 15). Not yet run, so its cell reads
 # unproven until the maintainer runs both arms on floci-az and the evidence
-# file lands. It waits on lex00/floci-az#6 (Policy not evaluated), #5 (no
-# role assignments) and #4 (no Resource Graph).
+# file lands. Policy deny and denyAction evaluation (1ecb105) and role
+# assignments with enforcement (02ae4a5, bb225ad) are served by floci-az
+# since 30000b0, and the compose service turns both on; not yet run.
 #
-# What floci-az cannot answer today (live/FLOCI.md, Azure): it stores Policy
-# definitions and assignments and evaluates no rule, so nothing is denied
-# and step 3 is expected to fail on its first write until the fork
-# evaluates deny and denyAction. The BREAK arm would pass there for the
-# wrong reason, which is why it runs only after step 3's refusals have been
-# seen. Role assignments have no route either, so the RBAC half
-# (live/azure/estate-grant.json) is not exercised: every caller here is the
-# same principal, and the boundary measured is the tag's alone.
+# What floci-az cannot answer today (live/FLOCI.md, Azure): every plan's
+# sweep is a Resource Graph query, and its KQL subset refuses the query's
+# union, mv-expand and bag_keys, so Alice's apply is expected to stop
+# there. The BREAK arm would pass against an emulator that denied nothing,
+# which is why it runs only after step 3's refusals have been seen. The
+# RBAC half (live/azure/estate-grant.json) is not in this scenario yet:
+# every caller here is the same principal, and the boundary measured is
+# the tag's alone.
 
 SMOKE_WORK="$SMOKE_WORKROOT/az-the-tag-is-the-boundary"
 ALICE="$SMOKE_WORK/alice"; BOB="$SMOKE_WORK/bob"

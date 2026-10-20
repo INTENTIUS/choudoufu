@@ -18,11 +18,15 @@
 # without that control the subnet writes going through would read the same
 # if no Policy had been in force at all.
 #
-# Not yet run, so its cell reads unproven. It waits on lex00/floci-az#6
-# (Policy is stored and never evaluated, so step 3's refusal cannot happen
-# there) and lex00/floci-az#4 (no Resource Graph, which every plan's sweep
-# reads). The RBAC half, which is what fences the subnet, is not measured:
-# floci-az has no route for role assignments (lex00/floci-az#5) and every
+# Not yet run, so its cell reads unproven. Policy evaluation and role
+# assignments with enforcement are served by floci-az since 30000b0, and
+# the compose service turns both on. Two things still stand in the way
+# there (live/FLOCI.md, Azure): floci-az's mode: Indexed skips only
+# resource groups, where Azure skips every type without tags, so its marker
+# guard denies Bob's untagged subnet create and that step fails for the
+# emulator's reason; and every plan's sweep is a Resource Graph query whose
+# union, mv-expand and bag_keys its KQL subset refuses. The RBAC half,
+# which is what fences the subnet, is not in this scenario yet: every
 # caller here is one principal.
 
 SMOKE_WORK="$SMOKE_WORKROOT/az-the-fence-gap-is-as-stated"

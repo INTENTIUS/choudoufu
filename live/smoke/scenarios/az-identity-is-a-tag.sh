@@ -13,14 +13,14 @@
 #
 # Written for GitHub issue #1120 (unit 15). Not yet run, so its cell reads
 # unproven until the maintainer runs both arms on floci-az and the evidence
-# file lands. It waits on lex00/floci-az#4 (no Resource Graph).
+# file lands.
 #
 # What floci-az cannot answer today (live/FLOCI.md, Azure): it keeps tags on
 # resource groups, network resources and managed identities, which is every
-# type here, but it has no Resource Graph, so a plan whose sweep reaches for
-# it is refused by name (azsweep's "Microsoft.ResourceGraph not
-# registered"); that refusal is the first thing this scenario will report if
-# the fork still lacks the route. And every type here is on azurerm's
+# type here, and serves Resource Graph since 30000b0, but its KQL subset
+# refuses the sweep query's union, mv-expand and bag_keys, so a plan is
+# refused with that 400 InvalidQuery; that refusal is the first thing this
+# scenario will report until one side changes. And every type here is on azurerm's
 # identity-schema route, so it plans only once that route answers a
 # subscription from the provider block (#1120 unit 10's note).
 

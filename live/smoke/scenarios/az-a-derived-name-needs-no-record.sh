@@ -17,8 +17,10 @@
 # live subnet alone, because without that control an empty plan would read
 # the same if binding ignored the derived name.
 #
-# Not yet run, so its cell reads unproven. It waits on lex00/floci-az#4: a
-# plan's sweep is a Resource Graph query, which floci-az does not serve.
+# Not yet run, so its cell reads unproven. It waits on the emulator:
+# a plan's sweep is a Resource Graph query. floci-az serves Resource Graph
+# since 30000b0, but its KQL subset refuses the query's union, mv-expand
+# and bag_keys with 400 InvalidQuery (live/FLOCI.md, Azure).
 # That floci-az's network handler serves subnets as children of a VNet is
 # assumed from live/FLOCI.md's network row, not confirmed.
 

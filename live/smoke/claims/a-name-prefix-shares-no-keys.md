@@ -183,4 +183,4 @@ namespace and the Role to grant.
 
 ## On Azure
 
-Open. Nothing has run on Azure yet. Each blob carries `tofu-estate` as a blob index tag, and `live/azure/record-store-abac.condition` is the read fence on it; floci-az has no route for role assignments or ABAC conditions, so the fence is unmeasured.
+Open. Nothing has run on Azure yet. Each blob carries `tofu-estate` as a blob index tag, and `live/azure/record-store-abac.condition` is the read fence on it; floci-az serves role assignments since 30000b0 and stores their ABAC conditions, but evaluates no condition and no data action, so the fence is unmeasured.

@@ -232,8 +232,9 @@ Fixed: an undeclared object carrying the estate's marker shows up in a plan;
 a sweep failure is a refusal registered in `discovery/refusals.go`. Per
 platform: the call shape and the consistency lag. GCP's is Cloud Asset
 Inventory, and sweep equivalence waits on lex00/floci-gcp#7 (#1121). Azure's
-is Resource Graph, one query per subscription, which floci-az does not
-serve yet (`live/FLOCI.md`).
+is Resource Graph, one query per subscription. floci-az serves Resource
+Graph since 30000b0, but with a KQL subset that refuses the sweep query's
+`union`, `mv-expand` and `bag_keys` (`live/FLOCI.md`).
 
 ### 9. Record store
 
@@ -285,7 +286,7 @@ listed below.
 
 | | AWS | Kubernetes | Azure |
 |---|---|---|---|
-| Harness | floci, pinned by digest in `live/floci-image`; `stack_up` in `live/smoke/lib.sh`; coverage probed in `live/floci-capabilities.json`; traps in `live/FLOCI.md` | kind, a real API server, pinned in `live/kind-node-image`; `cluster_up` / `cluster_down` in `live/smoke/lib.sh` | floci-az, pinned by digest in `live/floci-az-image`; `azure_up` / `azure_down` in `live/smoke/lib.sh`; gaps in `live/FLOCI.md` |
+| Harness | floci, pinned by digest in `live/floci-image`; `stack_up` in `live/smoke/lib.sh`; coverage probed in `live/floci-capabilities.json`; traps in `live/FLOCI.md` | kind, a real API server, pinned in `live/kind-node-image`; `cluster_up` / `cluster_down` in `live/smoke/lib.sh` | floci-az, pinned by digest in `live/floci-az-image`; `azure_up` / `azure_down` in `live/smoke/lib.sh`; what it serves and still lacks in `live/FLOCI.md` |
 | Landed | | [#1057](https://github.com/INTENTIUS/choudoufu/issues/1057), PR [#1058](https://github.com/INTENTIUS/choudoufu/pull/1058) | #1120 unit 7 (merged at `9e365b8025`) |
 
 Fixed: a pinned image and a per-run lifecycle in `lib.sh`. GCP and Azure
@@ -293,7 +294,9 @@ run on floci forks (policy below).
 
 Azure's harness is lex00/floci-az, pinned by digest in `live/floci-az-image`;
 `azure_up` / `azure_down` in `live/smoke/lib.sh` start it, export the
-provider environment, and remove it. What it serves is in `live/FLOCI.md`.
+provider environment, and remove it. The compose service turns on the
+fork's three opt-in settings the lane needs: the storage suffix, Policy
+evaluation and RBAC enforcement. What it serves is in `live/FLOCI.md`.
 
 ### 13. Claims with a BREAK control
 
@@ -395,7 +398,8 @@ and rule where the address lives together with the carrier.
 Azure did that: the family value and the address carrier came in unit 1,
 with the carrier ruling. It also built every step before any could run,
 because the emulator lacked the sweep, the fence and the store's settings
-(`live/FLOCI.md`). Only the ruling and admission are closed, admission by
+(`live/FLOCI.md`). floci-az serves all three since 30000b0, not yet run,
+and the sweep's query still falls outside its KQL subset. Only the ruling and admission are closed, admission by
 `internal/live/check/testdata/azure-synthesis-golden.txt` and the two lint
 fixtures; every step a claim or the lane closes is still open.
 
