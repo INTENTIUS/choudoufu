@@ -49,7 +49,7 @@ project binding is what every GCP call is checked against.
 
 Every type class is fenced the same way, at the project: the labelled
 types, the declaration-carried skeleton and the instance templates alike
-(`live/MARKERS.md`, "What this grant cannot reach on GCP").
+(`live/MARKERS.md`, "What a GCP grant cannot reach").
 
 ## Later
 

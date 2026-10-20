@@ -59,7 +59,7 @@ user's own on the rest. One bucket per estate keeps the records
 | `tofu-estate`, `tofu-address` or `tofu-slot` written by hand into an instance template's `labels` | GCP copies those labels onto every VM a managed instance group makes, and each VM would read as an orphan of the estate ("Ownership marker conflict") | Remove the key; the template carries no marker of its own |
 | An estate name over 63 characters on a labelled type | a label value holds at most 63 ("Ownership marker is not a legal label value") | A shorter estate name |
 | An unlabelled type whose identity the server mints | no marker and no configured name to bind by (`markerless-type`) | Keep it in a root without a `live` block |
-| `live-mv` on a GCP resource | the label rewrite is not built ("live-mv cannot rewrite a GCP resource's labels yet") | Rename the block and plan; the address label is rewritten in place |
+| A resource whose `labels`, the provider's `default_labels` and the markers come to more than 64 labels | GCP holds at most 64, and stock would have created it (`gcp-label-count`) | Drop labels until two or three fit |
 
 Controller-held objects are never swept and never adopted: a Compute
 Engine instance or disk carrying a label GKE, Dataproc or Batch reserves
@@ -110,7 +110,8 @@ The project is the unit, because the fence is the project
 (`live/MARKERS.md`, "Granting a GCP estate"). One estate per project. Two
 estates sharing one project are not fenced from each other per principal:
 each principal's binding reaches the other estate's resources. Lint warns
-when one estate's google resources resolve to more than one project.
+when one estate's google resources resolve to more than one project
+(`gcp-multi-project`).
 
 The sweep runs one Cloud Asset Inventory search per project the estate's
 resources name, so an estate that does span projects is still swept

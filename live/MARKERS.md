@@ -710,8 +710,8 @@ with a lowercase letter and is never empty. A marker value is never empty.
 An estate name is `[a-z][a-z0-9-]{0,127}` (below), so a name over 63
 characters is a legal estate and an illegal label; a run refuses to stamp
 it ("Ownership marker is not a legal label value") rather than send a
-create GCP rejects. A resource holds at most 64 labels, and the markers use
-three.
+create GCP rejects. A resource holds at most 64 labels, and the markers use two or three;
+`gcp-label-count` refuses a block they would push over.
 
 The provider reads labels non-authoritatively: on a read, `labels` and
 `terraform_labels` keep only the keys the prior state already named, and
@@ -836,7 +836,7 @@ estates is usually how that starts. A binding on the project's folder or
 organization inherits into the project and passes the fence, the way the
 account root passes an IAM condition on AWS.
 
-### What this grant cannot reach on GCP
+### What a GCP grant cannot reach
 
 Every gap is the project's granularity, stated per class of type:
 

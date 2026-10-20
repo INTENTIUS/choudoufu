@@ -386,7 +386,7 @@ lives.
 
 **GCP.** The project is the unit, because the fence is project-scoped
 (`live/MARKERS.md`, "Granting a GCP estate"): one estate per project. Lint
-warns when one estate's google resources resolve to more than one project,
+warns (`gcp-multi-project`) when one estate's google resources resolve to more than one project,
 since two estates in one project are not fenced from each other. The sweep
 searches every project the estate's resources name, so an estate that does
 span projects is still swept whole. One `provider "google"` per project or
