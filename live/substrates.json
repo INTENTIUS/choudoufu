@@ -98,10 +98,12 @@
         ]
       },
       "untaggable": {
-        "definition": "not yet counted: live/readiness.json has no Azure section (GitHub issue #2119)",
-        "count": 0,
-        "by_tier": {},
-        "not_counted": true
+        "definition": "an azurerm type whose schema carries no ARM tags map (live/readiness.json azure.azurerm.types facts.taggable=false); through azapi_resource, 2366 of 3397 ARM types take no tags at their latest API version (azure.azapi.types), all declaration-carried, not counted here",
+        "count": 719,
+        "by_tier": {
+          "declaration-carried": 488,
+          "record-carried": 231
+        }
       },
       "fence": "Resource-group RBAC per principal (a custom role or Contributor on the estate's groups), plus Azure Policy on the tofu-estate tag: deny a write that lacks it or changes it, denyAction on deleting a tagged resource. Template files an operator applies, never plan resources.",
       "harness": {

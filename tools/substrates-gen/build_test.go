@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/live/armtypes"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
@@ -271,5 +272,56 @@ func TestControllerHeldColumnIsTheFamilysAnswer(t *testing.T) {
 	_, err = Build(root)
 	if err == nil || strings.Contains(err.Error(), "controller-held") || !strings.Contains(err.Error(), "fence") {
 		t.Errorf("Build with a third family: err = %v, want it to stop at the hand-kept fence and not at controller-held", err)
+	}
+}
+
+// TestAzureUntaggableCountIsArmtypes (GitHub issue #2119): the Azure row's
+// untaggable count is the azurerm types armtypes' azurerm tags table does
+// not give an ARM tags map, read from that table rather than from
+// live/readiness.json, so the cell cannot agree with the artifact by
+// reading the artifact. Every one is declaration-carried or record-carried.
+func TestAzureUntaggableCountIsArmtypes(t *testing.T) {
+	root := testRepoRoot(t)
+	rf, err := loadReadinessFacts(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	art, err := Build(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row Row
+	for _, r := range art.Rows {
+		if r.Family == "azurerm" {
+			row = r
+		}
+	}
+	tags := armtypes.DefaultRMTags()
+	notARM := map[string]bool{}
+	for _, n := range tags.NotARMTags {
+		notARM[n] = true
+	}
+	tagged := 0
+	for _, r := range tags.Rows() {
+		if !notARM[r.Type] {
+			tagged++
+		}
+	}
+	if len(rf.azurermTypes) == 0 {
+		t.Fatal("live/readiness.json has no azure.azurerm types; the Azure section is missing")
+	}
+	if want := len(rf.azurermTypes) - tagged; row.Untaggable.Count != want {
+		t.Errorf("azurerm untaggable = %d, want %d: %d azurerm types less the %d armtypes gives an ARM tags map",
+			row.Untaggable.Count, want, len(rf.azurermTypes), tagged)
+	}
+	sum := 0
+	for tier, n := range row.Untaggable.ByTier {
+		if tier != "declaration-carried" && tier != "record-carried" {
+			t.Errorf("an untaggable azurerm type is %s; only declaration-carried and record-carried hold one", tier)
+		}
+		sum += n
+	}
+	if sum != row.Untaggable.Count {
+		t.Errorf("by_tier sums to %d, count is %d", sum, row.Untaggable.Count)
 	}
 }
