@@ -65,14 +65,18 @@ func TestAzurermARMTypeKnownRows(t *testing.T) {
 		"azurerm_storage_account":                 "Microsoft.Storage/storageAccounts",
 		"azurerm_resource_group":                  "Microsoft.Resources/resourceGroups",
 		"azurerm_app_service_managed_certificate": "Microsoft.Web/certificates",
+		// The id generator now reads azurerm_subscription's own alias id
+		// (unit 13's parser fix), so it names the alias type. Its tags
+		// still go on the subscription scope (substrate.ARMTagScope).
+		"azurerm_subscription": "Microsoft.Subscription/aliases",
 	} {
 		if got, ok := AzurermARMType(tf); !ok || got != want {
 			t.Errorf("AzurermARMType(%s) = %q, %v; want %q", tf, got, ok, want)
 		}
 	}
-	// No template (a parser with its own grammar), a record set whose type
-	// segment is a placeholder, and a type with no ARM tags map.
-	for _, tf := range []string{"azurerm_subscription", "azurerm_dns_a_record", "azurerm_api_management_named_value"} {
+	// A record set whose type segment is a placeholder, and a type with
+	// no ARM tags map.
+	for _, tf := range []string{"azurerm_dns_a_record", "azurerm_api_management_named_value"} {
 		if got, ok := AzurermARMType(tf); ok {
 			t.Errorf("AzurermARMType(%s) = %q; want no row", tf, got)
 		}
