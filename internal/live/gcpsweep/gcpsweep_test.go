@@ -247,6 +247,23 @@ func TestSearchPagesUntilNoToken(t *testing.T) {
 	}
 }
 
+// SearchAddress sends both label terms and keeps only a result carrying
+// both exactly: bodyPage1's network carries the estate and an address
+// other than the one asked for, and is dropped.
+func TestSearchAddressSendsBothTerms(t *testing.T) {
+	f, c := newFake(t, fakeResponse{200, bodyPage1}, fakeResponse{200, bodyPage2})
+	assets, err := c.SearchAddress(context.Background(), "p1", "est", "google_compute_network.a")
+	if err != nil {
+		t.Fatalf("SearchAddress: %v", err)
+	}
+	if len(assets) != 1 || assets[0].Name != "//compute.googleapis.com/projects/p1/global/networks/net-a" {
+		t.Errorf("assets %+v, want net-a alone", assets)
+	}
+	if got, want := f.requests[0].URL.Query().Get("query"), "labels.tofu-estate=est AND labels.tofu-address=google_compute_network.a"; got != want {
+		t.Errorf("query %q, want %q", got, want)
+	}
+}
+
 func TestSearchEmptyIsEmpty(t *testing.T) {
 	_, c := newFake(t, fakeResponse{200, bodyEmpty})
 	assets, err := c.Search(context.Background(), "p1", "est")

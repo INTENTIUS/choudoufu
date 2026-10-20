@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/listclient"
@@ -183,6 +184,22 @@ type Request struct {
 	// lands rather than when the whole run finishes. It is never called on a
 	// dry run, on a refusal, or when there was nothing to write.
 	OnWritten func(*Result)
+
+	// AssetSearch supplies the Cloud Asset Inventory search a GCP move
+	// asks before it writes, whether anything else in the destination
+	// estate already carries the new tofu-address label (googlelabels.go,
+	// [mover.sweep]). internal/command's projectionProviders builds it from
+	// the provider block's own credential, as a plan's GCP sweep leg is
+	// built. Nil, or a client that cannot be built, refuses a GCP move by
+	// name; it never skips the check.
+	AssetSearch AssetSearchers
+}
+
+// AssetSearchers is [Request.AssetSearch]'s interface: the address search
+// for one provider configuration, and the project that configuration
+// names ("" when it names none).
+type AssetSearchers interface {
+	AssetSearcher(ctx context.Context, addr addrs.AbsProviderConfig) (searcher gcpsweep.AddressSearcher, project string, err error)
 }
 
 // Clusters is [Request.Clusters]'s interface: internal/command's
@@ -220,7 +237,8 @@ type Result struct {
 
 	// OldMarker and NewMarker are those addresses escaped per
 	// live/MARKERS.md: the tag value that was matched and the tag value
-	// that was written.
+	// that was written. On a GCP resource they are the tofu-address label
+	// values instead ([markers.GoogleAddressValue]).
 	OldMarker, NewMarker string
 
 	// TypeName is the resource type both addresses name.
@@ -252,7 +270,8 @@ type Result struct {
 	// Surface is where the marker lives on the live object (label.go):
 	// [markers.SurfaceTags] for the AWS tag map, [markers.SurfaceLabels]
 	// for a Kubernetes metadata block, [markers.SurfaceManifest] for a
-	// manifest-declared object, and the zero Surface for a type with none
+	// manifest-declared object, [markers.SurfaceGoogleLabels] for a
+	// hashicorp/google labels map, and the zero Surface for a type with none
 	// (which takes the tag path). Read off the provider's schema for the
 	// type, never off its name.
 	Surface markers.Surface
@@ -271,10 +290,11 @@ type Result struct {
 
 	// AlreadyMarked is true when a same-estate rename of a Kubernetes
 	// object found the object already carrying the new address in its
-	// address annotation (GitHub issue #1639) - a plan and apply of the
-	// renamed block wrote it first - so nothing was written, and the
-	// marker it carries is the one this rename would have written.
-	// Verified is true beside it.
+	// address annotation (GitHub issue #1639), or a GCP resource already
+	// carrying the new address's encoding in its tofu-address label
+	// (googlelabels.go) - a plan and apply of the renamed block wrote it
+	// first - so nothing was written, and the marker it carries is the one
+	// this rename would have written. Verified is true beside it.
 	AlreadyMarked bool
 
 	// Swept is true when the whole resource type was enumerated, which is
@@ -295,10 +315,6 @@ type Result struct {
 	// warning rather than treated as a failure.
 	Verified bool
 }
-
-// SummaryGCPMoveNotBuilt is live-mv's refusal for a GCP resource until its
-// label rewrite is built (GitHub issue #1119).
-const SummaryGCPMoveNotBuilt = "live-mv cannot rewrite a GCP resource's labels yet"
 
 // Move rewrites the tofu-address marker on the one live resource that carries
 // the old address, and returns what it did.
@@ -427,15 +443,15 @@ func Move(ctx context.Context, req Request) (*Result, tfdiags.Diagnostics) {
 	// metadata-block shape that is a markers-only plan and apply through
 	// the provider; on the manifest shape it is one merge patch to the API
 	// server under the run's own credential (manifest.go; the move is
-	// GitHub issue #1104).
+	// GitHub issue #1104). A GCP resource takes the tag path's shape with
+	// its labels map in place of the tags (googlelabels.go).
 	res.Surface = surfaceOf(providerAddr.Provider.Type, schema.Block)
-	if substrate.WritesOf(res.Surface).Adopt == substrate.WriteGoogleLabelsPlan {
-		// GitHub issue #1119: the GCP rewrite (the encoded address label,
-		// and the estate label on a move) is not built yet. Refused by
-		// name rather than sent down the tag path, which would look for a
-		// tags argument the type does not have.
-		return res, diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryGCPMoveNotBuilt,
-			fmt.Sprintf("%s is a GCP resource, whose markers are labels, and live-mv cannot rewrite them yet. Nothing was written. Its records still follow the address; the next plan rewrites the tofu-address label as an ordinary in-place label change.", req.Old)))
+	if relabelsGoogle(res.Surface) {
+		// GitHub issue #1119: a GCP resource carries its address as an
+		// encoded label (googlelabels.go), so the values matched and
+		// written are those, not the escaped tag form.
+		res.OldMarker = markers.GoogleAddressValue(req.Old)
+		res.NewMarker = markers.GoogleAddressValue(req.New)
 	}
 	switch {
 	case res.MarkerCarriesAddress():
@@ -488,6 +504,12 @@ type mover struct {
 	provider     providers.Interface
 	providerAddr addrs.AbsProviderConfig
 	schema       providers.Schema
+
+	// googleSelf is what the GCP object being moved may be named as in an
+	// Asset Inventory result, and googleProject the project it reports,
+	// both read off the object by [mover.locateGoogleLabelled].
+	googleSelf    []string
+	googleProject string
 }
 
 // written records that the marker write returned successfully and tells
@@ -907,6 +929,12 @@ func (m *mover) find(ctx context.Context) (*states.ResourceInstanceObject, tfdia
 		))
 	}
 
+	if relabelsGoogle(m.res.Surface) {
+		// GCP never takes the listing path below: listclient's sweep reads
+		// AWS tag maps (googlelabels.go, findGoogle).
+		return m.findGoogle(ctx, resolution)
+	}
+
 	schemas, schemaDiags := listclient.ListSchemas(ctx, m.provider)
 	// A provider that cannot list at all is not an error here; it is the
 	// identity path's ordinary condition. Errors from the call itself travel.
@@ -987,8 +1015,16 @@ type listed struct {
 // provider can see of this type crosses the wire once, and the estate and
 // address comparisons happen here, against escaped values, never by decoding
 // a tag back into an address.
+//
+// A family whose sweep is Cloud Asset Inventory's search
+// ([substrate.SweepAssetSearch], GCP) is swept by [mover.sweepAssets]
+// instead, and ts goes unused: listclient reads AWS tag maps.
 func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema, estate string) ([]listed, int, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
+
+	if sub, ok := substrate.ForProvider(m.providerAddr.Provider.Type); ok && sub.Sweep() == substrate.SweepAssetSearch {
+		return m.sweepAssets(ctx, estate)
+	}
 
 	vals := make(map[string]cty.Value)
 	if ts.Config != nil && m.req.Region != "" {
@@ -1072,17 +1108,21 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema, estate stri
 	return mine, len(results), diags
 }
 
-// claimants returns the swept resources carrying the address declared,
-// unescaped (addrs.AbsResourceInstance.String()). The comparison is
-// [discovery.AddressMatches] rather than a bare equality, so a live
-// resource still carrying a marker a prior run wrote before issue #178
-// widened the for_each key grammar is still found - see that function's
-// doc comment for which keys this can matter for (only ones containing
-// "@") and why.
-func claimants(mine []listed, declared string) []listed {
+// claimants returns the swept resources carrying the address declared.
+// The comparison is [discovery.AddressMatches] against the unescaped
+// address rather than a bare equality, so a live resource still carrying
+// a marker a prior run wrote before issue #178 widened the for_each key
+// grammar is still found - see that function's doc comment for which keys
+// this can matter for (only ones containing "@") and why. A GCP marker is
+// an encoding, matched whole against [markers.GoogleAddressValue].
+func (m *mover) claimants(mine []listed, declared addrs.AbsResourceInstance) []listed {
 	var out []listed
 	for _, l := range mine {
-		if discovery.AddressMatches(l.marker, declared) {
+		match := discovery.AddressMatches(l.marker, declared.String())
+		if relabelsGoogle(m.res.Surface) {
+			match = l.marker == markers.GoogleAddressValue(declared)
+		}
+		if match {
 			out = append(out, l)
 		}
 	}
@@ -1099,7 +1139,7 @@ func (m *mover) checkDestinationFree(ctx context.Context, ts listclient.TypeSche
 	if diags.HasErrors() {
 		return diags
 	}
-	return diags.Append(m.destinationDiags(claimants(mine, m.res.New.String())))
+	return diags.Append(m.destinationDiags(m.claimants(mine, m.res.New)))
 }
 
 // destinationDiags is the refusal itself, shared by both paths.
@@ -1134,8 +1174,8 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 		return "", cty.NilVal, diags
 	}
 
-	claimOld := claimants(mine, m.res.Old.String())
-	claimNew := claimants(mine, m.res.New.String())
+	claimOld := m.claimants(mine, m.res.Old)
+	claimNew := m.claimants(mine, m.res.New)
 	if m.req.FromEstate != "" {
 		// The destination address has to be free in the DESTINATION
 		// estate, which is not the estate just swept. One more sweep of the
@@ -1145,7 +1185,7 @@ func (m *mover) locateByList(ctx context.Context, ts listclient.TypeSchema) (str
 		if destDiags.HasErrors() {
 			return "", cty.NilVal, diags
 		}
-		claimNew = claimants(dest, m.res.New.String())
+		claimNew = m.claimants(dest, m.res.New)
 	}
 
 	switch len(claimOld) {
@@ -1223,6 +1263,9 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 
 	if relabels(m.res.Surface) {
 		return m.locateLabelled(obj, resolution)
+	}
+	if relabelsGoogle(m.res.Surface) {
+		return m.locateGoogleLabelled(obj, resolution)
 	}
 
 	tags, taggable := tagsFromObject(m.schema, obj.Value)

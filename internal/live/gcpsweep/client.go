@@ -58,6 +58,17 @@ type Searcher interface {
 	Search(ctx context.Context, project, estate string) ([]Asset, error)
 }
 
+// AddressSearcher is the narrower search live-mv asks before it rewrites a
+// tofu-address label (internal/live/mv): which resources in project carry
+// tofu-estate=estate and tofu-address=address together. [Client] serves
+// it; a test stands in for it as it does for [Searcher].
+type AddressSearcher interface {
+	// SearchAddress returns every resource in project carrying both
+	// labels, all pages read, or an error and no resources, with the same
+	// typed errors as [Searcher.Search].
+	SearchAddress(ctx context.Context, project, estate, address string) ([]Asset, error)
+}
+
 // PageSize is the page size every search asks for: the API's maximum.
 const PageSize = 500
 
@@ -111,6 +122,23 @@ func Query(estate string) string {
 	return "labels." + markers.TagEstate + "=" + estate
 }
 
+// AddressQuery is the search query for estate's label and one
+// tofu-address label value together. Both terms are exact matches, joined
+// with AND as the search syntax spells a conjunction.
+func AddressQuery(estate, address string) string {
+	return Query(estate) + " AND labels." + markers.TagAddress + "=" + address
+}
+
+// SearchAddress is [Client.Search] narrowed by one more label term: every
+// resource in project whose tofu-estate is exactly estate and whose
+// tofu-address is exactly address. Results are checked against both labels
+// again, for the reason Search checks the estate.
+func (c *Client) SearchAddress(ctx context.Context, project, estate, address string) ([]Asset, error) {
+	return c.search(ctx, project, AddressQuery(estate, address), func(labels map[string]string) bool {
+		return labels[markers.TagEstate] == estate && labels[markers.TagAddress] == address
+	})
+}
+
 // Search reads every page of project's search for estate's label. It
 // returns all of them or none: a failure on any page is an error, typed
 // ([ServiceDisabledError], [PermissionDeniedError]) when the API's answer
@@ -122,12 +150,20 @@ func Query(estate string) string {
 // on what came back, so that a token match can never read a neighbouring
 // estate's resource as this one's.
 func (c *Client) Search(ctx context.Context, project, estate string) ([]Asset, error) {
+	return c.search(ctx, project, Query(estate), func(labels map[string]string) bool {
+		return labels[markers.TagEstate] == estate
+	})
+}
+
+// search pages one query through project, keeping the results keep
+// accepts by their labels.
+func (c *Client) search(ctx context.Context, project, query string, keep func(map[string]string) bool) ([]Asset, error) {
 	var out []Asset
 	pages, results := 0, 0
 	token := ""
 	for {
 		call := c.svc.V1.SearchAllResources("projects/" + project).
-			Query(Query(estate)).
+			Query(query).
 			PageSize(PageSize).
 			ReadMask(ReadMask).
 			Context(ctx)
@@ -152,7 +188,7 @@ func (c *Client) Search(ctx context.Context, project, estate string) ([]Asset, e
 		pages++
 		results += len(resp.Results)
 		for _, r := range resp.Results {
-			if r == nil || r.Labels[markers.TagEstate] != estate {
+			if r == nil || !keep(r.Labels) {
 				continue
 			}
 			out = append(out, Asset{
