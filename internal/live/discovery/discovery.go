@@ -657,6 +657,11 @@ func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdia
 	// is a child of the phase.
 	scanCtx, endScan := discoverPhase(ctx, "scan")
 	for _, typeName := range decl.typeNames() {
+		if legScansDeclared(req, typeName) {
+			// A sweep leg below finds this type's declared instances
+			// itself ([declaredScanner]).
+			continue
+		}
 		diags = diags.Append(scanTypeReporting(scanCtx, req, schemas, decl, typeName, res, false, req.CollectUnclaimed, &typesScanned, &resourcesFound))
 	}
 
@@ -806,6 +811,9 @@ func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdia
 		// itself be untaggable and composite rather than concrete. See
 		// internal/live/discovery/fold_read.go's package doc comment.
 		diags = diags.Append(foldChildReadSweep(legsCtx, req, schemas, res))
+		// GitHub issue #2134: a GCP hit a record now destroys is not also
+		// reported as left alone. See gcp.go.
+		dropGCPHitsTheRecordsRemove(res)
 		endLegs()
 	}
 
@@ -1062,6 +1070,14 @@ type claimant struct {
 	slot        string
 	tags        map[string]string
 	noIdentity  bool
+
+	// resourcePath is a GCP Asset Inventory hit's full resource name less
+	// its "//service/" host ("projects/p/global/networks/n"). The Asset
+	// search returns no identity object, so [configIdentityMismatch]
+	// compares the configuration's identity values with its segments
+	// (GitHub issue #2134 item 13, the GCP side of #2136). Empty for every
+	// other source.
+	resourcePath string
 }
 
 // displayID is how a claimant is named in a message: its live identity, or a

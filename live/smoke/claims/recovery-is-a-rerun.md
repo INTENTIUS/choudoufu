@@ -81,3 +81,10 @@ gauntlet.
 stage replaced it. What it had that the stage does not is its control: it
 stripped the label after the kill and required the plan to refuse the
 object by name.
+
+## On GCP
+
+No GCP scenario is written yet, so the cell is open. The labels go out in
+the create call, so a resource an interrupted apply created carries its
+markers and binds on the rerun. The gauntlet's `day2_crash` stage is the
+expected proof once a GCP lane exists.

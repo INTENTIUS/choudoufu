@@ -44,3 +44,7 @@ restricted to the cone. `BREAK=1` drops the cone's dependents, and the
 missed update must be caught. The unit half of the claim is in
 `internal/live/cone` and `internal/command/live_cone_plan_test.go`.
 
+## On GCP
+
+No GCP scenario is written yet, so the cell is open. The marker sweep
+stays estate-wide on a cone plan, as on the other substrates.

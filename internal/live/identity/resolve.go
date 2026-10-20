@@ -1159,7 +1159,7 @@ func (r *resolver) recordFallback(addr addrs.AbsResourceInstance, resourceType s
 	if !r.recordStore {
 		return Resolution{}, false
 	}
-	if !RecordFallbackType(resourceType, r.schemas) {
+	if !RecordFallbackType(resourceType, r.typeProviders[resourceType], r.schemas) {
 		return Resolution{}, false
 	}
 	// GitHub issue #1675: the discriminator [internal/live/projection.WriteBack]
@@ -1938,9 +1938,27 @@ func (r *resolver) missingCloudComponent(entry TypeIdentity, attrs hcl.Attribute
 //
 // [CloudAccountID] has no config-only source and is not answered here. See
 // [CloudContext] for where the account first becomes knowable.
+//
+// [CloudProject] and [CloudZone] are answered the same provider-block way,
+// from [cloudScopeKey.project] and [cloudScopeKey.zone], and
+// [CloudLocation] from the region or, failing that, the zone: the google
+// provider substitutes its own `project` and `zone` into an id format when
+// the resource names neither (tpgresource.GetProject, GetZone), which is
+// the defaulting the region answer above already follows. A provider block
+// that states neither leaves the component unanswered, and the instance
+// needs discovery exactly as an AWS account-embedded one does.
 func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bool) {
-	if which == CloudRegion && cs.regionKnown && cs.region != "" {
+	switch {
+	case which == CloudRegion && cs.regionKnown && cs.region != "":
 		return cs.region, true
+	case which == CloudProject && cs.project != "":
+		return cs.project, true
+	case which == CloudZone && cs.zone != "":
+		return cs.zone, true
+	case which == CloudLocation && cs.regionKnown && cs.region != "":
+		return cs.region, true
+	case which == CloudLocation && cs.zone != "":
+		return cs.zone, true
 	}
 	return r.cloud.value(which)
 }
@@ -3587,7 +3605,9 @@ func (r *resolver) identifier(addr addrs.AbsResourceInstance, attrName string, r
 func (r *resolver) resourceCloudScope(rc *configs.Resource, scope instScope) cloudScopeKey {
 	abs := providerscope.ResolveResource(r.curCfg, rc)
 	region, ok := r.effectiveRegion(rc, abs, scope)
-	return cloudScopeKey{base: abs.String(), region: region, regionKnown: ok}
+	project, _ := r.providerStaticAttr(abs, "project")
+	zone, _ := r.providerStaticAttr(abs, "zone")
+	return cloudScopeKey{base: abs.String(), region: region, regionKnown: ok, project: project, zone: zone}
 }
 
 // recordTypeProvider memoizes rc's own resolved provider's short type name
@@ -3710,6 +3730,16 @@ func (r *resolver) staticRegionAttr(rc *configs.Resource, scope instScope) (stri
 // (and #217's own safety direction) treats as "cannot distinguish these two
 // resources by region", not as a value of "no region".
 func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool) {
+	return r.providerStaticAttr(abs, "region")
+}
+
+// providerStaticAttr is one argument of the provider configuration abs
+// resolves to, read statically: the value when the block states it as
+// something this package can evaluate without applying, and false
+// otherwise. [resolver.providerRegionAttr] reads `region` through it, and
+// [resolver.resourceCloudScope] reads the google provider's `project` and
+// `zone` the same way.
+func (r *resolver) providerStaticAttr(abs addrs.AbsProviderConfig, name string) (string, bool) {
 	if r.rootCfg == nil || r.rootCfg.Module == nil {
 		return "", false
 	}
@@ -3742,12 +3772,12 @@ func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool
 	}
 
 	content, _, diags := pc.Config.PartialContent(&hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{{Name: "region"}},
+		Attributes: []hcl.AttributeSchema{{Name: name}},
 	})
 	if diags.HasErrors() {
 		return "", false
 	}
-	attr, ok := content.Attributes["region"]
+	attr, ok := content.Attributes[name]
 	if !ok || r.isSymbolic(attr.Expr, instScope{}) {
 		return "", false
 	}
@@ -3765,7 +3795,7 @@ func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool
 
 	ident := configs.StaticIdentifier{
 		Module:    abs.Module,
-		Subject:   fmt.Sprintf("provider.%s.region", pc.Name),
+		Subject:   fmt.Sprintf("provider.%s.%s", pc.Name, name),
 		DeclRange: attr.Range,
 	}
 	val, evalDiags := r.evalPure(attr.Expr, instScope{}, ident)

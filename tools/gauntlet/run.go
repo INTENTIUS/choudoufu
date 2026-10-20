@@ -214,6 +214,8 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 	// change mid-run, and every kind-substrate estate this call touches is
 	// stamped with the one value (issue #1594).
 	kindImage := kindNodeImagePin(root)
+	// The same for the gcp lane's emulator (#1119).
+	gcpImage := flociGCPImagePin(root)
 	var selected []Estate
 	if len(opts.Names) > 0 {
 		for _, n := range opts.Names {
@@ -329,10 +331,16 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		// script that does not apply the pin resolves whatever its
 		// constraint allows. A run that reported no lock file, or whose lock
 		// files disagree, records nothing, and the row reads as stale.
-		if e.Substrate() == SubstrateKind {
+		switch e.Substrate() {
+		case SubstrateKind:
 			r.LastRun.SubstrateImage = kindImage
 			r.LastRun.KubernetesProviderVersion = res.Resolved.Version(ProviderKubernetes)
-		} else {
+		case SubstrateFlociGCP:
+			// A floci-gcp row (#1119) launches the GCP emulator and never
+			// floci, and resolves hashicorp/google and never hashicorp/aws.
+			r.LastRun.SubstrateImage = gcpImage
+			r.LastRun.GoogleProviderVersion = res.Resolved.Version(ProviderGoogle)
+		default:
 			r.LastRun.Emulator = emulator
 			r.LastRun.AWSProviderVersion = res.Resolved.Version(ProviderAWS)
 			// A floci-eks estate (#1113) also configures hashicorp/kubernetes

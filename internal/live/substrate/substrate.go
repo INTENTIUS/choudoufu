@@ -212,7 +212,7 @@ type Substrate interface {
 // asked before it. TestTheCatchAllFamilyIsLast holds it (GitHub issue
 // #1742). The surface questions are asked of the provider's own family
 // ([SurfaceOf]), so for a claimed provider the order does not decide them.
-var All = []Substrate{Kubernetes, AWS}
+var All = []Substrate{Kubernetes, Google, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
 // "kubernetes"): the one whose [Substrate.ProviderTypes] lists it. It
@@ -238,7 +238,10 @@ func ForProvider(providerType string) (Substrate, bool) {
 // #1742: it used to compare the sweep kind to [SweepLabelList], which a
 // third family's own sweep could never answer). Only Kubernetes qualifies
 // today: its leg lists every kind the cluster serves and joins the result
-// against the estate's objects. AWS's own sweep ([SweepTaggingIndex]) is
+// against the estate's objects. GCP's Asset Inventory leg sees every
+// labelled asset type but plans no removal and cannot see an unlabelled
+// type, so it answers false and its deleted blocks are the record leg's
+// (GitHub issue #2134). AWS's own sweep ([SweepTaggingIndex]) is
 // the admission table read a different way, so a type with no row gets
 // nothing extra from it, and neither does an unregistered provider
 // ForProvider does not recognise at all.
@@ -712,6 +715,11 @@ type HoldEvidence struct {
 	Tags map[string]string
 	// Annotations are a Kubernetes object's metadata.annotations.
 	Annotations map[string]string
+	// Labels are a GCP resource's labels, and AssetType its Cloud Asset
+	// Inventory asset type (compute.googleapis.com/Instance): a GCP hold
+	// is recognised by a reserved label key on a given kind of asset.
+	Labels    map[string]string
+	AssetType string
 }
 
 // Hold is a family's answer for a held object.

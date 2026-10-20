@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=702 instances=2441
-# shape: class CONCRETE=1495
-# shape: class NEEDS_DISCOVERY=781
+# shape: dirs=707 instances=2454
+# shape: class CONCRETE=1502
+# shape: class NEEDS_DISCOVERY=787
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=671 fixture-instances=1737
+# shape: fixture-dirs=676 fixture-instances=1750
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=9db19c70869e3d1c397c31499999ba1064f0e473e54f13c9fa513deac6aae0ba
+# shape: body-sha256=fbcda4ee45935948d60f3f992dc53afa00b09c02f904937054897f990478e0da
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -117,6 +117,9 @@ internal/live/discovery/testdata/estate-names/child	aws_vpc.child	NEEDS_DISCOVER
 internal/live/discovery/testdata/estate-names/child	module.grandchild.aws_vpc.grandchild	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/estate-names/child/grandchild	aws_vpc.grandchild	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/foreach-legacy-key	aws_subnet.this["at@sign"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/gcp-count-slots	google_recaptcha_enterprise_key.keys[0]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/gcp-count-slots	google_recaptcha_enterprise_key.keys[1]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/gcp-count-slots	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read	aws_iam_policy.team_0002_policy	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read-count	aws_iam_policy.team_policy[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read-count	aws_iam_policy.team_policy[1]	NEEDS_DISCOVERY		
@@ -374,6 +377,15 @@ internal/live/identity/testdata/formula-transform	aws_security_group.this[0]	NEE
 internal/live/identity/testdata/formula-transform	aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/formula-transform	module.cluster.aws_ecs_cluster.this[0]	CONCRETE	ex-fargate	name=ex-fargate
 internal/live/identity/testdata/formula-transform	module.svc.aws_ecs_service.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/gcp-identity-rows	google_compute_disk.data	CONCRETE	projects/estate-data/zones/europe-west1-c/disks/data	name=data,project=estate-data,zone=europe-west1-c
+internal/live/identity/testdata/gcp-identity-rows	google_compute_network.vpc	CONCRETE	projects/estate-prod/global/networks/estate-vpc	name=estate-vpc
+internal/live/identity/testdata/gcp-identity-rows	google_compute_subnetwork.app	CONCRETE	projects/estate-prod/regions/europe-west1/subnetworks/app	name=app
+internal/live/identity/testdata/gcp-identity-rows	google_project_iam_member.runner_logs	CONCRETE	estate-prod roles/logging.logWriter serviceAccount:ci-runner@estate-prod.iam.gserviceaccount.com	member=serviceAccount:ci-runner@estate-prod.iam.gserviceaccount.com,project=estate-prod,role=roles/logging.logWriter
+internal/live/identity/testdata/gcp-identity-rows	google_pubsub_topic.events	CONCRETE	projects/estate-prod/topics/events	name=events
+internal/live/identity/testdata/gcp-identity-rows	google_pubsub_topic.orphan	NEEDS_DISCOVERY		
+internal/live/identity/testdata/gcp-identity-rows	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
+internal/live/identity/testdata/gcp-identity-rows	google_service_account.runner	CONCRETE	projects/estate-prod/serviceAccounts/ci-runner@estate-prod.iam.gserviceaccount.com	email=ci-runner@estate-prod.iam.gserviceaccount.com
+internal/live/identity/testdata/gcp-identity-rows	google_storage_bucket_iam_member.reader	CONCRETE	b/estate-artifacts roles/storage.objectViewer group:readers@example.com until 2027	bucket=estate-artifacts,condition_title=until 2027,member=group:readers@example.com,role=roles/storage.objectViewer
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_a	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_b	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.this["go-offline-to-celebrate-new-year"]	CONCRETE	shared-group/go-offline-to-celebrate-new-year	autoscaling_group_name=shared-group,scheduled_action_name=go-offline-to-celebrate-new-year
@@ -590,6 +602,7 @@ internal/live/identity/testdata/record-backed-parent-attr	null_resource.gate	REC
 internal/live/identity/testdata/record-backed-parent-attr	random_pet.suffix	RECORD_BACKED		
 internal/live/identity/testdata/record-backed-parent-attr	terraform_data.seed	RECORD_BACKED		
 internal/live/identity/testdata/record-backed-parent-attr-unknown	random_pet.suffix	RECORD_BACKED		
+internal/live/identity/testdata/record-fallback-google-labelled	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
 internal/live/identity/testdata/record-fallback-sibling-apply	aws_acm_certificate.this	NEEDS_DISCOVERY		
 internal/live/identity/testdata/record-fallback-sibling-apply	aws_s3_bucket.logs	NEEDS_DISCOVERY		
 internal/live/identity/testdata/record-fallback-untaggable	aws_autoscaling_group.named	CONCRETE	web-static	name=web-static

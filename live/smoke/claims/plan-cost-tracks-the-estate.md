@@ -50,3 +50,9 @@ on the first run), and no ConfigMap list goes out without the estate's
 label selector. `BREAK=1` gives 40 of them this estate's label, and the
 count must rise. There is no cross-kind label-filtered list, so a plan's
 floor is one label-selected list per kind the cluster serves.
+
+## On GCP
+
+No GCP scenario is written yet, so the cell is open. The sweep is one
+Cloud Asset Inventory search per project, paged over the estate's own
+hits, so resources outside the estate's projects should cost nothing.

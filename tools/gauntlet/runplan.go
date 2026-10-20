@@ -161,7 +161,7 @@ type dockerCapacity struct {
 // kubernetes lane, a floci-eks estate (floci starts the cluster leg), or a
 // script under its directory that calls gauntlet_kind_up.
 func usesKind(root string, e Estate) bool {
-	if e.Lane == LaneKubernetes || e.Substrate() != SubstrateFloci {
+	if e.Lane == LaneKubernetes || e.Substrate() == SubstrateKind || e.Substrate() == SubstrateFlociEKS {
 		return true
 	}
 	dir := filepath.Dir(filepath.Join(root, e.ScriptPath()))

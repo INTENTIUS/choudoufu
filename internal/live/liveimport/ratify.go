@@ -217,6 +217,12 @@ type eligible struct {
 	// Kubernetes marker is one label and carries no address.
 	manifested bool
 
+	// googleLabelled says the marker is carried in a hashicorp/google
+	// resource's top-level labels map ([markers.GoogleLabelSurface],
+	// GitHub issue #1119), so Approve writes it through
+	// [approveGoogleLabels]. It takes a slot exactly as the tags map does.
+	googleLabelled bool
+
 	// manifestKey is the natural key read out of the state's own recorded
 	// object, [markers.ManifestKeyOf]. Set only when manifested.
 	manifestKey markers.ManifestKey
@@ -804,6 +810,8 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	//   - a labels-only plan on metadata[0].labels (GitHub issue #1073: a
 	//     Kubernetes type was UNTAGGABLE here until the label surface
 	//     became a carrier too);
+	//   - a labels-only plan on a hashicorp/google resource's top-level
+	//     labels map (GitHub issue #1119);
 	//   - an API patch on manifest.metadata.labels (GitHub issue #1109: the
 	//     manifest shape was not a carrier, so every kubernetes_manifest
 	//     entry in a stock state file - every custom resource an estate
@@ -815,7 +823,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	// Each carrier is named here, so a surface this switch has not learned
 	// is one the completeness guard (internal/live/markers/seams_test.go)
 	// reports rather than one a migration silently leaves unmarked.
-	var labelled, manifested bool
+	var labelled, manifested, googleLabelled bool
 	// GitHub issue #1863: a field-granular Kubernetes type carries no
 	// surface - its marker is the field manager its writes are made under
 	// (#1191) - and is not untaggable for that: what a migration owes it is
@@ -834,6 +842,8 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		labelled = !selected
 	case surface == markers.SurfaceManifest:
 		manifested = !selected
+	case surface == markers.SurfaceGoogleLabels:
+		googleLabelled = !selected
 	default:
 		if !selected {
 			return ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
@@ -911,7 +921,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		// see [located]'s doc comment.
 		return entry, carriers{located: &located{sub}}
 	}
-	elig := &eligible{residuable: sub, labelled: labelled, manifested: manifested}
+	elig := &eligible{residuable: sub, labelled: labelled, manifested: manifested, googleLabelled: googleLabelled}
 	if fieldGranular {
 		// GitHub issue #1863: the write the state records and the manager
 		// it was made under, read from the state's own object, never from

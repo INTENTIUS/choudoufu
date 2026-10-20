@@ -210,16 +210,45 @@ func registeredStages() []Stage {
 		},
 	}
 	for i := range stages {
-		note, ok := flociEKSNotes[stages[i].ID]
-		if !ok {
-			continue
+		for substrate, notes := range map[string]map[string]string{SubstrateFlociEKS: flociEKSNotes, SubstrateFlociGCP: flociGCPNotes} {
+			note, ok := notes[stages[i].ID]
+			if !ok {
+				continue
+			}
+			if stages[i].Substrates == nil {
+				stages[i].Substrates = map[string]string{}
+			}
+			stages[i].Substrates[substrate] = note
 		}
-		if stages[i].Substrates == nil {
-			stages[i].Substrates = map[string]string{}
-		}
-		stages[i].Substrates[SubstrateFlociEKS] = note
 	}
 	return stages
+}
+
+// flociGCPNotes is how each stage reads on SubstrateFlociGCP (#1119): a
+// gcp-lane estate on the lex00/floci-gcp emulator, pinned in
+// live/floci-gcp-image. Kept beside the registry for flociEKSNotes'
+// reason, and held complete the same way (TestEveryStageHasAFlociGCPNote):
+// a stage whose oracle is AWS-shaped is marked here rather than skipped.
+// No stage is n/a on this substrate. Two emulator gaps bear on several
+// stages and are said once, on cold_deploy: labels must come back as
+// written (lex00/floci-gcp#6) and the sweep's Cloud Asset search must be
+// served (lex00/floci-gcp#7).
+var flociGCPNotes = map[string]string{
+	"cold_deploy":      "Stock applies the unmodified configuration against a floci-gcp emulator the script started for this run, with every hashicorp/google endpoint the configuration reaches pointed at it; the emulator's objects, read with its REST API, are the baseline. A second emulator holds the stock oracle. Two emulator gaps bear on the stages below: labels must come back exactly as written (lex00/floci-gcp#6), and the sweep needs Cloud Asset search (lex00/floci-gcp#7). A stage that fails on either says so in its own verdict.",
+	"migrate":          "Each state entry of a type with a labels map is bound by a labels-only plan writing tofu-estate and the encoded tofu-address label (#1121); an entry of a type with no labels argument (network, subnetwork, firewall, service account) is recorded, its identity recomputed from configuration. Zero skipped means every entry was stamped or recorded, and the labels are read back with the REST API.",
+	"test_plan":        "Identities are the resource names under projects/<project>/, compared with what the emulator's REST API reports for the same objects.",
+	"test_apply":       "The count is the labelled types the estate declares (buckets, topics, disks, instances) filtered on tofu-estate=<estate> through the REST API. The declaration-carried skeleton carries no label and is never in it.",
+	"drift_reconverge": "The mutation is a REST PATCH against the emulator, never through the tool. A label the configuration declares is the field mutated, since hashicorp/google reads back only the label keys its configuration names.",
+	"day2_rename":      "The moved-block half only: live-mv refuses GCP by name until its rewrite lands (internal/live/mv's SummaryGCPMoveNotBuilt). The block address is encoded in the tofu-address label, so the moved block plans one in-place change, that label rewritten, where stock plans zero churn. A bare rename without a moved block plans the same rewrite, since the block name is not part of the object's identity, so the Break control renames the object itself, which plans a destroy and a create.",
+	"day2_remove":      "The REST API confirms the object is gone. A labelled object leaving the configuration is found by its label and its record; an unlabelled one (a firewall whose network stays) by its record alone, and it is destroyed at the address stock destroys.",
+	"day2_count":       "The instance key is part of the encoded tofu-address label, so the instance that leaves the count is found at its own address, the one stock destroys; the REST API confirms the survivor is untouched.",
+	"day2_replace":     "A name is unique in its project, so the replacement create_before_destroy is used for is one whose name changes, as on kind. The old and the new object carry the same tofu-address label between the create and the destroy, and the record's deposed entry is what says which one goes. At -parallelism=1 the apply log shows the new object's create complete before the old object's destroy starts, the REST API confirms only the new object remains, and the next plan is empty. The Break control recreates the old object carrying the block's labels: the next plan must not be empty.",
+	"day2_crash":       "The stage interrupts an apply that creates two objects with the engine's own SIGTERM at -parallelism=1, between the first object's create committing and the second's being dispatched; the next plan must propose exactly the remainder, binding the object already created by its labels rather than creating it a second time. The oracle is stock's plan on the oracle emulator from the same position, reached by applying the first object alone. The create_before_destroy window (day2_replace) is not interrupted on this substrate yet.",
+	"day2_teardown":    "An empty estate is no labelled object carrying tofu-estate=<estate> through the REST API, and the declaration-carried skeleton gone (404). The destroy count is compared with stock's destroy of the same estate on the oracle emulator.",
+	"plan_approval":    "The out-of-band move is a REST PATCH adding a label to an estate object.",
+	"greenfield":       "Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with labels and server-set fields normalised out; one emulator hosts both, in sequence.",
+	"strict":           "As on floci; the toggles name a google type.",
+	"no_local_state":   "The labelled objects are found by their labels, the declaration-carried ones by the identity their configuration computes. The request count is hashicorp/google's own, read from TF_LOG=debug's request blocks.",
 }
 
 // flociEKSNotes is how each stage reads on SubstrateFlociEKS (#1113): an

@@ -34,6 +34,7 @@ var KnownLanes = []string{
 	"reference",            // hand-written reference shapes kept in this repository
 	"published-deployment", // an organisation's own published root module
 	LaneKubernetes,         // a Kubernetes-only root, run against a kind cluster (#1067); its own bar, never either AWS one
+	LaneGCP,                // a GCP-only root, run against the floci-gcp emulator (#1119); its own bar, never either AWS one
 }
 
 // LaneKubernetes is the lane whose estates run on SubstrateKind rather than
@@ -41,9 +42,17 @@ var KnownLanes = []string{
 // (Artifact.Lanes) and count toward neither AWS bar.
 const LaneKubernetes = "kubernetes"
 
+// LaneGCP is the lane whose estates run on SubstrateFlociGCP (#1119), the
+// lex00/floci-gcp emulator pinned in live/floci-gcp-image. Like the
+// kubernetes lane, its estates have a bar of their own (Artifact.Lanes) and
+// count toward neither AWS bar.
+const LaneGCP = "gcp"
+
 // Substrates: the platform an estate's crossing script runs against. Every
-// lane but LaneKubernetes runs on the floci emulator; the kubernetes lane
-// runs on a kind cluster (live/e2e/lib/gauntlet.sh's gauntlet_kind_up). A
+// lane but LaneKubernetes and LaneGCP runs on the floci emulator; the
+// kubernetes lane runs on a kind cluster (live/e2e/lib/gauntlet.sh's
+// gauntlet_kind_up), and the gcp lane on the floci-gcp emulator, a
+// different image with its own pin (SubstrateFlociGCP). A
 // stage may read differently on a substrate, or not apply there at all:
 // Stage.Substrates (stages.go) says which, per stage, so a stage whose
 // oracle is AWS-shaped is marked rather than skipped silently.
@@ -60,15 +69,22 @@ const (
 	SubstrateFloci    = "floci"
 	SubstrateKind     = "kind"
 	SubstrateFlociEKS = "floci-eks"
+	// SubstrateFlociGCP (#1119) is the gcp lane's: the lex00/floci-gcp
+	// emulator, pinned in live/floci-gcp-image. It is not floci: it never
+	// launches the AWS emulator, never resolves hashicorp/aws, and its row
+	// records the floci-gcp digest in LastRun.SubstrateImage the way a kind
+	// row records its node image.
+	SubstrateFlociGCP = "floci-gcp"
 )
 
 // RunsOnFloci reports whether an estate on substrate launches the floci
 // emulator, so its row is stamped with and judged against the floci pin and
 // the hashicorp/aws provider version, and counts toward the AWS bars.
 // SubstrateFlociEKS does: its cluster leg is a container floci itself
-// starts. Only SubstrateKind does not.
+// starts. SubstrateKind and SubstrateFlociGCP do not; the second is an
+// emulator too, but another one, for another provider.
 func RunsOnFloci(substrate string) bool {
-	return substrate != SubstrateKind
+	return substrate != SubstrateKind && substrate != SubstrateFlociGCP
 }
 
 // UsesKubernetesProvider reports whether an estate on substrate configures
@@ -77,6 +93,22 @@ func RunsOnFloci(substrate string) bool {
 // cluster leg. A SubstrateFlociEKS row is judged against BOTH provider pins.
 func UsesKubernetesProvider(substrate string) bool {
 	return substrate == SubstrateKind || substrate == SubstrateFlociEKS
+}
+
+// UsesGoogleProvider reports whether an estate on substrate configures
+// hashicorp/google, so its row records and is judged against that
+// provider's version (#1119): the gcp lane.
+func UsesGoogleProvider(substrate string) bool {
+	return substrate == SubstrateFlociGCP
+}
+
+// RecordsSubstrateImage reports whether a row on substrate records the image
+// it ran against in LastRun.SubstrateImage rather than LastRun.Emulator: a
+// substrate that never launches floci. The kind node image and the
+// floci-gcp digest are both recorded there, each judged against its own
+// pin (IsSubstrateStale).
+func RecordsSubstrateImage(substrate string) bool {
+	return !RunsOnFloci(substrate)
 }
 
 // CoreLanes are the lanes a core estate may come from. The selection rule
@@ -186,16 +218,26 @@ func EstateHasScaleLadder(m *Manifest, estate string) (bool, error) {
 
 // Substrate is the platform this estate's script runs against: the
 // estate's own declaration when it makes one (SubstrateFlociEKS, #1113),
-// otherwise SubstrateKind for the kubernetes lane and SubstrateFloci for
-// every other.
+// otherwise SubstrateKind for the kubernetes lane, SubstrateFlociGCP for the
+// gcp lane, and SubstrateFloci for every other.
 func (e Estate) Substrate() string {
 	if e.SubstrateOverride != "" {
 		return e.SubstrateOverride
 	}
-	if e.Lane == LaneKubernetes {
+	switch e.Lane {
+	case LaneKubernetes:
 		return SubstrateKind
+	case LaneGCP:
+		return SubstrateFlociGCP
 	}
 	return SubstrateFloci
+}
+
+// ownBarLane reports whether lane's estates have a bar of their own and
+// count toward neither AWS bar: the lanes that run on a substrate other
+// than floci.
+func ownBarLane(lane string) bool {
+	return lane == LaneKubernetes || lane == LaneGCP
 }
 
 // ScriptPath returns the crossing script path relative to the repo root.
@@ -229,7 +271,8 @@ var ManifestComment = []string{
 	"bar reads and can reach 100%; it needs a reason. Every estate on the",
 	"emulator is in the second bar. The kubernetes lane runs on a kind cluster",
 	"instead and has a bar of its own (lanes.kubernetes in live/gauntlet.json),",
-	"counted toward neither AWS bar. Keep the list sorted by name; `go run",
+	"counted toward neither AWS bar; the gcp lane runs on the floci-gcp",
+	"emulator and has lanes.gcp the same way. Keep the list sorted by name; `go run",
 	"./tools/gauntlet render` rewrites this file canonically and",
 	"TestManifestIsCanonical holds it.",
 }
@@ -282,13 +325,13 @@ func (m *Manifest) Validate() error {
 		default:
 			return fmt.Errorf("%s: estate %q: set must be %q or %q", ManifestPath, e.Name, SetCore, SetGrowing)
 		}
-		// A kubernetes-lane estate kept in this repository (its first one,
-		// reference-k8s, is a hand-written shape like the reference lane's)
-		// carries neither url nor pin; a published Kubernetes root carries
-		// both, like any other lane.
-		inRepo := e.Lane == "reference" || (e.Lane == LaneKubernetes && e.URL == "" && e.Pin == "")
+		// A kubernetes-lane or gcp-lane estate kept in this repository (their
+		// first ones, reference-k8s and reference-gcp, are hand-written
+		// shapes like the reference lane's) carries neither url nor pin; a
+		// published root carries both, like any other lane.
+		inRepo := e.Lane == "reference" || (ownBarLane(e.Lane) && e.URL == "" && e.Pin == "")
 		if !inRepo && (e.URL == "" || e.Pin == "") {
-			return fmt.Errorf("%s: estate %q: url and pin are required unless lane is reference (or a kubernetes-lane estate kept in this repository, with neither)", ManifestPath, e.Name)
+			return fmt.Errorf("%s: estate %q: url and pin are required unless lane is reference (or a kubernetes-lane or gcp-lane estate kept in this repository, with neither)", ManifestPath, e.Name)
 		}
 		if err := validatePreApply(e); err != nil {
 			return err
@@ -310,12 +353,12 @@ func validateSubstrateOverride(e Estate) error {
 	case "":
 		return nil
 	case SubstrateFlociEKS:
-		if e.Lane == LaneKubernetes {
-			return fmt.Errorf("%s: estate %q: substrate %q is for an AWS-lane estate whose configuration manages the cluster its own aws_eks_cluster creates; a %s-lane estate runs on %q", ManifestPath, e.Name, SubstrateFlociEKS, LaneKubernetes, SubstrateKind)
+		if ownBarLane(e.Lane) {
+			return fmt.Errorf("%s: estate %q: substrate %q is for an AWS-lane estate whose configuration manages the cluster its own aws_eks_cluster creates; a %s-lane estate runs on %q", ManifestPath, e.Name, SubstrateFlociEKS, e.Lane, Estate{Lane: e.Lane}.Substrate())
 		}
 		return nil
 	default:
-		return fmt.Errorf("%s: estate %q: substrate %q is not one an estate may declare; the only one is %q (the lane decides %q and %q)", ManifestPath, e.Name, e.SubstrateOverride, SubstrateFlociEKS, SubstrateFloci, SubstrateKind)
+		return fmt.Errorf("%s: estate %q: substrate %q is not one an estate may declare; the only one is %q (the lane decides %q, %q and %q)", ManifestPath, e.Name, e.SubstrateOverride, SubstrateFlociEKS, SubstrateFloci, SubstrateKind, SubstrateFlociGCP)
 	}
 }
 

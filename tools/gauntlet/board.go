@@ -318,14 +318,16 @@ func lastRunNote(r EstateResult, a *Artifact, kindImage string) (note, legacy st
 	if r.LastRun == nil {
 		return "", ""
 	}
-	if r.Substrate == SubstrateKind {
+	// A floci-gcp row (#1119) records its image the same way, against the
+	// live/floci-gcp-image pin rather than the kind one.
+	if pin, ok := substrateImagePin(r.Substrate, a, kindImage); ok {
 		switch {
 		case r.LastRun.SubstrateImage == "":
 			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d. This run's substrate image was not recorded.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, durationNote), ""
-		case r.LastRun.SubstrateImage == kindImage:
+		case r.LastRun.SubstrateImage == pin:
 			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d, against substrate image `%s`.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.SubstrateImage, durationNote), ""
 		default:
-			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d, against substrate image `%s`. **Stale**: the current pin is `%s`.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.SubstrateImage, kindImage, durationNote), ""
+			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d, against substrate image `%s`. **Stale**: the current pin is `%s`.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.SubstrateImage, pin, durationNote), ""
 		}
 	}
 	switch {
@@ -372,6 +374,11 @@ func providerNote(r EstateResult, a *Artifact) string {
 	// gets both notes.
 	if UsesKubernetesProvider(r.Substrate) {
 		if n := providerPinNote("hashicorp/kubernetes", r.LastRun.KubernetesProviderVersion, a.Providers.Kubernetes); n != "" {
+			notes = append(notes, n)
+		}
+	}
+	if UsesGoogleProvider(r.Substrate) {
+		if n := providerPinNote("hashicorp/google", r.LastRun.GoogleProviderVersion, a.Providers.Google); n != "" {
 			notes = append(notes, n)
 		}
 	}

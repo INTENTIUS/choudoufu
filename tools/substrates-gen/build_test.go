@@ -123,12 +123,13 @@ func TestGCPAndAzureRowsAreNotAdded(t *testing.T) {
 	var families []string
 	for _, r := range art.Rows {
 		families = append(families, r.Family)
-		if r.Family == "gcp" || r.Family == "azure" || r.Family == "google" || r.Family == "azurerm" || r.Family == "azapi" {
-			t.Errorf("row %q is a GCP or Azure row; #1588 rules those out until #1119/#1120", r.Family)
+		if r.Family == "azure" || r.Family == "azurerm" || r.Family == "azapi" {
+			t.Errorf("row %q is an Azure row; #1588 rules those out until #1120", r.Family)
 		}
 	}
-	if len(families) != 2 {
-		t.Errorf("got families %v, want exactly aws and kubernetes", families)
+	// GitHub issue #1119 lifted the GCP half: the google family has its row.
+	if len(families) != 3 {
+		t.Errorf("got families %v, want exactly aws, google and kubernetes", families)
 	}
 }
 

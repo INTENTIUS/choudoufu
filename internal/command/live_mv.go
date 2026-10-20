@@ -380,6 +380,9 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 		// shape builds.
 		Clusters:  provs,
 		OnWritten: args.onWritten,
+		// GitHub issue #1119: a GCP move's destination search, through the
+		// client a plan's GCP sweep leg builds.
+		AssetSearch: provs,
 	})
 	diags = diags.Append(moveDiags)
 	return res, diags

@@ -122,6 +122,10 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1061's label branch found a Kubernetes metadata block that is not exactly one object with a labels attribute - the shape every label-surface schema requires - so it left the resource's configuration value exactly as evaluated.",
 	},
 	{
+		Summary: SummaryGoogleLabelDefaultsUnread,
+		What:    "GitHub issue #1119: a hashicorp/google provider block's default_labels or add_terraform_attribution_label is not known statically, so the projection could not rebuild terraform_labels after the read, which the provider empties on a prior re-derived without a state file. Each labelled resource through that provider shows terraform_labels as a change on a cache-less plan.",
+	},
+	{
 		Summary: "Cannot merge ownership markers into this tags value",
 		What:    "GitHub issue #388's node-path stamp (NodeResolver.AdjustConfigValue) found a tags argument it does not know how to add the two ownership markers into - a non-map value, a map of something other than strings, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated.",
 	},

@@ -87,6 +87,16 @@ that generates the value instead, `random_password` feeding
 `kubernetes_secret.data`, is the other case: the `random_password` is
 record-backed and its record holds the value whole.
 
+### A Secret Manager secret version
+
+A `google_secret_manager_secret_version` is an ordinary resource too, and
+its `secret_data` is in the same position as a Kubernetes Secret's `data`:
+the provider's read accesses the version and returns the payload, so it is
+not what a read cannot give back and does not go into the record. The value
+is in Secret Manager and in the cache file on the machine that applied. Its
+write-only form, `secret_data_wo`, is never recorded and never cached. This
+has not been measured on GCP the way the Kubernetes record above was.
+
 ## Who holds the read
 
 | Who | Why they can read it |

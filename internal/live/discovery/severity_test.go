@@ -107,6 +107,7 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 	// was read off its own call site, and every one is built with
 	// tfdiags.Error or hcl.DiagError.
 	fatal := map[string]bool{
+		SummaryGCPAddressCollision:                         true,
 		"Address too long to carry an ownership marker":    true,
 		"Invalid estate name":                              true,
 		SummaryKubernetesKindNotServed:                     true,
@@ -164,6 +165,13 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 			// conflict naming the other estate's manager, or whatever it
 			// says about an object this pass could not read - so the plan
 			// stands.
+			if SeverityForRefusal(r.Summary) != SeverityWarning {
+				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
+			}
+		case r.Summary == SummaryGCPSweepIncomplete, r.Summary == SummaryGCPOrphanUnaddressed:
+			// GitHub issue #1119: a project the GCP leg could not search,
+			// and an orphan it reports and never proposes removing; the
+			// plan in front of the operator is correct either way.
 			if SeverityForRefusal(r.Summary) != SeverityWarning {
 				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
 			}

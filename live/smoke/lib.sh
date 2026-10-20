@@ -24,7 +24,12 @@ export OPENTOFU_IMAGE="${OPENTOFU_IMAGE:-ghcr.io/opentofu/opentofu:$(python3 -c 
 # scenario run on one laptop's kind and one run on CI's can measure two
 # different Kubernetes versions from the same commit.
 export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-$(cat "$ROOT/live/kind-node-image")}"
-export FLOCI_PORT
+# FLOCI_GCP_IMAGE is the same for the GCP emulator (#1119): lex00/floci-gcp,
+# pinned by digest in live/floci-gcp-image. FLOCI_GCP_PORT pins its host
+# port the way FLOCI_PORT pins floci's; 0 asks the kernel for a free one.
+export FLOCI_GCP_IMAGE="${FLOCI_GCP_IMAGE:-$(cat "$ROOT/live/floci-gcp-image")}"
+FLOCI_GCP_PORT="${FLOCI_GCP_PORT:-0}"
+export FLOCI_PORT FLOCI_GCP_PORT
 
 # The oracle's provider plugin cache. By default it is the named volume in
 # docker-compose.yml, mounted at /plugins. When the host exports
@@ -344,6 +349,220 @@ cluster_down() {
   [ -n "$CLUSTER_NAME" ] || return 0
   kind delete cluster --name "$CLUSTER_NAME" >/dev/null 2>&1 || true
   CLUSTER_NAME=""
+}
+
+# gcp_up stands up floci-gcp for a GCP scenario (#1119), the third harness
+# beside stack_up (floci) and cluster_up (kind): the pinned image from
+# live/floci-gcp-image, in the run's own compose project, on its own port.
+# It exports what hashicorp/google and the scenario's own reads need:
+#
+#   GCP_ENDPOINT               http://localhost:<port>, every emulated API
+#   GOOGLE_OAUTH_ACCESS_TOKEN  a fake bearer token; the emulator does not
+#                              validate credentials unless IAM enforcement
+#                              is on, and then only its own minted tokens
+#   GOOGLE_PROJECT, GOOGLE_CLOUD_PROJECT
+#                              SMOKE_GCP_PROJECT; the emulator registers a
+#                              project the first time a request names it
+#   GOOGLE_REGION, GOOGLE_ZONE us-central1 and us-central1-a
+#
+# The endpoints themselves are not exported: gcp_provider_block writes them
+# into the provider block, so a root reads the same way as on any other
+# substrate and nothing depends on which environment variables a given
+# provider release consults. FLOCI_GCP_IAM_ENFORCEMENT=enforce before
+# gcp_up turns on the emulator's allow-policy evaluation, as
+# FLOCI_IAM_ENFORCEMENT does for floci.
+#
+# What the fork's documentation confirms, and what it does not (read
+# 2026-10-19 from lex00/floci-gcp's README, docs/services/compute.md,
+# docs/services/iam.md and compatibility-tests/compat-opentofu/provider.tf):
+#   confirmed  port 4588, GET /health, credentials not validated by default,
+#              the storage, iam, pubsub and resource_manager endpoint paths
+#              (the fork's own OpenTofu compatibility test sets them), and
+#              Compute under /compute/v1/projects/{project}
+#   assumed    compute_custom_endpoint = <endpoint>/compute/v1/, the
+#              provider's default base path with the emulator's root; no
+#              test in the fork sets it
+#   assumed    cloud_asset_custom_endpoint = <endpoint>/v1/; Asset search
+#              is not served yet (lex00/floci-gcp#7), so the sweep's leg
+#              has no path to confirm
+#   assumed    iam_credentials_custom_endpoint = <endpoint>/v1/, where the
+#              IAM guide says generateAccessToken lives but gives no path
+#   assumed    secret_manager_custom_endpoint = <endpoint>/v1/; Secret
+#              Manager is among the services the IAM guide says it
+#              evaluates, and its REST paths sit under v1/projects as
+#              Pub/Sub's do, but no test in the fork sets this argument
+SMOKE_GCP_PROJECT="${SMOKE_GCP_PROJECT:-chdf-smoke-a}"
+SMOKE_GCP_REGION="${SMOKE_GCP_REGION:-us-central1}"
+SMOKE_GCP_ZONE="${SMOKE_GCP_ZONE:-us-central1-a}"
+GCP_UP=0
+gcp_up() {
+  logged compose-up-floci-gcp stack "docker compose up floci-gcp failed" \
+    -- "${COMPOSE[@]}" up -d floci-gcp
+  GCP_UP=1
+  local portlog
+  portlog="$(smoke_log_dir)/compose-port-floci-gcp.log"
+  FLOCI_GCP_PORT="$("${COMPOSE[@]}" port floci-gcp 4588 2>"$portlog" | sed 's/.*://')"
+  [ -n "$FLOCI_GCP_PORT" ] || fail "stack" "could not resolve floci-gcp's published port; docker compose port said: $(tr '\n' ' ' < "$portlog")"
+  export FLOCI_GCP_PORT
+  GCP_ENDPOINT="http://localhost:${FLOCI_GCP_PORT}"
+  export GCP_ENDPOINT
+  export GOOGLE_OAUTH_ACCESS_TOKEN="${GOOGLE_OAUTH_ACCESS_TOKEN:-chdf-smoke-fake-token}"
+  export GOOGLE_PROJECT="$SMOKE_GCP_PROJECT" GOOGLE_CLOUD_PROJECT="$SMOKE_GCP_PROJECT"
+  export GOOGLE_REGION="$SMOKE_GCP_REGION" GOOGLE_ZONE="$SMOKE_GCP_ZONE"
+  echo "  GCP emulator up at $GCP_ENDPOINT (compose project choudoufu-smoke-$SMOKE_ID, project $SMOKE_GCP_PROJECT)"
+  local i
+  for i in $(seq 1 30); do
+    curl -fsS --max-time 5 "${GCP_ENDPOINT}/health" >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  # The same reasoning as stack_up's: the container's own state and log
+  # name the cause, the thirty refused probes do not.
+  local upinfo state
+  upinfo="$(smoke_log_dir)/floci-gcp-container.log"
+  state="$("${COMPOSE[@]}" ps -a --format '{{.State}} - {{.Status}}' floci-gcp 2>&1 | tr '\n' ';')"
+  "${COMPOSE[@]}" logs --no-color --tail 200 floci-gcp > "$upinfo" 2>&1 || true
+  smoke_log_tail "$upinfo" "the floci-gcp container"
+  fail "stack" "floci-gcp never answered /health on :${FLOCI_GCP_PORT} after 30 probes over 30s; the container is [${state:-unknown}]. Its log is above, and whole in $upinfo"
+}
+
+# See stack_down above for why this one stays quiet. stack_down's compose
+# down removes the container too; this is for a scenario that brings
+# floci-gcp down and back up mid-run, and for smoke.sh's EXIT trap.
+gcp_down() {
+  [ "$GCP_UP" = "1" ] || return 0
+  "${COMPOSE[@]}" rm -sf floci-gcp >/dev/null 2>&1 || true
+  GCP_UP=0
+}
+
+# gcp_endpoint_paths prints one "<provider argument> <path>" pair per
+# service a GCP root reaches, the path joined to GCP_ENDPOINT. The reference
+# estate's services (Compute, Cloud Storage, IAM, Pub/Sub), Resource
+# Manager and Service Usage for project-level resources and the project
+# grant, Cloud Asset for the sweep, IAM Credentials for an impersonated
+# token, and Secret Manager for claim 51's record-located type. Which of
+# these are confirmed is gcp_up's comment above.
+gcp_endpoint_paths() {
+  cat <<'PATHS'
+compute_custom_endpoint compute/v1/
+storage_custom_endpoint storage/v1/
+iam_custom_endpoint -
+pubsub_custom_endpoint v1/
+resource_manager_custom_endpoint v1/
+service_usage_custom_endpoint v1/
+cloud_asset_custom_endpoint v1/
+iam_credentials_custom_endpoint v1/
+secret_manager_custom_endpoint v1/
+PATHS
+}
+
+# gcp_provider_block [project] prints a provider "google" block pointed at
+# the run's emulator, with every endpoint gcp_endpoint_paths names. Call it
+# after gcp_up. The project defaults to SMOKE_GCP_PROJECT.
+gcp_provider_block() {
+  local project="${1:-$SMOKE_GCP_PROJECT}" arg path
+  : "${GCP_ENDPOINT:?gcp_provider_block needs gcp_up first}"
+  printf 'provider "google" {\n'
+  printf '  project = "%s"\n  region  = "%s"\n  zone    = "%s"\n\n' "$project" "$SMOKE_GCP_REGION" "$SMOKE_GCP_ZONE"
+  while read -r arg path; do
+    [ "$path" = "-" ] && path=""
+    printf '  %s = "%s/%s"\n' "$arg" "$GCP_ENDPOINT" "$path"
+  done < <(gcp_endpoint_paths)
+  printf '}\n'
+}
+
+# gcp_required_provider prints the hashicorp/google entry of a
+# required_providers block, pinned to live/oracle-versions.json's
+# google_provider_version (8.6.0 under #1121), the way the k8s fixture pins
+# hashicorp/kubernetes.
+gcp_required_provider() {
+  local pin
+  pin="$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['google_provider_version'])" "$ROOT/live/oracle-versions.json")" \
+    || fail "stack" "could not read google_provider_version from live/oracle-versions.json"
+  printf '    google = {\n      source  = "hashicorp/google"\n      version = "= %s"\n    }\n' "$pin"
+}
+
+# gcp_write_root <dir> <estate> [project] [live-block extra] writes
+# <dir>/versions.tf: the terraform block with the pinned hashicorp/google
+# requirement and a live block for <estate>, and gcp_provider_block's
+# provider. The extra text goes inside the live block (a record_store
+# block, say). Scenarios write their resources beside it. A GCP scenario
+# writes its root at run time rather than copying a fixture, because the
+# endpoints carry the port gcp_up was given.
+gcp_write_root() {
+  local dir="$1" estate="$2" project="${3:-$SMOKE_GCP_PROJECT}" extra="${4:-}" req
+  req="$(gcp_required_provider)" || return 1
+  mkdir -p "$dir"
+  {
+    printf 'terraform {\n  required_providers {\n%s\n  }\n\n  live {\n    estate = "%s"\n' "$req" "$estate"
+    [ -z "$extra" ] || printf '%s\n' "$extra"
+    printf '  }\n}\n\n'
+    gcp_provider_block "$project"
+  } > "$dir/versions.tf"
+}
+
+# gcpl is the emulator's REST API with the run's token: gcpl <METHOD>
+# <path> [json body]. Every GCP scenario reads the cloud through this and
+# never through choudoufu, the way an AWS scenario uses awsl. Bounded, for
+# kc's reason (#1457).
+GCP_REQUEST_TIMEOUT="${GCP_REQUEST_TIMEOUT:-30}"
+gcpl() {
+  local method="$1" path="$2" body="${3:-}"
+  if [ -n "$body" ]; then
+    curl -fsS --max-time "$GCP_REQUEST_TIMEOUT" -X "$method" \
+      -H "Authorization: Bearer ${GCPL_TOKEN:-$GOOGLE_OAUTH_ACCESS_TOKEN}" -H 'Content-Type: application/json' \
+      --data "$body" "$GCP_ENDPOINT/$path"
+  else
+    curl -fsS --max-time "$GCP_REQUEST_TIMEOUT" -X "$method" \
+      -H "Authorization: Bearer ${GCPL_TOKEN:-$GOOGLE_OAUTH_ACCESS_TOKEN}" "$GCP_ENDPOINT/$path"
+  fi
+}
+
+# gcp_field <python expression over d> reads one value out of the JSON on
+# stdin, printing nothing for a missing key: gcpl GET ... | gcp_field
+# 'd.get("labels", {}).get("tofu-estate", "")'.
+gcp_field() {
+  python3 -c "import json,sys
+d=json.load(sys.stdin)
+v=eval(sys.argv[1])
+print(json.dumps(v, sort_keys=True) if isinstance(v,(dict,list)) else ('' if v is None else v))" "$1"
+}
+
+# gcp_address_label <block address> <instance address> prints the
+# tofu-address label choudoufu writes for that instance: two 26-character
+# lowercase base32 prefixes of SHA-256, block then instance, joined by "-"
+# (#1121; markers.GoogleAddressValue, whose test vectors this reproduces).
+# The block is the address without the resource's own instance key.
+gcp_address_label() {
+  python3 - "$1" "$2" <<'PY'
+import base64, hashlib, sys
+enc = lambda s: base64.b32encode(hashlib.sha256(s.encode()).digest()).decode().lower().rstrip("=")[:26]
+print(enc(sys.argv[1]) + "-" + enc(sys.argv[2]))
+PY
+}
+
+# gcp_bucket_has_member <bucket> <role> <member> answers whether the
+# bucket's IAM policy, read with the REST API, grants <role> to <member>.
+# gcp_bucket_drop_member takes that one member out of that one role and
+# writes the policy back: the out-of-band delete of a
+# google_storage_bucket_iam_member, which carries no label and is found by
+# the identity its configuration computes (#2119). GCPL_TOKEN picks whose
+# write it is, as for gcpl.
+gcp_bucket_has_member() {
+  gcpl GET "storage/v1/b/$1/iam" | python3 -c "import json,sys
+d=json.load(sys.stdin)
+sys.exit(0 if any(b.get('role')==sys.argv[1] and sys.argv[2] in b.get('members',[]) for b in d.get('bindings',[])) else 1)" "$2" "$3"
+}
+gcp_bucket_drop_member() {
+  local policy
+  policy="$(gcpl GET "storage/v1/b/$1/iam")" || return 1
+  policy="$(python3 -c "import json,sys
+d=json.load(sys.stdin)
+for b in d.get('bindings',[]):
+    if b.get('role')==sys.argv[1]:
+        b['members']=[m for m in b.get('members',[]) if m!=sys.argv[2]]
+d['bindings']=[b for b in d.get('bindings',[]) if b.get('members')]
+print(json.dumps(d))" "$2" "$3" <<< "$policy")" || return 1
+  gcpl PUT "storage/v1/b/$1/iam" "$policy" >/dev/null
 }
 
 # kc is kubectl against the run's own cluster, and kc_as is the same under

@@ -10,9 +10,9 @@ before migrating](https://intentius.io/choudoufu/docs/use/check-a-config/).
 
 **Layout.** This page is substrate-neutral: every section below covers
 every substrate live markers support, with a note where a substrate
-differs. `live/kubernetes/COMPATIBILITY.md` covers the same sections for
-Kubernetes alone, including the ones where the answer is that Kubernetes
-does not share the concern (ruled on
+differs. `live/kubernetes/COMPATIBILITY.md` and `live/gcp/COMPATIBILITY.md`
+cover the same sections for Kubernetes and GCP alone, including the ones
+where the answer is that the substrate does not share the concern (ruled on
 [#1602](https://github.com/INTENTIUS/choudoufu/issues/1602)).
 
 ## Your provider
@@ -23,11 +23,19 @@ on sight, though, and the page used to say it was. What decides is whether
 the type's identity can be derived from your configuration:
 
 - A type whose provider publishes an identity schema that resolves from
-  configuration is admitted through the schema fallback. Eleven `google_*`
-  types pass `live-check` this way today
-  ([#243](https://github.com/INTENTIUS/choudoufu/issues/243)). They plan;
-  they are deliberately never stamped, because their `tags` map is not a
-  marker surface.
+  configuration is admitted through the schema fallback
+  ([#243](https://github.com/INTENTIUS/choudoufu/issues/243)).
+- Every `google_*` and `google-beta` type with a settable `labels` map and
+  the computed `effective_labels` beside it carries its marker as labels
+  ([#1119](https://github.com/INTENTIUS/choudoufu/issues/1119), ruled on
+  [#1121](https://github.com/INTENTIUS/choudoufu/issues/1121)): 297 of
+  hashicorp/google 8.6.0's types. GCP is a substrate in its own right: the
+  marker is `tofu-estate`, an encoded `tofu-address` and, where AWS would
+  write one, `tofu-slot`, all written on the create; the estate sweep is a
+  Cloud Asset Inventory search by the estate label; and the fence is the
+  project. The [GCP hub](https://intentius.io/choudoufu/gcp/) says what is
+  proven and what is refused by name. A `google_*` resource's `tags`
+  argument, where a type has one, is never a marker surface.
 - Every `kubernetes_*` type whose schema carries object metadata resolves
   from `metadata.namespace` and `metadata.name` through one rule
   ([#1064](https://github.com/INTENTIUS/choudoufu/issues/1064); the four
@@ -50,9 +58,8 @@ the type's identity can be derived from your configuration:
   as `unadmitted-type`. A root made only of such resources is blocked as a
   whole, and a mixed estate is reported root by root.
 
-There is no second cloud on the roadmap
-([#5](https://github.com/INTENTIUS/choudoufu/issues/5)): no Azure or GCP
-admission table, marker carrier or emulator.
+Azure has no admission table, marker carrier or emulator yet; its epic is
+[#1120](https://github.com/INTENTIUS/choudoufu/issues/1120).
 
 ## Your resource types
 
@@ -96,6 +103,15 @@ Kubernetes types are `marker-carried`, status `in-contract` -
 `metadata.labels` is this substrate's marker, the role `tags` plays here.
 `live/kubernetes/COMPATIBILITY.md`'s "Readiness tiers" has what the table
 does and does not cover for this substrate.
+
+**GCP.** The labelled types are marker-carried. The network skeleton
+(networks, subnetworks, firewalls, routes, routers, service accounts,
+custom roles and the rest of the types with no `labels` map) is
+declaration-carried: its identity is recomputed from the configuration's
+`name`, `project` and location, and no stock argument can carry a marker on
+it. An unlabelled type whose identity the server mints is refused by the
+markerless veto, as on AWS. `live/gcp/COMPATIBILITY.md`'s "Readiness tiers"
+has what that tier costs the sweep.
 
 ## How your configuration is written
 
@@ -184,6 +200,10 @@ rule. An instance key becomes part of it exactly as it becomes part of
 the AWS tag value; the one difference is that an annotation has no length
 cap, so there is no continuation-key splitting.
 
+On GCP the `tofu-address` label is a fixed-length hash of the address as
+OpenTofu prints it (`live/MARKERS.md`, "The address label"), so a key is
+never escaped into it and never makes it longer.
+
 ### Identity arguments
 
 Where the name in configuration is the identity, that argument must resolve
@@ -231,6 +251,9 @@ Kubernetes adds two stops of its own to this table -
 both refused rather than defaulted - plus a narrower version of the
 "computed some other way" row for `kubernetes_manifest`.
 `live/kubernetes/COMPATIBILITY.md`'s "Identity arguments" has the table.
+
+GCP adds no stops of its own to this table; `live/gcp/COMPATIBILITY.md`'s
+"Identity arguments" says why.
 
 ## Your modules
 
@@ -310,6 +333,11 @@ with one gap: a cross-estate move of a `kubernetes_manifest` object is
 still refused by name. See `live/kubernetes/COMPATIBILITY.md`'s "Crossing
 a module boundary".
 
+On GCP `live-mv` is refused by name ("live-mv cannot rewrite a GCP
+resource's labels yet") until its label rewrite lands, and writes nothing.
+A rename still works without it: the records follow the address, and the
+next plan rewrites the `tofu-address` label as an ordinary in-place change.
+
 ## Your accounts and regions
 
 An estate can span provider configurations. One `provider "aws"` block per
@@ -355,6 +383,15 @@ resources is ordinary, each substrate's admission, marker and sweep
 independent; `live/kubernetes/COMPATIBILITY.md`'s "Mixed estates" has the
 EKS `aws-auth` ConfigMap case, where the interesting behavior actually
 lives.
+
+**GCP.** The project is the unit, because the fence is project-scoped
+(`live/MARKERS.md`, "Granting a GCP estate"): one estate per project. Lint
+warns (`gcp-multi-project`) when one estate's google resources resolve to more than one project,
+since two estates in one project are not fenced from each other. The sweep
+searches every project the estate's resources name, so an estate that does
+span projects is still swept whole. One `provider "google"` per project or
+region is ordinary, and a root mixing `aws_*`, `kubernetes_*` and `google_*`
+resources keeps each substrate's admission, marker and sweep independent.
 
 A module call's `providers` mapping is honoured, and used to be refused. Since
 [#188](https://github.com/INTENTIUS/choudoufu/issues/188)
@@ -423,6 +460,14 @@ against AWS's create-then-destroy
 annotation fixed it: `day2_replace` now runs on the kind substrate and
 creates first, the same order as AWS.
 
+**GCP.** The command-level refusals above are unchanged. A plan reaches
+Cloud Asset Inventory once per project for the sweep, so the Cloud Asset
+API has to be enabled there; where it is not, the plan carries the warning
+"GCP sweep incomplete" and is otherwise correct, unless it declares a
+server-named google instance only the search can find, which it then
+refuses rather than plan a duplicate.
+`live/gcp/COMPATIBILITY.md`'s "How you run it" has the index lag.
+
 ## Constructs this page used to refuse, and no longer does
 
 This section was a list of six constructs refused outright. All six have
@@ -487,6 +532,9 @@ ruling and the [#1064](https://github.com/INTENTIUS/choudoufu/issues/1064)/
 rules - see `live/kubernetes/COMPATIBILITY.md`'s own version of this
 section.
 
+**GCP.** The same: none of the six is GCP-specific, and the section applies
+to a GCP root unchanged.
+
 ## Effects do work
 
 `null_resource`, `terraform_data`, `time_*` and the `random_*` family are
@@ -514,8 +562,8 @@ stored](STORAGE.md) has the arguments, and
 [What you set up by hand](https://intentius.io/choudoufu/docs/use/setup/) has the bucket.
 
 `null_resource`, `terraform_data`, `time_*` and the `random_*` family carry
-no substrate identity of their own, so a Kubernetes root gets the same
-lifecycle described above.
+no substrate identity of their own, so a Kubernetes or GCP root gets the
+same lifecycle described above.
 
 ## Two hazards that are now refusals
 
@@ -546,6 +594,12 @@ admitted, the same over-refusal guard `tags["Owner"]` has. Since
 [#1740](https://github.com/INTENTIUS/choudoufu/issues/1740) the address
 annotation beside the label is covered too, and index spellings of either
 path (`metadata[0]["labels"]`) are refused as their dotted forms are.
+
+**GCP carries it on `labels`.** `ignore_changes = all`,
+`ignore_changes = [labels]`, `ignore_changes = [labels["tofu-estate"]]` and
+`ignore_changes = [labels["tofu-address"]]` on a labelled `google_*` type
+are refused the same way. Ignoring a label key of your own,
+`labels["owner"]`, stays admitted.
 
 A related gap closed the same month: the stateful un-migration guard
 (issue #613) that refuses a state-backed plan dropping this fork's
