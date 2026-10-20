@@ -226,7 +226,14 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 		// nightly hit: every kind row read "measured against emulator
 		// <none>" against a run that pins a floci digest, forever, because
 		// a kind row is NEVER stamped with Emulator.
-		if entry.Substrate() == SubstrateKind {
+		if entry.Substrate() == SubstrateFlociAz {
+			// floci-az (#1120) is not floci: its row records the floci-az
+			// image, held to live/floci-az-image here the way a kind row is
+			// held to the node image.
+			if pin := flociAzImagePin(root); row.LastRun.SubstrateImage != pin {
+				return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured against floci-az image %s and this run pins %s (%s); rows measured against different images are not one board", s.Estate, orNone(row.LastRun.SubstrateImage), orNone(pin), s.Path)
+			}
+		} else if entry.Substrate() == SubstrateKind {
 			if row.LastRun.SubstrateImage != kindImage {
 				return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured against kind node image %s and this run pins %s (%s); rows measured against different images are not one board", s.Estate, orNone(row.LastRun.SubstrateImage), kindImage, s.Path)
 			}

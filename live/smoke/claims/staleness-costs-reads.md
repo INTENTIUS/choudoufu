@@ -98,3 +98,7 @@ sweep vouched for from the cache and skips their reads (65 requests
 against 74 on the first run), and the two plans print the same answer.
 `BREAK=1` deletes the cache first, and the plan must serve nothing and pay
 the full price.
+
+## On Azure
+
+Open. Nothing has run on Azure yet (#1120), and no scenario is written for this promise there.

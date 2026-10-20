@@ -90,3 +90,7 @@ both are parked: twelve rounds, each landing one write and refusing the
 other with a conflict naming both versions, no Lease taken. Its `BREAK=1`
 control swaps each write for the stock `backend "kubernetes"`
 read-then-update, and all twelve rounds must end with both writes landed.
+
+## On Azure
+
+Open. Nothing has run on Azure yet. `record_store "azurerm"` creates with `If-None-Match: *`, updates and deletes with `If-Match` on the ETag, and takes no lease ([the contract](../../../examples/record-store-azurerm/CONTRACT.md)); no race of two writers is written for floci-az.

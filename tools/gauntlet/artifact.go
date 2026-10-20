@@ -510,9 +510,19 @@ func IsStale(r EstateResult, currentEmulator string) bool {
 // live/kind-node-image pin), every other row's LastRun.Emulator against
 // emulator (issue #1739). The same carve-out and the same "unrecorded
 // reads as stale" rule as IsStale apply to both.
+//
+// A floci-az row (#1120) records the floci-az image it ran against in
+// LastRun.SubstrateImage, and nothing here holds live/floci-az-image's pin
+// yet, so a measured floci-az row always reads stale: never verified, and
+// listed by `next` with the image it recorded. That is the direction that
+// cannot claim a measurement is current when it is not; comparing against
+// the pin is the follow-up that threads it beside kindImage.
 func IsSubstrateStale(r EstateResult, emulator, kindImage string) bool {
-	if r.Substrate == SubstrateKind {
+	switch r.Substrate {
+	case SubstrateKind:
 		return r.LastRun != nil && r.LastRun.SubstrateImage != kindImage
+	case SubstrateFlociAz:
+		return r.LastRun != nil
 	}
 	return IsStale(r, emulator)
 }
@@ -733,8 +743,9 @@ func (a *Artifact) Rebuild(m *Manifest, bi *BehaviorIndex, emulator string, orac
 	for key, label := range SetLabels {
 		a.Sets[key] = tallyRows(label, rows, a.pinCurrent(kindImage), func(r EstateResult) bool {
 			// The two headline bars are the emulator's: a kind-substrate
-			// row is counted in its lane below and nowhere else (#1067). A
-			// floci-eks row (#1113) runs on the emulator and counts here.
+			// row is counted in its lane below and nowhere else (#1067),
+			// and so is a floci-az row (#1120). A floci-eks row (#1113)
+			// runs on the emulator and counts here.
 			if !RunsOnFloci(r.Substrate) {
 				return false
 			}

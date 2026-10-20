@@ -18,7 +18,7 @@
     "folded 27 of them into the 16 promises left; a retired entry with demo: true is a scenario that is now a demo instead, and one with covered_by had its scenario deleted because the named proof (a scenario registered in some cell, or \"<estate>:<stage id>\") shows the same thing. One with merged_into is a whole claim whose statement nested in the named claim's: its proofs moved into that claim's cells, and it names no provider.",
     "real_service: true marks a proof whose scenario cannot run against the emulator honestly and runs against that provider's real account instead. It is maintainer-run (SMOKE_REAL_AWS=1 for aws, the only provider this is proven true for today). Since #2018 no workflow runs any claim scenario, so every proof, real_service or not, is proven by a dated evidence file from a hand run (live/proven_cell_ci_test.go). live/smoke_claims_test.go holds the flag to the scenario's own refusal. The field is per-proof rather than per-provider (#1598), so a second real-account provider sets real_service on its own proof instead of the schema growing a provider-named field.",
     "needs_emulator: true marks a proof whose scenario runs on one substrate and keeps its records on another - today a Kubernetes proof that also brings up the pinned floci emulator for an S3-backed record store, on top of kind and kubectl. An aws proof is never asked to carry it: there the emulator IS the substrate, which the column already says.",
-    "Scenario file names may carry a provider-specific prefix for readability (k8s- for a Kubernetes proof); it is a naming convention only, kept because renaming the files would be noisy for no gain. No code may read a scenario's provider, or whether it needs_emulator or is real_service, off that prefix - the provider a scenario proves is always the providers.<name> key that names its cell, never its file name (#1598, #1593)."
+    "Scenario file names may carry a provider-specific prefix for readability (k8s- for a Kubernetes proof, az- for an Azure one); it is a naming convention only, kept because renaming the files would be noisy for no gain. No code may read a scenario's provider, or whether it needs_emulator or is real_service, off that prefix - the provider a scenario proves is always the providers.<name> key that names its cell, never its file name (#1598, #1593)."
   ],
   "themes": {
     "adopt": "Adopt live infrastructure without state surgery",
@@ -29,7 +29,8 @@
   },
   "provider_order": [
     "aws",
-    "kubernetes"
+    "kubernetes",
+    "azure"
   ],
   "retired": [
     {
@@ -254,7 +255,8 @@
       "theme": "adopt",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -309,6 +311,10 @@
             }
           ],
           "note": "Unproven until a dated run: k8s-no-silent-orphans.sh, k8s-a-held-delete-is-not-gone.sh, k8s-a-deleted-namespace-is-gone.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). The sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete. An object no natural key declares is joined a second way, by the block its address annotation names (#1640): bound when that block is declared, an orphan otherwise. The label is what makes an object this estate's, so an orphan whose annotation was stripped is still proposed for removal; two objects whose annotations claim one block that holds neither are refused as a collision rather than both destroyed (#1641)."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: the proof is written and has not run. live/smoke/drafts/az-no-silent-orphans.sh applies a resource group, a VNet and a user-assigned identity, deletes the identity's block, and requires the next plan to propose exactly that destroy, found by its tofu-estate tag through the Resource Graph sweep, while an identity tagged for another estate at the same address in the same group is left alone; BREAK=1 strips the orphan's tofu-estate tag with an ARM PATCH first and requires the replan to propose nothing. floci-az serves no Microsoft.ResourceGraph route today (live/FLOCI.md, Azure), so the sweep cannot run there and neither arm can pass until the fork serves it. About 4 minutes, an estimate. The cell reads open until the maintainer runs both arms green on floci-az and promotes it (live/smoke/drafts/README.md)."
         }
       }
     },
@@ -319,7 +325,8 @@
       "theme": "operate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -363,6 +370,10 @@
             }
           ],
           "note": ""
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). record_store \"azurerm\" creates a blob with If-None-Match: * and updates and deletes it with If-Match on its ETag, and takes no lease (#1120, examples/record-store-azurerm/CONTRACT.md); a race of two writers on one record, the shape claim 29's Kubernetes scenario measures in its step 10, has not been written for floci-az, which honours both conditions on Put Blob and Delete Blob but answers a create over an existing blob 412 ConditionNotMet where Azure answers 409 BlobAlreadyExists."
         }
       }
     },
@@ -373,7 +384,8 @@
       "theme": "cache",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -423,6 +435,10 @@
               ]
             }
           ]
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). The three-way cache comparison and the -refresh=false plan the AWS and Kubernetes proofs run have not been written for Azure. On floci-az a plan with a live block reaches the Resource Graph sweep, which the emulator does not serve."
         }
       }
     },
@@ -433,7 +449,8 @@
       "theme": "adopt",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -459,6 +476,10 @@
               "note": "The gauntlet's day2_crash stage on a kind estate: an apply creating two ConfigMaps is interrupted by a real SIGTERM the instant the first create commits; the next plan proposes exactly the remainder and binds the created object by its tofu-estate label, namespace and name, matching stock's own plan from the same position; one recovery apply finishes and the replan is empty. Its BREAK asserts nothing is proposed and must fail. This replaced k8s-recovery-is-a-rerun.sh, whose label-strip control is not repeated here."
             }
           ]
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). The gauntlet's day2_crash stage on the reference-azure estate (live/gauntlet/estates.json, the azure lane) is the intended proof, as reference-k8s:day2_crash is on Kubernetes; reference-azure is built and has not been run, so it has no stage to cite."
         }
       }
     },
@@ -469,7 +490,8 @@
       "theme": "cache",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -513,6 +535,10 @@
               ]
             }
           ]
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). The round trip through stock - stock applies, live-import marks every resource with its two ARM tags, the state file is dropped, the cache goes back to stock - is what the reference-azure estate's migrate and cold_deploy stages measure once the maintainer runs it; no smoke scenario is written."
         }
       }
     },
@@ -523,7 +549,8 @@
       "theme": "adopt",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -568,6 +595,10 @@
             }
           ],
           "note": "Unproven until a dated run: k8s-greenfield.sh, k8s-custom-resource.sh, claim 13's k8s-the-label-is-the-boundary.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). The ownership marker is one label, tofu-estate, because an address is often not a legal label value (#1016); the block address rides beside it in the annotation choudoufu.intentius.io/tofu-address (#1639, #1605's ruling). Any kubectl reads both. The sweep binds an object no natural key declares to the block its annotation names (#1640), so a block whose name is read at plan time applies and replans empty, and a create_before_destroy rename plans as the replace stock plans (#1541, #1641). A rename rewrites the annotation (a moved block plans it, live-mv writes it); a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 13 on Kubernetes). A count pool's fungible set, the AWS proof count-is-a-fungible-set, does not arise here: the API server keeps names unique per kind and namespace, so a count-expanded set carries distinct names and no slot is written."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: the proof is written and has not run. live/smoke/drafts/az-identity-is-a-tag.sh applies a resource group, a VNet and a user-assigned identity through azurerm and a second identity through azapi_resource, reads tofu-estate and tofu-address back through ARM on both providers' objects, and requires an empty replan with no state file and with the cache deleted. BREAK=1 strips tofu-estate from the VNet with an ARM PATCH: the default replan must refuse it by name (\"Unmarked live object at the declared id would be overwritten\", #1120's create-or-update refusal) rather than PUT over it, and under policy { declared_untagged = \"adopt\" } the apply must write the tag back, read through ARM. A carve between estates is one tag write; it is not in this draft. floci-az keeps tags on every type the draft uses, but a plan reaches the Resource Graph sweep, which it does not serve (live/FLOCI.md, Azure). About 4 minutes, an estimate. The cell reads open until the maintainer runs both arms green on floci-az and promotes it (live/smoke/drafts/README.md)."
         }
       }
     },
@@ -578,7 +609,8 @@
       "theme": "gate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -632,6 +664,10 @@
             }
           ],
           "note": "Unproven until a dated run: k8s-the-label-is-the-boundary.sh has no evidence file with a date (no workflow has run a claim scenario since #2018). Write-only and cluster-wide: one ValidatingAdmissionPolicy on the estate label, installed by a cluster admin, fences create, update and delete and never get or list (#1066). An IAM condition on AWS also fences reads and can name an address, not only an estate. One estate across contexts, clusters or two estates applying to one cluster at once has not been measured. Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: the proof is written and has not run. live/smoke/drafts/az-the-tag-is-the-boundary.sh installs the two Policy definitions of live/azure/estate-boundary.json at the subscription and assigns both at Alice's resource group, then requires Bob's apply into that group (tofu-estate=smoke-az-bob), an untagged ARM create and an ARM delete of Alice's identity each to be refused by Policy; BREAK=1 deletes the two assignments and requires the same three writes to land. floci-az stores Policy definitions and assignments and evaluates no rule, and has no route for role assignments (live/FLOCI.md, Azure), so the main arm cannot pass there and the RBAC half (live/azure/estate-grant.json) is not exercised. Policy fences writes only: unlike an IAM condition on AWS it does not fence reads, and it cannot name an address. About 5 minutes, an estimate. The cell reads open until the maintainer runs both arms green on floci-az and promotes it (live/smoke/drafts/README.md)."
         }
       }
     },
@@ -642,7 +678,8 @@
       "theme": "scale",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -676,6 +713,10 @@
               ]
             }
           ]
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). A plan's sweep is one Resource Graph query per subscription the estate's resources resolve to, filtered on the tofu-estate tag, so its cost should not grow with foreign resources; nothing counts it, and floci-az does not serve Resource Graph."
         }
       }
     },
@@ -686,7 +727,8 @@
       "theme": "scale",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -706,6 +748,10 @@
         "kubernetes": {
           "status": "open",
           "note": "Open: the proof is written and has not run. live/smoke/drafts/k8s-plan-cost-tracks-the-change.sh changes one of 20 ConfigMaps, which a second block reads, and plans it in full and with -cone=HEAD through live/smoke/k8sproxy.py, then again once the estate has grown to 80; it requires the cone plan to read those two ConfigMaps by name and no other, propose the full plan's changes, and send the same request count at 20 and 80 while the full plan's grows by at least one request per added ConfigMap. BREAK=1 points -cone at a base that is not a commit, so the guard plans the whole estate, and requires the read check to refuse that plan. The marker sweep stays estate-wide on a cone plan, which on a cluster is discovery and one label-selected list per kind served (#1065). About 4 minutes, an estimate. The cell reads proven only after both arms run green (live/smoke/drafts/README.md)."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). The cone plan's per-object reads are provider reads and substrate-neutral; the sweep stays estate-wide on a cone plan, which on Azure is the Resource Graph query floci-az does not serve."
         }
       }
     },
@@ -716,7 +762,8 @@
       "theme": "gate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -752,6 +799,10 @@
             }
           ],
           "note": "Unproven until a dated run: k8s-the-server-gets-the-last-word.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). The saved-plan approval check is substrate-neutral; the gauntlet's plan_approval stage on reference-azure is the intended proof once the maintainer runs it. Azure Policy's deny is evaluated by ARM at apply time, the role the server's refusal plays in the AWS and Kubernetes proofs, and floci-az evaluates no Policy rule."
         }
       }
     },
@@ -762,7 +813,8 @@
       "theme": "operate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -830,6 +882,10 @@
             }
           ],
           "note": "Two estates whose key_prefix values prefix one another, the hazard the AWS name-prefix proof measures, are not measured here: KubernetesStore names each record Secret by a SHA-256 of its whole key and refuses a key-annotation mismatch with KeyCollisionError, so a broken delimiter would produce a collision or a refusal rather than a silent read, and no scenario pins which. On Kubernetes the declaration is the reader's record_store block: reads_outputs_of \"<estate>\" {} opens that estate's records namespace through a store that can only get. An undeclared read is refused before anything is sent, under an identity RBAC would have let through; a declared read plans with the producer's value through a grant of one get and says how old it is; after the producer's destroy deletes its recorded output, the consumer is told so by name."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). record_store \"azurerm\" keeps an estate's records under its own three prefixes with trailing slashes and tags every blob with tofu-estate in the same Put Blob, and live/azure/record-store-abac.condition is the read fence on that tag (#1120); the condition is unmeasured, and floci-az has no route for role assignments or ABAC conditions."
         }
       }
     },
@@ -840,7 +896,8 @@
       "theme": "operate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -891,6 +948,10 @@
             }
           ],
           "note": "Unproven until a dated run: claim 1's k8s-a-deleted-namespace-is-gone.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: the proof is written and has not run. live/smoke/drafts/az-records-in-a-storage-account.sh writes an estate's records to a storage account with versioning on, a previous-versions lifecycle rule and public access off, requires each blob to carry the blob index tag tofu-estate, and then requires four new estates to be refused by name with no blob written: versioning off, no lifecycle rule, public access allowed, and a rule that deletes current records. BREAK=1 removes the fences, waives all three with allow_insecure, and requires the same apply to go through and name each waiver. floci-az keeps none of the three settings (blobServices answers empty properties, managementPolicies has no route) and returns the storage suffix core.windows.net, so the store's blob calls leave the emulator (live/FLOCI.md, Azure); the draft cannot pass there until the fork keeps them and answers a local suffix. About 6 minutes, an estimate. The cell reads open until the maintainer runs both arms green on floci-az and promotes it (live/smoke/drafts/README.md)."
         }
       }
     },
@@ -901,7 +962,8 @@
       "theme": "operate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -931,6 +993,10 @@
               ]
             }
           ]
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). Under strict { secrets = \"refuse\" } the record and the cache are substrate-neutral; no scenario scans what an Azure estate keeps."
         }
       }
     },
@@ -941,7 +1007,8 @@
       "theme": "operate",
       "substrate": [
         "aws",
-        "kubernetes"
+        "kubernetes",
+        "azure"
       ],
       "providers": {
         "aws": {
@@ -973,6 +1040,10 @@
             }
           ],
           "note": ""
+        },
+        "azure": {
+          "status": "open",
+          "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). azurerm has no provider-level ignore_tags, so the Azure form of the promise is a lifecycle ignore_changes on tags, a different declaration from the AWS proof's; neither is measured on floci-az."
         }
       }
     }

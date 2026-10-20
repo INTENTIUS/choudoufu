@@ -46,7 +46,7 @@ const (
 )
 
 // smokeProviderNames is how a page heads a provider's section: "## On AWS".
-var smokeProviderNames = map[string]string{"aws": "AWS", "kubernetes": "Kubernetes"}
+var smokeProviderNames = map[string]string{"aws": "AWS", "kubernetes": "Kubernetes", "azure": "Azure"}
 
 type smokeClaimsFile struct {
 	Themes        map[string]string `json:"themes"`
@@ -1098,6 +1098,85 @@ func TestSmokeClaimTitlesAreShortPromises(t *testing.T) {
 		if words > smokeTitleMaxWords || runes > smokeTitleMaxRunes {
 			t.Errorf("claim %d's title is %d words and %d characters; a title is a promise of at most %d words and %d characters, and the steps belong on live/smoke/claims/%s.md: %q",
 				c.ID, words, runes, smokeTitleMaxWords, smokeTitleMaxRunes, c.Slug, c.Title)
+		}
+	}
+}
+
+// TestSmokeDraftsNameAnOpenCell: a draft under live/smoke/drafts/ is a
+// written proof that has never run (smoke/drafts/README.md), and the cell it
+// is for reads open with a note that names it. Nothing held the two
+// together before the Azure drafts (#1120): a draft whose header named the
+// wrong claim, or whose cell was promoted to unproven while the script stayed
+// a draft, read the same as a correct one. Each draft's second line is a
+// "# CLAIM N (provider) - <title>. ~M min." header stating its claim's title
+// exactly, as a scenario's is; the cell for (N, provider) reads open; and its
+// note names live/smoke/drafts/<name>.sh. The other direction too: an open
+// cell's note that names a draft names one on disk.
+//
+// Proving it red: set claim 7's azure cell to "unproven", or change the
+// path its note names; each fails a different check below.
+func TestSmokeDraftsNameAnOpenCell(t *testing.T) {
+	f := readSmokeClaims(t)
+	byID := map[int]smokeClaim{}
+	for _, c := range f.Claims {
+		byID[c.ID] = c
+	}
+	drafts, err := filepath.Glob(filepath.Join(smokeDraftsDir, "*.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(drafts) == 0 {
+		t.Fatalf("no draft under %s; this test is checking nothing", smokeDraftsDir)
+	}
+	onDisk := map[string]bool{}
+	for _, path := range drafts {
+		name := filepath.Base(path)
+		rel := "live/" + filepath.ToSlash(path)
+		onDisk[rel] = true
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.SplitN(string(raw), "\n", 3)
+		if len(lines) < 2 {
+			t.Errorf("draft %s has no header line", name)
+			continue
+		}
+		m := scenarioHeaderTitle.FindStringSubmatch(lines[1])
+		if m == nil {
+			t.Errorf("draft %s line 2 is not a \"# CLAIM N (provider) - <title>. ~M min.\" header: %q", name, lines[1])
+			continue
+		}
+		var id int
+		fmt.Sscan(m[1], &id)
+		c, ok := byID[id]
+		if !ok {
+			t.Errorf("draft %s names claim %d, which is not a live claim", name, id)
+			continue
+		}
+		if m[3] != c.Title {
+			t.Errorf("draft %s states %q and claim %d's title is %q", name, m[3], id, c.Title)
+		}
+		cell, ok := c.Providers[m[2]]
+		if !ok {
+			t.Errorf("draft %s names provider %q, which claim %d has no cell for", name, m[2], id)
+			continue
+		}
+		if cell.Status != "open" {
+			t.Errorf("draft %s is the proof of claim %d (%s), and that cell reads %q; a proof that has never run leaves its cell open until it is promoted to %s", name, id, m[2], cell.Status, smokeScenariosDir)
+		}
+		if !strings.Contains(cell.Note, rel) {
+			t.Errorf("claim %d (%s) has a draft, %s, and its note does not name it", id, m[2], rel)
+		}
+	}
+	draftPath := regexp.MustCompile(`live/smoke/drafts/[A-Za-z0-9._-]+\.sh`)
+	for _, c := range f.Claims {
+		for p, cell := range c.Providers {
+			for _, named := range draftPath.FindAllString(cell.Note, -1) {
+				if !onDisk[named] {
+					t.Errorf("claim %d (%s): the note names %s, which is not on disk", c.ID, p, named)
+				}
+			}
 		}
 	}
 }

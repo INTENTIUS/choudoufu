@@ -157,13 +157,20 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set, kindImage string) []Un
 	for _, r := range staleClear {
 		var reasons []string
 		if IsSubstrateStale(r, a.Emulator, kindImage) {
-			if r.Substrate == SubstrateKind {
+			switch r.Substrate {
+			case SubstrateKind:
 				img := "unrecorded"
 				if r.LastRun != nil && r.LastRun.SubstrateImage != "" {
 					img = r.LastRun.SubstrateImage
 				}
 				reasons = append(reasons, fmt.Sprintf("last verified against kind node image %s; the current pin is %s", img, kindImage))
-			} else {
+			case SubstrateFlociAz:
+				img := "unrecorded"
+				if r.LastRun != nil && r.LastRun.SubstrateImage != "" {
+					img = r.LastRun.SubstrateImage
+				}
+				reasons = append(reasons, fmt.Sprintf("last measured against floci-az image %s; a floci-az row is not compared with live/floci-az-image yet, so it never reads current (#1120)", img))
+			default:
 				emu := "unrecorded"
 				if r.LastRun != nil && r.LastRun.Emulator != "" {
 					emu = r.LastRun.Emulator

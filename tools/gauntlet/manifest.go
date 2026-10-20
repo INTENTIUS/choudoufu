@@ -34,12 +34,19 @@ var KnownLanes = []string{
 	"reference",            // hand-written reference shapes kept in this repository
 	"published-deployment", // an organisation's own published root module
 	LaneKubernetes,         // a Kubernetes-only root, run against a kind cluster (#1067); its own bar, never either AWS one
+	LaneAzure,              // an azurerm/azapi root, run against floci-az (#1120); its own bar, never either AWS one
 }
 
 // LaneKubernetes is the lane whose estates run on SubstrateKind rather than
 // the floci emulator (#1067). Its estates have a bar of their own
 // (Artifact.Lanes) and count toward neither AWS bar.
 const LaneKubernetes = "kubernetes"
+
+// LaneAzure is the lane whose estates run on SubstrateFlociAz (#1120,
+// ADDING-A-PLATFORM.md requirement 14). Like the kubernetes lane it has a
+// bar of its own and counts toward neither AWS bar; its first estate,
+// reference-azure, is a hand-written shape kept in this repository.
+const LaneAzure = "azure"
 
 // Substrates: the platform an estate's crossing script runs against. Every
 // lane but LaneKubernetes runs on the floci emulator; the kubernetes lane
@@ -56,19 +63,27 @@ const LaneKubernetes = "kubernetes"
 // as on SubstrateKind; Stage.Substrates carries how each stage reads with
 // both, and what k3s cannot stand in for. It is never inferred from a lane:
 // an estate declares it in the manifest (Estate.SubstrateOverride).
+//
+// SubstrateFlociAz (#1120) is the azure lane's: lex00/floci-az, pinned by
+// digest in live/floci-az-image and started by live/e2e/lib/gauntlet.sh's
+// gauntlet_floci_az_up. It is a different emulator from floci, so a row on
+// it is stamped with that image (LastRun.SubstrateImage) and never with the
+// floci pin or a hashicorp/aws version.
 const (
 	SubstrateFloci    = "floci"
 	SubstrateKind     = "kind"
 	SubstrateFlociEKS = "floci-eks"
+	SubstrateFlociAz  = "floci-az"
 )
 
 // RunsOnFloci reports whether an estate on substrate launches the floci
 // emulator, so its row is stamped with and judged against the floci pin and
 // the hashicorp/aws provider version, and counts toward the AWS bars.
 // SubstrateFlociEKS does: its cluster leg is a container floci itself
-// starts. Only SubstrateKind does not.
+// starts. SubstrateKind does not, and neither does SubstrateFlociAz, whose
+// emulator is floci-az rather than floci.
 func RunsOnFloci(substrate string) bool {
-	return substrate != SubstrateKind
+	return substrate != SubstrateKind && substrate != SubstrateFlociAz
 }
 
 // UsesKubernetesProvider reports whether an estate on substrate configures
@@ -186,14 +201,17 @@ func EstateHasScaleLadder(m *Manifest, estate string) (bool, error) {
 
 // Substrate is the platform this estate's script runs against: the
 // estate's own declaration when it makes one (SubstrateFlociEKS, #1113),
-// otherwise SubstrateKind for the kubernetes lane and SubstrateFloci for
-// every other.
+// otherwise SubstrateKind for the kubernetes lane, SubstrateFlociAz for the
+// azure lane and SubstrateFloci for every other.
 func (e Estate) Substrate() string {
 	if e.SubstrateOverride != "" {
 		return e.SubstrateOverride
 	}
-	if e.Lane == LaneKubernetes {
+	switch e.Lane {
+	case LaneKubernetes:
 		return SubstrateKind
+	case LaneAzure:
+		return SubstrateFlociAz
 	}
 	return SubstrateFloci
 }
@@ -229,7 +247,8 @@ var ManifestComment = []string{
 	"bar reads and can reach 100%; it needs a reason. Every estate on the",
 	"emulator is in the second bar. The kubernetes lane runs on a kind cluster",
 	"instead and has a bar of its own (lanes.kubernetes in live/gauntlet.json),",
-	"counted toward neither AWS bar. Keep the list sorted by name; `go run",
+	"counted toward neither AWS bar; the azure lane does the same on floci-az",
+	"(lanes.azure). Keep the list sorted by name; `go run",
 	"./tools/gauntlet render` rewrites this file canonically and",
 	"TestManifestIsCanonical holds it.",
 }
@@ -282,13 +301,14 @@ func (m *Manifest) Validate() error {
 		default:
 			return fmt.Errorf("%s: estate %q: set must be %q or %q", ManifestPath, e.Name, SetCore, SetGrowing)
 		}
-		// A kubernetes-lane estate kept in this repository (its first one,
-		// reference-k8s, is a hand-written shape like the reference lane's)
-		// carries neither url nor pin; a published Kubernetes root carries
-		// both, like any other lane.
-		inRepo := e.Lane == "reference" || (e.Lane == LaneKubernetes && e.URL == "" && e.Pin == "")
+		// A kubernetes-lane or azure-lane estate kept in this repository
+		// (reference-k8s and reference-azure are hand-written shapes like
+		// the reference lane's) carries neither url nor pin; a published
+		// root carries both, like any other lane.
+		ownBar := e.Lane == LaneKubernetes || e.Lane == LaneAzure
+		inRepo := e.Lane == "reference" || (ownBar && e.URL == "" && e.Pin == "")
 		if !inRepo && (e.URL == "" || e.Pin == "") {
-			return fmt.Errorf("%s: estate %q: url and pin are required unless lane is reference (or a kubernetes-lane estate kept in this repository, with neither)", ManifestPath, e.Name)
+			return fmt.Errorf("%s: estate %q: url and pin are required unless lane is reference (or a kubernetes-lane or azure-lane estate kept in this repository, with neither)", ManifestPath, e.Name)
 		}
 		if err := validatePreApply(e); err != nil {
 			return err
@@ -310,12 +330,12 @@ func validateSubstrateOverride(e Estate) error {
 	case "":
 		return nil
 	case SubstrateFlociEKS:
-		if e.Lane == LaneKubernetes {
-			return fmt.Errorf("%s: estate %q: substrate %q is for an AWS-lane estate whose configuration manages the cluster its own aws_eks_cluster creates; a %s-lane estate runs on %q", ManifestPath, e.Name, SubstrateFlociEKS, LaneKubernetes, SubstrateKind)
+		if e.Lane == LaneKubernetes || e.Lane == LaneAzure {
+			return fmt.Errorf("%s: estate %q: substrate %q is for an AWS-lane estate whose configuration manages the cluster its own aws_eks_cluster creates; a %s-lane estate runs on %q", ManifestPath, e.Name, SubstrateFlociEKS, e.Lane, Estate{Lane: e.Lane}.Substrate())
 		}
 		return nil
 	default:
-		return fmt.Errorf("%s: estate %q: substrate %q is not one an estate may declare; the only one is %q (the lane decides %q and %q)", ManifestPath, e.Name, e.SubstrateOverride, SubstrateFlociEKS, SubstrateFloci, SubstrateKind)
+		return fmt.Errorf("%s: estate %q: substrate %q is not one an estate may declare; the only one is %q (the lane decides %q, %q and %q)", ManifestPath, e.Name, e.SubstrateOverride, SubstrateFlociEKS, SubstrateFloci, SubstrateKind, SubstrateFlociAz)
 	}
 }
 
