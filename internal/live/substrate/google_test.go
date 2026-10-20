@@ -44,3 +44,15 @@ func TestGoogleControllerHeld(t *testing.T) {
 		t.Errorf("HoldRecognition = %+v", rec)
 	}
 }
+
+// TestGoogleSweepFindsNothingUnadmitted (GitHub issue #2139, item 5): the
+// GCP leg plans no removal and cannot see an unlabelled type, so its
+// family answers false and the identity package's no-orphan-recovery
+// warning stays on for google types.
+func TestGoogleSweepFindsNothingUnadmitted(t *testing.T) {
+	for _, name := range []string{"google", "google-beta"} {
+		if Sweeps(name) {
+			t.Errorf("Sweeps(%q) = true; the GCP leg removes nothing a record does not", name)
+		}
+	}
+}

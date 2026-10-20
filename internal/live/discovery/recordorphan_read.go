@@ -51,6 +51,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/substrate"
@@ -199,6 +200,15 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// reach this population; the record store is the only place
 			// left that knows it.
 			schema, ok := providerSchemaFor(schemas, typeName)
+			if ok && removedOnlyFromRecords(req) && schema.IdentitySchema == nil {
+				// A google type with no list route still serves its identity
+				// schema with its resource schema. On the GCP pass alone:
+				// on AWS the same fill-in newly admits types this gate never
+				// admitted (GitHub issue #2139, item 4).
+				if id, version, has := schemas.ResourceIdentity(typeName); has {
+					schema.IdentitySchema, schema.IdentitySchemaVersion = id, version
+				}
+			}
 			schemaMap := map[string]providers.Schema{typeName: schema}
 			schemaAdmitted := false
 			if ok && removedOnlyFromRecords(req) {
@@ -244,6 +254,18 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				// [Merge] refuses when every pass noted it.
 				unserved = true
 			}
+		}
+		if !unserved && !selection.Selects(addr.ConfigResource()) && removedOnlyFromRecords(req) && googleLabelled(schemas, typeName) && !liveLabelVouches(res, addr) {
+			// GitHub issue #2139, item 1: the GCP form of the skip below. A
+			// labelled google type is judged by its live labels, as a
+			// taggable AWS type is by its live tag (the 2026-09-03 ruling):
+			// its record alone never destroys it. The Asset search has to
+			// have seen the object this run carrying this estate's label and
+			// this address's encoded label. An object live-mv moved to
+			// another estate carries that estate's label, the search for
+			// this one never sees it, and its stale record here destroys
+			// nothing.
+			continue
 		}
 		if !unserved && typeTaggable(schemas, typeName) && !selection.Selects(addr.ConfigResource()) {
 			// Taggable, meaning the ordinary tag sweep already covers it
@@ -605,13 +627,6 @@ func providerSchemaFor(schemas listclient.Schemas, typeName string) (providers.S
 		s.IdentitySchema = ts.Identity
 		s.IdentitySchemaVersion = ts.IdentityVersion
 	}
-	if s.IdentitySchema == nil {
-		// A type with no list route still serves its identity schema with
-		// its resource schema (GitHub issue #2134).
-		if id, version, ok := schemas.ResourceIdentity(typeName); ok {
-			s.IdentitySchema, s.IdentitySchemaVersion = id, version
-		}
-	}
 	return s, true
 }
 
@@ -833,4 +848,31 @@ func splitImportIDByComponents(entry identity.TypeIdentity, importID string) (ma
 func removedOnlyFromRecords(req Request) bool {
 	fam, ok := substrate.ForProvider(req.ScopeProvider.Provider.Type)
 	return ok && fam.Sweep() == substrate.SweepAssetSearch
+}
+
+// googleLabelled reports whether typeName carries the google family's
+// marker surface, asked of the family rather than of the AWS tags
+// predicate [typeTaggable] reads.
+func googleLabelled(schemas listclient.Schemas, typeName string) bool {
+	block, ok := schemas.ResourceSchema(typeName)
+	if !ok {
+		return false
+	}
+	_, labelled := substrate.SurfaceOf("google", block)
+	return labelled
+}
+
+// liveLabelVouches reports whether this run's GCP leg found a live object
+// carrying this estate's label and addr's encoded tofu-address label: the
+// withheld orphan [GCPAssetSweep] files for a hit naming no declared
+// address. That object is this estate's and this address's now, so its
+// record may propose its destroy.
+func liveLabelVouches(res *Result, addr addrs.AbsResourceInstance) bool {
+	want := markers.GoogleAddressValue(addr)
+	for _, o := range res.Orphans {
+		if !o.Removal && o.Withheld != "" && o.Marker == want {
+			return true
+		}
+	}
+	return false
 }

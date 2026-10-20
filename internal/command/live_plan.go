@@ -4717,24 +4717,29 @@ func (p *projectionProviders) assetSearchLeg(ctx context.Context, sub substrate.
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryGCPSweepIncomplete,
 			fmt.Sprintf("No Cloud Asset Inventory client could be built from provider configuration %s, so no labelled GCP resource owned by this estate is searched this run; a deleted block is still removed from its record: %s.", addr, err)))
 	}
-	if schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider); !schemaDiags.HasErrors() {
-		leg.Unlabelled = googleUnlabelledTypes(schema)
+	if p.mgr != nil {
+		if schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider); !schemaDiags.HasErrors() {
+			leg.Labelled, leg.Unlabelled = googleLabelSplit(schema)
+		}
 	}
 	return leg, diags
 }
 
-// googleUnlabelledTypes is every resource type of a hashicorp/google schema
-// that carries no google-labels surface (GitHub issue #2119, D3): the
-// types the GCP leg files as TYPE_NOT_TAGGABLE when the configuration
-// declares them.
-func googleUnlabelledTypes(schema providers.ProviderSchema) map[string]bool {
-	out := map[string]bool{}
+// googleLabelSplit sorts every resource type of a hashicorp/google schema
+// by whether it carries the google-labels surface: the labelled types the
+// GCP leg finds by label, and the unlabelled ones it files as
+// TYPE_NOT_TAGGABLE when the configuration declares them (GitHub issue
+// #2119, D3; #2139, item 8).
+func googleLabelSplit(schema providers.ProviderSchema) (labelled, unlabelled map[string]bool) {
+	labelled, unlabelled = map[string]bool{}, map[string]bool{}
 	for name, rs := range schema.ResourceTypes {
-		if _, labelled := markers.GoogleLabelSurface(rs.Block); !labelled {
-			out[name] = true
+		if _, ok := markers.GoogleLabelSurface(rs.Block); ok {
+			labelled[name] = true
+		} else {
+			unlabelled[name] = true
 		}
 	}
-	return out
+	return labelled, unlabelled
 }
 
 // liveSweepLegs is one provider configuration's sweep legs and its

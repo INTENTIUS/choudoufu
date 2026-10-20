@@ -71,7 +71,11 @@ type GCPAssetSweep struct {
 	// Unlabelled names the provider's types with no labels map, read off
 	// its schema by the caller that builds the leg: each one the
 	// configuration declares is a TYPE_NOT_TAGGABLE gap ([unlabelledNotSwept]).
+	// Labelled is the rest, the types this leg finds by label
+	// ([GCPAssetSweep.ScansDeclared]). Both are empty when the schema could
+	// not be read.
 	Unlabelled map[string]bool
+	Labelled   map[string]bool
 }
 
 // Leg is [substrate.SweepAssetSearch].
@@ -84,7 +88,11 @@ func (GCPAssetSweep) Leg() substrate.Sweep { return substrate.SweepAssetSearch }
 // config-driven scan could use, so without this every such instance was
 // refused as unlistable and never bound by the label it carries.
 func (g GCPAssetSweep) ScansDeclared(typeName string) bool {
-	return g.Searcher != nil && strings.HasPrefix(typeName, "google_") && !g.Unlabelled[typeName]
+	// Fail closed (GitHub issue #2139, item 8): only a type the provider's
+	// schema says is labelled. With no schema read, Labelled is empty and
+	// every type stays with the config-driven scan, which refuses what it
+	// cannot list rather than waiting on a search that never claims it.
+	return g.Searcher != nil && g.Labelled[typeName]
 }
 
 // Sweep runs the leg.

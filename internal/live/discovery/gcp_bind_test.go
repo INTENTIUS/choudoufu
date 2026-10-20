@@ -56,7 +56,7 @@ func TestGCPLegBindsByLabelAndSlot(t *testing.T) {
 		Config:      cfg,
 		Resolutions: resolutions,
 		Provider:    newFakeCloud(),
-		Sweepers:    []Sweeper{GCPAssetSweep{Searcher: searcher, Project: "proj-a"}},
+		Sweepers:    []Sweeper{GCPAssetSweep{Searcher: searcher, Project: "proj-a", Labelled: map[string]bool{"google_recaptcha_enterprise_key": true}}},
 	})
 	assertNoErrors(t, diags)
 
@@ -108,7 +108,7 @@ func TestGCPLegRefusesWhatItCouldNotSearch(t *testing.T) {
 		Config:      cfg,
 		Resolutions: resolveOrFail(t, cfg).All(),
 		Provider:    newFakeCloud(),
-		Sweepers: []Sweeper{GCPAssetSweep{Project: "proj-a", Searcher: fakeAssetSearcher{
+		Sweepers: []Sweeper{GCPAssetSweep{Project: "proj-a", Labelled: map[string]bool{"google_recaptcha_enterprise_key": true}, Searcher: fakeAssetSearcher{
 			errs: map[string]error{"proj-a": &gcpsweep.PermissionDeniedError{Project: "proj-a"}}}}},
 	})
 	if !diags.HasErrors() {
@@ -123,5 +123,21 @@ func TestGCPLegRefusesWhatItCouldNotSearch(t *testing.T) {
 	}
 	if !refused {
 		t.Errorf("no %s problem for google_recaptcha_enterprise_key:\n%s", ProblemTypeNotListable, res)
+	}
+}
+
+// TestScansDeclaredFailsClosed (GitHub issue #2139, item 8): with no schema
+// read the leg claims no type, so the config-driven scan refuses what it
+// cannot list instead of leaving it to a search that never binds it.
+func TestScansDeclaredFailsClosed(t *testing.T) {
+	searcher := fakeAssetSearcher{}
+	if (GCPAssetSweep{Searcher: searcher}).ScansDeclared("google_recaptcha_enterprise_key") {
+		t.Error("with no schema read, the leg claimed a google type")
+	}
+	if !(GCPAssetSweep{Searcher: searcher, Labelled: map[string]bool{"google_recaptcha_enterprise_key": true}}).ScansDeclared("google_recaptcha_enterprise_key") {
+		t.Error("the leg did not claim a type its schema says is labelled")
+	}
+	if (GCPAssetSweep{Labelled: map[string]bool{"google_recaptcha_enterprise_key": true}}).ScansDeclared("google_recaptcha_enterprise_key") {
+		t.Error("a leg with no searcher claimed a type it cannot search")
 	}
 }

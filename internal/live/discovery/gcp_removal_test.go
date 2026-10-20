@@ -88,19 +88,65 @@ func TestRecordLegRemovesDeletedGoogleBlocks(t *testing.T) {
 		}
 	}
 
-	res := &Result{Estate: estate}
-	req := Request{Estate: estate, HintStore: raw, ScopeProvider: googleProv, VouchProvider: googleProv, Sweep: true}
-	if d := recordOrphanReadSweep(ctx, req, schemas, res); d.HasErrors() {
-		t.Fatalf("record leg: %s", d.Err())
-	}
-	got := map[string]bool{}
-	for _, r := range res.Resolutions {
-		if r.Undeclared {
-			got[r.Addr.String()] = true
+	removals := func(vouched bool) map[string]bool {
+		res := &Result{Estate: estate}
+		if vouched {
+			// The Asset search saw the bucket this run, wearing this
+			// estate's label and its deleted address's encoded label.
+			res.Orphans = append(res.Orphans, OwnedResource{TypeName: "storage.googleapis.com/Bucket", Marker: markers.GoogleAddressValue(bucket), Withheld: "reported"})
 		}
+		req := Request{Estate: estate, HintStore: raw, ScopeProvider: googleProv, VouchProvider: googleProv, Sweep: true}
+		if d := recordOrphanReadSweep(ctx, req, schemas, res); d.HasErrors() {
+			t.Fatalf("record leg: %s", d.Err())
+		}
+		got := map[string]bool{}
+		for _, r := range res.Resolutions {
+			if r.Undeclared {
+				got[r.Addr.String()] = true
+			}
+		}
+		return got
 	}
-	if !got[subnet.String()] || !got[bucket.String()] || len(got) != 2 {
-		t.Fatalf("the record leg proposed %v, want the removals of %s and %s", res.Resolutions, subnet, bucket)
+	if got := removals(true); !got[subnet.String()] || !got[bucket.String()] || len(got) != 2 {
+		t.Fatalf("with the bucket's live labels vouching, the record leg proposed %v, want the removals of %s and %s", got, subnet, bucket)
+	}
+	// GitHub issue #2139, item 1: live-mv -from-estate moved the bucket to
+	// another estate, so its labels name that estate and this estate's
+	// search never sees it; the record left behind here must destroy
+	// nothing. The unlabelled subnetwork has no live label to ask, and its
+	// record still removes it.
+	if got := removals(false); got[bucket.String()] || !got[subnet.String()] {
+		t.Fatalf("with no live label vouching, the record leg proposed %v; a labelled bucket must never be destroyed from its record alone", got)
+	}
+}
+
+// TestProviderSchemaForFillsNoIdentityOnAWS (GitHub issue #2139, item 4):
+// the record leg's schema read takes an identity schema only from a list
+// route, as it always has, so no AWS type is newly admitted; the GCP pass
+// fills in a list-less type's own identity schema at its own call site.
+func TestProviderSchemaForFillsNoIdentityOnAWS(t *testing.T) {
+	ctx := context.Background()
+	schemas, diags := listclient.ListSchemas(ctx, schemaOnlyProvider{types: map[string]providers.Schema{
+		"aws_datazone_thing": {
+			Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{"id": {Type: cty.String, Computed: true}}},
+			IdentitySchema: &configschema.Object{Nesting: configschema.NestingSingle, Attributes: map[string]*configschema.Attribute{
+				"id": {Type: cty.String, Required: true},
+			}},
+			IdentitySchemaVersion: 1,
+		},
+	}})
+	if diags.HasErrors() {
+		t.Fatal(diags.Err())
+	}
+	s, ok := providerSchemaFor(schemas, "aws_datazone_thing")
+	if !ok || s.IdentitySchema != nil {
+		t.Fatalf("providerSchemaFor gave identity %v for a type with no list route; that admits AWS types the record leg never admitted", s.IdentitySchema)
+	}
+	if removedOnlyFromRecords(Request{ScopeProvider: addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("aws")}}) {
+		t.Fatal("the AWS pass reads as one whose deleted blocks only records remove")
+	}
+	if !removedOnlyFromRecords(Request{ScopeProvider: addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("google")}}) {
+		t.Fatal("the GCP pass does not read as one whose deleted blocks only records remove")
 	}
 }
 
