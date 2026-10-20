@@ -92,7 +92,7 @@ record-backed and its record holds the value whole.
 | Who | Why they can read it |
 |---|---|
 | The estate's own role | It has to. [The published policy](https://intentius.io/choudoufu/docs/use/bucket/) scopes it to the estate's prefixes and denies it objects tagged as another estate's |
-| Anyone with `s3:GetObject` on `tofu-records/<estate>/*`, or `get` on Secrets in the records namespace | A broad read grant on the bucket, the account or the cluster, a read-only audit role, a leaked read-only credential |
+| Anyone with `s3:GetObject` on `tofu-records/<estate>/*`, `get` on Secrets in the records namespace, or blob read on the Azure records container | A broad read grant on the bucket, the account or the cluster, a read-only audit role, a leaked read-only credential |
 | Anyone who can assume either | Including CI, for the pipeline's role |
 | Whoever recovers a deleted record | Recovery reads the record |
 
@@ -112,6 +112,18 @@ namespace. A ClusterRole granting secrets cluster-wide, which a monitoring
 agent or an operator's own bundle may already carry, reaches every estate's
 records in every namespace. That is why each estate's records get a namespace
 of their own and the Role that reaches it names that namespace alone.
+
+On Azure the same row is blob read on the records container, which
+Storage Blob Data Reader and every broader data role grant. The
+[ABAC condition](azure/record-store-abac.condition) narrows an Azure AD
+principal's read to blobs whose index tag names its own estate. It binds
+nothing else: an account key, a SAS token, or anyone holding
+`Microsoft.Storage/storageAccounts/listKeys/action` on the account reads
+every estate's records. The fence holds only with `use_azuread_auth =
+true` and shared-key access off on the account
+([`examples/record-store-azurerm/CONTRACT.md`](../examples/record-store-azurerm/CONTRACT.md),
+"The read fence"). Previous blob versions are readable the same way until
+the lifecycle rule deletes them.
 
 Noncurrent versions are readable the same way, to a caller with
 `s3:GetObjectVersion`, for as long as the lifecycle rule keeps them. A secret

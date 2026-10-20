@@ -46,6 +46,7 @@ estate = "my-estate"
 | `local` | Nothing. Gitignore `.tofu-records/`, because records hold secrets |
 | `s3` | The bucket, with versioning, a lifecycle rule that expires noncurrent versions, and public-access block |
 | `kubernetes` | The namespace, and a role bound to Secrets in it |
+| `azurerm` | The storage account and container, with versioning, a lifecycle rule that deletes previous versions, and public access off |
 
 Create the bucket or namespace outside the estate that uses it. The plan opens
 the store first, so a store the estate declares fails with `NoSuchBucket`.
