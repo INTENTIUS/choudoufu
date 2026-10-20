@@ -1,36 +1,36 @@
 ---
 title: Operate
-description: Rename, remove, scale, review a plan before applying it, and run the estate from CI.
+description: Rename, remove, scale, review and apply from CI.
 prompt: |
-  Follow https://intentius.io/choudoufu/aws/operate/ for the change I describe. Make the configuration edit, run `choudoufu plan -out=plan.bin`, and report every create, destroy and update it shows.
+  Follow https://intentius.io/choudoufu/aws/operate/ for my change. Edit the configuration, run `choudoufu plan -out=plan.bin` and report the plan.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 <PlatformSwitch />
 
-Day two is stock OpenTofu with tag writes in place of state moves. [Day-2 operations](/choudoufu/docs/use/day2/) indexes every task.
+Day two is stock OpenTofu with tag writes in place of state moves ([Day-2 operations](/choudoufu/docs/use/day2/)).
 
 ## Rename
 
-A `moved` block works as in stock, and so does `choudoufu live-mv <old> <new>`, which rewrites the `tofu-address` tag. The plan shows no destroy and no create. [Rename a resource](/choudoufu/docs/use/rename-a-resource/).
+A `moved` block or `choudoufu live-mv <old> <new>` rewrites the `tofu-address` tag ([Rename a resource](/choudoufu/docs/use/rename-a-resource/)).
 
 ## Remove
 
-Delete the block and the object is destroyed, children first. To let go of something without destroying it, use the [ownership policy](https://github.com/INTENTIUS/choudoufu/blob/main/live/OWNERSHIP-POLICY.md); its `threshold` refuses a run that deletes more than you allowed. [Remove a resource](/choudoufu/docs/use/remove-a-resource/).
+Deleting the block destroys the object. The [ownership policy](https://github.com/INTENTIUS/choudoufu/blob/main/live/OWNERSHIP-POLICY.md) releases it instead. Its `threshold` caps deletes per run ([Remove a resource](/choudoufu/docs/use/remove-a-resource/)).
 
 ## Scale
 
-Scaling a `count` down and up touches only the instances stock would. A pool of lookalike members carries a third tag, `tofu-slot`, so survivors keep their identity.
+Pool members carry a `tofu-slot` tag, so scaling touches the instances stock would.
 
 ## Plan, review, apply
 
-`apply FILE` reads a saved plan as an approval. It replans against the live system and applies only on a match. If they differ it changes nothing, prints `The approved plan no longer matches the live system`, and exits 3 for a pipeline to route back to review.
+`apply FILE` applies a saved plan only if it still matches the live system. Otherwise it exits 3 with `The approved plan no longer matches the live system`.
 
 ## From CI
 
-Five jobs: `live-check` and `live-plan` on a pull request, `live-apply` and `live-adopt` behind approvals, and `live-discover` on a cron. [CI how-to](/choudoufu/docs/use/cicd/).
+Pull requests run `live-check` and `live-plan`. Approvals gate `live-apply` and `live-adopt`. A cron runs `live-discover` ([CI how-to](/choudoufu/docs/use/cicd/)).
 
 ## Two runs at once
 
-There is no lock. Each create carries its tags, so the second run sees the first one's object on its next plan. [CONCURRENCY.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/CONCURRENCY.md).
+Each create carries its tags, so the next plan sees the other run's objects ([CONCURRENCY.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/CONCURRENCY.md)).

@@ -1,8 +1,8 @@
 ---
 title: Compatibility
-description: What live-check refuses in a real configuration, and why.
+description: What live-check refuses in a configuration.
 prompt: |
-  Follow https://intentius.io/choudoufu/aws/compatibility/ and run `choudoufu live-check` in this configuration's directory. Report each refusal. Do not edit the configuration.
+  Follow https://intentius.io/choudoufu/aws/compatibility/. Run `choudoufu live-check` here and report each refusal.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 import PlatformSwitch from '../../../components/PlatformSwitch.astro';
@@ -13,24 +13,24 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 choudoufu live-check
 ```
 
-It needs no credentials and makes no cloud calls. Each refusal names the block, the rule and the fix. Most refusals come from one rule: a marker must be known before the resource exists, so whatever names it must come from your configuration alone.
+It runs offline and names the fix for each refusal. A marker exists before its resource, so the name must come from configuration alone.
 
 ## The backend
 
-A `backend` or `cloud` block is refused. The markers are the record of ownership, so a backend would be a second one. Workspaces other than `default` and `force-unlock` are refused too.
+A `backend` or `cloud` block is refused because the markers record ownership. Non-default workspaces and `force-unlock` are refused too.
 
 ## Expansions and identity arguments
 
-`count` and `for_each` over variables, locals, data sources or a sibling's attribute work. Refused: expansion over a module output, a `for_each` keyed by a parent's live id, and a name from `uuid()`, `timestamp()`, a `sensitive` variable or a generated prefix.
+`count` and `for_each` work over configuration and data sources. Names from `uuid()` or a module output are refused. [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md) lists each refusal with its fix.
 
 ## Resource types
 
-Every type the AWS provider ships is admitted. Three types that mint credentials are excluded. [READINESS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/READINESS.md) lists every type by tier.
+Every AWS type is admitted except three that mint credentials. [READINESS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/READINESS.md) has the tiers.
 
 ## Running it
 
-`plan -out` then `apply <planfile>` works, and so does `-target`. Without a `live` block you get stock behaviour.
+`plan -out`, `apply <planfile>` and `-target` work.
 
 ## Other providers
 
-A resource from another provider is admitted when its identity resolves from configuration, and refused as `unadmitted-type` when it does not, as with `github_*` and `fastly_*`. [Kubernetes](/choudoufu/kubernetes/compatibility/) has its own marker. [COMPATIBILITY.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/COMPATIBILITY.md) has every construct, and [LIMITATIONS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md) every refusal with its fix.
+Another provider's type is admitted when configuration resolves its identity. Otherwise it is refused as `unadmitted-type` ([COMPATIBILITY.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/COMPATIBILITY.md)).
