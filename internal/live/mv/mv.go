@@ -475,6 +475,11 @@ type mover struct {
 	provider     providers.Interface
 	providerAddr addrs.AbsProviderConfig
 	schema       providers.Schema
+
+	// armInBody says [mover.rewrite] writes the marker into an azapi
+	// body's tags rather than the top-level argument (GitHub issue #1120
+	// unit 19), which [mover.planAndApply] and [mover.checkPlan] honour.
+	armInBody bool
 }
 
 // written records that the marker write returned successfully and tells
@@ -1210,6 +1215,17 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 
 	if relabels(m.res.Surface) {
 		return m.locateLabelled(obj, resolution)
+	}
+
+	if m.res.Surface == markers.SurfaceARMTags {
+		// GitHub issue #1120 unit 19: an azapi_resource's schema has tags
+		// for every ARM type, and whether this one can carry a marker is
+		// its ARM type and API version's answer, the one the stamp asked
+		// before it wrote anything (projection.ARMTagPlacement).
+		val, _ := obj.Value.UnmarkDeep()
+		if _, placed, why := projection.ARMTagPlacement(m.res.Anchor, m.schema.Block, val); !placed {
+			return nil, diags.Append(armUntaggableDiag(m.res.TypeName, why))
+		}
 	}
 
 	tags, taggable := m.markerTags(obj.Value)
