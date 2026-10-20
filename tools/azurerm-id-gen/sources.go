@@ -55,10 +55,68 @@ type identitySource struct {
 	ParentIDType   string `json:"parent_id_type,omitempty"`
 	ParentTemplate string `json:"parent_template,omitempty"`
 	ParentSegment  string `json:"parent_segment,omitempty"`
+	// ParentSegments is ParentTemplate segment by segment, each with its
+	// kind as the parser declares it ([parentPart]), and ParentParse is how
+	// azurerm parses the argument: "strict" through its generated
+	// ParseXxxID (every ValidateXxxID, and commonschema's
+	// ResourceIDReference helpers, which parse with insensitively false),
+	// "insensitive" where the argument's validator names a
+	// ParseXxxIDInsensitively (validation.AsGeneratedID(commonids.ParseKubernetesClusterIDInsensitively)
+	// on azurerm_kubernetes_cluster_node_pool's kubernetes_cluster_id at
+	// 5.10.0). The record rung parses the argument's value as
+	// go-azure-helpers' resourceids.Parser.Parse does with that flag
+	// (substrate.ARMIDSegment), GitHub issue #2140.
+	ParentSegments []parentPart `json:"parent_segments,omitempty"`
+	ParentParse    string       `json:"parent_parse,omitempty"`
 	// Provider: the provider configuration's value ([cloudSubscription]).
 	Provider string `json:"provider,omitempty"`
 	// Constant: a fixed value, the same for every object of the type.
 	Constant string `json:"constant,omitempty"`
+}
+
+// parentPart is one path segment of a parent id as resourceids parses it:
+// Kind "fixed" (a StaticSegment or ResourceProviderSegment, whose text is
+// Value), "constant" (a ConstantSegment, which must be one of Values) or
+// "value" (a subscription, resource group or user-specified segment, any
+// non-empty text, named Name).
+type parentPart struct {
+	Kind   string   `json:"kind"`
+	Name   string   `json:"name,omitempty"`
+	Value  string   `json:"value,omitempty"`
+	Values []string `json:"values,omitempty"`
+}
+
+const (
+	partFixed    = "fixed"
+	partConstant = "constant"
+	partValue    = "value"
+
+	parseStrict      = "strict"
+	parseInsensitive = "insensitive"
+)
+
+// parentParts is segs as [parentPart]s, or why they cannot be: a scope, a
+// resource id or a data-plane segment spans several path segments, which a
+// positional parse cannot place, and a constant whose possible values were
+// not read cannot be checked.
+func parentParts(segs []segment) ([]parentPart, string) {
+	out := make([]parentPart, 0, len(segs))
+	for _, s := range segs {
+		switch s.Kind {
+		case segStatic, segProvider:
+			out = append(out, parentPart{Kind: partFixed, Value: s.Value})
+		case segConstant:
+			if len(s.Values) == 0 {
+				return nil, fmt.Sprintf("its constant segment {%s} states no possible values this generator reads", s.Name)
+			}
+			out = append(out, parentPart{Kind: partConstant, Name: s.Name, Values: s.Values})
+		case segSubscription, segResourceGroup, segUser:
+			out = append(out, parentPart{Kind: partValue, Name: s.Name})
+		default:
+			return nil, fmt.Sprintf("its %s segment {%s} can span several path segments", s.Kind, s.Name)
+		}
+	}
+	return out, ""
 }
 
 // ruleIdentityTest names a component a template took from
@@ -245,17 +303,26 @@ func (l *loader) identitySources(ts typeSchema, r registration, segs []segment, 
 			if !ts.Attrs[check.Within].configurable() {
 				return nil, fmt.Sprintf("azurerm's identity test (%s) finds %s inside %s, which no argument of a configuration supplies", c.Source, attr, check.Within)
 			}
-			parent, problem := l.argIDType(r, check.Within)
+			parent, parse, problem := l.argIDType(r, check.Within)
 			if problem != "" {
 				return nil, fmt.Sprintf("azurerm's identity test (%s) finds %s inside %s, and %s", c.Source, attr, check.Within, problem)
 			}
 			if !samePathThrough(segs, parent.Segments, i) {
 				return nil, fmt.Sprintf("azurerm's identity test (%s) finds %s inside %s, parsed as %s.%s (%s), and that id does not reach segment {%s} by the path %s's own id does", c.Source, attr, check.Within, parent.Package, parent.TypeName, template(parent.Segments), seg.Name, template(segs))
 			}
+			if parent.Kind != "resourceids" {
+				return nil, fmt.Sprintf("azurerm's identity test (%s) finds %s inside %s, parsed as %s.%s, a %s whose parse this generator does not model", c.Source, attr, check.Within, parent.Package, parent.TypeName, parent.Kind)
+			}
+			parts, problem := parentParts(parent.Segments)
+			if problem != "" {
+				return nil, fmt.Sprintf("azurerm's identity test (%s) finds %s inside %s, parsed as %s.%s, and %s", c.Source, attr, check.Within, parent.Package, parent.TypeName, problem)
+			}
 			src.Within = check.Within
 			src.ParentIDType = parent.Package + "." + parent.TypeName
 			src.ParentTemplate = template(parent.Segments)
 			src.ParentSegment = parent.Segments[i].Name
+			src.ParentSegments = parts
+			src.ParentParse = parse
 		default:
 			return nil, fmt.Sprintf("azurerm's identity test (%s) checks %s with %s, which names no source", c.Source, attr, check.Other)
 		}
@@ -317,7 +384,13 @@ func oneValueSegment(s segment) bool {
 // Only the resource's own files are read, its registration's and its
 // Read's: another resource in the package may declare the same argument
 // name for another id.
-func (l *loader) argIDType(r registration, arg string) (*idSource, string) {
+//
+// parse is [parseInsensitive] when the validator expression itself, or a
+// function of the checkout it calls, names a ParseXxxIDInsensitively, and
+// [parseStrict] otherwise: go-azure-sdk's ValidateXxxID calls ParseXxxID,
+// and commonschema's ResourceIDReference helpers call resourceids'
+// Parse(value, false) (resource_id_reference.go, tryParsingResourceID).
+func (l *loader) argIDType(r registration, arg string) (*idSource, string, string) {
 	files := []*ast.File{r.File}
 	pkgs := []*pkg{r.Pkg}
 	if r.ReadFile != nil && r.ReadFile != r.File {
@@ -325,7 +398,7 @@ func (l *loader) argIDType(r registration, arg string) (*idSource, string) {
 		pkgs = append(pkgs, r.ReadPkg)
 	}
 	var found []typeKey
-	declared := false
+	declared, insensitive := false, false
 	for k, f := range files {
 		p := pkgs[k]
 		if f == nil || p == nil {
@@ -358,12 +431,19 @@ func (l *loader) argIDType(r registration, arg string) (*idSource, string) {
 				return true
 			}
 			declared = true
+			if l.namesInsensitiveParse(p, f, expr, 0) {
+				insensitive = true
+			}
 			l.collect(p, f, expr, 0, map[*ast.FuncDecl]bool{}, &found)
 			return false
 		})
 	}
 	if !declared {
-		return nil, fmt.Sprintf("the resource declares no validator for %s, so which id azurerm parses it as is not stated", arg)
+		return nil, "", fmt.Sprintf("the resource declares no validator for %s, so which id azurerm parses it as is not stated", arg)
+	}
+	parse := parseStrict
+	if insensitive {
+		parse = parseInsensitive
 	}
 	var withSegs []*idSource
 	var names []string
@@ -377,11 +457,54 @@ func (l *loader) argIDType(r registration, arg string) (*idSource, string) {
 	}
 	switch len(withSegs) {
 	case 0:
-		return nil, fmt.Sprintf("%s's validator reaches no id type that states its segments", arg)
+		return nil, "", fmt.Sprintf("%s's validator reaches no id type that states its segments", arg)
 	case 1:
-		return withSegs[0], ""
+		return withSegs[0], parse, ""
 	}
-	return nil, fmt.Sprintf("%s's validator reaches several id types (%s), so which one azurerm parses it as is a choice", arg, strings.Join(names, ", "))
+	return nil, "", fmt.Sprintf("%s's validator reaches several id types (%s), so which one azurerm parses it as is a choice", arg, strings.Join(names, ", "))
+}
+
+// namesInsensitiveParse reports whether n names a function whose name ends
+// in "Insensitively" (go-azure-sdk's ParseXxxIDInsensitively), looking
+// through the bodies of functions of the checkout n calls, two deep.
+func (l *loader) namesInsensitiveParse(p *pkg, f *ast.File, n ast.Node, depth int) bool {
+	found := false
+	ast.Inspect(n, func(x ast.Node) bool {
+		if found {
+			return false
+		}
+		var name string
+		switch e := x.(type) {
+		case *ast.SelectorExpr:
+			name = e.Sel.Name
+		case *ast.Ident:
+			name = e.Name
+		default:
+			return true
+		}
+		if strings.HasSuffix(name, "Insensitively") {
+			found = true
+			return false
+		}
+		if depth >= 2 {
+			return true
+		}
+		var expr ast.Expr
+		switch e := x.(type) {
+		case *ast.SelectorExpr:
+			expr = e
+		case *ast.Ident:
+			expr = e
+		}
+		if fp, ff, fd := l.funcRef(p, f, expr); fd != nil && fd.Body != nil && fp != nil && !strings.Contains(fp.path, "/vendor/") && strings.HasPrefix(fp.path, l.module) {
+			if l.namesInsensitiveParse(fp, ff, fd.Body, depth+1) {
+				found = true
+				return false
+			}
+		}
+		return true
+	})
+	return found
 }
 
 // sourcedComponents is the template the identity sources make of an id

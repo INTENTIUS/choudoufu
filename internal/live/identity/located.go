@@ -801,7 +801,7 @@ func LocatedDerivedIdentity(plan LocatedIdentityPlan, obj cty.Value) (map[string
 			if !ok {
 				return nil, false
 			}
-			seg, ok := substrate.ARMIDSegment(src.ParentTemplate, s, src.ParentSegment)
+			seg, ok := substrate.ARMIDSegment(src.ParentSegments, src.ParentInsensitive, s, src.ParentSegment)
 			if !ok {
 				return nil, false
 			}

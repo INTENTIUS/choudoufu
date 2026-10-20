@@ -19,10 +19,15 @@ import (
 // readAzurermIdentityTests reads every resource identity test azurerm
 // generates (internal/services/**/*resource_identity_gen_test.go), by
 // resource type, for the identity extract (GitHub issue #2138). It is a
-// second reading of the files tools/azurerm-id-gen's contract.go reads,
-// written apart from it on purpose: the extract is what the generator's
-// output is pinned against, and a pin that shared the generator's reader
-// would agree with it by construction.
+// second reader of the files tools/azurerm-id-gen's contract.go reads, and
+// the pin it feeds is a self-consistency check of one generator run
+// against azurerm's generated identity tests, not independent evidence
+// (#2140): the identity tests are the generator's input as well as the
+// pin's, so the pin catches the generator misreading them or the two
+// readers drifting apart, and says nothing the tests themselves do not.
+// In particular it says nothing about how azurerm parses an id argument at
+// run time; substrate.ARMIDSegment's own tests and the parse the generator
+// records from the argument's validator (parent_parse) carry that.
 func readAzurermIdentityTests(t *testing.T, src string) map[string]map[string]azurermIdentityTestCheck {
 	t.Helper()
 	if src == "" {

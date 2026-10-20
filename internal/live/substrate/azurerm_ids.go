@@ -273,8 +273,11 @@ func azurermSegmentProblem(t azurermIDType) string {
 // attributes inside; the provider's subscription, an attribute the test
 // expects to be the provider's. And every attribute the test checks has
 // to be read by some segment. A type azurerm publishes no such test for is
-// withheld too, because then nothing outside this table says the template
-// is exact. This is the condition the template fallback was approved on:
+// withheld too, because then nothing in the provider's source beyond its
+// id parser says the template is exact. The contract and the template come
+// from one tools/azurerm-id-gen run over the same checkout, so this guard
+// is that run's consistency with azurerm's identity tests, not an
+// independent check of it (#2140). This is the condition the template fallback was approved on:
 // a storage_account_name read out of storage_account_id is admitted
 // because azurerm_storage_container's test states it is in there, not
 // because the names look alike.
