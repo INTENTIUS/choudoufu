@@ -1343,7 +1343,13 @@ names each with its source:
   2.13.0, among them Cosmos DB and storage accounts at 15 and API
   Management at 10). An azapi resource's ARM type is its `type` argument;
   an azurerm type's is read off its id template in `live/azurerm-ids.json`
-  (`azurerm_armtypes_generated.txt`);
+  (`azurerm_armtypes_generated.txt`). Seven of those types document their
+  count at some API versions only (API Management's 10 is in its
+  2016-07-07 description and in none since), so an azapi resource is
+  measured at the API version its `type` names, and a version that
+  documents no count gets ARM's default. An azurerm resource names no API
+  version in configuration, so it gets the lowest count any version
+  documents;
 - ARM's default of 50 tags, 512-character keys and 256-character values
   (go-azure-helpers' `tags.Validate`, and Azure's documented limits)
   otherwise.

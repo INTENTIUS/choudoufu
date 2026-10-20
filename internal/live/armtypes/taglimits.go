@@ -64,8 +64,13 @@ type TypeTagLimit struct {
 	// first, in sorted order, giving the lowest).
 	APIVersion string
 	// Varies is true when the type's taggable versions do not all
-	// document the same MaxTags: some say less, or nothing.
+	// document the same MaxTags: some say more, or nothing.
 	Varies bool
+	// ByVersion is, for a type that varies, every taggable API version
+	// whose figure is not MaxTags, keyed lowercased: the count it documents,
+	// or 0 when its `tags` description gives none. A taggable version not
+	// listed documents MaxTags (GitHub issue #2133, finding 8).
+	ByVersion map[string]int
 }
 
 // TagLimits is the per-type limits table.
@@ -114,10 +119,10 @@ func describedLimits(desc string) (maxTags, keyLen, valueLen int) {
 // ARM's defaults get a row.
 func GenerateTagLimits(repoDir, version, commit string) (*TagLimits, error) {
 	type seen struct {
-		lim       TypeTagLimit
-		versions  int
-		atMin     int
-		anyRecord bool
+		lim TypeTagLimit
+		// counts is every taggable version's documented count, 0 for
+		// none.
+		counts map[string]int
 	}
 	byType := map[string]*seen{}
 	err := walkBodies(repoDir, func(typ, ver string, _ bool, props map[string]bicepProp) error {
@@ -128,17 +133,16 @@ func GenerateTagLimits(repoDir, version, commit string) (*TagLimits, error) {
 		lower := strings.ToLower(typ)
 		s := byType[lower]
 		if s == nil {
-			s = &seen{}
+			s = &seen{counts: map[string]int{}}
 			byType[lower] = s
 		}
-		s.versions++
 		n, k, v := describedLimits(p.Description)
+		s.counts[strings.ToLower(ver)] = n
 		if n > 0 && n < DefaultTagLimit {
 			switch {
 			case s.lim.MaxTags == 0 || n < s.lim.MaxTags:
-				s.lim.MaxTags, s.lim.APIVersion, s.atMin = n, ver, 1
+				s.lim.MaxTags, s.lim.APIVersion = n, ver
 			case n == s.lim.MaxTags:
-				s.atMin++
 				if ver < s.lim.APIVersion {
 					s.lim.APIVersion = ver
 				}
@@ -160,7 +164,17 @@ func GenerateTagLimits(repoDir, version, commit string) (*TagLimits, error) {
 		if s.lim.MaxTags == 0 && s.lim.MaxKeyLen == 0 && s.lim.MaxValueLen == 0 {
 			continue
 		}
-		s.lim.Varies = s.lim.MaxTags > 0 && s.atMin != s.versions
+		if s.lim.MaxTags > 0 {
+			for ver, n := range s.counts {
+				if n != s.lim.MaxTags {
+					if s.lim.ByVersion == nil {
+						s.lim.ByVersion = map[string]int{}
+					}
+					s.lim.ByVersion[ver] = n
+				}
+			}
+		}
+		s.lim.Varies = len(s.lim.ByVersion) > 0
 		t.rows[typ] = s.lim
 	}
 	return t, nil
@@ -210,15 +224,16 @@ const (
 )
 
 // Render writes the table in its committed format: one line per type,
-// "<type> max=<n> key=<n> value=<n> from=<api version>[ varies]", with 0
-// for an undocumented field and from=- when MaxTags is 0.
+// "<type> max=<n> key=<n> value=<n> from=<api version>[ varies=<api
+// version>:<n>,...]", with 0 for an undocumented field and from=- when
+// MaxTags is 0. varies lists ByVersion, sorted by version.
 func (t *TagLimits) Render() []byte {
 	var b bytes.Buffer
 	c := t.Counts()
 	b.WriteString(limitsGenerated + "\n")
 	fmt.Fprintf(&b, "%sazure/terraform-provider-azapi %s %s internal/azure/generated (tags property descriptions)\n", headerSource, t.AzapiVersion, t.AzapiCommit)
 	fmt.Fprintf(&b, "%stypes=%d fewer-than-default=%d varies-by-version=%d\n", limitsCounts, c.Types, c.Fewer, c.Varies)
-	fmt.Fprintf(&b, "# format: <arm type, lowercased> max=<tags> key=<key length> value=<value length> from=<api version giving max>[ varies]; 0 = undocumented, the ARM default (%d, %d, %d) applies\n",
+	fmt.Fprintf(&b, "# format: <arm type, lowercased> max=<tags> key=<key length> value=<value length> from=<api version giving max>[ varies=<api version>:<tags>,... for each taggable version documenting other than max]; 0 = undocumented, the ARM default (%d, %d, %d) applies\n",
 		DefaultTagLimit, MaxKeyLength, MaxValueLength)
 	for _, typ := range t.Types() {
 		r := t.rows[typ]
@@ -228,7 +243,18 @@ func (t *TagLimits) Render() []byte {
 		}
 		fmt.Fprintf(&b, "%s max=%d key=%d value=%d from=%s", typ, r.MaxTags, r.MaxKeyLen, r.MaxValueLen, from)
 		if r.Varies {
-			b.WriteString(" varies")
+			vers := make([]string, 0, len(r.ByVersion))
+			for v := range r.ByVersion {
+				vers = append(vers, v)
+			}
+			sort.Strings(vers)
+			for i, v := range vers {
+				sep := ","
+				if i == 0 {
+					sep = " varies="
+				}
+				fmt.Fprintf(&b, "%s%s:%d", sep, v, r.ByVersion[v])
+			}
 		}
 		b.WriteByte('\n')
 	}
@@ -260,7 +286,7 @@ func ParseTagLimits(data []byte) (*TagLimits, error) {
 			continue
 		}
 		f := strings.Fields(s)
-		if len(f) < 5 || len(f) > 6 || (len(f) == 6 && f[5] != "varies") {
+		if len(f) < 5 || len(f) > 6 || (len(f) == 6 && !strings.HasPrefix(f[5], "varies=")) {
 			return nil, fmt.Errorf("line %d: malformed row %q", line, s)
 		}
 		typ := f[0]
@@ -287,7 +313,25 @@ func ParseTagLimits(data []byte) (*TagLimits, error) {
 		if from != "-" {
 			r.APIVersion = from
 		}
-		r.Varies = len(f) == 6
+		if len(f) == 6 {
+			if r.MaxTags == 0 {
+				return nil, fmt.Errorf("line %d: varies on a type documenting no count", line)
+			}
+			r.ByVersion = map[string]int{}
+			prevVer := ""
+			for _, entry := range strings.Split(strings.TrimPrefix(f[5], "varies="), ",") {
+				ver, count, ok := strings.Cut(entry, ":")
+				n, err := strconv.Atoi(count)
+				// A listed version documents another figure than max:
+				// none (0) or more, never less, since max is the lowest.
+				if !ok || err != nil || ver == "" || ver != strings.ToLower(ver) || ver <= prevVer || (n != 0 && n <= r.MaxTags) {
+					return nil, fmt.Errorf("line %d: bad varies entry %q", line, entry)
+				}
+				prevVer = ver
+				r.ByVersion[ver] = n
+			}
+			r.Varies = true
+		}
 		if r.MaxTags >= DefaultTagLimit || r.MaxKeyLen >= MaxKeyLength || r.MaxValueLen >= MaxValueLength ||
 			(r.MaxTags == 0 && r.MaxKeyLen == 0 && r.MaxValueLen == 0) {
 			return nil, fmt.Errorf("line %d: %q is no tighter than ARM's defaults", line, s)
@@ -326,17 +370,43 @@ func DefaultTagLimits() *TagLimits {
 	return limitsDefault
 }
 
-// TagLimit returns how many tags an ARM type takes and where the figure
-// comes from: the lowest count the type's `tags` description documents in
-// azapi's data, at any API version, or ARM's default of 50. The type
-// compares case-insensitively. azurerm's own validation, which is per
-// Terraform type, is AzurermTagRules; a stamp checks both.
-func TagLimit(armType string) (max int, source string) {
+// TagLimit returns how many tags an ARM type takes at one API version and
+// where the figure comes from: the count the type's `tags` description in
+// azapi's data documents at that version, or ARM's default of 50 when the
+// type documents none at any version. The type and version compare
+// case-insensitively. azurerm's own validation, which is per Terraform
+// type, is AzurermTagRules; a stamp checks both.
+//
+// Seven types document a count at some versions and none at others
+// (GitHub issue #2133, finding 8; at azapi 2.13.0 no version of any type
+// documents a second, different count). A version whose description gives
+// no count gets ARM's default, as a type that never documents one does:
+// API Management's 10 is in its 2016-07-07 description and in none of the
+// 24 since. An empty apiVersion (azurerm, whose configuration names none)
+// and a version azapi's data does not know get the lowest count any
+// version documents, and the source says so.
+func TagLimit(armType, apiVersion string) (max int, source string) {
 	t := DefaultTagLimits()
-	if r, ok := t.Limit(armType); ok && r.MaxTags > 0 {
-		return r.MaxTags, fmt.Sprintf("azapi %s: the tags description of %s@%s", t.AzapiVersion, armType, r.APIVersion)
+	r, ok := t.Limit(armType)
+	if !ok || r.MaxTags == 0 {
+		return DefaultTagLimit, "ARM default (go-azure-helpers tags.Validate; Azure's documented limit)"
 	}
-	return DefaultTagLimit, "ARM default (go-azure-helpers tags.Validate; Azure's documented limit)"
+	lowest := fmt.Sprintf("azapi %s: the tags description of %s@%s", t.AzapiVersion, armType, r.APIVersion)
+	if !r.Varies {
+		return r.MaxTags, lowest
+	}
+	switch n, listed := r.ByVersion[strings.ToLower(apiVersion)]; {
+	case apiVersion == "":
+		return r.MaxTags, lowest + ", the lowest any API version documents; no API version was given"
+	case listed && n > 0:
+		return n, fmt.Sprintf("azapi %s: the tags description of %s@%s", t.AzapiVersion, armType, apiVersion)
+	case listed:
+		return DefaultTagLimit, fmt.Sprintf("ARM default: azapi %s's tags description of %s@%s documents no count (%s@%s documents %d)", t.AzapiVersion, armType, apiVersion, armType, r.APIVersion, r.MaxTags)
+	}
+	if _, known := Taggable(armType, apiVersion); !known {
+		return r.MaxTags, fmt.Sprintf("%s, the lowest any API version documents; azapi %s's data does not know %s@%s", lowest, t.AzapiVersion, armType, apiVersion)
+	}
+	return r.MaxTags, fmt.Sprintf("azapi %s: the tags description of %s@%s", t.AzapiVersion, armType, apiVersion)
 }
 
 // CheckTag applies azurerm's validation of one tag to a Terraform type

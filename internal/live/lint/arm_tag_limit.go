@@ -44,7 +44,13 @@ import (
 //   - the ARM type's documented maximum ([armtypes.TagLimit], from the
 //     tags description in azapi's type data), with the ARM type of an
 //     azurerm type read off its id template ([armtypes.AzurermARMType]) and
-//     an azapi resource's from its type argument;
+//     an azapi resource's from its type argument. Seven types document a
+//     count at some API versions only, so an azapi block is measured at the
+//     version its type argument names (GitHub issue #2133, finding 8). An
+//     azurerm block is measured at the lowest count any version documents:
+//     its configuration names no API version, and the one azurerm sends is
+//     fixed inside the provider per type, not something this rule can read;
+//     the lowest is the figure no version of the type contradicts;
 //   - ARM's default of 50 otherwise.
 //
 // It also checks every marker tag the stamp would write against
@@ -96,6 +102,9 @@ type armTagBudget struct {
 	// keyed by, for [armtypes.CheckTag]; azapi has none.
 	rulesType string
 	armType   string
+	// apiVersion is the azapi block's own, from its type argument; empty
+	// for azurerm.
+	apiVersion string
 }
 
 func (b *armTagBudget) apply(max int, source string) {
@@ -137,7 +146,7 @@ func armTagLimitIssue(ctx context.Context, mod *configs.Module, modInst addrs.Mo
 		if taggable, known := armtypes.Taggable(armType, apiVersion); !taggable || !known {
 			return Issue{}, false
 		}
-		budget.armType = armType
+		budget.armType, budget.apiVersion = armType, apiVersion
 		if !hasTags {
 			// azapi sends body.tags when the body carries them, and the
 			// stamp writes there; the top-level argument is the other path.
@@ -145,7 +154,7 @@ func armTagLimitIssue(ctx context.Context, mod *configs.Module, modInst addrs.Mo
 		}
 	}
 	if budget.armType != "" {
-		max, source := armtypes.TagLimit(budget.armType)
+		max, source := armtypes.TagLimit(budget.armType, budget.apiVersion)
 		budget.apply(max, budget.armType+": "+source)
 	} else {
 		budget.apply(armtypes.DefaultTagLimit, "ARM default (go-azure-helpers tags.Validate; Azure's documented limit)")
