@@ -109,7 +109,7 @@
       "harness": {
         "name": "floci-az",
         "pin_file": "live/floci-az-image",
-        "pin": "ghcr.io/lex00/floci-az@sha256:d1efbcc9b669e1a82c8933d29749379b2ce6745fe54b6aad84e981f09982e09d",
+        "pin": "ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8",
         "notes": "the lex00/floci-az fork, pinned by digest; no lane runs on it yet, and live/FLOCI.md lists the surfaces it lacks."
       }
     },
