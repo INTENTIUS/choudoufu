@@ -11,16 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zclconf/go-cty/cty"
-
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
-	"github.com/intentius/choudoufu/internal/providers"
-	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // GitHub issue #1119: the GCP leg over a fake Cloud Asset Inventory.
@@ -110,53 +104,17 @@ func TestGCPSweepProjects(t *testing.T) {
 	}
 }
 
-// googleSchemaLister serves a provider schema and lists nothing: just
-// enough for listclient.ListSchemas to answer ResourceSchema.
-type googleSchemaLister struct {
-	types map[string]*configschema.Block
-}
-
-func (l googleSchemaLister) GetProviderSchema(context.Context) providers.GetProviderSchemaResponse {
-	resp := providers.GetProviderSchemaResponse{ResourceTypes: map[string]providers.Schema{}}
-	for name, b := range l.types {
-		resp.ResourceTypes[name] = providers.Schema{Block: b}
-	}
-	return resp
-}
-
-func (googleSchemaLister) ListResourceStream(context.Context, providers.ListResourceRequest, func(providers.ListResourceEvent) bool) tfdiags.Diagnostics {
-	return nil
-}
-
 // TestUnlabelledGoogleTypesAreSweepGaps (GitHub issue #2119, D3): a declared
-// google type with no labels map files a TYPE_NOT_TAGGABLE gap, the way an
-// untaggable AWS type does; a labelled one and a type the run holds no
-// schema for file none.
+// google type the leg was told is unlabelled files one TYPE_NOT_TAGGABLE
+// gap, however many instances declare it; a labelled one files none.
 func TestUnlabelledGoogleTypesAreSweepGaps(t *testing.T) {
-	m := cty.Map(cty.String)
-	labelled := &configschema.Block{Attributes: map[string]*configschema.Attribute{
-		"name":             {Type: cty.String, Required: true},
-		"labels":           {Type: m, Optional: true},
-		"effective_labels": {Type: m, Computed: true},
-	}}
-	unlabelled := &configschema.Block{Attributes: map[string]*configschema.Attribute{
-		"name": {Type: cty.String, Required: true},
-	}}
-	schemas, diags := listclient.ListSchemas(t.Context(), googleSchemaLister{types: map[string]*configschema.Block{
-		"google_storage_bucket":     labelled,
-		"google_compute_subnetwork": unlabelled,
-	}})
-	if diags.HasErrors() {
-		t.Fatal(diags.Err())
-	}
 	res := &Result{}
 	req := Request{Estate: "prod", Resolutions: []identity.Resolution{
 		{Addr: mustGoogleAddr(t, "google_storage_bucket.logs"), Class: identity.ClassConcrete},
 		{Addr: mustGoogleAddr(t, "google_compute_subnetwork.edge"), Class: identity.ClassConcrete},
 		{Addr: mustGoogleAddr(t, "google_compute_subnetwork.core"), Class: identity.ClassConcrete},
-		{Addr: mustGoogleAddr(t, "google_pubsub_topic.events"), Class: identity.ClassConcrete},
 	}}
-	unlabelledNotSwept(req, schemas, res)
+	unlabelledNotSwept(req, map[string]bool{"google_compute_subnetwork": true, "google_compute_network": true}, res)
 	if len(res.SweepGaps) != 1 || res.SweepGaps[0].TypeName != "google_compute_subnetwork" || res.SweepGaps[0].Reason != SweepGapNotTaggable {
 		t.Fatalf("SweepGaps = %+v; want one TYPE_NOT_TAGGABLE gap, for google_compute_subnetwork", res.SweepGaps)
 	}

@@ -1368,7 +1368,7 @@ func (c *LiveLsCommand) liveLsGCP(ctx context.Context, estate string, config *co
 				fmt.Sprintf("Provider configuration %s could not be configured, so no GCP resource owned by estate %q is listed through it: %s.", addr, estate, err)))
 			continue
 		}
-		leg, legDiags := provs.assetSearchLeg(sub, addr)
+		leg, legDiags := provs.assetSearchLeg(ctx, sub, addr)
 		diags = diags.Append(legDiags)
 		gcpLeg, isGCP := leg.(discovery.GCPAssetSweep)
 		if !isGCP || gcpLeg.Searcher == nil {

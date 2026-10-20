@@ -4677,7 +4677,7 @@ var sweepLegBuilders = map[substrate.Sweep]sweepLegBuilder{
 	// built from the provider block's own credential arguments, searching
 	// each project the estate's google resources resolve to.
 	substrate.SweepAssetSearch: func(ctx context.Context, p *projectionProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
-		leg, diags := p.assetSearchLeg(sub, addr)
+		leg, diags := p.assetSearchLeg(ctx, sub, addr)
 		return leg, false, diags
 	},
 }
@@ -4686,7 +4686,7 @@ var sweepLegBuilders = map[substrate.Sweep]sweepLegBuilder{
 // [substrate.Substrate.NewSweeper]. A client that cannot be built is the
 // leg's named warning and no leg, never a nil client that reads as an
 // empty search.
-func (p *projectionProviders) assetSearchLeg(sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, tfdiags.Diagnostics) {
+func (p *projectionProviders) assetSearchLeg(ctx context.Context, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	p.mu.Lock()
 	val, ok := p.configVals[providerCacheKey(addr)]
@@ -4706,7 +4706,25 @@ func (p *projectionProviders) assetSearchLeg(sub substrate.Substrate, addr addrs
 		return nil, diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryGCPSweepIncomplete,
 			fmt.Sprintf("No Cloud Asset Inventory client could be built from provider configuration %s, so no GCP resource owned by this estate is searched this run and a resource whose block was deleted is not reported: %s.", addr, err)))
 	}
-	return discovery.GCPAssetSweep{Searcher: client.Client, Project: client.Project}, diags
+	leg := discovery.GCPAssetSweep{Searcher: client.Client, Project: client.Project}
+	if schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider); !schemaDiags.HasErrors() {
+		leg.Unlabelled = googleUnlabelledTypes(schema)
+	}
+	return leg, diags
+}
+
+// googleUnlabelledTypes is every resource type of a hashicorp/google schema
+// that carries no google-labels surface (GitHub issue #2119, D3): the
+// types the GCP leg files as TYPE_NOT_TAGGABLE when the configuration
+// declares them.
+func googleUnlabelledTypes(schema providers.ProviderSchema) map[string]bool {
+	out := map[string]bool{}
+	for name, rs := range schema.ResourceTypes {
+		if _, labelled := markers.GoogleLabelSurface(rs.Block); !labelled {
+			out[name] = true
+		}
+	}
+	return out
 }
 
 // liveSweepLegs is one provider configuration's sweep legs and its
