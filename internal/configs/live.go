@@ -619,11 +619,13 @@ type LiveRecordStoreKubernetes struct {
 
 // LiveRecordStoreGCS is the "gcs" record store's connection and encryption
 // arguments. Every name here is the stock gcs backend's own
-// (internal/backend/remote-state/gcs), and so is the client built from them:
-// internal/live/projection hands them to that package's NewStorageClient, so
-// the precedence between an access token, credentials, the GOOGLE_*
-// environment variables, Application Default Credentials and impersonation is
-// stock's and kept in one place.
+// (internal/backend/remote-state/gcs), and internal/live/projection builds
+// the client from them in stock's order: an access token, then credentials,
+// then the GOOGLE_* environment variables, then Application Default
+// Credentials, with impersonation over whichever applies. Stock's package is
+// not changed for this and cannot be imported from projection (it reaches
+// internal/backend/local, which imports projection), so projection keeps its
+// own copy of that order and a test there holds it to stock's schema.
 //
 // Empty means unset, and an unset argument takes the environment variable
 // stock's schema reads for it.
@@ -911,7 +913,9 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 		{Name: "cluster_ca_certificate"},
 
 		// The "gcs" backend's arguments, spelled the way stock's gcs backend
-		// spells them. See [RecordStoreGCSSettings].
+		// spells them. See [RecordStoreGCSSettings]. "prefix" is stock's
+		// too, and is in the schema only to be refused by name: see
+		// decodeRecordStoreGCS.
 		{Name: "prefix"},
 		{Name: "credentials"},
 		{Name: "access_token"},
@@ -986,18 +990,19 @@ var RecordStoreKubernetesSettings = []string{
 
 // RecordStoreGCSSettings is every argument that belongs to the "gcs" backend
 // alone, each the stock gcs backend's argument of the same name. "bucket" is
-// not here because "s3" takes it too.
+// not here because "s3" takes it too, and "prefix" is not here because no
+// record store takes it: every store says "key_prefix".
 var RecordStoreGCSSettings = []string{
-	"prefix", "credentials", "access_token", "impersonate_service_account",
+	"credentials", "access_token", "impersonate_service_account",
 	"impersonate_service_account_delegates", "encryption_key",
 	"kms_encryption_key", "storage_custom_endpoint", "universe_domain",
 }
 
 // RecordStoreGCSInsecureSettings is every name the "gcs" backend's
-// "allow_insecure" argument accepts: the three settings the GCS bucket
-// contract asserts. Pinned to [internal/live/staterecord.GCSSettings] by the
-// same test as the other two lists.
-var RecordStoreGCSInsecureSettings = []string{"object_versioning", "noncurrent_lifecycle", "public_access_prevention"}
+// "allow_insecure" argument accepts: the five things the GCS bucket contract
+// asserts. Pinned to [internal/live/staterecord.GCSSettings] by the same test
+// as the other two lists.
+var RecordStoreGCSInsecureSettings = []string{"object_versioning", "noncurrent_lifecycle", "public_access_prevention", "uniform_bucket_level_access", "list_isolation"}
 
 // RecordStoreInsecureSettings is every name the "s3" backend's
 // "allow_insecure" argument accepts: the three settings the bucket contract
@@ -1765,7 +1770,7 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 	}
 
 	diags = append(diags, decodeRecordStoreKubernetes(rs, content)...)
-	diags = append(diags, decodeRecordStoreGCS(rs, content, estate)...)
+	diags = append(diags, decodeRecordStoreGCS(rs, content)...)
 
 	return rs, diags
 }
@@ -1983,13 +1988,21 @@ func decodeRecordStoreKubernetes(rs *LiveRecordStore, content *hcl.BodyContent) 
 // decodeRecordStoreGCS decodes the "gcs" backend's own arguments, and refuses
 // each of them on a backend that has no use for one.
 //
-// "prefix" is stock's name for where state goes in the bucket, and here it is
-// where records go: the same thing "key_prefix" says on the other stores,
-// with the same rules. Both are accepted on "gcs", so a block moved from
-// stock's backend and one moved from record_store "s3" both read, and naming
-// both is refused rather than one silently winning.
-func decodeRecordStoreGCS(rs *LiveRecordStore, content *hcl.BodyContent, estate string) hcl.Diagnostics {
+// "prefix" is refused on every store, by name. It is stock gcs's argument for
+// where state goes in the bucket, and an operator moving a backend block over
+// will write it; every record store calls that "key_prefix", and a second
+// name for one thing on one store is a second set of rules to keep in step.
+func decodeRecordStoreGCS(rs *LiveRecordStore, content *hcl.BodyContent) hcl.Diagnostics {
 	var diags hcl.Diagnostics
+
+	if attr, exists := content.Attributes["prefix"]; exists {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Unsupported record_store argument \"prefix\"",
+			Detail:   fmt.Sprintf("record_store %q does not take \"prefix\". Stock's gcs backend uses that name for where state goes in the bucket; every record store calls it \"key_prefix\", with the same rules. Rename the argument to \"key_prefix\".", rs.Type),
+			Subject:  attr.NameRange.Ptr(),
+		})
+	}
 
 	if rs.Type != "gcs" {
 		for _, name := range RecordStoreGCSSettings {
@@ -1997,14 +2010,10 @@ func decodeRecordStoreGCS(rs *LiveRecordStore, content *hcl.BodyContent, estate 
 			if !exists {
 				continue
 			}
-			detail := fmt.Sprintf("The %q argument is one of stock's gcs backend arguments and has no meaning for record_store %q. Remove it, or declare record_store \"gcs\".", name, rs.Type)
-			if name == "prefix" && rs.Type != "local" {
-				detail = fmt.Sprintf("The \"prefix\" argument is record_store \"gcs\"'s spelling, after stock's gcs backend. record_store %q spells it \"key_prefix\".", rs.Type)
-			}
 			diags = append(diags, &hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
-				Detail:   detail,
+				Detail:   fmt.Sprintf("The %q argument is one of stock's gcs backend arguments and has no meaning for record_store %q. Remove it, or declare record_store \"gcs\".", name, rs.Type),
 				Subject:  attr.Expr.Range().Ptr(),
 			})
 		}
@@ -2015,37 +2024,9 @@ func decodeRecordStoreGCS(rs *LiveRecordStore, content *hcl.BodyContent, estate 
 		diags = append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Invalid argument for the gcs record store",
-			Detail:   "The \"path\" argument names a local directory and has no meaning for record_store \"gcs\", whose records are objects in a bucket. Use \"prefix\" to say where in the bucket they go.",
+			Detail:   "The \"path\" argument names a local directory and has no meaning for record_store \"gcs\", whose records are objects in a bucket. Use \"key_prefix\" to say where in the bucket they go.",
 			Subject:  attr.Expr.Range().Ptr(),
 		})
-	}
-
-	if attr, exists := content.Attributes["prefix"]; exists {
-		if rs.KeyPrefixSet || content.Attributes["key_prefix"] != nil {
-			diags = append(diags, &hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  "Conflicting record_store prefixes",
-				Detail:   "record_store \"gcs\" takes \"prefix\", stock's gcs backend name, and \"key_prefix\", the other record stores' name, for the same thing. Set one of them.",
-				Subject:  attr.Expr.Range().Ptr(),
-			})
-		} else {
-			val, valDiags := decodeLiteralString(attr, "prefix")
-			diags = append(diags, valDiags...)
-			if !valDiags.HasErrors() {
-				if detail := validateRecordStoreKeyPrefix(val, estate); detail != "" {
-					diags = append(diags, &hcl.Diagnostic{
-						Severity: hcl.DiagError,
-						Summary:  "Invalid record_store prefix",
-						Detail:   strings.ReplaceAll(detail, `"key_prefix"`, `"prefix"`),
-						Subject:  attr.Expr.Range().Ptr(),
-					})
-				} else {
-					rs.KeyPrefix = val
-					rs.KeyPrefixSet = true
-					rs.KeyPrefixRange = attr.Range
-				}
-			}
-		}
 	}
 
 	for _, f := range []struct {

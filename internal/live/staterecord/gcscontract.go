@@ -7,25 +7,50 @@ package staterecord
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"path"
 	"slices"
+	"sort"
 	"strings"
 
 	"cloud.google.com/go/storage"
+	"google.golang.org/api/iterator"
 )
 
-// The GCS bucket contract: bucketcontract.go's three settings, in GCS's
-// terms. GitHub issue #1119. The reasons are the bucket's and are not
-// repeated here:
+// The GCS bucket contract: bucketcontract.go's three settings in GCS's
+// terms, and two more. GitHub issue #1119. The first three's reasons are the
+// bucket's and are not repeated here:
 //
 //   - Object Versioning, without which an overwrite or a delete is final;
 //   - a lifecycle rule that deletes NONCURRENT versions, and no rule that
 //     deletes live objects under the store's keys;
 //   - public access prevention enforced, because the objects hold secret
-//     material.
+//     material;
+//   - uniform bucket-level access, without which object ACLs grant access
+//     beside IAM and the per-estate grant's IAM conditions cannot be set
+//     on the bucket at all;
+//   - list isolation: whether this identity can list another estate's keys.
 //
-// All three come from one read, storage.buckets.get, so one permission
-// covers the whole contract and a denial makes all three unreadable at once.
+// The first four come from one read, storage.buckets.get, so one permission
+// covers them and a denial makes all four unreadable at once.
+//
+// # list_isolation is the cluster's read_isolation, not the bucket's prefix
+//
+// On S3 a listing is fenced by the s3:prefix condition, which is what the
+// published policy rests one-bucket-many-estates on (claim 28). GCS checks
+// storage.objects.list against the bucket and not against an object name, so
+// no IAM condition can narrow a listing to one estate's prefix: anything that
+// may list the store's own keys lists every key in the bucket. That is the
+// Kubernetes store's position (RBAC cannot condition on a label), and the
+// answer is the same: one bucket per estate by default, and a check that says
+// so by name when the bucket holds another estate's keys.
+//
+// It is a warning, never a refusal, as read_isolation's floor is: the keys
+// are type names and encoded addresses, and the records' contents stay
+// behind the per-estate grant. Other estates are found by their sentinels,
+// which every estate that has run writes and tags with its name, wherever
+// its key_prefix put its records.
 //
 // The names are not the S3 ones. allow_insecure's names are unique across
 // stores (contract.go), and a GCS lifecycle rule is not an S3 one: it has no
@@ -37,16 +62,26 @@ import (
 // and soft delete, which is a second recovery window GCS keeps on its own
 // and which this store does not depend on.
 const (
-	GCSObjectVersioning       Setting = "object_versioning"
-	GCSNoncurrentLifecycle    Setting = "noncurrent_lifecycle"
-	GCSPublicAccessPrevention Setting = "public_access_prevention"
+	GCSObjectVersioning         Setting = "object_versioning"
+	GCSNoncurrentLifecycle      Setting = "noncurrent_lifecycle"
+	GCSPublicAccessPrevention   Setting = "public_access_prevention"
+	GCSUniformBucketLevelAccess Setting = "uniform_bucket_level_access"
+	GCSListIsolation            Setting = "list_isolation"
 )
 
 // GCSSettings is every asserted setting, in the order findings are reported.
-var GCSSettings = []Setting{GCSObjectVersioning, GCSNoncurrentLifecycle, GCSPublicAccessPrevention}
+var GCSSettings = []Setting{GCSObjectVersioning, GCSNoncurrentLifecycle, GCSPublicAccessPrevention, GCSUniformBucketLevelAccess, GCSListIsolation}
 
-// gcsBucketReadPermission is the one permission the contract needs.
-const gcsBucketReadPermission = "storage.buckets.get"
+// gcsBucketReadPermission is the permission the first four settings need,
+// and gcsListPermission the one list_isolation needs.
+const (
+	gcsBucketReadPermission = "storage.buckets.get"
+	gcsListPermission       = "storage.objects.list"
+)
+
+// SentinelName is the last segment of every store's provisioning sentinel
+// key (internal/live/projection's SentinelKey).
+const SentinelName = ".store-sentinel"
 
 // CheckContract implements [ContractChecker]. opts.Namespaces are
 // store-relative; [GCSConfig.KeyPrefix] is joined ahead of each.
@@ -75,33 +110,109 @@ func (s *GCSStore) ContractCheckFailed(err error) (summary, detail string) {
 // the S3 bucket's reason.
 func (s *GCSStore) ContractRefusalClosing([]Setting) string { return "" }
 
-// CheckGCSBucketContract reads bucket's attributes once and reports one
-// finding per setting, always all three, in [GCSSettings] order.
+// CheckGCSBucketContract reads bucket's attributes once, and lists its
+// sentinels once, and reports one finding per setting, always all five, in
+// [GCSSettings] order.
 //
-// namespaces are the object-name prefixes the caller writes under, for the
-// lifecycle assertion, exactly as [CheckBucketContract] takes them. With none
-// given, only a rule with no prefix condition counts.
+// namespaces are the object-name prefixes the caller writes under, records
+// first, exactly as [CheckBucketContract] takes them. The lifecycle assertion
+// checks coverage of each; list_isolation counts a sentinel under the first
+// as this estate's own. With none given, only a lifecycle rule with no prefix
+// condition counts, and list_isolation warns when the bucket holds the keys
+// of more than one estate.
 //
 // The error return is for a failure that says nothing about the settings: a
 // cancelled context, an unreachable endpoint, a bucket that does not exist.
-// A denied read is three [Unreadable] findings.
+// A denied read is a finding.
 func CheckGCSBucketContract(ctx context.Context, client *storage.Client, bucket string, namespaces []string) ([]Finding, error) {
+	var findings []Finding
 	attrs, err := client.Bucket(bucket).Attrs(ctx)
-	if err != nil {
-		if IsAccessDenied(err) {
-			findings := make([]Finding, 0, len(GCSSettings))
-			for _, setting := range GCSSettings {
-				findings = append(findings, Finding{Setting: setting, Outcome: Unreadable, Found: gcsBucketReadPermission + " was denied"})
-			}
-			return findings, nil
+	switch {
+	case err == nil:
+		findings = []Finding{
+			checkGCSVersioning(attrs),
+			checkGCSLifecycle(attrs.Lifecycle.Rules, namespaces),
+			checkGCSPublicAccessPrevention(attrs),
+			checkGCSUniformBucketLevelAccess(attrs),
 		}
+	case IsAccessDenied(err):
+		for _, setting := range GCSSettings[:4] {
+			findings = append(findings, Finding{Setting: setting, Outcome: Unreadable, Found: gcsBucketReadPermission + " was denied"})
+		}
+	default:
 		return nil, fmt.Errorf("staterecord: gcs: reading bucket %q's settings: %w", bucket, err)
 	}
-	return []Finding{
-		checkGCSVersioning(attrs),
-		checkGCSLifecycle(attrs.Lifecycle.Rules, namespaces),
-		checkGCSPublicAccessPrevention(attrs),
-	}, nil
+	li, err := checkGCSListIsolation(ctx, client, bucket, namespaces)
+	if err != nil {
+		return nil, err
+	}
+	return append(findings, li), nil
+}
+
+func checkGCSUniformBucketLevelAccess(attrs *storage.BucketAttrs) Finding {
+	f := Finding{Setting: GCSUniformBucketLevelAccess}
+	if attrs.UniformBucketLevelAccess.Enabled {
+		f.Outcome = Passed
+		f.Found = "uniform bucket-level access is enabled"
+		return f
+	}
+	f.Found = "uniform bucket-level access is off, so object ACLs grant access beside IAM"
+	return f
+}
+
+// checkGCSListIsolation lists every sentinel in the bucket and names the
+// estates whose sentinel is not under this estate's records namespace.
+func checkGCSListIsolation(ctx context.Context, client *storage.Client, bucket string, namespaces []string) (Finding, error) {
+	f := Finding{Setting: GCSListIsolation}
+	q := &storage.Query{MatchGlob: "**/" + SentinelName}
+	if err := q.SetAttrSelection([]string{"Name", "Metadata"}); err != nil {
+		return f, err
+	}
+	own := ""
+	if len(namespaces) > 0 {
+		own = NamespacePrefix(namespaces[0])
+	}
+	estates := map[string]bool{}
+	it := client.Bucket(bucket).Objects(ctx, q)
+	for {
+		attrs, err := it.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			if IsAccessDenied(err) {
+				f.Outcome = NotChecked
+				f.Found = gcsListPermission + " was denied, so whether this identity can list another estate's keys is not known"
+				return f, nil
+			}
+			return f, fmt.Errorf("staterecord: gcs: listing bucket %q's sentinels: %w", bucket, err)
+		}
+		if path.Base(attrs.Name) != SentinelName || (own != "" && strings.HasPrefix(attrs.Name, own)) {
+			continue
+		}
+		name := attrs.Metadata["tofu-estate"]
+		if name == "" {
+			name = "the one whose sentinel is " + attrs.Name
+		}
+		estates[name] = true
+	}
+	names := make([]string, 0, len(estates))
+	for n := range estates {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	switch {
+	case own != "" && len(names) > 0:
+		f.Outcome = Warned
+		f.Found = fmt.Sprintf("this identity can list the keys of %d other estate(s) in the bucket: %s", len(names), strings.Join(names, ", "))
+	case own == "" && len(names) > 1:
+		f.Outcome = Warned
+		f.Found = fmt.Sprintf("the bucket holds the keys of %d estates (%s), and anything that may list one estate's keys lists all of them", len(names), strings.Join(names, ", "))
+	default:
+		f.Outcome = Passed
+		f.Found = "the bucket holds no other estate's keys"
+	}
+	return f, nil
 }
 
 func checkGCSVersioning(attrs *storage.BucketAttrs) Finding {
@@ -322,6 +433,18 @@ func GCSBucketContractRefusal(bucket string, f Finding) (summary, detail string)
 	case GCSPublicAccessPrevention:
 		why = "Records hold secret material, protected only by encryption at rest and by IAM. A grant to allUsers or allAuthenticatedUsers would publish them."
 		fix = fmt.Sprintf("Enforce it: gcloud storage buckets update gs://%s --public-access-prevention", bucket)
+	case GCSUniformBucketLevelAccess:
+		why = "Without it, an object ACL grants access that the bucket's IAM policy does not show, and the per-estate grant (examples/record-store-gcs/iam/render-grant.sh) cannot be applied, because GCS allows IAM conditions only on a bucket with uniform bucket-level access."
+		fix = fmt.Sprintf("Enable it: gcloud storage buckets update gs://%s --uniform-bucket-level-access", bucket)
+	case GCSListIsolation:
+		if f.Outcome == NotChecked {
+			summary = "The record store bucket's list_isolation was not checked"
+			detail = fmt.Sprintf("Bucket %q: %s. The run proceeds. Someone who may list the bucket can answer it with choudoufu live-bucket.", bucket, f.Found)
+			return summary, detail
+		}
+		summary = "The record store bucket lists other estates' keys"
+		detail = fmt.Sprintf("Bucket %q: %s.\n\nGCS checks storage.objects.list against the bucket and not against an object name, so no IAM condition can narrow a listing to one estate's prefixes. The records' contents stay behind each estate's grant; their keys, which are type names and encoded addresses, do not.\n\nGive each estate a bucket of its own, which is the default this store documents, or name list_isolation in allow_insecure to accept the shared listing. The run proceeds.", bucket, f.Found)
+		return summary, detail
 	}
 	if f.Outcome == Unreadable {
 		summary = fmt.Sprintf("The record store bucket's %s setting could not be read", f.Setting)
@@ -343,6 +466,10 @@ func GCSWaiverCost(setting Setting) string {
 		return "nothing is known to delete noncurrent versions: the bucket may keep every version of every record forever, and nobody has chosen how long a record destroyed by mistake stays recoverable"
 	case GCSPublicAccessPrevention:
 		return "nothing is known to stop an IAM grant to allUsers or allAuthenticatedUsers from publishing the records, which hold secret material"
+	case GCSUniformBucketLevelAccess:
+		return "object ACLs may grant access the bucket's IAM policy does not show, and the per-estate grant's IAM conditions cannot be set on the bucket"
+	case GCSListIsolation:
+		return "this estate's identity may list every other estate's keys in the bucket, and nothing says so on the run"
 	}
 	return "that assertion is not made"
 }

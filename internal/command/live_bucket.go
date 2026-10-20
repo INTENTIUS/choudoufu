@@ -57,7 +57,8 @@ type liveBucketReport struct {
 
 type liveBucketSettingLine struct {
 	Setting string `json:"setting"`
-	// Verdict is "ok", "fail" or "unreadable".
+	// Verdict is "ok", "fail", "unreadable", and for a GCS bucket also
+	// "warn" or "not_checked".
 	Verdict string `json:"verdict"`
 	Found   string `json:"found"`
 }
@@ -164,10 +165,16 @@ func buildLiveBucketReport(bucket, estate string, findings []staterecord.Finding
 		switch {
 		case f.Outcome == staterecord.Unreadable:
 			verdict = "unreadable"
+		case f.Outcome == staterecord.NotChecked:
+			verdict = "not_checked"
+		case f.Outcome == staterecord.Warned:
+			// A GCS bucket's list_isolation: a concern a run proceeds past,
+			// counted and not failed, as live-cluster counts its warnings.
+			verdict = "warn"
 		case !f.OK():
 			verdict = "fail"
 		}
-		if !f.OK() {
+		if !f.OK() && f.Outcome != staterecord.Warned {
 			report.Correct = false
 			failing[f.Setting] = true
 		}
@@ -218,9 +225,10 @@ Usage: choudoufu [global options] live-bucket [options]
   reported UNREADABLE, which is not a pass.
 
   A live block with record_store "gcs" is checked for the GCS bucket's
-  three: object_versioning, noncurrent_lifecycle and
-  public_access_prevention, from one storage.buckets.get. -bucket, -region
-  and -bucket-owner name S3 buckets only.
+  five: object_versioning, noncurrent_lifecycle, public_access_prevention
+  and uniform_bucket_level_access from one storage.buckets.get, and
+  list_isolation from one listing, which warns rather than fails.
+  -bucket, -region and -bucket-owner name S3 buckets only.
 
 Options:
 

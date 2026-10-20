@@ -67,6 +67,12 @@ func IsAccessDenied(err error) bool {
 	if errors.As(err, &admission) {
 		return false
 	}
+	// The GCS store's Cloud KMS refusal, for the KMS reason above. It is
+	// checked by recognising the error and not only by type, because the
+	// sentinel write's error can reach here before the store wraps it.
+	if asGCSKMSError(err) != nil {
+		return false
+	}
 	if accessDenied(err) {
 		return true
 	}

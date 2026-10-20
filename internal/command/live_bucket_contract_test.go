@@ -162,3 +162,20 @@ func TestAGCSWaiverWarnsWithTheGCSCost(t *testing.T) {
 		t.Errorf("warning %q does not carry the GCS cost %q", desc.Detail, want)
 	}
 }
+
+// TestLiveBucketCountsAGCSListWarningWithoutFailing: list_isolation's warning
+// is printed and leaves the bucket correct, as live-cluster's warnings do;
+// a list_isolation nobody could check is not a pass.
+func TestLiveBucketCountsAGCSListWarningWithoutFailing(t *testing.T) {
+	ok := staterecord.Finding{Setting: staterecord.GCSObjectVersioning, Outcome: staterecord.Passed}
+	warn := staterecord.Finding{Setting: staterecord.GCSListIsolation, Outcome: staterecord.Warned, Found: "other estate prod-eu"}
+	r := buildLiveBucketReport("records", "prod", []staterecord.Finding{ok, warn}, nil)
+	if !r.Correct || r.Settings[1].Verdict != "warn" {
+		t.Errorf("report with a list warning: correct %v, verdict %q; want correct and \"warn\"", r.Correct, r.Settings[1].Verdict)
+	}
+	warn.Outcome = staterecord.NotChecked
+	r = buildLiveBucketReport("records", "prod", []staterecord.Finding{ok, warn}, nil)
+	if r.Correct || r.Settings[1].Verdict != "not_checked" {
+		t.Errorf("report with list_isolation not checked: correct %v, verdict %q", r.Correct, r.Settings[1].Verdict)
+	}
+}

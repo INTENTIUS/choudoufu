@@ -59,6 +59,15 @@ type fakeGCSServer struct {
 	// forbidden makes every request answer 403.
 	forbidden bool
 
+	// listForbidden makes objects.list alone answer 403.
+	listForbidden bool
+
+	// kmsStatus, when set, makes every object read and write answer this
+	// status with a message about the Cloud KMS key, the way GCS reports a
+	// key its service agent may not use or a key that is disabled.
+	kmsStatus  int
+	kmsMessage string
+
 	// vanish makes the next n reads of a name answer 404 although the
 	// object is there, which is what a listing followed by a delete looks
 	// like from the reader's side.
@@ -140,9 +149,17 @@ func (f *fakeGCSServer) handle(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(attrs)
 
 	case len(rest) == 2 && rest[1] == "o" && r.Method == http.MethodPost:
+		if f.kmsStatus != 0 {
+			gcsWriteError(w, f.kmsStatus, "forbidden", f.kmsMessage)
+			return
+		}
 		f.upload(w, r, q)
 
 	case len(rest) == 2 && rest[1] == "o" && r.Method == http.MethodGet:
+		if f.listForbidden {
+			gcsWriteError(w, http.StatusForbidden, "forbidden", "caller does not have storage.objects.list access")
+			return
+		}
 		f.list(w, q)
 
 	case len(rest) >= 3 && rest[1] == "o":
@@ -150,6 +167,10 @@ func (f *fakeGCSServer) handle(w http.ResponseWriter, r *http.Request) {
 		o, ok := f.objects[name]
 		switch r.Method {
 		case http.MethodGet:
+			if f.kmsStatus != 0 && ok {
+				gcsWriteError(w, f.kmsStatus, "forbidden", f.kmsMessage)
+				return
+			}
 			if n := f.vanish[name]; n > 0 {
 				f.vanish[name] = n - 1
 				ok = false
@@ -249,11 +270,17 @@ func (f *fakeGCSServer) upload(w http.ResponseWriter, r *http.Request, q url.Val
 
 func (f *fakeGCSServer) list(w http.ResponseWriter, q url.Values) {
 	prefix := q.Get("prefix")
+	// Only the one glob shape the contract sends: "**/<name>".
+	globTail, hasGlob := strings.CutPrefix(q.Get("matchGlob"), "**/")
 	var names []string
 	for name := range f.objects {
-		if strings.HasPrefix(name, prefix) {
-			names = append(names, name)
+		if !strings.HasPrefix(name, prefix) {
+			continue
 		}
+		if hasGlob && !strings.HasSuffix(name, "/"+globTail) {
+			continue
+		}
+		names = append(names, name)
 	}
 	sort.Strings(names)
 	start := 0
@@ -510,5 +537,46 @@ func TestGCSForbiddenIsAccessDenied(t *testing.T) {
 	_, err := store.PutIfAbsent(context.Background(), "k", []byte("v"))
 	if !IsAccessDenied(err) {
 		t.Errorf("IsAccessDenied(%v) = false, want true for a 403", err)
+	}
+}
+
+// TestGCSKMSRefusalIsNamedAndNeverReadOnly: a Cloud KMS refusal on a write or
+// a read is a *GCSKMSError naming the key, and IsAccessDenied is false for
+// it, so #1370's reader tolerance never treats a store nobody can decrypt as
+// a store this identity may only read.
+func TestGCSKMSRefusalIsNamedAndNeverReadOnly(t *testing.T) {
+	const key = "projects/acme/locations/us/keyRings/records/cryptoKeys/prod"
+	for _, tc := range []struct {
+		name     string
+		status   int
+		message  string
+		unusable bool
+	}{
+		{"service agent denied", http.StatusForbidden, "Permission 'cloudkms.cryptoKeyVersions.useToEncrypt' denied on resource '" + key + "' (or it may not exist).", false},
+		{"key disabled", http.StatusBadRequest, "The Cloud KMS key " + key + " is disabled.", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store, fake := newTestGCSStore(t, "")
+			ctx := context.Background()
+			if _, err := store.PutIfAbsent(ctx, "existing", []byte("v")); err != nil {
+				t.Fatal(err)
+			}
+			fake.kmsStatus, fake.kmsMessage = tc.status, tc.message
+
+			_, werr := store.PutIfAbsent(ctx, "k", []byte("v"))
+			_, _, _, rerr := store.Get(ctx, "existing")
+			for op, err := range map[string]error{"write": werr, "read": rerr} {
+				var kms *GCSKMSError
+				if !errors.As(err, &kms) {
+					t.Fatalf("%s err = %v, want a *GCSKMSError", op, err)
+				}
+				if kms.Key != key || kms.Unusable != tc.unusable {
+					t.Errorf("%s: key %q unusable %v; want %q and %v", op, kms.Key, kms.Unusable, key, tc.unusable)
+				}
+				if IsAccessDenied(err) {
+					t.Errorf("%s: IsAccessDenied is true for a KMS refusal", op)
+				}
+			}
+		})
 	}
 }

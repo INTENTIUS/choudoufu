@@ -38,7 +38,7 @@ func TestModule_liveRecordStoreGCS(t *testing.T) {
 	rs, diags := loadLiveSource(t, liveWithStore(`
     record_store "gcs" {
       bucket                                = "my-records"
-      prefix                                = "team/prod"
+      key_prefix                            = "team/prod"
       credentials                           = "/secrets/sa.json"
       impersonate_service_account           = "records@acme.iam.gserviceaccount.com"
       impersonate_service_account_delegates = ["a@acme.iam.gserviceaccount.com"]
@@ -53,7 +53,7 @@ func TestModule_liveRecordStoreGCS(t *testing.T) {
 		t.Fatalf("record store = %+v, want type gcs", rs)
 	}
 	if rs.Bucket != "my-records" || !rs.KeyPrefixSet || rs.KeyPrefix != "team/prod" {
-		t.Errorf("bucket %q, prefix %q (set %v); want my-records and team/prod from stock's \"prefix\"", rs.Bucket, rs.KeyPrefix, rs.KeyPrefixSet)
+		t.Errorf("bucket %q, prefix %q (set %v); want my-records and team/prod", rs.Bucket, rs.KeyPrefix, rs.KeyPrefixSet)
 	}
 	want := LiveRecordStoreGCS{
 		Credentials:                        "/secrets/sa.json",
@@ -78,15 +78,14 @@ func TestModule_liveRecordStoreGCSRefused(t *testing.T) {
 		body, want string
 	}{
 		"no bucket": {`record_store "gcs" {}`, `record_store "gcs" requires a "bucket" argument`},
-		"both prefixes": {`record_store "gcs" {
-      bucket     = "b"
-      prefix     = "a"
-      key_prefix = "a"
-    }`, `Set one of them`},
-		"prefix in another estate": {`record_store "gcs" {
+		"stock's prefix": {`record_store "gcs" {
       bucket = "b"
-      prefix = "tofu-records/other"
-    }`, `The "prefix" argument was set to "tofu-records/other"`},
+      prefix = "team/prod"
+    }`, `Rename the argument to "key_prefix"`},
+		"a key_prefix in another estate": {`record_store "gcs" {
+      bucket     = "b"
+      key_prefix = "tofu-records/other"
+    }`, `is the namespace estate "other" writes its own records to`},
 		"both encryption keys": {`record_store "gcs" {
       bucket             = "b"
       encryption_key     = "a2V5"
@@ -119,7 +118,7 @@ func TestModule_liveRecordStoreGCSRefused(t *testing.T) {
 		"prefix on s3": {`record_store "s3" {
       bucket = "b"
       prefix = "a"
-    }`, `record_store "s3" spells it "key_prefix"`},
+    }`, `Rename the argument to "key_prefix"`},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, diags := loadLiveSource(t, liveWithStore("    "+tc.body))

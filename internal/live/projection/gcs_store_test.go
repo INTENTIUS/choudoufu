@@ -8,10 +8,13 @@ package projection
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 )
 
 // TestGCSStoreConfigCarriesTheBlock: the bucket, the estate's tag and the
@@ -43,5 +46,15 @@ func TestGCSEncryptionFallsBackToStocksEnvironment(t *testing.T) {
 	}
 	if !bytes.Equal(key, raw) || kms != "" {
 		t.Errorf("key %x, kms %q; want the environment's key", key, kms)
+	}
+}
+
+// TestAGCSKMSRefusalIsAStoreRefusal: live-plan and live-mv go on past an
+// outage and never past a refusal (#1376), and a Cloud KMS key nobody can use
+// is a refusal, as S3's KMS errors are.
+func TestAGCSKMSRefusalIsAStoreRefusal(t *testing.T) {
+	err := fmt.Errorf("record_store: provisioning the sentinel: %w", &staterecord.GCSKMSError{Status: 403, Err: errors.New("cloudkms denied")})
+	if !IsStoreRefusal(err) {
+		t.Error("a Cloud KMS refusal reads as an outage")
 	}
 }

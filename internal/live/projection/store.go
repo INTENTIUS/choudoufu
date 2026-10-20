@@ -153,6 +153,7 @@ func isStoreFault(err error) bool {
 		foreign     *staterecord.ForeignEstateRecordError
 		duplicate   *staterecord.DuplicateRecordKeyError
 		admission   *staterecord.AdmissionDeniedError
+		gcsKMS      *staterecord.GCSKMSError
 	)
 	return errors.As(err, &kms) ||
 		errors.As(err, &unusable) ||
@@ -164,7 +165,8 @@ func isStoreFault(err error) bool {
 		errors.As(err, &unannotated) ||
 		errors.As(err, &foreign) ||
 		errors.As(err, &duplicate) ||
-		errors.As(err, &admission)
+		errors.As(err, &admission) ||
+		errors.As(err, &gcsKMS)
 }
 
 // openBuiltStore is everything [NewRecordStore] does to a store once it is
@@ -207,7 +209,10 @@ func openBuiltStore(ctx context.Context, store staterecord.Store, rs *configs.Li
 // not valid unpadded base64 of an address), which is the documented
 // contract for keys this package did not write, so every List consumer
 // skips it the way it skips any foreign key.
-const sentinelKeyName = ".store-sentinel"
+//
+// It is staterecord's constant because the GCS bucket contract looks for
+// other estates' sentinels by this name (staterecord.CheckGCSBucketContract).
+const sentinelKeyName = staterecord.SentinelName
 
 // sentinelPayload deliberately says what the record is for, so an operator
 // reading the raw store sees an explanation rather than an opaque blob.

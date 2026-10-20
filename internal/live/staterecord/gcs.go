@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -194,8 +195,83 @@ func (s *GCSStore) bucketGone(doing, key string, err error) error {
 	return fmt.Errorf("staterecord: gcs: %s %q: bucket %q does not exist, so the 404 is the bucket's own and not a missing record: %w", doing, key, s.bucket, err)
 }
 
+// opError wraps a failed GCS call, naming a Cloud KMS refusal when that is
+// what it is. Every error a [GCSStore] operation returns from the wire goes
+// through here, so the cause is named whichever request met it first.
 func (s *GCSStore) opError(doing, key string, err error) error {
+	if kms := asGCSKMSError(err); kms != nil {
+		return fmt.Errorf("staterecord: gcs: %s %q in bucket %q: %w", doing, key, s.bucket, kms)
+	}
 	return fmt.Errorf("staterecord: gcs: %s %q in bucket %q: %w", doing, key, s.bucket, err)
+}
+
+// GCSKMSError is a GCS request refused because of the Cloud KMS key the
+// object is encrypted with, and not because of anything about GCS or this
+// identity's storage permissions. It is [KMSDeniedError] and
+// [KMSKeyUnusableError] for this store, and it is a refusal for their reason
+// (GitHub issue #1376): every object under that key is unreadable while it
+// lasts, so a run that read it as "this identity may read but not write"
+// (#1370's reader tolerance) would carry on with a store it cannot read.
+// [IsAccessDenied] is false for one.
+//
+// GCS encrypts and decrypts with the bucket's Cloud Storage service agent,
+// not with the caller, so a refusal is almost always that agent missing
+// roles/cloudkms.cryptoKeyEncrypterDecrypter on the key, or the key's state.
+// Both arrive as an ordinary JSON API error whose message names Cloud KMS.
+// Not measured against real GCS: recognised by "cloudkms" or "Cloud KMS" in
+// the message, which is how GCS's documented KMS errors read.
+type GCSKMSError struct {
+	// Status is the HTTP status GCS answered.
+	Status int
+	// Key is the key's resource name, when the message named one.
+	Key string
+	// Unusable is true when the message is about the key's state (disabled,
+	// destroyed, scheduled for destruction) rather than a permission.
+	Unusable bool
+	// Err is the GCS error as it arrived.
+	Err error
+}
+
+var (
+	gcsKMSKeyName  = regexp.MustCompile(`projects/[^/\s'"]+/locations/[^/\s'"]+/keyRings/[^/\s'"]+/cryptoKeys/[^/\s'",]+`)
+	gcsKMSKeyState = regexp.MustCompile(`(?i)\b(disabled|destroyed|scheduled for destruction|not enabled|destroy_scheduled)\b`)
+)
+
+// asGCSKMSError recognises a Cloud KMS refusal inside a GCS error, and
+// returns nil for everything else.
+func asGCSKMSError(err error) *GCSKMSError {
+	var already *GCSKMSError
+	if errors.As(err, &already) {
+		return already
+	}
+	var gerr *googleapi.Error
+	if !errors.As(err, &gerr) {
+		return nil
+	}
+	msg := gerr.Message + " " + gerr.Body
+	for _, e := range gerr.Errors {
+		msg += " " + e.Message
+	}
+	lower := strings.ToLower(msg)
+	if !strings.Contains(lower, "cloudkms") && !strings.Contains(lower, "cloud kms") {
+		return nil
+	}
+	out := &GCSKMSError{Status: gerr.Code, Err: err, Key: strings.TrimRight(gcsKMSKeyName.FindString(msg), ".")}
+	out.Unusable = gerr.Code != http.StatusForbidden || gcsKMSKeyState.MatchString(msg)
+	return out
+}
+
+func (e *GCSKMSError) Unwrap() error { return e.Err }
+
+func (e *GCSKMSError) Error() string {
+	key := "the bucket's Cloud KMS key"
+	if e.Key != "" {
+		key = "Cloud KMS key " + e.Key
+	}
+	if e.Unusable {
+		return fmt.Sprintf("%s could not be used: GCS answered %d about the key's state. Check that the key and its primary version are enabled; this is the key's own state and not a permission, so an IAM change will not move it. (%v)", key, e.Status, e.Err)
+	}
+	return fmt.Sprintf("%s refused this request. GCS uses the key as the project's Cloud Storage service agent (service-<project-number>@gs-project-accounts.iam.gserviceaccount.com), not as this run's identity, so grant that agent roles/cloudkms.cryptoKeyEncrypterDecrypter on the key; the bucket and this identity's storage permissions may be entirely correct. (%v)", key, e.Err)
 }
 
 // read is one object read: the payload and its generation. exists is false,

@@ -18,7 +18,10 @@ func gcsCorrectBucket() map[string]any {
 		"lifecycle": map[string]any{"rule": []any{
 			map[string]any{"action": map[string]any{"type": "Delete"}, "condition": map[string]any{"daysSinceNoncurrentTime": 30}},
 		}},
-		"iamConfiguration": map[string]any{"publicAccessPrevention": "enforced"},
+		"iamConfiguration": map[string]any{
+			"publicAccessPrevention":   "enforced",
+			"uniformBucketLevelAccess": map[string]any{"enabled": true},
+		},
 	}
 }
 
@@ -28,6 +31,8 @@ func checkFakeGCSBucket(t *testing.T, attrs map[string]any, namespaces []string)
 	t.Helper()
 	server, fake := newFakeGCSServer(t)
 	fake.bucketAttrs = attrs
+	// This estate's own sentinel, which list_isolation must not count.
+	fake.objects["tofu-records/prod/"+SentinelName] = &fakeGCSObject{body: []byte("s"), gen: 1, metadata: map[string]string{"tofu-estate": "prod"}}
 	findings, err := CheckGCSBucketContract(context.Background(), newFakeGCSClient(t, server), "test-bucket", namespaces)
 	if err != nil {
 		t.Fatalf("CheckGCSBucketContract: %v", err)
@@ -83,8 +88,11 @@ func TestGCSContractRefusesEachSettingByName(t *testing.T) {
 			}}}
 		}, "no recovery window"},
 		{"public access prevention inherited", GCSPublicAccessPrevention, func(m map[string]any) {
-			m["iamConfiguration"] = map[string]any{"publicAccessPrevention": "inherited"}
+			m["iamConfiguration"].(map[string]any)["publicAccessPrevention"] = "inherited"
 		}, "inherited"},
+		{"uniform bucket-level access off", GCSUniformBucketLevelAccess, func(m map[string]any) {
+			m["iamConfiguration"].(map[string]any)["uniformBucketLevelAccess"] = map[string]any{"enabled": false}
+		}, "object ACLs"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -159,6 +167,12 @@ func TestGCSContractDeniedIsUnreadableNotAnError(t *testing.T) {
 		t.Fatalf("a denied read returned an error: %v", err)
 	}
 	for _, f := range findings {
+		if f.Setting == GCSListIsolation {
+			if f.Outcome != NotChecked || !strings.Contains(f.Found, "storage.objects.list") {
+				t.Errorf("%s: outcome %v, found %q; want NotChecked naming storage.objects.list", f.Setting, f.Outcome, f.Found)
+			}
+			continue
+		}
 		if f.Outcome != Unreadable || !strings.Contains(f.Found, "storage.buckets.get") {
 			t.Errorf("%s: outcome %v, found %q; want Unreadable naming storage.buckets.get", f.Setting, f.Outcome, f.Found)
 		}
@@ -186,5 +200,52 @@ func TestGCSStoreIsAContractChecker(t *testing.T) {
 	}
 	if refused, _, _ := SplitWaived(findings, nil); len(refused) != 0 {
 		t.Errorf("a correct bucket was refused: %v", refused)
+	}
+}
+
+// TestGCSListIsolationWarnsByNameAboutAnotherEstate: GCS cannot fence a
+// listing, so a bucket that holds another estate's keys is said out loud by
+// name, as a warning a run proceeds past and allow_insecure can silence. The
+// other estate is found by its sentinel wherever its key_prefix put it.
+func TestGCSListIsolationWarnsByNameAboutAnotherEstate(t *testing.T) {
+	server, fake := newFakeGCSServer(t)
+	fake.bucketAttrs = gcsCorrectBucket()
+	fake.objects["tofu-records/prod/"+SentinelName] = &fakeGCSObject{body: []byte("s"), gen: 1, metadata: map[string]string{"tofu-estate": "prod"}}
+	client := newFakeGCSClient(t, server)
+
+	check := func() Finding {
+		t.Helper()
+		findings, err := CheckGCSBucketContract(context.Background(), client, "test-bucket", gcsTestNamespaces)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return findings[len(findings)-1]
+	}
+	if f := check(); f.Setting != GCSListIsolation || !f.OK() {
+		t.Fatalf("a bucket with only this estate's keys: %s %v %q, want list_isolation passing", f.Setting, f.Outcome, f.Found)
+	}
+
+	// A neighbour named like a prefix of this estate, under a key_prefix of
+	// its own: still another estate.
+	fake.objects["team/prod-eu/"+SentinelName] = &fakeGCSObject{body: []byte("s"), gen: 2, metadata: map[string]string{"tofu-estate": "prod-eu"}}
+	f := check()
+	if f.Outcome != Warned || !strings.Contains(f.Found, "prod-eu") {
+		t.Fatalf("list_isolation = %v %q, want Warned naming prod-eu", f.Outcome, f.Found)
+	}
+	refused, warned, _ := SplitWaived([]Finding{f}, nil)
+	if len(refused) != 0 || len(warned) != 1 {
+		t.Errorf("a shared listing refused the run; it warns")
+	}
+	if _, _, waived := SplitWaived([]Finding{f}, []string{string(GCSListIsolation)}); len(waived) != 1 {
+		t.Errorf("allow_insecure = [\"list_isolation\"] did not reach the warning")
+	}
+	if summary, _ := GCSBucketContractRefusal("test-bucket", f); !strings.Contains(summary, "other estates' keys") {
+		t.Errorf("warning headline %q", summary)
+	}
+
+	// An identity that may not list cannot be asked, and says so.
+	fake.listForbidden = true
+	if f := check(); f.Outcome != NotChecked {
+		t.Errorf("list_isolation with storage.objects.list denied = %v, want NotChecked", f.Outcome)
 	}
 }

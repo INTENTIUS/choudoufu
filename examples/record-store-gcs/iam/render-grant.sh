@@ -19,8 +19,10 @@
 #
 # The listing is not fenced. GCS checks storage.objects.list against the
 # bucket, not against an object name, so a condition on the name cannot
-# narrow it, and an estate's identity can list every key in the bucket. The
-# keys are type names and encoded addresses; the records' contents stay
+# narrow it, and an estate's identity can list every key in the bucket. That
+# is why the default is one bucket per estate (live/STORAGE.md, "One bucket
+# per estate"), and why the store's list_isolation check warns when a bucket
+# holds another estate's keys. In a shared bucket the records' contents stay
 # behind the conditioned binding.
 #
 # Not measured against real GCS or an emulator. live/STORAGE.md says so too.
