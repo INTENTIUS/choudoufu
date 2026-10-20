@@ -105,20 +105,19 @@ estates applying to one cluster at once, is not measured.
 
 ## On Azure
 
-Open. The proof is a draft that has not run:
-
-### az-the-tag-is-the-boundary (draft)
+### az-the-tag-is-the-boundary
 
     just smoke az-the-tag-is-the-boundary
     BREAK=1 just smoke az-the-tag-is-the-boundary
 
-`live/smoke/drafts/az-the-tag-is-the-boundary.sh` installs the two Policy
-definitions in `live/azure/estate-boundary.json`, the marker guard and the
-delete lock (the template's `deleteLock=true`; off by default since the
-2026-10-20 ruling on #1122), and assigns them at Alice's resource group. Bob's apply into that group, an untagged ARM
-create and an ARM delete of Alice's identity must each be refused by
-Policy. `BREAK=1` deletes the assignments, and the same three writes must
-land. floci-az stores Policy and evaluates no rule, and has no role
-assignments ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)), so the main arm cannot pass there yet and the RBAC
-half, `live/azure/estate-grant.json`, is not exercised. It moves to
-`scenarios/` after a green run of both arms (live/smoke/drafts/README.md).
+The scenario installs the two Policy definitions in
+`live/azure/estate-boundary.json`, the marker guard and the delete lock
+(the template's `deleteLock=true`; off by default since the 2026-10-20
+ruling on #1122), and assigns them at Alice's resource group. Bob's apply
+into that group, an untagged ARM create and an ARM delete of Alice's
+identity must each be refused by Policy. `BREAK=1` deletes the
+assignments, and the same three writes must land. floci-az stores Policy
+and evaluates no rule (lex00/floci-az#6), and has no role assignments
+(lex00/floci-az#5), so the main arm cannot pass there yet and the RBAC
+half, `live/azure/estate-grant.json`, is not exercised
+([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads unproven.

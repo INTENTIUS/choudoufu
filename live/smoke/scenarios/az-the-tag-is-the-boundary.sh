@@ -10,9 +10,10 @@
 # for Alice. BREAK=1 removes the two assignments and requires those same
 # three writes to go through.
 #
-# DRAFT: written for GitHub issue #1120 (unit 15) and never run
-# (live/smoke/drafts/README.md). Claim 13's azure cell stays open until the
-# maintainer runs both arms green and promotes it.
+# Written for GitHub issue #1120 (unit 15). Not yet run, so its cell reads
+# unproven until the maintainer runs both arms on floci-az and the evidence
+# file lands. It waits on lex00/floci-az#6 (Policy not evaluated), #5 (no
+# role assignments) and #4 (no Resource Graph).
 #
 # What floci-az cannot answer today (live/FLOCI.md, Azure): it stores Policy
 # definitions and assignments and evaluates no rule, so nothing is denied
@@ -63,7 +64,9 @@ TF
 # subscription and assigns both at Alice's group with estate=smoke-az-alice,
 # reading the policy rules out of live/azure/estate-boundary.json so what is
 # measured is the file an operator applies. "[[" is how a template escapes
-# a literal "[", and a direct PUT carries the unescaped rule.
+# a literal "[", and a direct PUT carries the unescaped rule. Installing both
+# definitions is the template with deleteLock=true: the delete lock is
+# opt-in since the 2026-10-20 ruling on #1122, and this claim measures it on.
 boundary_assign() {
   local defs
   defs="$(python3 - "$ROOT/live/azure/estate-boundary.json" <<'PY'

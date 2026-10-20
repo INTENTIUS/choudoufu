@@ -91,21 +91,18 @@ without the grant and the carve with it (claim 12 until #1817).
 
 ## On Azure
 
-Open. The proof is a draft that has not run:
-
-### az-identity-is-a-tag (draft)
+### az-identity-is-a-tag
 
     just smoke az-identity-is-a-tag
     BREAK=1 just smoke az-identity-is-a-tag
 
-`live/smoke/drafts/az-identity-is-a-tag.sh` applies a resource group, a
-VNet and an identity through azurerm and a second identity through
-`azapi_resource`, reads `tofu-estate` and `tofu-address` back with ARM
-GETs, and requires an empty replan with no state file and with the cache
-deleted. `BREAK=1` strips `tofu-estate` from the VNet with an ARM PATCH:
-the default replan must refuse the VNet by name ("Unmarked live object at
-the declared id would be overwritten") rather than PUT over it, and with
-`policy { declared_untagged = "adopt" }` the apply must write the tag
-back. A plan reaches the Resource Graph sweep, which floci-az does not
-serve today ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It moves to `scenarios/` after a green run of both
-arms (live/smoke/drafts/README.md).
+A resource group, a VNet and an identity are applied through azurerm and a
+second identity through `azapi_resource`. The scenario reads `tofu-estate`
+and `tofu-address` back with ARM GETs, and requires an empty replan with no
+state file and with the cache deleted. `BREAK=1` strips `tofu-estate` from
+the VNet with an ARM PATCH: the default replan must refuse the VNet by name
+("Unmarked live object at the declared id would be overwritten") rather
+than PUT over it, and with `policy { declared_untagged = "adopt" }` the
+apply must write the tag back. A plan reaches the Resource Graph sweep,
+which floci-az does not serve yet (lex00/floci-az#4, [live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It
+has no dated run yet, so the cell reads unproven.

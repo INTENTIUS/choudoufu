@@ -10,9 +10,9 @@
 # deleted, and requires the replan to leave it alone: an unmarked object is
 # not this estate's to destroy.
 #
-# DRAFT: written for GitHub issue #1120 (unit 15) and never run
-# (live/smoke/drafts/README.md). Claim 1's azure cell stays open until the
-# maintainer runs both arms green and promotes it.
+# Written for GitHub issue #1120 (unit 15). Not yet run, so its cell reads
+# unproven until the maintainer runs both arms on floci-az and the evidence
+# file lands. It waits on lex00/floci-az#4 (no Resource Graph).
 #
 # What floci-az cannot answer today (live/FLOCI.md, Azure): it has no
 # Microsoft.ResourceGraph route, and the sweep is a Resource Graph query, so

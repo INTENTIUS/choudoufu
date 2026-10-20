@@ -13,9 +13,12 @@
 # so the main arm's refusals are shown to be the checks' and not some other
 # failure of the account.
 #
-# DRAFT: written for GitHub issue #1120 (unit 15) and never run
-# (live/smoke/drafts/README.md). Claim 29's azure cell stays open until the
-# maintainer runs both arms green and promotes it.
+# Written for GitHub issue #1120 (unit 15). Not yet run, so its cell reads
+# unproven until the maintainer runs both arms on floci-az and the evidence
+# file lands. It waits on lex00/floci-az#8 (blob service properties and
+# lifecycle rules not kept), #9 (the storage suffix), #3 (tags dropped
+# on storage accounts) and #4 (no Resource Graph, which every plan's sweep
+# reads).
 #
 # What floci-az cannot answer today (live/FLOCI.md, Azure): blob versioning,
 # lifecycle rules and allowBlobPublicAccess are not kept (blobServices

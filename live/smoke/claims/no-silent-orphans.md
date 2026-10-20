@@ -122,19 +122,17 @@ What fences a write on the label is the admission policy of
 
 ## On Azure
 
-Open. The proof is a draft that has not run:
-
-### az-no-silent-orphans (draft)
+### az-no-silent-orphans
 
     just smoke az-no-silent-orphans
     BREAK=1 just smoke az-no-silent-orphans
 
-`live/smoke/drafts/az-no-silent-orphans.sh` applies a resource group, a
-VNet and a user-assigned identity, deletes the identity's block, and
-requires the next plan to propose exactly that destroy, found by its
-`tofu-estate` tag through the Resource Graph sweep. An identity tagged for
-another estate at the same address in the same group must be left alone.
-`BREAK=1` strips the orphan's `tofu-estate` tag with an ARM PATCH first,
-and the replan must then propose nothing. floci-az serves no Resource
-Graph today ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)), so neither arm can pass there yet. It moves to
-`scenarios/` after a green run of both arms (live/smoke/drafts/README.md).
+A resource group, a VNet and a user-assigned identity are applied on
+floci-az, the identity's block is deleted, and the next plan must propose
+exactly that destroy, found by its `tofu-estate` tag through the Resource
+Graph sweep. An identity tagged for another estate at the same address in
+the same group must be left alone. `BREAK=1` strips the orphan's
+`tofu-estate` tag with an ARM PATCH first, and the replan must then
+propose nothing. floci-az serves no Resource Graph yet
+(lex00/floci-az#4, [live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell
+reads unproven.

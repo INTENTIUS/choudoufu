@@ -313,8 +313,16 @@
           "note": "Unproven until a dated run: k8s-no-silent-orphans.sh, k8s-a-held-delete-is-not-gone.sh, k8s-a-deleted-namespace-is-gone.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). The sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete. An object no natural key declares is joined a second way, by the block its address annotation names (#1640): bound when that block is declared, an orphan otherwise. The label is what makes an object this estate's, so an orphan whose annotation was stripped is still proposed for removal; two objects whose annotations claim one block that holds neither are refused as a collision rather than both destroyed (#1641)."
         },
         "azure": {
-          "status": "open",
-          "note": "Open: the proof is written and has not run. live/smoke/drafts/az-no-silent-orphans.sh applies a resource group, a VNet and a user-assigned identity, deletes the identity's block, and requires the next plan to propose exactly that destroy, found by its tofu-estate tag through the Resource Graph sweep, while an identity tagged for another estate at the same address in the same group is left alone; BREAK=1 strips the orphan's tofu-estate tag with an ARM PATCH first and requires the replan to propose nothing. floci-az serves no Microsoft.ResourceGraph route today (live/FLOCI.md, Azure), so the sweep cannot run there and neither arm can pass until the fork serves it. About 4 minutes, an estimate. The cell reads open until the maintainer runs both arms green on floci-az and promotes it (live/smoke/drafts/README.md)."
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-no-silent-orphans.sh",
+              "command": "just smoke az-no-silent-orphans",
+              "minutes": 4,
+              "break_mode": "BREAK=1 strips the orphan's tofu-estate tag with an ARM PATCH before its block is deleted and requires the replan to propose nothing, because without that control the destroy in the ordinary run would read the same if the sweep destroyed by something other than the tag"
+            }
+          ],
+          "note": "Unproven until a dated run: az-no-silent-orphans.sh has no evidence file yet. A resource group, a VNet and a user-assigned identity are applied; the identity's block is deleted, and the next plan must propose exactly that destroy, found by its tofu-estate tag through the Resource Graph sweep, while an identity tagged for another estate at the same address in the same group is left alone. The sweep is one Resource Graph query per subscription, which floci-az does not serve yet (lex00/floci-az#4)."
         }
       }
     },
@@ -597,8 +605,16 @@
           "note": "Unproven until a dated run: k8s-greenfield.sh, k8s-custom-resource.sh, claim 13's k8s-the-label-is-the-boundary.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). The ownership marker is one label, tofu-estate, because an address is often not a legal label value (#1016); the block address rides beside it in the annotation choudoufu.intentius.io/tofu-address (#1639, #1605's ruling). Any kubectl reads both. The sweep binds an object no natural key declares to the block its annotation names (#1640), so a block whose name is read at plan time applies and replans empty, and a create_before_destroy rename plans as the replace stock plans (#1541, #1641). A rename rewrites the annotation (a moved block plans it, live-mv writes it); a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 13 on Kubernetes). A count pool's fungible set, the AWS proof count-is-a-fungible-set, does not arise here: the API server keeps names unique per kind and namespace, so a count-expanded set carries distinct names and no slot is written."
         },
         "azure": {
-          "status": "open",
-          "note": "Open: the proof is written and has not run. live/smoke/drafts/az-identity-is-a-tag.sh applies a resource group, a VNet and a user-assigned identity through azurerm and a second identity through azapi_resource, reads tofu-estate and tofu-address back through ARM on both providers' objects, and requires an empty replan with no state file and with the cache deleted. BREAK=1 strips tofu-estate from the VNet with an ARM PATCH: the default replan must refuse it by name (\"Unmarked live object at the declared id would be overwritten\", #1120's create-or-update refusal) rather than PUT over it, and under policy { declared_untagged = \"adopt\" } the apply must write the tag back, read through ARM. A carve between estates is one tag write; it is not in this draft. floci-az keeps tags on every type the draft uses, but a plan reaches the Resource Graph sweep, which it does not serve (live/FLOCI.md, Azure). About 4 minutes, an estimate. The cell reads open until the maintainer runs both arms green on floci-az and promotes it (live/smoke/drafts/README.md)."
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-identity-is-a-tag.sh",
+              "command": "just smoke az-identity-is-a-tag",
+              "minutes": 4,
+              "break_mode": "BREAK=1 strips tofu-estate from the VNet with an ARM PATCH and requires the default replan to refuse it by name (\"Unmarked live object at the declared id would be overwritten\") rather than PUT over it, and under policy { declared_untagged = \"adopt\" } the apply to write the tag back, read through ARM"
+            }
+          ],
+          "note": "Unproven until a dated run: az-identity-is-a-tag.sh has no evidence file yet. A resource group, a VNet and a user-assigned identity through azurerm and a second identity through azapi_resource are applied; tofu-estate and tofu-address are read back through ARM on both providers' objects, and the replan must be empty with no state file and with the cache deleted. A carve between estates is one tag write and is not in the scenario. floci-az keeps tags on every type used, but every plan reaches the Resource Graph sweep, which it does not serve yet (lex00/floci-az#4)."
         }
       }
     },
@@ -666,8 +682,16 @@
           "note": "Unproven until a dated run: k8s-the-label-is-the-boundary.sh has no evidence file with a date (no workflow has run a claim scenario since #2018). Write-only and cluster-wide: one ValidatingAdmissionPolicy on the estate label, installed by a cluster admin, fences create, update and delete and never get or list (#1066). An IAM condition on AWS also fences reads and can name an address, not only an estate. One estate across contexts, clusters or two estates applying to one cluster at once has not been measured. Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
         },
         "azure": {
-          "status": "open",
-          "note": "Open: the proof is written and has not run. live/smoke/drafts/az-the-tag-is-the-boundary.sh installs the two Policy definitions of live/azure/estate-boundary.json at the subscription and assigns both at Alice's resource group, then requires Bob's apply into that group (tofu-estate=smoke-az-bob), an untagged ARM create and an ARM delete of Alice's identity each to be refused by Policy; BREAK=1 deletes the two assignments and requires the same three writes to land. floci-az stores Policy definitions and assignments and evaluates no rule, and has no route for role assignments (live/FLOCI.md, Azure), so the main arm cannot pass there and the RBAC half (live/azure/estate-grant.json) is not exercised. Policy fences writes only: unlike an IAM condition on AWS it does not fence reads, and it cannot name an address. About 5 minutes, an estimate. The cell reads open until the maintainer runs both arms green on floci-az and promotes it (live/smoke/drafts/README.md)."
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-the-tag-is-the-boundary.sh",
+              "command": "just smoke az-the-tag-is-the-boundary",
+              "minutes": 5,
+              "break_mode": "BREAK=1 deletes the two Policy assignments and requires the three writes the fence refused to land, because without that control the refusals would read the same if they came from something other than the policy"
+            }
+          ],
+          "note": "Unproven until a dated run: az-the-tag-is-the-boundary.sh has no evidence file yet. The two Policy definitions of live/azure/estate-boundary.json are installed at the subscription and assigned at Alice's resource group; Bob's apply into that group (tofu-estate=smoke-az-bob), an untagged ARM create and an ARM delete of Alice's identity must each be refused by Policy. Policy fences writes only: unlike an IAM condition on AWS it does not fence reads, and it cannot name an address. floci-az stores Policy and evaluates no rule (lex00/floci-az#6), has no route for role assignments, so the RBAC half (live/azure/estate-grant.json) is not exercised (lex00/floci-az#5), and serves no Resource Graph for the plans (lex00/floci-az#4)."
         }
       }
     },
@@ -950,8 +974,16 @@
           "note": "Unproven until a dated run: claim 1's k8s-a-deleted-namespace-is-gone.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
         },
         "azure": {
-          "status": "open",
-          "note": "Open: the proof is written and has not run. live/smoke/drafts/az-records-in-a-storage-account.sh writes an estate's records to a storage account with versioning on, a previous-versions lifecycle rule and public access off, requires each blob to carry the blob index tag tofu-estate, and then requires four new estates to be refused by name with no blob written: versioning off, no lifecycle rule, public access allowed, and a rule that deletes current records. BREAK=1 removes the fences, waives all three with allow_insecure, and requires the same apply to go through and name each waiver. floci-az keeps none of the three settings (blobServices answers empty properties, managementPolicies has no route) and returns the storage suffix core.windows.net, so the store's blob calls leave the emulator (live/FLOCI.md, Azure); the draft cannot pass there until the fork keeps them and answers a local suffix. About 6 minutes, an estimate. The cell reads open until the maintainer runs both arms green on floci-az and promotes it (live/smoke/drafts/README.md)."
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-records-in-a-storage-account.sh",
+              "command": "just smoke az-records-in-a-storage-account",
+              "minutes": 6,
+              "break_mode": "BREAK=1 removes the fences, waives all three with allow_insecure, and requires the same apply to go through and name each waiver, because without that control the refusals would read the same if they were some other failure of the account"
+            }
+          ],
+          "note": "Unproven until a dated run: az-records-in-a-storage-account.sh has no evidence file yet. record_store \"azurerm\" writes an estate's records to a storage account with versioning on, a previous-versions lifecycle rule and public access off, and each blob must carry the blob index tag tofu-estate; four new estates must then be refused by name with no blob written: versioning off, no lifecycle rule, public access allowed, and a rule that deletes current records. floci-az keeps none of the three settings (lex00/floci-az#8), drops tags on storage accounts (lex00/floci-az#3), returns the storage suffix core.windows.net so the store's blob calls leave the emulator (lex00/floci-az#9), and serves no Resource Graph for the plans (lex00/floci-az#4)."
         }
       }
     },
@@ -1044,6 +1076,169 @@
         "azure": {
           "status": "open",
           "note": "Open: no proof yet. Nothing has run on Azure yet (#1120). azurerm has no provider-level ignore_tags, so the Azure form of the promise is a lifecycle ignore_changes on tags, a different declaration from the AWS proof's; neither is measured on floci-az."
+        }
+      }
+    },
+    {
+      "id": 48,
+      "slug": "a-derived-name-needs-no-record",
+      "title": "A derived identity needs no record and no cache",
+      "theme": "adopt",
+      "substrate": [
+        "aws",
+        "kubernetes",
+        "azure"
+      ],
+      "providers": {
+        "aws": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built. AWS composes a declaration-carried type's identity from configuration and identified parents on every run (live/RECOVERY.md); no scenario empties the record store and the cache under one yet."
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built. Kubernetes has no whole-object type of this tier; the six field-granular types (#1191) are its form of it."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-a-derived-name-needs-no-record.sh",
+              "command": "just smoke az-a-derived-name-needs-no-record",
+              "minutes": 3,
+              "break_mode": "BREAK=1 renames the azurerm subnet in the configuration after the record store and the cache are deleted, and requires the plan to propose exactly one create at azurerm_subnet.app and leave the live subnet alone, because without that control an empty plan would read the same if binding ignored the derived name"
+            }
+          ],
+          "note": "Unproven until a dated run: az-a-derived-name-needs-no-record.sh has no evidence file yet. A tagged VNet and two subnets, which take no ARM tags, one through azurerm_subnet and one through azapi_resource, are applied; the record store and the state cache are deleted; and the plan must read No changes. from the emulator and the configuration alone. Both are declaration-carried: the ARM id is rebuilt from resource_group_name, virtual_network_name and name, or from parent_id, type and name, with the subscription from the provider block (live/READINESS.md, Azure). Every plan's sweep is a Resource Graph query, which floci-az does not serve yet (lex00/floci-az#4)."
+        }
+      }
+    },
+    {
+      "id": 49,
+      "slug": "a-parent-proves-no-child",
+      "title": "A parent's marker never proves its child exists",
+      "theme": "adopt",
+      "substrate": [
+        "aws",
+        "azure"
+      ],
+      "providers": {
+        "aws": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built."
+        },
+        "kubernetes": {
+          "status": "n/a",
+          "note": "No Kubernetes kind is derivable from a parent and unmarkable as a whole object, so there is no child to infer (#2119)."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-a-parent-proves-no-child.sh",
+              "command": "just smoke az-a-parent-proves-no-child",
+              "minutes": 3,
+              "break_mode": "BREAK=1 runs the identical out-of-band deletes and holds the plan to what a plan inferring the children from their parents would read, No changes.; that assertion must fail, and the control passes only when the plan instead proposes the two creates, because without it the creates would read the same if every plan proposed them"
+            }
+          ],
+          "note": "Unproven until a dated run: az-a-parent-proves-no-child.sh has no evidence file yet. Two children are deleted out of band with ARM DELETEs: an azurerm_subnet under a VNet and an azurerm_network_security_rule under a network security group, both parents tagged for the estate. The next plan must propose exactly the two creates while both parents stand and keep tofu-estate; the apply puts both back. Waits on lex00/floci-az#4 (no Resource Graph); that floci-az serves security rules as children of a security group is assumed."
+        }
+      }
+    },
+    {
+      "id": 50,
+      "slug": "a-removed-derived-block-is-destroyed",
+      "title": "A removed derived block is destroyed from its record",
+      "theme": "adopt",
+      "substrate": [
+        "aws",
+        "kubernetes",
+        "azure"
+      ],
+      "providers": {
+        "aws": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built."
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built. On Kubernetes the managedFields sweep is the form of it."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-a-removed-derived-block-is-destroyed.sh",
+              "command": "just smoke az-a-removed-derived-block-is-destroyed",
+              "minutes": 4,
+              "break_mode": "BREAK=1 moves the security rules' records out of the store before the ssh rule's block is deleted and requires the plan to propose no destroy of it, because without that control the destroy in the ordinary run would read the same if it came from anything but the record"
+            }
+          ],
+          "note": "Unproven until a dated run: az-a-removed-derived-block-is-destroyed.sh has no evidence file yet. A deleted azurerm_network_security_rule block's record proposes its destroy, since the Resource Graph sweep filters on the estate tag and the rule carries none; the removal leg rebuilds the ARM id from the record. An azurerm_subnet whose record and block go together is left live; the plan lists the untaggable types it still knows as TYPE_NOT_TAGGABLE under Not swept for removal, and live/RECOVERY.md documents restoring the record blob's previous version. Untaggable azapi_resource types are not reached by the leg yet. Waits on lex00/floci-az#4 (no Resource Graph)."
+        }
+      }
+    },
+    {
+      "id": 51,
+      "slug": "a-markerless-type-is-held-by-its-record",
+      "title": "A markerless type is held by its record, or refused",
+      "theme": "operate",
+      "substrate": [
+        "aws",
+        "azure"
+      ],
+      "providers": {
+        "aws": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built. AWS's veto is identity.MarkerlessTypes, 159 types; under a live block a type whose identity a record can carry is admitted record-located (#270), and one whose identity it cannot carry, aws_wafv2_api_key among them, is refused by the markerless-type rule (live/LIMITATIONS.md). No claim scenario holds either half yet."
+        },
+        "kubernetes": {
+          "status": "n/a",
+          "note": "Every Kubernetes object carries metadata.labels, so no kind is untaggable and server-minted (#2119)."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-a-markerless-type-is-held-by-its-record.sh",
+              "command": "just smoke az-a-markerless-type-is-held-by-its-record",
+              "minutes": 3,
+              "break_mode": "BREAK=1 writes the same management group into a root with no live block, so there is no record store to hold its minted name, and requires live-check to refuse azurerm_management_group.minted by name (\"Unmarked apply of a marker-only resource\", NAME_OMITTED), because without that control the admission in the ordinary run would read the same if the type were admitted for some reason other than the record"
+            }
+          ],
+          "note": "Unproven until a dated run: az-a-markerless-type-is-held-by-its-record.sh has no evidence file yet. azurerm_management_group, one of the seven admitted untaggable azurerm types whose name is Optional and Computed at 5.10.0, is applied with its name left out, so azurerm mints a GUID; under a live block the instance is record-located, the minted name written to the estate's record, and the plan with no cache reads No changes. from that record. No Azure type is on the markerless list, so the refusal half is shown with no record store. Waits on lex00/floci-az#7 (no generic ARM store: nothing serves Microsoft.Management) and lex00/floci-az#4 (no Resource Graph); the BREAK arm reads the configuration offline and needs neither."
+        }
+      }
+    },
+    {
+      "id": 52,
+      "slug": "the-fence-gap-is-as-stated",
+      "title": "The fence over derived types is what the docs say",
+      "theme": "gate",
+      "substrate": [
+        "aws",
+        "kubernetes",
+        "azure"
+      ],
+      "providers": {
+        "aws": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built. live/MARKERS.md states the AWS gap per service, 345 types; no scenario measures a tag-scoped principal against one yet."
+        },
+        "kubernetes": {
+          "status": "open",
+          "note": "Inventoried in #2119, not built. On Kubernetes the field manager is the fence, with the #1191 conflict warning."
+        },
+        "azure": {
+          "status": "unproven",
+          "proofs": [
+            {
+              "scenario": "live/smoke/scenarios/az-the-fence-gap-is-as-stated.sh",
+              "command": "just smoke az-the-fence-gap-is-as-stated",
+              "minutes": 5,
+              "break_mode": "BREAK=1 deletes the two Policy assignments after another estate's tagged create in Alice's group was refused, and requires that create to land, because without that control the subnet writes going through would read the same if no Policy had been in force"
+            }
+          ],
+          "note": "Unproven until a dated run: az-the-fence-gap-is-as-stated.sh has no evidence file yet. Measured on azurerm_subnet with live/azure/estate-boundary.json assigned at Alice's resource group. Another estate's tagged create there is refused by Policy, while the same estate creates a subnet in Alice's VNet unopposed and an ARM delete of Alice's subnet goes through, which is the Policy half of live/MARKERS.md, \"What the Azure grant cannot reach\"; Alice's next plan proposes her subnet back. The RBAC half, which is what fences a subnet, is not measured: floci-az has no route for role assignments (lex00/floci-az#5). Waits on lex00/floci-az#6 (Policy not evaluated) and #4 (no Resource Graph)."
         }
       }
     }
