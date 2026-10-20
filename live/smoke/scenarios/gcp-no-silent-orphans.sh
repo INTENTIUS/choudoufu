@@ -14,9 +14,9 @@
 # record for a block is what proposes that block's removal. Step 3 is the
 # reported half and step 4 the planned half.
 #
-# Not yet run, so its cell reads unproven, and it needs
-# Cloud Asset search on the emulator (lex00/floci-gcp#7) and labels served
-# back as written (lex00/floci-gcp#6). BREAK=1 strips tofu-estate from the
+# Not yet run, so its cell reads unproven. It rests on Cloud Asset search on
+# the emulator (lex00/floci-gcp#7) and labels served back as written
+# (lex00/floci-gcp#6), both in the pinned image. BREAK=1 strips tofu-estate from the
 # bucket before its block is deleted and requires the replan to leave it
 # alone: an unlabelled object is not this estate's to destroy, so a plan
 # that still proposed it would be acting on something other than the

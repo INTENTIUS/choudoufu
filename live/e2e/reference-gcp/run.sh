@@ -29,12 +29,11 @@
 # floci-gcp notes: identities are the resource names, read with the
 # emulator's REST API; the marker count is the labelled types filtered on
 # tofu-estate (gcp_labelled_count in gcp.sh); the out-of-band mutation is a
-# REST PATCH; day2_rename exercises the moved-block half only, because
-# live-mv refuses GCP by name until its rewrite lands (internal/live/mv's
-# SummaryGCPMoveNotBuilt). The sweep is Cloud Asset search, which the pinned
-# emulator does not serve yet (lex00/floci-gcp#7), and labels must come back
-# as written (lex00/floci-gcp#6): a stage that fails on either says so in
-# its own verdict and the run goes on.
+# REST PATCH; day2_rename exercises the moved-block half. The sweep is Cloud
+# Asset search (lex00/floci-gcp#7) and labels must come back as written
+# (lex00/floci-gcp#6); the pinned image serves both, so a stage that fails on
+# either says so in its own verdict, the run goes on, and the failure is a
+# floci-gcp finding to file on the fork.
 #
 # A stage this script cannot pass records fail with the reason and the run
 # continues to the next; the runner, not the script, decides what "clear"
@@ -495,7 +494,7 @@ else
   GOT="$(gcp_labels "$EPA" "$(topic_path refgcp-events)" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("tofu-address",""))')"
   [ "$GOT" = "$WANT" ] || fail "the topic's tofu-address label reads $GOT after the rename, want $WANT (google_pubsub_topic.stream)"
   [ "$(count_a)" = "6" ] || fail "$(count_a) labelled objects after the rename, want 6"
-  gauntlet_stage day2_rename pass "moved block: google_pubsub_topic.events -> .stream, no add and no destroy, one in-place change confined to the tofu-address label rewrite (0 add, 1 change, 0 destroy), the label reading the encoding of google_pubsub_topic.stream afterwards, read with the REST API; stock's plan for the same moved block on the oracle emulator is zero churn, since stock never writes the label. The moved-block half only: live-mv refuses GCP by name until its rewrite lands. BREAK=1 renames the topic itself, which is a genuine identity change and plans a destroy and a create"
+  gauntlet_stage day2_rename pass "moved block: google_pubsub_topic.events -> .stream, no add and no destroy, one in-place change confined to the tofu-address label rewrite (0 add, 1 change, 0 destroy), the label reading the encoding of google_pubsub_topic.stream afterwards, read with the REST API; stock's plan for the same moved block on the oracle emulator is zero churn, since stock never writes the label. The moved-block half only: live-mv is not exercised by this stage. BREAK=1 renames the topic itself, which is a genuine identity change and plans a destroy and a create"
 fi
 
 # ── 8. day2_remove: delete the firewall's block ──────────────────────────

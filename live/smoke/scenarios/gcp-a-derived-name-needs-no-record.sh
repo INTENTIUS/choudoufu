@@ -17,10 +17,9 @@
 # bind to the old firewall too.
 #
 # Not yet run, so its cell reads unproven. Compute on floci-gcp is the
-# one service the fork's own verify pass does not cover yet
-# (lex00/floci-gcp#5), and the sweep's Cloud Asset search is not served
-# (lex00/floci-gcp#7); that gap is a warning on every plan here and
-# changes no plan, since neither type carries a label to search on.
+# one service the fork's own verify pass covers (lex00/floci-gcp#5), and the
+# sweep's Cloud Asset search (lex00/floci-gcp#7) changes no plan here,
+# since neither type carries a label to search on.
 
 SMOKE_WORK="$SMOKE_WORKROOT/gcp-a-derived-name-needs-no-record"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

@@ -358,7 +358,7 @@
               "break_mode": "BREAK=1 strips tofu-estate from the orphaned bucket before its block is deleted and requires the replan to leave it alone; the ordinary run also creates a labelled topic for an address nothing declares and requires the plan to name it in its warning and propose no destroy"
             }
           ],
-          "note": "Unproven until a dated run: gcp-no-silent-orphans.sh has no evidence file yet. The sweep is one Cloud Asset Inventory search per project the estate's google resources name, filtered on the estate label (#1119), which floci-gcp does not serve yet (lex00/floci-gcp#7). A deleted block's bucket is proposed for removal; a labelled topic whose tofu-address label encodes nothing declared is named in the plan's warning and never planned, because the label is matched and never decoded. Controller-held objects are excluded first. The network skeleton carries no label, so only its record proposes its removal."
+          "note": "Unproven until a dated run: gcp-no-silent-orphans.sh has no evidence file yet. The sweep is one Cloud Asset Inventory search per project the estate's google resources name, filtered on the estate label (#1119), served by the pinned floci-gcp image (lex00/floci-gcp#7). A deleted block's bucket is proposed for removal; a labelled topic whose tofu-address label encodes nothing declared is named in the plan's warning and never planned, because the label is matched and never decoded. Controller-held objects are excluded first. The network skeleton carries no label, so only its record proposes its removal."
         }
       }
     },

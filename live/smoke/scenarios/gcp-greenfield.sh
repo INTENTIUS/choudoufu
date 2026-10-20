@@ -10,10 +10,9 @@
 # estate and the next plan refuses it by name; and the estate lives its
 # whole life without a state file.
 #
-# Not yet run, so its cell reads unproven. It needs
-# floci-gcp to serve labels back as written (lex00/floci-gcp#6) and Cloud
-# Asset search (lex00/floci-gcp#7) before steps 3 and the BREAK arm can
-# hold. The ordinary run reads the labels with the emulator's own REST API,
+# Not yet run, so its cell reads unproven. Steps 3 and the BREAK arm rest on
+# floci-gcp serving labels back as written (lex00/floci-gcp#6) and Cloud
+# Asset search (lex00/floci-gcp#7), both in the pinned image. The ordinary run reads the labels with the emulator's own REST API,
 # never through choudoufu. BREAK=1 strips tofu-estate from the bucket and
 # requires the listing to lose it and the replan to refuse it by name,
 # the Kubernetes sibling's control (k8s-greenfield, #1108, #1546): an

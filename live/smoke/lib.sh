@@ -382,9 +382,10 @@ cluster_down() {
 #   assumed    compute_custom_endpoint = <endpoint>/compute/v1/, the
 #              provider's default base path with the emulator's root; no
 #              test in the fork sets it
-#   assumed    cloud_asset_custom_endpoint = <endpoint>/v1/; Asset search
-#              is not served yet (lex00/floci-gcp#7), so the sweep's leg
-#              has no path to confirm
+#   read       cloud_asset_custom_endpoint = <endpoint>/cloudasset/v1/; the
+#              emulator mounts Cloud Asset under that prefix (its path
+#              collides with IAM's v1/projects, lex00/floci-gcp#7, served
+#              in the pinned image)
 #   assumed    iam_credentials_custom_endpoint = <endpoint>/v1/, where the
 #              IAM guide says generateAccessToken lives but gives no path
 #   assumed    secret_manager_custom_endpoint = <endpoint>/v1/; Secret
@@ -449,7 +450,7 @@ iam_custom_endpoint -
 pubsub_custom_endpoint v1/
 resource_manager_custom_endpoint v1/
 service_usage_custom_endpoint v1/
-cloud_asset_custom_endpoint v1/
+cloud_asset_custom_endpoint cloudasset/v1/
 iam_credentials_custom_endpoint v1/
 secret_manager_custom_endpoint v1/
 PATHS

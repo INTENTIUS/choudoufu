@@ -607,7 +607,7 @@ else
   R_REPLAN="$(plan_a)" || fail "the replan after the moved block failed"
   grep -q "No changes." <<< "$R_REPLAN" || { printf '%s\n' "$R_REPLAN" | tail -20; fail "the replan after the moved block is not empty: the record did not follow the block"; }
   exists_a "$(fw_path maintenance-firewall-internet)" || fail "the internet firewall is gone after the rename"
-  gauntlet_stage day2_rename pass "moved block: google_compute_firewall.maintenance-firewall-internet -> $NEW_FW, zero churn (no add, change or destroy), the apply touching nothing and the replan empty, the firewall still there (REST); a firewall carries no label, so its record is what followed the block. Stock's plan for the same moved block on the oracle emulator is zero churn too. live-mv refuses GCP by name until its rewrite lands, so the moved block is the only rename measured. BREAK=1 renames the firewall itself, which is a genuine identity change and plans a destroy and a create"
+  gauntlet_stage day2_rename pass "moved block: google_compute_firewall.maintenance-firewall-internet -> $NEW_FW, zero churn (no add, change or destroy), the apply touching nothing and the replan empty, the firewall still there (REST); a firewall carries no label, so its record is what followed the block. Stock's plan for the same moved block on the oracle emulator is zero churn too. live-mv is not exercised by this stage, so the moved block is the only rename measured. BREAK=1 renames the firewall itself, which is a genuine identity change and plans a destroy and a create"
 fi
 
 # ── 8. day2_remove: delete the internal firewall's block ─────────────────
