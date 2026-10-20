@@ -2759,6 +2759,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Reference to undeclared resource | error | `internal/live/identity` | "Reference to undeclared resource" |
 | 0 | 0 | identity | Required variable not set | error | `internal/configs` | "Required variable not set" |
 | 0 | 0 | identity | Reserved symbol name | error | `internal/addrs` | "Reserved symbol name" |
+| - | - | identity | Resource in a resource group this estate does not declare | error | `internal/live/identity` | live/MARKERS.md, "Granting an Azure estate" |
 | 0 | 0 | identity | Resource type has no orphan recovery | error | `internal/live/identity` | "Resource type has no orphan recovery" |
 | 0 | 0 | identity | Secret-generating resource refused | error | `internal/live/identity` | "strict-secrets" |
 | 0 | 0 | identity | Sensitive for_each expression | error | `internal/live/identity` | "Sensitive for_each expression" |
@@ -2891,7 +2892,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**280 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**281 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4052,6 +4053,16 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `internal/addrs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Resource in a resource group this estate does not declare
+
+**What.** On Azure an estate is the set of resource groups its configuration declares (GitHub issue #1122). A declared azurerm or azapi resource whose resource_group_name, resource_group_id or parent_id names a group no azurerm_resource_group or azapi Microsoft.Resources/resourceGroups block declares is outside the estate's role assignment and Policy guard. Reported as a warning, once per group.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+**Full entry.** `live/MARKERS.md`, "Granting an Azure estate" - hand-written, and the authority on this refusal.
 
 #### Resource type has no orphan recovery
 

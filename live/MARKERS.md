@@ -1610,7 +1610,96 @@ resources.
 
 **This governs API calls, not tag survival.** A principal that cannot act on
 an estate's resources can still, with tagging permissions elsewhere, remove
-the markers that define it. That is the next section's subject.
+the markers that define it. That is the subject of "Protecting the markers"
+below.
+
+### Granting an Azure estate
+
+Azure RBAC cannot condition on a resource's tags, so the AWS grant above has
+no Azure equivalent. On Azure an estate is a set of resource groups (ruled
+on #1122), and the fence is two templates an operator applies with `az`
+alone. Neither is ever a resource in a plan.
+
+- [`live/azure/estate-grant.json`](azure/estate-grant.json) assigns one
+  principal a role at each of the estate's groups, and a read role at the
+  subscription for the plan's Resource Graph sweep
+  (`Microsoft.ResourceGraph/resources/read` and `*/read`). The default role
+  is a custom one per estate, assignable only at the estate's groups:
+  Contributor's actions without deleting the group itself. `role=Contributor`
+  uses the built-in role instead, which can delete the group and can be
+  assigned anywhere.
+- [`live/azure/estate-boundary.json`](azure/estate-boundary.json) defines two
+  Policy definitions at the subscription and assigns both at each of the
+  estate's groups, never at the subscription. The first denies a create or
+  update of a taggable resource whose `tags['tofu-estate']` is missing or
+  names another estate. The second is `denyAction` on delete of a resource
+  tagged with the estate, with `cascadeBehaviors.resourceGroup = deny`.
+
+```
+az deployment sub create --location <region> \
+  --template-file live/azure/estate-grant.json \
+  --parameters estate=<estate> resourceGroups='["<rg-1>","<rg-2>"]' principalId=<object-id>
+az deployment sub create --location <region> \
+  --template-file live/azure/estate-boundary.json \
+  --parameters estate=<estate> resourceGroups='["<rg-1>","<rg-2>"]'
+```
+
+Both are ARM JSON rather than Bicep. `az deployment` takes ARM JSON with
+nothing else installed, where Bicep needs the Bicep CLI on the machine
+(az fetches it on first use, which an air-gapped runner cannot do), and
+`live/azure_fence_test.go` reads JSON with the standard library.
+
+The estate's groups, as the plan sees them, are the `azurerm_resource_group`
+blocks and azapi `Microsoft.Resources/resourceGroups` blocks the
+configuration declares. The live block has no per-platform settings, so
+there is no other list. A declared azurerm or azapi resource whose
+`resource_group_name`, `resource_group_id` or `parent_id` names any other
+group gets the warning "Resource in a resource group this estate does not
+declare" (`internal/live/identity/azure_resourcegroup.go`), once per group.
+
+#### What the Azure grant cannot reach
+
+- The role assignment reaches
+  everything in the estate's groups, tagged or not, and nothing outside
+  them. An untaggable child resource (a subnet, a route, a blob
+  container) is still covered by the group's RBAC, where an AWS tag
+  condition matches nothing on an untaggable type.
+- The tag guard is Policy, so it is not per principal. Both definitions apply to
+  every caller at the group, the estate's own principal included. A
+  principal granted the group can still write anything the deny allows,
+  and the `denyAction` refuses the estate's own deletes, so removing a
+  resource from the estate takes a policy exemption on the delete guard
+  (`az policy exemption create`) for the duration of the change. Handover
+  between estates is assigning the group to the other estate, because the
+  deny refuses a write that changes `tofu-estate` to another name.
+- `mode: Indexed` evaluates only types that
+  support tags and location, so untaggable types, resource groups and
+  subscriptions are outside both definitions. An azurerm type that tags in
+  a separate call after create (PostCreateNeeded) is refused by the deny,
+  because its create arrives untagged.
+- `denyAction` covers only the `delete` action
+  ([effect-deny-action](https://learn.microsoft.com/azure/governance/policy/concepts/effect-deny-action)). A subscription deletion is never blocked.
+  Deleting a parent removes its child and extension resources without the
+  guard seeing them. A resource-group delete is blocked only by an indexed
+  resource with `cascadeBehaviors` set to `deny`; non-indexed resources in
+  the group are deleted. Policy assignments, locks, deny assignments and
+  deployment stacks are exempt.
+- Policy conditions other than `match` and `notMatch` compare
+  with `InvariantCultureIgnoreCase`
+  ([policy rule, Conditions](https://learn.microsoft.com/azure/governance/policy/concepts/definition-structure-policy-rule)),
+  so the estate value is matched without regard to case. Tag names are
+  case-insensitive for ARM operations
+  ([tag-resources](https://learn.microsoft.com/azure/azure-resource-manager/management/tag-resources)).
+  The Policy page does not say whether a `tags['tofu-estate']` lookup
+  matches a `Tofu-Estate` key, so that rests on the ARM statement and is
+  unmeasured.
+- Reads are not fenced: the sweep reader is subscription-wide read. The
+  record store's read fence is separate: the ABAC condition in
+  [`live/azure/record-store-abac.condition`](azure/record-store-abac.condition).
+- floci-az stores Policy definitions and
+  assignments and evaluates no rule, so nothing is denied there (`live/FLOCI.md`,
+  "Azure: floci-az"). Until the templates are applied on real Azure, every
+  statement in this list is from Azure's documentation, not measured.
 
 ## Protecting the markers
 
