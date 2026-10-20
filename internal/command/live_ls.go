@@ -268,13 +268,14 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	}
 
 	if args.ConfigDir != "" {
-		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.has(substrate.SweepLabelList), substrates.unclaimed, items)
+		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.has(substrate.SweepLabelList), substrates.has(substrate.SweepResourceGraph), substrates.unclaimed, items)
 		diags = diags.Append(gapDiags)
 		rep.Gaps = cmp.Gaps
 		rep.GapsSkipped = cmp.Skipped
 		rep.Schemas = cmp.Schemas
-		if len(cmp.LabelListItems) > 0 {
+		if len(cmp.LabelListItems) > 0 || len(cmp.ResourceGraphItems) > 0 {
 			rep.Items = append(rep.Items, cmp.LabelListItems...)
+			rep.Items = append(rep.Items, cmp.ResourceGraphItems...)
 			sortLiveLsItems(rep.Items)
 		}
 		for i := range rep.Items {
@@ -696,7 +697,7 @@ func pollConsistentEvery(ctx context.Context, read func(ctx context.Context) ([]
 // after resolution, since what it calls declared is a resolution's kind and
 // natural key. Its items come back in the comparison's Kubernetes field
 // and are counted found for the gap list below.
-func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, config *configs.Config, cfgDiags tfdiags.Diagnostics, kubernetes bool, unclaimed []addrs.AbsProviderConfig, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
+func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, config *configs.Config, cfgDiags tfdiags.Diagnostics, kubernetes, resourceGraph bool, unclaimed []addrs.AbsProviderConfig, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	// Whether provider schemas were read, tracked across the skip paths
 	// below rather than only on the path that completes: a comparison that
@@ -820,6 +821,15 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 		kube, kubeDiags = c.liveLsKubernetes(ctx, estate, config, provs, resolutions.All(), nodeRefused)
 		diags = diags.Append(kubeDiags)
 	}
+	// The Azure listing (GitHub issue #1120) runs here for the same reason:
+	// its clients are built from the provider blocks' evaluated arguments,
+	// and what it calls declared is a resolution's address or ARM id.
+	var graph []views.LiveLsItem
+	if resourceGraph {
+		var graphDiags tfdiags.Diagnostics
+		graph, graphDiags = c.liveLsResourceGraph(ctx, estate, config, provs, resolutions.All())
+		diags = diags.Append(graphDiags)
+	}
 	closeProviders()
 
 	declared := make(map[string]bool, resolutions.Len())
@@ -827,8 +837,13 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 		declared[res.Addr.String()] = true
 	}
 
-	foundInCloud := make(map[string]bool, len(items)+len(kube))
+	foundInCloud := make(map[string]bool, len(items)+len(kube)+len(graph))
 	for _, item := range items {
+		if item.Address != "" {
+			foundInCloud[item.Address] = true
+		}
+	}
+	for _, item := range graph {
 		if item.Address != "" {
 			foundInCloud[item.Address] = true
 		}
@@ -858,7 +873,7 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 	}
 	sort.Slice(gaps, func(i, j int) bool { return gaps[i].Address < gaps[j].Address })
 
-	return liveLsComparison{Gaps: gaps, Declared: declared, Schemas: schemasRead, LabelListItems: kube}, diags
+	return liveLsComparison{Gaps: gaps, Declared: declared, Schemas: schemasRead, LabelListItems: kube, ResourceGraphItems: graph}, diags
 }
 
 // liveLsSubstrateSet is which substrates a listing covers, read off DIR's
@@ -892,6 +907,9 @@ type liveLsSubstrateSet struct {
 var liveLsListings = map[substrate.Sweep]string{
 	substrate.SweepTaggingIndex: "the Resource Groups Tagging API index and the IAM role pass",
 	substrate.SweepLabelList:    "one label-selected list per kind each cluster serves",
+	// Listed only with DIR, whose provider blocks name the subscriptions
+	// and credentials (GitHub issue #1120).
+	substrate.SweepResourceGraph: "one Azure Resource Graph query per subscription the estate's resources resolve to",
 }
 
 // liveLsNotListed is the warning for every family in set whose sweep
@@ -1187,6 +1205,13 @@ type liveLsComparison struct {
 	// such a substrate, or when the comparison skipped before resolution.
 	// Named for the capability, not the family (GitHub issue #1705).
 	LabelListItems []views.LiveLsItem
+
+	// ResourceGraphItems is the listing of every substrate whose sweep is
+	// [substrate.SweepResourceGraph] (the Azure Resource Graph listing,
+	// GitHub issue #1120), made here for LabelListItems' reason. Nil when
+	// DIR names no azurerm or azapi provider, or the comparison skipped
+	// before resolution.
+	ResourceGraphItems []views.LiveLsItem
 }
 
 // liveLsRung classifies why a declared instance cannot be found by this

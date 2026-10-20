@@ -228,6 +228,15 @@ const (
 	// are served by the root configuration's provider config instead. See
 	// module_provider_block.go.
 	RuleModuleProviderBlock Rule = "module-provider-block"
+
+	// RuleARMTagLimit covers an azurerm or azapi resource whose tags, once
+	// this run adds its ownership markers, come to more than the resource
+	// takes (azurerm's own validation, the ARM type's documented maximum, or
+	// ARM's 50), or one of whose marker tags breaks a rule azurerm or ARM
+	// applies to a tag. A warning: Azure refuses the write with its own
+	// error, and nothing is created wrongly. GitHub issue #1120. See
+	// arm_tag_limit.go.
+	RuleARMTagLimit Rule = "arm-tag-limit"
 )
 
 // UnfindableClause is what an apply with no usable handle costs, as a
@@ -445,6 +454,11 @@ var ruleInfo = map[Rule]struct {
 	RuleModuleProviderBlock: {
 		summary: "Provider block in a child module needs count, for_each, enabled or depends_on removed from its call chain",
 		docsRef: `live/LIMITATIONS.md, "module-provider-block"`,
+	},
+	RuleARMTagLimit: {
+		summary:  "Azure resource has no room for its ownership markers",
+		docsRef:  `live/LIMITATIONS.md, "arm-tag-limit"`,
+		severity: SeverityWarning,
 	},
 }
 

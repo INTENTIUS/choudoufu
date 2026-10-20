@@ -32,7 +32,9 @@ func TestRefusalsRegistered(t *testing.T) {
 		// those values visible to the scan; problemDiag is the one function
 		// that reads it and passes the result on, and every value it can
 		// read is registered by the map scan already.
-		SummaryMaps:  []string{"problemSummaries"},
+		// The Azure leg's (GitHub issue #1120) summaries are chosen by the
+		// failed subscription's azsweep error, out of resourceGraphSummaries.
+		SummaryMaps:  []string{"problemSummaries", "resourceGraphSummaries"},
 		DynamicSites: []string{"problemDiag"},
 	})
 }

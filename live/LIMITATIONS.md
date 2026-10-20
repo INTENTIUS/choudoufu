@@ -64,6 +64,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 <!-- limits-gen:begin lint-roster -->
 | Rule | Summary | Severity | Documented at | Fixture |
 |---|---|---|---|---|
+| `arm-tag-limit` | Azure resource has no room for its ownership markers | warning | "arm-tag-limit" | `live/e2e/limits/arm-tag-limit/` |
 | `child-live-config` | Live configuration in a child module is not consulted | error | "child-live-config" | `live/e2e/limits/child-live-config/` |
 | `child-module` | This module call cannot be expanded under live resource markers | error | "child-module" | `live/e2e/limits/child-module/` |
 | `count-index` | count.index is not available in resource arguments | error | "count-index-in-tag" | `live/e2e/limits/count-index-in-tag/` |
@@ -95,7 +96,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `unadmitted-type` | Resource type is outside the live-markers subset | error | "unadmitted-type" | `live/e2e/limits/unadmitted-type/` |
 | `undeclared-provider-alias` | Provider configuration is not declared | error | "undeclared-provider-alias" | `live/e2e/limits/undeclared-provider-alias/` |
 
-**30 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 27 of the 30 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
+**31 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 28 of the 31 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
 <!-- limits-gen:end lint-roster -->
 
 ### local-exec
@@ -1315,6 +1316,63 @@ measured once per statically evaluable key under the same boundary as
 `foreach-invalid-key`, and a `count` resource is measured at its highest
 index when the count is statically evaluable. Fixture at
 `live/e2e/limits/overlong-address/`.
+
+### arm-tag-limit
+
+**Construct.** An `azurerm` or `azapi` resource whose tags, once this run
+adds its ownership markers, come to more than the resource takes, or one of
+whose marker tags breaks a rule azurerm or ARM applies to a tag. The stamp
+adds `tofu-estate` and `tofu-address`, one continuation tag for each 256
+characters of address past the first, and `tofu-slot` on a `count` block.
+A configuration stock creates with 14 tags on a Cosmos DB account, or 49 on
+a resource group, fails its create only because of the markers.
+
+**Why bounded.** Azure caps the tags on one resource, and the cap is not
+the same everywhere. The rule takes the lowest of the limits that apply and
+names each with its source:
+
+- azurerm's own validation of the type's `tags` argument, read from the
+  provider's schema at the pin (`internal/live/armtypes`,
+  `azurerm_tags_generated.json`): 50 for `commonschema.Tags()`, 15 for
+  `azurerm_key_vault_secret` (`commonschema.TagsWithMaximumElements(15)`),
+  lowercase-only keys for `azurerm_data_share_account`, a 128-character key
+  for `azurerm_storage_account`;
+- the ARM type's documented maximum, from the `tags` description in the
+  type data azapi embeds (`taglimits_generated.txt`, 38 ARM types at azapi
+  2.13.0, among them Cosmos DB and storage accounts at 15 and API
+  Management at 10). An azapi resource's ARM type is its `type` argument;
+  an azurerm type's is read off its id template in `live/azurerm-ids.json`
+  (`azurerm_armtypes_generated.txt`);
+- ARM's default of 50 tags, 512-character keys and 256-character values
+  (go-azure-helpers' `tags.Validate`, and Azure's documented limits)
+  otherwise.
+
+Each marker key is checked under the spelling the stamp writes, which is
+the configuration's own when it already sets one (`Tofu-Estate`), and each
+address chunk is measured in bytes, which is what azurerm and ARM count,
+while the continuation split counts characters.
+
+A warning, not a refusal. Azure refuses the write that carries the markers
+with its own error and nothing is created wrongly: the create or update
+fails, or for a type azurerm tags after its create
+(`azurerm_app_service_managed_certificate`, `azurerm_subscription`) the
+object is created and the marker write that follows fails, naming the
+object. The warning names the cause before an apply does.
+
+**Forwarding address.** Free room in the block's own tags, or keep the
+resource's identity in the record store instead of a marker
+(`strict { markers "record" }`, "strict-markers").
+
+**Enforcement.** `RuleARMTagLimit`, `internal/live/lint/arm_tag_limit.go`
+(`checkARMTagLimit`), severity warning. It reads what configuration alone
+states: a `tags` argument (or an azapi `body.tags` written as an object)
+whose keys do not evaluate is skipped, and a key whose value is unknown is
+counted, since the key takes a slot whatever its value. With provider
+schemas it counts only a type whose schema carries the `arm-tags` surface,
+so the three azurerm types whose `tags` is a list of strings are never
+counted. Fixture at `live/e2e/limits/arm-tag-limit/`, which a schemaless
+lint run also refuses as `unadmitted-type` (no azurerm type has a row in the
+admission table).
 
 ### ignore-changes
 
@@ -2644,6 +2702,10 @@ refused, and each says so in its own entry.
 | 0 | 0 | dataread | Data source read failed | error | `internal/live/dataread` | "Data source read failed" |
 | - | - | discovery | Address too long to carry an ownership marker | error | `internal/live/discovery` | "overlong-address" |
 | - | - | discovery | Annotated with a live Helm release, not in its manifest | warning | `internal/live/discovery` | "Annotated with a live Helm release, not in its manifest" |
+| - | - | discovery | Azure Resource Graph throttled the sweep | error | `internal/live/discovery` | "Azure Resource Graph throttled the sweep" |
+| - | - | discovery | Azure subscription not covered by any provider block | warning | `internal/live/discovery` | "Azure subscription not covered by any provider block" |
+| - | - | discovery | Azure subscription not readable by the sweep | warning | `internal/live/discovery` | "Azure subscription not readable by the sweep" |
+| - | - | discovery | Azure sweep unavailable | warning | `internal/live/discovery` | "Azure sweep unavailable" |
 | - | - | discovery | Cannot list the record store | error | `internal/live/discovery` | "Cannot list the record store" |
 | - | - | discovery | Cloud Control identifier could not be composed | error | `internal/live/discovery` | "Cloud Control identifier could not be composed" |
 | - | - | discovery | Content match found more than one live candidate | error | `internal/live/discovery` | "Content match found more than one live candidate" |
@@ -2677,6 +2739,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Malformed slot marker | error | `internal/live/discovery` | "Malformed slot marker" |
 | - | - | discovery | Marked resource abandoned by a provider configuration change | warning | `internal/live/discovery` | "strict-provider-change" |
 | - | - | discovery | Marked resource outside its address's provider configuration | error | `internal/live/discovery` | "Marked resource outside its address's provider configuration" |
+| - | - | discovery | Microsoft.ResourceGraph not registered | error | `internal/live/discovery` | "Microsoft.ResourceGraph not registered" |
 | - | - | discovery | No AWS account ID from the provider | warning | `internal/live/discovery` | "No AWS account ID from the provider" |
 | - | - | discovery | No configuration to discover against | error | `internal/live/discovery` | "No configuration to discover against" |
 | - | - | discovery | No configured provider serves a removed resource's type | error | `internal/live/discovery` | "No configured provider serves a removed resource's type" |
@@ -2781,6 +2844,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Variables not allowed | error | `hcl` | "Variables not allowed" |
 | 0 | 0 | identity | for_each key cannot be recorded as a marker | error | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
 | 0 | 0 | identity | for_each over a resource that is not keyed | error | `internal/live/identity` | "for_each over a resource that is not keyed" |
+| - | - | lint | arm-tag-limit | warning | `internal/live/lint` | "arm-tag-limit" |
 | 0 | 0 | lint | child-live-config | error | `internal/live/lint` | "child-live-config" |
 | 0 | 0 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
 | 0 | 0 | lint | generate-name | error | `internal/live/lint` | "generate-name" |
@@ -2896,7 +2960,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**285 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**291 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3129,6 +3193,38 @@ reserved for the limits wing's fixture directories, and
 #### Annotated with a live Helm release, not in its manifest
 
 **What.** The Kubernetes sweep found an object carrying the estate's label and Helm's meta.helm.sh/release-name annotation, naming a release that still exists, whose manifest does not list it (GitHub issue #1738 item 4, ruled 2026-09-30). The release's latest record and its last deployed one are read metadata-first and decoded the way Helm's storage driver wrote them, and the object is matched on kind, namespace (the release's, for a document that gives none) and name. Unmatched, it is not the release's, so it is not reported as controller-held; it is not proposed for destroy either, so a wrong match can only ever raise this warning. A chart that dropped the object under helm.sh/resource-policy: keep, or a copy of a Helm object's YAML applied by hand, leaves it in this state. A record that cannot be read or decoded holds the object instead. A warning: the plan is unchanged by it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Azure Resource Graph throttled the sweep
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) queries Azure Resource Graph once per subscription the estate's resources resolve to, and Resource Graph answered one of those queries 429 past the waits its Retry-After and x-ms-user-quota-resets-after headers allow (four waits, none longer than a minute). What the estate marks in that subscription is unknown, and a plan made without it would propose no removal there however many blocks were deleted, so the plan is refused, naming the subscription; plan again once the caller's Resource Graph quota has recovered.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Azure subscription not covered by any provider block
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) queries every subscription the estate's resources resolve to, with the credential of the azurerm or azapi provider block that names it. A declared resource's ARM id names a subscription no provider block of the configuration names, so no credential was set to query it. A warning naming the subscription, and an incomplete sweep rather than an empty one: a resource the estate marks there whose block was deleted is not proposed for removal. Adding a provider block (an alias will do) whose subscription_id is that subscription covers it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Azure subscription not readable by the sweep
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) asked Azure Resource Graph about one subscription the estate's resources resolve to, and the credential cannot read it: no role assignment grants read on it, it does not exist, or it belongs to a tenant the token was not issued for (Resource Graph's NoValidSubscriptionsInQueryRequest, ARM's AuthorizationFailed, SubscriptionNotFound, InvalidSubscriptionId, InvalidAuthenticationTokenTenant, or any 403). One query per subscription is what makes this visible: asked about several at once, Resource Graph leaves an unreadable one out without saying so. A warning naming the subscription and the credential, and an incomplete sweep rather than an empty one: a resource the estate marks there whose block was deleted is not proposed for removal until a run can read it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Azure sweep unavailable
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) could not query one subscription for a reason none of the other Azure summaries names: no Resource Graph client could be built from an azurerm or azapi provider block (it names no credential the sweep can use, or sets a connection argument from a sensitive value), the provider block names no subscription, Resource Graph answered an error it does not classify, or a page after the first failed, in which case the pages already read are discarded rather than used. A warning, and an incomplete sweep rather than an empty one: a resource the estate marks there whose block was deleted is not proposed for removal until a run can read it.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 
@@ -3395,6 +3491,14 @@ reserved for the limits wing's fixture directories, and
 #### Marked resource outside its address's provider configuration
 
 **What.** A live resource carries this estate's marker for an address the configuration declares under a provider configuration that never listed it, and only passes that address does not belong to found it - a region or account change that left the old region's object behind. Proceeding would create a second live resource carrying one address's marker, so the plan refuses instead.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Microsoft.ResourceGraph not registered
+
+**What.** The Azure leg of the estate sweep (GitHub issue #1120) queries Azure Resource Graph once per subscription the estate's resources resolve to, and one of those subscriptions has not registered the Microsoft.ResourceGraph resource provider (ARM's MissingSubscriptionRegistration and the other codes azure-sdk-for-go's registration policy acts on). The fix is registering it (az provider register --namespace Microsoft.ResourceGraph), never a retry or a grant. Refused by name, naming the subscription: a sweep that skipped it would read as one with nothing to remove there however many blocks were deleted.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 

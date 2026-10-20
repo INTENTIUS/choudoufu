@@ -6,6 +6,7 @@
 package substrate
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -13,6 +14,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/armtypes"
+	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -60,16 +63,28 @@ func (azure) MarkersOf(surface markers.Surface, obj cty.Value) (map[string]strin
 
 // Writes: the tags map rides the create call (azurerm's tags argument, or
 // azapi's top-level tags or body.tags), and an existing object is marked by
-// a plan-then-apply confined to the tags, as on AWS. PostCreate is the
-// tagging write a later unit adds for the azurerm types that tag in a
-// separate call after create; until then [azure.PostCreateNeeded] never
-// answers true, so the write is never asked for.
+// a plan-then-apply confined to the tags, as on AWS. PostCreate is ARM's
+// Tags API ([WriteARMTagsAPI]), for the azurerm types whose create call
+// cannot carry tags ([azure.PostCreateNeeded]).
 func (azure) Writes(surface markers.Surface) Writes {
 	if surface == markers.SurfaceARMTags {
-		return Writes{Create: WriteInCreate, Adopt: WriteTagsPlan, PostCreate: WriteNeverNeeded}
+		return Writes{Create: WriteInCreate, Adopt: WriteTagsPlan, PostCreate: WriteARMTagsAPI}
 	}
 	return Writes{}
 }
+
+// WriteARMTagsAPI is the Azure family's post-create write (#1120 unit 12):
+// ARM's Tags API, a merge of the marker tags onto the object's tag scope
+// ([ARMTagScope]):
+//
+//	PATCH {resourceManager}{scope}/providers/Microsoft.Resources/tags/default?api-version=2021-04-01
+//	{"operation": "Merge", "properties": {"tags": {...}}}
+//
+// Merge adds and replaces the named tags and leaves every other tag on the
+// object as it is (Azure REST API, Tags - Update At Scope). It is the call
+// az tag update --operation Merge makes, and the one azurerm itself uses to
+// tag a subscription (tagsClient.CreateOrUpdateAtScope).
+const WriteARMTagsAPI Write = "arm-tags-api"
 
 // CarriesAddress: the tofu-address tag, with continuations and tofu-slot,
 // exactly as on AWS (#1122's capability row).
@@ -111,11 +126,56 @@ func (azure) SweepFindsUnadmitted() bool { return true }
 // measurement on floci-az.
 func (azure) MarkerOutlivesObject() bool { return true }
 
-// NewSweeper builds no client yet: the Resource Graph sweep is its own unit
-// of #1120 (item 3), which builds the client from the azurerm provider
-// block. Until then the family has no sweep leg, and nil with no error is
-// what a family whose leg is not built answers.
-func (azure) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
+// NewSweeper is the Resource Graph client the provider block's own
+// connection arguments build ([AzureSweepAttrs], with the provider's
+// environment fallbacks applied by azsweep.New), so the sweep calls as the
+// provider does and covers the subscription the block names (#1120 unit
+// 11). On an error the client is a nil [Sweeper], never a
+// [ResourceGraphSweeper] holding a nil client.
+func (azure) NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error) {
+	client, err := azsweep.New(context.Background(), AzureSweepAttrs(providerConfig, ok))
+	if err != nil {
+		return nil, err
+	}
+	return ResourceGraphSweeper{Client: client}, nil
+}
+
+// ResourceGraphSweeper is the Azure family's client: the Resource Graph
+// client built from one azurerm or azapi provider block, whose methods it
+// carries (azsweep.Searcher, and Subscription, the subscription the block
+// names). internal/command's leg for [SweepResourceGraph] asks for those
+// capabilities, never for this type.
+type ResourceGraphSweeper struct {
+	*azsweep.Client
+}
+
+// SweepKind is [SweepResourceGraph].
+func (ResourceGraphSweeper) SweepKind() Sweep { return SweepResourceGraph }
+
+// AzureSweepAttrs reads the connection arguments the Resource Graph sweep
+// understands off an evaluated azurerm or azapi provider block
+// (azsweep.ProviderAttrs), before the environment fallbacks. Which of the
+// two providers the block configures is read off its shape, since
+// [Substrate.NewSweeper] is handed the value alone: azurerm's provider
+// schema has a features block and azapi's has none, and azapi's has an
+// endpoint block and default_tags, which azurerm's has not (both providers'
+// schemas at the pinned versions, azurerm 5.10.0 and azapi 2.13.0). A
+// value of neither shape, or none at all, reads as azurerm, the family's
+// name.
+func AzureSweepAttrs(val cty.Value, ok bool) azsweep.Attrs {
+	return azsweep.ProviderAttrs(azureProviderOf(val, ok), val, ok)
+}
+
+func azureProviderOf(val cty.Value, ok bool) string {
+	if !ok || val == cty.NilVal || !val.Type().IsObjectType() {
+		return azsweep.ProviderAzureRM
+	}
+	ty := val.Type()
+	if !ty.HasAttribute("features") && (ty.HasAttribute("endpoint") || ty.HasAttribute("default_tags")) {
+		return azsweep.ProviderAzAPI
+	}
+	return azsweep.ProviderAzureRM
+}
 
 // ---- GitHub issue #1584 ----
 
@@ -157,29 +217,76 @@ func (azure) NotACarrier(_ *configschema.Block, typeName string) string {
 
 // ---- GitHub issue #1587 ----
 
-// MarkerWriter is [WriteNeverNeeded] until the post-create unit adds a
-// tagging write (ARM's Tags API) for the types that need one.
-func (azure) MarkerWriter() Write { return WriteNeverNeeded }
+// MarkerWriter is [WriteARMTagsAPI] for every azurerm and azapi provider
+// configuration: internal/command builds the Tags API client with the
+// credential chain the Resource Graph sweep uses (internal/live/azsweep).
+func (azure) MarkerWriter() Write { return WriteARMTagsAPI }
 
 // ---- GitHub issue #1642 ----
 
-// PostCreateNeeded is false for every type for now. #1122 rules that the
-// azurerm types which tag in a separate call after create answer true, from
-// a list generated from azurerm's source; that generated list is a later
-// unit of #1120, and no list is written by hand here. With it absent every
-// create carries the marker in its create call, which is what azurerm does
-// for a type whose create request includes tags.
-func (azure) PostCreateNeeded(markers.Surface, Created, Facts) (string, bool) {
+// PostCreateNeeded is #1122's ruling, answered from the generated azurerm
+// tag facts (internal/live/armtypes, azurerm_tags_generated.json, read off
+// azurerm's Create functions at the pin): true for an azurerm type whose
+// create call does not carry tags and whose Create writes them in a later
+// call (after-create; two types at azurerm 5.10.0), and for a type the
+// analysis could not classify (unknown; none at 5.10.0), the conservative
+// answer the facts ask for. False for every in-create type, for azapi,
+// whose create PUT carries the tags it is given (internal/live/projection's
+// armTagTarget), and for a type with no ARM tags map. The facts are
+// embedded, so the run's [Facts] carries no Azure entry.
+func (azure) PostCreateNeeded(surface markers.Surface, created Created, _ Facts) (string, bool) {
+	if surface != markers.SurfaceARMTags {
+		return "", false
+	}
+	facts := armtypes.DefaultRMTags()
+	row, ok := facts.Row(created.Type())
+	if !ok {
+		return "", false
+	}
+	source := fmt.Sprintf("internal/live/armtypes/%s, azurerm %s", armtypes.RMTagsPath, facts.Version)
+	switch row.Create {
+	case armtypes.CreateAfterCreate:
+		return fmt.Sprintf("%s does not send tags in its create call (%s) and writes them afterwards with %s (%s)", row.Type, row.CreateCall, row.Call, source), true
+	case armtypes.CreateUnknown:
+		return fmt.Sprintf("this build could not tell whether %s sends tags in its create call (%s: %s)", row.Type, source, row.Reason), true
+	}
 	return "", false
+}
+
+// ARMTagScope is the ARM id the Tags API write addresses for an object the
+// provider returned: its id, the ARM resource id in both providers. One
+// object is the exception, by rule rather than by type: an id outside any
+// subscription (a tenant-level "/providers/..." path) names no taggable
+// resource, and ARM writes tags only on a resource, a resource group or a
+// subscription. Such an object that carries a subscription_id is tagged on
+// that subscription, which is what azurerm_subscription does with its own
+// tags: its id is the Microsoft.Subscription alias, and its Create tags
+// commonids.NewSubscriptionID(subscriptionId) (subscription_resource.go,
+// azurerm 5.10.0). Empty when the object names neither.
+func ARMTagScope(obj cty.Value) string {
+	id := ObjectString(obj, "id")
+	if id == "" {
+		return ""
+	}
+	lower := strings.ToLower(id)
+	if strings.HasPrefix(lower, "/subscriptions/") {
+		return id
+	}
+	if strings.HasPrefix(lower, "/providers/") {
+		if sub := ObjectString(obj, "subscription_id"); sub != "" {
+			return "/subscriptions/" + sub
+		}
+	}
+	return ""
 }
 
 // ---- GitHub issue #1653 ----
 
-// ManualMarkFix is the Azure CLI's merge of the marker tags onto the object
-// by its ARM id, the object's id attribute in both providers; the generic
-// sentence when the object has no id.
+// ManualMarkFix is the Azure CLI's merge of the marker tags onto the
+// object's tag scope ([ARMTagScope]), the same Merge the post-create write
+// makes; the generic sentence when the object names no scope.
 func (azure) ManualMarkFix(created Created, want map[string]string, _ Facts) string {
-	id := ObjectString(created.Object, "id")
+	id := ARMTagScope(created.Object)
 	if id == "" {
 		return genericMarkFix(want)
 	}
