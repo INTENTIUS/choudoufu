@@ -249,8 +249,31 @@ func (g ResourceGraphSweep) fileHit(ctx context.Context, req Request, decl *decl
 	}
 
 	importID := hit.ID
+	var refusedAt string
 	if declaredID {
 		importID = d.ImportID
+		if named && declaredAddrs[addr.String()] && addr.String() != d.Addr.String() {
+			// The object a declared instance names, carrying this estate's
+			// marker for ANOTHER declared address: AKS's copy of a
+			// cluster's markers onto the route table or public IP it was
+			// given, most often. d reads it at its own id and refuses it by
+			// name (GitHub issue #2135), so the displaced marker
+			// [fileCandidate] would file for the address the marker names
+			// is left to that refusal (see [taggedCandidate.refusedAt]).
+			//
+			// The refusal is certain here, not likely. d is concrete with
+			// an ARM id (byID holds nothing else, and a record-located
+			// instance has no import id to be keyed by), so the projection
+			// reads it unless d is vouched, and nothing can vouch for it:
+			// the only object at d's id carries another address, and an
+			// object carrying d's address at any other id is compared by
+			// ARM id and reported displaced instead (#2136). An ARM create
+			// overwrites at its id, so the read refuses under every policy
+			// verb. The one run that reads no tags at all is the
+			// cache-served -refresh=false plan, which reads no other marker
+			// either.
+			refusedAt = d.Addr.String()
+		}
 		if named && !declaredAddrs[addr.String()] {
 			// The object a declared instance names, carrying the marker of
 			// an address the configuration no longer declares: a block
@@ -268,6 +291,7 @@ func (g ResourceGraphSweep) fileHit(ctx context.Context, req Request, decl *decl
 		importID:     importID,
 		identityAttr: "id",
 		tags:         tags,
+		refusedAt:    refusedAt,
 	}, res, " (via Azure Resource Graph)", true))
 	for i := before; i < len(res.Orphans); i++ {
 		if res.Orphans[i].DisplayName == "" {

@@ -1118,10 +1118,18 @@ configuration computes for the address that marker names. When those two
 disagree it says so, as `Live resource displaced from the address it is
 marked for`.
 
-That finding is a warning and it proposes nothing. The resource is not read,
-not changed and not destroyed; it stays in the account until you say which
-resource is which, with `live-mv` or a `moved` block. The comparison behind
-it is inexact - the identity a configuration computes and the identity a
+That finding is a warning and it proposes nothing for the address the
+marker names. The resource is not changed or destroyed as that address's
+object; it stays in the account until you say which resource is which, with
+`live-mv` or a `moved` block. Whether it is read depends on where it sits:
+at an identity nothing declares it is not read at all, and at the identity
+another declared instance computes (`aws_x.r[2]`'s leftover sitting where
+`aws_x.r[1]` now points) it is read there by that instance and judged by its
+own markers, and the warning names that instance. On Azure an object at a
+declared instance's ARM id gets no displaced warning: that instance's read
+refuses it as `Live object marked for another owner at the declared id
+would be overwritten` (#2135), one diagnostic for one object. The comparison
+behind it is inexact - the identity a configuration computes and the identity a
 provider attaches to a listed object are two different things that usually,
 not always, spell the same string - so it is built to report only on
 positive evidence and to stay silent wherever it cannot compare like with
@@ -3479,7 +3487,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Live resource displaced from the address it is marked for
 
-**What.** A live resource carries this estate's marker for an address the configuration still declares, but the identity that address resolves to names a different live resource - so two resources answer to one address. Nothing is proposed for it; a human says which is which.
+**What.** A live resource carries this estate's marker for an address the configuration still declares, but the identity that address resolves to names a different live resource - so two resources answer to one address. Nothing is proposed for it on that address's behalf; a human says which is which. An object at an identity nothing declares is not read at all; one at the identity another declared instance computes (a renumbered count list's leftover) is read there by that instance and judged by its own markers, and the warning names that instance. An Azure object at a declared instance's ARM id gets no such warning: that instance's read refuses it under "Live object marked for another owner at the declared id would be overwritten" (GitHub issue #2135), one diagnostic for one object.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 

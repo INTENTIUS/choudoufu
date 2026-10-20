@@ -111,6 +111,11 @@ func TestRenameBind_azureOldObjectReportsDisplaced(t *testing.T) {
 			if !strings.Contains(p.Detail, renameNewRT) || !strings.Contains(p.Detail, renameOldRT) {
 				t.Errorf("the warning does not name both ids:\n%s", p.Detail)
 			}
+			// Nothing declares rt-old, so "not read" is true of it and
+			// stays (TestDisplacedProblem_saysWhereTheObjectSits).
+			if !strings.Contains(p.Detail, "it is bound to no address, it is not read") {
+				t.Errorf("a plain rename's warning lost its wording:\n%s", p.Detail)
+			}
 			assertNotAnOrphan(t, res, old.ID)
 			if res.MarkerVerified()[renameRTAdr] {
 				t.Errorf("rt-old's sighting vouched for %s, which would admit whatever sits at rt-new unread: %v", renameRTAdr, res.VerifiedDeclared)
