@@ -53,6 +53,40 @@ hashicorp/kubernetes 3.2.1: 4 admitted type(s), 0 awaiting a tier ruling.
 | `kubernetes_storage_class` | marker-carried | in-contract |
 <!-- readiness-gen:end k8s-types -->
 
+## Azure
+
+The Azure family's two providers, counted apart from the AWS tiers above
+and from each other (#2119, #1120): azurerm's rows are Terraform resource
+types, azapi's are the ARM types one `azapi_resource` block can declare.
+The rule is AWS's. A type that takes ARM tags is marker-carried. An
+untaggable type whose ARM id the declaration supplies is
+declaration-carried; in survey-path terms these are the client-named and
+parent-derived shapes (an azurerm id is a template over the type's own
+`name`, its `resource_group_name` and its parents' names or ids, the
+subscription coming from the provider block the way an AWS account does).
+An untaggable type nothing admits is record-carried.
+
+No stock carrier exists for an untaggable Azure type. azurerm and azapi
+write nothing onto an ARM object but its own properties, and ARM keeps no
+per-writer field the way Kubernetes keeps `managedFields`; `managedBy` is
+a single property a parent service sets, already read as controller-held
+evidence. No Azure type is in the markerless veto either. Every admitted
+azurerm type's id components are arguments the configuration sets (none is
+a Computed-only attribute at 5.10.0). Seven admitted untaggable types make
+the naming argument optional and mint a GUID when it is left out
+(`azurerm_management_group`, `azurerm_role_definition` and five more); such
+a block is refused by name ("Identity argument not set"). azapi refuses a
+block with no `name` itself. An unadmitted type whose create reads its id
+from the response (`azurerm_sentinel_threat_intelligence_indicator`) is
+refused as unadmitted.
+
+A removed declaration-carried block is found again through its record,
+as on AWS: the Resource Graph pass runs the record-store removal leg
+without AWS's admission-table sweep.
+
+<!-- readiness-gen:begin azure -->
+<!-- readiness-gen:end azure -->
+
 ## Every AWS type
 
 <!-- readiness-gen:begin types -->

@@ -227,6 +227,13 @@ type Artifact struct {
 	// no row in that AWS-only, CloudFormation-registry-backed artifact to be
 	// counted against.
 	Kubernetes Substrate `json:"kubernetes"`
+
+	// Azure is GitHub issue #2119's Azure column (#1120): every
+	// hashicorp/azurerm type and every ARM type azure/azapi can declare,
+	// tiered by the AWS rule from the Azure family's committed evidence
+	// (azure.go), and kept apart from Types/Counts for the same reason
+	// Kubernetes is.
+	Azure AzureSubstrate `json:"azure"`
 }
 
 // Substrate is one non-AWS provider's admitted types and their readiness
@@ -314,6 +321,20 @@ type Facts struct {
 	// AWS, labels on Kubernetes), not "carries a tags argument" applied
 	// literally to a provider that has never had one.
 	LabelSurface bool `json:"label_surface,omitempty"`
+
+	// The Azure section's facts (azure.go), set only on an [AzureSubstrate]
+	// row. ARMIDClass is live/azurerm-ids.json's class for an azurerm type,
+	// or "withheld" for a template internal/live/substrate refuses to
+	// admit. SchemaRoute is an azurerm type the identity-schema route
+	// admits at run time. ARMScope is where an instance lives, read off
+	// the id template, which decides whether a resource-group role
+	// assignment reaches it. VersionDependent is an azapi ARM type whose
+	// taggability differs between two of its API versions; Taggable is
+	// its latest version's.
+	ARMIDClass       string `json:"arm_id_class,omitempty"`
+	SchemaRoute      bool   `json:"schema_route,omitempty"`
+	ARMScope         string `json:"arm_scope,omitempty"`
+	VersionDependent bool   `json:"version_dependent,omitempty"`
 
 	// Rejected is whether tools/row-gen/rejected.json carries an entry for
 	// the type, and RejectedReason is its free-text reason when it has one
@@ -478,6 +499,11 @@ func Build(root string) (Artifact, error) {
 		return Artifact{}, err
 	}
 
+	azure, err := buildAzureSubstrate(root)
+	if err != nil {
+		return Artifact{}, err
+	}
+
 	return Artifact{
 		GeneratedBy:     GeneratedBy,
 		Provider:        survey.Provider,
@@ -485,6 +511,7 @@ func Build(root string) (Artifact, error) {
 		Counts:          counts,
 		Types:           rows,
 		Kubernetes:      kubernetes,
+		Azure:           azure,
 	}, nil
 }
 
