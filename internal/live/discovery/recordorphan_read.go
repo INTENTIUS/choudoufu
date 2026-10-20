@@ -361,6 +361,20 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				// rather than flattening one arbitrarily, is the same
 				// discipline [scanTypeLocatedFallback] applies to its own
 				// composite records.
+				if why, google := googleUncomposable(typeName); google {
+					// INTENTIUS/choudoufu#2139 item 3: a google type with no
+					// row reaches here only through the identity schema, so
+					// skipping it would leave the object live with nobody
+					// told. It is refused by name instead.
+					diags = diags.Append(problemDiag(res, Problem{
+						Kind:     ProblemUncomposableRecord,
+						TypeName: typeName,
+						Addr:     resolvedAddr,
+						Detail:   fmt.Sprintf("The block for %s was removed, and its record holds the identity as %s with no import ID. %s, so nothing here can read or destroy the object. Import it to a declared block, or destroy it by hand and remove the record.", resolvedAddr, componentNames(rec.Components), why),
+					}))
+					known[addr.String()] = true
+					known[resolvedAddr.String()] = true
+				}
 				continue
 			}
 		}
@@ -552,7 +566,11 @@ func destroyParentDependency(req Request, schemas listclient.Schemas, res *Resul
 func composeImportIDFromComponents(typeName string, components map[string]string) (string, bool) {
 	entry, ok := identity.LookupType(typeName)
 	if !ok {
-		return "", false
+		// A google type with no row (INTENTIUS/choudoufu#2139 item 3) is
+		// composed by the import forms tools/gcp-row-gen read off the
+		// provider source at the pin, in the order its importer tries
+		// them. Every other type without a row has none.
+		return identity.GoogleCompositeImportID(typeName, components)
 	}
 	var b strings.Builder
 	for _, c := range entry.Components {

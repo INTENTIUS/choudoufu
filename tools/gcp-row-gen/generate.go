@@ -80,11 +80,18 @@ type Output struct {
 	Survey    Survey
 	Table     []byte
 	SurveyRaw []byte
+
+	// Assets, Composites and ImportCounts are the import-ID tables
+	// (importids.go), rendered as ImportIDs.
+	Assets       []AssetDecision
+	Composites   []CompositeDecision
+	ImportCounts ImportIDCounts
+	ImportIDs    []byte
 }
 
 // Files maps each output to its repository-relative path.
 func (o Output) Files() map[string][]byte {
-	return map[string][]byte{TableGoRel: o.Table, SurveyJSONRel: o.SurveyRaw}
+	return map[string][]byte{TableGoRel: o.Table, SurveyJSONRel: o.SurveyRaw, ImportIDsGoRel: o.ImportIDs}
 }
 
 // Generate is the whole derivation from the two evidence artifacts.
@@ -179,6 +186,13 @@ func Generate(ev Evidence, facts Facts) (Output, error) {
 		return Output{}, err
 	}
 	out.Table = table
+
+	out.Assets, out.Composites, out.ImportCounts = deriveImportIDs(ev, byType, out.Decisions)
+	importIDs, err := renderImportIDs(out.Assets, out.Composites, out.ImportCounts)
+	if err != nil {
+		return Output{}, err
+	}
+	out.ImportIDs = importIDs
 	return out, nil
 }
 

@@ -2772,6 +2772,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Partial slot markers on a count set | error | `internal/live/discovery` | "Partial slot markers on a count set" |
 | - | - | discovery | Patched object does not exist | error | `internal/live/discovery` | "Patched object does not exist" |
 | - | - | discovery | Removed resource's provider configuration is gone | error | `internal/live/discovery` | "Removed resource's provider configuration is gone" |
+| - | - | discovery | Removed resource's record has no import ID to destroy it by | error | `internal/live/discovery` | "Removed resource's record has no import ID to destroy it by" |
 | - | - | discovery | Resolved resource missing from the configuration | error | `internal/live/discovery` | "Resolved resource missing from the configuration" |
 | - | - | discovery | Tagged resource's ARN could not be joined to a resource type | warning | `internal/live/discovery` | "Tagged resource's ARN could not be joined to a resource type" |
 | - | - | discovery | Two addresses encode to one GCP address label | error | `internal/live/discovery` | "Two addresses encode to one GCP address label" |
@@ -2980,7 +2981,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**286 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**287 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3575,6 +3576,14 @@ reserved for the limits wing's fixture directories, and
 #### Removed resource's provider configuration is gone
 
 **What.** A resource block was removed, and the record its instance left (the record-orphan-read leg, issue #364) names the provider configuration that managed it, which no pass of this run reads through - an alias renamed or removed in a root with several configurations of one provider (GitHub issue #1721). Its removal is read only through that configuration, because reading the identity through another region or account could reach a different object of the same name. Declaring the configuration again lets the plan destroy it.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Removed resource's record has no import ID to destroy it by
+
+**What.** INTENTIUS/choudoufu#2139 item 3: a resource block was removed, and the record its instance left holds the identity as its identity schema's attributes with no import ID. The type has no identity-table row, and the provider source at the pin states no import format made of those attributes (or the record lacks one the format needs), so there is nothing to read or destroy the object by. The plan refuses, naming the type, rather than drop the record and leave the object live. Importing the object to a declared block, or destroying it by hand and deleting the record, clears it.
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 

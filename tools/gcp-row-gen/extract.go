@@ -31,7 +31,16 @@ var (
 
 	quotedRe = regexp.MustCompile(`"((?:[^"\\]|\\.)*)"`)
 
-	metaFieldRe = regexp.MustCompile(`(?m)^(resource|generation_type):\s*'?([^'\n]*)'?\s*$`)
+	metaFieldRe = regexp.MustCompile(`(?m)^(resource|generation_type|api_service_name|cai_asset_name_format):\s*'?([^'\n]*)'?\s*$`)
+
+	// metaCAIListRe is the plural `cai_asset_name_formats:` key and the
+	// list items under it.
+	metaCAIListRe  = regexp.MustCompile(`(?m)^cai_asset_name_formats:\s*\n((?:[ \t]*-[^\n]*\n?)+)`)
+	metaListItemRe = regexp.MustCompile(`(?m)^[ \t]*-[ \t]*'?([^'\n]*?)'?[ \t]*$`)
+
+	// docImportRe is one bulleted format in a resource page's Import
+	// section: "* `{{key_ring}}/cryptoKeys/{{name}}`".
+	docImportRe = regexp.MustCompile("(?m)^\\* `([^`]+)`[ \t]*$")
 
 	parseFuncRe   = regexp.MustCompile(`func (\w+IdParseFunc)\(d \*schema\.ResourceData`)
 	qualifiersRe  = regexp.MustCompile(`GetImportIdQualifiers\(\[\]string\{"([^"]+)"`)
@@ -200,7 +209,11 @@ func extractSources(dir string) (map[string]Source, error) {
 				s = iamSource(typeName, text, grammar)
 			} else {
 				s = resourceSource(text)
-				s.Generation = meta[typeName]
+				m := meta[typeName]
+				s.Generation = m.generation
+				s.APIService = m.apiService
+				s.CAINameFormats = m.caiNames
+				s.DocImportFormats = docImportFormats(dir, typeName)
 			}
 			s.File = rel
 			out[typeName] = s
@@ -380,9 +393,19 @@ func iamGrammars(dir string) (map[string]string, error) {
 	return out, nil
 }
 
-// metaFiles maps each type to the generation_type its *_meta.yaml records.
-func metaFiles(dir string) (map[string]string, error) {
-	out := map[string]string{}
+// metaFacts is what one *_meta.yaml records for a type: its
+// generation_type, the API service it calls, and the Cloud Asset
+// Inventory name formats Magic Modules writes there when they differ from
+// "//<api_service_name>/<id format>".
+type metaFacts struct {
+	generation string
+	apiService string
+	caiNames   []string
+}
+
+// metaFiles maps each type to what its *_meta.yaml records.
+func metaFiles(dir string) (map[string]metaFacts, error) {
+	out := map[string]metaFacts{}
 	err := filepath.WalkDir(sourceRoot(dir), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -398,12 +421,56 @@ func metaFiles(dir string) (map[string]string, error) {
 		for _, m := range metaFieldRe.FindAllStringSubmatch(string(data), -1) {
 			fields[m[1]] = strings.TrimSpace(m[2])
 		}
-		if r := fields["resource"]; r != "" {
-			out[r] = fields["generation_type"]
+		r := fields["resource"]
+		if r == "" {
+			return nil
 		}
+		mf := metaFacts{generation: fields["generation_type"], apiService: fields["api_service_name"]}
+		if f := fields["cai_asset_name_format"]; f != "" {
+			mf.caiNames = append(mf.caiNames, f)
+		}
+		if m := metaCAIListRe.FindStringSubmatch(string(data)); m != nil {
+			for _, item := range metaListItemRe.FindAllStringSubmatch(m[1], -1) {
+				if v := strings.TrimSpace(item[1]); v != "" {
+					mf.caiNames = append(mf.caiNames, v)
+				}
+			}
+		}
+		out[r] = mf
 		return nil
 	})
 	return out, err
+}
+
+// docImportFormats reads the bulleted formats in the "## Import" section of
+// the type's page under website/docs/r, the formats the provider states
+// its importer accepts. A type with no page, or a page whose Import
+// section lists none, has none.
+func docImportFormats(dir, typeName string) []string {
+	page := filepath.Join(dir, "website", "docs", "r", strings.TrimPrefix(typeName, "google_")+".html.markdown")
+	data, err := os.ReadFile(page)
+	if err != nil {
+		return nil
+	}
+	text := string(data)
+	start := strings.Index(text, "\n## Import\n")
+	if start < 0 {
+		return nil
+	}
+	section := text[start+len("\n## Import\n"):]
+	if end := strings.Index(section, "\n## "); end >= 0 {
+		section = section[:end]
+	}
+	// Only the list ahead of the first example: the examples repeat the
+	// formats inside code blocks.
+	if fence := strings.Index(section, "```"); fence >= 0 {
+		section = section[:fence]
+	}
+	var out []string
+	for _, m := range docImportRe.FindAllStringSubmatch(section, -1) {
+		out = append(out, strings.TrimSpace(m[1]))
+	}
+	return out
 }
 
 // placeholderRe is one ReplaceVars variable. A leading % (path-escaped) is

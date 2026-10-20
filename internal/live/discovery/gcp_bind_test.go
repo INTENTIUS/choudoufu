@@ -41,14 +41,14 @@ func TestGCPLegBindsByLabelAndSlot(t *testing.T) {
 		if slot != "" {
 			labels[markers.TagSlot] = slot
 		}
-		return gcpsweep.Asset{AssetType: "recaptchaenterprise.googleapis.com/Key",
-			Name: "//recaptchaenterprise.googleapis.com/projects/proj-a/keys/" + id, Labels: labels}
+		return gcpsweep.Asset{AssetType: "aiplatform.googleapis.com/IndexEndpoint",
+			Name: "//aiplatform.googleapis.com/projects/proj-a/locations/us-central1/indexEndpoints/" + id, Labels: labels}
 	}
 	searcher := fakeAssetSearcher{assets: map[string][]gcpsweep.Asset{"proj-a": {
-		hit("google_recaptcha_enterprise_key.site", "site-key", ""),
-		hit("google_recaptcha_enterprise_key.keys[0]", "k-a", "0"),
-		hit("google_recaptcha_enterprise_key.keys[4]", "k-b", "3"),
-		hit("google_recaptcha_enterprise_key.keys[1]", "k-c", "9"),
+		hit("google_vertex_ai_index_endpoint.site", "site-key", ""),
+		hit("google_vertex_ai_index_endpoint.keys[0]", "k-a", "0"),
+		hit("google_vertex_ai_index_endpoint.keys[4]", "k-b", "3"),
+		hit("google_vertex_ai_index_endpoint.keys[1]", "k-c", "9"),
 	}}}
 
 	res, diags := Discover(context.Background(), Request{
@@ -61,9 +61,9 @@ func TestGCPLegBindsByLabelAndSlot(t *testing.T) {
 	assertNoErrors(t, diags)
 
 	for addr, want := range map[string]string{
-		"google_recaptcha_enterprise_key.site":    "projects/proj-a/keys/site-key",
-		"google_recaptcha_enterprise_key.keys[0]": "projects/proj-a/keys/k-a",
-		"google_recaptcha_enterprise_key.keys[1]": "projects/proj-a/keys/k-b",
+		"google_vertex_ai_index_endpoint.site":    "projects/proj-a/locations/us-central1/indexEndpoints/site-key",
+		"google_vertex_ai_index_endpoint.keys[0]": "projects/proj-a/locations/us-central1/indexEndpoints/k-a",
+		"google_vertex_ai_index_endpoint.keys[1]": "projects/proj-a/locations/us-central1/indexEndpoints/k-b",
 	} {
 		b, ok := res.BindingFor(mustAddr(t, addr))
 		if !ok {
@@ -74,22 +74,22 @@ func TestGCPLegBindsByLabelAndSlot(t *testing.T) {
 			t.Errorf("%s bound to %q, want %q", addr, b.ImportID, want)
 		}
 	}
-	if b, _ := res.BindingFor(mustAddr(t, "google_recaptcha_enterprise_key.keys[1]")); !b.SlotBound || !b.AddressStale {
+	if b, _ := res.BindingFor(mustAddr(t, "google_vertex_ai_index_endpoint.keys[1]")); !b.SlotBound || !b.AddressStale {
 		t.Errorf("keys[1] binding = %+v; want bound by slot, its stale address label to be rewritten", b)
 	}
-	if len(res.Surplus) != 1 || res.Surplus[0].Addr.String() != "google_recaptcha_enterprise_key.keys[2]" || res.Surplus[0].ImportID != "projects/proj-a/keys/k-c" {
+	if len(res.Surplus) != 1 || res.Surplus[0].Addr.String() != "google_vertex_ai_index_endpoint.keys[2]" || res.Surplus[0].ImportID != "projects/proj-a/locations/us-central1/indexEndpoints/k-c" {
 		t.Errorf("surplus = %+v; want k-c at keys[2]", res.Surplus)
 	}
 	table := res.SlotTable()
 	for addr, want := range map[string]string{
-		"google_recaptcha_enterprise_key.keys[0]": "0",
-		"google_recaptcha_enterprise_key.keys[1]": "3",
+		"google_vertex_ai_index_endpoint.keys[0]": "0",
+		"google_vertex_ai_index_endpoint.keys[1]": "3",
 	} {
 		if got := table[EscapeAddress(addr)]; got != want {
 			t.Errorf("slot table[%s] = %q, want %q (table %v)", addr, got, want, table)
 		}
 	}
-	if _, ok := table[EscapeAddress("google_recaptcha_enterprise_key.site")]; ok {
+	if _, ok := table[EscapeAddress("google_vertex_ai_index_endpoint.site")]; ok {
 		t.Errorf("slot table has an entry for site, which is no count member: %v", table)
 	}
 	for _, o := range res.Orphans {
@@ -119,9 +119,9 @@ func TestGCPLegRefusesWhatItCouldNotSearch(t *testing.T) {
 	}
 	refused := false
 	for _, p := range res.Problems {
-		refused = refused || (p.Kind == ProblemTypeNotListable && p.TypeName == "google_recaptcha_enterprise_key")
+		refused = refused || (p.Kind == ProblemTypeNotListable && p.TypeName == "google_vertex_ai_index_endpoint")
 	}
 	if !refused {
-		t.Errorf("no %s problem for google_recaptcha_enterprise_key:\n%s", ProblemTypeNotListable, res)
+		t.Errorf("no %s problem for google_vertex_ai_index_endpoint:\n%s", ProblemTypeNotListable, res)
 	}
 }

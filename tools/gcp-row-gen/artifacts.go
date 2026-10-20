@@ -82,6 +82,22 @@ type Source struct {
 	// tpgresource.GetProject, GetRegion, GetZone and GetLocation.
 	IAMDefaults []string `json:"iam_defaults,omitempty"`
 
+	// APIService is the api_service_name the type's *_meta.yaml records:
+	// "compute.googleapis.com".
+	APIService string `json:"api_service,omitempty"`
+
+	// CAINameFormats are the Cloud Asset Inventory name formats the
+	// type's *_meta.yaml records, "//cloudsql.googleapis.com/projects/{{project}}/instances/{{name}}".
+	// Magic Modules writes them only where they differ from
+	// "//<api_service_name>/<id format>" (its GetCaiAssetNameTemplate).
+	CAINameFormats []string `json:"cai_name_formats,omitempty"`
+
+	// DocImportFormats are the formats the "## Import" section of the
+	// type's page under website/docs/r lists, in order. For a type whose
+	// importer is custom code rather than ParseImportId, they are the only
+	// statement of what it accepts.
+	DocImportFormats []string `json:"doc_import_formats,omitempty"`
+
 	// IAMGrammar is the IAM framework's import grammar for Kind, as the
 	// framework's own error message spells it ("resource_name role member
 	// [condition_title]").

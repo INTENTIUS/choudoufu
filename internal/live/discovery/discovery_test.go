@@ -1786,6 +1786,7 @@ func TestProblemSummariesCoverKinds(t *testing.T) {
 		ProblemDirectReadUnresolved,
 		ProblemRecordedProviderAbsent,
 		ProblemRemovedTypeUnserved,
+		ProblemUncomposableRecord,
 	}
 	for _, kind := range kinds {
 		if problemSummaries[kind] == "" {

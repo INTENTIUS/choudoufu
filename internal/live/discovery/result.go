@@ -1520,6 +1520,15 @@ const (
 	// by #1729): the provider's block went with the resource's, so no
 	// pass can read or destroy the object.
 	ProblemRemovedTypeUnserved ProblemKind = "REMOVED_TYPE_UNSERVED"
+
+	// ProblemUncomposableRecord is INTENTIUS/choudoufu#2139 item 3's
+	// refusal: a removed block's record holds its identity as Components
+	// and no import ID, and the type has no form the record leg can put
+	// them into (a google type with no identity-table row whose importer
+	// states no form made of its identity attributes). Proposing nothing
+	// would leave the object live with nobody told, so the plan refuses,
+	// naming the type.
+	ProblemUncomposableRecord ProblemKind = "UNCOMPOSABLE_RECORD"
 )
 
 // RecordedElsewhere is one undeclared record a scoped pass did not
