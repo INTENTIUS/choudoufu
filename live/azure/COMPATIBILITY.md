@@ -38,27 +38,27 @@ Every azurerm type whose ARM id template could be read from azurerm's own
 id parsers is admitted ([`live/azurerm-ids.json`](../azurerm-ids.json)),
 and so is every ARM type declared through `azapi_resource`.
 [`live/READINESS.md`](../READINESS.md#azure) generates the counts: of
-azurerm's 1,106 types, 845 are in contract, and all 3,397 of azapi's ARM
+azurerm's 1,106 types, 843 are in contract, and all 3,397 of azapi's ARM
 types are.
 
 ### Readiness tiers
 
 The tiers are AWS's. For azurerm at 5.10.0, 387 types have an ARM tags map
-and are marker-carried, 491 untaggable types bind from their declaration,
-and 228 untaggable types nothing admits are record-carried. For azapi at
+and are marker-carried, 489 untaggable types bind from their declaration,
+and 230 untaggable types nothing admits are record-carried. For azapi at
 2.13.0, 1,031 ARM types take tags at their latest API version and 2,366 do
 not; 84 change between versions, and the stamp reads the version the
 block's `type` names.
 
 ### Refused
 
-The 261 azurerm types short of in-contract, each listed with its reason in
+The 263 azurerm types short of in-contract, each listed with its reason in
 `live/READINESS.md`:
 
 | Why | What happens |
 |---|---|
 | No id template could be read from azurerm's parsers (235 types) | Refused as `unadmitted-type`. No template is guessed from the schema |
-| The template names the parent or is not the object's own (7 types) | Withheld rather than risk a wrong marker (`azurermRowShapeProblem`) |
+| The template names the parent or is not the object's own or fails a guard (9 types) | Withheld rather than risk a wrong marker |
 | On the identity-schema route with no template for an attribute no argument supplies (19 types) | Refused as unadmitted |
 
 On `azapi_resource`, three things stop the stamp:

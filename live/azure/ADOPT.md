@@ -36,10 +36,14 @@ state statically (`ARM_SUBSCRIPTION_ID`, or a variable with no default) is
 handled as an AWS account the run is not told: the identity needs
 discovery, and the plan says why.
 
-An azurerm type that serves a resource identity schema (196 of 1,106 at
-5.10.0, subnets and routes among them) keeps the identity-schema route. It
-takes `subscription_id` from the provider block and falls back to the
-generated template for any attribute no argument supplies.
+azurerm serves a resource identity schema for 196 of its 1,106 types at
+5.10.0, subnets and routes among them, and those keep the identity-schema
+route, with `subscription_id` from the provider block. The route admits 103
+of them on the schema alone. Another 72 are admitted through the generated
+template, which a guard first holds to the identity attributes azurerm's
+own identity tests read. The other 21 are refused by name: 19 have no
+template, and 2 have a template the guard withholds. Each type's route is
+recorded in `live/azurerm-ids.json`.
 
 An `azapi_resource` binds by `type`, `parent_id` and `name`, the natural key
 inside its own arguments, as `kubernetes_manifest` does. The id is the one

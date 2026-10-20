@@ -67,9 +67,12 @@ subscription coming from the provider block the way an AWS account does).
 An untaggable type nothing admits is record-carried. The 196 azurerm
 types the provider serves an identity schema for (subnets, routes and
 security rules among them) keep that route (#1122), which reads
-`subscription_id` from the provider block and falls back to the generated
-template where the schema names an attribute no argument supplies; the 19
-whose template could not be read are refused.
+`subscription_id` from the provider block. It admits 103 of them on the
+schema alone and 72 through the generated template, once a guard has held
+the template to the identity attributes azurerm's own identity tests read;
+the 19 with no template and the 2 whose template the guard withholds are
+refused. Each type's route is recorded in `live/azurerm-ids.json`
+(#1120 unit 17).
 
 No stock carrier exists for an untaggable Azure type. azurerm and azapi
 write nothing onto an ARM object but its own properties, and ARM keeps no
