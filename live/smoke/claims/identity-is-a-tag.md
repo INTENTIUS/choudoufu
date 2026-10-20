@@ -94,6 +94,8 @@ without the grant and the carve with it (claim 12 until #1817).
 `just smoke gcp-greenfield` is the proof, on floci-gcp: a labelled
 resource is created carrying `tofu-estate` and the encoded `tofu-address`
 (`live/MARKERS.md`, "GCP: labels"), the replan is empty, and the estate
-plans without its cache. Its `BREAK=1` strips `tofu-estate` and requires
-the replan to restore it. A carve by relabel waits on `live-mv`'s GCP
+plans without its cache. Its `BREAK=1` strips `tofu-estate` from the
+bucket and requires the replan to refuse it by name: GCP answers a create
+at a held name with 409, so an unlabelled object at a declared name stops
+the plan, as on Kubernetes. A carve by relabel waits on `live-mv`'s GCP
 rewrite, which is refused by name until it lands.

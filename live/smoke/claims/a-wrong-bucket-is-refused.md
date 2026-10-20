@@ -84,5 +84,6 @@ name on the plan and the apply, and nothing is written (claim 46 until
 `just smoke gcp-records-in-a-bucket` is the proof: `record_store "gcs"`
 ([#2122](https://github.com/INTENTIUS/choudoufu/issues/2122)) checks its
 sentinel and four bucket settings on opening and refuses a bucket that
-fails them. Its `BREAK=1` removes the bucket's fences. The cell is open
-until the scenario is registered and runs.
+fails them. Its `BREAK=1` waives the wrong bucket's settings with
+`allow_insecure` and requires the refused apply to go through. It has no
+dated run yet, so the cell reads unproven.

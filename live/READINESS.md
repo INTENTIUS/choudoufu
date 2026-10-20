@@ -20,7 +20,7 @@ around the generated markers, never inside them.
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
 | Total | 1119 | 492 | 4 | 19 | 62 | 3 | 1699 |
 
-`live/readiness.json` last committed at commit `1a67958ee6` on 2026-10-19T23:48:54-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
+`live/readiness.json` last committed at commit `1538dee628` on 2026-10-19T23:09:58-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
 <!-- readiness-gen:end tiers -->
 
 ## Two counts called record-carried
@@ -56,27 +56,12 @@ hashicorp/kubernetes 3.2.1: 4 admitted type(s), 0 awaiting a tier ruling.
 ## Google Cloud
 
 hashicorp/google and google-beta, counted apart from the AWS tiers above.
-`tools/readiness-gen` tiers each type straight from what `tools/gcp-row-gen`
-decided for it (`live/gcp-survey.json`, read from the provider's own source
-at the pin). A type with the google-labels surface, a settable `labels`
-beside the computed `effective_labels`, is marker-carried. A type whose
-identity a row or the provider's identity schema re-derives from the
-declaration is declaration-carried. A type whose identity the API mints and
-which has no labels is vetoed as markerless and is record-carried, as on
-AWS, and so is a type nothing binds.
-
-How the declaration-carried and record-carried types split, at commit `1a67958ee6`, measured at
-8.6.0 over both providers' 1485 types: of the 862 declaration-carried, 545
-are composed over a parent resource the configuration also names (every IAM
-member, binding, policy and audit config among them), 301 are named by the
-configuration under a project or location, and 16 are one per project or
-region, with nothing but the project, region or zone in their id. None is
-bound by a name the cloud refuses to issue twice, the way four AWS types
-are: nothing in the google source states that. Of the 303 record-carried,
-133 have an identity the API mints and no labels, and 170 have no row and no
-identity-schema route; whether Cloud Asset Inventory could list those 170 is
-not measured, and they are record-carried either way. For hashicorp/google
-alone (1370 types) the same figures are 495, 281 and 12, then 124 and 159.
+Each type's survey path is its tier's input: the marker path is a type
+with the google-labels surface (a settable `labels` beside the computed
+`effective_labels`); client-named, parent-derived and project-derived
+are re-derived from the declaration; server-minted and unbindable are
+record-carried. Rows, paths and reasons come from `tools/gcp-row-gen`
+(`live/gcp-survey.json`), read from the provider's own source at the pin.
 
 <!-- readiness-gen:begin gcp-types -->
 hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
@@ -88,6 +73,16 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | record-carried | 0 | 57 | 0 | 113 | 133 | 0 | 303 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Total | 1098 | 131 | 0 | 123 | 133 | 0 | 1485 |
+
+| Survey path | Tier | Types |
+|---|---|---|
+| marker | marker-carried | 320 |
+| client-named | declaration-carried | 301 |
+| parent-derived | declaration-carried | 545 |
+| project-derived | declaration-carried | 16 |
+| unique-name | declaration-carried | 0 |
+| server-minted | record-carried | 133 |
+| unbindable | record-carried | 170 |
 
 | Reason | Why the type is not in contract |
 |---|---|

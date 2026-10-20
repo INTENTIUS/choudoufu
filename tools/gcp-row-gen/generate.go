@@ -21,7 +21,7 @@ import (
 )
 
 // Survey is live/gcp-survey.json: every hashicorp/google and google-beta
-// resource type and what this generator decided for it, which is what
+// resource type, what this generator decided for it, and the survey path
 // tools/readiness-gen tiers it by.
 type Survey struct {
 	GeneratedBy string       `json:"generated_by"`
@@ -34,12 +34,13 @@ type Survey struct {
 // SurveyCounts are the survey's totals, over the union of both providers'
 // types, and over hashicorp/google's own.
 type SurveyCounts struct {
-	Types          int `json:"types"`
-	Rowed          int `json:"rowed"`
-	ServerAssigned int `json:"server_assigned"`
-	Markerless     int `json:"markerless"`
-	SchemaRouted   int `json:"schema_routed"`
-	Refused        int `json:"refused"`
+	Types          int            `json:"types"`
+	Rowed          int            `json:"rowed"`
+	ServerAssigned int            `json:"server_assigned"`
+	Markerless     int            `json:"markerless"`
+	SchemaRouted   int            `json:"schema_routed"`
+	Refused        int            `json:"refused"`
+	Paths          map[string]int `json:"paths"`
 	Google         struct {
 		Types        int `json:"types"`
 		Rowed        int `json:"rowed"`
@@ -61,10 +62,23 @@ type SurveyRow struct {
 	// (identity.SynthesizeTypeIdentity) admits.
 	SchemaRoute bool `json:"schema_route,omitempty"`
 	// NoSource is set on an unrowed type whose source states no id format.
-	NoSource bool   `json:"no_source,omitempty"`
+	NoSource bool `json:"no_source,omitempty"`
+	// Path is how a run finds this type's object again; see [surveyPath].
+	Path     string `json:"path"`
 	Template string `json:"template,omitempty"`
 	Reason   string `json:"reason,omitempty"`
 }
+
+// The survey paths, AWS's from live/RECOVERY.md where the idea carries over.
+const (
+	PathMarker         = "marker"
+	PathClientNamed    = "client-named"
+	PathParentDerived  = "parent-derived"
+	PathProjectDerived = "project-derived"
+	PathUniqueName     = "unique-name"
+	PathServerMinted   = "server-minted"
+	PathUnbindable     = "unbindable"
+)
 
 // Output is everything one derivation writes.
 type Output struct {
@@ -106,6 +120,7 @@ func Generate(ev Evidence, facts Facts) (Output, error) {
 		Version:     ProviderVersion,
 	}
 	c := &out.Survey.Counts
+	c.Paths = map[string]int{}
 	for _, d := range out.Decisions {
 		row := SurveyRow{
 			Type:      d.Type,
@@ -119,9 +134,11 @@ func Generate(ev Evidence, facts Facts) (Output, error) {
 		if d.Verdict == VerdictUnrowed {
 			row.SchemaRoute = schemaRouted(d.Type, d.Providers, schemas)
 		}
+		row.Path = surveyPath(d, row.SchemaRoute)
 		out.Survey.Types = append(out.Survey.Types, row)
 
 		c.Types++
+		c.Paths[row.Path]++
 		inGoogle := containsStr(d.Providers, ProviderGoogle)
 		if inGoogle {
 			c.Google.Types++
@@ -167,6 +184,53 @@ func Generate(ev Evidence, facts Facts) (Output, error) {
 	}
 	out.Table = table
 	return out, nil
+}
+
+// surveyPath is the survey path, from live/RECOVERY.md's vocabulary where
+// it carries over:
+//
+//   - marker: the type carries labels, so the estate's marker finds it.
+//   - client-named: the configuration names it, under a project or
+//     location it also names or the provider supplies.
+//   - parent-derived: its identity is composed over a containing resource
+//     the configuration also names; every IAM type, whose identity is its
+//     parent's plus a role and a member.
+//   - project-derived: nothing but project, region or zone names it - one
+//     per project or region, AWS's account-derived.
+//   - unique-name: AWS binds a few types by a name the cloud refuses to
+//     issue twice, proved by two independent sources. Nothing in the
+//     google source states that, so no type is here.
+//   - server-minted: the API mints the identity and there are no labels.
+//   - unbindable: no row and no identity-schema route. Whether Cloud Asset
+//     Inventory could list it (AWS's enumerable-unbindable against its
+//     moves-to-Ops) is not measured here; both are record-carried.
+func surveyPath(d Decision, schemaRoute bool) string {
+	switch {
+	case d.Labels:
+		return PathMarker
+	case d.Verdict == VerdictMarkerless:
+		return PathServerMinted
+	case d.Verdict == VerdictRowed && len(d.Parents) > 0:
+		return PathParentDerived
+	case d.Verdict == VerdictRowed && d.Scoped:
+		return PathProjectDerived
+	case d.Verdict == VerdictRowed:
+		return PathClientNamed
+	case schemaRoute && isIAM(d.Type):
+		return PathParentDerived
+	case schemaRoute:
+		return PathClientNamed
+	}
+	return PathUnbindable
+}
+
+func isIAM(t string) bool {
+	for _, k := range iamKinds {
+		if strings.HasSuffix(t, k.suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 // schemaRouted is whether identity.SynthesizeTypeIdentity admits the type

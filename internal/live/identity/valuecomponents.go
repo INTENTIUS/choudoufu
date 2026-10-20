@@ -240,7 +240,7 @@ func ComponentsServerAssignedIfAbsent(t TypeIdentity, val cty.Value) bool {
 // ComponentsCloudPending is [ComponentsUnknown] and
 // [ComponentsServerAssignedIfAbsent]'s third sibling: it reports whether
 // [ComponentsFromValue]'s walk stops, for THIS instance, at a component
-// naming [CloudContext] (an account, region, project, zone or location) - not because the value is
+// naming [CloudContext] (region or account-id) - not because the value is
 // wrong, absent, or ambiguous, but because this seam has no CloudContext at
 // all ([ComponentsFromValue]'s own doc comment) and never will for a plan
 // node: unlike the static evaluator's resolver (resolve.go's

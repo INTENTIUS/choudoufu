@@ -231,8 +231,17 @@ type Artifact struct {
 	// Google is every hashicorp/google and google-beta resource type
 	// (#1119), tiered from live/gcp-survey.json the way Types is tiered
 	// from live/survey-full.json, and kept apart from Types/Counts for the
-	// same reason Kubernetes is.
-	Google Substrate `json:"google"`
+	// same reason Kubernetes is. Paths counts the survey path each type
+	// was tiered by.
+	Google GoogleSubstrate `json:"google"`
+}
+
+// GoogleSubstrate is [Substrate] plus the survey-path tally.
+type GoogleSubstrate struct {
+	Provider string         `json:"provider"`
+	Counts   Counts         `json:"counts"`
+	Paths    map[string]int `json:"paths"`
+	Types    []Row          `json:"types"`
 }
 
 // Substrate is one non-AWS provider's admitted types and their readiness
@@ -321,9 +330,11 @@ type Facts struct {
 	// literally to a provider that has never had one.
 	LabelSurface bool `json:"label_surface,omitempty"`
 
-	// SchemaRoute is set only on a Google row: the type has no row and the
-	// identity-schema route admits it.
-	SchemaRoute bool `json:"schema_route,omitempty"`
+	// Path is set only on a [GoogleSubstrate] row: live/gcp-survey.json's
+	// survey path, the input its tier is read from. SchemaRoute is set when
+	// the type has no row and the identity-schema route admits it.
+	Path        string `json:"path,omitempty"`
+	SchemaRoute bool   `json:"schema_route,omitempty"`
 
 	// Rejected is whether tools/row-gen/rejected.json carries an entry for
 	// the type, and RejectedReason is its free-text reason when it has one
@@ -518,46 +529,38 @@ type gcpSurvey struct {
 		Verdict     string `json:"verdict"`
 		SchemaRoute bool   `json:"schema_route"`
 		NoSource    bool   `json:"no_source"`
+		Path        string `json:"path"`
 	} `json:"types"`
 }
 
-// googleTier is a Google type's tier, read straight off what
-// tools/gcp-row-gen decided for it, by the tier definitions (#417):
-//
-//   - the google-labels surface carries the estate's marker: tier A;
-//   - the API mints the identity and there are no labels (the markerless
-//     veto): tier C, as on AWS;
-//   - a row, or the identity-schema route, re-derives the identity from the
-//     declaration: tier B;
-//   - nothing binds it: tier C. Whether Cloud Asset Inventory could list it
-//     is not measured, and it is record-carried either way.
-//
-// One function, so a carrier that gives an unlabelled type a marker after
-// all is a change here.
-func googleTier(labels, rowed, markerless, schemaRoute bool) string {
-	switch {
-	case labels:
-		return TierMarkerCarried
-	case markerless:
-		return TierRecordCarried
-	case rowed, schemaRoute:
-		return TierDeclarationCarried
-	}
-	return TierRecordCarried
+// googlePathTiers is the tier each GCP survey path lands in, the way
+// RECOVERY.md's AWS paths land: the marker path is tier A, the four paths
+// a declaration re-derives are tier B, and a type nothing binds is tier C.
+// One map so a ruling that moves a path, or a carrier that gives an
+// unlabelled type a marker after all, is a one-line change.
+var googlePathTiers = map[string]string{
+	"marker":          TierMarkerCarried,
+	"client-named":    TierDeclarationCarried,
+	"parent-derived":  TierDeclarationCarried,
+	"project-derived": TierDeclarationCarried,
+	"unique-name":     TierDeclarationCarried,
+	"server-minted":   TierRecordCarried,
+	"unbindable":      TierRecordCarried,
 }
 
 // buildGoogleSubstrate tiers every type in live/gcp-survey.json, and
 // refuses a survey that disagrees with the generated table it was written
 // beside: a rowed type must be in identity.GoogleTable, a markerless one in
 // identity.GoogleMarkerlessTypes, and nothing else in either.
-func buildGoogleSubstrate(root string) (Substrate, error) {
+func buildGoogleSubstrate(root string) (GoogleSubstrate, error) {
 	var gs gcpSurvey
 	if err := decodeJSON(root, GCPSurveyJSONRel, &gs); err != nil {
-		return Substrate{}, err
+		return GoogleSubstrate{}, err
 	}
-	out := Substrate{
+	out := GoogleSubstrate{
 		Provider: strings.Join(gs.Providers, " and ") + " " + gs.Version,
 		Counts:   Counts{Tiers: map[string]int{}, Statuses: map[string]int{}},
+		Paths:    map[string]int{},
 	}
 	rowed, markerless := 0, 0
 	for _, t := range gs.Types {
@@ -565,7 +568,7 @@ func buildGoogleSubstrate(root string) (Substrate, error) {
 		_, vetoed := identity.GoogleMarkerlessTypes[t.Type]
 		isRowed := t.Verdict == "rowed" || t.Verdict == "server-assigned"
 		if isRowed != inTable || (t.Verdict == "markerless") != vetoed {
-			return Substrate{}, fmt.Errorf("%s says %s is %s, which identity.GoogleTable and GoogleMarkerlessTypes disagree with; regenerate with `go run ./tools/gcp-row-gen`",
+			return GoogleSubstrate{}, fmt.Errorf("%s says %s is %s, which identity.GoogleTable and GoogleMarkerlessTypes disagree with; regenerate with `go run ./tools/gcp-row-gen`",
 				GCPSurveyJSONRel, t.Type, t.Verdict)
 		}
 		if isRowed {
@@ -574,7 +577,10 @@ func buildGoogleSubstrate(root string) (Substrate, error) {
 		if vetoed {
 			markerless++
 		}
-		tier := googleTier(t.Labels, isRowed, vetoed, t.SchemaRoute)
+		tier, ok := googlePathTiers[t.Path]
+		if !ok {
+			return GoogleSubstrate{}, fmt.Errorf("%s gives %s the path %q, which googlePathTiers does not tier", GCPSurveyJSONRel, t.Type, t.Path)
+		}
 		status := StatusPendingRatification
 		switch {
 		case isRowed:
@@ -588,15 +594,17 @@ func buildGoogleSubstrate(root string) (Substrate, error) {
 			Admitted:     isRowed,
 			Markerless:   vetoed,
 			LabelSurface: t.Labels,
+			Path:         t.Path,
 			SchemaRoute:  t.SchemaRoute,
 		}}
 		out.Types = append(out.Types, row)
 		out.Counts.Types++
 		out.Counts.Tiers[tier]++
 		out.Counts.Statuses[status]++
+		out.Paths[t.Path]++
 	}
 	if rowed != len(identity.GoogleTable) || markerless != len(identity.GoogleMarkerlessTypes) {
-		return Substrate{}, fmt.Errorf("%s names %d rowed and %d markerless types; identity.GoogleTable has %d and GoogleMarkerlessTypes %d",
+		return GoogleSubstrate{}, fmt.Errorf("%s names %d rowed and %d markerless types; identity.GoogleTable has %d and GoogleMarkerlessTypes %d",
 			GCPSurveyJSONRel, rowed, markerless, len(identity.GoogleTable), len(identity.GoogleMarkerlessTypes))
 	}
 	sort.Slice(out.Types, func(i, j int) bool { return out.Types[i].Type < out.Types[j].Type })
