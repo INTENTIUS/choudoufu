@@ -65,7 +65,7 @@ On `azapi_resource`, three things stop the stamp:
 
 | Written like this | What happens |
 |---|---|
-| A `body` not known at plan time | Refused: the stamp cannot tell whether the tags go in `body.tags` or the top-level argument, and azapi refuses both |
+| A `body` not known at plan time, and no known top-level `tags` | Refused: the stamp cannot tell whether the tags go in `body.tags` or the top-level argument, and azapi refuses both. A known top-level `tags` settles it: azapi sends that, or refuses a body that also carries tags |
 | A `type` whose ARM type and version do not take tags, or are unknown | A warning; no marker is written |
 | A `body` or `body.tags` the markers cannot be merged into | A warning; the value is left as evaluated |
 
