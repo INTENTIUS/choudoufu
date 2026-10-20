@@ -27,6 +27,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/check"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/dataread"
@@ -3437,6 +3438,13 @@ func liveTargetScope(ctx context.Context, tfCtx *tofu.Context, config *configs.C
 // cannot substitute one cannot see that.
 func liveResolve(ctx context.Context, config *configs.Config, provs projection.Providers, resourceSchemas map[string]providers.Schema, dataResults map[string]cty.Value, scope identity.Scope) (*identity.Result, tfdiags.Diagnostics) {
 	ictx := identity.Context{
+		// GitHub issue #2133, finding 4: the subscription an azurerm or
+		// azapi block that names none is configured with, read by the same
+		// function the Resource Graph sweep's environment fallback is
+		// ([projectionProviders.resourceGraphClientFor], through
+		// azsweep.Attrs.WithEnv), so identity and the sweep cannot
+		// disagree about it.
+		Cloud:       identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv)},
 		Schemas:     resourceSchemas,
 		DataResults: dataResults,
 		// GitHub issue #352, and nil for an untargeted run. See

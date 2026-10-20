@@ -730,7 +730,7 @@ func (c CloudValue) describe() string {
 	case CloudRegion:
 		return "region"
 	case CloudSubscriptionID:
-		return "Azure subscription ID (the provider block's subscription_id)"
+		return "Azure subscription ID (the provider block's subscription_id, or ARM_SUBSCRIPTION_ID when the block sets none)"
 	default:
 		return string(c)
 	}
@@ -763,6 +763,18 @@ type CloudContext struct {
 
 	// Region is the region the run is against.
 	Region string
+
+	// SubscriptionID is the Azure subscription the run's environment gives
+	// a provider block that names none: ARM_SUBSCRIPTION_ID, which azurerm
+	// and azapi both read when their block leaves subscription_id unset
+	// (GitHub issue #2133, finding 4). The caller fills it from
+	// internal/live/azsweep.EnvSubscriptionID, the function the Resource
+	// Graph sweep's own environment fallback is, so the two cannot read the
+	// environment differently. [resolver.cloudValueFor] consults it only
+	// for a provider block that does not set subscription_id at all; a
+	// block that sets it, statically or not, is never overridden by it,
+	// as neither provider overrides it.
+	SubscriptionID string
 }
 
 // value returns the context's value for one cloud property, and whether the
@@ -774,6 +786,8 @@ func (c CloudContext) value(which CloudValue) (string, bool) {
 		v = c.AccountID
 	case CloudRegion:
 		v = c.Region
+	case CloudSubscriptionID:
+		v = c.SubscriptionID
 	default:
 		return "", false
 	}

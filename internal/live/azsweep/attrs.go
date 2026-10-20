@@ -324,6 +324,26 @@ func (a Attrs) WithEnv(getenv func(string) string) Attrs {
 	return a
 }
 
+// EnvSubscriptionID is the subscription the environment gives an azurerm or
+// azapi provider block that sets no subscription_id: the one envDefaults
+// entry both providers share, ARM_SUBSCRIPTION_ID (azurerm 5.10.0
+// internal/provider/provider.go:115-120, schema.EnvDefaultFunc; azapi
+// 2.13.0 internal/provider/provider.go:363-368, Configure's IsNull
+// fallback), looked up through getenv. It is [Attrs.WithEnv]'s answer for
+// a block with no subscription_id, so the sweep's subscription and the one
+// internal/live/identity builds ARM ids under (its
+// CloudContext.SubscriptionID, which the run fills from this) cannot read
+// the environment differently (GitHub issue #2133, finding 4). "" when
+// unset.
+//
+// Neither provider reads any other variable for it. Both fall back further,
+// to the Azure CLI's default subscription when use_cli is on (azurerm
+// provider.go:449, AzureCliSubscriptionIDHint), which needs a process call
+// and is not answered here.
+func EnvSubscriptionID(getenv func(string) string) string {
+	return Attrs{}.WithEnv(getenv).SubscriptionID
+}
+
 // refusedMarks are the arguments the block marked, which [New] refuses
 // rather than stand in for: every argument read here decides who the
 // sweep authenticates as or which endpoint it calls.
