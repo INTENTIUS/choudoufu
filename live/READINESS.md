@@ -76,7 +76,8 @@ No stock carrier exists for an untaggable Azure type. azurerm and azapi
 write nothing onto an ARM object but its own properties, and ARM keeps no
 per-writer field the way Kubernetes keeps `managedFields`; `managedBy` is
 a single property a parent service sets, already read as controller-held
-evidence. No Azure type is in the markerless veto either. Every admitted
+evidence, and `systemData.createdBy` names the principal that wrote the
+object, which several estates can share. No Azure type is in the markerless veto either. Every admitted
 azurerm type's id components are arguments the configuration sets (none is
 a Computed-only attribute at 5.10.0). Seven admitted untaggable types make
 the naming argument optional and mint a GUID when it is left out
