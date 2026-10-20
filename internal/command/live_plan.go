@@ -1816,6 +1816,7 @@ func liveDiscoverOne(ctx context.Context, config *configs.Config, resolutions []
 	diags = diags.Append(legDiags)
 	req.Sweepers = legs
 	req.Sweep = sweep
+	req.RecordRemoval = known && recordRemovalLegs[sub.Sweep()]
 
 	// The Cloud Control fallback (issue #47): a type with no native provider
 	// list resource can still be enumerated when its mapped CFN type is
@@ -4675,15 +4676,13 @@ var sweepLegBuilders = map[substrate.Sweep]sweepLegBuilder{
 	},
 	// The GCP leg (GitHub issue #1119): a Cloud Asset Inventory client
 	// built from the provider block's own credential arguments, searching
-	// each project the estate's google resources resolve to. Sweep is on:
-	// it also gates the record-orphan, parent-read and fold-child legs
-	// ([discovery.Request.Sweep]), and those are what destroy a deleted
-	// google block from its record, labelled or not. The Asset search
-	// only reports what it finds; it never plans a removal itself
-	// (GitHub issue #2134, item 1).
+	// each project the estate's google resources resolve to. The Asset
+	// search only reports what it finds and plans no removal, so the
+	// record leg destroys a deleted google block: through
+	// [recordRemovalLegs], not Request.Sweep (GitHub issue #2139).
 	substrate.SweepAssetSearch: func(ctx context.Context, p *projectionProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
 		leg, diags := p.assetSearchLeg(ctx, sub, addr)
-		return leg, true, diags
+		return leg, false, diags
 	},
 }
 
@@ -4740,6 +4739,23 @@ func googleLabelSplit(schema providers.ProviderSchema) (labelled, unlabelled map
 		}
 	}
 	return labelled, unlabelled
+}
+
+// recordRemovalLegs are the sweeps whose pass runs the record-store
+// removal leg without [discovery.Request.Sweep] (GitHub issue #2119). The
+// tagging-index sweep needs no entry: its builder turns Sweep on, which
+// runs every removal leg. The Resource Graph sweep lists only tagged
+// objects, so an untaggable azurerm object whose block was removed is
+// found by its record or not at all, as an untaggable AWS one is; the
+// leg is AWS's, run alone. The Asset Inventory sweep is GCP's equivalent:
+// it plans no removal of its own, so every deleted google block, labelled
+// or not, is destroyed from its record (GitHub issue #2139), a labelled
+// one only once this run's search saw its live labels. The label-list
+// sweep has no entry: every admitted Kubernetes kind carries the label
+// (live/readiness.json counts no untaggable one), so the label sweep
+// finds a removed block's object itself.
+var recordRemovalLegs = map[substrate.Sweep]bool{
+	substrate.SweepAssetSearch: true,
 }
 
 // liveSweepLegs is one provider configuration's sweep legs and its
