@@ -425,7 +425,7 @@
   "lanes": {
     "gcp": {
       "label": "gcp lane",
-      "estates": 1,
+      "estates": 2,
       "clear": 0,
       "verified": 0,
       "carried": 0,
@@ -433,77 +433,77 @@
         "cold_deploy": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_count": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_crash": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_remove": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_rename": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_replace": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "day2_teardown": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "drift_reconverge": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "greenfield": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "migrate": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "no_local_state": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "plan_approval": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "strict": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "test_apply": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         },
         "test_plan": {
           "pass": 0,
           "fail": 0,
-          "not_run": 1
+          "not_run": 2
         }
       }
     },
@@ -2491,6 +2491,35 @@
         }
       },
       "notes": "Upgraded from a real but pre-#274-pipeline predecessor script (choudoufu apply from a live block present from the start, delete state, replan empty twice) to the current five-stage shape, following corpus-vpc-complete/corpus-lambda-simple's structure. Verified for real in a fresh isolated worktree off local main (ff106e63a7), Docker/floci/AWS CLI throughout, not read from the predecessor's prior notes. All five stages pass cleanly: cold_deploy (plain terraform apply, \"Apply complete! Resources: 2 added\", confirmed 0 objects tagged before migration), migrate (live-import dry run verifies \"2 of 2 resource instance(s) are eligible for stamping\", -approve reports \"2 resource(s) newly stamped, 0 already stamped, 0 failed, 0 skipped\", both tofu-address/tofu-estate tags read directly through the AWS CLI: module.iam_policy.aws_iam_policy.policy:0 and module.iam_policy_from_data_source.aws_iam_policy.policy:0), test_plan (live-plan genuinely empty, both identities re-read unchanged after the state file's only copy was deleted), test_apply (\"0 added, 0 changed, 0 destroyed\", object count unchanged at 2), and drift_reconverge (one policy's Example tag tampered directly against floci, live-plan proposes fixing exactly that object, apply reconverges it to \"0 added, 1 changed, 0 destroyed\"). BREAK=1 verified twice, independently, against each stage it targets: run as committed it fails stage 3's identity check (expects the real policy's tofu-address on a module that was never created); run separately with stage 3's corruption disabled, it correctly fails stage 5 by tampering a second object and proving the \"exactly one object\" count assertion is load-bearing (both objects flagged, not silently 1). NEW FINDING, not previously documented in any real crossing that reached this deep: live-import -approve deliberately writes only tofu-estate and tofu-address, never tofu-slot (internal/live/stamp/doc.go's own \"tofu-slot comes in from outside\" - a slot is minted from a monotonic counter over the live set that a read-only, one-state-file view cannot compute). Both of this estate's aws_iam_policy resources declare count = var.create ? 1 : 0, exactly the shape that needs one, so the FIRST live-plan straight after live-import -approve is not empty - it proposes adding tofu-slot=\"0\" to both, and nothing else. Folded into stage 2 as one ordinary `choudoufu apply` (\"0 added, 2 changed, 0 destroyed\") before stage 3 is attempted; every replan after is genuinely empty. This is real, deliberate, already-documented product behavior, not a defect - but it will recur on any count-based resource crossing that reaches this far and had not yet been noticed in one that actually got here. Also caught and fixed while verifying: a self-authored bug where stage 5's negative drift assertion compared a live-plan diff header's address (bracket form, \"policy[0]\") against the escaped tag-value form (\"policy:0\") and could never have matched - a vacuous check that a stricter assertion in the sibling script (see corpus-iam-read-only-policy) surfaced; fixed here by keeping both forms as separate variables."
+    },
+    {
+      "name": "corpus-k8s-infra-gcp-gcve",
+      "source": "kubernetes/k8s.io infra/gcp/terraform/k8s-infra-gcp-gcve (commit 4046258e7d, Apache-2.0), the Kubernetes project's own root for its VMware Engine CI project: five google_project_service over a for_each whose project comes from a data source, a custom-mode VPC, a subnetwork and two firewalls (one reading the subnetwork's range), terraform-google-modules simple_bucket (a bucket and its IAM member) and projects_iam in authoritative mode (five project IAM bindings keyed by its helper module's outputs) - 16 instances, one labelled, on hashicorp/google 8.6.0. The gcp lane's first published root (#1119): provider.tf replaced for the pin and the emulator, simple_bucket ~> 12.4 for google 8.x, and the five VMware Engine resources left out because floci-gcp does not serve them",
+      "url": "https://github.com/kubernetes/k8s.io.git",
+      "pin": "4046258e7d54fdc156e2f39ad8da51b57be88f55",
+      "lane": "gcp",
+      "set": "growing",
+      "substrate": "floci-gcp",
+      "script": "live/e2e/corpus-k8s-infra-gcp-gcve/run.sh",
+      "stages": {
+        "cold_deploy": "not_run",
+        "day2_count": "not_run",
+        "day2_crash": "not_run",
+        "day2_remove": "not_run",
+        "day2_rename": "not_run",
+        "day2_replace": "not_run",
+        "day2_teardown": "not_run",
+        "drift_reconverge": "not_run",
+        "greenfield": "not_run",
+        "migrate": "not_run",
+        "no_local_state": "not_run",
+        "plan_approval": "not_run",
+        "strict": "not_run",
+        "test_apply": "not_run",
+        "test_plan": "not_run"
+      },
+      "clear": false,
+      "protocol": "legacy"
     },
     {
       "name": "corpus-k8s-metrics-server",

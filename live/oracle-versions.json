@@ -69,8 +69,9 @@
     "part of what the estate's identities are.",
     "",
     "google_provider_version (#1119, #1121) is the gcp lane's: the",
-    "hashicorp/google release reference-gcp's hand-authored root requires",
-    "exactly, printed by gauntlet_required_provider, and the release GCP smoke",
+    "hashicorp/google release reference-gcp's hand-authored root and",
+    "corpus-k8s-infra-gcp-gcve's corpus root require exactly, printed by",
+    "gauntlet_required_provider, and the release GCP smoke",
     "scenarios pin (live/smoke/lib.sh's gcp_required_provider). The ruling",
     "pins google and google-beta at 8.6.0, stock and unmodified."
   ],

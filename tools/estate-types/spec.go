@@ -267,6 +267,13 @@ var estateSpecs = []estateSpec{
 		Note:       `kubernetes/k8s.io's metrics-server installation (#1880): live/e2e/corpus-k8s-metrics-server/run.sh's write_root() copies ONE file, infra/aws/terraform/kops-infra-ci/metrics-server.tf, out of .corpus and writes its own providers.tf, so the rest of kops-infra-ci (VPC, EKS, IAM, ECR, S3, the aws providers) is never part of the estate and ConfigDirs, which would load the whole directory, is nil. ScanFiles reads that one file: nine hashicorp/kubernetes resources on the non-_v1 type names, kubernetes_api_service among them. ScanScript adds the stage additions the script declares itself: day2_count's kubernetes_config_map_v1, day2_crash's kubernetes_secret_v1 and kubernetes_config_map_v1 pair, and the strict scratch estate's random_password.`,
 	},
 	{
+		Name:       "corpus-k8s-infra-gcp-gcve",
+		ConfigDirs: nil,
+		ScanScript: true,
+		ScanFiles:  []string{".corpus/k8s-io/infra/gcp/terraform/k8s-infra-gcp-gcve/main.tf"},
+		Note:       `The gcp lane's first published root (#1119): kubernetes/k8s.io's infra/gcp/terraform/k8s-infra-gcp-gcve at 4046258e7d. ConfigDirs is nil on purpose: live/e2e/corpus-k8s-infra-gcp-gcve/run.sh's shape_root() copies main.tf, variables.tf, buckets.tf and iam.tf, replaces provider.tf, and takes only the four Compute resources out of vmware-engine.tf, leaving its five google_vmwareengine_* resources out, so loading the directory would count types the estate never applies; and corpus-fetch installs no modules for the gcp roots, which no corpus glob reaches. ScanFiles reads main.tf (google_project_service). ScanScript reads the script's network_expected() heredoc, the four Compute blocks it holds the corpus text to (google_compute_network, google_compute_subnetwork, google_compute_firewall), day2_replace's and day2_crash's scratch google_storage_bucket blocks, and the strict scratch estate's random_password. The two registry modules' types (simple_bucket's google_storage_bucket and google_storage_bucket_iam_member, projects_iam's google_project_iam_binding) are applied but not counted here: no module is installed for this root.`,
+	},
+	{
 		Name:       "reference-eks",
 		ConfigDirs: nil,
 		ScanScript: true,
