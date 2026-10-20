@@ -190,6 +190,7 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 
 	r.checkCollisions(result)
 	r.warnUnsweepableTypes()
+	r.diags = r.diags.Append(foreignResourceGroupWarnings(ctx, cfg, rctx.Scope))
 
 	return result, r.diags
 }

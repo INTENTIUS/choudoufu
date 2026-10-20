@@ -19,6 +19,28 @@
     "it from the remote on the next fetch."
   ],
   "packages": {
+    "Azure/avm-res-network-privatednszone/azurerm": [
+      "0.5.0"
+    ],
+    "Azure/avm-res-network-virtualnetwork/azurerm": [
+      "0.19.0"
+    ],
+    "Azure/avm-res-resources-resourcegroup/azurerm": [
+      "0.4.0"
+    ],
+    "Azure/avm-utl-interfaces/azure": [
+      "0.5.0",
+      "0.6.0",
+      "0.7.0"
+    ],
+    "Azure/avm-utl-regions/azurerm": [
+      "0.12.0"
+    ],
+    "Azure/naming/azurerm": [
+      "0.4.0",
+      "0.4.3",
+      "0.4.4"
+    ],
     "alexbasista/workspacer/tfe": [
       "0.15.0"
     ],

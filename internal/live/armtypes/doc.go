@@ -51,11 +51,31 @@
 // version). A version azapi does not know is "unknown", never a guess
 // from a neighbouring version: azapi itself has no schema for it either.
 //
+// # Tag facts
+//
+// Two more generated tables answer what a stamp needs beyond "may it tag"
+// (epic #1120, unit 9):
+//
+//   - taglimits_generated.txt, from the same azapi data: the ARM types
+//     whose `tags` description documents fewer than ARM's 50 tags, or
+//     shorter keys or values ("A maximum of 15 tags can be provided for a
+//     resource", Cosmos DB and Storage among them). TagLimit reads it.
+//   - azurerm_tags_generated.json, from azurerm's Go source with
+//     go/parser: for every azurerm type whose `tags` is ARM's tags map,
+//     whether its Create sends the tags in the create call or writes them
+//     in a later call (rmanalyze.go has the rule), and what azurerm's own
+//     `tags` ValidateFunc enforces. PostCreateTags and AzurermTagRules
+//     read it; CheckTag applies both to one key and value.
+//
 // # Regenerating
 //
 //	go run ./tools/armtypes-gen -azapi-src <azapi checkout at the pinned tag>
+//	go run ./tools/azurerm-tags-gen -src <azurerm checkout at the pinned tag> -schema <tofu providers schema -json>
 //
-// The table records the azapi tag and commit it was generated from, and
-// TestTableMatchesPinnedSource regenerates it when ARMTYPES_AZAPI_SRC names
-// such a checkout.
+// Each table records the source tag and commit it was generated from.
+// TestTableMatchesPinnedSource and TestTagLimitsMatchPinnedSource
+// regenerate the azapi tables when ARMTYPES_AZAPI_SRC names such a
+// checkout; TestRMTagsMatchPinnedSource regenerates the azurerm facts when
+// AZURERM_SRC and AZURERM_SCHEMA name the checkout and schema, the same
+// variables tools/azurerm-id-gen's pin test reads.
 package armtypes

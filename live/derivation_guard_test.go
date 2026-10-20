@@ -209,6 +209,15 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"check, not the hand-wiring. Exported (issue #418) so tools/readiness-gen can read it directly.",
 		Data: 3, Code: 0,
 	},
+	"internal/live/identity/azure_resourcegroup.go": {
+		Reason: "foreignResourceGroupWarnings (issue #1122): the Azure fence ruling defines an estate as the resource " +
+			"groups it declares, so the warning has to recognise the block that declares a group. azurerm_resource_group " +
+			"is that block by definition, not a cohort standing in for a schema property: no provider schema says " +
+			"'this type is the scope other types live in', and the azapi spelling of the same thing is recognised by " +
+			"its ARM type, Microsoft.Resources/resourceGroups, read from configuration. The second spelling is the " +
+			"data source of the same name, read when a resource's group comes from data.azurerm_resource_group.",
+		Data: 1, Code: 0,
+	},
 	"internal/live/identity/docimportid.go": {
 		Reason: "VariadicTrailingImportIDTypes: aws_security_group_rule alone, the one type today whose documented " +
 			"import grammar (\"SOURCE[_SOURCE]*\") ends in a variadic tail AND whose provider-side importer has " +
@@ -710,7 +719,12 @@ const (
 	// IAM attachment types that write a parent's computed attributes plus
 	// the two parent types, aws_iam_role and aws_iam_policy. Seven new Data
 	// literals, none moved.
-	typeLiteralDataTotal = 1219
+	// 1219 -> 1220 data, code unchanged, on 2026-10-19 (issue #1122): the
+	// Azure fence's foreign-resource-group warning names
+	// azurerm_resource_group once, as a package-level const, because the
+	// ruling defines an estate as the groups it declares
+	// (internal/live/identity/azure_resourcegroup.go).
+	typeLiteralDataTotal = 1220
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
