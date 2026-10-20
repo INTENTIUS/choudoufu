@@ -279,3 +279,62 @@ func TestResourceGraphLegServesTheAzureSweep(t *testing.T) {
 		t.Errorf("ResourceGraphSweep serves %q, the Azure family asks for %q", got, substrate.Azure.Sweep())
 	}
 }
+
+// TestResourceGraphLegReportsUntaggableTypes is GitHub issue #2119's D3:
+// every type the command layer classified as untaggable is a
+// TYPE_NOT_TAGGABLE gap, with no per-run warning, and is left out of the
+// covered list; a taggable declared type stays covered and is no gap.
+func TestResourceGraphLegReportsUntaggableTypes(t *testing.T) {
+	graph := &fakeGraph{answers: map[string][]azsweep.Resource{rgSub1: {rgResource(rgSub1, "Kept", "azurerm_resource_group.kept", nil)}}}
+	leg := ResourceGraphSweep{
+		Coverage:      azsweep.Coverage{rgSub1: graph},
+		Subscriptions: []string{rgSub1},
+		Untaggable: []UntaggableType{
+			{TypeName: "azurerm_subnet", Why: "carries no tags"},
+			{TypeName: "azapi_resource (Microsoft.Network/virtualNetworks/subnets@2024-05-01)", Why: "takes no tags at that API version"},
+		},
+	}
+	// A declared subnet, so the covered list has it to leave out.
+	subnet := identity.Resolution{
+		Addr:     addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "azurerm_subnet", Name: "a"}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance),
+		Class:    identity.ClassConcrete,
+		ImportID: rgID(rgSub1, "Kept") + "/providers/Microsoft.Network/virtualNetworks/vnet/subnets/a",
+	}
+	res, diags := discoverAzure(t, leg, keptResolution(rgSub1), subnet)
+	assertNoErrors(t, diags)
+	for _, d := range diags {
+		if d.Description().Summary == SummaryIncompleteSweep {
+			t.Errorf("an untaggable type raised a per-run warning: %s", d.Description().Detail)
+		}
+	}
+
+	gaps := map[string]SweepGap{}
+	for _, g := range res.SweepGaps {
+		gaps[g.TypeName] = g
+	}
+	for _, u := range leg.Untaggable {
+		g, ok := gaps[u.TypeName]
+		if !ok || g.Reason != SweepGapNotTaggable {
+			t.Errorf("%s: gap %+v; want %s", u.TypeName, g, SweepGapNotTaggable)
+			continue
+		}
+		if !strings.HasPrefix(g.Detail, u.TypeName+" "+u.Why+",") || !strings.Contains(g.Detail, "live/RECOVERY.md") {
+			t.Errorf("%s: detail %q; want it to name the type, why, and live/RECOVERY.md", u.TypeName, g.Detail)
+		}
+	}
+	if g, ok := gaps["azurerm_resource_group"]; ok {
+		t.Errorf("a taggable type is a gap: %+v", g)
+	}
+	covered := map[string]bool{}
+	for _, c := range res.SweepCovered {
+		covered[c] = true
+	}
+	if !covered["azurerm_resource_group"] {
+		t.Errorf("SweepCovered %v; want the taggable declared type", res.SweepCovered)
+	}
+	for _, u := range leg.Untaggable {
+		if covered[u.TypeName] {
+			t.Errorf("SweepCovered names %s, which the sweep can never find", u.TypeName)
+		}
+	}
+}

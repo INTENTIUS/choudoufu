@@ -86,6 +86,21 @@ type ResourceGraphSweep struct {
 	// TakesUnnamed: this pass also sweeps the subscriptions declared ARM ids
 	// name and no provider configuration does.
 	TakesUnnamed bool
+	// Untaggable is every declared Azure type the run knows can carry no
+	// ownership marker, each reported as a [SweepGapNotTaggable] gap
+	// (GitHub issue #2119). internal/command classifies it, where the leg
+	// is built: this package's Sweep methods share one name, so a surface
+	// question asked here would read as asked by every leg.
+	Untaggable []UntaggableType
+}
+
+// UntaggableType is one declared Azure type that can carry no marker:
+// TypeName is how the gap names it (an azurerm type, or an azapi type with
+// the ARM type and API version its block names), and Why finishes the
+// sentence that begins with it ("carries no tags").
+type UntaggableType struct {
+	TypeName string
+	Why      string
 }
 
 // Leg is [substrate.SweepResourceGraph].
@@ -95,6 +110,7 @@ func (ResourceGraphSweep) Leg() substrate.Sweep { return substrate.SweepResource
 func (g ResourceGraphSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	req, res, decl := in.Request, in.Result, in.decl
+	untaggable := g.recordUntaggable(res)
 	subs := g.subscriptions(req.Resolutions)
 	if len(subs) == 0 {
 		return diags
@@ -147,12 +163,45 @@ func (g ResourceGraphSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.D
 		}
 		types := make([]string, 0, len(covered))
 		for t := range covered {
-			types = append(types, t)
+			if !untaggable[t] {
+				types = append(types, t)
+			}
 		}
 		sort.Strings(types)
 		res.SweepCovered = append(res.SweepCovered, types...)
 	}
 	return diags
+}
+
+// recordUntaggable files [ResourceGraphSweep.Untaggable] as
+// [SweepGapNotTaggable] gaps, which [sweepGapDiag] keeps off the per-run
+// warnings as it does AWS's: it is a standing fact about the type, true on
+// nearly every Azure estate (an azurerm_subnet is enough), and a warning on
+// every plan would bury the one about this run. It returns the gaps' type
+// names, which the covered list then leaves out: the sweep finds nothing of
+// a type that can hold no marker, so an empty answer for it says nothing.
+//
+// The issue #2119 ruling (D3): while the estate's record of such a resource
+// survives, removing its block still plans the destroy, through the record
+// leg (recordorphan_read.go). With the record lost the resource is left running
+// unowned and no run can see it, which live/RECOVERY.md documents with its
+// recovery.
+func (g ResourceGraphSweep) recordUntaggable(res *Result) map[string]bool {
+	names := map[string]bool{}
+	for _, u := range g.Untaggable {
+		if u.TypeName == "" || names[u.TypeName] {
+			continue
+		}
+		names[u.TypeName] = true
+		sweepGapDiag(res, SweepGap{
+			TypeName: u.TypeName,
+			Reason:   SweepGapNotTaggable,
+			Detail: fmt.Sprintf(
+				"%s %s, so it can carry no ownership marker and the Azure Resource Graph sweep has nothing to search on. Removing its block still plans the destroy while the estate's record of it survives; with that record lost the resource is left running unowned, and live/RECOVERY.md says how to restore the record's previous version.",
+				u.TypeName, u.Why),
+		})
+	}
+	return names
 }
 
 // fileHit is one listed resource: held, bound by its ARM id under a stale

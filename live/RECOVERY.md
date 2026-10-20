@@ -245,6 +245,29 @@ The adoption ledger is where this becomes visible: `choudoufu plan
 -adoption-only` prints these instances as **waits on parent**. Read it before
 you apply anything.
 
+## A removed block of an untaggable type, record lost
+
+An untaggable resource carries no marker, so no sweep can find it. While the
+estate's record of it survives, removing its block still plans the destroy:
+the record leg reads the identity back and the plan proposes it like any
+other removal (#2119). With the record lost as well, nothing tells a run the
+resource was ever the estate's, and it is left running unowned. There is no
+per-run warning for this, since it would fire on nearly every estate; each
+plan counts the declared untaggable types under `Not swept for removal` as
+`TYPE_NOT_TAGGABLE`, and `-verbose` names them.
+
+The recovery is the record's previous version, restored before the next
+plan:
+
+- AWS: the `s3` store's noncurrent version of the record object (step 2
+  below).
+- Azure: the `azurerm` store requires blob versioning, so the deleted or
+  overwritten record blob is still a previous version. List it with
+  `az storage blob list --include v --prefix <record key>` and copy it back
+  over the current blob with `az storage blob copy start` from the
+  `?versionid=` URL, or promote it under the blob's Versions tab in the
+  portal.
+
 ## The procedure
 
 **1. Change nothing by hand.** No state surgery, no editing records, no

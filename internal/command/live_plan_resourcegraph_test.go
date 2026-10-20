@@ -7,6 +7,8 @@ package command
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -157,5 +159,79 @@ resource "azurerm_resource_group" "c" {
 	}
 	if got := swept[sub2]; len(got) != 1 || got[0] != "other" {
 		t.Errorf("%s swept by passes %q, want azurerm.other's alone", sub2, got)
+	}
+}
+
+// TestUntaggableARMTypesClassifiesFromTheSchemaAndAzapiData is GitHub issue
+// #2119: a declared azurerm_subnet (no tags argument) and an azapi block
+// whose ARM type takes no tags at its own API version are classified
+// untaggable for the Resource Graph leg's TYPE_NOT_TAGGABLE gap; a
+// taggable azurerm type and a taggable azapi type are not, nor is a type
+// of another family.
+func TestUntaggableARMTypesClassifiesFromTheSchemaAndAzapiData(t *testing.T) {
+	dir := t.TempDir()
+	src := `
+terraform {
+  required_providers {
+    azapi = {
+      source = "azure/azapi"
+    }
+  }
+}
+resource "azurerm_virtual_network" "net" {
+  name = "net"
+}
+resource "azurerm_subnet" "a" {
+  name = "a"
+}
+resource "azapi_resource" "subnet" {
+  type = "Microsoft.Network/virtualNetworks/subnets@2024-05-01"
+  name = "b"
+}
+resource "azapi_resource" "net" {
+  type = "Microsoft.Network/virtualNetworks@2024-05-01"
+  name = "c"
+}
+resource "aws_vpc_endpoint_route_table_association" "x" {
+  vpc_endpoint_id = "e"
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	config := liveTestLoadConfig(t, dir)
+
+	tags := &configschema.Attribute{Type: cty.Map(cty.String), Optional: true}
+	name := &configschema.Attribute{Type: cty.String, Required: true}
+	schemas := map[string]map[string]providers.Schema{
+		"azurerm": {
+			"azurerm_virtual_network": {Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{"name": name, "tags": tags}}},
+			"azurerm_subnet":          {Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{"name": name}}},
+		},
+		"azapi": {
+			"azapi_resource": {Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
+				"name": name,
+				"type": {Type: cty.String, Required: true},
+				"body": {Type: cty.DynamicPseudoType, Optional: true},
+				"tags": tags,
+			}}},
+		},
+		"aws": {
+			"aws_vpc_endpoint_route_table_association": {Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{"vpc_endpoint_id": name}}},
+		},
+	}
+	got := untaggableARMTypes(t.Context(), config, substrate.Azure.ProviderTypes(), func(p addrs.Provider) map[string]providers.Schema {
+		return schemas[p.Type]
+	})
+	var names []string
+	for _, u := range got {
+		names = append(names, u.TypeName+": "+u.Why)
+	}
+	want := []string{
+		"azapi_resource (Microsoft.Network/virtualNetworks/subnets@2024-05-01): takes no tags at that API version",
+		"azurerm_subnet: carries no tags",
+	}
+	if strings.Join(names, "\n") != strings.Join(want, "\n") {
+		t.Errorf("untaggable types:\n%s\nwant:\n%s", strings.Join(names, "\n"), strings.Join(want, "\n"))
 	}
 }
