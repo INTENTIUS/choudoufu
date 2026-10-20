@@ -9,15 +9,21 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/armtypes"
 	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 	"github.com/intentius/choudoufu/internal/live/substrate"
+	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -62,6 +68,7 @@ func (p *projectionProviders) resourceGraphLeg(ctx context.Context, sub substrat
 	cov := azsweep.Coverage{}
 	owner := map[string]string{}
 	leg := discovery.ResourceGraphSweep{Coverage: cov, TakesUnnamed: configs[0].String() == addr.String()}
+	leg.Untaggable = p.azureUntaggableTypes(ctx, sub)
 	for _, c := range configs {
 		built := p.resourceGraphClientFor(ctx, sub, c)
 		if built.subscription == "" {
@@ -91,6 +98,107 @@ func (p *projectionProviders) resourceGraphLeg(ctx context.Context, sub substrat
 			fmt.Sprintf("Provider configuration %s names no subscription_id, and ARM_SUBSCRIPTION_ID is unset, so the estate sweep cannot tell which subscription its resources are in: a resource the estate marks there whose block was deleted is not proposed for removal unless another provider block names the subscription. Set subscription_id on the block.", addr)))
 	}
 	return leg, diags
+}
+
+// azureUntaggableTypes is [untaggableARMTypes] over this run's
+// configuration, with each provider's schemas as the provider manager
+// answers them. Every pass is handed the same list; [discovery.Merge]
+// keeps one gap per type.
+func (p *projectionProviders) azureUntaggableTypes(ctx context.Context, sub substrate.Substrate) []discovery.UntaggableType {
+	if p.config == nil || p.mgr == nil {
+		return nil
+	}
+	return untaggableARMTypes(ctx, p.config, sub.ProviderTypes(), func(provider addrs.Provider) map[string]providers.Schema {
+		schema, diags := p.mgr.GetProviderSchema(ctx, provider)
+		if diags.HasErrors() {
+			return nil
+		}
+		return schema.ResourceTypes
+	})
+}
+
+// untaggableARMTypes is every managed type of the given provider types,
+// declared anywhere in config, that the run knows can carry no ownership
+// marker (GitHub issue #2119), sorted by name, for the Resource Graph leg
+// to report as TYPE_NOT_TAGGABLE gaps:
+//
+//   - a type whose schema has no tags map the arm-tags surface writes
+//     ([markers.ARMTaggable] false): azurerm_subnet among them, one of
+//     the 716 of azurerm 5.10.0's 1106 types with no tags argument;
+//   - an azapi block, whose schema always has one, when azapi's own type
+//     data ([armtypes.Taggable]) says the ARM type at the block's own API
+//     version takes no tags, or does not know that pair. The stamp writes
+//     no marker on either (internal/live/projection's armTagTarget).
+//
+// An azapi block whose type argument does not evaluate statically, or
+// does not parse, is left out: the run does not know its type, and the
+// stamp already warns about that instance by name. So is a type whose
+// provider schema was not read. Classified here, where the leg is built,
+// and passed in: the leg's own Sweep method shares its name with every
+// other leg's, and the surface guard (markers/seams_test.go) resolves a
+// call by name.
+func untaggableARMTypes(ctx context.Context, config *configs.Config, providerTypes []string, schemasFor func(addrs.Provider) map[string]providers.Schema) []discovery.UntaggableType {
+	family := map[string]bool{}
+	for _, t := range providerTypes {
+		family[t] = true
+	}
+	seen := map[string]discovery.UntaggableType{}
+	schemas := map[addrs.Provider]map[string]providers.Schema{}
+	config.DeepEach(func(c *configs.Config) {
+		if c.Module == nil {
+			return
+		}
+		for _, rc := range c.Module.ManagedResources {
+			if !family[rc.Provider.Type] {
+				continue
+			}
+			byType, read := schemas[rc.Provider]
+			if !read {
+				byType = schemasFor(rc.Provider)
+				schemas[rc.Provider] = byType
+			}
+			schema, ok := byType[rc.Type]
+			if !ok || schema.Block == nil {
+				continue
+			}
+			if !markers.ARMTaggable(schema.Block) {
+				seen[rc.Type] = discovery.UntaggableType{TypeName: rc.Type, Why: "carries no tags"}
+				continue
+			}
+			if !armTypeArgument(schema.Block) {
+				continue
+			}
+			typ, reason := staticeval.Argument(ctx, c.Module, rc, "type")
+			if reason != "" {
+				continue
+			}
+			armType, apiVersion, parsed := armtypes.ParseAzapiType(typ)
+			if !parsed {
+				continue
+			}
+			name := fmt.Sprintf("%s (%s@%s)", rc.Type, armType, apiVersion)
+			switch taggable, known := armtypes.Taggable(armType, apiVersion); {
+			case !known:
+				seen[strings.ToLower(name)] = discovery.UntaggableType{TypeName: name, Why: "is not known to take tags at that API version in azapi's type data"}
+			case !taggable:
+				seen[strings.ToLower(name)] = discovery.UntaggableType{TypeName: name, Why: "takes no tags at that API version"}
+			}
+		}
+	})
+	out := make([]discovery.UntaggableType, 0, len(seen))
+	for _, u := range seen {
+		out = append(out, u)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].TypeName < out[j].TypeName })
+	return out
+}
+
+// armTypeArgument reports whether block names its ARM resource type in a
+// settable string type argument, azapi's "<type>@<api-version>" shape, read
+// from the schema rather than a type name.
+func armTypeArgument(block *configschema.Block) bool {
+	attr, ok := block.Attributes["type"]
+	return ok && attr != nil && attr.Type == cty.String && (attr.Required || attr.Optional)
 }
 
 func coverageHas(cov azsweep.Coverage, lowered string) bool {
