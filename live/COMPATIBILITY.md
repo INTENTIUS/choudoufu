@@ -465,7 +465,10 @@ it in place, so the plan refuses it by name under `declared_untagged =
 "refuse"` (the default), `"keep"` and `"report"`, and lint's
 `policy-overwrite-at-key` refuses `"keep"` and `"report"` before any plan.
 `"adopt"` and `"converge"` admit the object first and write the markers
-onto it in the plan.
+onto it in the plan. An object at a declared id carrying another estate's
+marker, or this estate's for another address, is refused too, under every
+verb, where AWS and Kubernetes warn (#2135); AKS produces both shapes on
+the resources a cluster is given.
 `live/azure/COMPATIBILITY.md`'s "How you run it" has the rest.
 
 ## Constructs this page used to refuse, and no longer does

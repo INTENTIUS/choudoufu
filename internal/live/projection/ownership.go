@@ -344,6 +344,26 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 	estate := tags[markers.TagEstate]
 	tagged := estate != "" && own.Estate != "" && estate == own.Estate
 
+	// overwrites is GitHub issue #2135's widening of #1120's refusal
+	// (maintainer ruling, 2026-10-20): on a surface whose create at an
+	// occupied id updates the object there ([substrate.CreateOverwritesAtKey]:
+	// an ARM create is a PUT), a declared create may proceed only onto an
+	// empty id or onto an object carrying this exact block's marker. The two
+	// marked readings below - another estate's, and this estate's for
+	// another address - left this instance out of the prior state with a
+	// warning and a create standing, which on ARM is a PUT over the object
+	// they describe. AKS produces both without any choudoufu run writing
+	// them: it copies a cluster's tags over those of the existing route
+	// table, public IP or virtual network the cluster is given. AWS and
+	// Kubernetes keep the warnings, because their surfaces answer false.
+	overwrites := declared && own.Estate != "" && atDeclaredKey && substrate.CreateOverwritesAtKey(surface)
+
+	if estate != "" && own.Estate != "" && !tagged && overwrites {
+		raw, corrupt := markers.GatherAddress(tags)
+		b.overwritesMarkedAtKey(addr, typeName, importID, estate, raw, corrupt, own.Policy.Verb(true, false))
+		return ownershipUnowned
+	}
+
 	if estate != "" && own.Estate != "" && !tagged {
 		// GitHub issue #1166, ruled 2026-09-16. An object carrying another
 		// estate's tofu-estate is not untagged: it is tagged, for somebody
@@ -384,6 +404,14 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// is that object's identity, and a rename rewrites the annotation
 		// in place (#1639).
 		if detail, cause, ok := b.addressNames(addr, typeName, importID, tags); !ok {
+			if overwrites {
+				// The same marker #244 refuses with a warning, on a
+				// surface where the create that warning leaves standing
+				// is a PUT over this object (GitHub issue #2135).
+				raw, corrupt := markers.GatherAddress(tags)
+				b.overwritesMarkedAtKey(addr, typeName, importID, estate, raw, corrupt, "")
+				return ownershipUnowned
+			}
 			b.unownedAddress(addr, typeName, importID, estate, detail, cause)
 			return ownershipUnowned
 		}
@@ -624,6 +652,86 @@ func (b *builder) overwritesAtKey(addr addrs.AbsResourceInstance, typeName, impo
 	})
 	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryOverwriteAtKey, detail))
 	b.omit(addr, ReasonUnowned, detail, noMarkerCause(typeName))
+}
+
+// SummaryOverwriteMarkedAtKey is the Error GitHub issue #2135's widening of
+// #1120's refusal carries: the object at the declared id is marked, but not
+// for this block.
+const SummaryOverwriteMarkedAtKey = "Live object marked for another owner at the declared id would be overwritten"
+
+// overwritesMarkedAtKey records GitHub issue #2135's refusal (maintainer
+// ruling, 2026-10-20): a declared resource on a surface whose create
+// overwrites ([substrate.CreateOverwritesAtKey]) was read at the id its own
+// configuration computes, and the object there carries an ownership marker
+// that is not this block's - another estate's tofu-estate, or this
+// estate's with a tofu-address naming another instance (or a malformed
+// one). Before the ruling those were #1166's and #244's warnings, each
+// beside a plan proposing the create, which on ARM is a PUT that writes this
+// block's markers over the object's.
+//
+// The Unowned entry, the omission and an Error, the shape
+// [builder.overwritesAtKey] records for an unmarked object. A separate
+// summary because the operator's question is different: an unmarked object
+// is somebody's that nobody claimed, and adopting it is one policy verb
+// away; a marked one is claimed, and the message has to say by whom and how
+// a claim nobody here wrote got there.
+//
+// verb is declared_untagged's verb for an object of another estate, named
+// when it is not the default, for [anotherEstateDetail]'s reason: the
+// operator asked for something in writing and is owed why it did not reach
+// this object. It is "" for this estate's own object, which no
+// declared_untagged verb reaches either way.
+func (b *builder) overwritesMarkedAtKey(addr addrs.AbsResourceInstance, typeName, importID, estate, rawAddress string, corrupt bool, verb policy.Verb) {
+	own := b.opts.Ownership
+	escaped := markers.EscapeAddress(addr.String())
+
+	var found string
+	switch {
+	case corrupt:
+		found = fmt.Sprintf("%s=%q and %s continuation tags with a gap in them, so the address it names cannot be read", markers.TagEstate, estate, markers.TagAddress)
+	case rawAddress == "":
+		found = fmt.Sprintf("%s=%q and no %s", markers.TagEstate, estate, markers.TagAddress)
+	default:
+		found = fmt.Sprintf("%s=%q and %s=%q", markers.TagEstate, estate, markers.TagAddress, rawAddress)
+	}
+	var whose string
+	if estate == own.Estate {
+		whose = fmt.Sprintf("That is this estate's marker for another address than %s, so the object is claimed by a different instance of this estate, or by none.", addr)
+	} else {
+		whose = fmt.Sprintf("That is estate %q's marker, not this estate's (%q).", estate, own.Estate)
+	}
+	var asked string
+	if verb != "" && verb != policy.DefaultVerb[policy.DeclaredUntagged] {
+		asked = fmt.Sprintf(" policy { %s = %q } does not reach it: that quadrant is about objects carrying no estate marker at all, and this one is marked.", policy.DeclaredUntagged.Attribute(), verb)
+	}
+
+	var remedies string
+	if estate == own.Estate {
+		remedies = fmt.Sprintf(
+			"If AKS copied the tags, move this resource's ownership off its tags: strict { markers \"record\" { types = [%q] } } in the live block holds its identity in the estate's record store, and the copied tags then decide nothing; or keep it out of this estate, or in a resource group no cluster is given. If the resource really moved, say so with a moved block or with choudoufu live-mv. If the tags are simply wrong, write %s=%q onto the object by hand and re-run.",
+			typeName, markers.TagAddress, escaped)
+	} else {
+		remedies = fmt.Sprintf(
+			"If a cluster of estate %q copied its tags here, move this resource's ownership off its tags: strict { markers \"record\" { types = [%q] } } in the live block holds its identity in the estate's record store; or keep it out of this estate, or in a resource group no cluster is given. To take the object over deliberately, `live-mv -from-estate=%s` rewrites the marker to this estate one address at a time, and `live-import -approve` stamps this estate's markers over the resources a state file lists. Or point this resource at a name nobody is using.",
+			estate, typeName, estate)
+	}
+
+	detail := fmt.Sprintf(
+		"A live %s already exists at %q, the id %s declares, and it carries %s. %s%s Creating this resource is a PUT to that id, and ARM answers a PUT to an id that already exists by updating the object there instead of failing, so the create would write this block's markers over that object's. %s Markers this estate did not write usually come from one of two places: AKS copies a cluster's tags, the markers this estate stamped on the cluster among them, over the tags of the existing resources the cluster is given (its route table, public IP, virtual network and the rest) while the cluster exists, and removes them when it is deleted; and an Azure Policy assignment with a modify effect writes tag values onto the resources in its scope. %s This is #1120's overwrite refusal for an object that is marked, but not for this block (GitHub issue #2135).",
+		typeName, importID, addr, found, whose, asked,
+		overwriteProviderGuard(b.providerType(addr, typeName)),
+		remedies)
+	b.unownedList = append(b.unownedList, Unowned{
+		Addr:          addr,
+		TypeName:      typeName,
+		ImportID:      importID,
+		Estate:        estate,
+		AddressMarker: true,
+		Detail:        detail,
+	})
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryOverwriteMarkedAtKey, detail))
+	cause := fmt.Sprintf("the live %s at its identity carries another owner's marker and would be overwritten.", typeName)
+	b.omit(addr, ReasonUnowned, detail, cause)
 }
 
 // overwriteProviderGuard is the sentence [builder.overwritesAtKey] says

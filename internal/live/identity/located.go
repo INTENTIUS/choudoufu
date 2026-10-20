@@ -6,14 +6,17 @@
 package identity
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/strict"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 
@@ -285,6 +288,17 @@ func RecordFallbackType(resourceType string, schemas map[string]providers.Schema
 		// has always gotten.
 		return false
 	}
+	if plan, _ := LocatedIdentityPlanFor(resourceType, schema); plan.FromProvider() {
+		// GitHub issue #2135 made an identity with a provider-configuration
+		// component recordable, for a writer that can answer it
+		// ([LocatedProviderIdentity]). This door is not one: the instance
+		// reaches it because its identity did not fold this run, and the
+		// component that did not fold can be that same provider value (a
+		// subscription_id set from a variable the run cannot see), which the
+		// record could then not hold either. It keeps the answer it had
+		// before #2135, and the instance its needs-discovery refusal.
+		return false
+	}
 	return recordableIdentitySchema(resourceType, schema)
 }
 
@@ -433,6 +447,26 @@ type LocatedIdentityPlan struct {
 	// reason to refuse the record.
 	OptionalComponents []string
 
+	// ProviderComponents are the required identity attributes, set only
+	// alongside Components, that the type's provider fills in from its own
+	// provider configuration rather than from an argument of the resource,
+	// each with the cloud value it is (GitHub issue #2135). azurerm's
+	// identity schemas all require subscription_id, which no azurerm
+	// resource declares: the provider takes it from its block's
+	// subscription_id, or ARM_SUBSCRIPTION_ID when the block sets none,
+	// exactly as identity resolution answers [CloudSubscriptionID]
+	// ([resolver.cloudValueFor]). The family says which attributes these
+	// are ([substrate.SynthesizedIdentity.CloudIdentityAttrs]), never a
+	// list here.
+	//
+	// The applied object does not carry them, so [LocatedIdentity] cannot
+	// read them off it. [LocatedProviderIdentity] answers them from the
+	// provider configuration the instance was applied through, the way the
+	// identity route does, and a writer with no such answer records
+	// nothing: a record missing one of them is a partial identity, which
+	// [LocatedIdentity]'s all-or-nothing rule exists to refuse.
+	ProviderComponents map[string]CloudValue
+
 	// ImportIDParts are the attributes whose values compose the documented
 	// import STRING, in the documented order, joined by ImportIDSeparator.
 	// Set only where [DocumentedImportIDs] carries a grammar for the type
@@ -485,7 +519,14 @@ type LocatedIdentityPlan struct {
 }
 
 // Composite reports whether p carries the provider's identity object.
-func (p LocatedIdentityPlan) Composite() bool { return len(p.Components) > 0 }
+func (p LocatedIdentityPlan) Composite() bool {
+	return len(p.Components) > 0 || len(p.ProviderComponents) > 0
+}
+
+// FromProvider reports whether some of p's identity comes from the
+// provider configuration rather than the applied object
+// ([LocatedIdentityPlan.ProviderComponents]).
+func (p LocatedIdentityPlan) FromProvider() bool { return len(p.ProviderComponents) > 0 }
 
 // Composed reports whether p carries a documented import-string grammar,
 // fixed or with a variadic tail.
@@ -619,7 +660,26 @@ func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan 
 		}
 		return LocatedIdentityPlan{}, hasLocatedImportID(schema.Block)
 	}
+	// GitHub issue #2135: a required attribute the resource does not
+	// declare, and the family's provider fills in from its provider
+	// configuration, is not a component the applied object can supply, and
+	// it is not a hole either. It is the same value identity resolution
+	// already reads from the provider block for the identity route
+	// ([CloudSubscriptionID]), so the record takes it from the same place
+	// ([LocatedProviderIdentity]) and the plan carries it apart from the
+	// components read off the object.
+	fromProvider := providerIdentityAttrs(resourceType, schema)
+	var fromObject []string
+	var providerComps map[string]CloudValue
 	for _, name := range required {
+		if cloud, ok := fromProvider[name]; ok {
+			if providerComps == nil {
+				providerComps = make(map[string]CloudValue, len(fromProvider))
+			}
+			providerComps[name] = cloud
+			continue
+		}
+		fromObject = append(fromObject, name)
 		a := schema.Block.Attributes[name]
 		if a == nil || (a.Type != cty.String && a.Type != cty.Number) {
 			// A component the applied object does not carry as a top-level
@@ -644,7 +704,71 @@ func LocatedIdentityPlanFor(resourceType string, schema providers.Schema) (plan 
 	// component is never a reason to refuse the whole identity the way it
 	// is for a required one. Filtering here would only duplicate that
 	// check, at the cost of a second place it could drift from it.
-	return LocatedIdentityPlan{Components: required, OptionalComponents: optional}, true
+	return LocatedIdentityPlan{Components: fromObject, OptionalComponents: optional, ProviderComponents: providerComps}, true
+}
+
+// providerIdentityAttrs is the identity attributes resourceType's family
+// says its provider fills in from the provider configuration, for a type
+// whose own configuration schema declares no argument by that name, each
+// with the cloud value it is. It asks the family exactly what the
+// identity-schema route asks it ([substrate.SynthesizeIdentity]'s
+// CloudIdentityAttrs, filtered by [withoutCloudIdentityAttrs]), so the
+// record rung and the identity route cannot disagree about which attribute
+// is the provider's. Nil for every family that names none, which is every
+// family but Azure, and for a type with no identity schema.
+func providerIdentityAttrs(resourceType string, schema providers.Schema) map[string]CloudValue {
+	synth, ok := substrate.SynthesizeIdentity(resourceType, schema)
+	if !ok || len(synth.CloudIdentityAttrs) == 0 {
+		return nil
+	}
+	_, out := withoutCloudIdentityAttrs(schema, synth.CloudIdentityAttrs)
+	return out
+}
+
+// ProviderValue answers one cloud value of the provider configuration an
+// instance was applied through, the way identity resolution does
+// ([ProviderCloudValue]). ok is false when the value is not known.
+type ProviderValue func(which CloudValue) (value string, ok bool)
+
+// LocatedProviderIdentity answers [LocatedIdentityPlan.ProviderComponents]
+// through values, for writing beside [LocatedIdentity]'s components (GitHub
+// issue #2135). All or nothing, for [LocatedIdentity]'s reason: a nil
+// values, or one that does not know any of them, answers false, and the
+// caller then records no identity at all rather than part of one. A plan
+// with no provider components answers a nil map and true.
+func LocatedProviderIdentity(plan LocatedIdentityPlan, values ProviderValue) (map[string]string, bool) {
+	if len(plan.ProviderComponents) == 0 {
+		return nil, true
+	}
+	if values == nil {
+		return nil, false
+	}
+	out := make(map[string]string, len(plan.ProviderComponents))
+	for name, which := range plan.ProviderComponents {
+		v, ok := values(which)
+		if !ok || v == "" {
+			return nil, false
+		}
+		out[name] = v
+	}
+	return out, true
+}
+
+// ProviderCloudValue answers which for provider's configuration in cfg
+// exactly as identity resolution answers it for a resource declared under
+// that provider ([resolver.cloudValueFor]): for [CloudSubscriptionID], the
+// block's own static subscription_id, or cloud's SubscriptionID (the run's
+// ARM_SUBSCRIPTION_ID) when the block does not set one, and nothing when the
+// block sets one this run cannot evaluate. GitHub issue #2135: the record
+// rung's writers ask it for the provider components a record holds, so a
+// record and the identity route name an object under the same
+// subscription.
+func ProviderCloudValue(cfg *configs.Config, provider addrs.AbsProviderConfig, which CloudValue, cloud CloudContext) (string, bool) {
+	if cfg == nil || cfg.Module == nil || cfg.Module.StaticEvaluator == nil || provider.Provider.IsZero() {
+		return "", false
+	}
+	r := newResolver(context.Background(), cfg, Context{Cloud: cloud})
+	return r.cloudValueFor(which, cloudScopeKey{provider: provider})
 }
 
 // namedIdentityAttr reports the single, non-"id" attribute a ratified

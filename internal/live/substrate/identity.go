@@ -49,6 +49,11 @@ type SynthesizedIdentity struct {
 	// azurerm 5.10.0 identity schema requires subscription_id, and no
 	// azurerm argument supplies it). An attribute the type does declare as
 	// an argument is read from the argument, as before.
+	//
+	// A family may set it on an answer without FromIdentitySchema too,
+	// saying the same of the type's identity schema: internal/live/identity's
+	// record rung reads it from any answer (GitHub issue #2135), and the
+	// identity-schema route never sees such an answer.
 	CloudIdentityAttrs map[string]string
 
 	// ARMTemplate, with FromIdentitySchema: the type's ARM id built from

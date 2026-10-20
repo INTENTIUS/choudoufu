@@ -521,6 +521,13 @@ func azurermAdmits(typeName string, schema providers.Schema) (SynthesizedIdentit
 		route.ARMTemplate = &synth
 		return route, true
 	}
+	// The template is the type's identity here, and its subscription
+	// segment is the provider configuration's. Said for the identity
+	// schema's attribute of that name too, so the record rung reads it from
+	// the same place for a template-routed type as for one on the
+	// identity-schema route (GitHub issue #2135); nothing reads it off a
+	// template answer otherwise.
+	synth.CloudIdentityAttrs = azurermCloudIdentityAttrs()
 	return synth, true
 }
 

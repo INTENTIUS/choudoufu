@@ -150,35 +150,47 @@ func TestAKSRetag_markersGoneIsTheOverwriteRefusal(t *testing.T) {
 	}
 }
 
-// TestAKSRetag_clusterMarkersCopiedIsOnlyTheWrongAddressWarning pins the
+// TestAKSRetag_clusterMarkersCopiedIsTheMarkedOverwriteRefusal pins the
 // shape AKS actually produces while the cluster lives: this estate's
-// tofu-estate with the cluster's tofu-address. That is not declared_untagged
+// tofu-estate with the cluster's tofu-address. It is not declared_untagged
 // (the object is marked, by this estate, for another of its instances), so
-// the #1120 overwrite refusal does not reach it. It is #244's wrong-address
-// refusal, a Warning: the object is left out of the prior state and the
-// plan proposes the create, which on ARM is a PUT to the existing id. The
-// only thing between that plan and the PUT is azurerm's own pre-read
-// (tf.ImportAsExistsError), which the provider's features block can turn
-// off. This test records today's behaviour; it is the gap the AKS issue
-// names.
-func TestAKSRetag_clusterMarkersCopiedIsOnlyTheWrongAddressWarning(t *testing.T) {
+// before GitHub issue #2135 it was #244's wrong-address Warning, the
+// object left out of the prior state and the create proposed, which on ARM
+// is a PUT to the existing id. The maintainer's ruling on #2135 widens
+// #1120's refusal to it: an Error, no create, the marker found named, and
+// the causes and remedies said.
+func TestAKSRetag_clusterMarkersCopiedIsTheMarkedOverwriteRefusal(t *testing.T) {
 	for _, a := range aksTargets {
 		t.Run(a.typ, func(t *testing.T) {
 			b := aksBuilder(t, &Ownership{Estate: aksEstate})
 			if got := b.checkOwnership(a.addr(), a.typ, a.id, armTagsSchema(), aksLive(a, aksCopiedTags(aksEstate)), true, false, false); got != ownershipUnowned {
 				t.Fatalf("verdict %d, want ownershipUnowned", got)
 			}
-			if b.diags.HasErrors() {
-				t.Fatalf("an Error was raised; this test pins the warning-only behaviour:\n%s", renderDiags(b.diags))
+			errs := errorDiagsWith(b.diags, SummaryOverwriteMarkedAtKey)
+			if len(errs) != 1 {
+				t.Fatalf("want exactly one Error %q, got:\n%s", SummaryOverwriteMarkedAtKey, renderDiags(b.diags))
 			}
-			if !hasDiag(b.diags, SummaryWrongAddress, aksClusterAddr) {
-				t.Errorf("want the %q warning naming %s, got:\n%s", SummaryWrongAddress, aksClusterAddr, renderDiags(b.diags))
+			detail := errs[0].Description().Detail
+			for _, want := range []string{
+				a.id,
+				`tofu-estate="` + aksEstate + `"`,
+				`tofu-address="` + aksClusterAddr + `"`,
+				"another address than " + a.addr().String(),
+				"AKS copies a cluster's tags",
+				"Azure Policy assignment with a modify effect",
+				`strict { markers "record" { types = ["` + a.typ + `"] } }`,
+				"moved block",
+				"hashicorp/azurerm reads the id before that PUT",
+			} {
+				if !strings.Contains(detail, want) {
+					t.Errorf("the refusal does not say %q:\n%s", want, detail)
+				}
 			}
-			if hasDiag(b.diags, SummaryOverwriteAtKey, "") {
-				t.Errorf("the overwrite refusal fired:\n%s", renderDiags(b.diags))
+			if hasDiag(b.diags, SummaryWrongAddress, "") {
+				t.Errorf("the #244 warning still fires beside the refusal:\n%s", renderDiags(b.diags))
 			}
 			if om, ok := b.omitted[a.addr().String()]; !ok || om.Reason != ReasonUnowned {
-				t.Errorf("omission = %+v (present %v), want ReasonUnowned, which proposes the create", om, ok)
+				t.Errorf("omission = %+v (present %v), want ReasonUnowned", om, ok)
 			}
 		})
 	}
@@ -186,16 +198,91 @@ func TestAKSRetag_clusterMarkersCopiedIsOnlyTheWrongAddressWarning(t *testing.T)
 
 // TestAKSRetag_clusterOfAnotherEstate: a cluster stamped by a different
 // estate copies that estate's tofu-estate onto this estate's route table.
-// #1166's another-estate refusal, also a Warning, also outside the overwrite
-// refusal (pinned for dns zones by TestARMOverwrite_whatTheRuleDoesNotReach).
+// Before #2135 that was #1166's another-estate Warning beside a create; now
+// the marked overwrite refusal, under every declared_untagged verb, since
+// none of them reaches a marked object.
 func TestAKSRetag_clusterOfAnotherEstate(t *testing.T) {
 	a := aksTargets[0]
-	b := aksBuilder(t, &Ownership{Estate: aksEstate})
-	if got := b.checkOwnership(a.addr(), a.typ, a.id, armTagsSchema(), aksLive(a, aksCopiedTags("platform")), true, false, false); got != ownershipUnowned {
-		t.Fatalf("verdict %d, want ownershipUnowned", got)
+	for _, verb := range []string{"", "keep", "report", "adopt"} {
+		t.Run("declared_untagged="+verb, func(t *testing.T) {
+			own := &Ownership{Estate: aksEstate}
+			if verb != "" {
+				own.Policy = buildPolicy(t, "", verb)
+			}
+			b := aksBuilder(t, own)
+			if got := b.checkOwnership(a.addr(), a.typ, a.id, armTagsSchema(), aksLive(a, aksCopiedTags("platform")), true, false, false); got != ownershipUnowned {
+				t.Fatalf("verdict %d, want ownershipUnowned", got)
+			}
+			errs := errorDiagsWith(b.diags, SummaryOverwriteMarkedAtKey)
+			if len(errs) != 1 {
+				t.Fatalf("want exactly one Error %q, got:\n%s", SummaryOverwriteMarkedAtKey, renderDiags(b.diags))
+			}
+			detail := errs[0].Description().Detail
+			for _, want := range []string{
+				`tofu-estate="platform"`,
+				`tofu-address="` + aksClusterAddr + `"`,
+				`estate "platform"'s marker`,
+				"live-mv -from-estate=platform",
+				"AKS copies a cluster's tags",
+			} {
+				if !strings.Contains(detail, want) {
+					t.Errorf("the refusal does not say %q:\n%s", want, detail)
+				}
+			}
+			if verb != "" && verb != "refuse" && !strings.Contains(detail, `policy { declared_untagged = "`+verb+`" } does not reach it`) {
+				t.Errorf("the refusal does not say why %q did not apply:\n%s", verb, detail)
+			}
+			if hasDiag(b.diags, SummaryOutsideEstate, "") {
+				t.Errorf("the #1166 warning still fires beside the refusal:\n%s", renderDiags(b.diags))
+			}
+		})
 	}
-	if b.diags.HasErrors() || !hasDiag(b.diags, SummaryOutsideEstate, `tofu-estate="platform"`) {
-		t.Errorf("want only the another-estate warning, got:\n%s", renderDiags(b.diags))
+}
+
+// TestAKSRetag_thisBlocksOwnMarkerIsAdmitted: the one marked object a
+// create at the declared id may meet is the one carrying this exact
+// block's marker, which is admitted (no create is proposed at all), as is
+// this estate's marker with no address yet, which the stamp completes
+// (see addressNames).
+func TestAKSRetag_thisBlocksOwnMarkerIsAdmitted(t *testing.T) {
+	a := aksTargets[0]
+	for name, tags := range map[string]map[string]string{
+		"own address":    {markers.TagEstate: aksEstate, markers.TagAddress: markers.EscapeAddress(a.addr().String())},
+		"no address yet": {markers.TagEstate: aksEstate},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b := aksBuilder(t, &Ownership{Estate: aksEstate})
+			if got := b.checkOwnership(a.addr(), a.typ, a.id, armTagsSchema(), aksLive(a, tags), true, false, false); got != ownershipOK || len(b.diags) != 0 {
+				t.Errorf("verdict %d diags:\n%s", got, renderDiags(b.diags))
+			}
+		})
+	}
+}
+
+// TestAKSRetag_marksOffTheDeclaredIdKeepTheirWarnings: the widening is for
+// an object read at the id this block's own configuration computes. One a
+// record pointed at, at some other id, is evidence about that id, and a
+// create at the declared one would not land on it, so #244's and #1166's
+// warnings stand there, as they do for every AWS and Kubernetes object.
+func TestAKSRetag_marksOffTheDeclaredIdKeepTheirWarnings(t *testing.T) {
+	a := aksTargets[0]
+	for name, c := range map[string]struct {
+		tags    map[string]string
+		summary string
+	}{
+		"another address": {aksCopiedTags(aksEstate), SummaryWrongAddress},
+		"another estate":  {aksCopiedTags("platform"), SummaryOutsideEstate},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b := aksBuilder(t, &Ownership{Estate: aksEstate})
+			b.checkOwnershipAt(a.addr(), a.typ, a.id, armTagsSchema(), aksLive(a, c.tags), true, false, false, false)
+			if len(errorDiagsWith(b.diags, SummaryOverwriteMarkedAtKey)) != 0 {
+				t.Errorf("an object off the declared id raised the declared-id error:\n%s", renderDiags(b.diags))
+			}
+			if c.summary != "" && !hasDiag(b.diags, c.summary, "") {
+				t.Errorf("want the %q warning, got:\n%s", c.summary, renderDiags(b.diags))
+			}
+		})
 	}
 }
 
@@ -203,7 +290,7 @@ func TestAKSRetag_clusterOfAnotherEstate(t *testing.T) {
 // the record before the identity route. The record names the declared id,
 // and the object's own tofu-address no longer confirms it in either shape,
 // so the record is reported stale and the instance falls back to the
-// identity route - which then lands on one of the two tests above.
+// identity route - which then lands on one of the refusal tests above.
 func TestAKSRetag_recordFirstFallsBack(t *testing.T) {
 	a := aksTargets[0]
 	for name, tags := range map[string]map[string]string{
@@ -230,13 +317,11 @@ func TestAKSRetag_recordFirstFallsBack(t *testing.T) {
 // (nodestamp_ignorechanges.go), so the cluster's copied markers would not
 // be planned away.
 //
-// The other half is not there today. At azurerm 5.10.0 the selection is
-// refused for these types before it reaches this branch
-// (TestSelectedLocatedAKSRetaggedTypes in internal/live/identity: the
-// identity schema's subscription_id is not a resource argument), so
-// identity never routes them as located and this verdict is not reached.
-// Pinned so that whoever makes the selection reachable finds the ownership
-// half already does the right thing.
+// The other half is identity's: since GitHub issue #2135 the record holds
+// the identity schema's subscription_id, answered from the provider block
+// as the identity route answers it, so the selection is honoured for these
+// types (TestSelectedLocatedAKSRetaggedTypes in internal/live/identity) and
+// identity routes them as located, which is how this verdict is reached.
 func TestAKSRetag_markersRecordSelectionAdmits(t *testing.T) {
 	for _, a := range aksTargets {
 		for name, tags := range map[string]map[string]string{

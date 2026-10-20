@@ -142,11 +142,15 @@ func TestARMOverwrite_whatTheRuleDoesNotReach(t *testing.T) {
 			t.Errorf("verdict %d diags:\n%s", got, renderDiags(b.diags))
 		}
 	})
-	t.Run("another estate keeps its own refusal", func(t *testing.T) {
+	t.Run("another estate is the marked refusal, not the unmarked one", func(t *testing.T) {
 		b := armOverwriteBuilder(t, &Ownership{Estate: k8sOwnershipEstate})
 		b.checkOwnership(addr, "azurerm_dns_zone", armOverwriteID, armTagsSchema(), armObject(map[string]string{markers.TagEstate: "other"}), true, false, false)
 		if len(errorDiagsWith(b.diags, overwriteSummary)) != 0 {
 			t.Errorf("an object marked for another estate read as unmarked:\n%s", renderDiags(b.diags))
+		}
+		// GitHub issue #2135: an Error of its own, naming the marker.
+		if errs := errorDiagsWith(b.diags, SummaryOverwriteMarkedAtKey); len(errs) != 1 || !strings.Contains(errs[0].Description().Detail, `tofu-estate="other" and no tofu-address`) {
+			t.Errorf("want one %q naming the other estate's marker, got:\n%s", SummaryOverwriteMarkedAtKey, renderDiags(b.diags))
 		}
 	})
 	t.Run("a record naming another id is not the declared id", func(t *testing.T) {

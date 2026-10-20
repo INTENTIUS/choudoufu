@@ -354,6 +354,18 @@ type Request struct {
 	// blocked". See that function's "gate 4" doc for the full argument.
 	Config *configs.Config
 
+	// Cloud is what the run's environment says about the cloud, the
+	// [identity.CloudContext] a live plan's identity resolution is given:
+	// today the ARM_SUBSCRIPTION_ID an azurerm or azapi provider block that
+	// names no subscription_id falls back to. GitHub issue #2135: the
+	// identity record Approve writes for an azurerm type holds that
+	// subscription, answered from Config's provider block and this through
+	// [identity.ProviderCloudValue], so the record names the object under
+	// the subscription a later plan's identity route would. The zero value
+	// leaves a provider block that sets subscription_id statically
+	// answered and every other one unrecorded.
+	Cloud identity.CloudContext
+
 	// State is the state to read, already parsed by the caller - through
 	// [github.com/intentius/choudoufu/internal/states/statefile] - and never
 	// touched again by this package. Every module's managed resources are
@@ -485,6 +497,12 @@ type Ratification struct {
 	// Approve, not Ratify, is where every write in this package happens.
 	recordStore *projection.RecordStore
 
+	// config and cloud are [Request.Config] and [Request.Cloud], carried
+	// through to Approve for the provider components of an identity record
+	// (GitHub issue #2135; see [Ratification.providerValues]).
+	config *configs.Config
+	cloud  identity.CloudContext
+
 	// rootOutputStore and rootOutputs are GitHub issue #349's migration
 	// half. A stock state file holds the value every root-level `output`
 	// block settled on at the last apply, and until this existed a migration
@@ -585,6 +603,8 @@ func ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		residuable:      make(map[string]*residuable),
 		secrets:         req.Secrets,
 		recordStore:     req.RecordStore,
+		config:          req.Config,
+		cloud:           req.Cloud,
 		rootOutputStore: req.RootOutputStore,
 		rootOutputs:     req.State,
 		parallelism:     req.Parallelism,

@@ -210,6 +210,19 @@ type WriteBackRequest struct {
 	// configuration.
 	Config *configs.Config
 
+	// Cloud is what the run's environment says about the cloud it is
+	// against, the same [identity.CloudContext] identity resolution was
+	// given: today the ARM_SUBSCRIPTION_ID an azurerm or azapi provider
+	// block that names no subscription_id falls back to. GitHub issue
+	// #2135: a record of an identity with a provider-configuration
+	// component ([identity.LocatedIdentityPlan.ProviderComponents]) is
+	// answered from Config's provider block and this, through
+	// [identity.ProviderCloudValue], so the record names the object under
+	// the subscription the identity route would. The zero value is
+	// legitimate: a provider block that sets subscription_id statically
+	// needs nothing from it.
+	Cloud identity.CloudContext
+
 	// RootOutputStore is where GitHub issue #349's remaining half persists:
 	// the value each root-level `output` block settled on, so the next
 	// live plan has the "before" side stock reads out of its state
@@ -420,7 +433,7 @@ func writeBackObjects(ctx context.Context, req WriteBackRequest) (tfdiags.Diagno
 				// reads: a deposed object this apply's own plan destroyed
 				// is recorded as destroyed by this estate.
 				tombstoneDestroyedDeposed(env, ri, destroyedDeposedFor(env, deposedDestroyed[addr.String()], replaced[addr.String()]))
-				diffDeposedForWrite(env, ri, schema, typeName, res.ProviderConfig)
+				diffDeposedForWrite(env, ri, schema, typeName, res.ProviderConfig, req.providerValues(res.ProviderConfig))
 			}); err != nil {
 				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err, req.Backend, req.Retry))
 			}
@@ -654,6 +667,19 @@ func verifyWholeDestroyLeftNoObjectRecord(ctx context.Context, req WriteBackRequ
 	return diags
 }
 
+// providerValues is the [identity.ProviderValue] a record written for an
+// instance applied through provider reads its provider components from
+// (GitHub issue #2135). Nil when there is no configuration to read the
+// provider block from, which records nothing for such an identity.
+func (req WriteBackRequest) providerValues(provider addrs.AbsProviderConfig) identity.ProviderValue {
+	if req.Config == nil {
+		return nil
+	}
+	return func(which identity.CloudValue) (string, bool) {
+		return identity.ProviderCloudValue(req.Config, provider, which, req.Cloud)
+	}
+}
+
 // stillCurrent reports whether addr has a current object in state.
 func stillCurrent(state *states.State, addr addrs.AbsResourceInstance) bool {
 	if state == nil {
@@ -695,7 +721,7 @@ func stillCurrent(state *states.State, addr addrs.AbsResourceInstance) bool {
 // the signal writeBackRecordEnvelopes's own "touched" gate needs, since
 // unlike identity/residue/taint, a deposed-only change can be the SOLE
 // reason an address needs a write this pass.
-func diffDeposedForWrite(env *recordEnvelope, ri *states.ResourceInstance, schema *providers.Schema, typeName string, providerAddr addrs.AbsProviderConfig) (changed bool) {
+func diffDeposedForWrite(env *recordEnvelope, ri *states.ResourceInstance, schema *providers.Schema, typeName string, providerAddr addrs.AbsProviderConfig, values identity.ProviderValue) (changed bool) {
 	if ri == nil {
 		return false
 	}
@@ -716,7 +742,7 @@ func diffDeposedForWrite(env *recordEnvelope, ri *states.ResourceInstance, schem
 		df := &deposedFields{Provider: providerString(providerAddr)}
 		if obj != nil && schema != nil && schema.Block != nil {
 			if decoded, err := obj.Decode(schema.Block.ImpliedType()); err == nil {
-				if rec, ok := LocatedRecordFrom(typeName, *schema, decoded.Value); ok {
+				if rec, ok := LocatedRecordFromIn(typeName, *schema, decoded.Value, values); ok {
 					df.Identity = identityPayloadFrom(rec)
 				}
 			}
@@ -774,7 +800,7 @@ func diffDeposedForWrite(env *recordEnvelope, ri *states.ResourceInstance, schem
 // direction" is [supersedeIdentity]'s own rule for exactly this kind of
 // doubt. What suppressing costs is a refusal the next plan makes anyway, on
 // that deposed object's own account.
-func deposedMayStillHold(ri *states.ResourceInstance, schema *providers.Schema, typeName string, p *identityPayload) bool {
+func deposedMayStillHold(ri *states.ResourceInstance, schema *providers.Schema, typeName string, p *identityPayload, values identity.ProviderValue) bool {
 	key := tombstoneKey(p)
 	if ri == nil || key == "" {
 		return false
@@ -790,7 +816,7 @@ func deposedMayStillHold(ri *states.ResourceInstance, schema *providers.Schema, 
 		if err != nil {
 			return true
 		}
-		rec, ok := LocatedRecordFrom(typeName, *schema, decoded.Value)
+		rec, ok := LocatedRecordFromIn(typeName, *schema, decoded.Value, values)
 		if !ok {
 			return true
 		}
@@ -1155,7 +1181,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 					// record-backed type) is this instance's real
 					// ownership carrier regardless.
 				default:
-					rec, recordable := LocatedRecordFrom(typeName, schema, obj.Value)
+					rec, recordable := LocatedRecordFromIn(typeName, schema, obj.Value, req.providerValues(res.ProviderConfig))
 					switch {
 					case recordable:
 						touched = true
@@ -1427,7 +1453,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				case setIdentity == nil || !identitySuperseded(env, setIdentity):
 				case !wasReplaced:
 					log.Printf("[INFO] projection: %s now records a different object (%s) than it did before this apply, and this run's plan scheduled no replace for it - an import, a live-mv onto an address that already held a record, or a create with the old object deliberately forgotten. The object the record named before is NOT recorded as destroyed, so a live resource still wearing this address's marker is refused as a collision rather than reported as a superseded one", addr, tombstoneKey(setIdentity))
-				case deposedMayStillHold(ri, schemaPtr, typeName, env.Identity):
+				case deposedMayStillHold(ri, schemaPtr, typeName, env.Identity, req.providerValues(res.ProviderConfig)):
 					log.Printf("[INFO] projection: %s was replaced by this apply, but its final state still carries a deposed object that may be the object the record named before (%s) - a create_before_destroy replace whose destroy leg did not complete. That object is NOT recorded as destroyed, because it is alive and the next apply's job is to destroy it", addr, tombstoneKey(env.Identity))
 				default:
 					supersedeIdentity(env, setIdentity)
@@ -1497,7 +1523,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				// facts holds and the switch above therefore records
 				// nothing.
 				tombstoneDestroyedDeposed(env, ri, destroyedDeposedFor(env, destroyedHere, wasReplaced))
-				diffDeposedForWrite(env, ri, schemaPtr, typeName, res.ProviderConfig)
+				diffDeposedForWrite(env, ri, schemaPtr, typeName, res.ProviderConfig, req.providerValues(res.ProviderConfig))
 				if fgRec != nil {
 					env.FieldGranular = fieldGranularMerged(env.FieldGranular, fgRec, fgEstateOwned)
 				}

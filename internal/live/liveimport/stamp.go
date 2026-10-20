@@ -17,6 +17,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/strict"
@@ -382,7 +383,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		// estate's record store's located namespace and no tag is
 		// written. Residue is still recorded exactly as it is for an
 		// ordinary eligible instance - see [located]'s doc comment.
-		res.outcome = locateOne(ctx, r.recordStore, entry.Addr, loc)
+		res.outcome = locateOne(ctx, r.recordStore, entry.Addr, loc, r.providerValues(loc.providerAddr))
 		r.reportProgress(entry, res.outcome)
 		res.diags = res.diags.Append(unwrittenCarrierDiag(r.recordStore, entry.Addr, loc.typeName))
 		if res.outcome.Outcome == OutcomeRecorded || res.outcome.Outcome == OutcomeAlreadyRecorded {
@@ -421,7 +422,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 		// configuration's strict { secrets } refused to seed - and
 		// there is nothing to derive an identity from for any of those.
 		if untaggable != nil {
-			if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, untaggable.providerAddr, untaggable.typeName, untaggable.schema, untaggable.applied); err != nil {
+			if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, untaggable.providerAddr, untaggable.typeName, untaggable.schema, untaggable.applied, r.providerValues(untaggable.providerAddr)); err != nil {
 				res.diags = res.diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
 					"The identity read for %s was not recorded: %s. If this type has no list route either, a later live-plan will not be able to find this instance again until its identity is recorded some other way.",
 					entry.Addr, err,
@@ -454,7 +455,7 @@ func (r *Ratification) entryWork(ctx context.Context, entry Entry, slot string) 
 	// recording an identity for it would be exactly the wrong-marker
 	// failure HANDOFF.md's safety rule forbids.
 	if res.outcome.Outcome == OutcomeStamped || res.outcome.Outcome == OutcomeAlreadyStamped {
-		if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, elig.providerAddr, elig.typeName, elig.schema, elig.applied); err != nil {
+		if recorded, err := seedIdentityFor(ctx, r.recordStore, entry.Addr, elig.providerAddr, elig.typeName, elig.schema, elig.applied, r.providerValues(elig.providerAddr)); err != nil {
 			res.diags = res.diags.Append(tfdiags.Sourceless(tfdiags.Warning, projection.SummaryLocatedIdentityNotRecorded, fmt.Sprintf(
 				"The identity read for %s was not recorded alongside its marker: %s.",
 				entry.Addr, err,
@@ -532,11 +533,11 @@ func unwrittenCarrierDiag(store *projection.RecordStore, addr addrs.AbsResourceI
 // DIFFERENT identity, or a write that lost a race - and is always worth a
 // warning, because it means a later plan may not find this instance from
 // the record alone.
-func seedIdentityFor(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, providerAddr addrs.AbsProviderConfig, typeName string, schema providers.Schema, applied cty.Value) (recorded bool, err error) {
+func seedIdentityFor(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, providerAddr addrs.AbsProviderConfig, typeName string, schema providers.Schema, applied cty.Value, values identity.ProviderValue) (recorded bool, err error) {
 	if store == nil {
 		return false, nil
 	}
-	rec, ok := projection.LocatedRecordFrom(typeName, schema, applied)
+	rec, ok := projection.LocatedRecordFromIn(typeName, schema, applied, values)
 	if !ok {
 		return false, nil
 	}
@@ -545,6 +546,20 @@ func seedIdentityFor(ctx context.Context, store *projection.RecordStore, addr ad
 		return false, err
 	}
 	return true, nil
+}
+
+// providerValues is the [identity.ProviderValue] an identity record written
+// for an instance read through provider answers its provider components
+// from (GitHub issue #2135): [Request.Config]'s provider block and
+// [Request.Cloud], as a live plan's identity resolution reads them. Nil
+// with no configuration, which records no such identity.
+func (r *Ratification) providerValues(provider addrs.AbsProviderConfig) identity.ProviderValue {
+	if r.config == nil {
+		return nil
+	}
+	return func(which identity.CloudValue) (string, bool) {
+		return identity.ProviderCloudValue(r.config, provider, which, r.cloud)
+	}
 }
 
 // recordOne is Approve's GitHub issue #340 half: the migration of one
@@ -615,7 +630,7 @@ func recordOne(ctx context.Context, store *projection.RecordStore, addr addrs.Ab
 // admitted for the selection by [identity.SelectedLocatedType] is read for
 // its identity exactly the way the apply path would read it. Neither
 // function names a resource type.
-func locateOne(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, loc *located) StampOutcome {
+func locateOne(ctx context.Context, store *projection.RecordStore, addr addrs.AbsResourceInstance, loc *located, values identity.ProviderValue) StampOutcome {
 	out := StampOutcome{Addr: addr, TypeName: loc.typeName}
 	if store == nil {
 		out.Outcome = OutcomeSkipped
@@ -625,7 +640,7 @@ func locateOne(ctx context.Context, store *projection.RecordStore, addr addrs.Ab
 		return out
 	}
 
-	rec, ok := projection.LocatedRecordFrom(loc.typeName, loc.schema, loc.applied)
+	rec, ok := projection.LocatedRecordFromIn(loc.typeName, loc.schema, loc.applied, values)
 	if !ok {
 		out.Outcome = OutcomeFailed
 		out.Detail = fmt.Sprintf(

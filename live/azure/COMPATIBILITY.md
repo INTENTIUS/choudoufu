@@ -150,6 +150,25 @@ virtual machine, is not a hold. The cluster's own objects are
 the Kubernetes leg's, swept by label; the two fences are judged under their
 own credentials, as for EKS in `live/kubernetes/COMPATIBILITY.md`.
 
+AKS also copies the cluster's tags over those of the existing resources a
+cluster is given: its route table, public IP, virtual network and the rest
+([Microsoft's tag guide](https://learn.microsoft.com/en-us/azure/aks/use-tags)).
+A declared route table then carries this estate's `tofu-estate` and the
+cluster's `tofu-address`, or another estate's marker if that estate stamped
+the cluster. The next plan refuses it by name, "Live object marked for
+another owner at the declared id would be overwritten", because a create
+there would be a PUT over it. Once the cluster is deleted, AKS removes what
+it set, and the plan refuses the unmarked object instead.
+
+`strict { markers "record" { types =
+["azurerm_route_table"] } }` holds the type's identity in the record store,
+with the subscription from the provider block, so the copied tags decide
+nothing ([#2135](https://github.com/INTENTIUS/choudoufu/issues/2135)). Or
+keep the resource out of the estate, or in a resource group no cluster is
+given. Copying the estate's tags through the cluster's own `tags` does not
+help: AKS writes one tag set, with the cluster's address, onto every
+resource it uses.
+
 ## How you run it
 
 The command-level refusals are unchanged; `live/COMPATIBILITY.md`'s "How
@@ -158,7 +177,12 @@ you run it" applies as written.
 What is Azure's own is what a plan finds at a declared id. An object there
 without this estate's `tofu-estate` tag is refused by name, "Unmarked live
 object at the declared id would be overwritten", because an ARM create is
-a PUT that would update it in place.
+a PUT that would update it in place. An object carrying another estate's
+marker, or this estate's for another address, is refused the same way under
+"Live object marked for another owner at the declared id would be
+overwritten", naming the marker it found. On AWS and Kubernetes those two
+are warnings beside the plan. Only an object carrying this block's own
+marker is admitted.
 
 Both providers guard the same case at apply, and the refusal says which
 one the resource is under:

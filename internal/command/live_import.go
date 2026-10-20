@@ -243,7 +243,11 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		// also handed to Ratify so migrationSlots can settle a client-named
 		// count instance's slot from its own declaration instead of
 		// leaving it unsettled. See [liveimport.Request.Config].
-		Config:    config,
+		Config: config,
+		// GitHub issue #2135: what an identity record's subscription_id is
+		// answered from when the provider block names none, as for a live
+		// plan's identity resolution (live_mode.go's liveRecordCloud).
+		Cloud:     liveRecordCloud(),
 		State:     stateFile.State,
 		Providers: provs,
 		// GitHub issue #1109: the cluster client a manifest-shape
