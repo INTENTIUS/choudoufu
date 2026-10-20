@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -75,7 +76,9 @@ func (GCPAssetSweep) Leg() substrate.Sweep { return substrate.SweepAssetSearch }
 
 // Sweep runs the leg.
 func (g GCPAssetSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.Diagnostics {
-	return g.sweep(ctx, in.Request, in.Result)
+	diags := g.sweep(ctx, in.Request, in.Result)
+	unlabelledNotSwept(in.Request, in.schemas, in.Result)
+	return diags
 }
 
 func (g GCPAssetSweep) sweep(ctx context.Context, req Request, res *Result) tfdiags.Diagnostics {
@@ -157,6 +160,35 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, res *Result) tfdi
 			fmt.Sprintf("%d resource(s) carry estate %q's label and no address this configuration declares:\n  - %s", len(orphans), req.Estate, strings.Join(orphans, "\n  - "))))
 	}
 	return diags
+}
+
+// unlabelledNotSwept files a [SweepGapNotTaggable] gap for every google
+// type the configuration declares that carries no google-labels surface
+// (GitHub issue #2119, D3): with no labels map it carries no marker, so the
+// Asset Inventory search never finds its objects, and a removed block of
+// such a type is found again only from its record. The gaps render in the
+// plan's "Not swept for removal" list, as AWS's untaggable types do. A
+// type whose schema the run does not hold is not classified and files
+// nothing. Losing a record is the record-store-loss case, documented with
+// its recovery in live/RECOVERY.md.
+func unlabelledNotSwept(req Request, schemas listclient.Schemas, res *Result) {
+	seen := map[string]bool{}
+	for _, r := range req.Resolutions {
+		t := r.Type()
+		if seen[t] || !strings.HasPrefix(t, "google_") {
+			continue
+		}
+		seen[t] = true
+		block, ok := schemas.ResourceSchema(t)
+		if !ok {
+			continue
+		}
+		if _, labelled := markers.GoogleLabelSurface(block); labelled {
+			continue
+		}
+		res.SweepGaps = append(res.SweepGaps, SweepGap{TypeName: t, Reason: SweepGapNotTaggable,
+			Detail: "a google type with no labels map carries no marker, so the Cloud Asset Inventory search cannot list it; a removed block of this type is found again only from its record"})
+	}
 }
 
 // gcpGapType is the name a GCP sweep gap and scan are filed under: the

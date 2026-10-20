@@ -37,12 +37,13 @@ is the form it takes there.
 A network, a firewall and a subnetwork, none labelled. The firewall's
 block is deleted with the cache, and its record must propose exactly one
 destroy at `google_compute_firewall.ssh`. Then the subnetwork's record and
-block go together: no destroy may be proposed, the subnetwork stays live,
-and one warning must name both `google_compute_subnetwork` and the estate,
-without the address `google_compute_subnetwork.edge`.
+block go together. No destroy may be proposed and the subnetwork stays live,
+because nothing left in the run names it. The plan reports the gap instead:
+`plan -verbose` lists the unlabelled types the configuration still declares
+(the network) under "Not swept for removal" as `TYPE_NOT_TAGGABLE`, and
+`live/RECOVERY.md` documents the leak and its recovery, restoring the
+record's noncurrent version, with the subnetwork as its example.
 
 `BREAK=1` loses the firewall's record before its block is deleted, and
-the destroy must go with it. Read from the code, no warning on the GCP
-path names an unlabelled type and the estate yet, so the second half
-fails until one is built; #2119 lists this sweep as still to design. It
-has no dated run yet, so the cell reads unproven.
+the destroy must go with it. It has no dated run yet, so the cell reads
+unproven.

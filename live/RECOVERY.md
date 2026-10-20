@@ -153,6 +153,25 @@ The tombstone and deposed seeds live here too, and they are what make a crash
 between a destroy and a create recoverable. Losing them costs that
 recoverability, silently, until the next crash.
 
+### A removed block of an unlabelled type, its record lost
+
+A type with no marker surface (an untaggable AWS type, or a GCP type with
+no labels map such as `google_compute_subnetwork`) is declaration-carried:
+its identity is recomputed from configuration, and nothing lists it by
+marker. Remove its block and the plan destroys it from its record. Lose that
+record first, and nothing left in the run knows the object or its type: the
+configuration no longer declares it, the record is gone, and no sweep can
+see it. The object is left in place, never destroyed by a guess.
+
+What the plan does report is the gap itself. Every unlabelled type the
+configuration still declares appears under "Not swept for removal" as
+`TYPE_NOT_TAGGABLE`, on AWS and on GCP alike (GitHub issue #2119, D3). That
+list is the reminder that removals of those types ride on the records.
+
+The recovery is step 2 below: restore the record's noncurrent version, then
+plan, and the destroy comes back. Without a restore, find the object with
+the cloud's own console or CLI and delete it by hand.
+
 ### The 96 in-contract record-carried AWS types
 
 These do have a live object. It carries no tag, and its identity is minted by
@@ -255,7 +274,9 @@ ownership record and they are the thing that still works.
 keeps no second copy, so whether a restore exists is a property of the backend
 and of the durability you put under it. On `s3` the deleted objects have noncurrent
 versions, because the store refuses a bucket without versioning, and this is
-the whole recovery. It takes `s3:ListBucketVersions` and
+the whole recovery. On `gcs` it is the same: the store refuses a bucket
+without object versioning and a lifecycle rule that expires noncurrent
+versions only, so a deleted record is a noncurrent generation to restore. It takes `s3:ListBucketVersions` and
 `s3:DeleteObjectVersion`, which the estate's own role does not have
 ([IAM](https://intentius.io/choudoufu/docs/use/iam/#what-a-recovery-needs)). Check before
 doing anything else: restoring is strictly better than every option below it,

@@ -1173,7 +1173,7 @@
               "break_mode": "BREAK=1 moves the firewall's record out of the store before its block is deleted and requires the plan to propose no destroy of it, because without that control the destroy in the ordinary run would read the same if it came from anything but the record"
             }
           ],
-          "note": "Unproven until a dated run: gcp-a-removed-derived-block-is-destroyed.sh has no evidence file yet. A deleted firewall block's record proposes its destroy, since the Cloud Asset sweep filters on the estate label and the firewall carries none. A subnetwork whose record and block go together is left live, and a warning must name its type and the estate, never the address, which went with the record. Read from the code, no such warning exists on the GCP path yet: the GCP leg's warnings name the estate and only labelled objects, and the TYPE_NOT_TAGGABLE sweep gap names a type, raises no warning and is filed only by the AWS per-type sweep. So that step fails until the warning is built, the sweep #2119 lists as to design."
+          "note": "Unproven until a dated run: gcp-a-removed-derived-block-is-destroyed.sh has no evidence file yet. A deleted firewall block's record proposes its destroy, since the Cloud Asset sweep filters on the estate label and the firewall carries none. A subnetwork whose record and block go together is left live; the plan lists the unlabelled types it still knows as TYPE_NOT_TAGGABLE under Not swept for removal, and live/RECOVERY.md documents restoring the record's noncurrent version."
         }
       }
     },

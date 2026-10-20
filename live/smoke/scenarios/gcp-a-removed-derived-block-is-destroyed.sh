@@ -15,17 +15,14 @@
 # from something other than the record, and the first half would prove
 # nothing about records.
 #
-# Not yet run, so its cell reads unproven. Step 4's warning names the
-# type and the estate, never the address: the address is exactly what was
-# lost with the record, so a warning that printed one would be guessing.
-# Read from the code on 2026-10-20, no warning of that shape exists on the
-# GCP path yet. The GCP leg's two warnings, "GCP sweep incomplete" and
-# "GCP resource carries this estate's label and no declared address", name
-# the estate and only labelled objects; the TYPE_NOT_TAGGABLE sweep gap
-# names the type, raises no warning, and is filed only by the AWS
-# per-type sweep. Until one is built, step 4 fails, and that is the
-# finding #2119 lists as "to design". Compute on floci-gcp is
-# lex00/floci-gcp#5.
+# Not yet run, so its cell reads unproven. Step 4 is #2119's restated D3:
+# with the record lost, nothing left in the run names the subnetwork, so
+# no plan can destroy it. What the plan does report is the gap: every
+# unlabelled type the configuration still declares is listed under "Not
+# swept for removal" as TYPE_NOT_TAGGABLE (here the network), and
+# live/RECOVERY.md documents the leak and its recovery, restoring the
+# record's noncurrent version, with the subnetwork as its example. Compute
+# on floci-gcp is lex00/floci-gcp#5.
 
 SMOKE_WORK="$SMOKE_WORKROOT/gcp-a-removed-derived-block-is-destroyed"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -154,38 +151,32 @@ explain \
   "Now both things that name the subnetwork go at once: its record is" \
   "moved out of the store, its block is deleted, and the cache with" \
   "them. No plan can propose destroying an object nothing names, so" \
-  "the subnetwork stays live. What the plan must not do is say nothing:" \
-  "a warning names the type, google_compute_subnetwork, and the estate," \
-  "$ESTATE, and never an address, because the address went with the record."
-cmd "mv .tofu-records/.../google_compute_subnetwork lost-records/ && rm edge.tf && choudoufu plan"
+  "the subnetwork stays live. The plan reports the gap instead: the" \
+  "unlabelled types it still knows are listed under Not swept for" \
+  "removal as TYPE_NOT_TAGGABLE, and live/RECOVERY.md says how to get" \
+  "the record back."
+cmd "mv .tofu-records/.../google_compute_subnetwork lost-records/ && rm edge.tf && choudoufu plan -verbose"
 lose_record google_compute_subnetwork || fail "gcp-a-removed-derived-block-is-destroyed" "could not find the subnetwork's record to lose"
 rm -f "$SMOKE_WORK/edge.tf" "$CACHE"
-LOUT="$(plan)" || fail "gcp-a-removed-derived-block-is-destroyed" "the plan with the record lost failed: $LOUT"
+LOUT="$( cd "$SMOKE_WORK" && chdf plan -verbose -input=false -no-color 2>&1 )" \
+  || fail "gcp-a-removed-derived-block-is-destroyed" "the plan with the record lost failed: $LOUT"
 printf '%s\n' "$LOUT" > "$SMOKE_WORKROOT/logs/gcp-a-removed-derived-block-is-destroyed-lost.plan"
-{ grep -E '^Plan:|^No changes|will be destroyed|^Warning:' <<< "$LOUT" || true; } | head -8 | evidence
+{ grep -E '^Plan:|^No changes|will be destroyed|^Not swept for removal|TYPE_NOT_TAGGABLE' <<< "$LOUT" || true; } | head -8 | evidence
 if grep -qE 'will be destroyed|[1-9][0-9]* to destroy' <<< "$LOUT"; then
   fail "gcp-a-removed-derived-block-is-destroyed" "the plan proposes a destroy with nothing left to name the subnetwork: $LOUT"
 fi
-# warnings prints each "Warning:" diagnostic of the plan as one line, its
-# summary and detail joined, so one grep can ask what a single warning says.
-warnings() {
-  awk '
-    /^Warning: / { if (w != "") print w; w = $0; next }
-    /^(Error: |Plan: |No changes|Not swept for removal|Swept via parent read)/ { if (w != "") print w; w = ""; next }
-    w != "" { w = w " " $0 }
-    END { if (w != "") print w }
-  ' <<< "$1"
-}
-NAMED="$(warnings "$LOUT" | grep -F 'google_compute_subnetwork' | grep -F "$ESTATE" || true)"
-[ -n "$NAMED" ] \
-  || fail "gcp-a-removed-derived-block-is-destroyed" "no warning names both google_compute_subnetwork and estate $ESTATE: the lost subnetwork dropped out silently (full plan in $SMOKE_WORKROOT/logs/gcp-a-removed-derived-block-is-destroyed-lost.plan)"
-if grep -qF 'google_compute_subnetwork.edge' <<< "$NAMED"; then
-  fail "gcp-a-removed-derived-block-is-destroyed" "the warning names google_compute_subnetwork.edge, an address nothing left in this run can know: $NAMED"
+GAP="$(grep -E 'TYPE_NOT_TAGGABLE' <<< "$LOUT" || true)"
+grep -qF 'google_compute_network' <<< "$GAP" \
+  || fail "gcp-a-removed-derived-block-is-destroyed" "Not swept for removal does not list google_compute_network as TYPE_NOT_TAGGABLE, so the gap the lost record falls into is unreported (full plan in $SMOKE_WORKROOT/logs/gcp-a-removed-derived-block-is-destroyed-lost.plan)"
+if grep -qF 'google_compute_subnetwork.edge' <<< "$LOUT"; then
+  fail "gcp-a-removed-derived-block-is-destroyed" "the plan names google_compute_subnetwork.edge, an address nothing left in this run can know"
 fi
-printf '%s\n' "$NAMED" | cut -c1-200 | evidence
+grep -qF 'A removed block of an unlabelled type, its record lost' "$ROOT/live/RECOVERY.md" \
+  && grep -qF 'google_compute_subnetwork' "$ROOT/live/RECOVERY.md" \
+  || fail "gcp-a-removed-derived-block-is-destroyed" "live/RECOVERY.md no longer documents the lost-record leak with the subnetwork as its example"
 gcpl GET "$SUB_PATH" >/dev/null 2>&1 \
   || fail "gcp-a-removed-derived-block-is-destroyed" "the subnetwork is gone; nothing named it, so nothing may have deleted it"
-proof "no destroy proposed, the subnetwork still live, and a warning naming its type and the estate, never its address."
+proof "no destroy proposed, the subnetwork still live, the unlabelled types it still knows listed as TYPE_NOT_TAGGABLE, and live/RECOVERY.md documenting the recovery."
 
 step "5. clean up by hand, and destroy exactly what remains"
 gcpl DELETE "$SUB_PATH" >/dev/null || fail "gcp-a-removed-derived-block-is-destroyed" "could not delete the subnetwork by hand"
