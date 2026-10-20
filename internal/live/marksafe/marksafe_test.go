@@ -33,6 +33,10 @@ var guardedPackages = []string{
 	// statically; it takes strings off the config structs and evaluates no
 	// expression of its own, so it is held to zero.
 	"affected",
+	// The Azure epic's (#1120) azapi type-capability table: a committed
+	// text file and lookups over it. It reads no configuration value and
+	// no cloud object, so it is held to zero.
+	"armtypes",
 	// GitHub issue #1956's live-cone parses the root module's source text
 	// and evaluates only a module call's literal source, so it is held to
 	// zero.
