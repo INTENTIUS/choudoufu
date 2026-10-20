@@ -2,12 +2,13 @@
 
 ## Rename
 
-`live-mv` refuses a GCP resource by name ("live-mv cannot rewrite a GCP
-resource's labels yet") and writes nothing, until its label rewrite lands.
-Renaming does not need it. Rename the block, or add a `moved` block, and
-plan: the records follow the address, and the plan rewrites the
-`tofu-address` label as an ordinary in-place label change, the way an AWS
-plan rewrites the tag. Nothing is replaced.
+`live-mv` rewrites a labelled resource's `tofu-address` label in one
+labels-only plan and apply, after a Cloud Asset search shows nothing else
+in the estate carries the new value, and refuses by name when that search
+cannot be made. Renaming does not need it. Rename the block, or add a
+`moved` block, and plan: the records follow the address, and the plan
+rewrites the `tofu-address` label as an ordinary in-place label change,
+the way an AWS plan rewrites the tag. Nothing is replaced.
 
 A skeleton type carries no label, so its rename is the configuration
 change alone.

@@ -40,8 +40,8 @@ three labels, `tofu-estate`, an encoded `tofu-address` and, on a fungible
 |---|---|---|
 | Labelled types | marker-carried | the labels, read back from `effective_labels` |
 | The network skeleton: networks, subnetworks, firewalls, routes, routers, service accounts, custom roles and the other types with no `labels` map | declaration-carried | the configuration's `name`, `project` and location, recomputed on every plan |
-| Instance templates | declaration-carried | the configured name; their `labels` belong to the VMs, below |
-| Unlabelled types whose identity the server mints | excluded by design | nothing: refused by the markerless veto, as on AWS |
+| Instance templates | declaration-carried | the configured name; their `labels` belong to the VMs, below. A template named by `name_prefix` gets its name at create and is held by its record instead |
+| Unlabelled types whose identity the server mints | record-carried | the estate's record, written at create (the located-record route, as on AWS) |
 
 The skeleton's tier has a sweep gap. The sweep finds an estate's resources
 by the estate label, and a skeleton object has none, so an undeclared one
@@ -58,7 +58,7 @@ user's own on the rest. One bucket per estate keeps the records
 |---|---|---|
 | `tofu-estate`, `tofu-address` or `tofu-slot` written by hand into an instance template's `labels` | GCP copies those labels onto every VM a managed instance group makes, and each VM would read as an orphan of the estate ("Ownership marker conflict") | Remove the key; the template carries no marker of its own |
 | An estate name over 63 characters on a labelled type | a label value holds at most 63 ("Ownership marker is not a legal label value") | A shorter estate name |
-| An unlabelled type whose identity the server mints | no marker and no configured name to bind by (`markerless-type`) | Keep it in a root without a `live` block |
+| An unlabelled type whose identity the server mints, in a root with no `live` block | no marker, no configured name, and no record store to hold the identity (`markerless-type`). Under a `live` block, which always has a record store, it is held by its record | Add the `live` block |
 | A resource whose `labels`, the provider's `default_labels` and the markers come to more than 64 labels | GCP holds at most 64, and stock would have created it (`gcp-label-count`) | Drop labels until two or three fit |
 
 Controller-held objects are never swept and never adopted: a Compute
@@ -98,11 +98,14 @@ hashed, so a module-nested address is no longer a label than a root one.
 
 ### Crossing a module boundary
 
-A move across a module boundary is an ordinary rename, but `live-mv` is
-refused on a GCP resource by name until its label rewrite lands, and
-writes nothing. Rename the block and plan instead: the records follow the
-address, and the plan rewrites the `tofu-address` label as an in-place
-change. A `moved` block works the same way.
+A move across a module boundary is an ordinary rename. `live-mv` rewrites
+a labelled resource's `tofu-address` label (and, with `-from-estate`, its
+`tofu-estate` label) in one labels-only plan and apply, after a Cloud Asset
+search shows no other resource already carries the new value; it refuses
+by name when that search cannot be made. Renaming the block and planning
+works too: the records follow the address, and the plan rewrites the
+`tofu-address` label as an in-place change. A `moved` block works the same
+way.
 
 ## Your accounts and regions
 
@@ -148,11 +151,14 @@ record proposes that removal instead.
 hashicorp/google reads `labels` and `terraform_labels` non-authoritatively:
 a read keeps only the keys its prior state named. A plan built without the
 cache mirrors the marker keys out of `effective_labels` into both, and
-rebuilds `terraform_labels` from the provider block's `default_labels`.
-When `default_labels` or `add_terraform_attribution_label` is not known
-statically, the plan warns "Provider default labels not known at plan
-time" and shows `terraform_labels` as a change that the apply makes no
-call for. Set them from literals or known variables to remove it.
+rebuilds `terraform_labels` from the keys of the provider block's
+`default_labels`. Only the keys are needed, so a default label whose value
+comes from another resource or a data source is still read. When the key
+set itself, or `add_terraform_attribution_label`, is not known statically
+(a whole map read from another resource), the plan warns "Provider default
+labels not known at plan time" and shows `terraform_labels` as a change
+that the apply makes no call for. Write the keys out in the block to
+remove it.
 
 ## Constructs this page used to refuse, and no longer does
 

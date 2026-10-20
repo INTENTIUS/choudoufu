@@ -157,7 +157,7 @@ func (m *mover) sweepAssets(ctx context.Context, estate string) ([]listed, int, 
 		return refused(fmt.Sprintf("no client could be built from provider configuration %s: %s", m.providerAddr, err))
 	}
 
-	projects := discovery.GCPSweepProjects(project, m.req.Resolutions)
+	projects := discovery.GCPSweepProjectsIn(ctx, m.req.Config, project, m.req.Resolutions)
 	if m.googleProject != "" && !slices.Contains(projects, m.googleProject) {
 		projects = append(projects, m.googleProject)
 	}

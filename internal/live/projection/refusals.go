@@ -123,7 +123,8 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryGoogleLabelDefaultsUnread,
-		What:    "GitHub issue #1119: a hashicorp/google provider block's default_labels or add_terraform_attribution_label is not known statically, so the projection could not rebuild terraform_labels after the read, which the provider empties on a prior re-derived without a state file. Each labelled resource through that provider shows terraform_labels as a change on a cache-less plan.",
+		What:    "GitHub issue #1119: a hashicorp/google provider block's default_labels key set or add_terraform_attribution_label is not known statically, so the projection could not rebuild terraform_labels after the read, which the provider empties on a prior re-derived without a state file. Each labelled resource through that provider shows terraform_labels as a change on a cache-less plan. A default label whose key is written out and whose value comes from another resource or a data source is read: only the keys are needed.",
+		Warning: true,
 	},
 	{
 		Summary: "Cannot merge ownership markers into this tags value",

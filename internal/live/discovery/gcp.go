@@ -16,9 +16,12 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/staticeval"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -125,7 +128,7 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 
 	declared, _ := declaredGoogleAddresses(req.Resolutions)
 	demand := g.googleDemand(decl)
-	projects := GCPSweepProjects(g.Project, req.Resolutions)
+	projects := GCPSweepProjectsIn(ctx, req.Config, g.Project, req.Resolutions)
 	if len(projects) == 0 {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryGCPSweepIncomplete,
 			fmt.Sprintf("No GCP project is known for estate %q: the google provider block names none, GOOGLE_PROJECT and its siblings are unset, and no resource in the configuration names one. Nothing was searched, so a resource whose block was deleted is not reported until a run knows where to look.", req.Estate)))
@@ -533,6 +536,72 @@ func GCPSweepProjects(providerProject string, resolutions []identity.Resolution)
 	}
 	sort.Strings(out)
 	return out
+}
+
+// GCPSweepProjectsIn is [GCPSweepProjects] widened by the project each
+// declared google instance waiting on discovery names in its own block. A
+// labelled type whose identity the server assigns resolves needs-discovery
+// with no import id, so the import id says nothing about its project; but
+// its `project` argument, when the block sets one, is as static as any
+// other argument, and stock sends it in the create call. Left out, a block
+// in a project neither the provider block nor any concrete resolution names
+// was never searched, came back unbound, and planned a second create of an
+// object that exists. A `project` this cannot read from configuration
+// (another resource's output, a project the same apply creates) is left to
+// the provider's project, as before.
+func GCPSweepProjectsIn(ctx context.Context, cfg *configs.Config, providerProject string, resolutions []identity.Resolution) []string {
+	projects := GCPSweepProjects(providerProject, resolutions)
+	if cfg == nil {
+		return projects
+	}
+	seen := map[string]bool{}
+	for _, p := range projects {
+		seen[p] = true
+	}
+	for _, r := range resolutions {
+		if r.Class != identity.ClassNeedsDiscovery || r.Undeclared || !strings.HasPrefix(r.Type(), "google_") {
+			continue
+		}
+		if p, ok := configuredGoogleProject(ctx, cfg, r.Addr); ok && !seen[p] {
+			seen[p] = true
+			projects = append(projects, p)
+		}
+	}
+	sort.Strings(projects)
+	return projects
+}
+
+// configuredGoogleProject is addr's own `project` argument, read from
+// configuration with its count.index or each.key and each.value bound.
+func configuredGoogleProject(ctx context.Context, cfg *configs.Config, addr addrs.AbsResourceInstance) (string, bool) {
+	modCfg, ok := identity.ConfigForModule(cfg, addr.Module)
+	if !ok || modCfg == nil || modCfg.Module == nil {
+		return "", false
+	}
+	rc := modCfg.Module.ResourceByAddr(addr.Resource.Resource)
+	if rc == nil || rc.Config == nil {
+		return "", false
+	}
+	var rep instances.RepetitionData
+	switch k := addr.Resource.Key.(type) {
+	case addrs.IntKey:
+		if rc.Count == nil {
+			return "", false
+		}
+		rep.CountIndex = cty.NumberIntVal(int64(k))
+	case addrs.StringKey:
+		if rc.ForEach == nil {
+			return "", false
+		}
+		rep.EachKey = cty.StringVal(string(k))
+		if elems, ok := staticeval.ForEachElements(ctx, modCfg.Module, rc.ForEach); ok {
+			if v, has := elems[string(k)]; has {
+				rep.EachValue = v
+			}
+		}
+	}
+	project, why := staticeval.ArgumentScoped(ctx, modCfg.Module, rc, "project", rep)
+	return project, why == ""
 }
 
 // dropGCPHitsTheRecordsRemove drops a GCP leg's withheld orphan when a

@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -206,6 +207,15 @@ const googleAttributionKey = "goog-terraform-provisioned"
 // and then nothing is seeded and terraform_labels is left as the read
 // returned it. No block at all is the provider's defaults: no default
 // labels, attribution on.
+//
+// Only default_labels' KEYS are needed: [googleTerraformLabels] takes each
+// value from what the object carries. So the read is stock's plan-time
+// one ([configs.StaticEvaluator.WithUnknownForRefusedReferences], with
+// this run's data-source results where it has them): a value that refers
+// to another resource or a data source comes back unknown, and a map whose
+// keys are written out still has known keys. Demanding the whole map be
+// known refused `default_labels = { team = data.x.y }`, whose key set
+// gcp-label-count already reads the same way (lint.staticLabelKeys).
 func (b *builder) googleLabelDefaults(ctx context.Context, providerAddr addrs.AbsProviderConfig) (out cty.Value, ok bool) {
 	defaults := func(keys []cty.Value, attribution bool) cty.Value {
 		set := cty.SetValEmpty(cty.String)
@@ -246,6 +256,10 @@ func (b *builder) googleLabelDefaults(ctx context.Context, providerAddr addrs.Ab
 	}
 	hclCtx := &hcl.EvalContext{}
 	if eval := modCfg.Module.StaticEvaluator; eval != nil {
+		if lookup, _ := identity.DataLookupFor(b.opts.DataResults, providerAddr.Module); lookup != nil {
+			eval = eval.WithDataResults(lookup)
+		}
+		eval = eval.WithUnknownForRefusedReferences(nil)
 		ident := configs.StaticIdentifier{Module: providerAddr.Module, Subject: "provider." + local, DeclRange: pc.DeclRange}
 		evalCtx, ctxDiags := eval.EvalContext(ctx, ident, refs)
 		if ctxDiags.HasErrors() {
@@ -258,18 +272,20 @@ func (b *builder) googleLabelDefaults(ctx context.Context, providerAddr addrs.Ab
 		return cty.NilVal, false
 	}
 	val, _, valDiags := hcldec.PartialDecode(pc.Config, spec, hclCtx)
-	if valDiags.HasErrors() || val == cty.NilVal || val.IsNull() || !val.IsWhollyKnown() {
+	if valDiags.HasErrors() || val == cty.NilVal || val.IsNull() || !val.IsKnown() {
 		return cty.NilVal, false
 	}
 	attribution := true
-	if a := val.GetAttr("add_terraform_attribution_label"); a.IsMarked() {
+	if a := val.GetAttr("add_terraform_attribution_label"); a.IsMarked() || !a.IsKnown() {
 		return cty.NilVal, false
 	} else if !a.IsNull() {
 		attribution = a.True()
 	}
 	var keys []cty.Value
-	if dl := val.GetAttr("default_labels"); dl.IsMarked() {
-		// A sensitive default_labels map is not read, even for its keys.
+	if dl := val.GetAttr("default_labels"); dl.IsMarked() || !dl.IsKnown() {
+		// A sensitive default_labels map is not read, even for its keys;
+		// an unknown one has no keys yet. A known map with unknown values
+		// has known keys, and the keys are all this needs.
 		return cty.NilVal, false
 	} else if !dl.IsNull() {
 		for it := dl.ElementIterator(); it.Next(); {
@@ -285,7 +301,7 @@ func (b *builder) googleLabelDefaults(ctx context.Context, providerAddr addrs.Ab
 const SummaryGoogleLabelDefaultsUnread = "Provider default labels not known at plan time"
 
 // warnGoogleDefaultsUnread says, once per provider configuration, that its
-// default_labels or add_terraform_attribution_label could not be read
+// default_labels keys or add_terraform_attribution_label could not be read
 // statically, so terraform_labels was not rebuilt and the plan shows it.
 // Guessing the map would hide a real change behind an invented one.
 func (b *builder) warnGoogleDefaultsUnread(providerAddr addrs.AbsProviderConfig) {
@@ -298,7 +314,7 @@ func (b *builder) warnGoogleDefaultsUnread(providerAddr addrs.AbsProviderConfig)
 	}
 	b.googleDefaultsWarned[key] = true
 	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryGoogleLabelDefaultsUnread,
-		fmt.Sprintf("%s sets default_labels or add_terraform_attribution_label from something not known until apply (a variable with no value yet, a data source, another resource), so this run could not rebuild the terraform_labels the provider reads back empty without a state file. Each labelled resource through it will show terraform_labels as a change on a plan built without the cache. The change is the provider's own bookkeeping and the apply leaves the resource as it is. Set those arguments from literals or variables with known values to remove it.", providerAddr)))
+		fmt.Sprintf("%s sets default_labels' keys or add_terraform_attribution_label from something not known until apply (a variable with no value yet, or a whole map read from a data source or another resource), so this run could not rebuild the terraform_labels the provider reads back empty without a state file. Each labelled resource through it will show terraform_labels as a change on a plan built without the cache. The change is the provider's own bookkeeping and the apply leaves the resource as it is. Write default_labels' keys out in the block (a value may still come from elsewhere), or set add_terraform_attribution_label from a literal or a known variable, to remove it.", providerAddr)))
 }
 
 // propagatedMarkerDiag refuses a configuration that writes an ownership

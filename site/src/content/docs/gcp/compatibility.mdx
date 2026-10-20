@@ -27,8 +27,7 @@ Every `google_*` and `google-beta` type with a `labels` map carries the marker. 
 |---|---|
 | A marker label in an instance template | Remove it |
 | An estate name over 63 characters | Shorten it |
-| An unlabelled type the server names | Keep it outside the estate |
-| `live-mv` | Rename the block and plan |
+| An unlabelled type the server names, with no `live` block | Add the `live` block; its record holds the identity |
 
 ## Running it
 
