@@ -239,15 +239,49 @@ func TestAzureSmokeProviderBlocksAreLocked(t *testing.T) {
 }
 
 // TestAzureReferenceProviderBlocksAreLocked renders reference-azure's own
-// versions_block, read out of its run.sh, in both modes.
+// versions_block, read out of its run.sh, in both modes. The live mode's
+// record store is record_store "azurerm" on container A's blob storage (the
+// maintainer's ruling of 2026-10-21: records live in the record store, the
+// state file is a cache), aimed at A's host with the endpoint lock's
+// arguments, never a local directory.
 func TestAzureReferenceProviderBlocksAreLocked(t *testing.T) {
 	for _, mode := range []string{"stock", "live"} {
 		t.Run(mode, func(t *testing.T) {
 			out := runBash(t, `source e2e/lib/gauntlet.sh
 eval "$(awk '/^versions_block\(\) \{/{on=1} /^# resource_block writes/{on=0} on' e2e/reference-azure/run.sh)"
 ESTATE=reference-azure AZURERM_REQUIRED_PROVIDER="" AZAPI_REQUIRED_PROVIDER=""
-versions_block "$MODE"`, "MODE="+mode)
+REC_RG=refaz-records-rg REC_ACCOUNT=refazrecords
+versions_block "$MODE"`, "MODE="+mode, "HOST_A="+azTestHost)
 			checkAzureBlocks(t, out, "azurerm", "azapi")
+			if strings.Contains(out, `record_store "local"`) || strings.Contains(out, ".tofu-records") {
+				t.Errorf("reference-azure keeps its records in a local directory:\n%s", out)
+			}
+			if mode == "stock" {
+				if strings.Contains(out, "record_store") {
+					t.Errorf("the stock configuration names a record store:\n%s", out)
+				}
+				return
+			}
+			_, block, found := strings.Cut(out, `record_store "azurerm" {`)
+			if !found {
+				t.Fatalf("the live configuration has no record_store \"azurerm\" block:\n%s", out)
+			}
+			block, _, _ = strings.Cut(block, "\n    }")
+			got := map[string]string{}
+			for _, l := range strings.Split(block, "\n") {
+				if a := azArgLine.FindStringSubmatch(l); a != nil {
+					got[a[1]] = a[2]
+				}
+			}
+			for k, v := range map[string]string{
+				"storage_account_name": `"refazrecords"`, "container_name": `"adopted"`,
+				"resource_group_name": `"refaz-records-rg"`, "metadata_host": `"` + azTestHost + `"`,
+				"client_secret": `"` + azTestSecret + `"`, "use_cli": "false", "use_msi": "false",
+			} {
+				if got[k] != v {
+					t.Errorf("record_store %s = %q, want %s:\n%s", k, got[k], v, out)
+				}
+			}
 		})
 	}
 }

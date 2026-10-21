@@ -658,6 +658,131 @@ print(json.dumps(r))')" || return 1
   gauntlet_arm PUT "$path" "$body"
 }
 
+# ── record_store "azurerm" on floci-az (#1120) ────────────────────────────
+#
+# Records live in the record store and the state file is a cache (the
+# maintainer's ruling for the azure lane, 2026-10-21): an azure-lane estate
+# keeps its records as blobs in a storage account on the same floci-az
+# container its resources live in, through record_store "azurerm", never in
+# a local directory. Three helpers, generic over the estate: the operator's
+# account made out of band, the block that names it, and a mirror of the
+# container for a stage that reads a record back. They run against the
+# floci-az the current environment names (FLOCI_AZ_ENDPOINT,
+# FLOCI_AZ_CA_FILE), so a two-container script calls them under its own
+# on_a, as it does gauntlet_arm.
+
+# GAUNTLET_FLOCI_AZ_RECORD_LIFECYCLE is the account's one lifecycle rule:
+# block blobs' previous versions deleted after 30 days, current blobs never
+# touched, no prefix filter, so it covers every container in the account
+# (internal/live/staterecord/azurecontract.go's lifecycle_management
+# assertion; examples/record-store-azurerm/CONTRACT.md).
+GAUNTLET_FLOCI_AZ_RECORD_LIFECYCLE='{"properties":{"policy":{"rules":[{"name":"expire-previous-record-versions","enabled":true,"type":"Lifecycle","definition":{"filters":{"blobTypes":["blockBlob"]},"actions":{"version":{"delete":{"daysAfterCreationGreaterThan":30}}}}}]}}}'
+
+# gauntlet_floci_az_record_account <resource-group> <account> <container>...
+# makes the storage account a record_store "azurerm" block names, the way an
+# operator would before the first plan, with ARM calls a portal or `az`
+# sends: a resource group of its own (so an estate's teardown, which deletes
+# the estate's groups, leaves the records standing), a StorageV2 account
+# with anonymous blob access disallowed, blob versioning on, the lifecycle
+# rule above, and one container per name given. Those are the three
+# settings the store's opening checks assert (live/STORAGE.md, "The
+# container"), so the first contact passes them rather than being waived.
+# The group and the account carry no tags: nothing here is the estate's,
+# and the Resource Graph sweep, which matches tofu-estate, never sees them.
+# Prints the reason and returns 1 on the first call that fails.
+gauntlet_floci_az_record_account() {
+  local rg="$1" account="$2" sub id api="2023-05-01" c
+  shift 2
+  [ -n "$rg" ] && [ -n "$account" ] && [ "$#" -gt 0 ] \
+    || { printf 'gauntlet_floci_az_record_account: needs <resource-group> <account> <container>...\n' >&2; return 1; }
+  sub="/subscriptions/${FLOCI_AZ_SUBSCRIPTION_ID}"
+  id="${sub}/resourceGroups/${rg}/providers/Microsoft.Storage/storageAccounts/${account}"
+  gauntlet_arm PUT "${sub}/resourcegroups/${rg}?api-version=2021-04-01" '{"location":"eastus"}' >/dev/null \
+    || { printf 'gauntlet_floci_az_record_account: could not create resource group %s\n' "$rg" >&2; return 1; }
+  gauntlet_arm PUT "${id}?api-version=${api}" '{"location":"eastus","kind":"StorageV2","sku":{"name":"Standard_LRS"},"properties":{"allowBlobPublicAccess":false}}' >/dev/null \
+    || { printf 'gauntlet_floci_az_record_account: could not create storage account %s\n' "$account" >&2; return 1; }
+  gauntlet_arm PUT "${id}/blobServices/default?api-version=${api}" '{"properties":{"isVersioningEnabled":true}}' >/dev/null \
+    || { printf 'gauntlet_floci_az_record_account: could not turn blob versioning on for %s\n' "$account" >&2; return 1; }
+  gauntlet_arm PUT "${id}/managementPolicies/default?api-version=${api}" "$GAUNTLET_FLOCI_AZ_RECORD_LIFECYCLE" >/dev/null \
+    || { printf 'gauntlet_floci_az_record_account: could not set the lifecycle rule on %s\n' "$account" >&2; return 1; }
+  for c in "$@"; do
+    gauntlet_arm PUT "${id}/blobServices/default/containers/${c}?api-version=${api}" '{"properties":{}}' >/dev/null \
+      || { printf 'gauntlet_floci_az_record_account: could not create container %s in %s\n' "$c" "$account" >&2; return 1; }
+  done
+}
+
+# gauntlet_floci_az_record_store <host> <resource-group> <account> <container>
+# prints a record_store "azurerm" block, four-space indented for a live
+# block, naming that container, with the endpoint lock's connection
+# arguments (live/e2e/lib/floci-az.sh's floci_az_record_store_args): the
+# metadata host is <host> as a literal, since a live block is part of the
+# terraform block and reads no variable, so a configuration with this block
+# is written for one container.
+gauntlet_floci_az_record_store() {
+  local host="$1" rg="$2" account="$3" container="$4" conn
+  # shellcheck source=floci-az.sh
+  . "$ROOT/live/e2e/lib/floci-az.sh" || return 1
+  conn="$(floci_az_record_store_args "$host" "$FLOCI_AZ_SUBSCRIPTION_ID" "$GAUNTLET_FLOCI_AZ_TENANT_ID" "$GAUNTLET_FLOCI_AZ_CLIENT_ID")" || return 1
+  cat <<HCL
+    record_store "azurerm" {
+      storage_account_name = "$account"
+      container_name       = "$container"
+      resource_group_name  = "$rg"
+$conn
+    }
+HCL
+}
+
+# gauntlet_floci_az_blobs <account> <container> <dir> copies every current
+# blob in the container into <dir>, one file per blob at the blob's own name,
+# and prints how many it copied. <dir> must not exist yet or be empty, so a
+# caller takes a fresh one per reading and no earlier copy can answer for a
+# later one. It reads
+# through floci-az's path-style blob endpoint with a bearer token, which
+# floci-az accepts, the way az-records-in-a-storage-account.sh counts them.
+# The copy is what gauntlet_record_file, gauntlet_record_envelope_count and
+# gauntlet_record_residue read, so a stage asks a record store in a
+# container exactly what a stage on a local store asks the directory; it is
+# GAUNTLET_RECORDS_REFRESH's shape for the kubernetes store. Returns 1 when
+# the container cannot be listed or a blob cannot be read: a copy that
+# silently came back short would read as a missing record.
+gauntlet_floci_az_blobs() {
+  ACCOUNT="$1" CONTAINER="$2" DEST="$3" python3 - <<'PY'
+import os, ssl, sys, urllib.error, urllib.parse, urllib.request
+import xml.etree.ElementTree as ET
+ctx = ssl.create_default_context(cafile=os.environ["FLOCI_AZ_CA_FILE"])
+base = os.environ["FLOCI_AZ_ENDPOINT"] + "/" + os.environ["ACCOUNT"] + "/" + os.environ["CONTAINER"]
+headers = {"Authorization": "Bearer floci-az", "x-ms-version": "2023-11-03"}
+dest = os.environ["DEST"]
+def get(url):
+    return urllib.request.urlopen(urllib.request.Request(url, headers=headers), context=ctx, timeout=30).read()
+names, marker = [], ""
+try:
+    while True:
+        q = "?restype=container&comp=list" + ("&marker=" + urllib.parse.quote(marker) if marker else "")
+        root = ET.fromstring(get(base + q))
+        names += [b.findtext("Name") for b in root.iter("Blob") if b.findtext("Name")]
+        marker = root.findtext("NextMarker") or ""
+        if not marker:
+            break
+except (urllib.error.URLError, ET.ParseError) as e:
+    sys.exit("gauntlet_floci_az_blobs: could not list container %s: %s" % (base, e))
+if os.path.isdir(dest) and os.listdir(dest):
+    sys.exit("gauntlet_floci_az_blobs: %s is not empty; take a fresh directory per reading" % dest)
+os.makedirs(dest, exist_ok=True)
+for n in names:
+    try:
+        body = get(base + "/" + urllib.parse.quote(n, safe="/"))
+    except urllib.error.URLError as e:
+        sys.exit("gauntlet_floci_az_blobs: could not read blob %s: %s" % (n, e))
+    p = os.path.join(dest, *n.split("/"))
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "wb") as fh:
+        fh.write(body)
+print(len(names))
+PY
+}
+
 # gauntlet_kind_down <name>: deletes the cluster gauntlet_kind_up made.
 # Idempotent and quiet, so a trap can call it for a cluster that never
 # came up.
