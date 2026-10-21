@@ -152,6 +152,7 @@ type ratifiedComponent struct {
 	SoleElement            bool                  `json:"sole_element,omitempty"`
 	PerElement             bool                  `json:"per_element,omitempty"`
 	LongForm               identity.LongFormRule `json:"long_form,omitempty"`
+	Qualifiers             *[]string             `json:"qualifiers,omitempty"`
 }
 
 // toRatified converts one live row to its stored form.
@@ -188,6 +189,7 @@ func toRatified(e identity.TypeIdentity) ratifiedRow {
 				SoleElement:            c.SoleElement,
 				PerElement:             c.PerElement,
 				LongForm:               c.LongForm,
+				Qualifiers:             strsPtr(c.Qualifiers),
 			})
 		}
 		r.Components = &comps
@@ -231,6 +233,7 @@ func fromRatified(r ratifiedRow) identity.TypeIdentity {
 				SoleElement:            c.SoleElement,
 				PerElement:             c.PerElement,
 				LongForm:               c.LongForm,
+				Qualifiers:             strsValue(c.Qualifiers),
 			})
 		}
 		e.Components = comps

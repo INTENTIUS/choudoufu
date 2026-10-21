@@ -1409,6 +1409,19 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}
 		byAttr[name] = append(byAttr[name], got...)
 	}
+	// Each component's contribution is held as a segment until the loop
+	// is done, rather than appended straight to parts, because an IAM
+	// parent's long form rewrites its sibling components (#2144): the
+	// project a `projects/other/secrets/db-pass` names replaces the
+	// project component that precedes it. See [resolver.composeLongForms].
+	var segs []segment
+	emit := func(i int, identAttr, arg string, got []Part, prefix string) {
+		sg := segment{comp: i, attr: identAttr, arg: arg, parts: got, prefix: prefix, rng: rc.DeclRange}
+		if a, ok := attrs[arg]; ok {
+			sg.rng = a.Range
+		}
+		segs = append(segs, sg)
+	}
 
 	// failed tracks whether any real component below could not be resolved.
 	// The loop no longer returns on the first one (GitHub issue #221): every
@@ -1457,24 +1470,26 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 					fail(sibBefore, attr.Name)
 					continue
 				}
-				if r.longFormRefused(comp, addr, attr, got) {
+				if got, ok = r.longFormValue(comp, addr, attr, got); !ok {
 					fail(sibBefore, "")
 					continue
 				}
-				parts = append(parts, got...)
-				addTo(comp.identityAttrFor(attr.Name), got)
+				emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, "")
 				continue
 			}
 			v, _ := r.cloudValueFor(comp.Cloud, cloudScope)
+			if comp.LongForm == LongFormLastSegment {
+				// ReplaceVarsForId trims the provider's own project,
+				// region or zone, and takes no last segment of it.
+				v = forIDValue(string(comp.Cloud), v, false)
+			}
 			got := []Part{{Literal: v}}
-			parts = append(parts, got...)
-			addTo(comp.identityAttrFor(""), got)
+			emit(i, comp.identityAttrFor(""), "", got, "")
 			continue
 		}
 		if len(comp.Attrs) == 0 {
 			got := []Part{{Literal: comp.Literal}}
-			parts = append(parts, got...)
-			addTo(comp.identityAttrFor(""), got)
+			emit(i, comp.identityAttrFor(""), "", got, "")
 			continue
 		}
 		attr, conflict := r.firstApplicablePresent(comp, attrs, scope, addr)
@@ -1516,9 +1531,14 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				// argument (an omitted event_bus_name is the "default"
 				// bus), so the identity is computable without it - see
 				// [Component.Default].
-				got := []Part{{Literal: comp.Default}}
-				parts = append(parts, got...)
-				addTo(comp.identityAttrFor(comp.Attrs[0]), got)
+				v := comp.Default
+				if comp.LongForm == LongFormLastSegment {
+					// A schema Default is what GetOkExists hands
+					// ReplaceVarsForId, so it is shortened the same way.
+					v = forIDValue(comp.Attrs[0], v, true)
+				}
+				got := []Part{{Literal: v}}
+				emit(i, comp.identityAttrFor(comp.Attrs[0]), comp.Attrs[0], got, "")
 				continue
 			}
 			if comp.ServerAssignedIfAbsent {
@@ -1672,8 +1692,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				fail(sibBefore, attr.Name)
 				continue
 			}
-			parts = append(parts, got...)
-			addTo(comp.identityAttrFor(attr.Name), got)
+			emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, "")
 			continue
 		}
 		diagMark := len(r.diags)
@@ -1734,20 +1753,30 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			fail(sibBefore, attr.Name)
 			continue
 		}
-		if r.longFormRefused(comp, addr, attr, got) {
+		if got, ok = r.longFormValue(comp, addr, attr, got); !ok {
 			fail(sibBefore, "")
 			continue
 		}
 		// The identity-attribute formula gets the resolved value alone; a
 		// prefix Literal (see [Component.Literal] and [Component.OmitIfAbsent])
 		// is punctuation in the import-ID STRING, not part of the identity
-		// ATTRIBUTE's value, so it is added to parts only, after the formula
-		// has already captured the unprefixed value.
-		addTo(comp.identityAttrFor(attr.Name), got)
-		if comp.Literal != "" {
-			got = append([]Part{{Literal: comp.Literal}}, got...)
+		// ATTRIBUTE's value, so it is carried as the segment's prefix and
+		// added to parts only.
+		emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, comp.Literal)
+	}
+	if !failed {
+		if composed, ok := r.composeLongForms(entry, segs, addr); ok {
+			segs = composed
+		} else {
+			fail(len(r.pendingSiblingApply), "")
 		}
-		parts = append(parts, got...)
+	}
+	for _, sg := range segs {
+		addTo(sg.attr, sg.parts)
+		if sg.prefix != "" {
+			parts = append(parts, Part{Literal: sg.prefix})
+		}
+		parts = append(parts, sg.parts...)
 	}
 	if failed {
 		// Issue #187's second half. Every component that failed did so for
@@ -1799,42 +1828,6 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	res := classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly)
 	res.cloudScope = cloudScope
 	return res, true
-}
-
-// longFormRefused refuses a [Component.LongForm] value this package would
-// substitute whole where the provider rewrites it first (#2144): one
-// carrying a "/", or one not known until apply. It reports whether it did.
-// The two rewrites are not composed yet, and substituting the value as
-// written builds an id stock would never build - `.id` of a secret doubles
-// its path, and a literal naming another project lands in this one - so
-// the instance is refused by name instead. A value with no "/" is the
-// short form both rewrites leave unchanged, and resolves as before.
-func (r *resolver) longFormRefused(comp Component, addr addrs.AbsResourceInstance, attr *hcl.Attribute, got []Part) bool {
-	if comp.LongForm == "" {
-		return false
-	}
-	var b strings.Builder
-	for _, p := range got {
-		if p.Parent != nil {
-			r.errorf(attr.Range, "Long-form identity argument not composed yet",
-				"%s sets %s from %s, which is not known until apply. %s, and this fork does not compose that yet (#2144), "+
-					"so it cannot say whether the value is the long form or the short one and will not build an id from it. "+
-					"Write the short name (the parent's name rather than its id) to resolve it now.",
-				addr.String(), attr.Name, p.Parent.String(), comp.LongForm.describe())
-			return true
-		}
-		b.WriteString(p.Literal)
-	}
-	v := b.String()
-	if !strings.Contains(v, "/") {
-		return false
-	}
-	r.errorf(attr.Range, "Long-form identity argument not composed yet",
-		"%s sets %s to %q, a long-form value. %s, and this fork does not compose that yet (#2144); substituting the "+
-			"value as written would build an id the provider never builds, so the instance is refused rather than "+
-			"given a wrong identity. Write the short name (the parent's name rather than its id) to resolve it now.",
-		addr.String(), attr.Name, v, comp.LongForm.describe())
-	return true
 }
 
 // attrFormulas turns the per-attribute part lists into the ordered form a

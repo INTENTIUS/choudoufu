@@ -153,6 +153,7 @@ func TestRatifiedRoundTripsEveryField(t *testing.T) {
 				SoleElement:            true,
 				PerElement:             true,
 				LongForm:               identity.LongFormIAMParent,
+				Qualifiers:             []string{"(?P<a>[^/]+)"},
 			},
 			{Attrs: []string{}}, // empty, non-nil
 		},

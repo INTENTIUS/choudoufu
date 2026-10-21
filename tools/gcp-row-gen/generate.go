@@ -402,6 +402,13 @@ func renderComponent(c identity.Component) string {
 	if c.LongForm != "" {
 		f = append(f, fmt.Sprintf("LongForm: %q", string(c.LongForm)))
 	}
+	if len(c.Qualifiers) > 0 {
+		q := make([]string, len(c.Qualifiers))
+		for i, p := range c.Qualifiers {
+			q[i] = fmt.Sprintf("%q", p)
+		}
+		f = append(f, "Qualifiers: []string{"+strings.Join(q, ", ")+"}")
+	}
 	return "{" + strings.Join(f, ", ") + "}"
 }
 
