@@ -89,6 +89,11 @@ type Source struct {
 	// IAMParent is an IAM type's parent resource id, as its IdParseFunc
 	// reads it: the first GetImportIdQualifiers regex turned into a
 	// template, or "{{attr}}" where the function sets attr to the whole id.
+	// A hand-written IdParseFunc gives it as its first ParseImportId regex,
+	// or as the method its d.SetId calls on a parse helper's result over
+	// the arguments it d.Sets from that result. A regex group named for a
+	// values-map key, `(?P<serviceId>`, is respelled as the argument the
+	// producer copies into that key, service_id (#2145).
 	IAMParent string `json:"iam_parent,omitempty"`
 
 	// IAMQualified is the argument the IAM updater producer parses with
@@ -99,7 +104,8 @@ type Source struct {
 	IAMQualified string `json:"iam_qualified,omitempty"`
 
 	// IAMQualifiers are the regexes that GetImportIdQualifiers call
-	// matches IAMQualified against, in order, unquoted.
+	// matches IAMQualified against, in order, unquoted, with each group
+	// respelled as IAMParent's are.
 	IAMQualifiers []string `json:"iam_qualifiers,omitempty"`
 
 	// IAMComputedPattern and IAMComputedFormat are set instead for a
@@ -110,6 +116,18 @@ type Source struct {
 	// with the provider's project.
 	IAMComputedPattern string `json:"iam_computed_pattern,omitempty"`
 	IAMComputedFormat  string `json:"iam_computed_format,omitempty"`
+
+	// IAMResourceID is the parent id the IAM updater's GetResourceId
+	// returns, the id the framework's create sets before the binding, as
+	// a template over the arguments its constructor reads:
+	// fmt.Sprintf("projects/%s/datasets/%s", u.project, u.datasetId) over
+	// `datasetId: d.Get("dataset_id").(string)` is
+	// "projects/{{project}}/datasets/{{dataset_id}}" (#2145).
+	// IAMResourceIDUnread is set instead when a piece of it is no argument
+	// read as written, and says which: "u.resourceId is set from
+	// keyRingId.KeyRingId()".
+	IAMResourceID       string `json:"iam_resource_id,omitempty"`
+	IAMResourceIDUnread string `json:"iam_resource_id_unread,omitempty"`
 
 	// IAMDefaults are the arguments an IAM type's file fills in from the
 	// provider when the resource leaves them unset, read off its calls to

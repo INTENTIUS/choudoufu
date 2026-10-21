@@ -218,3 +218,35 @@ func TestGoogleQualifierGroupsNameComponents(t *testing.T) {
 		}
 	}
 }
+
+// TestGoogleIAMParseShapes resolves one IAM type of each parent shape
+// tools/gcp-row-gen reads since #2145, and asserts the parent the
+// updater's GetResourceId builds: camelCase qualifier groups respelled as
+// arguments (a short name and a long form), and the three hand-written
+// IdParseFunc shapes.
+func TestGoogleIAMParseShapes(t *testing.T) {
+	cfg := loadConfig(t, "testdata/gcp-iam-parse", nil)
+	result, diags := Resolve(context.Background(), cfg)
+	assertNoErrors(t, diags)
+
+	const g = " group:a@example.com"
+	want := map[string]string{
+		"google_dataproc_metastore_database_iam_member.short": "projects/estate-prod/locations/europe-west1/services/meta/databases/sales roles/metastore.user" + g,
+		"google_dataproc_metastore_database_iam_member.long":  "projects/other/locations/us-east1/services/meta/databases/sales roles/metastore.user" + g,
+		"google_iap_app_engine_service_iam_member.svc":        "projects/estate-prod/iap_web/appengine-estate-prod/services/default roles/iap.httpsResourceAccessor" + g,
+		"google_spanner_database_iam_member.db":               "estate-prod/core/ledger roles/spanner.databaseReader" + g,
+		"google_spanner_instance_iam_member.inst":             "estate-data/core roles/spanner.viewer" + g,
+		"google_bigquery_dataset_iam_member.ds":               "projects/estate-prod/datasets/analytics roles/bigquery.dataViewer" + g,
+		"google_dataproc_cluster_iam_member.cl":               "projects/estate-prod/regions/europe-west1/clusters/batch roles/dataproc.viewer" + g,
+	}
+	for addr, id := range want {
+		got := resolutionAt(t, result, addr)
+		if got.Class != ClassConcrete || got.ImportID != id {
+			t.Errorf("%s = %s %q, want CONCRETE %q", addr, got.Class, got.ImportID, id)
+		}
+	}
+	long := resolutionAt(t, result, "google_dataproc_metastore_database_iam_member.long")
+	if long.IdentityValues["service_id"] != "meta" || long.IdentityValues["project"] != "other" || long.IdentityValues["database"] != "sales" {
+		t.Errorf("the long form's identity values = %v, want service_id=meta project=other database=sales", long.IdentityValues)
+	}
+}

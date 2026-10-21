@@ -215,6 +215,14 @@ func extractSources(dir string) (map[string]Source, error) {
 		return nil, err
 	}
 	out := map[string]Source{}
+	tpgresourceText := ""
+	tpgresourceOnce := false
+	helpers := func() string {
+		if !tpgresourceOnce {
+			tpgresourceText, tpgresourceOnce = packageText(filepath.Join(sourceRoot(dir), "tpgresource")), true
+		}
+		return tpgresourceText
+	}
 	services := filepath.Join(sourceRoot(dir), "services")
 	err = filepath.WalkDir(services, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -237,7 +245,7 @@ func extractSources(dir string) (map[string]Source, error) {
 			}
 			var s Source
 			if regType == "SchemaTypeIAMResource" {
-				s = iamSource(typeName, text, grammar, func() string { return packageText(filepath.Dir(path)) })
+				s = iamSource(typeName, text, grammar, func() string { return packageText(filepath.Dir(path)) }, helpers)
 			} else {
 				s = resourceSource(text)
 				m := meta[typeName]
@@ -375,8 +383,22 @@ func customizeDiffDerivation(text, name string) (string, bool) {
 // iamSource reads one IAM type: its kind, its grammar, and its parent id.
 //
 // pkgText returns the text of every non-test file of the type's package,
-// where a hand-written updater's helper lives; nil reads none.
-func iamSource(typeName, text string, grammar map[string]string, pkgText func() string) Source {
+// where a hand-written updater's helper lives, and tpgresource the text of
+// the provider's tpgresource package; nil reads none.
+func iamSource(typeName, text string, grammar map[string]string, pkgText, tpgresource func() string) Source {
+	pkg, shared := "", ""
+	if pkgText != nil {
+		pkg = pkgText()
+	}
+	if tpgresource != nil {
+		shared = tpgresource()
+	}
+	keys := map[string]string{}
+	var read map[string]bool
+	if ctors := constructorRe.FindAllStringIndex(text, -1); len(ctors) == 1 {
+		body := funcBody(text, ctors[0][0])
+		keys, read = iamKeyArgs(body), iamReadKeys(body)
+	}
 	s := Source{}
 	for _, k := range iamKinds {
 		if strings.HasSuffix(typeName, k.suffix) {
@@ -401,31 +423,64 @@ func iamSource(typeName, text string, grammar map[string]string, pkgText func() 
 		}
 		if m := qualifiedArgRe.FindAllStringSubmatch(body, -1); len(m) == 1 {
 			s.IAMQualified = m[0][2]
-			s.IAMQualifiers = unquoteAll(m[0][1])
+			for _, q := range unquoteAll(m[0][1]) {
+				s.IAMQualifiers = append(s.IAMQualifiers, renameGroups(q, keys, read))
+			}
 		}
 	}
 	if s.IAMQualified == "" && pkgText != nil {
 		s.IAMQualified, s.IAMComputedPattern, s.IAMComputedFormat = computedName(text, pkgText)
 	}
+	s.IAMResourceID, s.IAMResourceIDUnread = updaterResourceID(text, pkg)
 	funcs := parseFuncRe.FindAllStringSubmatchIndex(text, -1)
+	parseText := text
+	if len(funcs) == 0 {
+		// A file that registers the type with a parse function another
+		// file of its package defines, by the one name it passes.
+		if name := parseFuncRefs(text); name != "" {
+			parseText = pkg
+			funcs = regexp.MustCompile(`func ` + regexp.QuoteMeta(name) + `\(d \*schema\.ResourceData`).FindAllStringSubmatchIndex(pkg, -1)
+		}
+	}
 	if len(funcs) != 1 {
 		// No parse function, or several in one file: which one this type
 		// uses is not a regex question.
 		return s
 	}
-	body := text[funcs[0][0]:]
+	body := parseText[funcs[0][0]:]
 	if end := strings.Index(body, "\n}\n"); end >= 0 {
 		body = body[:end]
 	}
 	switch {
 	case qualifiersRe.MatchString(body):
-		if tmpl, ok := regexToTemplate(qualifiersRe.FindStringSubmatch(body)[1]); ok {
+		// Every group keeps its name here, read by the struct or not:
+		// this is what an import string must spell, which decideIAM
+		// checks against IAMResourceID.
+		if tmpl, ok := regexToTemplate(renameGroups(qualifiersRe.FindStringSubmatch(body)[1], keys, nil)); ok {
 			s.IAMParent = tmpl
 		}
 	case wholeIDSetRe.MatchString(body):
 		s.IAMParent = "{{" + wholeIDSetRe.FindStringSubmatch(body)[1] + "}}"
+	default:
+		s.IAMParent = handParseTemplate(body, pkg+"\n"+shared)
 	}
 	return s
+}
+
+// parseFuncRefs is the one IdParseFunc a file names without defining it,
+// or "".
+func parseFuncRefs(text string) string {
+	names := map[string]bool{}
+	for _, m := range regexp.MustCompile(`\b(\w+IdParseFunc)\b`).FindAllStringSubmatch(text, -1) {
+		names[m[1]] = true
+	}
+	if len(names) != 1 {
+		return ""
+	}
+	for n := range names {
+		return n
+	}
+	return ""
 }
 
 // regexToTemplate turns an importer regex made only of literal segments and

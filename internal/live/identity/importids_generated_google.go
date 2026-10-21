@@ -354,8 +354,8 @@ var GoogleAssetUnknown = map[string]string{
 // [GoogleTable] row whose identity schema requires two or more attributes
 // (INTENTIUS/choudoufu#2139 item 3). Its record holds those attributes as
 // Components and no import ID, and the record leg composes one from the
-// first form whose every part the record carries. Of 29 such types (4
-// labelled), 17 compose (4 labelled) and 12 are refused by name
+// first form whose every part the record carries. Of 24 such types (4
+// labelled), 17 compose (4 labelled) and 7 are refused by name
 // ([GoogleCompositeRefused]).
 var GoogleCompositeImports = map[string][]GoogleImportFormat{
 	"google_access_context_manager_egress_policy":                      {{Template: "{{egress_policy_name}}/{{resource}}"}},
@@ -380,15 +380,10 @@ var GoogleCompositeImports = map[string][]GoogleImportFormat{
 // GoogleCompositeRefused is every such type with no form, and why.
 var GoogleCompositeRefused = map[string]string{
 	"google_apigee_endpoint_attachment":             "no import format is made of the identity schema's attributes",
-	"google_bigquery_dataset_iam_member":            "an IAM type's import ID is space-separated words, not a form its identity parts fill",
 	"google_compute_backend_bucket_signed_url_key":  "the provider source states no import format for this type",
 	"google_compute_backend_service_signed_url_key": "the provider source states no import format for this type",
-	"google_dataproc_metastore_database_iam_member": "an IAM type's import ID is space-separated words, not a form its identity parts fill",
-	"google_dataproc_metastore_table_iam_member":    "an IAM type's import ID is space-separated words, not a form its identity parts fill",
-	"google_iap_app_engine_service_iam_member":      "an IAM type's import ID is space-separated words, not a form its identity parts fill",
-	"google_iap_app_engine_version_iam_member":      "an IAM type's import ID is space-separated words, not a form its identity parts fill",
-	"google_iap_web_type_app_engine_iam_member":     "an IAM type's import ID is space-separated words, not a form its identity parts fill",
 	"google_service_directory_namespace_iam_member": "an IAM type's import ID is space-separated words, not a form its identity parts fill",
 	"google_service_directory_service_iam_member":   "an IAM type's import ID is space-separated words, not a form its identity parts fill",
 	"google_sql_user": "no import format is made of the identity schema's attributes",
+	"google_vertex_ai_feature_online_store_featureview_iam_member": "an IAM type's import ID is space-separated words, not a form its identity parts fill",
 }
