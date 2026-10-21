@@ -3375,7 +3375,8 @@ const (
 	// 724 -> 725 (fixture-dirs 693 -> 694): gcp/main-2152: 1 row added, 0 changed, 0 removed, CONCRETE, in the new fixture internal/live/projection/testdata/unrecorded-google-firewall (google_compute_firewall.ssh at projects/broadcom-451918/global/firewalls/allow-ssh, the name its block declares); regenerated with -update.
 	// 725 -> 726 (fixture-dirs 694 -> 695): #2145 item 6 (gcp/item6-empty-component): 6 rows added, 0 changed, 0 removed, all CONCRETE in the new fixture internal/live/identity/testdata/gcp-empty-segment (global network endpoints by ip, by fqdn and with fqdn = null, regional network endpoints by ip and by fqdn, a zonal network endpoint with no instance; each renders stock's empty segment for the unset argument); regenerated with -update.
 	// 726 -> 727 (fixture-dirs 695 -> 696): gcp/moved-unrecorded: 1 row added, 0 changed, 0 removed, CONCRETE, in the new fixture internal/live/projection/testdata/unrecorded-google-firewall-moved (google_compute_firewall.ssh at projects/broadcom-451918/global/firewalls/allow-ssh, the same value its unmoved sibling renders).
-	identityGoldenPinDirs = 727
+	// 727 -> 728 (fixture-dirs 696 -> 697): merging main (#2155) into gcp-lane: main's unrecorded-k8s-moved fixture, a markerless stand-in type no table admits, adds no row, so instances and body-sha256 are unchanged.
+	identityGoldenPinDirs = 728
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).
