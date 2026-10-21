@@ -33,9 +33,11 @@ generates from azurerm 5.10.0's own id parsers. The template fills in
 subscription comes from the provider block's `subscription_id`, the way an
 AWS region comes from the provider block, and from `ARM_SUBSCRIPTION_ID`
 when the block sets none, which is where both providers take it from
-then. A block that sets it to something the run cannot evaluate before it
-starts (a variable with no default) is handled as an AWS account the run
-is not told: the identity needs discovery, and the plan says why.
+then. A block that sets it from a variable reads the value the run is given
+(`-var`, a tfvars file, `TF_VAR_`). Only one the run cannot evaluate before
+it starts (a variable given no value, or a resource attribute) is handled
+as an AWS account the run is not told: the identity needs discovery, and
+the plan says why.
 
 azurerm serves a resource identity schema for 196 of its 1,106 types at
 5.10.0, subnets and routes among them, and those keep the identity-schema
