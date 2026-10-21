@@ -858,7 +858,7 @@ func TestCloud_planLockTimeout(t *testing.T) {
 		t.Fatalf("error creating pending run: %v", err)
 	}
 
-	op, view, done := testOperationPlanWithTimeout(t, "./testdata/plan", 50)
+	op, view, done := testOperationPlanWithTimeout(t, "./testdata/plan", 50*time.Millisecond)
 	b.View = views.NewBackendRemote(view)
 
 	input := testInput(t, map[string]string{
@@ -869,19 +869,28 @@ func TestCloud_planLockTimeout(t *testing.T) {
 	op.UIIn = input
 	op.Workspace = testBackendSingleWorkspaceName
 
+	start := time.Now()
 	_, err = b.Operation(context.Background(), op)
 	if err != nil {
 		t.Fatalf("error starting operation: %v", err)
 	}
 
+	// The ceiling only guards against the lock timeout never firing. It is
+	// generous because the 50ms timer starts after the run is created, and
+	// under full-suite load the work before that (config upload, polling)
+	// and the goroutine scheduling after it have been seen to take more
+	// than 150ms on their own.
 	sigint := make(chan os.Signal, 1)
 	signal.Notify(sigint, syscall.SIGINT)
 	select {
 	case <-sigint:
 		// Stop redirecting SIGINT signals.
 		signal.Stop(sigint)
-	case <-time.After(200 * time.Millisecond):
-		t.Fatalf("expected lock timeout after 50 milliseconds, waited 200 milliseconds")
+	case <-time.After(10 * time.Second):
+		t.Fatalf("expected lock timeout after 50 milliseconds, waited 10 seconds")
+	}
+	if elapsed := time.Since(start); elapsed < 50*time.Millisecond {
+		t.Fatalf("lock timeout fired after %s, before the 50ms timeout", elapsed)
 	}
 
 	if len(input.answers) != 2 {
