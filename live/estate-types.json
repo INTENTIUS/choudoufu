@@ -171,11 +171,13 @@
       "name": "corpus-azapi-role-assignment",
       "types": [
         "azapi_resource",
-        "azurerm_user_assigned_identity"
+        "azurerm_user_assigned_identity",
+        "random_password"
       ],
-      "count": 2,
+      "count": 3,
       "sources": [
-        "config"
+        "config",
+        "script"
       ],
       "config_dirs": [
         ".corpus/azapi/examples/Microsoft.Authorization_roleAssignments@2022-04-01"
@@ -1013,9 +1015,10 @@
         "azurerm_storage_account",
         "azurerm_subnet",
         "azurerm_user_assigned_identity",
-        "azurerm_virtual_network"
+        "azurerm_virtual_network",
+        "random_password"
       ],
-      "count": 9,
+      "count": 10,
       "sources": [
         "script"
       ],
