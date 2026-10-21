@@ -225,3 +225,68 @@ func TestStockStateRecordIsRemovedThroughTheConfiguredProvider(t *testing.T) {
 		t.Errorf("the removal is read through %s, want %s", got, configAWS)
 	}
 }
+
+// TestRecordNamingAnotherAliasStaysThatAliassRemoval is the honest
+// "recorded elsewhere" control: the stock state recorded the attachment
+// under aws.west, so the record names the west configuration (on the
+// configuration's host), the default aws pass leaves it to that
+// configuration, and the west pass proposes the destroy.
+func TestRecordNamingAnotherAliasStaysThatAliassRemoval(t *testing.T) {
+	stockWest := stockAWS
+	stockWest.Alias = "west"
+	raw, store := migrateAttachment(t, stockWest)
+	addr := mustAddr(t, "aws_lb_target_group_attachment.app")
+	configWest := configAWS
+	configWest.Alias = "west"
+	if _, recorded, _, _, err := store.GetIdentityWithProvider(context.Background(), addr); err != nil {
+		t.Fatal(err)
+	} else if recorded != configWest.String() {
+		t.Errorf("the record names provider %s, want %s", recorded, configWest)
+	}
+
+	passes, merged, providerOf, mdiags := recprovPasses(t, raw, configAWS, configWest)
+	if got := passes[0].Result.RecordedElsewhere; len(got) != 1 || got[0].Provider != configWest.String() {
+		t.Errorf("the default aws pass's RecordedElsewhere is %+v, want the attachment left to %s", got, configWest)
+	}
+	if mdiags.HasErrors() {
+		t.Fatalf("Merge: %s", mdiags.Err())
+	}
+	if n := removalsOf(merged, addr); n != 1 {
+		t.Errorf("the merge proposes %d removals of %s, want 1:\n%s", n, addr, merged)
+	}
+	if got, ok := providerOf[addr.String()]; !ok {
+		t.Errorf("the merge reads no removal of %s, want it read through %s", addr, configWest)
+	} else if got.String() != configWest.String() {
+		t.Errorf("the removal is read through %s, want %s", got, configWest)
+	}
+}
+
+// TestRecordedProviderAddrKeepsAnUnrecognisedSource: only the host is ever
+// taken from the configuration. A state provider whose namespace or type the
+// configuration does not resolve the type to is recorded as the state wrote
+// it, and the module path and alias always are.
+func TestRecordedProviderAddrKeepsAnUnrecognisedSource(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`
+terraform {
+  required_providers {
+    aws = {
+      source = "example/aws"
+    }
+  }
+}
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	forked := loadSlotTestConfig(t, dir)
+	if got := recordedProviderAddr(forked, "aws_lb_target_group_attachment", stockAWS); got.String() != stockAWS.String() {
+		t.Errorf("with aws resolved to example/aws: %s, want the state's %s", got, stockAWS)
+	}
+
+	bare := loadSlotTestConfig(t, t.TempDir())
+	stockNet := addrs.AbsProviderConfig{Module: addrs.RootModule.Child("net"), Alias: "east", Provider: stockAWS.Provider}
+	want := `module.net.provider["registry.opentofu.org/hashicorp/aws"].east`
+	if got := recordedProviderAddr(bare, "aws_iam_role", stockNet); got.String() != want {
+		t.Errorf("a stock aws address: %s, want %s", got, want)
+	}
+}
