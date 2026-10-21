@@ -280,3 +280,23 @@ print(" ".join(a for a in want if a not in created))
 gcp_churn_count() {
   grep -cE '^[[:space:]]*# .* (will be (created|destroyed)|must be replaced)' || true
 }
+
+# gcp_name_held_check <plan output file> <import id>...: no_local_state
+# under option A (#2152, ruled 2026-10-20). With the record store gone, a
+# markerless object at a declared name has no record claiming it, so the
+# plan refuses it with "Unlabelled live object holds the declared name"
+# where a create would collide, and stops. Prints what differs from exactly
+# one such refusal per given identity and no other error; prints nothing
+# when the plan refused exactly those.
+gcp_name_held_check() {
+  local plan="$1"; shift
+  local held errs id
+  held="$(grep -c '^Error: Unlabelled live object holds the declared name' "$plan" || true)"
+  errs="$(grep -c '^Error: ' "$plan" || true)"
+  [ "$held" = "$#" ] || printf '%s name-held refusal(s), want %s; ' "$held" "$#"
+  [ "$errs" = "$held" ] || printf '%s other error(s) (%s); ' "$((errs - held))" "$(grep '^Error: ' "$plan" | grep -v 'holds the declared name' | sort -u | tr '\n' ' ' | sed 's/ $//')"
+  for id in "$@"; do
+    grep -qF "\"$id\"" "$plan" || printf 'no refusal names %s; ' "$id"
+  done
+  return 0
+}

@@ -265,7 +265,7 @@ Break: Delete one taggable object's marker before the plan; the object is then n
 
 On the floci-eks substrate: Both legs lose their local record store and state cache together. The AWS leg's objects are found by their markers as on floci; the cluster leg's by their tofu-estate label, through a kubernetes provider configured from the cluster this plan reads live, so the plan also shows the provider block needs nothing local.
 
-On the floci-gcp substrate: The labelled objects are found by their labels, the declaration-carried ones by the identity their configuration computes. The request count is hashicorp/google's own, read from TF_LOG=debug's request blocks.
+On the floci-gcp substrate: The labelled objects are found by their labels. A markerless object is claimed only by its record (option A, #2152), so with the record store gone the plan refuses each one at a held name by name and stops; with the record store put back and the cache still gone the plan is empty. The request count is hashicorp/google's own, read from TF_LOG=debug's request blocks.
 
 ## The plan-fidelity contract
 
