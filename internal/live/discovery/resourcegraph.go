@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/armtypes"
 	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -73,16 +74,51 @@ const SourceResourceGraph EnumerationSource = "RESOURCE_GRAPH"
 // ResourceGraphSweep is the leg ([substrate.SweepResourceGraph]) for an
 // azurerm or azapi provider configuration (GitHub issue #1120).
 //
-// A run with several Azure provider configurations (aliases, other
-// subscriptions) runs one discovery pass per configuration, and every pass
-// is handed the same Coverage. Each subscription is swept by exactly one
-// pass, because two passes filing the same orphan is a cross-provider
-// collision to [Merge]: Subscriptions are the ones this pass owns,
-// Elsewhere the ones another pass owns, and the one pass with
-// TakesUnnamed set also sweeps every subscription a declared resource's
-// ARM id names that no provider configuration names. Such a subscription
-// has no client in Coverage, so it is reported uncovered by name: an
-// incomplete sweep, never an empty one.
+// A run with several Azure provider configurations (azapi beside azurerm,
+// aliases, other subscriptions) runs one discovery pass per configuration,
+// and every pass is handed the same Coverage. Each subscription has one
+// owning pass, the first in pass order whose block names it:
+// Subscriptions are the ones this pass owns, Elsewhere the ones another
+// pass owns, and the one pass with TakesUnnamed set also owns every
+// subscription a declared resource's ARM id names that no provider
+// configuration names. Such a subscription has no client in Coverage, so
+// it is reported uncovered by name: an incomplete sweep, never an empty
+// one. The owner reports a subscription's failures, and live-ls lists a
+// subscription through its owner alone ([ResourceGraphSweep.SweptSubscriptions]).
+//
+// # Which pass files a resource (GitHub issue #1120, the lane's fourth run)
+//
+// A subscription's answer holds every resource carrying the estate's
+// marker, azurerm's and azapi's alike, since both providers write the same
+// ARM tags. Filed wholesale by the owning pass, an azapi pass that sorted
+// first sighted the azurerm objects outside its scope, and the azurerm
+// pass, handed that subscription as Elsewhere, queried nothing: [Merge]
+// refused every azurerm object as unreachable by its own configuration
+// (outofscope.go), and an azurerm orphan would have been destroyed through
+// the azapi provider.
+//
+// So with Self and Family set, every resource is filed by exactly one pass
+// ([ResourceGraphSweep.filer]), and every pass queries each subscription
+// its own block names, not only the ones it owns. The query itself still
+// runs once per subscription per plan: the command layer hands every pass
+// one memoized client per subscription. A resource is filed by:
+//
+//   - the provider configuration that declares the instance its marker
+//     names, when that configuration's block names the resource's
+//     subscription. It binds or vouches for its own object, so no pass of
+//     another provider type or alias ever sights it out of scope;
+//   - otherwise, the first configuration naming the subscription whose
+//     provider serves the marker's type (azurerm for an azurerm_ type,
+//     azapi for azapi_resource), so an orphan is read and destroyed
+//     through a provider that has its schema;
+//   - otherwise, and for a resource whose marker names no address, the
+//     subscription's owner, as before.
+//
+// A marked object in a subscription no configuration that declares its
+// address names is still sighted only out of scope, and still refused.
+//
+// With Family empty (a single configuration, and this package's own
+// tests) the leg files everything it lists.
 type ResourceGraphSweep struct {
 	// Coverage is the client that queries each subscription, keyed by the
 	// subscription id its provider block names.
@@ -100,6 +136,20 @@ type ResourceGraphSweep struct {
 	// is built: this package's Sweep methods share one name, so a surface
 	// question asked here would read as asked by every leg.
 	Untaggable []UntaggableType
+	// Self is the provider configuration this pass runs through, and
+	// Family every Azure provider configuration the run has a pass for,
+	// Self among them, in pass order, each with the subscription its block
+	// names. See the type's doc comment for how they choose which pass
+	// files a resource.
+	Self   addrs.AbsProviderConfig
+	Family []FamilyConfig
+}
+
+// FamilyConfig is one Azure provider configuration of the run and the
+// subscription its block names ("" when it names none).
+type FamilyConfig struct {
+	Provider     addrs.AbsProviderConfig
+	Subscription string
 }
 
 // UntaggableType is one declared Azure type that can carry no marker:
@@ -119,9 +169,14 @@ func (g ResourceGraphSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.D
 	var diags tfdiags.Diagnostics
 	req, res, decl := in.Request, in.Result, in.decl
 	untaggable := g.recordUntaggable(res)
-	subs := g.subscriptions(req.Resolutions)
+	owned := g.subscriptions(req.Resolutions)
+	subs := g.queried(owned)
 	if len(subs) == 0 {
 		return diags
+	}
+	ownedSet := make(map[string]bool, len(owned))
+	for _, s := range owned {
+		ownedSet[strings.ToLower(s)] = true
 	}
 
 	byID := declaredARMIDs(req.Resolutions)
@@ -135,6 +190,11 @@ func (g ResourceGraphSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.D
 	for _, sr := range azsweep.Sweep(ctx, g.Coverage, subs, req.Estate) {
 		if sr.Err != nil {
 			complete = false
+			if !ownedSet[strings.ToLower(sr.Subscription)] {
+				// The owning pass asked the same memoized query and reports
+				// its failure; a second report here would say it twice.
+				continue
+			}
 			diags = diags.Append(resourceGraphFailureDiag(req.Estate, sr))
 			res.SweepGaps = append(res.SweepGaps, SweepGap{
 				TypeName: substrate.Azure.Name(),
@@ -143,16 +203,22 @@ func (g ResourceGraphSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.D
 			})
 			continue
 		}
+		var mine []azsweep.Resource
+		for _, hit := range sr.Resources {
+			if len(g.Family) == 0 || g.filer(req, decl, sr.Subscription, hit) == g.Self.String() {
+				mine = append(mine, hit)
+			}
+		}
 		res.Scans = append(res.Scans, TypeScan{
 			TypeName:  substrate.Azure.Name(),
 			Filtering: FilterServerSide,
 			Scope:     ScopeEstate,
 			Sweep:     true,
 			Source:    SourceResourceGraph,
-			Listed:    len(sr.Resources),
+			Listed:    len(mine),
 		})
-		log.Printf("[DEBUG] live/discovery: Resource Graph found %d resource(s) of estate %q in subscription %s", len(sr.Resources), req.Estate, sr.Subscription)
-		for _, hit := range sr.Resources {
+		log.Printf("[DEBUG] live/discovery: Resource Graph found %d resource(s) of estate %q in subscription %s; this pass files %d", len(sr.Resources), req.Estate, sr.Subscription, len(mine))
+		for _, hit := range mine {
 			typeName, filed := g.fileHit(ctx, req, decl, res, hit, byID, declaredAddrs, &diags)
 			if filed {
 				covered[typeName] = true
@@ -301,11 +367,79 @@ func (g ResourceGraphSweep) fileHit(ctx context.Context, req Request, decl *decl
 	return typeName, named
 }
 
-// SweptSubscriptions is what this pass queries, in order: its own, then,
-// for the pass that takes them, every subscription a declared resource's
-// ARM id names that no provider configuration does, sorted. Compared
-// case-insensitively, as ARM compares subscription ids. live-ls lists
-// through it so that the inventory reads the subscriptions the plan does.
+// queried is every subscription this pass sends the query for: the ones it
+// owns, then each one its own block names that another pass owns, for the
+// resources [ResourceGraphSweep.filer] gives this pass there. With no
+// Family it is the owned ones alone.
+func (g ResourceGraphSweep) queried(owned []string) []string {
+	seen := make(map[string]bool, len(owned))
+	for _, s := range owned {
+		seen[strings.ToLower(s)] = true
+	}
+	out := append([]string(nil), owned...)
+	for _, c := range g.Family {
+		if c.Provider.String() != g.Self.String() || c.Subscription == "" || seen[strings.ToLower(c.Subscription)] {
+			continue
+		}
+		seen[strings.ToLower(c.Subscription)] = true
+		out = append(out, c.Subscription)
+	}
+	return out
+}
+
+// filer is the provider configuration, by its string, whose pass files hit,
+// listed in subscription sub; see the type's doc comment for the rule.
+// Every pass computes the same answer: Family and the declared set are the
+// run's, not the pass's. "" is no pass, for a subscription no
+// configuration names when this pass does not take those.
+func (g ResourceGraphSweep) filer(req Request, decl *declared, sub string, hit azsweep.Resource) string {
+	if hit.SubscriptionID != "" {
+		sub = hit.SubscriptionID
+	} else if s, ok := ARMSubscription(hit.ID); ok {
+		sub = s
+	}
+	var namers []addrs.AbsProviderConfig
+	for _, c := range g.Family {
+		if c.Subscription != "" && strings.EqualFold(c.Subscription, sub) {
+			namers = append(namers, c.Provider)
+		}
+	}
+	if len(namers) == 0 {
+		if g.TakesUnnamed {
+			return g.Self.String()
+		}
+		return ""
+	}
+
+	raw, corrupt := GatherAddress(markers.CanonicalARMMarkers(hit.Tags))
+	escaped := EscapeAddress(raw)
+	addr, addressable := UnescapeAddress(escaped)
+	if corrupt || !ValidMarkerAddress(escaped) || !addressable {
+		return namers[0].String()
+	}
+	typeName := addr.Resource.Resource.Type
+	if _, declaredBy, ok := declaredProvider(req, decl, typeName, escaped); ok {
+		for _, n := range namers {
+			if n.String() == declaredBy.String() {
+				return n.String()
+			}
+		}
+	}
+	serves := addr.Resource.Resource.ImpliedProvider()
+	for _, n := range namers {
+		if n.Provider.Type == serves {
+			return n.String()
+		}
+	}
+	return namers[0].String()
+}
+
+// SweptSubscriptions is the subscriptions this pass owns, in order: its
+// own, then, for the pass that takes them, every subscription a declared
+// resource's ARM id names that no provider configuration does, sorted.
+// Compared case-insensitively, as ARM compares subscription ids. live-ls
+// lists through it so that the inventory reads the subscriptions the plan
+// does, each once.
 func (g ResourceGraphSweep) SweptSubscriptions(resolutions []identity.Resolution) []string {
 	return g.subscriptions(resolutions)
 }

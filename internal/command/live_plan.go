@@ -1429,6 +1429,13 @@ func liveDiscover(ctx context.Context, config *configs.Config, resolutions *iden
 		return nil, noProvider, nil, diags
 	}
 
+	// GitHub issue #1120: every Azure pass below queries the subscriptions
+	// its own block names, and this is what makes that one Resource Graph
+	// query per subscription for the whole run.
+	if provs != nil {
+		provs.beginResourceGraphSweep()
+	}
+
 	// the CollectUnclaimed ruling (#604),
 	// resolved here for the same two reasons the parallelism knob above is:
 	// this function is the single funnel every sweeping entry point goes
@@ -3937,6 +3944,12 @@ type projectionProviders struct {
 	// managed value itself rather than through a data source. Nil leaves
 	// providerConfigValue exactly as it was.
 	providerManagedResults map[string]cty.Value
+
+	// resourceGraphMemo is the Azure sweep's one answer per subscription
+	// for the current discovery run (GitHub issue #1120), opened by
+	// [projectionProviders.beginResourceGraphSweep] at the top of
+	// liveDiscover. Nil outside one.
+	resourceGraphMemo *resourceGraphMemo
 
 	// labelListSweepers is the label-list sweep's client
 	// ([substrate.SweepLabelList], the Kubernetes cluster client) per provider

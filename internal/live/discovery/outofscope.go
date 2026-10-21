@@ -96,6 +96,30 @@ import (
 // prints the "Marker discovery will find it" sentence that sent an operator
 // looking in a region the object is not in.
 
+// # One query, several provider types (GitHub issue #1120)
+//
+// AWS lists through the provider, so an object is sighted by the passes
+// whose configuration reaches its account and region. Azure's estate
+// sweep is one Resource Graph query per subscription, and it answers with
+// every resource there carrying this estate's marker, whichever provider
+// manages it: substrate.Azure is one family over one ARM API, with
+// ProviderTypes azurerm and azapi. Before the sweep answered at all (the
+// Azure lane's first three runs) nothing reached this file from it. Once it
+// did, the one pass that queried the subscription both blocks name - the
+// azapi pass, which sorts first - sighted the azurerm network and identity
+// out of its scope, the azurerm pass had been handed that subscription as
+// another pass's and queried nothing, and both estates were refused here.
+//
+// [ResourceGraphSweep] settles it where the object is filed, not here: each
+// listed resource is filed by exactly one pass, and when the marker names
+// a declared instance whose own provider configuration names the
+// subscription the resource sits in, that pass is it. So a sighting of a
+// marked object in a subscription its address's configuration reaches is
+// always in scope, whichever provider type of the family the configuration
+// is, and this finding is left with exactly the case it exists for: an
+// object in a subscription no configuration that declares it reaches (an
+// alias's other subscription, a block repointed), which is still refused.
+
 // DeclaredSighting is one live object a pass listed that carries this
 // estate's ownership marker for an address the configuration declares -
 // recorded whether or not the resource block that declares that address
@@ -164,16 +188,10 @@ func noteDeclaredSighting(req Request, decl *declared, res *Result, typeName, es
 		// tools whose synthesized configurations do not carry them.
 		return
 	}
-	da := decl.all[typeName][escaped]
-	if da == nil || da.ambiguous {
-		return
-	}
-	addr := da.res.Addr
-	block, modCfg, ok := declaringBlock(req, addr)
+	addr, provider, ok := declaredProvider(req, decl, typeName, escaped)
 	if !ok {
 		return
 	}
-	provider := providerscope.ResolveResource(modCfg, block)
 	res.DeclaredSightings = append(res.DeclaredSightings, DeclaredSighting{
 		Addr:     addr,
 		TypeName: typeName,
@@ -182,6 +200,24 @@ func noteDeclaredSighting(req Request, decl *declared, res *Result, typeName, es
 		Provider: provider,
 		InScope:  req.ScopeProvider.Provider.Type == "" || provider.String() == req.ScopeProvider.String(),
 	})
+}
+
+// declaredProvider is the declared instance a marker value names and the
+// provider configuration its resource block uses, resolved through every
+// ancestor module call's `providers = {...}` mapping as [inScope] resolves
+// it. False for a value that names no declared instance, names more than
+// one, or names one whose block cannot be found: none of those has a single
+// configuration to answer with.
+func declaredProvider(req Request, decl *declared, typeName, escaped string) (addrs.AbsResourceInstance, addrs.AbsProviderConfig, bool) {
+	da := decl.all[typeName][escaped]
+	if da == nil || da.ambiguous {
+		return addrs.AbsResourceInstance{}, addrs.AbsProviderConfig{}, false
+	}
+	block, modCfg, ok := declaringBlock(req, da.res.Addr)
+	if !ok {
+		return addrs.AbsResourceInstance{}, addrs.AbsProviderConfig{}, false
+	}
+	return da.res.Addr, providerscope.ResolveResource(modCfg, block), true
 }
 
 // declaringBlock finds the resource block that declares addr, together with

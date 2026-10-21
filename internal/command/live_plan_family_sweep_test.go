@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plugins"
@@ -181,6 +182,8 @@ func famPlan(t *testing.T, src string, resolutions []identity.Resolution, listed
 		factories[addr] = providers.FactoryFixed(m)
 	}
 	p := newProjectionProviders(cfg, plugins.NewLibrary(factories, nil))
+	// What liveDiscover does first: one memo for the run's passes.
+	p.beginResourceGraphSweep()
 	graph := &famGraph{bySub: map[string][]azsweep.Resource{}}
 	for _, r := range listed {
 		k := strings.ToLower(r.SubscriptionID)
@@ -291,6 +294,19 @@ func TestAzureSweepOfAzurermObjectIsNotOutsideItsConfiguration(t *testing.T) {
 			t.Errorf("%s is not vouched by the sweep; verified %v", a, verified)
 		}
 	}
+	// Both passes query the subscription their blocks name, and the
+	// plan sends Resource Graph one query for it.
+	if got := run.graph.asked[famSub]; got != 1 {
+		t.Errorf("subscription %s queried %d times in one plan, want once", famSub, got)
+	}
+	// Each object filed by the pass of its own provider, and no other.
+	for _, p := range run.passes {
+		for _, s := range p.Result.DeclaredSightings {
+			if !s.InScope {
+				t.Errorf("pass %s sighted %s outside its scope", p.Provider, s.Addr)
+			}
+		}
+	}
 }
 
 // TestAzureSweepOfAzapiObjectIsNotOutsideItsConfiguration is the corpus
@@ -397,5 +413,215 @@ func TestAzureAliasInTheSameSubscriptionReachesItsObject(t *testing.T) {
 	}, nil)
 	if got := famWith(run.diags, famOutOfScopeSummary); len(got) != 0 || run.diags.HasErrors() {
 		t.Errorf("the plan refuses an object its own configuration reaches:\n%s", pairRender(run.diags))
+	}
+}
+
+// famRemovals is every resolution the merged plan carries for addr that a
+// removal put there: an undeclared one (its block gone), or a count
+// instance past the block's count, which keeps its block.
+func famRemovals(run famRun, addr string) []identity.Resolution {
+	var out []identity.Resolution
+	for _, r := range run.merged.Resolutions {
+		if r.Addr.String() == addr {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// famAssertOneRemoval holds addr to exactly one proposed destroy, filed by
+// one pass only, that pass's provider being provider, and, for an
+// undeclared address, read through a configuration of it.
+func famAssertOneRemoval(t *testing.T, run famRun, addr string, provider addrs.Provider) {
+	t.Helper()
+	got := famRemovals(run, addr)
+	if len(got) != 1 {
+		t.Errorf("%d resolutions of %s in the merged plan, want its one removal:\n%s", len(got), addr, run.merged)
+		return
+	}
+	if got[0].Undeclared {
+		if p := run.providerOf[addr]; p.Provider != provider {
+			t.Errorf("the removal of %s is read through %s, want a %s configuration", addr, p, provider)
+		}
+	}
+	var filers []string
+	for _, p := range run.passes {
+		for _, o := range p.Result.Orphans {
+			if o.Addr.String() != addr {
+				continue
+			}
+			filers = append(filers, p.Provider.String())
+			if p.Provider.Provider != provider || !o.Removal {
+				t.Errorf("pass %s filed %s (removal %v, withheld %q)", p.Provider, addr, o.Removal, o.Withheld)
+			}
+		}
+	}
+	if len(filers) != 1 {
+		t.Errorf("%s filed as an orphan by %d passes %v, want one", addr, len(filers), filers)
+	}
+}
+
+func famAssertNoProblems(t *testing.T, run famRun, kinds ...discovery.ProblemKind) {
+	t.Helper()
+	for _, k := range kinds {
+		for _, p := range run.merged.ProblemsOfKind(k) {
+			t.Errorf("%s: %s", k, p.Detail)
+		}
+	}
+	if run.diags.HasErrors() {
+		t.Errorf("errors:\n%s", pairRender(run.diags))
+	}
+}
+
+// TestAzureDay2RemoveProposesTheSweptDestroyUnderAzurerm is the reference
+// estate's day2_remove with the sweep live: the taggable public IP's block
+// removed, so only the sweep finds it (the record leg leaves a taggable
+// type to the sweep). The destroy is proposed once, read through the
+// azurerm configuration, with no duplicate from the azapi pass and no
+// RECORDED_PROVIDER_ABSENT over the record the estate still holds for it.
+func TestAzureDay2RemoveProposesTheSweptDestroyUnderAzurerm(t *testing.T) {
+	const pip = "azurerm_public_ip.pip"
+	pipID := famID(famSub, "Microsoft.Network/publicIPAddresses", "refaz-pip")
+	local, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	azurermCfg := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: famAzurerm}
+	store := projection.NewRecordEnvelopeStore(local, projection.RecordKeyPrefix(famEstate))
+	if _, err := projection.SeedLocatedForInstance(t.Context(), store, famAddr(t, pip), azurermCfg, projection.LocatedRecord{ImportID: pipID}); err != nil {
+		t.Fatal(err)
+	}
+
+	run := famPlan(t, famReference(""), famReferenceResolutions(t), []azsweep.Resource{
+		famListed(famVnetID, "Microsoft.Network/virtualNetworks", "azurerm_virtual_network.app"),
+		famListed(famUaiID, "Microsoft.ManagedIdentity/userAssignedIdentities", "azapi_resource.uai"),
+		famListed(pipID, "Microsoft.Network/publicIPAddresses", pip),
+	}, local)
+	famAssertNoProblems(t, run, discovery.ProblemRecordedProviderAbsent, discovery.ProblemCollision, discovery.ProblemOutOfScopeMarker, discovery.ProblemRemovedTypeUnserved)
+	famAssertOneRemoval(t, run, pip, famAzurerm)
+	if got := run.providerOf[pip]; got.String() != azurermCfg.String() {
+		t.Errorf("the removal is read through %s, want %s", got, azurermCfg)
+	}
+}
+
+// TestAzureDay2CountScalesDownEachProvidersShards is day2_count with the
+// sweep live: an azurerm identity block and an azapi block, each scaled
+// from two instances to one. Each surplus instance is removed once,
+// through its own provider's configuration.
+func TestAzureDay2CountScalesDownEachProvidersShards(t *testing.T) {
+	shardID := func(i string) string {
+		return famID(famSub, "Microsoft.ManagedIdentity/userAssignedIdentities", "shard-"+i)
+	}
+	ashardID := func(i string) string {
+		return famID(famSub, "Microsoft.ManagedIdentity/userAssignedIdentities", "ashard-"+i)
+	}
+	src := `
+terraform {
+  required_providers {
+    azapi = {
+      source = "azure/azapi"
+    }
+  }
+}
+provider "azurerm" {
+  subscription_id = "` + famSub + `"
+}
+provider "azapi" {
+  subscription_id = "` + famSub + `"
+}
+resource "azurerm_user_assigned_identity" "shard" {
+  count               = 1
+  name                = "shard-${count.index}"
+  resource_group_name = "refaz-rg"
+}
+resource "azapi_resource" "ashard" {
+  count     = 1
+  type      = "Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31"
+  name      = "ashard-${count.index}"
+  parent_id = "` + famRG(famSub) + `"
+}
+`
+	const uai = "Microsoft.ManagedIdentity/userAssignedIdentities"
+	run := famPlan(t, src, []identity.Resolution{
+		famConcrete(t, "azurerm_user_assigned_identity.shard[0]", shardID("0")),
+		famConcrete(t, "azapi_resource.ashard[0]", ashardID("0")),
+	}, []azsweep.Resource{
+		famListed(shardID("0"), uai, "azurerm_user_assigned_identity.shard[0]"),
+		famListed(shardID("1"), uai, "azurerm_user_assigned_identity.shard[1]"),
+		famListed(ashardID("0"), uai, "azapi_resource.ashard[0]"),
+		famListed(ashardID("1"), uai, "azapi_resource.ashard[1]"),
+	}, nil)
+	famAssertNoProblems(t, run, discovery.ProblemCollision, discovery.ProblemOutOfScopeMarker)
+	famAssertOneRemoval(t, run, "azurerm_user_assigned_identity.shard[1]", famAzurerm)
+	famAssertOneRemoval(t, run, "azapi_resource.ashard[1]", famAzapi)
+	for _, kept := range []string{"azurerm_user_assigned_identity.shard[0]", "azapi_resource.ashard[0]"} {
+		for _, p := range run.passes {
+			for _, o := range p.Result.Orphans {
+				if o.Addr.String() == kept {
+					t.Errorf("pass %s filed the kept %s as an orphan", p.Provider, kept)
+				}
+			}
+		}
+		if !run.merged.MarkerVerified()[kept] {
+			t.Errorf("the kept %s is not vouched", kept)
+		}
+	}
+}
+
+// TestAzureDisplacedMarkerIsReportedOnce: the network's name changed and the
+// old object still stands carrying its marker. Both blocks name the
+// subscription, so both passes query it; the old object is reported
+// displaced once, by the azurerm pass, and not refused as out of scope.
+func TestAzureDisplacedMarkerIsReportedOnce(t *testing.T) {
+	oldID := famID(famSub, "Microsoft.Network/virtualNetworks", "refaz-vnet-old")
+	run := famPlan(t, famReference(""), famReferenceResolutions(t), []azsweep.Resource{
+		famListed(oldID, "Microsoft.Network/virtualNetworks", "azurerm_virtual_network.app"),
+		famListed(famUaiID, "Microsoft.ManagedIdentity/userAssignedIdentities", "azapi_resource.uai"),
+	}, nil)
+	if got := famWith(run.diags, famOutOfScopeSummary); len(got) != 0 {
+		t.Errorf("refused as out of scope:\n%s", pairRender(run.diags))
+	}
+	got := run.merged.ProblemsOfKind(discovery.ProblemDisplacedMarker)
+	if len(got) != 1 || got[0].Marker != "azurerm_virtual_network.app" {
+		t.Errorf("want one displaced marker for the network, got %d:\n%s", len(got), pairRender(run.diags))
+	}
+	if run.merged.MarkerVerified()["azurerm_virtual_network.app"] {
+		t.Errorf("the displaced object vouches for the network")
+	}
+}
+
+// TestAzureObjectDeclaredThroughBothProvidersIsFiledOnce: one virtual
+// network declared through azurerm and azapi at one ARM id, the identity
+// layer's duplicate-identity refusal (TestAzureDuplicateAcrossProvidersAndCase).
+// Discovery adds nothing on top: the object is filed by one pass, the one
+// its marker's address is declared under, with no orphan and no
+// out-of-scope refusal.
+func TestAzureObjectDeclaredThroughBothProvidersIsFiledOnce(t *testing.T) {
+	src := famReference(`
+resource "azapi_resource" "vnet" {
+  type      = "Microsoft.Network/virtualNetworks@2024-05-01"
+  name      = "refaz-vnet"
+  parent_id = "` + famRG(famSub) + `"
+}
+`)
+	resolutions := append(famReferenceResolutions(t), famConcrete(t, "azapi_resource.vnet", strings.ToUpper(famVnetID)))
+	run := famPlan(t, src, resolutions, []azsweep.Resource{
+		famListed(famVnetID, "Microsoft.Network/virtualNetworks", "azurerm_virtual_network.app"),
+	}, nil)
+	famAssertNoProblems(t, run, discovery.ProblemOutOfScopeMarker, discovery.ProblemCollision, discovery.ProblemDisplacedMarker)
+	var sightings int
+	for _, p := range run.passes {
+		for _, s := range p.Result.DeclaredSightings {
+			sightings++
+			if p.Provider.Provider != famAzurerm || !s.InScope {
+				t.Errorf("pass %s sighted %s (in scope %v)", p.Provider, s.Addr, s.InScope)
+			}
+		}
+		if len(p.Result.Orphans) != 0 {
+			t.Errorf("pass %s filed orphans %+v", p.Provider, p.Result.Orphans)
+		}
+	}
+	if sightings != 1 {
+		t.Errorf("the object was sighted %d times across the passes, want once", sightings)
 	}
 }

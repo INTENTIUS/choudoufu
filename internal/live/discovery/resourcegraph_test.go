@@ -7,6 +7,7 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -445,5 +446,34 @@ func TestResourceGraphLegReportsUntaggableTypes(t *testing.T) {
 		if covered[u.TypeName] {
 			t.Errorf("SweepCovered names %s, which the sweep can never find", u.TypeName)
 		}
+	}
+}
+
+// TestResourceGraphSharedSubscriptionFailureReportedByItsOwner is GitHub
+// issue #1120's family split: azurerm and azapi name one subscription, so
+// both passes query it, and a failed query there is reported once, by the
+// pass that owns the subscription. The other pass still counts the sweep
+// incomplete and claims no covered type.
+func TestResourceGraphSharedSubscriptionFailureReportedByItsOwner(t *testing.T) {
+	azurerm := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("azurerm")}
+	azapi := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.Provider{Hostname: addrs.DefaultProviderRegistryHost, Namespace: "azure", Type: "azapi"}}
+	family := []FamilyConfig{{Provider: azapi, Subscription: rgSub1}, {Provider: azurerm, Subscription: rgSub1}}
+	graph := &fakeGraph{errs: map[string]error{rgSub1: errors.New("boom")}}
+	owner := ResourceGraphSweep{Coverage: azsweep.Coverage{rgSub1: graph}, Subscriptions: []string{rgSub1}, TakesUnnamed: true, Self: azapi, Family: family}
+	sharer := ResourceGraphSweep{Coverage: azsweep.Coverage{rgSub1: graph}, Elsewhere: []string{rgSub1}, Self: azurerm, Family: family}
+
+	_, ownerDiags := discoverAzure(t, owner, keptResolution(rgSub1))
+	res, sharerDiags := discoverAzure(t, sharer, keptResolution(rgSub1))
+	if len(ownerDiags) == 0 {
+		t.Errorf("the owning pass reported nothing for the failed subscription")
+	}
+	for _, d := range sharerDiags {
+		t.Errorf("the sharing pass reported %q: %s", d.Description().Summary, d.Description().Detail)
+	}
+	if len(res.SweepCovered) != 0 {
+		t.Errorf("the sharing pass claims %v covered after a failed query", res.SweepCovered)
+	}
+	if got := strings.Join(graph.asked, ","); got != rgSub1+","+rgSub1 {
+		t.Errorf("asked %q; both passes query the subscription their blocks name", got)
 	}
 }
