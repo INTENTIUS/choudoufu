@@ -14339,7 +14339,7 @@
       "parents": [
         "google_pubsub_subscription"
       ],
-      "template": "{{subscription}} role [condition_title]"
+      "template": "projects/{{project}}/subscriptions/{{subscription}} role [condition_title]"
     },
     {
       "type": "google_pubsub_subscription_iam_member",
@@ -14352,7 +14352,7 @@
       "parents": [
         "google_pubsub_subscription"
       ],
-      "template": "{{subscription}} role member [condition_title]"
+      "template": "projects/{{project}}/subscriptions/{{subscription}} role member [condition_title]"
     },
     {
       "type": "google_pubsub_subscription_iam_policy",
@@ -14365,7 +14365,7 @@
       "parents": [
         "google_pubsub_subscription"
       ],
-      "template": "{{subscription}}"
+      "template": "projects/{{project}}/subscriptions/{{subscription}}"
     },
     {
       "type": "google_pubsub_topic",

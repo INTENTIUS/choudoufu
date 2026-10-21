@@ -8,6 +8,7 @@ package main
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -329,8 +330,28 @@ func decideIAM(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Dec
 		return ""
 	}
 
+	// The parent template the row spells. A computed-name helper builds
+	// the parent from the provider's project and the argument whenever the
+	// argument is not already a full name, so its format is the template;
+	// the IdParseFunc's "{{subscription}}" is only what an import sets.
+	parent := src.IAMParent
+	computed := src.IAMComputedFormat != "" && src.IAMParent == "{{"+src.IAMQualified+"}}"
+	if computed {
+		parent = src.IAMComputedFormat
+	}
+	// The qualifier list is carried only where its first regex is the
+	// parent template itself, the shape every GetResourceId rebuilds; a
+	// list that disagrees leaves the component marked with none, and a
+	// value that needs it refuses by name.
+	var qualifiers []string
+	if len(src.IAMQualifiers) > 0 {
+		if tmpl, ok := regexToTemplate(src.IAMQualifiers[0]); ok && tmpl == parent && compileAll(src.IAMQualifiers) {
+			qualifiers = src.IAMQualifiers
+		}
+	}
+
 	var comps []identity.Component
-	for _, tok := range tokenize(src.IAMParent) {
+	for _, tok := range tokenize(parent) {
 		if tok.literal != "" {
 			comps = appendLiteral(comps, tok.literal, "")
 			continue
@@ -338,10 +359,16 @@ func decideIAM(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Dec
 		flag := attrFlags(tfs, tok.name)
 		comp := identity.Component{IdentityAttr: idAttr(tok.name)}
 		if tok.name == src.IAMQualified {
-			// The updater producer parses this argument with
-			// GetImportIdQualifiers and rebuilds the canonical parent from
-			// it; the row substitutes it as written (#2144).
+			// The updater parses this argument and rebuilds the
+			// canonical parent from it (#2144): GetImportIdQualifiers on
+			// a generated updater, a computed-name helper on a
+			// hand-written one.
 			comp.LongForm = identity.LongFormIAMParent
+			comp.Qualifiers = qualifiers
+			if computed {
+				comp.LongForm = identity.LongFormComputedName
+				comp.Qualifiers = []string{src.IAMComputedPattern}
+			}
 		}
 		if cloud, ok := iamCloud(src, tfs, tok.name); ok && flag != "R" {
 			if flag != "" {
@@ -352,7 +379,7 @@ func decideIAM(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Dec
 			continue
 		}
 		if flag != "R" {
-			return unrowed(false, "the IAM parent id %s names {{%s}}, which the schema does not require", src.IAMParent, tok.name)
+			return unrowed(false, "the IAM parent id %s names {{%s}}, which the schema does not require", parent, tok.name)
 		}
 		comp.Attrs = []string{tok.name}
 		comps = append(comps, comp)
@@ -388,7 +415,7 @@ func decideIAM(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Dec
 		}
 	}
 
-	d.Template = src.IAMParent + strings.TrimPrefix(src.IAMGrammar, "resource_name")
+	d.Template = parent + strings.TrimPrefix(src.IAMGrammar, "resource_name")
 	d.Verdict = VerdictRowed
 	d.Row = &identity.TypeIdentity{
 		Type:           d.Type,
@@ -558,4 +585,15 @@ func joinQuoted(names []string) string {
 		q[i] = "{{" + n + "}}"
 	}
 	return strings.Join(q, " and ")
+}
+
+// compileAll reports whether every pattern compiles as Go's regexp, the
+// package the provider's own GetImportIdQualifiers compiles it with.
+func compileAll(patterns []string) bool {
+	for _, p := range patterns {
+		if _, err := regexp.Compile(p); err != nil {
+			return false
+		}
+	}
+	return true
 }

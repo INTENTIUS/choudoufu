@@ -98,6 +98,19 @@ type Source struct {
 	// written (#2144).
 	IAMQualified string `json:"iam_qualified,omitempty"`
 
+	// IAMQualifiers are the regexes that GetImportIdQualifiers call
+	// matches IAMQualified against, in order, unquoted.
+	IAMQualifiers []string `json:"iam_qualifiers,omitempty"`
+
+	// IAMComputedPattern and IAMComputedFormat are set instead for a
+	// hand-written updater that passes IAMQualified through a
+	// computed-name helper (pubsub's GetComputedSubscriptionName): a
+	// value matching the pattern is the parent as written, any other is
+	// placed into the format, "projects/{{project}}/subscriptions/{{subscription}}",
+	// with the provider's project.
+	IAMComputedPattern string `json:"iam_computed_pattern,omitempty"`
+	IAMComputedFormat  string `json:"iam_computed_format,omitempty"`
+
 	// IAMDefaults are the arguments an IAM type's file fills in from the
 	// provider when the resource leaves them unset, read off its calls to
 	// tpgresource.GetProject, GetRegion, GetZone and GetLocation.

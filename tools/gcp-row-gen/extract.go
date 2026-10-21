@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -51,11 +52,31 @@ var (
 	// argument is parsed as a long form or a short one and rebuilt into
 	// the canonical parent name.
 	producerFuncRe = regexp.MustCompile(`func \w+IamUpdaterProducer\(d tpgresource\.TerraformResourceData`)
-	qualifiedArgRe = regexp.MustCompile(`GetImportIdQualifiers\(\[\]string\{[^}]*\}, d, config, d\.Get\("([a-z0-9_]+)"\)\.\(string\)\)`)
-	wholeIDSetRe   = regexp.MustCompile(`d\.Set\("([a-z0-9_]+)", d\.Id\(\)\)`)
-	namedGroupRe   = regexp.MustCompile(`\(\?P<([a-z0-9_]+)>(?:\[\^/\]\+|\.\+)\)`)
-	iamDefaultRe   = regexp.MustCompile(`tpgresource\.Get(Project|Region|Zone|Location)\(d, config\)`)
-	iamExpectedRe  = regexp.MustCompile(`expected '([^']+)'`)
+	qualifiedArgRe = regexp.MustCompile(`GetImportIdQualifiers\(\[\]string\{((?:"(?:[^"\\]|\\.)*"(?:, )?)*)\}, d, config, d\.Get\("([a-z0-9_]+)"\)\.\(string\)\)`)
+	goStringRe     = regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
+
+	// A hand-written IAM updater that passes its parent argument through a
+	// computed-name helper of the provider's own package:
+	//
+	//	project, err := tpgresource.GetProject(d, config)
+	//	subscription := GetComputedSubscriptionName(project, d.Get("subscription").(string))
+	//
+	// where the helper keeps a value matching its pattern and templates
+	// anything else:
+	//
+	//	match, _ := regexp.MatchString("projects\\/.*\\/subscriptions\\/.*", subscription)
+	//	if match {
+	//		return subscription
+	//	}
+	//	return fmt.Sprintf("projects/%s/subscriptions/%s", project, subscription)
+	updaterFuncRe   = regexp.MustCompile(`func New\w+IamUpdater\(d tpgresource\.TerraformResourceData`)
+	updaterProjRe   = regexp.MustCompile(`\bproject, err := tpgresource\.GetProject\(d, config\)`)
+	computedCallRe  = regexp.MustCompile(`\b(\w+) := (\w+)\(project, d\.Get\("([a-z0-9_]+)"\)\.\(string\)\)`)
+	computedFieldRe = regexp.MustCompile(`func \(u \*\w+\) GetResourceId\(\) string \{\s*return u\.(\w+)\s*\}`)
+	wholeIDSetRe    = regexp.MustCompile(`d\.Set\("([a-z0-9_]+)", d\.Id\(\)\)`)
+	namedGroupRe    = regexp.MustCompile(`\(\?P<([a-z0-9_]+)>(?:\[\^/\]\+|\.\+)\)`)
+	iamDefaultRe    = regexp.MustCompile(`tpgresource\.Get(Project|Region|Zone|Location)\(d, config\)`)
+	iamExpectedRe   = regexp.MustCompile(`expected '([^']+)'`)
 
 	setIDVarRe = regexp.MustCompile(`d\.SetId\((\w+)\)`)
 
@@ -216,7 +237,7 @@ func extractSources(dir string) (map[string]Source, error) {
 			}
 			var s Source
 			if regType == "SchemaTypeIAMResource" {
-				s = iamSource(typeName, text, grammar)
+				s = iamSource(typeName, text, grammar, func() string { return packageText(filepath.Dir(path)) })
 			} else {
 				s = resourceSource(text)
 				m := meta[typeName]
@@ -352,7 +373,10 @@ func customizeDiffDerivation(text, name string) (string, bool) {
 }
 
 // iamSource reads one IAM type: its kind, its grammar, and its parent id.
-func iamSource(typeName, text string, grammar map[string]string) Source {
+//
+// pkgText returns the text of every non-test file of the type's package,
+// where a hand-written updater's helper lives; nil reads none.
+func iamSource(typeName, text string, grammar map[string]string, pkgText func() string) Source {
 	s := Source{}
 	for _, k := range iamKinds {
 		if strings.HasSuffix(typeName, k.suffix) {
@@ -376,8 +400,12 @@ func iamSource(typeName, text string, grammar map[string]string) Source {
 			body = body[:end]
 		}
 		if m := qualifiedArgRe.FindAllStringSubmatch(body, -1); len(m) == 1 {
-			s.IAMQualified = m[0][1]
+			s.IAMQualified = m[0][2]
+			s.IAMQualifiers = unquoteAll(m[0][1])
 		}
+	}
+	if s.IAMQualified == "" && pkgText != nil {
+		s.IAMQualified, s.IAMComputedPattern, s.IAMComputedFormat = computedName(text, pkgText)
 	}
 	funcs := parseFuncRe.FindAllStringSubmatchIndex(text, -1)
 	if len(funcs) != 1 {
@@ -638,4 +666,83 @@ func sortedProviders(byProv map[string]Source) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// unquoteAll reads the Go string literals of a []string{...} body, or nil
+// when any of them is not one.
+func unquoteAll(list string) []string {
+	var out []string
+	for _, q := range goStringRe.FindAllString(list, -1) {
+		v, err := strconv.Unquote(q)
+		if err != nil {
+			return nil
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+// computedName reads a hand-written IAM updater whose parent argument goes
+// through a computed-name helper (see computedCallRe): the argument, the
+// helper's pattern, and its template with the argument and the provider's
+// project as placeholders. Any piece not in exactly that shape reads as
+// nothing.
+func computedName(text string, pkgText func() string) (arg, pattern, format string) {
+	loc := updaterFuncRe.FindAllStringIndex(text, -1)
+	if len(loc) != 1 {
+		return "", "", ""
+	}
+	body := text[loc[0][0]:]
+	if end := strings.Index(body, "\n}\n"); end >= 0 {
+		body = body[:end]
+	}
+	call := computedCallRe.FindAllStringSubmatch(body, -1)
+	if len(call) != 1 || !updaterProjRe.MatchString(body) {
+		return "", "", ""
+	}
+	variable, helper, argName := call[0][1], call[0][2], call[0][3]
+	if f := computedFieldRe.FindAllStringSubmatch(text, -1); len(f) != 1 || f[0][1] != variable ||
+		!strings.Contains(body, variable+": "+variable+",") {
+		return "", "", ""
+	}
+	helperRe := regexp.MustCompile(`func ` + regexp.QuoteMeta(helper) +
+		`\(project, (\w+) string\) string \{\s*match, _ := regexp\.MatchString\(("(?:[^"\\]|\\.)*"), (\w+)\)\s*if match \{\s*return (\w+)\s*\}\s*return fmt\.Sprintf\("([^"%]*)%s([^"%]*)%s", project, (\w+)\)\s*\}`)
+	h := helperRe.FindAllStringSubmatch(pkgText(), -1)
+	if len(h) != 1 {
+		return "", "", ""
+	}
+	param := h[0][1]
+	if h[0][3] != param || h[0][4] != param || h[0][7] != param {
+		return "", "", ""
+	}
+	p, err := strconv.Unquote(h[0][2])
+	if err != nil {
+		return "", "", ""
+	}
+	if _, err := regexp.Compile(p); err != nil {
+		return "", "", ""
+	}
+	return argName, p, h[0][5] + "{{project}}" + h[0][6] + "{{" + argName + "}}"
+}
+
+// packageText is every non-test .go file of one package directory, joined.
+func packageText(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, e := range entries {
+		n := e.Name()
+		if e.IsDir() || !strings.HasSuffix(n, ".go") || strings.HasSuffix(n, "_test.go") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, n))
+		if err != nil {
+			return ""
+		}
+		b.Write(data)
+		b.WriteString("\n")
+	}
+	return b.String()
 }

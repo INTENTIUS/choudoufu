@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=718 instances=2472
-# shape: class CONCRETE=1519
+# shape: dirs=718 instances=2483
+# shape: class CONCRETE=1530
 # shape: class NEEDS_DISCOVERY=788
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=687 fixture-instances=1768
+# shape: fixture-dirs=687 fixture-instances=1779
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=c65dee361374c101919745444d3038d242b79e30b742d0a32520d242c78eb8f2
+# shape: body-sha256=f0f5edc9c0eb4ba521bf9069abd11cf2b8782384ebb44a1446b04d18e3afe704
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -386,10 +386,21 @@ internal/live/identity/testdata/gcp-identity-rows	google_pubsub_topic.orphan	NEE
 internal/live/identity/testdata/gcp-identity-rows	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
 internal/live/identity/testdata/gcp-identity-rows	google_service_account.runner	CONCRETE	projects/estate-prod/serviceAccounts/ci-runner@estate-prod.iam.gserviceaccount.com	email=ci-runner@estate-prod.iam.gserviceaccount.com
 internal/live/identity/testdata/gcp-identity-rows	google_storage_bucket_iam_member.reader	CONCRETE	b/estate-artifacts roles/storage.objectViewer group:readers@example.com until 2027	bucket=estate-artifacts,condition_title=until 2027,member=group:readers@example.com,role=roles/storage.objectViewer
+internal/live/identity/testdata/gcp-long-form	google_cloud_run_v2_service_iam_member.location_agrees	CONCRETE	projects/estate-prod/locations/europe-west1/services/api roles/run.invoker group:a@example.com	location=europe-west1,member=group:a@example.com,name=api,role=roles/run.invoker
+internal/live/identity/testdata/gcp-long-form	google_cloud_run_v2_service_iam_member.location_short	CONCRETE	projects/estate-prod/locations/us-east1/services/api roles/run.invoker group:a@example.com	location=us-east1,member=group:a@example.com,name=api,role=roles/run.invoker
 internal/live/identity/testdata/gcp-long-form	google_compute_network_firewall_policy.p	CONCRETE	projects/estate-prod/global/firewallPolicies/pol	name=pol
+internal/live/identity/testdata/gcp-long-form	google_compute_network_firewall_policy_rule.r	CONCRETE	projects/estate-prod/global/firewallPolicies/pol/rules/1000	firewall_policy=pol,priority=1000
+internal/live/identity/testdata/gcp-long-form	google_compute_region_network_firewall_policy.rp	CONCRETE	projects/estate-prod/regions/europe-west1/firewallPolicies/rpol	name=rpol,region=europe-west1
+internal/live/identity/testdata/gcp-long-form	google_compute_region_network_firewall_policy_rule.rr	CONCRETE	projects/estate-prod/regions/europe-west1/firewallPolicies/rpol/1000	firewall_policy=rpol,priority=1000,project=estate-prod,region=europe-west1
+internal/live/identity/testdata/gcp-long-form	google_pubsub_subscription.orders	CONCRETE	projects/estate-prod/subscriptions/orders	name=orders
+internal/live/identity/testdata/gcp-long-form	google_pubsub_subscription_iam_member.byid	CONCRETE	projects/estate-prod/subscriptions/orders roles/pubsub.subscriber group:b@example.com	member=group:b@example.com,role=roles/pubsub.subscriber,subscription=orders
+internal/live/identity/testdata/gcp-long-form	google_pubsub_subscription_iam_member.other_project	CONCRETE	projects/other/subscriptions/orders roles/pubsub.subscriber group:a@example.com	member=group:a@example.com,project=other,role=roles/pubsub.subscriber,subscription=orders
+internal/live/identity/testdata/gcp-long-form	google_pubsub_subscription_iam_member.short	CONCRETE	projects/estate-prod/subscriptions/orders roles/pubsub.subscriber group:a@example.com	member=group:a@example.com,role=roles/pubsub.subscriber,subscription=orders
 internal/live/identity/testdata/gcp-long-form	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
 internal/live/identity/testdata/gcp-long-form	google_secret_manager_secret.s	CONCRETE	projects/estate-prod/secrets/db-pass	secret_id=db-pass
-internal/live/identity/testdata/gcp-long-form	google_secret_manager_secret_iam_member.byname	CONCRETE	projects/estate-prod/secrets/db-pass roles/secretmanager.secretAccessor group:a@example.com	member=group:a@example.com,role=roles/secretmanager.secretAccessor,secret_id=db-pass
+internal/live/identity/testdata/gcp-long-form	google_secret_manager_secret_iam_member.byid	CONCRETE	projects/estate-prod/secrets/db-pass roles/secretmanager.secretAccessor group:a@example.com	member=group:a@example.com,role=roles/secretmanager.secretAccessor,secret_id=db-pass
+internal/live/identity/testdata/gcp-long-form	google_secret_manager_secret_iam_member.byname	CONCRETE	projects/estate-prod/secrets/db-pass roles/secretmanager.secretAccessor group:b@example.com	member=group:b@example.com,role=roles/secretmanager.secretAccessor,secret_id=db-pass
+internal/live/identity/testdata/gcp-long-form	google_secret_manager_secret_iam_member.literal_long	CONCRETE	projects/other/secrets/db-pass roles/secretmanager.secretAccessor group:a@example.com	member=group:a@example.com,project=other,role=roles/secretmanager.secretAccessor,secret_id=db-pass
 internal/live/identity/testdata/gcp-long-form	google_securityposture_posture.org	CONCRETE	organizations/123/locations/global/postures/baseline	location=global,parent=organizations/123,posture_id=baseline
 internal/live/identity/testdata/gcp-optional-placeholder	google_bigquery_connection.lake	CONCRETE	projects/estate-prod/locations/EU/connections/lake	connection_id=lake,location=EU
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_a	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action

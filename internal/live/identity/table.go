@@ -581,19 +581,23 @@ type Component struct {
 	PerElement bool
 
 	// LongForm names a rewrite the provider applies to this argument's
-	// value before it becomes part of the id, which the row does not
-	// reproduce yet (#2144). Empty, the ordinary case, means the value is
-	// substituted as written, which is what the provider does too.
+	// value before it becomes part of the id (#2144). Empty, the ordinary
+	// case, means the value is substituted as written, which is what the
+	// provider does too.
 	//
-	// Set, a resolved value carrying a "/" refuses the instance by name
-	// rather than build an id the provider would never have built: the
-	// whole value substituted into a template that already spells the
-	// path around it. A short value, the parent's name rather than its
-	// id, resolves exactly as before. A value only an apply can know is
-	// refused too, since nothing before then says which form it takes.
-	// Both kinds are written by tools/gcp-row-gen from the pinned
-	// provider source; see [LongFormRule].
+	// Set, resolution composes the provider's own rewrite: see
+	// [LongFormRule] for each kind. A value only an apply can know is
+	// refused by name, since the rewrite reads the value's text and a
+	// formula cannot carry it. Written by tools/gcp-row-gen from the
+	// pinned provider source.
 	LongForm LongFormRule
+
+	// Qualifiers are the regexes the provider matches a [LongFormIAMParent]
+	// or [LongFormComputedName] value against, in the provider's order and
+	// spelled as its source spells them. Empty on a LongForm component,
+	// the generator could not read the list, and a value that needs one
+	// refuses the instance by name.
+	Qualifiers []string
 }
 
 // LongFormRule is the provider-side rewrite a [Component.LongForm] argument
@@ -602,26 +606,44 @@ type LongFormRule string
 
 const (
 	// LongFormIAMParent is an IAM type's parent argument, which the
-	// updater producer parses with tpgresource.GetImportIdQualifiers: a
-	// long form (projects/{p}/secrets/{s}) or a short one ({s}) is
-	// rebuilt into the canonical parent name, the long form's project
-	// taking precedence over the provider's.
+	// updater producer parses with tpgresource.GetImportIdQualifiers over
+	// [Component.Qualifiers]: the first regex that matches anywhere in the
+	// value wins, each named group it captures replaces the component of
+	// the same name, and the parent is rebuilt from the row's template.
+	// So `projects/other/secrets/db-pass` names project "other", and a
+	// short `db-pass` keeps the project the row already resolved. No
+	// regex matching is the updater's own error, refused by name.
 	LongFormIAMParent LongFormRule = "iam-parent"
 
 	// LongFormLastSegment is an argument of a type whose create builds
-	// its id with tpgresource.ReplaceVarsForId, which substitutes only
-	// the last path segment of the value (GetResourceNameFromSelfLink).
+	// its id with tpgresource.ReplaceVarsForId. That keeps the last path
+	// segment of an ordinary argument (GetResourceNameFromSelfLink),
+	// trims a leading "projects/" off {{project}}, and reads {{region}}
+	// and {{zone}} through GetRegion and GetZone, which take the last
+	// segment of the resource's own value, before trimming "regions/" or
+	// "zones/". The provider's own project, region or zone is trimmed
+	// only.
 	LongFormLastSegment LongFormRule = "last-segment"
+
+	// LongFormComputedName is a hand-written IAM updater's parent
+	// argument passed through a helper such as pubsub's
+	// GetComputedSubscriptionName: a value matching the sole entry of
+	// [Component.Qualifiers] is the whole parent as written, and any
+	// other value is placed into the parent template the row spells
+	// (projects/{{project}}/subscriptions/{{subscription}}).
+	LongFormComputedName LongFormRule = "computed-name"
 )
 
 // describe is what the provider does to such a value, as a sentence for
-// the refusal.
+// a refusal.
 func (l LongFormRule) describe() string {
 	switch l {
 	case LongFormIAMParent:
-		return "The provider's IAM updater parses this argument as a long or a short name and rebuilds the canonical parent from it"
+		return "The provider's IAM updater parses this argument as a long or a short name (tpgresource.GetImportIdQualifiers) and rebuilds the canonical parent from it"
 	case LongFormLastSegment:
 		return "The provider's create keeps only the last path segment of this argument's value (tpgresource.ReplaceVarsForId)"
+	case LongFormComputedName:
+		return "The provider's IAM updater keeps this argument whole when it is already a full resource name and places it into the parent template otherwise"
 	}
 	return "The provider rewrites this argument's value before it becomes part of the id"
 }

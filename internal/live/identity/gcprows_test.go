@@ -7,6 +7,7 @@ package identity
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -76,19 +77,44 @@ func TestGoogleOptionalPlaceholderRow(t *testing.T) {
 	}
 }
 
-// TestGoogleLongFormRefused resolves the arguments hashicorp/google
-// rewrites before they become part of the id (#2144): an IAM parent the
-// updater rebuilds from a long or short name, and an argument of a type
-// whose create keeps only the last path segment. A long-form value refuses
-// the instance by name; a short one, and a "/" in an argument the provider
-// substitutes as written, resolve as before.
-func TestGoogleLongFormRefused(t *testing.T) {
+// TestGoogleLongFormComposed resolves the arguments hashicorp/google 8.6.0
+// rewrites before they become part of the id (#2144), and asserts the id
+// the provider itself builds: an IAM parent the updater parses with
+// GetImportIdQualifiers and rebuilds, an argument of a type whose create
+// keeps only the last path segment, and pubsub's computed subscription
+// name. A value only an apply can know, a long form that conflicts with
+// the project or location the resource sets, and one the rewrite leaves
+// empty refuse the instance by name.
+func TestGoogleLongFormComposed(t *testing.T) {
 	cfg := loadConfig(t, "testdata/gcp-long-form", nil)
 	result, diags := Resolve(context.Background(), cfg)
 
+	const secret = " roles/secretmanager.secretAccessor group:"
+	const sub = " roles/pubsub.subscriber group:"
+	const run = " roles/run.invoker group:a@example.com"
 	concrete := map[string]string{
-		"google_secret_manager_secret_iam_member.byname": "projects/estate-prod/secrets/db-pass roles/secretmanager.secretAccessor group:a@example.com",
-		"google_securityposture_posture.org":             "organizations/123/locations/global/postures/baseline",
+		// The secret's .id parses back to the canonical parent.
+		"google_secret_manager_secret_iam_member.byid": "projects/estate-prod/secrets/db-pass" + secret + "a@example.com",
+		// The short form, unchanged.
+		"google_secret_manager_secret_iam_member.byname": "projects/estate-prod/secrets/db-pass" + secret + "b@example.com",
+		// The long form's own project wins over the provider's.
+		"google_secret_manager_secret_iam_member.literal_long": "projects/other/secrets/db-pass" + secret + "a@example.com",
+		// A long form that agrees with the location the resource sets.
+		"google_cloud_run_v2_service_iam_member.location_agrees": "projects/estate-prod/locations/europe-west1/services/api" + run,
+		// {location}/{name}, with the provider's project.
+		"google_cloud_run_v2_service_iam_member.location_short": "projects/estate-prod/locations/us-east1/services/api" + run,
+		// ReplaceVarsForId keeps the policy id's last segment.
+		"google_compute_network_firewall_policy_rule.r": "projects/estate-prod/global/firewallPolicies/pol/rules/1000",
+		// It trims "projects/" off the project and cuts the region's self
+		// link to its last segment too.
+		"google_compute_region_network_firewall_policy_rule.rr": "projects/estate-prod/regions/europe-west1/firewallPolicies/rpol/1000",
+		// GetComputedSubscriptionName: a short name is placed into the
+		// template with the resource's project, a full one kept whole.
+		"google_pubsub_subscription_iam_member.short":         "projects/estate-prod/subscriptions/orders" + sub + "a@example.com",
+		"google_pubsub_subscription_iam_member.other_project": "projects/other/subscriptions/orders" + sub + "a@example.com",
+		"google_pubsub_subscription_iam_member.byid":          "projects/estate-prod/subscriptions/orders" + sub + "b@example.com",
+		// A "/" in an argument the provider substitutes as written.
+		"google_securityposture_posture.org": "organizations/123/locations/global/postures/baseline",
 	}
 	for addr, id := range concrete {
 		got := resolutionAt(t, result, addr)
@@ -97,13 +123,41 @@ func TestGoogleLongFormRefused(t *testing.T) {
 		}
 	}
 
-	refused := map[string]string{
-		"google_secret_manager_secret_iam_member.byid":         `secret_id to "projects/estate-prod/secrets/db-pass"`,
-		"google_secret_manager_secret_iam_member.literal_long": `secret_id to "projects/other/secrets/db-pass"`,
-		"google_compute_network_firewall_policy_rule.r":        `firewall_policy to "projects/estate-prod/global/firewallPolicies/pol"`,
-		"google_secret_manager_secret_iam_member.minted":       `secret_id from google_recaptcha_enterprise_key.site.id, which is not known until apply`,
+	// The identity values say what the import ID says: the long form's
+	// project, not the provider's, and the parent's short name.
+	lit := resolutionAt(t, result, "google_secret_manager_secret_iam_member.literal_long")
+	if lit.IdentityValues["project"] != "other" || lit.IdentityValues["secret_id"] != "db-pass" {
+		t.Errorf("literal_long identity values = %v, want project=other secret_id=db-pass", lit.IdentityValues)
 	}
-	for addr, arg := range refused {
+	// A parent's .id and its short name are one parent, so a duplicate
+	// between them is still caught: the values differ by member alone.
+	for _, pair := range [][2]string{
+		{"google_secret_manager_secret_iam_member.byid", "google_secret_manager_secret_iam_member.byname"},
+		{"google_pubsub_subscription_iam_member.byid", "google_pubsub_subscription_iam_member.short"},
+	} {
+		a, b := resolutionAt(t, result, pair[0]).IdentityValues, resolutionAt(t, result, pair[1]).IdentityValues
+		if len(a) != len(b) {
+			t.Errorf("%s and %s identity values = %v and %v, want the same attributes", pair[0], pair[1], a, b)
+		}
+		for k, v := range a {
+			if k != "member" && b[k] != v {
+				t.Errorf("%s and %s differ in %s: %q and %q", pair[0], pair[1], k, v, b[k])
+			}
+		}
+	}
+
+	refused := map[string]string{
+		"google_secret_manager_secret_iam_member.minted":           "Rewritten identity argument not known before apply|secret_id from google_recaptcha_enterprise_key.site.id",
+		"google_compute_network_firewall_policy_rule.trailing":     "Rewritten identity argument not composable|firewall_policy to \"pol/\"",
+		"google_secret_manager_secret_iam_member.project_conflict": "Rewritten identity argument not composable|secret_id to \"projects/other/secrets/db-pass\"",
+		"google_cloud_run_v2_service_iam_member.location_conflict": "Rewritten identity argument not composable|name to \"projects/estate-prod/locations/europe-west1/services/api\"",
+	}
+	conflict := map[string]string{
+		"google_secret_manager_secret_iam_member.project_conflict": `names project "other" where the resource sets project to "estate-dr"`,
+		"google_cloud_run_v2_service_iam_member.location_conflict": `names location "europe-west1" where the resource sets location to "us-central1"`,
+	}
+	for addr, want := range refused {
+		summary, arg, _ := strings.Cut(want, "|")
 		for _, res := range result.All() {
 			if res.Addr.String() == addr {
 				t.Errorf("%s resolved to %s %q, want it refused", addr, res.Class, res.ImportID)
@@ -112,15 +166,55 @@ func TestGoogleLongFormRefused(t *testing.T) {
 		found := false
 		for _, d := range diags {
 			desc := d.Description()
-			if desc.Summary == "Long-form identity argument not composed yet" && strings.Contains(desc.Detail, addr+" sets "+arg) && strings.Contains(desc.Detail, "#2144") {
+			if desc.Summary == summary && strings.Contains(desc.Detail, addr+" sets "+arg) && strings.Contains(desc.Detail, "#2144") &&
+				strings.Contains(desc.Detail, conflict[addr]) {
 				found = true
 			}
 		}
 		if !found {
-			t.Errorf("no long-form refusal names %s and %s: %v", addr, arg, diags.Err())
+			t.Errorf("no %q refusal names %s and %s: %v", summary, addr, arg, diags.Err())
 		}
 	}
 	if len(diags) != len(refused) {
 		t.Errorf("got %d diagnostics, want the %d refusals: %v", len(diags), len(refused), diags.Err())
+	}
+}
+
+// TestGoogleQualifierGroupsNameComponents asserts that every named group
+// in a [Component.Qualifiers] regex names a component at or before the one
+// it parses, by argument or by cloud property. A group that names none
+// would be a value the provider rebuilds its parent from and this package
+// silently drops.
+func TestGoogleQualifierGroupsNameComponents(t *testing.T) {
+	for typ, entry := range GoogleTable {
+		for q, comp := range entry.Components {
+			if comp.LongForm != LongFormIAMParent && comp.LongForm != LongFormComputedName {
+				continue
+			}
+			if len(comp.Qualifiers) == 0 {
+				t.Errorf("%s: component %d is %s with no qualifiers", typ, q, comp.LongForm)
+			}
+			names := map[string]bool{}
+			for _, c := range entry.Components[:q+1] {
+				for _, a := range c.Attrs {
+					names[a] = true
+				}
+				if c.Cloud != CloudNone {
+					names[string(c.Cloud)] = true
+				}
+			}
+			for _, pattern := range comp.Qualifiers {
+				re, err := regexp.Compile(pattern)
+				if err != nil {
+					t.Errorf("%s: qualifier %q does not compile: %v", typ, pattern, err)
+					continue
+				}
+				for _, name := range re.SubexpNames()[1:] {
+					if name != "" && !names[name] {
+						t.Errorf("%s: qualifier %q captures %q, which no component of the parent reads", typ, pattern, name)
+					}
+				}
+			}
+		}
 	}
 }
