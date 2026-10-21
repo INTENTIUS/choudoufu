@@ -180,7 +180,7 @@ Oracle: Stock's replace of the same resource leaves the same single object.
 
 Break: Skip the destroy half; the next plan must report a collision rather than proposing nothing.
 
-On the floci-az substrate: A name is unique within its parent, so a create_before_destroy replacement is one whose name changes, as on kind: the new object is created at the new id and the old one destroyed after it, and the next plan is empty.
+On the floci-az substrate: A name is unique within its parent, so a create_before_destroy replacement is one whose name changes, as on kind: an identity renamed under create_before_destroy. The old object's record, in the record store, binds it to the block and its tofu-address confirms the record, so the plan is stock's replace, create first; at -parallelism=1 the new object's create completes before the old one's deposed destroy starts, as stock's apply of the same rename shows on the oracle container, ARM answers 404 for the old id, and the next plan is empty. The Break control recreates the old object carrying the block's marker: on the Resource Graph leg an object at an id the configuration no longer computes, which the record does not name, is reported as a displaced marker and never destroyed, so the plan must carry that warning or propose a change, never be silent.
 
 On the floci-eks substrate: Read on the leg the replaced block lives on, as that leg's own substrate reads it.
 
@@ -194,7 +194,7 @@ Oracle: Stock records the old object as deposed and destroys it on the next appl
 
 Break: Interrupt and then assert nothing is proposed; the assertion must fail.
 
-On the floci-az substrate: As on floci: the engine's interrupt hook kills the apply the instant the first create commits. The created resource carries both tags from its create PUT, so the next plan binds it at its declared id and proposes exactly the remainder.
+On the floci-az substrate: Both windows, as on kind, each killed by the engine's interrupt hook at -parallelism=1. The create_before_destroy rename first: interrupted the instant the new identity's create commits, both objects carry the block's tofu-address and the record holds the old one as deposed; the Resource Graph leg hands that deposed half to the projection (internal/live/discovery's verdictDeposed), so the next plan is stock's own deposed-object destroy, and one apply leaves stock's end state: the new object alone, the record's deposed entry cleared, an empty replan. Then an apply creating two identities, killed after the first create commits: that resource carries both tags from its create PUT and has its record, so the next plan binds it at its declared id and proposes exactly the remainder, stock's plan from the same position on the oracle container.
 
 On the floci-eks substrate: Read on the leg the interrupted object lives on, as that leg's own substrate reads it. An apply spanning both legs is interrupted at whichever create commits first.
 
@@ -250,7 +250,7 @@ Oracle: No stock equivalent. The toggle documentation is the oracle, and each to
 
 Break: Turn a toggle off; its refusal must disappear and no other may appear.
 
-On the floci-az substrate: As on floci; the toggles are substrate-neutral.
+On the floci-az substrate: As on floci; the toggles are substrate-neutral. The scratch estate's record store is the lane's own, a blob container.
 
 On the floci-eks substrate: As on floci; the toggles apply to both legs alike.
 
@@ -262,7 +262,7 @@ Oracle: Stock has no plan in this position: with its state file gone it needs on
 
 Break: Delete one taggable object's marker before the plan; the object is then not found and the plan proposes creating it, which the stage must fail.
 
-On the floci-az substrate: Both local artifacts are deleted; every declared resource must be found at its declared ARM id, which needs no sweep, and every other one by its tofu-estate tag through Resource Graph, whose sweep query floci-az serves since dfa33ca (lex00/floci-az#11).
+On the floci-az substrate: Records live in the record store, record_store "azurerm" on floci-az blob storage, so the only local artifact is the state cache, and it is what is deleted; no local record directory exists to delete. Every taggable resource must then be found by its marker, read at its declared ARM id with the Resource Graph sweep (whose query floci-az serves since dfa33ca, lex00/floci-az#11) finding anything the configuration no longer declares, and every untaggable one through its record in the container, with nothing created, destroyed or replaced.
 
 On the floci-eks substrate: Both legs lose their local record store and state cache together. The AWS leg's objects are found by their markers as on floci; the cluster leg's by their tofu-estate label, through a kubernetes provider configured from the cluster this plan reads live, so the plan also shows the provider block needs nothing local.
 
