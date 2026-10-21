@@ -13,7 +13,7 @@
 # references crossing between them in both directions.
 #
 # Why this root (and not the corpus's AKS, key vault or private-endpoint
-# roots): it is the one floci-az at 30000b0 serves as written. Role
+# roots): it is the one floci-az at 30000b0 served as written. Role
 # definitions, role assignments (immutable, GUID-named, refused as
 # duplicates) and the roleName filter the data source sends are modelled
 # (02ae4a5); resource groups and managed identities keep their tags. AKS is
@@ -60,12 +60,13 @@
 #
 # Run for #1120: cold_deploy and migrate pass on floci-az 30000b0.
 # floci-az's gaps (live/FLOCI.md, Azure) show by name rather than being
-# skipped: the plan's Resource Graph sweep is refused (lex00/floci-az#11),
-# which choudoufu reports as the "Azure sweep unavailable" warning, an
-# incomplete sweep, and only the sweep finds a removed resource of a type
-# that takes tags, so day2_count's scale-down fails naming that gap. The
-# role assignment's removal comes from its record, so day2_remove does not
-# need the sweep. A stage that fails records the reason and the run goes on
+# skipped. At 30000b0 the plan's Resource Graph sweep was refused
+# (lex00/floci-az#11), which choudoufu reports as the "Azure sweep
+# unavailable" warning, an incomplete sweep, and only the sweep finds a
+# removed resource of a type that takes tags, so day2_count's scale-down
+# could not pass. The pin is now dfa33ca, which runs the query as sent, so
+# it is expected to. The role assignment's removal comes from its record,
+# so day2_remove does not need the sweep. A stage that fails records the reason and the run goes on
 # where it can, the shape the later stages expect put back by hand.
 # day2_replace, day2_crash, strict and no_local_state report not_run with
 # the reason, as on reference-azure.
@@ -430,7 +431,7 @@ import json, sys
 inv = json.load(sys.stdin)
 print(" ".join(rid for rid, r in sorted(inv.items()) if r is None or r["id"].lower() != rid))')" \
   || fail "could not read A's resources through ARM"
-SWEEP_WARN=""; grep -qF "Azure sweep unavailable" <<< "$PLAN_OUT" && SWEEP_WARN="; the plan warned \"Azure sweep unavailable\" (lex00/floci-az#11: the sweep's KQL is outside floci-az's subset), so the sweep was incomplete"
+SWEEP_WARN=""; grep -qF "Azure sweep unavailable" <<< "$PLAN_OUT" && SWEEP_WARN="; the plan warned \"Azure sweep unavailable\", so the sweep was incomplete, though floci-az runs its query as sent since dfa33ca (lex00/floci-az#11)"
 if [ "$PLAN_RC" = "0" ] && grep -q "No changes." <<< "$PLAN_OUT" && [ -z "$IDS_MISSING" ]; then
   gauntlet_stage test_plan pass "the plan with no state file is empty; all 3 ARM ids answer a GET with the same id, compared case-insensitively$SWEEP_WARN"
 else
@@ -598,11 +599,12 @@ fi
 # ── 8. day2_count: a two-instance count of azapi identities ──────────────
 # The shards take tags, so the one that leaves the count is found by its
 # marker through the Resource Graph sweep and by nothing else: the record
-# leg skips an instance whose ARM type takes tags. On floci-az the sweep is
-# refused (lex00/floci-az#11), so the scale-down plans no destroy there and
-# the stage fails naming that gap. The run then goes on with both shards
-# still standing and the configuration back at two, the shape the teardown
-# expects (the oracle stays at one; nothing after this stage reads it).
+# leg skips an instance whose ARM type takes tags. floci-az runs the
+# sweep's query since dfa33ca (lex00/floci-az#11), so the destroy is
+# expected; a scale-down that plans none fails the stage naming the
+# warning. The run then goes on with both shards still standing and the
+# configuration back at two, the shape the teardown expects (the oracle
+# stays at one; nothing after this stage reads it).
 gauntlet_begin_stage day2_count
 log "=== 8. day2_count: a two-instance count of azapi identities the script declares scales 2 -> 1 -> 2 ==="
 REVIEWED=1 RA=none MOVED=1 SHARDS=2 write_root "$ADOPTED" live
@@ -675,6 +677,6 @@ fi
 ( tofu_a "$GREEN" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  (the greenfield estate's destroy failed; the container is removed on exit)"
 
 gauntlet_stage strict not_run "not yet written for the azure lane (#1120)"
-gauntlet_stage no_local_state not_run "not yet written for the azure lane (#1120): the plan with no local state reaches the Resource Graph sweep, whose query floci-az serves since 30000b0 but its KQL subset refuses (lex00/floci-az#11), and the role assignment, untaggable, could only be found through its record"
+gauntlet_stage no_local_state not_run "not yet written for the azure lane (#1120): the plan with no local state reaches the Resource Graph sweep, whose query floci-az runs as sent since dfa33ca (lex00/floci-az#11), and the role assignment, untaggable, could only be found through its record"
 
 gauntlet_end

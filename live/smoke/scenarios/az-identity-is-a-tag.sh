@@ -16,14 +16,12 @@
 # unproven until the maintainer runs both arms on floci-az and the evidence
 # file lands.
 #
-# What floci-az cannot answer today (live/FLOCI.md, Azure): it keeps tags on
-# resource groups, network resources and managed identities, which is every
-# type here, and serves Resource Graph since 30000b0, but its KQL subset
-# refuses the sweep query's union, mv-expand and bag_keys, so a plan is
-# refused with that 400 InvalidQuery; that refusal is the first thing this
-# scenario will report until one side changes. And every type here is on azurerm's
-# identity-schema route, so it plans only once that route answers a
-# subscription from the provider block (#1120 unit 10's note).
+# floci-az keeps tags on resource groups, network resources and managed
+# identities, which is every type here, and runs the sweep query as sent,
+# union, mv-expand and bag_keys included, since dfa33ca
+# (lex00/floci-az#11; live/FLOCI.md, Azure), not yet run. Every type here
+# is on azurerm's identity-schema route, so it plans only once that route
+# answers a subscription from the provider block (#1120 unit 10's note).
 
 SMOKE_WORK="$SMOKE_WORKROOT/az-identity-is-a-tag"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

@@ -30,14 +30,15 @@
 #
 # Run twice for #1120: cold_deploy through test_apply pass on floci-az
 # 30000b0. floci-az's gaps (live/FLOCI.md, Azure) fail stages by name rather
-# than being skipped: its Resource Graph refuses the sweep's query
-# (lex00/floci-az#11), which the plan reports as the "Azure sweep
-# unavailable" warning and goes on without, and only the sweep finds a
-# removed resource of a type that takes tags, so day2_remove and day2_count
-# fail naming that gap. Those are the emulator's to close (emulator policy,
-# live/ADDING-A-PLATFORM.md). day2_replace, day2_crash, strict and
-# no_local_state report not_run with the reason until each is written for
-# this substrate.
+# than being skipped. At 30000b0 its Resource Graph refused the sweep's
+# query (lex00/floci-az#11), which the plan reported as the "Azure sweep
+# unavailable" warning, and only the sweep finds a removed resource of a
+# type that takes tags, so day2_remove and day2_count could not pass. The
+# pin is now dfa33ca, which runs the query as sent, so both are expected to
+# pass; a plan that still warns fails them naming the warning. Gaps are the
+# emulator's to close (emulator policy, live/ADDING-A-PLATFORM.md).
+# day2_replace, day2_crash, strict and no_local_state report not_run with
+# the reason until each is written for this substrate.
 #
 # A stage this script cannot pass records fail with the reason and the run
 # continues where it can (day2_remove and day2_count put the shape the later
@@ -513,8 +514,9 @@ fi
 # ── 7. day2_remove: a deleted block's resource is destroyed ──────────────
 # The public IP takes tags, so its removal is found by its marker through
 # the Resource Graph sweep and by nothing else: the record leg skips a type
-# that takes tags. On floci-az the sweep is refused (lex00/floci-az#11), so
-# the plan proposes no destroy there and the stage fails naming that gap
+# that takes tags. floci-az runs the sweep's query since dfa33ca
+# (lex00/floci-az#11), so the destroy is expected. A plan whose sweep still
+# failed proposes no destroy, and the stage fails naming the warning
 # (gauntlet_azure_sweep_note). The run goes on: the public IP is removed by
 # hand on A and by stock on B, so the stages below start from the shape
 # they expect.
@@ -551,9 +553,10 @@ fi
 
 # ── 8. day2_count: scale the shard identities down and back up ───────────
 # As day2_remove: the identity that leaves the count is found only by the
-# sweep, so on floci-az the scale-down plans no destroy (lex00/floci-az#11),
-# the stage fails naming it, and the configuration goes back to two shards
-# with both still standing, the shape the teardown expects.
+# sweep, which floci-az serves since dfa33ca (lex00/floci-az#11). Should the
+# scale-down still plan no destroy, the stage fails naming the warning, and
+# the configuration goes back to two shards with both still standing, the
+# shape the teardown expects.
 gauntlet_begin_stage day2_count
 log "=== 8. day2_count: shard count 2 -> 1 -> 2 ==="
 current_block() { write_config "$1" "$2" team "$3" "$REVIEWED"; moved_block >> "$1/main.tf"; drop_pip "$1/main.tf"; }
@@ -612,6 +615,6 @@ fi
 ( tofu_a "$GREEN" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  (the greenfield estate's destroy failed; the container is removed on exit)"
 
 gauntlet_stage strict not_run "not yet written for the azure lane (#1120)"
-gauntlet_stage no_local_state not_run "not yet written for the azure lane (#1120): the plan with no local state reaches the Resource Graph sweep, whose query floci-az serves since 30000b0 but its KQL subset refuses"
+gauntlet_stage no_local_state not_run "not yet written for the azure lane (#1120): the plan with no local state reaches the Resource Graph sweep, whose query floci-az runs as sent since dfa33ca (lex00/floci-az#11), and the stage is not yet written"
 
 gauntlet_end

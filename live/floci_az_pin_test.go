@@ -100,6 +100,13 @@ func flociAzDigestFindings(path, src, pin, flociPinDigest string) []string {
 // shape is flociLiteralExceptions'.
 var flociAzLiteralExceptions = map[string]string{
 	"live/floci_az_pin_test.go": "this file: its red fixtures are tag references and stale digests on purpose",
+
+	"live/gauntlet.json": "a measured artifact: each Azure row's substrate_image is the digest that run measured " +
+		"against, evidence about the run, and is never hand-edited (CLAUDE.md, measured artifacts). A row whose " +
+		"image is not the pin is rendered stale (tools/gauntlet's floci-az row check) until the maintainer re-runs it",
+
+	"live/gauntlet-board.json": "the board data `go run ./tools/gauntlet render` derives from live/gauntlet.json; " +
+		"it quotes each row's measured image and says Stale beside it when that is not the pin",
 }
 
 // TestFlociAzPinLiteralsMatchThePin is the tree-wide guard.

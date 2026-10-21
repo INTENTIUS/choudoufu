@@ -16,10 +16,9 @@
 # assignments with enforcement (02ae4a5, bb225ad) are served by floci-az
 # since 30000b0, and the compose service turns both on; not yet run.
 #
-# What floci-az cannot answer today (live/FLOCI.md, Azure): every plan's
-# sweep is a Resource Graph query, and its KQL subset refuses the query's
-# union, mv-expand and bag_keys, so Alice's apply is expected to stop
-# there. The BREAK arm would pass against an emulator that denied nothing,
+# Every plan's sweep is a Resource Graph query, which floci-az runs as sent
+# since dfa33ca (lex00/floci-az#11; live/FLOCI.md, Azure), so Alice's apply
+# is expected to get past it. The BREAK arm would pass against an emulator that denied nothing,
 # which is why it runs only after step 3's refusals have been seen. The
 # RBAC half (live/azure/estate-grant.json) is not in this scenario yet:
 # every caller here is the same principal, and the boundary measured is

@@ -25,10 +25,9 @@
 # record blob's previous version. azapi_resource subnets are left out: the
 # removal leg does not read azapi_resource records yet.
 #
-# Not yet run, so its cell reads unproven. It waits on the emulator:
-# a plan's sweep is a Resource Graph query. floci-az serves Resource Graph
-# since 30000b0, but its KQL subset refuses the query's union, mv-expand
-# and bag_keys with 400 InvalidQuery (live/FLOCI.md, Azure).
+# Not yet run, so its cell reads unproven. A plan's sweep is a Resource
+# Graph query, which floci-az runs as sent, union, mv-expand and bag_keys
+# included, since dfa33ca (lex00/floci-az#11; live/FLOCI.md, Azure).
 
 SMOKE_WORK="$SMOKE_WORKROOT/az-a-removed-derived-block-is-destroyed"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

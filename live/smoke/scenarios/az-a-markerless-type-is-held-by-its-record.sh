@@ -22,14 +22,13 @@
 # azurerm_management_group.minted and the name it omits
 # (internal/live/stamp/unmarked.go, NAME_OMITTED).
 #
-# Not yet run, so its cell reads unproven. It waits on the emulator twice.
-# floci-az's generic ARM store, served since 30000b0, keeps
-# subscription-scoped ids only, so the management group's tenant-scoped
-# create (/providers/Microsoft.Management/managementGroups/{name}) still
-# answers 404 there. And every plan's sweep is a Resource Graph query,
-# which floci-az serves since 30000b0 with a KQL subset that refuses the
-# query's union, mv-expand and bag_keys (live/FLOCI.md, Azure). The BREAK
-# arm reads the configuration offline and needs neither.
+# Not yet run, so its cell reads unproven. It used to wait on the emulator
+# twice, and floci-az dfa33ca closes both: its generic ARM store keeps the
+# management group's tenant-scoped id
+# (/providers/Microsoft.Management/managementGroups/{name},
+# lex00/floci-az#12), and it runs every plan's Resource Graph sweep query
+# as sent (lex00/floci-az#11; live/FLOCI.md, Azure). The BREAK arm reads
+# the configuration offline and needs neither.
 
 SMOKE_WORK="$SMOKE_WORKROOT/az-a-markerless-type-is-held-by-its-record"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK

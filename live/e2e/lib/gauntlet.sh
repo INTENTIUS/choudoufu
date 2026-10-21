@@ -1912,14 +1912,17 @@ gauntlet_plan_line() {
 # clause a removal verdict appends when the plan warned "Azure sweep
 # unavailable"; empty when it did not. A removed block's resource of a type
 # that takes tags is found only by the Resource Graph sweep (the record leg
-# skips it, internal/live/discovery/recordorphan_read.go), and floci-az's KQL
-# subset refuses the sweep's query (lex00/floci-az#11), so on floci-az a
-# day2_remove or a scale-down of such a type plans no destroy. The clause
-# names that gap, so the verdict says which side has to move (#1120's stage
-# audit); a verdict without it failed for some other reason.
+# skips it, internal/live/discovery/recordorphan_read.go), so a plan whose
+# sweep failed plans no destroy for a day2_remove or a scale-down of such a
+# type. floci-az runs the sweep's query as sent since dfa33ca
+# (lex00/floci-az#11, which refused its union, mv-expand and bag_keys at
+# 30000b0), so the warning is no longer expected there: the clause names
+# it, and the warning's own detail in the log says what refused the query
+# this time (#1120's stage audit). A verdict without it failed for some
+# other reason.
 gauntlet_azure_sweep_note() {
   if grep -qF "Azure sweep unavailable" ; then
-    printf '%s' '; the plan warned "Azure sweep unavailable": floci-az refuses the Resource Graph sweep'"'"'s query (lex00/floci-az#11), and only the sweep finds a removed resource of a type that takes tags'
+    printf '%s' '; the plan warned "Azure sweep unavailable": the Resource Graph sweep failed, which floci-az should no longer do since dfa33ca (lex00/floci-az#11), and only the sweep finds a removed resource of a type that takes tags'
   fi
   return 0
 }

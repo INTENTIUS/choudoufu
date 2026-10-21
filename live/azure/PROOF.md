@@ -20,9 +20,10 @@ claim held, and `BREAK=1` to manufacture the fault.
 
 Since `30000b0`, floci-az serves what the claims were waiting on: Resource
 Graph, role assignments with enforcement, Policy `deny` and `denyAction`
-evaluation, and the storage settings the record store checks. None of it
-has run yet. One gap still stops every plan: the sweep's query uses
-`union`, `mv-expand` and `bag_keys`, which floci-az's KQL subset refuses.
+evaluation, and the storage settings the record store checks. Since
+`dfa33ca` it also runs the sweep's query, `union`, `mv-expand` and
+`bag_keys` included, which had stopped every plan before. None of it has
+run in a scenario yet.
 [`live/FLOCI.md`](../FLOCI.md#azure-floci-az) lists each surface and its
 limits. Code that needs a missing capability waits for the fork
 ([`live/ADDING-A-PLATFORM.md`](../ADDING-A-PLATFORM.md#emulator-policy)).
@@ -75,9 +76,8 @@ repository (`live/e2e/reference-azure/`): a resource group, a VNet with a
 subnet, a network security group with one rule, a storage account, a
 user-assigned identity, a public IP, two `count` identities, and one
 `azapi_resource` identity. It is built and has not been run. floci-az keeps
-tags on storage accounts and answers their `PATCH` since `30000b0`, but a
-choudoufu plan's sweep is refused there, its query being outside the
-emulator's KQL subset.
+tags on storage accounts and answers their `PATCH` since `30000b0`, and
+runs a choudoufu plan's sweep query since `dfa33ca`.
 
 Claim 6 (stock in, stock out) has no Azure scenario. Its intended proof is
 `reference-azure`'s `cold_deploy` and `migrate` stages.

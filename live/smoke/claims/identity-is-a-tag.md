@@ -104,6 +104,5 @@ the VNet with an ARM PATCH: the default replan must refuse the VNet by name
 ("Unmarked live object at the declared id would be overwritten") rather
 than PUT over it, and with `policy { declared_untagged = "adopt" }` the
 apply must write the tag back. A plan reaches the Resource Graph sweep.
-Resource Graph is served by floci-az since 30000b0, but the
-sweep's query uses `union`, `mv-expand` and `bag_keys`, which its KQL
-subset refuses ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads unproven.
+Floci-az runs the sweep's Resource Graph query, `union`, `mv-expand` and
+`bag_keys` included, since dfa33ca (lex00/floci-az#11), not yet run ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads unproven.

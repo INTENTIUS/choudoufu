@@ -233,8 +233,8 @@ a sweep failure is a refusal registered in `discovery/refusals.go`. Per
 platform: the call shape and the consistency lag. GCP's is Cloud Asset
 Inventory, and sweep equivalence waits on lex00/floci-gcp#7 (#1121). Azure's
 is Resource Graph, one query per subscription. floci-az serves Resource
-Graph since 30000b0, but with a KQL subset that refuses the sweep query's
-`union`, `mv-expand` and `bag_keys` (`live/FLOCI.md`).
+Graph since 30000b0, and the sweep query's `union`, `mv-expand` and
+`bag_keys` since dfa33ca (`live/FLOCI.md`).
 
 ### 9. Record store
 
@@ -398,8 +398,8 @@ and rule where the address lives together with the carrier.
 Azure did that: the family value and the address carrier came in unit 1,
 with the carrier ruling. It also built every step before any could run,
 because the emulator lacked the sweep, the fence and the store's settings
-(`live/FLOCI.md`). floci-az serves all three since 30000b0, not yet run,
-and the sweep's query still falls outside its KQL subset. Only the ruling and admission are closed, admission by
+(`live/FLOCI.md`). floci-az serves all three since 30000b0, and the
+sweep's query since dfa33ca, not yet run. Only the ruling and admission are closed, admission by
 `internal/live/check/testdata/azure-synthesis-golden.txt` and the two lint
 fixtures; every step a claim or the lane closes is still open.
 

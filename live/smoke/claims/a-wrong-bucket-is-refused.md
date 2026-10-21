@@ -96,7 +96,6 @@ records. `BREAK=1` removes the fences and waives all three with
 The three settings and a configurable storage suffix, which `azure_up`
 sets so the store's blob calls stay on the emulator, are served by
 floci-az since 30000b0, not yet run. It stores the settings and reads them
-back, and makes no blob versions. Resource Graph is served by floci-az since 30000b0, but the
-sweep's query uses `union`, `mv-expand` and `bag_keys`, which its KQL
-subset refuses ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads
+back, and makes no blob versions. Floci-az runs the sweep's Resource Graph query, `union`, `mv-expand` and
+`bag_keys` included, since dfa33ca (lex00/floci-az#11), not yet run ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads
 unproven.

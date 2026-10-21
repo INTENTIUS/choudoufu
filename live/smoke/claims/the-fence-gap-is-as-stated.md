@@ -43,10 +43,9 @@ plan proposes her subnet back.
 `BREAK=1` removes the assignments after the tagged create is refused, and
 that create must then land. Policy evaluation and role assignments with
 enforcement are served by floci-az since 30000b0, not yet run; the RBAC
-half is not in the scenario yet. floci-az's `mode: Indexed` skips only
-resource groups, where Azure skips every type without tags, so there the
-marker guard denies the untagged subnet create this claim says goes
-through, and that step is expected to fail for the emulator's reason.
-Resource Graph is served by floci-az since 30000b0, but the
-sweep's query uses `union`, `mv-expand` and `bag_keys`, which its KQL
-subset refuses ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads unproven.
+half is not in the scenario yet. floci-az's `mode: Indexed` skips every
+type without tags and a location since dfa33ca (lex00/floci-az#14), as
+Azure does, so the untagged subnet create this claim says goes through is
+expected to land there too.
+Floci-az runs the sweep's Resource Graph query, `union`, `mv-expand` and
+`bag_keys` included, since dfa33ca (lex00/floci-az#11), not yet run ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads unproven.
