@@ -1457,6 +1457,10 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 					fail(sibBefore, attr.Name)
 					continue
 				}
+				if r.longFormRefused(comp, addr, attr, got) {
+					fail(sibBefore, "")
+					continue
+				}
 				parts = append(parts, got...)
 				addTo(comp.identityAttrFor(attr.Name), got)
 				continue
@@ -1730,6 +1734,10 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			fail(sibBefore, attr.Name)
 			continue
 		}
+		if r.longFormRefused(comp, addr, attr, got) {
+			fail(sibBefore, "")
+			continue
+		}
 		// The identity-attribute formula gets the resolved value alone; a
 		// prefix Literal (see [Component.Literal] and [Component.OmitIfAbsent])
 		// is punctuation in the import-ID STRING, not part of the identity
@@ -1791,6 +1799,42 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	res := classify(addr, coalesce(parts), attrFormulas(byAttr, attrOrder), entry.IdentityObjectOnly)
 	res.cloudScope = cloudScope
 	return res, true
+}
+
+// longFormRefused refuses a [Component.LongForm] value this package would
+// substitute whole where the provider rewrites it first (#2144): one
+// carrying a "/", or one not known until apply. It reports whether it did.
+// The two rewrites are not composed yet, and substituting the value as
+// written builds an id stock would never build - `.id` of a secret doubles
+// its path, and a literal naming another project lands in this one - so
+// the instance is refused by name instead. A value with no "/" is the
+// short form both rewrites leave unchanged, and resolves as before.
+func (r *resolver) longFormRefused(comp Component, addr addrs.AbsResourceInstance, attr *hcl.Attribute, got []Part) bool {
+	if comp.LongForm == "" {
+		return false
+	}
+	var b strings.Builder
+	for _, p := range got {
+		if p.Parent != nil {
+			r.errorf(attr.Range, "Long-form identity argument not composed yet",
+				"%s sets %s from %s, which is not known until apply. %s, and this fork does not compose that yet (#2144), "+
+					"so it cannot say whether the value is the long form or the short one and will not build an id from it. "+
+					"Write the short name (the parent's name rather than its id) to resolve it now.",
+				addr.String(), attr.Name, p.Parent.String(), comp.LongForm.describe())
+			return true
+		}
+		b.WriteString(p.Literal)
+	}
+	v := b.String()
+	if !strings.Contains(v, "/") {
+		return false
+	}
+	r.errorf(attr.Range, "Long-form identity argument not composed yet",
+		"%s sets %s to %q, a long-form value. %s, and this fork does not compose that yet (#2144); substituting the "+
+			"value as written would build an id the provider never builds, so the instance is refused rather than "+
+			"given a wrong identity. Write the short name (the parent's name rather than its id) to resolve it now.",
+		addr.String(), attr.Name, v, comp.LongForm.describe())
+	return true
 }
 
 // attrFormulas turns the per-attribute part lists into the ordered form a

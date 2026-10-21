@@ -23,7 +23,7 @@ import (
 var (
 	registryRe = regexp.MustCompile(`registry\.Schema\{\s*Name:\s*"(google_[a-z0-9_]+)",\s*ProductName:\s*"[^"]*",\s*Type:\s*registry\.(SchemaTypeResource|SchemaTypeIAMResource),`)
 
-	idFormatRe = regexp.MustCompile(`\bid, err := tpgresource\.ReplaceVars(?:ForId)?\(d, config, "([^"]+)"\)`)
+	idFormatRe = regexp.MustCompile(`\bid, err := tpgresource\.ReplaceVars(ForId)?\(d, config, "([^"]+)"\)`)
 
 	// importRe is the generated importer's shape: ParseImportId over a
 	// list of regexes, then the id the imported instance is given.
@@ -42,12 +42,20 @@ var (
 	// section: "* `{{key_ring}}/cryptoKeys/{{name}}`".
 	docImportRe = regexp.MustCompile("(?m)^\\* `([^`]+)`[ \t]*$")
 
-	parseFuncRe   = regexp.MustCompile(`func (\w+IdParseFunc)\(d \*schema\.ResourceData`)
-	qualifiersRe  = regexp.MustCompile(`GetImportIdQualifiers\(\[\]string\{"([^"]+)"`)
-	wholeIDSetRe  = regexp.MustCompile(`d\.Set\("([a-z0-9_]+)", d\.Id\(\)\)`)
-	namedGroupRe  = regexp.MustCompile(`\(\?P<([a-z0-9_]+)>(?:\[\^/\]\+|\.\+)\)`)
-	iamDefaultRe  = regexp.MustCompile(`tpgresource\.Get(Project|Region|Zone|Location)\(d, config\)`)
-	iamExpectedRe = regexp.MustCompile(`expected '([^']+)'`)
+	parseFuncRe  = regexp.MustCompile(`func (\w+IdParseFunc)\(d \*schema\.ResourceData`)
+	qualifiersRe = regexp.MustCompile(`GetImportIdQualifiers\(\[\]string\{"([^"]+)"`)
+
+	// producerFuncRe and qualifiedArgRe find the argument an IAM updater
+	// producer hands to GetImportIdQualifiers: `GetImportIdQualifiers(
+	// []string{...}, d, config, d.Get("secret_id").(string))`. That
+	// argument is parsed as a long form or a short one and rebuilt into
+	// the canonical parent name.
+	producerFuncRe = regexp.MustCompile(`func \w+IamUpdaterProducer\(d tpgresource\.TerraformResourceData`)
+	qualifiedArgRe = regexp.MustCompile(`GetImportIdQualifiers\(\[\]string\{[^}]*\}, d, config, d\.Get\("([a-z0-9_]+)"\)\.\(string\)\)`)
+	wholeIDSetRe   = regexp.MustCompile(`d\.Set\("([a-z0-9_]+)", d\.Id\(\)\)`)
+	namedGroupRe   = regexp.MustCompile(`\(\?P<([a-z0-9_]+)>(?:\[\^/\]\+|\.\+)\)`)
+	iamDefaultRe   = regexp.MustCompile(`tpgresource\.Get(Project|Region|Zone|Location)\(d, config\)`)
+	iamExpectedRe  = regexp.MustCompile(`expected '([^']+)'`)
 
 	setIDVarRe = regexp.MustCompile(`d\.SetId\((\w+)\)`)
 
@@ -229,7 +237,8 @@ func extractSources(dir string) (map[string]Source, error) {
 func resourceSource(text string) Source {
 	s := Source{Kind: "resource"}
 	if m := idFormatRe.FindStringSubmatch(text); m != nil {
-		s.IDFormat = m[1]
+		s.IDFormat = m[2]
+		s.IDShortened = m[1] != ""
 	}
 	if m := importRe.FindStringSubmatch(text); m != nil {
 		for _, q := range quotedRe.FindAllStringSubmatch(m[1], -1) {
@@ -361,6 +370,15 @@ func iamSource(typeName, text string, grammar map[string]string) Source {
 		}
 	}
 	sort.Strings(s.IAMDefaults)
+	if prods := producerFuncRe.FindAllStringIndex(text, -1); len(prods) == 1 {
+		body := text[prods[0][0]:]
+		if end := strings.Index(body, "\n}\n"); end >= 0 {
+			body = body[:end]
+		}
+		if m := qualifiedArgRe.FindAllStringSubmatch(body, -1); len(m) == 1 {
+			s.IAMQualified = m[0][1]
+		}
+	}
 	funcs := parseFuncRe.FindAllStringSubmatchIndex(text, -1)
 	if len(funcs) != 1 {
 		// No parse function, or several in one file: which one this type

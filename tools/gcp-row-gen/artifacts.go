@@ -54,6 +54,14 @@ type Source struct {
 	// the resource's id.
 	IDFormat string `json:"id_format,omitempty"`
 
+	// IDShortened is set when that call is tpgresource.ReplaceVarsForId,
+	// which substitutes only the last path segment of each argument's
+	// value (GetResourceNameFromSelfLink) and trims "projects/",
+	// "regions/" and "zones/" off the scope values. A long-form value
+	// written into such an argument names a different id than a row that
+	// substitutes the value whole (#2144).
+	IDShortened bool `json:"id_shortened,omitempty"`
+
 	// ImportIDFormat is the template the importer passes to ReplaceVars
 	// after ParseImportId, the id an imported instance ends up with.
 	ImportIDFormat string `json:"import_id_format,omitempty"`
@@ -82,6 +90,13 @@ type Source struct {
 	// reads it: the first GetImportIdQualifiers regex turned into a
 	// template, or "{{attr}}" where the function sets attr to the whole id.
 	IAMParent string `json:"iam_parent,omitempty"`
+
+	// IAMQualified is the argument the IAM updater producer parses with
+	// GetImportIdQualifiers, `d.Get("secret_id").(string)`: written as a
+	// long form (projects/{p}/secrets/{s}) or a short one ({s}), it is
+	// rebuilt into the canonical parent name rather than substituted as
+	// written (#2144).
+	IAMQualified string `json:"iam_qualified,omitempty"`
 
 	// IAMDefaults are the arguments an IAM type's file fills in from the
 	// provider when the resource leaves them unset, read off its calls to

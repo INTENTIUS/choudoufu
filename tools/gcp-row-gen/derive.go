@@ -209,6 +209,13 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc
 		if tok.into != "" {
 			comp.IdentityAttr = intoAttr(tok)
 		}
+		if src.IDShortened {
+			// ReplaceVarsForId substitutes the last path segment of every
+			// argument it reads, and trims "projects/", "regions/" and
+			// "zones/" off the scope values; the row substitutes the whole
+			// value (#2144).
+			comp.LongForm = identity.LongFormLastSegment
+		}
 		if cloud, ok := cloudPlaceholders[name]; ok && flag != "R" {
 			if flag != "" {
 				comp.Attrs = []string{name}
@@ -330,6 +337,12 @@ func decideIAM(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Dec
 		}
 		flag := attrFlags(tfs, tok.name)
 		comp := identity.Component{IdentityAttr: idAttr(tok.name)}
+		if tok.name == src.IAMQualified {
+			// The updater producer parses this argument with
+			// GetImportIdQualifiers and rebuilds the canonical parent from
+			// it; the row substitutes it as written (#2144).
+			comp.LongForm = identity.LongFormIAMParent
+		}
 		if cloud, ok := iamCloud(src, tfs, tok.name); ok && flag != "R" {
 			if flag != "" {
 				comp.Attrs = []string{tok.name}

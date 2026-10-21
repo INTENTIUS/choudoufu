@@ -579,6 +579,51 @@ type Component struct {
 	// that gives this type an identity schema is the point at which the
 	// question becomes real, and [checkIdentity] is what would raise it.
 	PerElement bool
+
+	// LongForm names a rewrite the provider applies to this argument's
+	// value before it becomes part of the id, which the row does not
+	// reproduce yet (#2144). Empty, the ordinary case, means the value is
+	// substituted as written, which is what the provider does too.
+	//
+	// Set, a resolved value carrying a "/" refuses the instance by name
+	// rather than build an id the provider would never have built: the
+	// whole value substituted into a template that already spells the
+	// path around it. A short value, the parent's name rather than its
+	// id, resolves exactly as before. A value only an apply can know is
+	// refused too, since nothing before then says which form it takes.
+	// Both kinds are written by tools/gcp-row-gen from the pinned
+	// provider source; see [LongFormRule].
+	LongForm LongFormRule
+}
+
+// LongFormRule is the provider-side rewrite a [Component.LongForm] argument
+// goes through.
+type LongFormRule string
+
+const (
+	// LongFormIAMParent is an IAM type's parent argument, which the
+	// updater producer parses with tpgresource.GetImportIdQualifiers: a
+	// long form (projects/{p}/secrets/{s}) or a short one ({s}) is
+	// rebuilt into the canonical parent name, the long form's project
+	// taking precedence over the provider's.
+	LongFormIAMParent LongFormRule = "iam-parent"
+
+	// LongFormLastSegment is an argument of a type whose create builds
+	// its id with tpgresource.ReplaceVarsForId, which substitutes only
+	// the last path segment of the value (GetResourceNameFromSelfLink).
+	LongFormLastSegment LongFormRule = "last-segment"
+)
+
+// describe is what the provider does to such a value, as a sentence for
+// the refusal.
+func (l LongFormRule) describe() string {
+	switch l {
+	case LongFormIAMParent:
+		return "The provider's IAM updater parses this argument as a long or a short name and rebuilds the canonical parent from it"
+	case LongFormLastSegment:
+		return "The provider's create keeps only the last path segment of this argument's value (tpgresource.ReplaceVarsForId)"
+	}
+	return "The provider rewrites this argument's value before it becomes part of the id"
 }
 
 // PerElementShrinkCaveat records what a per-element identity does NOT

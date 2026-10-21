@@ -2829,6 +2829,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Invalid value for input variable | error | `internal/configs` | "Invalid value for input variable" |
 | 0 | 0 | identity | Iteration over non-iterable value | error | `hcl` | "Iteration over non-iterable value" |
 | 0 | 0 | identity | Iteration over null value | error | `hcl` | "Iteration over null value" |
+| - | - | identity | Long-form identity argument not composed yet | error | `internal/live/identity` | "Long-form identity argument not composed yet" |
 | 0 | 0 | identity | Missing map element | error | `hcl` | "Missing map element" |
 | 0 | 0 | identity | No configuration to resolve | error | `internal/live/identity` | "No configuration to resolve" |
 | 0 | 0 | identity | No configuration to scan | error | `internal/live/identity` | "No configuration to scan" |
@@ -2981,7 +2982,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**287 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**288 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4038,6 +4039,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Long-form identity argument not composed yet
+
+**What.** A google identity argument the provider rewrites before it becomes part of the id - an IAM type's parent, parsed as a long or short name, or an argument of a type whose create keeps only its last path segment - is written as a long form (it carries a "/", the parent's id rather than its name) or is not known until apply. The rewrite is not composed yet (#2144), and substituting the value whole would build a wrong id, so the instance is refused by name. A short value resolves.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Missing map element
 
