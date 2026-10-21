@@ -15,6 +15,8 @@ A marker names the estate that owns a resource. The create call writes it.
 |---|---|
 | AWS | Tags `tofu-estate` and `tofu-address`, plus `tofu-slot` on pool members |
 | Kubernetes | The `tofu-estate` label, with the address in an annotation |
+| GCP | Labels `tofu-estate` and `tofu-address`, the address as a hash |
+| Azure | Tags `tofu-estate` and `tofu-address`, keys matched case-insensitively |
 
 On Kubernetes a plan finds each kind by the label and joins each object to its
 block on namespace and name.

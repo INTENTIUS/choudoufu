@@ -1,0 +1,44 @@
+---
+title: Operate
+description: Rename, records, remove.
+prompt: |
+  Follow https://intentius.io/choudoufu/gcp/operate/ for my change. Edit the configuration, run `choudoufu plan -out=plan.bin` and report the plan.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+## Rename
+
+`live-mv <old> <new>` or a `moved` block rewrites the `tofu-address` label.
+
+### Records
+
+```hcl
+record_store "gcs" {
+  bucket = "my-records-bucket"
+}
+```
+
+One bucket per estate ([CONTRACT.md](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-gcs/CONTRACT.md)).
+
+## Remove
+
+Delete the block to destroy it. `policy { undeclared_tagged = "untag" }` releases it.
+
+## Scale
+
+Server-named `count` members carry `tofu-slot`.
+
+## Plan, review, apply
+
+`apply FILE` exits 3 if the live system moved since the plan.
+
+## From CI
+
+See the [CI how-to](/choudoufu/docs/use/cicd/).
+
+## Two runs at once
+
+Conditional writes let one apply win each record ([OPERATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/gcp/OPERATE.md)).

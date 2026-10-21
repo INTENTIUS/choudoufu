@@ -1,0 +1,29 @@
+---
+title: Gate
+description: A role grants resource groups. Policy checks the tag.
+prompt: |
+  Follow https://intentius.io/choudoufu/azure/gate/. Draft the two `az deployment sub create` lines for one principal and show them to me.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+An estate owns the resource groups it declares. Deploy two templates:
+
+```
+az deployment sub create --location <region> \
+  --template-file live/azure/estate-grant.json \
+  --parameters estate=<estate> resourceGroups='["<rg>"]' principalId=<object-id>
+az deployment sub create --location <region> \
+  --template-file live/azure/estate-boundary.json \
+  --parameters estate=<estate> resourceGroups='["<rg>"]'
+```
+
+## What that buys
+
+The grant gives one principal a role on those groups. Handing over moves the assignments, and `az` meets the same fence.
+
+## Guarding the marker
+
+The boundary Policy denies a write whose `tofu-estate` names another estate ([GATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/azure/GATE.md)).

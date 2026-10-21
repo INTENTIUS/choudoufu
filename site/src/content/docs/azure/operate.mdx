@@ -1,0 +1,46 @@
+---
+title: Operate
+description: Rename, records, remove.
+prompt: |
+  Follow https://intentius.io/choudoufu/azure/operate/ for my change. Edit the configuration, run `choudoufu plan -out=plan.bin` and report the plan.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+## Rename
+
+`live-mv <old> <new>` or a `moved` block rewrites the `tofu-address` tag.
+
+### Records
+
+```hcl
+record_store "azurerm" {
+  storage_account_name = "myrecords"
+  container_name       = "records"
+  resource_group_name  = "records-rg"
+}
+```
+
+Records are tagged blobs ([CONTRACT.md](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-azurerm/CONTRACT.md)).
+
+## Remove
+
+The plan proposes deleting an undeclared resource with your tag.
+
+## Scale
+
+`count` members carry `tofu-slot`.
+
+## Plan, review, apply
+
+`apply FILE` exits 3 if the live system moved since the plan.
+
+## From CI
+
+See the [CI how-to](/choudoufu/docs/use/cicd/).
+
+## Two runs at once
+
+Conditional writes let one apply win each record ([OPERATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/azure/OPERATE.md)).

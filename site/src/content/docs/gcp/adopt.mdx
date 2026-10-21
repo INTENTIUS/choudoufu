@@ -1,0 +1,28 @@
+---
+title: Adopt
+description: Labels mark each resource. One command migrates a stock state file.
+prompt: |
+  Follow https://intentius.io/choudoufu/gcp/adopt/. Run `choudoufu live-import -state=stock.tfstate -estate=<name>` without `-approve` and report its output.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+A resource is yours once its `labels` carry `tofu-estate` and `tofu-address`.
+
+## The bulk path
+
+```
+choudoufu live-import -state=stock.tfstate -estate=my-estate -approve
+```
+
+Without `-approve` it previews. Approved, it writes the labels through a labels-only plan.
+
+## What binds on its own
+
+Networks and other types with no `labels` map bind by the name and project you declare.
+
+## Leaving
+
+Copy the cache to `terraform.tfstate` and remove the `live` block ([Migrate](/choudoufu/docs/use/migrate/)).

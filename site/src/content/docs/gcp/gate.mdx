@@ -1,0 +1,26 @@
+---
+title: Gate
+description: One estate per project. Project IAM bindings grant it.
+prompt: |
+  Follow https://intentius.io/choudoufu/gcp/gate/. Draft the project IAM bindings granting one principal this estate and show them to me.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+Each estate gets its own project. Its runner holds the project bindings:
+
+```
+gcloud services enable cloudasset.googleapis.com --project=PROJECT
+gcloud projects add-iam-policy-binding PROJECT --member=PRINCIPAL --role=roles/cloudasset.viewer --condition=None
+gcloud projects add-iam-policy-binding PROJECT --member=PRINCIPAL --role=ROLE --condition=None
+```
+
+## What that buys
+
+Reads and writes are fenced per principal. Handing an estate over moves the bindings, and `gcloud` meets the same fence.
+
+## Guarding the marker
+
+Keep folder and organization bindings to the admins who create projects ([estate-grant.sh](https://github.com/INTENTIUS/choudoufu/blob/main/live/gcp/estate-grant.sh)).
