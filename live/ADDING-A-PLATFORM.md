@@ -328,7 +328,6 @@ Things one platform meets and the other does not, as the tree says today:
   `live/floci-capabilities.json` (`live/SUBSTRATES.md`).
 - AWS's sweep cannot find a type with no row; Kubernetes's can.
 - Kubernetes has no slots or continuation markers, by ruling.
-- Claim 47 (`plan-cost-tracks-the-change`) reads `open` on Kubernetes.
 
 ## Build order
 

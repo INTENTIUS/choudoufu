@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"testing"
 )
@@ -26,26 +25,23 @@ import (
 // so since then no claim scenario runs anywhere except by hand, and the
 // exemption read "proven" on nobody's run for about forty proofs.
 //
-// The rule now covers every proof in a proven or restated cell, whatever
-// it runs on. A proof is dated when it is
+// The rule covers every proof in a proven cell, whatever it runs on. A proof is dated when it is
 //
 //   - a scenario whose evidence includes a file with a YYYY-MM-DD "date"
 //     field (live/smoke/evidence/<name>.lastrun.json, written from the
 //     run's two logs), or whose last_run carries a proven result with a
 //     YYYY-MM-DD date. last_run is the last result measured, kept across
-//     releases the way live/gauntlet.json keeps a row's last_run, and a
-//     page that renders it says when it is older than the newest release
+//     releases the way live/gauntlet.json keeps a row's last_run
 //     (live/claims_last_run_test.go holds each one to git history);
 //   - steps of another claim's scenario (proven_by), whose own proof is
 //     dated; or
 //   - a gauntlet stage (stage: "<estate>:<stage id>") whose row in
 //     live/gauntlet.json reads pass and records the date of that stage's
 //     run. It counts only while it reads pass: the day a re-measure turns
-//     it red, this test fails until the cell reads unproven.
+//     it red, this test fails.
 //
-// A cell with any undated proof reads unproven, and keeps its proofs, which
-// still say what would prove it. An unproven cell whose every proof is
-// dated fails too, so a cell does not stay unproven after its run lands.
+// A promise with an undated proof is no claim: the proof leaves the cell,
+// or the claim leaves the list for a GitHub issue.
 
 // provenCellEvidenceDate matches a lastrun evidence file's "date" field:
 // YYYY-MM-DD, the spelling every existing evidence file under
@@ -192,8 +188,8 @@ func undatedProofs(f smokeClaimsFile, c smokeClaim, provider string, rows map[st
 	return out
 }
 
-// datedRunProblems is the rule over the whole file: a proven or restated
-// cell has no undated proof, and an unproven cell has at least one.
+// datedRunProblems is the rule over the whole file: a proven cell has no
+// undated proof.
 func datedRunProblems(f smokeClaimsFile, rows map[string]gauntletStageRow, date evidenceDateFunc) []string {
 	var out []string
 	for _, c := range f.Claims {
@@ -202,16 +198,11 @@ func datedRunProblems(f smokeClaimsFile, rows map[string]gauntletStageRow, date 
 			if !ok {
 				continue
 			}
-			undated := undatedProofs(f, c, p, rows, date)
-			switch cell.Status {
-			case "proven", "restated":
-				for _, u := range undated {
-					out = append(out, fmt.Sprintf("claim %d (%s) reads %s, and %s; a cell is proven on a dated run or a passing stage, so it reads unproven until one lands", c.ID, p, cell.Status, u))
-				}
-			case "unproven":
-				if len(undated) == 0 {
-					out = append(out, fmt.Sprintf("claim %d (%s) reads unproven, and every one of its %d proof(s) names a dated run or a passing stage; it reads proven", c.ID, p, len(cell.Proofs)))
-				}
+			if cell.Status != "proven" {
+				continue
+			}
+			for _, u := range undatedProofs(f, c, p, rows, date) {
+				out = append(out, fmt.Sprintf("claim %d (%s): %s; a cell is proven on a dated run or a passing stage, and a promise without one is a GitHub issue", c.ID, p, u))
 			}
 		}
 	}
@@ -225,21 +216,18 @@ func TestProvenCellsNameADatedRun(t *testing.T) {
 	for _, p := range datedRunProblems(f, rows, readEvidenceDate) {
 		t.Error(p)
 	}
-	proven, unproven := 0, 0
+	proven := 0
 	for _, c := range f.Claims {
 		for _, cell := range c.Providers {
-			switch cell.Status {
-			case "proven":
+			if cell.Status == "proven" {
 				proven++
-			case "unproven":
-				unproven++
 			}
 		}
 	}
 	if proven == 0 {
 		t.Error("no cell reads proven; the rule is checking nothing")
 	}
-	t.Logf("%d cells read proven, %d unproven: %s", proven, unproven, unprovenCellsSummary(f))
+	t.Logf("%d cells read proven", proven)
 }
 
 // TestStageCitationsResolve: every stage a proof cites, in a cell of any
@@ -293,7 +281,9 @@ func TestDatedRunRuleCatches(t *testing.T) {
 		return smokeClaimsFile{ProviderOrder: []string{"aws"}, Claims: []smokeClaim{
 			{ID: 1, Providers: map[string]smokeClaimProviderCell{"aws": {Status: status, Proofs: proofs}}},
 			{ID: 2, Providers: map[string]smokeClaimProviderCell{"aws": {Status: "proven", Proofs: []smokeProof{scen("other", "dated.json")}}}},
-			{ID: 3, Providers: map[string]smokeClaimProviderCell{"aws": {Status: "unproven", Proofs: []smokeProof{scen("bare")}}}},
+			// Claim 3 is the source of a proven_by case below; the rule skips
+			// it, so its undated scenario is reported only through claim 1.
+			{ID: 3, Providers: map[string]smokeClaimProviderCell{"aws": {Status: "n/a", Proofs: []smokeProof{scen("bare")}}}},
 		}}
 	}
 	for _, tc := range []struct {
@@ -305,7 +295,6 @@ func TestDatedRunRuleCatches(t *testing.T) {
 		{"scenario with no evidence", file("proven", scen("a")), true},
 		{"scenario whose evidence has no date", file("proven", scen("a", "undated.json")), true},
 		{"one dated proof beside an undated one", file("proven", scen("a", "dated.json"), scen("b")), true},
-		{"restated and undated", file("restated", scen("a")), true},
 		{"passing dated stage", file("proven", smokeProof{Stage: "est:day2_crash"}), false},
 		{"failing stage", file("proven", smokeProof{Stage: "est:day2_remove"}), true},
 		{"passing stage with no run date", file("proven", smokeProof{Stage: "est:undated"}), true},
@@ -313,12 +302,9 @@ func TestDatedRunRuleCatches(t *testing.T) {
 		{"stage citation with no stage", file("proven", smokeProof{Stage: "est"}), true},
 		{"proven_by a dated scenario", file("proven", smokeProof{ProvenBy: 2, Command: "just smoke other"}), false},
 		{"proven_by an undated scenario", file("proven", smokeProof{ProvenBy: 3, Command: "just smoke bare"}), true},
-		{"unproven with every proof dated", file("unproven", scen("a", "dated.json")), true},
 		{"scenario carrying a proven last_run", file("proven", carried("a", "proven", "2026-10-11")), false},
-		{"last_run that did not read proven", file("proven", carried("a", "unproven", "2026-10-11")), true},
+		{"last_run that did not read proven", file("proven", carried("a", "failed", "2026-10-11")), true},
 		{"last_run with no date", file("proven", carried("a", "proven", "")), true},
-		{"unproven with a proven last_run", file("unproven", carried("a", "proven", "2026-10-11")), true},
-		{"unproven and undated", file("unproven", scen("a")), false},
 	} {
 		got := datedRunProblems(tc.f, rows, date)
 		if tc.report && len(got) == 0 {
@@ -328,18 +314,4 @@ func TestDatedRunRuleCatches(t *testing.T) {
 			t.Errorf("%s: the rule reported %v", tc.name, got)
 		}
 	}
-}
-
-// unprovenCellsSummary lists unproven cells by claim, for the log.
-func unprovenCellsSummary(f smokeClaimsFile) string {
-	var out []string
-	for _, c := range f.Claims {
-		for p, cell := range c.Providers {
-			if cell.Status == "unproven" {
-				out = append(out, fmt.Sprintf("%d/%s", c.ID, p))
-			}
-		}
-	}
-	sort.Strings(out)
-	return strings.Join(out, " ")
 }

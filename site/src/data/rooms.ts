@@ -22,35 +22,6 @@ export type Room = {
 
 const repo = (path: string) => `https://github.com/INTENTIUS/choudoufu/blob/main/${path}`;
 
-/** What every reader gets. */
-export const ASSUMED: Link[] = [
-	{ label: 'Deleting the state file changes no plan', href: '/how-it-works/cache/' },
-	{ label: 'The create call writes the estate marker', href: '/how-it-works/identity/' },
-	{ label: 'Record writes are conditional requests', href: repo('live/CONCURRENCY.md') },
-	{ label: 'A pull request plans only what it touches', href: repo('live/PLAN-CONE.md') },
-	{ label: 'Other estates are read live', href: '/docs/use/day2/' },
-	{ label: 'A saved plan refuses if its targets moved', href: repo('live/smoke/claims/apply-what-was-approved.md') },
-];
-
-/** Limits, each with its reason. */
-export const LIMITS: { label: string; why: string; href: string }[] = [
-	{
-		label: 'GCP and Azure',
-		why: 'Each still needs an admission table, marker carrier and emulator.',
-		href: repo('live/COMPATIBILITY.md'),
-	},
-	{
-		label: 'Untaggable AWS types',
-		why: 'live-import skips them. IAM tag conditions cannot govern them.',
-		href: repo('live/IDENTITY.md'),
-	},
-	{
-		label: 'Two plain applies at once',
-		why: 'The last writer wins. Apply a saved plan instead.',
-		href: repo('live/CONCURRENCY.md'),
-	},
-];
-
 /** The tiles. `carries` is what comes with you. */
 export const FROM: { id: string; label: string; blurb: string; room: string; carries: string[] }[] = [
 	{
@@ -286,8 +257,6 @@ export function roomLinks(): (Link & { where: string })[] {
 	for (const r of ROOMS) {
 		for (const l of [r.first, ...r.howto, ...r.explain, ...r.reference]) out.push({ ...l, where: `room ${r.id}` });
 	}
-	for (const l of ASSUMED) out.push({ ...l, where: 'ASSUMED' });
-	for (const l of LIMITS) out.push({ label: l.label, href: l.href, where: 'LIMITS' });
 	for (const s of STORES) out.push({ label: s.label, href: s.href, where: 'STORES' });
 	for (const p of PLATFORMS) out.push({ label: p.label, href: p.hub, where: 'PLATFORMS' });
 	return out;
