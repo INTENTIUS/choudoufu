@@ -24519,15 +24519,15 @@
     "counts": {
       "types": 1485,
       "tiers": {
-        "declaration-carried": 917,
+        "declaration-carried": 937,
         "marker-carried": 318,
-        "record-carried": 250
+        "record-carried": 230
       },
       "statuses": {
-        "in-contract": 1188,
-        "needs-evidence": 74,
-        "pending-mechanism": 150,
-        "pending-ratification": 73
+        "in-contract": 1210,
+        "needs-evidence": 32,
+        "pending-mechanism": 153,
+        "pending-ratification": 90
       }
     },
     "types": [
@@ -25742,11 +25742,11 @@
       },
       {
         "type": "google_app_engine_application",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -27392,11 +27392,11 @@
       {
         "type": "google_billing_subaccount",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-mechanism",
         "facts": {
           "taggable": false,
           "admitted": false,
-          "markerless": false,
+          "markerless": true,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -28867,10 +28867,10 @@
       {
         "type": "google_cloudfunctions_function",
         "tier": "marker-carried",
-        "status": "needs-evidence",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -29661,7 +29661,7 @@
       {
         "type": "google_compute_instance_from_machine_image",
         "tier": "marker-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -29675,7 +29675,7 @@
       {
         "type": "google_compute_instance_from_template",
         "tier": "marker-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -30342,11 +30342,11 @@
       },
       {
         "type": "google_compute_project_default_network_tier",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -30355,11 +30355,11 @@
       },
       {
         "type": "google_compute_project_metadata",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -31099,7 +31099,7 @@
       {
         "type": "google_compute_router_interface",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -31216,11 +31216,11 @@
       },
       {
         "type": "google_compute_shared_vpc_host_project",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -31229,11 +31229,11 @@
       },
       {
         "type": "google_compute_shared_vpc_service_project",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -31857,11 +31857,11 @@
       },
       {
         "type": "google_container_cluster",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -31884,7 +31884,7 @@
       {
         "type": "google_container_registry",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -33168,7 +33168,7 @@
       {
         "type": "google_dataproc_cluster",
         "tier": "marker-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -33263,7 +33263,7 @@
       {
         "type": "google_dataproc_job",
         "tier": "marker-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -33515,10 +33515,10 @@
       {
         "type": "google_dataproc_workflow_template",
         "tier": "marker-carried",
-        "status": "needs-evidence",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -34481,7 +34481,7 @@
       {
         "type": "google_endpoints_service",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -35170,11 +35170,11 @@
       },
       {
         "type": "google_firebaserules_release",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -35365,11 +35365,11 @@
       },
       {
         "type": "google_folder_organization_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -35841,11 +35841,11 @@
       },
       {
         "type": "google_gke_hub_feature_membership",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -37970,11 +37970,11 @@
       },
       {
         "type": "google_logging_billing_account_exclusion",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -37983,11 +37983,11 @@
       },
       {
         "type": "google_logging_billing_account_sink",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -38009,11 +38009,11 @@
       },
       {
         "type": "google_logging_folder_exclusion",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -38035,11 +38035,11 @@
       },
       {
         "type": "google_logging_folder_sink",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -38156,11 +38156,11 @@
       },
       {
         "type": "google_logging_organization_exclusion",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -38182,11 +38182,11 @@
       },
       {
         "type": "google_logging_organization_sink",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -38196,7 +38196,7 @@
       {
         "type": "google_logging_project_bucket_config",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -38208,11 +38208,11 @@
       },
       {
         "type": "google_logging_project_exclusion",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -38221,11 +38221,11 @@
       },
       {
         "type": "google_logging_project_sink",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -38583,11 +38583,11 @@
       {
         "type": "google_monitoring_dashboard",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-mechanism",
         "facts": {
           "taggable": false,
           "admitted": false,
-          "markerless": false,
+          "markerless": true,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -40244,11 +40244,11 @@
       {
         "type": "google_organization_iam_custom_role",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-mechanism",
         "facts": {
           "taggable": false,
           "admitted": false,
-          "markerless": false,
+          "markerless": true,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -40282,11 +40282,11 @@
       },
       {
         "type": "google_organization_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -40673,7 +40673,7 @@
       {
         "type": "google_project_default_service_accounts",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -40738,7 +40738,7 @@
       {
         "type": "google_project_iam_member_remove",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -40763,11 +40763,11 @@
       },
       {
         "type": "google_project_organization_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -40803,11 +40803,11 @@
       },
       {
         "type": "google_project_usage_export_bucket",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -42538,7 +42538,7 @@
       {
         "type": "google_sql_provision_script",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -42564,7 +42564,7 @@
       {
         "type": "google_sql_ssl_cert",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -42577,7 +42577,7 @@
       {
         "type": "google_sql_user",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -42644,7 +42644,7 @@
       {
         "type": "google_storage_bucket_acl",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -42696,7 +42696,7 @@
       {
         "type": "google_storage_bucket_object",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -42761,7 +42761,7 @@
       {
         "type": "google_storage_default_object_acl",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -42932,7 +42932,7 @@
       {
         "type": "google_storage_object_acl",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,

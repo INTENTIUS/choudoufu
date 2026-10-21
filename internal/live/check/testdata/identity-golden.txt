@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=720 instances=2490
-# shape: class CONCRETE=1537
+# shape: dirs=721 instances=2504
+# shape: class CONCRETE=1551
 # shape: class NEEDS_DISCOVERY=788
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=689 fixture-instances=1786
+# shape: fixture-dirs=690 fixture-instances=1800
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=3853943307a12cdd5dcdae93e5da28e08727047f7b42ef391667115a560ed89c
+# shape: body-sha256=8e233fdda1bf72998a9e30f9d6b5e55427c70a435cb68badaa78903924a4c372
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -377,6 +377,20 @@ internal/live/identity/testdata/formula-transform	aws_security_group.this[0]	NEE
 internal/live/identity/testdata/formula-transform	aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/formula-transform	module.cluster.aws_ecs_cluster.this[0]	CONCRETE	ex-fargate	name=ex-fargate
 internal/live/identity/testdata/formula-transform	module.svc.aws_ecs_service.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/gcp-handwritten	google_app_engine_application.app	CONCRETE	estate-prod	
+internal/live/identity/testdata/gcp-handwritten	google_cloudfunctions_function.fn	CONCRETE	projects/estate-prod/locations/europe-west1/functions/fn	name=fn
+internal/live/identity/testdata/gcp-handwritten	google_compute_shared_vpc_host_project.host	CONCRETE	host-prj	project=host-prj
+internal/live/identity/testdata/gcp-handwritten	google_compute_shared_vpc_service_project.svc	CONCRETE	host-prj/svc-prj	host_project=host-prj,service_project=svc-prj
+internal/live/identity/testdata/gcp-handwritten	google_container_cluster.defaulted	CONCRETE	projects/estate-prod/locations/europe-west1/clusters/gke-default	name=gke-default
+internal/live/identity/testdata/gcp-handwritten	google_container_cluster.regional	CONCRETE	projects/estate-prod/locations/us-east1/clusters/gke	location=us-east1,name=gke
+internal/live/identity/testdata/gcp-handwritten	google_dataproc_workflow_template.wt	CONCRETE	projects/estate-prod/locations/europe-west1/workflowTemplates/wt	location=europe-west1,name=wt
+internal/live/identity/testdata/gcp-handwritten	google_gke_hub_feature_membership.fm	CONCRETE	projects/estate-prod/locations/global/features/configmanagement/membershipId/m1	feature=configmanagement,location=global,membership=m1
+internal/live/identity/testdata/gcp-handwritten	google_logging_folder_sink.long	CONCRETE	folders/123/sinks/f	folder=123,name=f
+internal/live/identity/testdata/gcp-handwritten	google_logging_folder_sink.short	CONCRETE	folders/456/sinks/g	folder=456,name=g
+internal/live/identity/testdata/gcp-handwritten	google_logging_project_exclusion.noisy	CONCRETE	projects/estate-prod/exclusions/noisy	name=noisy
+internal/live/identity/testdata/gcp-handwritten	google_logging_project_sink.audit	CONCRETE	projects/estate-prod/sinks/audit	name=audit
+internal/live/identity/testdata/gcp-handwritten	google_organization_policy.org	CONCRETE	1234/constraints/compute.skipDefaultNetworkCreation	constraint=constraints/compute.skipDefaultNetworkCreation,org_id=1234
+internal/live/identity/testdata/gcp-handwritten	google_project_organization_policy.serial	CONCRETE	estate-prod:compute.disableSerialPortAccess	constraint=compute.disableSerialPortAccess,project=estate-prod
 internal/live/identity/testdata/gcp-iam-parse	google_bigquery_dataset_iam_member.ds	CONCRETE	projects/estate-prod/datasets/analytics roles/bigquery.dataViewer group:a@example.com	dataset_id=analytics,member=group:a@example.com,role=roles/bigquery.dataViewer
 internal/live/identity/testdata/gcp-iam-parse	google_dataproc_cluster_iam_member.cl	CONCRETE	projects/estate-prod/regions/europe-west1/clusters/batch roles/dataproc.viewer group:a@example.com	cluster=batch,member=group:a@example.com,role=roles/dataproc.viewer
 internal/live/identity/testdata/gcp-iam-parse	google_dataproc_metastore_database_iam_member.long	CONCRETE	projects/other/locations/us-east1/services/meta/databases/sales roles/metastore.user group:a@example.com	database=sales,location=us-east1,member=group:a@example.com,project=other,role=roles/metastore.user,service_id=meta

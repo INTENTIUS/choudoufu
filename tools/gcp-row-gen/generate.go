@@ -96,6 +96,9 @@ func (o Output) Files() map[string][]byte {
 
 // Generate is the whole derivation from the three evidence artifacts.
 func Generate(ev Evidence, facts Facts, names AssetNames) (Output, error) {
+	if err := checkImporterRulings(ev); err != nil {
+		return Output{}, err
+	}
 	byType := map[string]map[string]TypeFacts{}
 	for p, pf := range facts.Providers {
 		for t, tf := range pf.Types {

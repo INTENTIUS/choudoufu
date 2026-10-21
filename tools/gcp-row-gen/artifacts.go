@@ -150,6 +150,42 @@ type Source struct {
 	// statement of what it accepts.
 	DocImportFormats []string `json:"doc_import_formats,omitempty"`
 
+	// The Create* and Importer* fields are read for a resource whose file
+	// states no id format, by reading its Create and importer at code
+	// level (createread.go, #2145 item 1).
+	//
+	// CreateID is the id every non-empty d.SetId in the Create builds, as
+	// a template; CreateIDAt is where each of those calls is. CreateUnread
+	// is set instead when a piece of the id is not read from
+	// configuration, and says where and what; CreateMinted when that
+	// piece is what the API returned.
+	CreateID     string   `json:"create_id,omitempty"`
+	CreateIDAt   []string `json:"create_id_at,omitempty"`
+	CreateUnread string   `json:"create_unread,omitempty"`
+	CreateMinted bool     `json:"create_minted,omitempty"`
+
+	// CreateRaw are the project, region and zone placeholders the Create
+	// reads with d.Get, as written, with no provider default.
+	// CreateShort are those it keeps only the last path segment of, and
+	// CreateTrim maps one it trims a literal prefix off to the prefix.
+	// CreateLocated are those read by tpgresource.GetLocation.
+	CreateRaw     []string          `json:"create_raw,omitempty"`
+	CreateShort   []string          `json:"create_short,omitempty"`
+	CreateTrim    map[string]string `json:"create_trim,omitempty"`
+	CreateLocated []string          `json:"create_located,omitempty"`
+
+	// Importer is "passthrough" (schema.ImportStatePassthrough), "none",
+	// "func" (code of the type's own, at ImporterAt) or "unread".
+	// ImporterHash fingerprints that code (importerHash), ImporterFormats
+	// are its ParseImportId regexes, and ImporterID the id it sets, empty
+	// when it keeps the import string.
+	Importer        string   `json:"importer,omitempty"`
+	ImporterAt      string   `json:"importer_at,omitempty"`
+	ImporterHash    string   `json:"importer_hash,omitempty"`
+	ImporterFormats []string `json:"importer_formats,omitempty"`
+	ImporterID      string   `json:"importer_id,omitempty"`
+	ImporterUnread  string   `json:"importer_unread,omitempty"`
+
 	// IAMGrammar is the IAM framework's import grammar for Kind, as the
 	// framework's own error message spells it ("resource_name role member
 	// [condition_title]").

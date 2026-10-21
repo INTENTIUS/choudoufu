@@ -594,7 +594,8 @@ type Component struct {
 
 	// Qualifiers are the regexes the provider matches a [LongFormIAMParent]
 	// or [LongFormComputedName] value against, in the provider's order and
-	// spelled as its source spells them. Empty on a LongForm component,
+	// spelled as its source spells them. For [LongFormTrimPrefix] it is the
+	// one literal prefix trimmed. Empty on a LongForm component,
 	// the generator could not read the list, and a value that needs one
 	// refuses the instance by name.
 	Qualifiers []string
@@ -632,6 +633,12 @@ const (
 	// other value is placed into the parent template the row spells
 	// (projects/{{project}}/subscriptions/{{subscription}}).
 	LongFormComputedName LongFormRule = "computed-name"
+
+	// LongFormTrimPrefix is an argument a hand-written create trims the
+	// sole entry of [Component.Qualifiers] off before it becomes part of
+	// the id: resourcemanager.ParseFolderId turns "folders/123" and "123"
+	// alike into "123" (#2145 item 1).
+	LongFormTrimPrefix LongFormRule = "trim-prefix"
 )
 
 // describe is what the provider does to such a value, as a sentence for
@@ -644,6 +651,8 @@ func (l LongFormRule) describe() string {
 		return "The provider's create keeps only the last path segment of this argument's value (tpgresource.ReplaceVarsForId)"
 	case LongFormComputedName:
 		return "The provider's IAM updater keeps this argument whole when it is already a full resource name and places it into the parent template otherwise"
+	case LongFormTrimPrefix:
+		return "The provider's create trims a fixed prefix off this argument's value"
 	}
 	return "The provider rewrites this argument's value before it becomes part of the id"
 }
