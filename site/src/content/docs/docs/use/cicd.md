@@ -16,11 +16,14 @@ Three jobs read. Three write, on a push, after an approval.
 | `live-apply` | Push to `main` | Plans to a file, applies it once approved |
 | `live-adopt` | Push to `staging` | Shows the adoptions, writes markers once approved |
 | `live-discover` | Schedule | Lists marked resources nobody declares |
-| `backend-prepare` | Push to `bootstrap` | Creates or updates the record store bucket |
+| `backend-prepare` | Push to `bootstrap` | Creates or updates the S3 record store bucket |
 
 Give each job the narrowest role. `backend-prepare` gets its own, because a
 role that can rewrite the bucket policy can lock every run out. An apply that
 finds the world changed since approval exits 3; send it back for review.
+
+With records in the cluster, a plan job needs `get` and `list` on the record
+Secrets, and an apply job also `create`, `update` and `delete`.
 
 [`examples/ci-pipelines`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/ci-pipelines/README.md)
 generates these jobs for GitHub, Forgejo and GitLab.

@@ -37,7 +37,9 @@ record_store "s3" {
 ```
 
 A write succeeds only if the record is unchanged since it was read. No lock is
-held. Records carry their estate's tag, so one bucket can serve many estates.
+held. In a bucket, records carry their estate's tag, so one bucket can serve
+many estates. In a cluster, each estate keeps its records in its own
+namespace, because RBAC cannot condition on a label.
 
 ## It holds secrets
 

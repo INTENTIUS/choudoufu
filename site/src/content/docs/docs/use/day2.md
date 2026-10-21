@@ -14,7 +14,8 @@ and [concurrent runs](https://github.com/INTENTIUS/choudoufu/blob/main/live/CONC
 
 ## Sharing values between estates
 
-Read the producer's live resource with a data source filtered by its markers.
+Read the producer's live resource with a data source. On AWS, filter by its
+tags:
 
 ```hcl
 data "aws_vpc" "network" {
@@ -29,7 +30,9 @@ data "aws_vpc" "network" {
 }
 ```
 
-Apply the producer first. `terraform_remote_state` returns a snapshot from the
+On Kubernetes the namespace and name already identify the object, so a stock
+data source such as `kubernetes_config_map_v1` reads it by those. Apply the
+producer first. `terraform_remote_state` returns a snapshot from the
 day the producer migrated.
 
 For a value no resource holds, `data "terraform_estate_outputs"` returns the
