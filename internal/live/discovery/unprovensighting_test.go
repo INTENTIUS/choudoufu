@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
@@ -26,7 +29,16 @@ import (
 // name), so [configIdentityMismatch]'s whole-import-id fallback declines,
 // and a tagging-leg claimant carries no identity object, so its
 // per-attribute path has nothing to compare either. Neither comparison
-// runs.
+// runs. Measured before the change: the verdict was verdictOwnObject and
+// the old sighting vouched for the address, as #2136 found on Azure. The
+// maintainer's ruling (2026-10-20): a sighting no comparison could run on
+// is unproven, and vouches for nothing.
+//
+// No taggable AWS type has a multi-component row whose components supply
+// no identity attribute at all (aws_route_table_association is the only
+// multi-component one, and it carries no tags), so the tagging leg's
+// identity-less claimant is the "no identity attributes in the sighting"
+// case here.
 
 const (
 	unprovenCluster = "web"
@@ -81,35 +93,81 @@ func unprovenSighting(svc string) taggedCandidate {
 	}
 }
 
-// TestUnprovenSighting_multiComponentRenameIsMeasured pins what the
-// tagging leg does with the renamed service's old sighting today: the
-// verdict is verdictOwnObject, nothing is reported, and [fileCandidate]
-// adds aws_ecs_service.web to VerifiedDeclared, so the projection would
-// admit whatever sits at web/svc-new without reading its tags.
-func TestUnprovenSighting_multiComponentRenameIsMeasured(t *testing.T) {
+// TestUnprovenSighting_multiComponentRenameDoesNotVouch: the renamed
+// service's old sighting, filed through [fileCandidate] as the tagging leg
+// files it. No comparison can run, so the verdict is verdictUncompared:
+// nothing is reported (nothing proves a displacement either), it is not an
+// orphan, and aws_ecs_service.web stays out of VerifiedDeclared, so the
+// projection reads whatever sits at web/svc-new and judges it by its own
+// tags. Before #2137 the verdict was verdictOwnObject and the sighting
+// vouched (this file's first commit pinned that).
+//
+// The same holds for a sighting at the declared id itself: with nothing
+// compared, being at the right id is not something this pass can see, so
+// it does not vouch either. The projection's read of that object is what
+// admits it.
+func TestUnprovenSighting_multiComponentRenameDoesNotVouch(t *testing.T) {
 	if ti, ok := identity.LookupType("aws_ecs_service"); !ok || len(ti.Components) == 1 {
 		t.Fatalf("aws_ecs_service's identity row is not multi-component (%+v, %v); this pin no longer exercises the declining fallback", ti, ok)
 	}
-	req, decl, svc := unprovenRequest(t)
+	for name, svcName := range map[string]string{"old name": unprovenOldSvc, "declared name": unprovenNewSvc} {
+		t.Run(name, func(t *testing.T) {
+			req, decl, svc := unprovenRequest(t)
+			escaped := markers.EscapeAddress(unprovenAddr)
+
+			sighting := unprovenSighting(svcName)
+			claim := claimant{importID: sighting.importID, escaped: escaped, marker: escaped, tags: sighting.tags}
+			if _, _, compared := compareIdentity("aws_ecs_service", svc, claim); compared {
+				t.Fatalf("setup: a comparison ran; this pin is about the case where none can run")
+			}
+			if _, got := decl.displacedFrom(context.Background(), "aws_ecs_service", escaped, claim); got != verdictUncompared {
+				t.Errorf("verdict %d, want verdictUncompared (%d)", got, verdictUncompared)
+			}
+
+			res := &Result{}
+			diags := fileCandidate(context.Background(), req, decl, "aws_ecs_service", sighting, res, " (Tagging API)", true)
+			assertNoErrors(t, diags)
+			if n := len(res.ProblemsOfKind(ProblemDisplacedMarker)); n != 0 {
+				t.Errorf("%d DISPLACED_MARKER problems, want none: nothing was compared", n)
+			}
+			assertNotAnOrphan(t, res, sighting.importID)
+			if res.MarkerVerified()[unprovenAddr] {
+				t.Errorf("an uncompared sighting at %s vouched for %s: %v", sighting.importID, unprovenAddr, res.VerifiedDeclared)
+			}
+		})
+	}
+}
+
+// TestUnprovenSighting_comparisonsStillAnswer bounds the change from the
+// other side: where a comparison does run, its answer stands. The ECS
+// service's claimant carrying an identity object is compared per
+// attribute, and agrees or disagrees; aws_s3_bucket's one-component row
+// still takes the whole-import-id fallback.
+func TestUnprovenSighting_comparisonsStillAnswer(t *testing.T) {
+	_, decl, _ := unprovenRequest(t)
 	escaped := markers.EscapeAddress(unprovenAddr)
+	withIdentity := func(svc string) claimant {
+		return claimant{
+			importID: unprovenCluster + "/" + svc,
+			identity: cty.ObjectVal(map[string]cty.Value{"cluster": cty.StringVal(unprovenCluster), "name": cty.StringVal(svc)}),
+			escaped:  escaped,
+			marker:   escaped,
+		}
+	}
+	if _, got := decl.displacedFrom(context.Background(), "aws_ecs_service", escaped, withIdentity(unprovenNewSvc)); got != verdictOwnObject {
+		t.Errorf("the declared service with a matching identity object: verdict %d, want verdictOwnObject (%d)", got, verdictOwnObject)
+	}
+	if _, got := decl.displacedFrom(context.Background(), "aws_ecs_service", escaped, withIdentity(unprovenOldSvc)); got != verdictDisplaced {
+		t.Errorf("the old service with its identity object: verdict %d, want verdictDisplaced (%d)", got, verdictDisplaced)
+	}
 
-	old := unprovenSighting(unprovenOldSvc)
-	claim := claimant{importID: old.importID, escaped: escaped, marker: escaped, tags: old.tags}
-	if _, mismatched := configIdentityMismatch("aws_ecs_service", svc, claim); mismatched {
-		t.Fatalf("setup: a comparison ran and mismatched; this pin is about the case where none can run")
+	bucket := instanceAddr("aws_s3_bucket", "data", addrs.NoKey)
+	be := markers.EscapeAddress(bucket.String())
+	d := declaredOf(identity.Resolution{Addr: bucket, Class: identity.ClassConcrete, ImportID: "b-new"})
+	if _, got := d.displacedFrom(context.Background(), "aws_s3_bucket", be, claimant{importID: "b-old", escaped: be}); got != verdictDisplaced {
+		t.Errorf("aws_s3_bucket at another name: verdict %d, want verdictDisplaced (%d)", got, verdictDisplaced)
 	}
-	if _, got := decl.displacedFrom(context.Background(), "aws_ecs_service", escaped, claim); got != verdictOwnObject {
-		t.Errorf("verdict %d, want verdictOwnObject (%d)", got, verdictOwnObject)
-	}
-
-	res := &Result{}
-	diags := fileCandidate(context.Background(), req, decl, "aws_ecs_service", old, res, " (Tagging API)", true)
-	assertNoErrors(t, diags)
-	if n := len(res.ProblemsOfKind(ProblemDisplacedMarker)); n != 0 {
-		t.Errorf("%d DISPLACED_MARKER problems, want none today", n)
-	}
-	assertNotAnOrphan(t, res, old.importID)
-	if !res.MarkerVerified()[unprovenAddr] {
-		t.Errorf("web/svc-old's sighting did not vouch for %s: %v", unprovenAddr, res.VerifiedDeclared)
+	if _, got := d.displacedFrom(context.Background(), "aws_s3_bucket", be, claimant{importID: "b-new", escaped: be}); got != verdictOwnObject {
+		t.Errorf("aws_s3_bucket at its own name: verdict %d, want verdictOwnObject (%d)", got, verdictOwnObject)
 	}
 }

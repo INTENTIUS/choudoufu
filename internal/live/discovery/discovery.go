@@ -2757,6 +2757,10 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			case verdictIdentityChanging:
 				// Issue #885: neither reported nor vouched. See
 				// [verdictIdentityChanging].
+			case verdictUncompared:
+				// GitHub issue #2137: no comparison could run, so the
+				// sighting is unproven and neither reported nor vouched.
+				// See [verdictUncompared].
 			}
 			continue
 		}
