@@ -25,8 +25,8 @@
 # What reads differently on this substrate, per tools/gauntlet/stages.go's
 # flociAzNotes: identities are ARM ids compared case-insensitively; the
 # marker count is the declared resources whose tofu-estate tag names the
-# estate, read with ARM GETs; the out-of-band hand is an ARM PATCH
-# (gauntlet_arm), not the AWS CLI.
+# estate, read with ARM GETs; the out-of-band hand is an ARM GET and PUT
+# (gauntlet_arm_set_tag), not the AWS CLI.
 #
 # Written for #1120 and NOT RUN. floci-az's gaps (live/FLOCI.md, Azure) are
 # expected to fail stages by name on the first run rather than be skipped:
@@ -332,20 +332,10 @@ for rid, r in inv.items():
     out[rid] = r
 print(json.dumps(out, sort_keys=True, indent=1))'
 }
-# tag_patch <a|b> <id> <api> <key> <value|-> sets or removes one tag and
-# keeps the rest, since an ARM PATCH replaces the tags object whole.
-tag_patch() {
-  local env="$1" rid="$2" api="$3" key="$4" val="$5" tags
-  tags="$("on_$env" gauntlet_arm GET "$rid?api-version=$api" | KEY="$key" VAL="$val" python3 -c '
-import json, os, sys
-t = json.load(sys.stdin).get("tags") or {}
-if os.environ["VAL"] == "-":
-    t = {k: v for k, v in t.items() if k.lower() != os.environ["KEY"].lower()}
-else:
-    t[os.environ["KEY"]] = os.environ["VAL"]
-print(json.dumps({"tags": t}))')" || return 1
-  "on_$env" gauntlet_arm PATCH "$rid?api-version=$api" "$tags" >/dev/null
-}
+# tag_set <a|b> <id> <api> <key> <value|-> sets or removes one tag and
+# keeps the rest, with an ARM GET and a PUT of the body read back
+# (gauntlet_arm_set_tag): floci-az serves no PATCH on Microsoft.Network.
+tag_set() { "on_$1" gauntlet_arm_set_tag "$2?api-version=$3" "$4" "$5" >/dev/null; }
 gone_a() { ! on_a gauntlet_arm GET "$1?api-version=$2" >/dev/null 2>&1; }
 VNET_ID="${SUB}/resourceGroups/${RG}/providers/${NET}/virtualNetworks/refaz-vnet"
 PIP_ID="${SUB}/resourceGroups/${RG}/providers/${NET}/publicIPAddresses/refaz-pip"
@@ -434,11 +424,11 @@ gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); r
 
 # ── 5. drift_reconverge: one resource tampered out of band ───────────────
 gauntlet_begin_stage drift_reconverge
-log "=== 5. drift_reconverge: an ARM PATCH adds a tag to the VNet on A and on B; stock's plan on B is the oracle ==="
-tag_patch a "$VNET_ID" "$NET_API" drift yes || fail "could not tamper the VNet on A"
-tag_patch b "$VNET_ID" "$NET_API" drift yes || fail "could not tamper the VNet on B"
+log "=== 5. drift_reconverge: an ARM PUT adds a tag to the VNet on A and on B; stock's plan on B is the oracle ==="
+tag_set a "$VNET_ID" "$NET_API" drift yes || fail "could not tamper the VNet on A"
+tag_set b "$VNET_ID" "$NET_API" drift yes || fail "could not tamper the VNet on B"
 if [ "${BREAK:-}" = "1" ]; then
-  tag_patch a "$PIP_ID" "$NET_API" drift yes || fail "BREAK: could not tamper the public IP on A"
+  tag_set a "$PIP_ID" "$NET_API" drift yes || fail "BREAK: could not tamper the public IP on A"
 fi
 ORACLE_PLAN="$(stock_b plan -detailed-exitcode -input=false -no-color 2>&1)"; ORACLE_RC=$?
 [ "$ORACLE_RC" -eq 2 ] || { printf '%s\n' "$ORACLE_PLAN" | tail -10; fail "stock's plan on B after the tamper exited $ORACLE_RC, want 2 (changes)"; }
@@ -459,7 +449,7 @@ else
   grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$RECONV" || fail "the reconverging apply did not change exactly one resource"
   VNET_JSON="$(on_a gauntlet_arm GET "$VNET_ID?api-version=$NET_API")" || fail "could not read the VNet through ARM after reconverging"
   grep -q '"drift"' <<< "$VNET_JSON" && fail "the VNet still carries the drift tag after reconverging: $VNET_JSON"
-  gauntlet_stage drift_reconverge pass "a tag added to the VNet with an ARM PATCH; choudoufu proposed exactly azurerm_virtual_network.app (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle container for the same tamper; apply changed 1 and the tag is gone, read through ARM. BREAK=1 tampers a second resource and the single-resource assertion correctly fails"
+  gauntlet_stage drift_reconverge pass "a tag added to the VNet with an ARM GET and PUT; choudoufu proposed exactly azurerm_virtual_network.app (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle container for the same tamper; apply changed 1 and the tag is gone, read through ARM. BREAK=1 tampers a second resource and the single-resource assertion correctly fails"
 fi
 
 # ── 12. plan_approval: plan -out, the world moves, apply refuses ─────────
@@ -470,11 +460,11 @@ write_config "$ADOPTED" live app 2 "$REVIEWED"
 write_config "$ORACLE" stock app 2 "$REVIEWED"
 P_PLAN="$(tofu_a "$ADOPTED" plan -out=approved.tfplan -input=false -no-color 2>&1)" || { printf '%s\n' "$P_PLAN" | tail -20; fail "plan -out failed"; }
 grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$P_PLAN" || { printf '%s\n' "$P_PLAN" | tail -10; fail "the saved plan is not exactly one change"; }
-tag_patch a "$SHARD0_ID" "$MI_API" stray yes || fail "could not move the world (a stray tag on shard 0) on A"
+tag_set a "$SHARD0_ID" "$MI_API" stray yes || fail "could not move the world (a stray tag on shard 0) on A"
 P_APPLY="$(tofu_a "$ADOPTED" apply -input=false -no-color approved.tfplan 2>&1)"; P_RC=$?
 if [ "${BREAK_APPROVAL:-}" = "1" ]; then
   [ "$P_RC" -eq 0 ] && fail "BREAK_APPROVAL=1: applying the saved plan after the world moved succeeded - the refusal is not load-bearing"
-  tag_patch a "$SHARD0_ID" "$MI_API" stray - || fail "BREAK_APPROVAL: could not put the world back"
+  tag_set a "$SHARD0_ID" "$MI_API" stray - || fail "BREAK_APPROVAL: could not put the world back"
   ( tofu_a "$ADOPTED" apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: the saved plan did not apply once the world was put back"
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: stock could not apply the reviewed change on B"
   gauntlet_stage plan_approval pass "BREAK_APPROVAL=1 control: applying the saved plan after the world moved exited $P_RC (refused), so the stage's own Break line correctly fails; applied once the world was put back"
@@ -483,11 +473,11 @@ else
   grep -qF "The approved plan no longer matches the live system" <<< "$P_APPLY" || { printf '%s\n' "$P_APPLY" | tail -20; fail "the refusal does not carry its documented sentence"; }
   APP_JSON="$(on_a gauntlet_arm GET "$APP_ID?api-version=$MI_API")" || fail "could not read the identity through ARM after the refusal"
   grep -q '"reviewed"' <<< "$APP_JSON" && fail "the identity gained the reviewed tag despite the refusal: $APP_JSON"
-  tag_patch a "$SHARD0_ID" "$MI_API" stray - || fail "could not put the world back"
+  tag_set a "$SHARD0_ID" "$MI_API" stray - || fail "could not put the world back"
   P_APPLY2="$(tofu_a "$ADOPTED" apply -input=false -no-color approved.tfplan 2>&1)" || { printf '%s\n' "$P_APPLY2" | tail -20; fail "the saved plan did not apply once the world was put back"; }
   grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$P_APPLY2" || fail "the saved plan's apply did not change exactly one resource"
   ( stock_b plan -out=approved.tfplan -input=false -no-color >/dev/null 2>&1 && stock_b apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "stock's own planfile did not apply on B"
-  gauntlet_stage plan_approval pass "plan -out wrote one update (the identity gains tags reviewed=yes); the world then moved out of band (a stray tag on shard 0, an ARM PATCH) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied; with the tag removed the identical file applied, 0 added, 1 changed, 0 destroyed; stock's own planfile applied on the oracle container in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
+  gauntlet_stage plan_approval pass "plan -out wrote one update (the identity gains tags reviewed=yes); the world then moved out of band (a stray tag on shard 0, an ARM PUT) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied; with the tag removed the identical file applied, 0 added, 1 changed, 0 destroyed; stock's own planfile applied on the oracle container in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
 fi
 
 # ── 6. day2_rename: a moved block rewrites tofu-address in place ─────────

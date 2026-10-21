@@ -633,6 +633,31 @@ gauntlet_arm() {
   curl "${args[@]}" "${FLOCI_AZ_ENDPOINT}${path}"
 }
 
+# gauntlet_arm_set_tag <path-with-api-version> <key> <value|->: sets one tag
+# on an ARM resource (or removes it, for "-") and keeps every other tag and
+# field, the azure lane's out-of-band tamper. It reads the resource, edits
+# tags in the body it got back and PUTs that whole body to the same path:
+# what `az resource update --set tags.k=v` does, and valid on every ARM type,
+# since PUT is create-or-update and a body read back from ARM carries the
+# child arrays (a VNet's subnets) that a bare PUT would drop. A PATCH is not
+# used: floci-az serves none on Microsoft.Network (405 at lex00/floci-az
+# 30000b0, NetworkService.handleArm), which stopped reference-azure's
+# drift_reconverge on its second run (#1120). A key that matches another
+# only by case replaces it, since ARM rejects two such keys.
+gauntlet_arm_set_tag() {
+  local path="$1" key="$2" val="$3" body
+  body="$(gauntlet_arm GET "$path" | KEY="$key" VAL="$val" python3 -c '
+import json, os, sys
+r = json.load(sys.stdin)
+k, v = os.environ["KEY"], os.environ["VAL"]
+t = {a: b for a, b in (r.get("tags") or {}).items() if a.lower() != k.lower()}
+if v != "-":
+    t[k] = v
+r["tags"] = t
+print(json.dumps(r))')" || return 1
+  gauntlet_arm PUT "$path" "$body"
+}
+
 # gauntlet_kind_down <name>: deletes the cluster gauntlet_kind_up made.
 # Idempotent and quiet, so a trap can call it for a cluster that never
 # came up.
