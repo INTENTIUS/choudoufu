@@ -156,12 +156,12 @@ type residuable struct {
 	typeName string
 
 	// providerAddr is the managing provider instance address the migrated
-	// state file recorded for this resource (states.Resource.ProviderConfig,
-	// not [impliedProviderAddr]'s rewritten namespace) - GitHub issue #389
-	// research, written into every record this migration seeds so a record
-	// is a source of that fact later (issue #361's deposed-object case, and
-	// issue #69's undeclared-resource provider selection) that is not a
-	// sweep.
+	// state file recorded for this resource (states.Resource.ProviderConfig),
+	// with its provider source as this configuration resolves it
+	// ([recordedProviderAddr]) - GitHub issue #389 research, written into
+	// every record this migration seeds so a record is a source of that fact
+	// later (issue #361's deposed-object case, and issue #69's
+	// undeclared-resource provider selection) that is not a sweep.
 	providerAddr addrs.AbsProviderConfig
 
 	// applied is the object this instance's arguments are classified from.
@@ -724,7 +724,8 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		return entry, carriers{}
 	}
 
-	providerAddr := impliedProviderAddr(res)
+	providerAddr := impliedProviderAddr(req.Config, res)
+	recordedProvider := recordedProviderAddr(req.Config, typeName, res.ProviderConfig)
 	provider, err := req.Providers.ConfiguredProvider(ctx, providerAddr)
 	if err != nil {
 		entry.Status = StatusMissing
@@ -776,7 +777,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 				typeName, req.Secrets, strict.DefaultSecrets)
 			return entry, carriers{}
 		}
-		return ratifyRecordBacked(entry, typeName, schema, inst, res.ProviderConfig)
+		return ratifyRecordBacked(entry, typeName, schema, inst, recordedProvider)
 	}
 
 	// GitHub issue #365 slice 2's migrate-time half. Checked ahead of the
@@ -836,7 +837,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		manifested = !selected
 	default:
 		if !selected {
-			return ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
+			return ratifyUntaggable(entry, provider, schema, typeName, inst, recordedProvider)
 		}
 	}
 
@@ -902,7 +903,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		manifestKeys: seedManifestKeys(schema, priorVal),
 		identity:     readResp.NewIdentity,
 		private:      readResp.Private,
-		providerAddr: res.ProviderConfig,
+		providerAddr: recordedProvider,
 	}
 	if selected {
 		// The identity lives in the estate's record store, not in a marker:
@@ -1130,12 +1131,66 @@ func ratifyRecordBacked(entry Entry, typeName string, schema providers.Schema, i
 // here, same as a root resource on a non-default provider always has - but
 // v1 does not need one: the default provider address is what "choudoufu
 // init" in this directory already prepared.
-func impliedProviderAddr(res *states.Resource) addrs.AbsProviderConfig {
+//
+// "Default" means the configuration's own: the root module's
+// required_providers entry for the type's implied local name when it has one
+// (configs.Module.ImpliedProviderForUnqualifiedType, the lookup stock makes
+// for a resource block with no provider argument), and the hashicorp
+// namespace only when it has none. GitHub issue #1120, found on the azure
+// branch: a provider outside the hashicorp namespace (azure/azapi) resolved
+// to a hashicorp address nobody publishes and "choudoufu init" never
+// installed. cfg nil (a caller with no configuration) keeps the hashicorp
+// default.
+func impliedProviderAddr(cfg *configs.Config, res *states.Resource) addrs.AbsProviderConfig {
+	return configProviderAddr(cfg, res.Addr.Resource.Type, res.ProviderConfig.Alias)
+}
+
+// configProviderAddr is [impliedProviderAddr] for a resource type and alias:
+// the root-module provider configuration the configuration's
+// required_providers resolve typeName's implied local name to.
+func configProviderAddr(cfg *configs.Config, typeName, alias string) addrs.AbsProviderConfig {
+	local := addrs.Resource{Mode: addrs.ManagedResourceMode, Type: typeName}.ImpliedProvider()
+	provider := addrs.ImpliedProviderForUnqualifiedType(local)
+	if cfg != nil && cfg.Module != nil {
+		provider = cfg.Module.ImpliedProviderForUnqualifiedType(local)
+	}
 	return addrs.AbsProviderConfig{
 		Module:   addrs.RootModule,
-		Provider: addrs.ImpliedProviderForUnqualifiedType(res.Addr.Resource.ImpliedProvider()),
-		Alias:    res.ProviderConfig.Alias,
+		Provider: provider,
+		Alias:    alias,
 	}
+}
+
+// recordedProviderAddr is the provider configuration address a record this
+// migration seeds names: the one the state file recorded (its module path
+// and alias), with the provider source replaced by the one this
+// configuration's required_providers resolve the type to
+// ([configProviderAddr]) when that is the same namespace and type.
+//
+// GitHub issue #1120. A stock terraform state records its providers under
+// registry.terraform.io; a live plan resolves the configuration's,
+// registry.opentofu.org, and its write-back records that address on every
+// apply. A multi-provider plan scopes each discovery pass to one configured
+// address, and the record leg proposes a removed block's record only in the
+// pass whose address the record names. Recorded verbatim, every record this
+// migration seeded named an address no pass runs, so a removed untaggable
+// resource found only through its record was refused as
+// RECORDED_PROVIDER_ABSENT instead of destroyed. Normalised here, once,
+// rather than by an equivalence rule at each reader: OpenTofu treats the two
+// hosts as two providers everywhere else, and only the configuration can say
+// which one it means.
+//
+// A configuration that resolves the type to a different namespace or type
+// (a fork, or no required_providers entry for a non-hashicorp provider)
+// keeps the state's address: nothing here can tell that it is the same
+// provider, and an unrecognised address is refused by name downstream.
+func recordedProviderAddr(cfg *configs.Config, typeName string, recorded addrs.AbsProviderConfig) addrs.AbsProviderConfig {
+	resolved := configProviderAddr(cfg, typeName, recorded.Alias).Provider
+	if resolved.Namespace != recorded.Provider.Namespace || resolved.Type != recorded.Provider.Type {
+		return recorded
+	}
+	recorded.Provider = resolved
+	return recorded
 }
 
 // admittedByProviderSchema is the schema-based admission fallback
@@ -1166,7 +1221,7 @@ func impliedProviderAddr(res *states.Resource) addrs.AbsProviderConfig {
 // being kept in step - which is what live/notimportable_routes_test.go
 // measures over the whole provider surface.
 func admittedByProviderSchema(ctx context.Context, req Request, res *states.Resource, typeName string) bool {
-	provider, err := req.Providers.ConfiguredProvider(ctx, impliedProviderAddr(res))
+	provider, err := req.Providers.ConfiguredProvider(ctx, impliedProviderAddr(req.Config, res))
 	if err != nil {
 		return false
 	}
@@ -1201,7 +1256,7 @@ func admittedByProviderSchema(ctx context.Context, req Request, res *states.Reso
 // instance as unclaimed and proposed creating a second one, having never
 // been given the chance to record the first.
 func locatedByProviderSchema(ctx context.Context, req Request, res *states.Resource, typeName string) bool {
-	provider, err := req.Providers.ConfiguredProvider(ctx, impliedProviderAddr(res))
+	provider, err := req.Providers.ConfiguredProvider(ctx, impliedProviderAddr(req.Config, res))
 	if err != nil {
 		return false
 	}
