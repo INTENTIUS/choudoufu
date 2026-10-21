@@ -153,6 +153,7 @@ type ratifiedComponent struct {
 	PerElement             bool                  `json:"per_element,omitempty"`
 	LongForm               identity.LongFormRule `json:"long_form,omitempty"`
 	Qualifiers             *[]string             `json:"qualifiers,omitempty"`
+	AtLeastOneOf           *[]string             `json:"at_least_one_of,omitempty"`
 }
 
 // toRatified converts one live row to its stored form.
@@ -190,6 +191,7 @@ func toRatified(e identity.TypeIdentity) ratifiedRow {
 				PerElement:             c.PerElement,
 				LongForm:               c.LongForm,
 				Qualifiers:             strsPtr(c.Qualifiers),
+				AtLeastOneOf:           strsPtr(c.AtLeastOneOf),
 			})
 		}
 		r.Components = &comps
@@ -234,6 +236,7 @@ func fromRatified(r ratifiedRow) identity.TypeIdentity {
 				PerElement:             c.PerElement,
 				LongForm:               c.LongForm,
 				Qualifiers:             strsValue(c.Qualifiers),
+				AtLeastOneOf:           strsValue(c.AtLeastOneOf),
 			})
 		}
 		e.Components = comps
