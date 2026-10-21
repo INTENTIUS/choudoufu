@@ -165,6 +165,13 @@ type Substrate interface {
 	// #1883; live/MARKERS.md's record table).
 	MarkerOutlivesObject() bool
 
+	// Unrecorded is what a declared instance of one of this family's
+	// markerless types (no surface at all) means when a record store is in
+	// play, it holds no record for the instance, and an object is live at
+	// the identity its configuration computes ([Unrecorded], the
+	// maintainer's ruling of 2026-10-20).
+	Unrecorded() Unrecorded
+
 	// NewSweeper builds the family's estate-sweep client from its provider
 	// block's evaluated configuration (ok false when the run holds none):
 	// nil with no error for a family whose sweep runs through the
@@ -262,6 +269,49 @@ func Sweeps(providerType string) bool {
 func TombstonesRead(providerType string) bool {
 	s, ok := ForProvider(providerType)
 	return !ok || s.MarkerOutlivesObject()
+}
+
+// Unrecorded is a family's answer for a declared instance of a markerless
+// type that has no record in the estate's record store while an object is
+// live at the identity its configuration computes.
+//
+// The ruling (maintainer, 2026-10-20, "option A"): such an object is not
+// owned. Nothing on it says whose it is, and the record is the only place
+// this estate could have written that it made the object. Somebody else may
+// have, and a destroy that left the object in place (a google service with
+// disable_on_destroy unset) leaves exactly the same shape behind. What
+// follows depends on whether the create the configuration declares would
+// collide with the object, which is the family's to say.
+type Unrecorded string
+
+const (
+	// UnrecordedCreates: not owned, and the plan proposes the create. The
+	// default for a family that claims nothing, and right wherever a create
+	// at a held identity is idempotent or cannot conflict.
+	UnrecordedCreates Unrecorded = "creates"
+
+	// UnrecordedNameHeld: not owned, and the create would be refused while
+	// the object holds the identity, so the plan stops with the name-held
+	// refusal instead of proposing it.
+	UnrecordedNameHeld Unrecorded = "name-held"
+
+	// UnrecordedParentOwned: admitted as before. The family's markerless
+	// types are attachments and associations identified by a composite of
+	// tagged parents, so their ownership is their parents' ownership and a
+	// refusal would only ever be a false accusation (internal/live/
+	// projection's checkOwnership doc comment, live/MARKERS.md).
+	UnrecordedParentOwned Unrecorded = "parent-owned"
+)
+
+// UnrecordedFor is [Substrate.Unrecorded] for providerType's family, and
+// [UnrecordedCreates] for a provider no family claims: nothing vouches that
+// its markerless objects are anybody's, and nothing says a create there
+// collides.
+func UnrecordedFor(providerType string) Unrecorded {
+	if s, ok := ForProvider(providerType); ok {
+		return s.Unrecorded()
+	}
+	return UnrecordedCreates
 }
 
 // For is the family a surface belongs to, or nil for the zero Surface.

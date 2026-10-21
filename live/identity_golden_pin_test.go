@@ -3277,7 +3277,14 @@ const (
 	// child swept as a root of its own. Only live/ adds a row swept alone;
 	// the others have a required variable unset or no resource. fixture-dirs
 	// 671 -> 680 on the same row; the cohort pins are untouched.
-	identityGoldenPinDirs = 711
+	//
+	// 711 -> 712 for the 2026-10-20 ruling on unrecorded markerless
+	// instances: one new fixture,
+	// internal/live/projection/testdata/unrecorded-markerless, a
+	// google_project_service for_each with no google schema in the sweep, so
+	// it adds no row and instances and body-sha256 are unchanged.
+	// fixture-dirs 680 -> 681 on the same row; the cohort pins are untouched.
+	identityGoldenPinDirs = 712
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

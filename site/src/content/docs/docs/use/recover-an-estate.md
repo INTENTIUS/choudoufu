@@ -12,7 +12,7 @@ prompt: >-
 | The cache | One slower plan | Run `choudoufu plan` |
 | Your working copy | One slower plan | Check it out and plan |
 | Markers on live resources | Those resources look unowned | Find who untagged them |
-| The record store | Record-backed resources and a few untagged AWS types | The steps below |
+| The record store | Record-backed resources, a few untagged AWS types, and untagged objects on other providers | The steps below |
 
 Most resources come back from their markers.
 
@@ -36,5 +36,10 @@ Most resources come back from their markers.
 6. Plan again and read why anything stays unbound.
 
 A record-backed resource such as `random_pet` regenerates without its record.
+On a provider other than AWS, an untagged object with no record is no longer
+adopted from its configured identity: the plan warns `Unrecorded live object
+at a declared identity` and proposes the create. Restore the store, run
+`live-import`, or set `policy { declared_untagged = "adopt" }` for one apply
+once you know the objects are yours.
 [`live/RECOVERY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/RECOVERY.md)
 has a worked example.

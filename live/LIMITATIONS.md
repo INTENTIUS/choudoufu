@@ -2885,13 +2885,14 @@ refused, and each says so in its own entry.
 | - | - | projection | This estate does not declare that it reads another estate's outputs | error | `internal/live/projection` | "This estate does not declare that it reads another estate's outputs" |
 | - | - | projection | This estate may not read another estate's outputs | error | `internal/live/projection` | "This estate may not read another estate's outputs" |
 | - | - | projection | Unlabelled live object holds the declared name | error | `internal/live/projection` | "Unlabelled live object holds the declared name" |
+| - | - | projection | Unrecorded live object at a declared identity | warning | `internal/live/projection` | "Unrecorded live object at a declared identity" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
 | - | - | projection | Values from another estate are as of its last apply | warning | `internal/live/projection` | "Values from another estate are as of its last apply" |
 | - | - | projection | Values from another estate are as that estate's plan proposes them | warning | `internal/live/projection` | "Values from another estate are as that estate's plan proposes them" |
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**280 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**281 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4883,7 +4884,15 @@ reserved for the limits wing's fixture directories, and
 
 #### Unlabelled live object holds the declared name
 
-**What.** GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = "adopt" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected.
+**What.** GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = "adopt" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected. The same refusal stops a declared markerless instance with no record whose provider family says a create at a held identity collides (the 2026-10-20 ruling); no family registered today says so.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Unrecorded live object at a declared identity
+
+**What.** The maintainer's ruling of 2026-10-20: a declared instance of a type with no marker surface was read live at the identity its configuration computes, and the estate's record store holds no record of it, so nothing says this estate made the object. It is left out of the prior state and the plan proposes the create, as stock does for an object its state does not hold. A destroy that left the object in place (a google_project_service with disable_on_destroy unset) and a lost record store both end here. AWS types are unaffected: their untaggable types are attachments owned through their tagged parents. Restoring the record store, live-import from a state file, or policy { declared_untagged = "adopt" } admits the object.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -5360,6 +5369,27 @@ estate sweep already finds them by their `tofu-estate` label. They appear
 in this roster only because "carries no `tags` argument" is the test it
 runs, not because nothing marks them - see issue #1600's ruling (tier A
 reads the substrate's own marker: tags on AWS, labels on Kubernetes).
+
+**Outside AWS, an untaggable object with no record is not owned (maintainer
+ruling, 2026-10-20).** A declared instance of a type with no marker surface,
+read live at the identity its configuration computes, with no record of it
+in the estate's record store, has nothing that says this estate made it. Off
+AWS it is left out of the prior state with the warning `Unrecorded live
+object at a declared identity`, and the plan proposes the create, as stock
+does for an object its state does not hold. The family decides what that
+means per substrate (`live/SUBSTRATES.md`, the "Untaggable, no record,
+object live" row): AWS keeps the admission, because its untaggable types
+are attachments and associations whose ownership is their tagged parents';
+a family that says a create at a held identity collides stops the plan with
+`Unlabelled live object holds the declared name` instead, and none says so
+today. The Kubernetes patch types judged by field manager are outside it.
+Every live block has a record store and a migration records every
+instance, so this reaches three cases: an object someone else made at a
+declared identity, an object a destroy left in place (a
+`google_project_service` with `disable_on_destroy` unset), and every
+markerless instance of an estate whose record store was lost
+(`live/RECOVERY.md`). `policy { declared_untagged = "adopt" }` admits such
+an object on purpose.
 
 **Some are swept via a parent read instead (issue #60).** An untaggable
 type whose identity is composed from an admitted, taggable parent's own

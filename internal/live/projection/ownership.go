@@ -189,6 +189,9 @@ const (
 // only ever produce a false accusation. That boundary is stated in
 // live/MARKERS.md and is the one gap in "nothing enters the prior state
 // unverified" that is a property of the cloud rather than of this code.
+// Since the maintainer's ruling of 2026-10-20 it holds as written for the
+// AWS family only: elsewhere a markerless instance with no record is not
+// owned ([builder.unrecordedMarkerless]).
 // declared says whether addr has a resource block in this configuration -
 // false for a sweep orphan, a parent-read finding, or a scoped
 // reconciliation candidate, every one of which reaches this function on the
@@ -296,7 +299,13 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// -refresh=false contract this arm only ever runs under.
 		return ownershipOK
 	case surface == "":
-		return ownershipOK
+		// The maintainer's ruling of 2026-10-20 ("option A"): with a record
+		// store in play, a declared markerless instance whose identity came
+		// from its configuration and which has no record is not owned, even
+		// though an object is live at that identity. See
+		// [builder.unrecordedMarkerless] for which instances it reaches and
+		// why the AWS family keeps the admission this case always gave.
+		return b.unrecordedMarkerless(addr, typeName, importID, schema, declared, recordFirst, atDeclaredKey)
 	}
 
 	tags, taggable := substrate.MarkersOf(surface, obj)
@@ -523,6 +532,89 @@ const (
 	SummaryOutsideEstate = "Live resource outside this estate"
 	SummaryWrongAddress  = "Live resource marked for another address"
 )
+
+// SummaryUnrecordedMarkerless is the warning [builder.unrecordedMarkerless]
+// carries when it leaves a live object out and the plan proposes the create.
+const SummaryUnrecordedMarkerless = "Unrecorded live object at a declared identity"
+
+// unrecordedMarkerless decides a declared instance of a type with no marker
+// surface, found live at the identity its configuration computes. Until the
+// maintainer's ruling of 2026-10-20 ("option A") every such object was
+// admitted with nothing asked, so an object somebody else made at a declared
+// name planned "No changes", and so did one this estate destroyed and left in
+// place: a google_project_service with disable_on_destroy unset stays
+// enabled after its destroy, and when its for_each key came back stock
+// planned one add where this planned nothing (corpus-k8s-infra-gcp-gcve's
+// day2_count).
+//
+// The ruling: when a record store exists, such an instance with no current
+// record is not owned. A record is the one place this estate writes that it
+// made a markerless object, and live-import writes one for every instance it
+// migrates, so a missing record is a missing claim. Not owned means the
+// family's [substrate.Unrecorded] answer: the plan proposes the create
+// ([substrate.UnrecordedCreates]), or stops with the name-held refusal where
+// that create would collide ([substrate.UnrecordedNameHeld]).
+//
+// Admitted as before, for each of these:
+//
+//   - no record store (no live block at all), the compatible default;
+//   - an undeclared instance, whose verdict is discovery's;
+//   - a record-first read (recordFirst), whose record is the claim, and the
+//     located route, which returned above;
+//   - an identity some record supplied rather than the configuration
+//     (!atDeclaredKey);
+//   - a field-granular Kubernetes patch type, whose marker is its field
+//     manager ([fieldGranularOwned]);
+//   - a family answering [substrate.UnrecordedParentOwned]: AWS, whose
+//     untaggable types are attachments and associations identified by
+//     tagged parents (this file's checkOwnership doc comment);
+//   - declared_untagged = "adopt" or "converge", which an operator wrote to
+//     admit declared objects that carry no marker.
+func (b *builder) unrecordedMarkerless(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, declared, recordFirst, atDeclaredKey bool) ownershipVerdict {
+	own := b.opts.Ownership
+	if b.opts.RecordStore == nil || !declared || recordFirst || !atDeclaredKey {
+		return ownershipOK
+	}
+	providerType := b.providerType(addr, typeName)
+	if providerType == "" {
+		providerType = addrs.Resource{Mode: addrs.ManagedResourceMode, Type: typeName}.ImpliedProvider()
+	}
+	if fieldGranularOwned("", schema) {
+		return ownershipOK
+	}
+	rule := substrate.UnrecordedFor(providerType)
+	if rule == substrate.UnrecordedParentOwned {
+		return ownershipOK
+	}
+	verb := own.Policy.Verb(true, false)
+	nonDefault := verb != policy.DefaultVerb[policy.DeclaredUntagged]
+	if nonDefault {
+		switch verb {
+		case policy.Adopt, policy.Converge:
+			b.policyList = append(b.policyList, PolicyOutcome{Addr: addr, TypeName: typeName, Tagged: false, Verb: verb})
+			return ownershipOK
+		case policy.Keep, policy.Report:
+			b.policyList = append(b.policyList, PolicyOutcome{Addr: addr, TypeName: typeName, Tagged: false, Verb: verb})
+		}
+	}
+	cause := fmt.Sprintf("the live %s at its identity carries no ownership marker and this estate holds no record of it.", typeName)
+	if rule == substrate.UnrecordedNameHeld && !nonDefault {
+		detail := fmt.Sprintf(
+			"A live %s already exists at %q, the identity %s declares. A %s carries no ownership marker and this estate's record store holds no record of it, so this estate does not own it, and the create this configuration declares would be refused while that object holds the identity; this plan stops here instead of proposing it. If the object is this estate's and its record was lost, restore the record store or run live-import against a state file that holds it (live/RECOVERY.md), then re-run. To adopt it on this run instead, set policy { declared_untagged = \"adopt\" } in the live block. To keep it out of this estate, point this resource at an identity nobody is using.",
+			typeName, importID, addr, typeName)
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryNameHeld, detail))
+		b.omit(addr, ReasonUnowned, detail, cause)
+		return ownershipUnowned
+	}
+	detail := fmt.Sprintf(
+		"A live %s exists at %q, the identity %s declares. A %s carries no ownership marker and this estate's record store holds no record of it, so nothing says this estate made it: it is left out of the prior state, and the plan proposes creating the resource this configuration declares, as stock does for an object its state does not hold. If the object is this estate's and its record was lost, restore the record store or run live-import against a state file that holds it (live/RECOVERY.md), then re-run. To adopt it on this run instead, set policy { declared_untagged = \"adopt\" } in the live block.",
+		typeName, importID, addr, typeName)
+	if !(nonDefault && verb == policy.Keep) {
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryUnrecordedMarkerless, detail))
+	}
+	b.omit(addr, ReasonUnowned, detail, cause)
+	return ownershipUnowned
+}
 
 // SummaryNameHeld is the Error GitHub issue #1546's refusal carries.
 const SummaryNameHeld = "Unlabelled live object holds the declared name"
