@@ -144,7 +144,12 @@ func TestParseRefusesDamage(t *testing.T) {
 		"unsorted":        strings.Replace(good, "2020-01-01=7 2021-01-01=6", "2021-01-01=7 2020-01-01=6", 1),
 		"no first caps":   strings.Replace(good, "2020-01-01=7", "2020-01-01", 1),
 		"uppercase type":  strings.Replace(good, "x/y", "X/y", 1),
-		"bad caps":        strings.Replace(good, "=6", "=9", 1),
+		"bad caps":        strings.Replace(good, "=6", "=16", 1),
+		// GitHub issue #2147: the via-base bit only qualifies tags, and
+		// the discriminated-tags header counts the rows carrying it.
+		"via base without tags":        strings.Replace(good, "=6", "=10", 1),
+		"discriminated header missing": strings.Replace(good, "=7", "=15", 1),
+		"discriminated header too big": strings.Replace(good, "# counts:", "# discriminated-tags: 1\n# counts:", 1),
 	} {
 		if _, err := Parse([]byte(bad)); err == nil {
 			t.Errorf("%s: Parse accepted it", name)
@@ -181,5 +186,43 @@ func TestEveryTypeLookupIgnoresCase(t *testing.T) {
 	// The version is exact: azapi has no schema for a re-cased one.
 	if _, known := Taggable(mixed, "2015-05-01-PREVIEW"); known {
 		t.Error("an upper-cased API version matched; azapi compares versions exactly")
+	}
+}
+
+// TestDefaultTagsApplyIsCanResourceHaveProperty pins [DefaultTagsApply] to
+// azapi's own gate for default_tags (GitHub issue #2147): a writable tags
+// on an ObjectType body. A discriminated body that takes tags only through
+// its baseProperties is taggable but gets no default tags.
+func TestDefaultTagsApplyIsCanResourceHaveProperty(t *testing.T) {
+	for _, c := range []struct {
+		typ, ver          string
+		taggable, applies bool
+	}{
+		{"Microsoft.Network/virtualNetworks", "2023-09-01", true, true},
+		{"Microsoft.Network/virtualNetworks/subnets", "2024-05-01", false, false},
+		{"Microsoft.Resources/deploymentScripts", "2020-10-01", true, false},
+		{"Microsoft.TimeSeriesInsights/environments", "2017-11-15", true, true},
+		{"Microsoft.TimeSeriesInsights/environments", "2020-05-15", true, false},
+	} {
+		taggable, known := Taggable(c.typ, c.ver)
+		applies, known2 := DefaultTagsApply(c.typ, c.ver)
+		if !known || !known2 || taggable != c.taggable || applies != c.applies {
+			t.Errorf("%s@%s: Taggable %t, DefaultTagsApply %t (known %t %t); want %t, %t", c.typ, c.ver, taggable, applies, known, known2, c.taggable, c.applies)
+		}
+	}
+	viaBase := 0
+	tbl := Default()
+	for _, typ := range tbl.Types() {
+		for _, v := range tbl.Versions(typ) {
+			if taggable, _ := Taggable(typ, v); !taggable {
+				continue
+			}
+			if applies, _ := DefaultTagsApply(typ, v); !applies {
+				viaBase++
+			}
+		}
+	}
+	if viaBase != pinnedDiscriminatedTags {
+		t.Errorf("%d taggable type-versions get no default tags, want the %d discriminated ones", viaBase, pinnedDiscriminatedTags)
 	}
 }

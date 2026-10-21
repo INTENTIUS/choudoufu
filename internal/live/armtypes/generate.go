@@ -95,6 +95,7 @@ func Generate(repoDir, version, commit string) (*Table, error) {
 		}
 		if discriminated && caps.Has(CapTags) {
 			tbl.DiscriminatedTags++
+			caps |= CapTagsViaBase
 		}
 
 		lower := strings.ToLower(typ)

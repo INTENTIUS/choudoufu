@@ -61,13 +61,23 @@ The 257 azurerm types short of in-contract, each listed with its reason in
 | The template names the parent or is not the object's own or fails a guard (9 types) | Withheld rather than risk a wrong marker |
 | On the identity-schema route with no template for an attribute no argument supplies (13 types) | Refused as unadmitted |
 
-On `azapi_resource`, three things stop the stamp:
+On `azapi_resource`, four things stop the stamp:
 
 | Written like this | What happens |
 |---|---|
 | A `body` not known at plan time, and no known top-level `tags` | Refused: the stamp cannot tell whether the tags go in `body.tags` or the top-level argument, and azapi refuses both. A known top-level `tags` settles it: azapi sends that, or refuses a body that also carries tags |
 | A `type` whose ARM type and version do not take tags, or are unknown | A warning; no marker is written |
 | A `body` or `body.tags` the markers cannot be merged into | A warning; the value is left as evaluated |
+| No `tags` of its own, under a provider block whose `default_tags` cannot be read before the run | A warning; no marker is written, because a marker alone would replace the default tags azapi sends |
+
+azapi sends its provider block's `default_tags` only when the resource's
+own `tags` is null and its body carries none, and never merges the two
+(`tagsWithDefaultTags`, azapi 2.13.0 `internal/services/azapi_resource.go`
+lines 1555-1590). So for such a resource the stamp writes the default tags
+with the markers added, and drops a default tag under a marker key in any
+case. A resource that sets its own `tags`, at top level or in `body`, gets
+no default tags from azapi and is stamped as written. azurerm 5.10.0 has no
+`default_tags`.
 
 `unadmitted-type` is in [`live/LIMITATIONS.md`](../LIMITATIONS.md#unadmitted-type),
 and the azapi summaries are under "Every refusal, enumerated" there.
@@ -98,10 +108,14 @@ subscription is the provider block's `subscription_id`, or
 providers apply (azurerm 5.10.0 `internal/provider/provider.go:118`, azapi
 2.13.0 `internal/provider/provider.go:364-368`). The sweep reads the
 environment through the same function, so the two agree on it. A block
-value set from a variable with no default is not known before the run, and
-the environment does not stand in for it, because the provider would not
-let it: the identity needs discovery, as an AWS account the run is not told
-does. The Azure CLI's default subscription, which both providers fall back
+value set from a variable is read with the value the run is given: `-var`,
+`-var-file`, `terraform.tfvars`, `*.auto.tfvars` and `TF_VAR_` all reach
+the evaluator before the plan (`Meta.rootModuleCall`,
+`internal/command/meta_config.go:108`), as they do for an AWS region. Only
+a variable given no value at all, with input disabled, leaves it unknown.
+The environment does not stand in for it then, because the provider would
+not let it: the identity needs discovery, as an AWS account the run is not
+told does. The Azure CLI's default subscription, which both providers fall back
 to last, is not read.
 
 Seven admitted untaggable azurerm types mint a GUID when their naming

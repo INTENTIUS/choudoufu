@@ -6,13 +6,17 @@
 package projection
 
 import (
+	"context"
 	"fmt"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/armtypes"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -63,7 +67,27 @@ import (
 //   - import: the response body's tags become top-level tags when
 //     non-empty (lines 1419-1421).
 //
-// So body.tags needs no read-back path of its own. What differs is one
+// So body.tags needs no read-back path of its own.
+//
+// # azapi's default_tags
+//
+// azapi's provider block takes default_tags, and azapi never merges them:
+// tagsWithDefaultTags (internal/services/azapi_resource.go lines
+// 1555-1590 at 2.13.0) plans the resource's own top-level tags when they
+// are not null (step 1), body.tags when the body carries them (step 2),
+// and only then, for a type whose body takes tags by
+// canResourceHaveProperty (internal/services/resource.go lines 135-149),
+// the provider's default_tags (step 3). A marker written into a null
+// top-level tags would make step 1 win and drop the default tags stock
+// sends, so the stamp writes default_tags merged with the markers there
+// instead ([NodeResolver.azapiDefaultTags], GitHub issue #2147), the way
+// AWS's provider merges its own default_tags into tags_all and GCP's
+// merges default_labels: the plan is stock's plan plus the marker. Tags the
+// configuration sets, at top level or in body, already beat default_tags
+// in azapi, so those are stamped as they always were. hashicorp/azurerm has
+// no default_tags (its 5.10.0 provider schema has no such argument), so
+// this is azapi's alone.
+// What differs is one
 // write path, so it is one named function the completeness guard sees,
 // not a surface every seam would have to answer twice.
 //
@@ -88,6 +112,12 @@ const (
 	// SummaryARMTypeNotStamped is the warning for an azapi resource whose
 	// ARM type and API version are not known to take tags.
 	SummaryARMTypeNotStamped = "Ownership markers not set on an azapi resource type not known to take tags"
+
+	// SummaryARMDefaultTagsUnknown is the warning for an azapi resource
+	// that sets no tags of its own under a provider block whose
+	// default_tags this run cannot read before it starts, so the stamp
+	// cannot write the merge azapi would have sent and writes nothing.
+	SummaryARMDefaultTagsUnknown = "Ownership markers not set on an azapi resource whose provider default_tags are not known"
 
 	// SummaryARMBodyNotMergeable is the warning for an azapi body, or a
 	// body.tags, the stamp cannot add a marker into.
@@ -253,7 +283,12 @@ func (n *NodeResolver) stampedARMTags(addr addrs.AbsResourceInstance, block *con
 	}
 	switch at {
 	case armTagsTopLevel:
-		newTags, tagDiags := n.stampedTagMap(addr, config.GetAttr(markers.ARMTagsArgument), address, true)
+		tags, ok, defDiags := n.azapiDefaultTags(addr, block, config)
+		diags = diags.Append(defDiags)
+		if !ok {
+			return "", cty.NilVal, false, diags
+		}
+		newTags, tagDiags := n.stampedTagMap(addr, tags, address, true)
 		diags = diags.Append(tagDiags)
 		if tagDiags.HasErrors() {
 			return "", cty.NilVal, false, diags
@@ -268,6 +303,78 @@ func (n *NodeResolver) stampedARMTags(addr addrs.AbsResourceInstance, block *con
 		return azapiBodyName, newBody, true, diags
 	}
 	return "", cty.NilVal, false, diags
+}
+
+// azapiDefaultTags is the tags value the markers are merged into when
+// [armTagTarget] chose the top-level argument: the configuration's own,
+// except for an azapi resource that leaves it null under a provider block
+// that sets default_tags, where it is those default tags, because that is
+// what azapi would have sent (this file's doc, "azapi's default_tags").
+// Marker keys among the default tags are dropped, compared
+// case-insensitively, so the markers win on their own keys and no second
+// spelling of one reaches ARM; every other key is kept as written.
+//
+// ok false means no marker is written, with a warning: the provider block
+// sets default_tags to something this run cannot read before it starts, or
+// to a value that is not a map of strings. A marker alone there would
+// replace the default tags stock sends.
+func (n *NodeResolver) azapiDefaultTags(addr addrs.AbsResourceInstance, block *configschema.Block, config cty.Value) (cty.Value, bool, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	tags := config.GetAttr(markers.ARMTagsArgument)
+	if !azapiShaped(block) || !tags.IsNull() {
+		return tags, true, diags
+	}
+	// armTagTarget reached the top level only with a known type that
+	// parses, so this is the same type and version it checked.
+	armType, apiVersion, _ := armtypes.ParseAzapiType(config.GetAttr(azapiTypeName).AsString())
+	if applies, _ := armtypes.DefaultTagsApply(armType, apiVersion); !applies {
+		return tags, true, diags
+	}
+
+	notKnown := func(why string) (cty.Value, bool, tfdiags.Diagnostics) {
+		return cty.NilVal, false, diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryARMDefaultTagsUnknown, fmt.Sprintf(
+			"%s sets no tags of its own, so azapi sends its provider block's default_tags, and %s. A marker written alone would replace those default tags, so this run has written no ownership marker on it. Set the provider's default_tags from values known before the run (literals, locals, or variables given -var or a tfvars file), or set the resource's own tags argument. The next plan reads it as carrying none.", addr, why)))
+	}
+	val, set, ok := identity.ProviderStaticArgument(context.TODO(), n.Config, addr, "default_tags")
+	switch {
+	case !ok:
+		return notKnown("this run cannot read that provider configuration's default_tags before it starts")
+	case !set || val.IsNull():
+		return tags, true, diags
+	}
+	m, err := convert.Convert(val, cty.Map(cty.String))
+	if err != nil || m.IsNull() || !m.IsWhollyKnown() {
+		return notKnown("its default_tags is not a map of strings")
+	}
+
+	elems := map[string]cty.Value{}
+	for it := m.ElementIterator(); it.Next(); {
+		k, v := it.Element()
+		if v.IsNull() || isMarkerKeyFolded(k.AsString()) {
+			continue
+		}
+		elems[k.AsString()] = v
+	}
+	if len(elems) == 0 {
+		// azapi skips step 3 on an empty default_tags (len == 0), and
+		// default tags that were all marker keys leave nothing to keep.
+		return tags, true, diags
+	}
+	return cty.MapVal(elems), true, diags
+}
+
+// isMarkerKeyFolded reports whether key is a marker key in any spelling:
+// tofu-estate, tofu-slot, tofu-address or one of its continuations.
+func isMarkerKeyFolded(key string) bool {
+	if strings.EqualFold(key, markers.TagEstate) || strings.EqualFold(key, markers.TagSlot) {
+		return true
+	}
+	for i := 0; i < markers.MaxContinuations; i++ {
+		if strings.EqualFold(key, markers.AddressTagKey(i)) {
+			return true
+		}
+	}
+	return false
 }
 
 // stampedBodyTags returns body with the markers added to its tags key,

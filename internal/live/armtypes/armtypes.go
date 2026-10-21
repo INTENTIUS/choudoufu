@@ -31,6 +31,12 @@ const (
 	CapTags     Caps = 1 << 0
 	CapName     Caps = 1 << 1
 	CapLocation Caps = 1 << 2
+	// CapTagsViaBase is set beside CapTags when the body is a
+	// DiscriminatedObjectType whose `tags` is writable only through its
+	// baseProperties: the type-versions the package doc's one widening
+	// admits, for which azapi's canResourceHaveProperty answers false. It
+	// is what tells [DefaultTagsApply] from [Taggable].
+	CapTagsViaBase Caps = 1 << 3
 )
 
 // Has reports whether every bit of want is set.
@@ -184,6 +190,19 @@ func Taggable(armType, apiVersion string) (taggable, known bool) {
 	return caps.Has(CapTags), known
 }
 
+// DefaultTagsApply reports whether azapi 2.13.0 adds its provider block's
+// default_tags to an azapi_resource of armType at apiVersion whose own tags
+// argument is null. That is azapi's canResourceHaveProperty(resourceDef,
+// "tags") (internal/services/resource.go lines 135-149), the gate of
+// tagsWithDefaultTags step 3 (internal/services/azapi_resource.go lines
+// 1570-1572): a writable `tags` on an ObjectType body, never a
+// discriminated body's baseProperties. So it is [Taggable] less the
+// [CapTagsViaBase] type-versions. known is false as for [Taggable].
+func DefaultTagsApply(armType, apiVersion string) (applies, known bool) {
+	caps, known := Default().Capabilities(armType, apiVersion)
+	return caps.Has(CapTags) && !caps.Has(CapTagsViaBase), known
+}
+
 // Types returns every ARM type azapi's data knows, lowercased and sorted.
 func Types() []string { return Default().Types() }
 
@@ -231,7 +250,7 @@ func (t *Table) Render() []byte {
 	fmt.Fprintf(&b, "%stypes=%d type-versions=%d taggable-at-latest=%d version-dependent=%d\n",
 		headerCounts, c.Types, c.TypeVersions, c.TaggableAtLatest, c.VersionDependent)
 	fmt.Fprintf(&b, "%s%d\n", headerDiscrim, t.DiscriminatedTags)
-	b.WriteString("# format: <arm type, lowercased> <api version>[=<caps>] ...; caps carries forward until the next =; bits: 1 tags, 2 name, 4 location\n")
+	b.WriteString("# format: <arm type, lowercased> <api version>[=<caps>] ...; caps carries forward until the next =; bits: 1 tags, 2 name, 4 location, 8 tags only through a discriminated body's baseProperties\n")
 	for _, typ := range t.Types() {
 		r := t.rows[typ]
 		b.WriteString(typ)
@@ -297,7 +316,7 @@ func Parse(data []byte) (*Table, error) {
 			v, capsStr, hasCaps := strings.Cut(tok, "=")
 			if hasCaps {
 				n, err := strconv.Atoi(capsStr)
-				if err != nil || n < 0 || n > int(CapTags|CapName|CapLocation) {
+				if err != nil || n < 0 || n > int(CapTags|CapName|CapLocation|CapTagsViaBase) || (Caps(n).Has(CapTagsViaBase) && !Caps(n).Has(CapTags)) {
 					return nil, fmt.Errorf("line %d: bad caps in %q", line, tok)
 				}
 				cur = Caps(n)
@@ -323,6 +342,17 @@ func Parse(data []byte) (*Table, error) {
 		c.Types, c.TypeVersions, c.TaggableAtLatest, c.VersionDependent)
 	if header != want {
 		return nil, fmt.Errorf("counts header %q disagrees with the rows, which give %q", header, want)
+	}
+	viaBase := 0
+	for _, r := range t.rows {
+		for _, c := range r.caps {
+			if c.Has(CapTagsViaBase) {
+				viaBase++
+			}
+		}
+	}
+	if viaBase != t.DiscriminatedTags {
+		return nil, fmt.Errorf("%q header says %d, but %d type-versions carry the %d bit", strings.TrimSpace(headerDiscrim), t.DiscriminatedTags, viaBase, CapTagsViaBase)
 	}
 	return t, nil
 }

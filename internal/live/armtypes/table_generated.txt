@@ -2,7 +2,7 @@
 # source: azure/terraform-provider-azapi v2.13.0 cf3ecee858fa48c0aca95d0b995a8bfd4950c8ec internal/azure/generated
 # counts: types=3397 type-versions=33979 taggable-at-latest=1031 version-dependent=84
 # discriminated-tags: 13
-# format: <arm type, lowercased> <api version>[=<caps>] ...; caps carries forward until the next =; bits: 1 tags, 2 name, 4 location
+# format: <arm type, lowercased> <api version>[=<caps>] ...; caps carries forward until the next =; bits: 1 tags, 2 name, 4 location, 8 tags only through a discriminated body's baseProperties
 arizeai.observabilityeval/organizations 2024-10-01=7 2024-10-01-preview
 astronomer.astro/organizations 2023-08-01=7 2023-08-01-preview 2024-08-27 2024-08-27-preview
 commvault.contentstore/cloudaccounts 2024-10-01-preview=7 2025-01-01-preview 2026-03-01-preview 2026-05-01-preview 2026-06-01-preview 2026-06-02-preview 2026-07-01-preview 2026-07-03-preview
@@ -2609,7 +2609,7 @@ microsoft.resources/builtintemplatespecs/versions 2022-02-01=2
 microsoft.resources/changes 2022-03-01-preview=2 2022-05-01 2023-03-01-preview 2023-07-01-preview 2024-06-01-preview
 microsoft.resources/databoundaries 2024-08-01=2
 microsoft.resources/deployments 2015-11-01=2 2016-02-01 2016-07-01 2016-09-01 2017-05-10 2018-02-01 2018-05-01=6 2019-03-01 2019-05-01 2019-05-10 2019-07-01 2019-08-01 2019-10-01=7 2020-06-01 2020-08-01 2020-10-01 2021-01-01 2021-04-01 2022-09-01 2023-07-01 2024-03-01 2024-07-01 2024-11-01 2025-03-01 2025-04-01
-microsoft.resources/deploymentscripts 2019-10-01-preview=7 2020-10-01 2023-08-01
+microsoft.resources/deploymentscripts 2019-10-01-preview=15 2020-10-01 2023-08-01
 microsoft.resources/deploymentscripts/logs 2019-10-01-preview=2 2020-10-01 2023-08-01
 microsoft.resources/deploymentstacks 2022-08-01-preview=7 2024-03-01 2025-07-01
 microsoft.resources/deploymentstackswhatifresults 2025-07-01=7
@@ -3146,9 +3146,9 @@ microsoft.testbase/testbaseaccounts/packages/testresults/analysisresults 2020-12
 microsoft.testbase/testbaseaccounts/testsummaries 2020-12-16-preview=2 2022-04-01-preview 2023-11-01-preview
 microsoft.testbase/testbaseaccounts/testtypes 2020-12-16-preview=2 2022-04-01-preview 2023-11-01-preview
 microsoft.testbase/testbaseaccounts/vhds 2023-11-01-preview=2
-microsoft.timeseriesinsights/environments 2017-02-28-preview=7 2017-11-15 2018-08-15-preview 2020-05-15 2021-03-31-preview 2021-06-30-preview
+microsoft.timeseriesinsights/environments 2017-02-28-preview=7 2017-11-15 2018-08-15-preview=15 2020-05-15 2021-03-31-preview 2021-06-30-preview
 microsoft.timeseriesinsights/environments/accesspolicies 2017-02-28-preview=2 2017-11-15 2018-08-15-preview 2020-05-15 2021-03-31-preview 2021-06-30-preview
-microsoft.timeseriesinsights/environments/eventsources 2017-02-28-preview=7 2017-11-15 2018-08-15-preview 2020-05-15 2021-03-31-preview 2021-06-30-preview
+microsoft.timeseriesinsights/environments/eventsources 2017-02-28-preview=15 2017-11-15 2018-08-15-preview 2020-05-15 2021-03-31-preview 2021-06-30-preview
 microsoft.timeseriesinsights/environments/privateendpointconnections 2021-03-31-preview=2
 microsoft.timeseriesinsights/environments/referencedatasets 2017-02-28-preview=7 2017-11-15 2018-08-15-preview 2020-05-15 2021-03-31-preview 2021-06-30-preview
 microsoft.update.admin/updatelocations 2016-05-01=2 2021-07-01
