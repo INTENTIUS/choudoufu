@@ -4794,7 +4794,7 @@ func googleLabelSplit(schema providers.ProviderSchema) (labelled, unlabelled map
 // (live/readiness.json counts no untaggable one), so the label sweep
 // finds a removed block's object itself.
 var recordRemovalLegs = map[substrate.Sweep]bool{
-	substrate.SweepAssetSearch: true,
+	substrate.SweepAssetSearch:   true,
 	substrate.SweepResourceGraph: true,
 }
 

@@ -1487,14 +1487,13 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			sibArgs = append(sibArgs, argName)
 		}
 	}
-	// prevStart and curStart bound the parts the previous component
-	// contributed, which is what an [Component.ARMTypeSegment] component
-	// rewrites: azapi drops a tenant-root parent_id, or the whole parent_id
-	// for a subscription (see [armTypeSegment]).
-	prevStart, curStart := 0, 0
+	// An [Component.ARMTypeSegment] component rewrites the import-ID text
+	// the component before it contributed: azapi drops a tenant-root
+	// parent_id, or the whole parent_id for a subscription (see
+	// [armTypeSegment]). The segment it rewrites is the last one emitted,
+	// when that is the previous component's.
 	armID := false
 	for i, comp := range entry.Components {
-		prevStart, curStart = curStart, len(parts)
 		sibBefore := len(r.pendingSiblingApply)
 		if comp.Cloud != CloudNone {
 			// A cloud-bearing component may also carry the argument the
@@ -1562,15 +1561,13 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			if armDefaultParent != "" && i+1 < len(entry.Components) && entry.Components[i+1].ARMTypeSegment {
 				// The parent azapi gives a resource group whose parent_id
 				// is omitted ([resolver.armParentDefault]).
-				parts = append(parts, Part{Literal: armDefaultParent})
+				emit(i, "", "", []Part{{Literal: armDefaultParent}}, "")
 				continue
 			}
 			if name, ok := r.armDefaultName(entry, i, cloudScope); ok {
 				// The name azapi gives an azapi_resource that omits it
 				// ([resolver.armDefaultName]).
-				got := []Part{{Literal: name}}
-				addTo(comp.identityAttrFor(comp.Attrs[0]), got)
-				parts = append(parts, got...)
+				emit(i, comp.identityAttrFor(comp.Attrs[0]), comp.Attrs[0], []Part{{Literal: name}}, "")
 				continue
 			}
 			if comp.OmitIfAbsent {
@@ -1813,12 +1810,25 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			// GitHub issue #1120: azapi_resource's type contributes the text
 			// azapi joins parent_id and name with, not its own value. See
 			// [Component.ARMTypeSegment] and [armTypeSegment].
-			seg, ok := r.armTypeSegmentParts(got, parts[prevStart:curStart], attr, addr)
+			prevIdx := -1
+			var parentParts []Part
+			if n := len(segs); n > 0 && segs[n-1].comp == i-1 {
+				prevIdx = n - 1
+				if p := segs[prevIdx].prefix; p != "" {
+					parentParts = append(parentParts, Part{Literal: p})
+				}
+				parentParts = append(parentParts, segs[prevIdx].parts...)
+			}
+			seg, ok := r.armTypeSegmentParts(got, parentParts, attr, addr)
 			if !ok {
 				fail(sibBefore, "")
 				continue
 			}
-			parts = append(parts[:prevStart], seg...)
+			if prevIdx >= 0 {
+				segs[prevIdx].idParts = append([]Part{}, seg...)
+			} else {
+				emit(i, "", "", seg, "")
+			}
 			// The type as written, API version and all, is azapi's
 			// identity attribute "type" (#1120 unit 13): an import by
 			// identity object {id, type} reads the object at the block's
@@ -1827,7 +1837,8 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			// where a bare id is read at the newest version azapi knows
 			// (parse.ResourceIDWithApiVersionInfo, internal/services/parse/resource.go
 			// lines 213-231).
-			addTo("type", got)
+			emit(i, "type", attr.Name, got, "")
+			segs[len(segs)-1].idParts = []Part{}
 			armID = true
 			continue
 		}
@@ -1859,6 +1870,10 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	}
 	for _, sg := range segs {
 		addTo(sg.attr, sg.parts)
+		if sg.idParts != nil {
+			parts = append(parts, sg.idParts...)
+			continue
+		}
 		if sg.prefix != "" {
 			parts = append(parts, Part{Literal: sg.prefix})
 		}

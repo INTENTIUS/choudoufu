@@ -922,7 +922,7 @@ var liveLsListings = map[substrate.Sweep]string{
 	// Listed only with DIR, whose provider blocks name the subscriptions
 	// and credentials (GitHub issue #1120).
 	substrate.SweepResourceGraph: "one Azure Resource Graph query per subscription the estate's resources resolve to",
-	substrate.SweepAssetSearch:  "one Cloud Asset Inventory search per project the estate's google resources name",
+	substrate.SweepAssetSearch:   "one Cloud Asset Inventory search per project the estate's google resources name",
 }
 
 // liveLsNotListed is the warning for every family in set whose sweep

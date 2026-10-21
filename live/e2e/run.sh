@@ -2298,6 +2298,7 @@ else
   # like that survives: nothing checked the directory was still there.
   LINT_ENFORCED="local-exec:provisioner
 gcp-label-count:gcp-label-count
+gcp-estate-label:gcp-estate-label
 remote-exec:provisioner
 null-resource:logical-resource
 terraform-data:logical-resource

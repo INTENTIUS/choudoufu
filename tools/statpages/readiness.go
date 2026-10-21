@@ -31,7 +31,7 @@ type readinessData struct {
 		Awaiting int             `json:"awaiting_ruling"`
 		Types    []readinessType `json:"types"`
 	} `json:"kubernetes"`
-	Azure readinessAzure `json:"azure"`
+	Azure  readinessAzure `json:"azure"`
 	Google struct {
 		Provider string   `json:"provider"`
 		Statuses []string `json:"statuses"`

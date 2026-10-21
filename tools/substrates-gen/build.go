@@ -227,7 +227,7 @@ var fenceByFamily = map[string]string{
 	// GitHub issue #1122's ruling (2026-10-19): Azure RBAC cannot condition
 	// on tags, so the estate is a set of resource groups.
 	"azurerm": "Resource-group RBAC per principal (a custom role or Contributor on the estate's groups), plus Azure Policy on the tofu-estate tag: deny a write that lacks it or changes it. The RBAC alone governs deletes; a denyAction delete lock is opt-in (deleteLock, off by default). Template files an operator applies, never plan resources.",
-	"google":     "Project-scoped, restated: an IAM condition cannot match a label, so one estate per project, granted by an ordinary project IAM binding. Resource Manager tag bindings, which a condition can match, are ruled later (#1121).",
+	"google":  "Project-scoped, restated: an IAM condition cannot match a label, so one estate per project, granted by an ordinary project IAM binding. Resource Manager tag bindings, which a condition can match, are ruled later (#1121).",
 }
 
 func fenceFor(family string) (string, error) {
