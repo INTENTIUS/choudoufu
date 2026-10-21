@@ -296,6 +296,11 @@ var refusals = []Refusal{
 		Warning: true,
 	},
 	{
+		Summary: SummaryARMDefaultTagsUnknown,
+		What:    "GitHub issue #2147: an azapi_resource that sets no tags of its own, of a type azapi gives its provider's default_tags, under a provider block whose default_tags this run cannot read before it starts (or that is not a map of strings). azapi sends the default tags only when the resource's tags is null, so a marker written alone would replace them; the stamp writes no marker instead.",
+		Warning: true,
+	},
+	{
 		Summary: "Parent-derived identity with no formula",
 		What:    "A resource's identity is meant to be derived from its parent's, and the identity table carries no formula saying how.",
 	},

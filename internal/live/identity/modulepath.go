@@ -559,3 +559,70 @@ func SortedChildNames(children map[string]*configs.Config) []string {
 	sort.Strings(out)
 	return out
 }
+
+// ProviderStaticArgument reads one argument of the provider configuration
+// addr's resource block is configured under in root: the block
+// [providerscope.ResolveResource] names, found by the same deterministic
+// match [resolver.providerStaticAttr] uses for a block's subscription_id,
+// and evaluated by its own module's pure static evaluator, which a real
+// run has fed the -var, tfvars and TF_VAR_ values through
+// (internal/command/meta_config.go, Meta.rootModuleCall).
+//
+// set false with ok true says the configuration certainly leaves the
+// argument out: an implied empty provider configuration, or a block whose
+// body has no such attribute. ok false says this cannot be read before the
+// run: root or the block cannot be found, the block has for_each, or the
+// attribute is present but does not evaluate to a wholly known, unmarked
+// value. val is meaningful only when set and ok are both true; it may be
+// null, which the caller reads as the provider would.
+//
+// The node stamp asks it for azapi's default_tags (GitHub issue #2147):
+// the one provider-block value the marker's own write has to merge with.
+func ProviderStaticArgument(ctx context.Context, root *configs.Config, addr addrs.AbsResourceInstance, name string) (val cty.Value, set, ok bool) {
+	if root == nil {
+		return cty.NilVal, false, false
+	}
+	modCfg, found := ConfigForModule(root, addr.Module)
+	if !found || modCfg == nil || modCfg.Module == nil {
+		return cty.NilVal, false, false
+	}
+	rc := modCfg.Module.ResourceByAddr(addr.Resource.Resource)
+	if rc == nil {
+		return cty.NilVal, false, false
+	}
+	abs := providerscope.ResolveResource(modCfg, rc)
+
+	r := &resolver{ctx: ctx, rootCfg: root}
+	pc, mod, found := r.providerBlock(abs)
+	switch {
+	case !found:
+		return cty.NilVal, false, false
+	case pc == nil || pc.Config == nil:
+		return cty.NilVal, false, true
+	case pc.ForEach != nil:
+		return cty.NilVal, false, false
+	}
+	content, _, diags := pc.Config.PartialContent(&hcl.BodySchema{
+		Attributes: []hcl.AttributeSchema{{Name: name}},
+	})
+	if diags.HasErrors() {
+		return cty.NilVal, false, false
+	}
+	attr, has := content.Attributes[name]
+	if !has {
+		return cty.NilVal, false, true
+	}
+	if mod.StaticEvaluator == nil {
+		return cty.NilVal, true, false
+	}
+	ident := configs.StaticIdentifier{
+		Module:    abs.Module,
+		Subject:   fmt.Sprintf("provider.%s.%s", pc.Name, name),
+		DeclRange: attr.Range,
+	}
+	v, evalDiags, recovered := staticeval.Scoped(ctx, mod.StaticEvaluator.Pure(), attr.Expr, ident, instances.RepetitionData{}, nil)
+	if recovered != nil || evalDiags.HasErrors() || v.ContainsMarked() || !v.IsWhollyKnown() {
+		return cty.NilVal, true, false
+	}
+	return v, true, true
+}
