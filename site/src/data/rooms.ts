@@ -1,7 +1,7 @@
 // The home page picker and the room pages at /for/<id>/. Picker.astro and
 // Room.astro both read these lists. An href is a site path ('/docs/use/migrate/')
 // or a full https:// address; scripts/check-rooms.mjs fails the build on one
-// that does not resolve. data/proof.ts counts the figures at build.
+// that does not resolve.
 
 export type Link = { label: string; href: string };
 export type Platform = 'aws' | 'kubernetes';
@@ -13,8 +13,6 @@ export type Room = {
 	works: string[];
 	differs: string[];
 	first: Link;
-	/** Platforms the Proof section counts. */
-	proof: Platform[];
 	howto: Link[];
 	explain: Link[];
 	reference: Link[];
@@ -86,7 +84,6 @@ export const ROOMS: Room[] = [
 			'Run live-import before the first apply, so every resource carries its marker.',
 		],
 		first: migrate,
-		proof: ['aws', 'kubernetes'],
 		howto: [migrate, setup, { label: 'Run it from CI', href: '/docs/use/cicd/' }],
 		explain: [whatItIs, { label: 'The cache', href: '/how-it-works/cache/' }],
 		reference: [{ label: 'AWS compatibility', href: '/aws/compatibility/' }, { label: 'Kubernetes compatibility', href: '/kubernetes/compatibility/' }, reference],
@@ -103,7 +100,6 @@ export const ROOMS: Room[] = [
 			'estate.chdf.hcl replaces the generated backend block.',
 		],
 		first: migrate,
-		proof: ['aws', 'kubernetes'],
 		howto: [migrate, { label: 'Day 2', href: '/docs/use/day2/' }],
 		explain: [whatItIs],
 		reference: [{ label: 'Reading another estate', href: repo('live/OUTPUTS.md') }, reference],
@@ -119,7 +115,6 @@ export const ROOMS: Room[] = [
 		],
 		differs: [],
 		first: { label: 'terragucci: choose choudoufu', href: 'https://intentius.io/terragucci/guides/use-a-binary/#choudoufu' },
-		proof: ['aws', 'kubernetes'],
 		howto: [setup, migrate],
 		explain: [whatItIs],
 		reference: [{ label: 'Tracing', href: repo('docs/tracing.md') }, reference],
@@ -134,7 +129,6 @@ export const ROOMS: Room[] = [
 		],
 		differs: [],
 		first: { label: 'Start a new estate', href: '/docs/use/start/' },
-		proof: ['aws', 'kubernetes'],
 		howto: [{ label: 'Tutorial', href: '/docs/tutorial/' }, setup],
 		explain: [whatItIs, { label: 'Records', href: '/how-it-works/values/' }],
 		reference: [reference],
@@ -150,7 +144,6 @@ export const ROOMS: Room[] = [
 		],
 		differs: [],
 		first: { label: 'The AWS hub', href: '/aws/' },
-		proof: ['aws'],
 		howto: [{ label: 'Adopt', href: '/aws/adopt/' }, { label: 'Operate', href: '/aws/operate/' }, { label: 'Create the bucket', href: '/docs/use/bucket/' }],
 		explain: [{ label: 'Gate', href: '/aws/gate/' }, { label: 'Identity', href: '/how-it-works/identity/' }],
 		reference: [{ label: 'Compatibility', href: '/aws/compatibility/' }, { label: 'Proof', href: '/aws/proof/' }],
@@ -166,7 +159,6 @@ export const ROOMS: Room[] = [
 		],
 		differs: ['Namespaces scope reads, and the admission policy scopes writes.'],
 		first: { label: 'The Kubernetes hub', href: '/kubernetes/' },
-		proof: ['kubernetes'],
 		howto: [{ label: 'Adopt', href: '/kubernetes/adopt/' }, { label: 'Operate', href: '/kubernetes/operate/' }],
 		explain: [{ label: 'Gate', href: '/kubernetes/gate/' }, { label: 'Identity', href: '/how-it-works/identity/' }],
 		reference: [{ label: 'Compatibility', href: '/kubernetes/compatibility/' }, { label: 'Proof', href: '/kubernetes/proof/' }],
@@ -182,7 +174,6 @@ export const ROOMS: Room[] = [
 		],
 		differs: ['Guard the record store as you guard a state file.'],
 		first: { label: 'Who may change what', href: '/how-it-works/identity/' },
-		proof: ['aws', 'kubernetes'],
 		howto: [{ label: 'Gate on AWS', href: '/aws/gate/' }, { label: 'Gate on Kubernetes', href: '/kubernetes/gate/' }, { label: 'Create the bucket', href: '/docs/use/bucket/' }],
 		explain: [whatItIs],
 		reference: [
@@ -202,7 +193,6 @@ export const ROOMS: Room[] = [
 		],
 		differs: [],
 		first: { label: 'Tutorial', href: '/docs/tutorial/' },
-		proof: ['aws', 'kubernetes'],
 		howto: [{ label: 'Start a new estate', href: '/docs/use/start/' }, migrate],
 		explain: [whatItIs],
 		reference: [{ label: 'Claims', href: repo('live/CLAIMS.md') }, { label: 'Refusals', href: repo('live/LIMITATIONS.md') }],
@@ -218,7 +208,6 @@ export const ROOMS: Room[] = [
 		],
 		differs: [],
 		first: { label: 'llms.txt', href: '/llms.txt' },
-		proof: ['aws', 'kubernetes'],
 		howto: [{ label: 'Tutorial', href: '/docs/tutorial/' }, { label: 'Run it from CI', href: '/docs/use/cicd/' }],
 		explain: [whatItIs],
 		reference: [{ label: 'The README agent prompt', href: repo('README.md') }, reference],
@@ -234,7 +223,6 @@ export const ROOMS: Room[] = [
 		],
 		differs: [],
 		first: { label: 'Contributing', href: repo('CONTRIBUTING.md') },
-		proof: ['aws', 'kubernetes'],
 		howto: [{ label: 'Contribute compute', href: repo('live/CONTRIBUTE-GAUNTLET.md') }],
 		explain: [{ label: 'The gauntlet', href: repo('live/GAUNTLET.md') }],
 		reference: [{ label: 'Board', href: repo('live/BOARD.md') }, { label: 'Claims', href: repo('live/CLAIMS.md') }],

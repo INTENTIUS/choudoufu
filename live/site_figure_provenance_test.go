@@ -116,8 +116,8 @@ func TestSiteContentMeasuredFiguresCarryProvenance(t *testing.T) {
 		rel := mustRel(t, root, path)
 		for _, bad := range unstampedMeasuredFigures(string(raw)) {
 			t.Errorf("%s:%d: hand-typed measured figure %q with no commit or \"Stale\" stamp in its paragraph: %q\n"+
-				"Either it is derivable from a committed artifact (compute it at build from live/, as "+
-				"site/src/data/proof.ts does, or link the generated stat page under live/ that stamps a commit), or it is a one-off measurement "+
+				"Either it is derivable from a committed artifact (link the generated stat page under live/ "+
+				"that stamps a commit), or it is a one-off measurement "+
 				"(stamp it inline: \"at commit `<sha>`\", or \"**Stale**: ...\" if it disagrees with a current "+
 				"artifact), or it is unsupportable (delete the sentence). See this test's own doc comment for what "+
 				"counts as a measured figure and what counts as a stamp.",

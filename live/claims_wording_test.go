@@ -20,8 +20,8 @@ import (
 // is missing, untested or out of scope is a GitHub issue that links the
 // claim, never a sentence on the claim. TestClaimWordingIsProofOnly holds
 // every place claim text or claim status is written to that: the table, the
-// claim pages, the text of claims.json and the site's proof pages and
-// figures.
+// claim pages, the text of claims.json, the site's proof pages and the
+// components that link the claims.
 //
 // Proving it red: put "open" back as a cell's status in claims.json, or add
 // "This is not measured on real AWS." to a claim page.
@@ -40,10 +40,9 @@ func claimWordingMarkdown(t *testing.T) []string {
 	return append([]string{"CLAIMS.md", "../site/src/content/docs/aws/proof.mdx", "../site/src/content/docs/kubernetes/proof.mdx"}, pages...)
 }
 
-// claimWordingSource are the site files that compute and print the claim
-// and estate figures; every line of them is read, code and strings alike.
+// claimWordingSource are the site files that link the claims; every line of
+// them is read, code and strings alike.
 var claimWordingSource = []string{
-	"../site/src/data/proof.ts",
 	"../site/src/components/Landing.astro",
 	"../site/src/components/Picker.astro",
 	"../site/src/components/Room.astro",
