@@ -3284,7 +3284,13 @@ const (
 	// google_project_service for_each with no google schema in the sweep, so
 	// it adds no row and instances and body-sha256 are unchanged.
 	// fixture-dirs 680 -> 681 on the same row; the cohort pins are untouched.
-	identityGoldenPinDirs = 712
+	//
+	// 712 -> 713 for option A honouring moved blocks: one new fixture,
+	// internal/live/projection/testdata/unrecorded-k8s-moved, a markerless
+	// stand-in type (kubernetes_unlabelled_stub) no table admits, so it adds
+	// no row and instances and body-sha256 are unchanged. fixture-dirs
+	// 681 -> 682 on the same row; the cohort pins are untouched.
+	identityGoldenPinDirs = 713
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).
