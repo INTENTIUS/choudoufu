@@ -561,6 +561,11 @@
           "fail": 0,
           "not_run": 0
         },
+        "record_store_gcs": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 2
+        },
         "strict": {
           "pass": 2,
           "fail": 0,
@@ -1401,6 +1406,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -4619,6 +4625,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
