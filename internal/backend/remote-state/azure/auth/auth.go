@@ -22,6 +22,13 @@ type Config struct {
 	MSIAuthConfig
 	StorageAddresses
 	WorkloadIdentityAuthConfig
+
+	// DisableInstanceDiscovery is azapi's disable_instance_discovery, set
+	// by a caller that mirrors an azapi provider block (internal/live/azsweep).
+	// The stock backend has no such argument and leaves it false; a
+	// loopback authority turns discovery off regardless
+	// ([instanceDiscoveryOff]).
+	DisableInstanceDiscovery bool
 }
 
 type AuthMethod interface {

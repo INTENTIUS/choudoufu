@@ -85,7 +85,7 @@ func Render(root string, m *Manifest, a *Artifact, tt TypeIndexTotals, scale []b
 		return nil, err
 	}
 	// The board: every display value live/BOARD.md needs, as data.
-	bb, err := buildBoard(m, a, st, kindNodeImagePin(root)).Canonical()
+	bb, err := buildBoard(m, a, st, substratePins(root)).Canonical()
 	if err != nil {
 		return nil, err
 	}
@@ -164,12 +164,14 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("Both bars are the floci emulator's. The `%s` lane (#1067) runs against a", LaneKubernetes)
 	w("kind cluster instead - a real API server, not an emulator - and has a bar")
 	w("of its own, `lanes.%s` in `%s`, counted toward neither bar", LaneKubernetes, ArtifactPath)
-	w("above. The `%s` lane (#1119) is the same arrangement on the floci-gcp", LaneGCP)
-	w("emulator, pinned in `live/floci-gcp-image`, with its bar at `lanes.%s`.", LaneGCP)
-	w("A stage whose oracle is AWS-shaped says under its entry below how it")
-	w("reads on each of those substrates, or that it does not apply there, in")
-	w("which case the estate's cell reads `n/a` and is neutral for clear;")
-	w("nothing is skipped silently.")
+	w("above. The `%s` lane (#1120) runs against floci-az, an Azure emulator,", LaneAzure)
+	w("with a bar of its own the same way, `lanes.%s`, and the `%s` lane", LaneAzure, LaneGCP)
+	w("(#1119) is the same arrangement on the floci-gcp emulator, pinned in")
+	w("`live/floci-gcp-image`, with its bar at `lanes.%s`. A stage whose", LaneGCP)
+	w("oracle is AWS-shaped says under its entry below how it reads on each")
+	w("of those substrates, or that it does not apply there, in which case the")
+	w("estate's cell reads `n/a` and is neutral for clear; nothing is skipped")
+	w("silently.")
 	w("")
 	w("An AWS-lane estate whose configuration also manages the cluster its own")
 	w("`aws_eks_cluster` creates declares `\"substrate\": \"%s\"` in the manifest", SubstrateFlociEKS)
@@ -293,7 +295,7 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("")
 	w("`set` is `core` or `growing`; `reason` is required for core; `script` defaults")
 	w("to `live/e2e/<name>/run.sh`; `url` and `pin` are required except for the")
-	w("`reference` lane and a `%s`-lane or `%s`-lane estate kept in this", LaneKubernetes, LaneGCP)
+	w("`reference` lane and a `%s`-, `%s`- or `%s`-lane estate kept in this", LaneKubernetes, LaneAzure, LaneGCP)
 	w("repository.")
 	w("")
 	w("Lanes: %s.", strings.Join(KnownLanes, ", "))

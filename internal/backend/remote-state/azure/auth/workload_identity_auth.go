@@ -30,7 +30,8 @@ func (cred *workloadIdentityAuth) Construct(ctx context.Context, config *Config)
 	client := httpclient.New(ctx)
 	return azidentity.NewWorkloadIdentityCredential(
 		&azidentity.WorkloadIdentityCredentialOptions{
-			ClientOptions: clientOptions(client, config.CloudConfig),
+			ClientOptions:            clientOptions(client, config.CloudConfig),
+			DisableInstanceDiscovery: instanceDiscoveryOff(config),
 		},
 	)
 }

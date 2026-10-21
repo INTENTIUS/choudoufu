@@ -120,7 +120,7 @@ func scanTypeServiceList(ctx context.Context, req Request, schemas listclient.Sc
 			TypeName: typeName,
 			Reason:   SweepGapNotTaggable,
 			Detail: fmt.Sprintf(
-				"A %s carries no tags, so it can carry no ownership marker and the sweep has nothing to search on. Destroy a resource of this type before removing its block, or delete it out of band.",
+				"A %s carries no tags, so it can carry no ownership marker and the sweep has nothing to search on. Removing its block still plans the destroy while the estate's record of it survives; with that record lost the resource is left running unowned, and live/RECOVERY.md says how to restore the record's previous version.",
 				typeName),
 		}))
 	}

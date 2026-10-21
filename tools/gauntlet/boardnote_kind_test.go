@@ -38,7 +38,7 @@ func TestLastRunNoteReadsKindSubstrateImage(t *testing.T) {
 			SubstrateImage: pin,
 		},
 	}
-	note, legacy := lastRunNote(matching, &Artifact{Emulator: "ghcr.io/lex00/floci@sha256:unrelated"}, pin)
+	note, legacy := lastRunNote(matching, &Artifact{Emulator: "ghcr.io/lex00/floci@sha256:unrelated"}, SubstratePins{Kind: pin})
 	if legacy != "" {
 		t.Fatalf("legacy = %q, want empty", legacy)
 	}
@@ -59,7 +59,7 @@ func TestLastRunNoteReadsKindSubstrateImage(t *testing.T) {
 		ExitCode:       0,
 		SubstrateImage: stale,
 	}
-	staleNote, _ := lastRunNote(staleRow, &Artifact{}, pin)
+	staleNote, _ := lastRunNote(staleRow, &Artifact{}, SubstratePins{Kind: pin})
 	if !strings.Contains(staleNote, "Stale") {
 		t.Errorf("note does not say Stale for a row measured against %q when the current pin is %q: %q", stale, pin, staleNote)
 	}
@@ -69,7 +69,7 @@ func TestLastRunNoteReadsKindSubstrateImage(t *testing.T) {
 
 	unrecorded := matching
 	unrecorded.LastRun = &LastRun{Commit: "abc1234", Date: "2026-09-27T00:00:00Z", ExitCode: 0}
-	unrecordedNote, _ := lastRunNote(unrecorded, &Artifact{}, pin)
+	unrecordedNote, _ := lastRunNote(unrecorded, &Artifact{}, SubstratePins{Kind: pin})
 	if !strings.Contains(unrecordedNote, "was not recorded") {
 		t.Errorf("note should say the substrate image was not recorded when SubstrateImage is empty: %q", unrecordedNote)
 	}

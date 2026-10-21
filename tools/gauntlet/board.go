@@ -186,14 +186,15 @@ type BoardLiveCert struct {
 // caller rendering into a temp directory still reports the real checkout's
 // answer. A nil map is "no checkout was read", and every field it feeds
 // stays empty rather than claiming every row is current.
-// kindImage is the current kind-node-image pin (live/kind-node-image,
-// #1594) - the kind substrate's counterpart to a.Emulator, read by the
-// caller (Render) rather than carried on Artifact, the same "root is a
-// rendering-time fact, not derived-artifact state" reason st is passed in
-// rather than read from a. It is lastRunNote's only use (#1700): a
-// kind-substrate row's provenance sentence needs it to say whether that
-// row's recorded LastRun.SubstrateImage still matches the current pin.
-func buildBoard(m *Manifest, a *Artifact, st map[string]ScriptStaleness, kindImage string) Board {
+// pins are the current kind-node-image pin (live/kind-node-image, #1594)
+// and floci-az pin (live/floci-az-image, #1120) - those substrates'
+// counterparts to a.Emulator, read by the caller (Render) rather than
+// carried on Artifact, the same "root is a rendering-time fact, not
+// derived-artifact state" reason st is passed in rather than read from a.
+// They are lastRunNote's only use (#1700): a kind or floci-az row's
+// provenance sentence needs them to say whether that row's recorded
+// LastRun.SubstrateImage still matches the current pin.
+func buildBoard(m *Manifest, a *Artifact, st map[string]ScriptStaleness, pins SubstratePins) Board {
 	b := Board{
 		Schema:          1,
 		Emulator:        a.Emulator,
@@ -229,7 +230,7 @@ func buildBoard(m *Manifest, a *Artifact, st map[string]ScriptStaleness, kindIma
 		return rows[i].Name < rows[j].Name
 	})
 	for _, r := range rows {
-		b.Estates = append(b.Estates, boardEstate(r, a, st[r.Name], kindImage))
+		b.Estates = append(b.Estates, boardEstate(r, a, st[r.Name], pins))
 	}
 	certs := append([]LiveCertResult(nil), a.LiveCert...)
 	sort.SliceStable(certs, func(i, j int) bool { return certs[i].Estate < certs[j].Estate })
@@ -244,7 +245,7 @@ func buildBoard(m *Manifest, a *Artifact, st map[string]ScriptStaleness, kindIma
 
 // boardEstate is one estate's display row and page fields. s is this row's
 // script staleness (#1264); its zero value renders nothing.
-func boardEstate(r EstateResult, a *Artifact, s ScriptStaleness, kindImage string) BoardEstate {
+func boardEstate(r EstateResult, a *Artifact, s ScriptStaleness, pins SubstratePins) BoardEstate {
 	e := BoardEstate{
 		Name: r.Name, Set: r.Set, Lane: r.Lane, Substrate: r.Substrate, Clear: r.Clear,
 		Source: r.Source, URL: r.URL, Pin: r.Pin, Reason: r.Reason,
@@ -288,7 +289,7 @@ func boardEstate(r EstateResult, a *Artifact, s ScriptStaleness, kindImage strin
 		}
 		e.StageRows = append(e.StageRows, row)
 	}
-	e.LastRunNote, e.LegacyNote = lastRunNote(r, a, kindImage)
+	e.LastRunNote, e.LegacyNote = lastRunNote(r, a, pins)
 	e.OracleNote = oracleNote(r, a)
 	return e
 }
@@ -303,14 +304,22 @@ func boardEstate(r EstateResult, a *Artifact, s ScriptStaleness, kindImage strin
 // LastRun.Emulator empty on purpose and records what it actually ran
 // against in LastRun.SubstrateImage instead (#1594); this function used to
 // switch only on Emulator, so every kind-lane row read as "was not
-// recorded" even when SubstrateImage was set (#1700). kindImage is the
+// recorded" even when SubstrateImage was set (#1700). pins.Kind is the
 // current live/kind-node-image pin, providerNote's own
 // r.Substrate == SubstrateKind branch mirrored for the image rather than
-// the provider version.
-func lastRunNote(r EstateResult, a *Artifact, kindImage string) (note, legacy string) {
+// the provider version; pins.FlociAz is live/floci-az-image, read the same
+// way for a floci-az row (#1120).
+func lastRunNote(r EstateResult, a *Artifact, pins SubstratePins) (note, legacy string) {
 	durationNote := ""
 	if r.LastRun != nil && r.LastRun.DurationS > 0 {
 		durationNote = " Total run time " + formatDuration(r.LastRun.DurationS) + "."
+	}
+	// A row Rebuild added for a manifest entry that has never run (the
+	// first azure-lane estate, #1120, arrived this way) carries the legacy
+	// protocol only because nothing has replaced it; its not_run cells were
+	// written by Rebuild, never recorded by hand.
+	if r.Protocol != ProtocolGauntlet && r.LastRun == nil && neverMeasured(r) {
+		return "", "No run is recorded for this estate yet: every cell reads not_run because Rebuild wrote it, and the first run of the crossing script replaces them."
 	}
 	if r.Protocol != ProtocolGauntlet {
 		return "", "Verdicts were recorded from this estate's crossing script by hand before the script spoke the gauntlet protocol; the next run that does will replace them."
@@ -318,9 +327,18 @@ func lastRunNote(r EstateResult, a *Artifact, kindImage string) (note, legacy st
 	if r.LastRun == nil {
 		return "", ""
 	}
-	// A floci-gcp row (#1119) records its image the same way, against the
-	// live/floci-gcp-image pin rather than the kind one.
-	if pin, ok := substrateImagePin(r.Substrate, a, kindImage); ok {
+	if r.Substrate == SubstrateFlociAz {
+		if r.LastRun.SubstrateImage == "" {
+			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d. This run's floci-az image was not recorded.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, durationNote), ""
+		}
+		if r.LastRun.SubstrateImage != pins.FlociAz {
+			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d, against floci-az image `%s`. **Stale**: the current pin is `%s`.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.SubstrateImage, orNone(pins.FlociAz), durationNote), ""
+		}
+		return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d, against floci-az image `%s`.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, r.LastRun.SubstrateImage, durationNote), ""
+	}
+	// A floci-gcp row (#1119) records its image the way a kind row does,
+	// against the live/floci-gcp-image pin rather than the kind one.
+	if pin, ok := substrateImagePin(r.Substrate, pins); ok {
 		switch {
 		case r.LastRun.SubstrateImage == "":
 			return fmt.Sprintf("Last run at commit `%s` on %s, exit code %d. This run's substrate image was not recorded.%s", short(r.LastRun.Commit), r.LastRun.Date, r.LastRun.ExitCode, durationNote), ""
@@ -383,6 +401,17 @@ func providerNote(r EstateResult, a *Artifact) string {
 		}
 	}
 	return strings.Join(notes, " ")
+}
+
+// neverMeasured reports whether every stage cell of r is not_run or n/a,
+// the cells Rebuild writes for a row no run has touched.
+func neverMeasured(r EstateResult) bool {
+	for _, v := range r.Stages {
+		if v != VerdictNotRun && v != VerdictNA {
+			return false
+		}
+	}
+	return true
 }
 
 // providerPinNote is one provider's half of providerNote.

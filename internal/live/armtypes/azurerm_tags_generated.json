@@ -1,0 +1,4673 @@
+{
+  "generated_by": "tools/azurerm-tags-gen; DO NOT EDIT",
+  "source": {
+    "provider": "hashicorp/terraform-provider-azurerm",
+    "version": "5.10.0",
+    "commit": "b24dfdc1dafe6d0721572b0f6debecb7ab5e81c6",
+    "schema_sha256": "e74450ee2895faa3d654f1324af6fa0e99f24ad2fe04fa3332a5efa7cfe158b3"
+  },
+  "counts": {
+    "tagged": 387,
+    "in_create": 385,
+    "after_create": 2,
+    "unknown": 0,
+    "limited": 4
+  },
+  "tags_not_arm_tags": [
+    "azurerm_api_management_named_value",
+    "azurerm_api_management_workspace_named_value",
+    "azurerm_sentinel_threat_intelligence_indicator"
+  ],
+  "types": [
+    {
+      "type": "azurerm_aadb2c_directory",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/aadb2c/aadb2c_directory_resource.go:196",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_active_directory_domain_service",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateThenPoll",
+      "at": "internal/services/domainservices/active_directory_domain_service_resource.go:397",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_ai_foundry",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/machinelearning/ai_foundry_resource.go:332",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_ai_foundry_project",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/machinelearning/ai_foundry_project_resource.go:211",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_analysis_services_server",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/analysisservices/analysis_services_server_resource.go:185",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_api_connection",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/connections/api_connection_resource.go:126",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_api_management",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/apimanagement/api_management_resource.go:810",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_api_management_standalone_gateway",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/apimanagement/api_management_standalone_gateway_resource.go:170",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_app_configuration",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/appconfiguration/app_configuration_resource.go:381",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_app_configuration_feature",
+      "create": "in-create",
+      "call": "client.PutKeyValue",
+      "at": "internal/services/appconfiguration/app_configuration_feature_resource.go:332",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_app_configuration_key",
+      "create": "in-create",
+      "call": "client.PutKeyValue",
+      "at": "internal/services/appconfiguration/app_configuration_key_resource.go:223",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_app_service_certificate",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/web/app_service_certificate_resource.go:205",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_app_service_certificate_order",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/web/app_service_certificate_order_resource.go:214",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_app_service_environment_v3",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/appservice/app_service_environment_v3_resource.go:297",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_app_service_managed_certificate",
+      "create": "after-create",
+      "call": "client.Update",
+      "at": "internal/services/web/app_service_managed_certificate_resource.go:175",
+      "create_call": "client.CreateOrUpdate",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_application_gateway",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/application_gateway_resource.go:1848",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_application_insights",
+      "create": "in-create",
+      "call": "client.ComponentsCreateOrUpdate",
+      "at": "internal/services/applicationinsights/application_insights_resource.go:240",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_application_insights_standard_web_test",
+      "create": "in-create",
+      "call": "client.WebTestsCreateOrUpdate",
+      "at": "internal/services/applicationinsights/application_insights_standard_web_test_resource.go:378",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_application_insights_web_test",
+      "create": "in-create",
+      "call": "client.WebTestsCreateOrUpdate",
+      "at": "internal/services/applicationinsights/application_insights_web_test_resource.go:199",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_application_insights_workbook",
+      "create": "in-create",
+      "call": "client.WorkbooksCreateOrUpdate",
+      "at": "internal/services/applicationinsights/application_insights_workbook_resource.go:189",
+      "rules": {
+        "validator": "schema literal, ValidateFunc validate.WorkbookTags",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256,
+        "forbidden_keys": [
+          "hidden-title"
+        ]
+      }
+    },
+    {
+      "type": "azurerm_application_insights_workbook_template",
+      "create": "in-create",
+      "call": "client.WorkbookTemplatesCreateOrUpdate",
+      "at": "internal/services/applicationinsights/application_insights_workbook_template_resource.go:212",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_application_load_balancer",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/servicenetworking/application_load_balancer_resource.go:106",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_application_load_balancer_frontend",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/servicenetworking/application_load_balancer_frontend_resource.go:126",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_application_load_balancer_security_policy",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/servicenetworking/application_load_balancer_security_policy_resource.go:112",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_application_load_balancer_subnet_association",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/servicenetworking/application_load_balancer_subnet_association_resource.go:117",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_application_security_group",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/application_security_group_resource.go:87",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_arc_kubernetes_cluster",
+      "create": "in-create",
+      "call": "client.ConnectedClusterCreateCallbackThenPoll",
+      "at": "internal/services/arckubernetes/arc_kubernetes_cluster_resource.go:144",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_arc_kubernetes_provisioned_cluster",
+      "create": "in-create",
+      "call": "client.ConnectedClusterCreateCallbackThenPoll",
+      "at": "internal/services/arckubernetes/arc_kubernetes_provisioned_cluster_resource.go:233",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_arc_machine",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/hybridcompute/arc_machine_resource.go:113",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_arc_machine_extension",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/hybridcompute/arc_machine_extension_resource.go:209",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_arc_private_link_scope",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/hybridcompute/arc_private_link_scope_resource.go:105",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_arc_resource_bridge_appliance",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/arcresourcebridge/arc_resource_bridge_appliance_resource.go:136",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_attestation_provider",
+      "create": "in-create",
+      "call": "attestationClients.ProviderClient.Create",
+      "at": "internal/services/attestation/attestation_provider_resource.go:177",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_automanage_configuration",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/automanage/automanage_configuration_resource.go:506",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_automation_account",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/automation/automation_account_resource.go:200",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_automation_dsc_configuration",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/automation/automation_dsc_configuration_resource.go:128",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_automation_powershell72_module",
+      "create": "in-create",
+      "call": "client.PowerShell72ModuleCreateOrUpdate",
+      "at": "internal/services/automation/automation_powershell72_module_resource.go:148",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_automation_python3_package",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/automation/automation_python3_package_resource.go:142",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_automation_runbook",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/automation/automation_runbook_resource.go:334",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_automation_runtime_environment",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/automation/automation_runtime_environment_resource.go:207",
+      "rules": {
+        "validator": "schema literal, ValidateFunc tags.Validate",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_automation_watcher",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/automation/automation_watcher_resource.go:158",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_availability_set",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/compute/availability_set_resource.go:153",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_bastion_host",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/bastion_host_resource.go:334",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_batch_account",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/batch/resources/batch_account/r_create.go:120",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_bot_channels_registration",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/bot/bot_channels_registration_resource.go:250",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_bot_service_azure_bot",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/bot/bot_service_azure_bot_resource.go:282",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_bot_web_app",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/bot/bot_web_app_resource.go:227",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_capacity_reservation",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/capacity_reservation_resource.go:141",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_capacity_reservation_group",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/compute/capacity_reservation_group_resource.go:98",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_cdn_endpoint",
+      "create": "in-create",
+      "call": "endpointsClient.Create",
+      "at": "internal/services/cdn/cdn_endpoint_resource.go:311",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_cdn_frontdoor_endpoint",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/cdn/cdn_frontdoor_endpoint_resource.go:115",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_cdn_frontdoor_firewall_policy",
+      "create": "in-create",
+      "call": "client.PoliciesCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/cdn/cdn_frontdoor_firewall_policy_resource.go:664",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_cdn_frontdoor_profile",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/cdn/cdn_frontdoor_profile_resource.go:163",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_cdn_profile",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/cdn/cdn_profile_resource.go:145",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_cognitive_account",
+      "create": "in-create",
+      "call": "client.AccountsCreateCallbackThenPoll",
+      "at": "internal/services/cognitive/cognitive_account_resource.go:503",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_cognitive_account_project",
+      "create": "in-create",
+      "call": "client.ProjectsCreateCallbackThenPoll",
+      "at": "internal/services/cognitive/cognitive_account_project_resource.go:176",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_cognitive_account_rai_blocklist",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/cognitive/cognitive_account_rai_blocklist_resource.go:102",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_cognitive_account_rai_policy",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/cognitive/cognitive_account_rai_policy_resource.go:216",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_communication_service",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/communication/communication_service_resource.go:175",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_confidential_ledger",
+      "create": "in-create",
+      "call": "client.LedgerCreateCallbackThenPoll",
+      "at": "internal/services/confidentialledger/confidential_ledger_resource.go:162",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_container_app",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/containerapps/container_app_resource.go:229",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_container_app_environment",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/containerapps/container_app_environment_resource.go:317",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_container_app_environment_certificate",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/containerapps/container_app_environment_certificate_resource.go:206",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_container_app_environment_managed_certificate",
+      "create": "in-create",
+      "call": "client.ManagedCertificatesCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/containerapps/container_app_environment_managed_certificate_resource.go:152",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_container_app_job",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/containerapps/container_app_job_resource.go:296",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_container_group",
+      "create": "in-create",
+      "call": "client.ContainerGroupsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/containers/container_group_resource.go:744",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_container_registry",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/containers/container_registry_resource.go:427",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_container_registry_agent_pool",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/containers/container_registry_agent_pool_resource.go:133",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_container_registry_task",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/containers/container_registry_task_resource.go:705",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_container_registry_webhook",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/containers/container_registry_webhook_resource.go:140",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_cosmosdb_account",
+      "create": "in-create",
+      "call": "client.DatabaseAccountsCreateOrUpdateThenPoll",
+      "at": "internal/services/cosmos/cosmosdb_account_resource.go:1473",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_cosmosdb_cassandra_cluster",
+      "create": "in-create",
+      "call": "client.CassandraClustersCreateUpdateCallbackThenPoll",
+      "at": "internal/services/cosmos/cosmosdb_cassandra_cluster_resource.go:199",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_cosmosdb_postgresql_cluster",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/cosmos/cosmosdb_postgresql_cluster_resource.go:435",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_custom_ip_prefix",
+      "create": "in-create",
+      "call": "r.client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/custom_ip_prefix_resource.go:226",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_custom_provider",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/customproviders/custom_provider_resource.go:159",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dashboard_grafana",
+      "create": "in-create",
+      "call": "client.GrafanaCreateCallbackThenPoll",
+      "at": "internal/services/dashboard/dashboard_grafana_resource.go:281",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dashboard_grafana_managed_private_endpoint",
+      "create": "in-create",
+      "call": "client.ManagedPrivateEndpointsCreateCallbackThenPoll",
+      "at": "internal/services/dashboard/dashboard_grafana_managed_private_endpoint_resource.go:170",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_data_factory",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/datafactory/data_factory_resource.go:296",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_data_protection_backup_vault",
+      "create": "in-create",
+      "call": "client.BackupVaultsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/dataprotection/data_protection_backup_vault_resource.go:209",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_data_protection_resource_guard",
+      "create": "in-create",
+      "call": "client.ResourceGuardsPut",
+      "at": "internal/services/dataprotection/data_protection_resource_guard_resource.go:101",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_data_share_account",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/datashare/data_share_account_resource.go:101",
+      "rules": {
+        "validator": "commonschema.TagsWithLowerCaseKeys()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256,
+        "lowercase_keys": true
+      }
+    },
+    {
+      "type": "azurerm_database_migration_project",
+      "create": "in-create",
+      "call": "client.ProjectsCreateOrUpdate",
+      "at": "internal/services/databasemigration/database_migration_project_resource.go:120",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_database_migration_service",
+      "create": "in-create",
+      "call": "client.ServicesCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/databasemigration/database_migration_service_resource.go:120",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_databox_edge_device",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/databoxedge/databox_edge_device_resource.go:199",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_databricks_access_connector",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/databricks/databricks_access_connector_resource.go:114",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_databricks_workspace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/databricks/databricks_workspace_resource.go:642",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_datadog_monitor",
+      "create": "in-create",
+      "call": "client.MonitorsCreateCallbackThenPoll",
+      "at": "internal/services/datadog/datadog_monitor_resource.go:209",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dedicated_hardware_security_module",
+      "create": "in-create",
+      "call": "client.DedicatedHsmCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/hsm/dedicated_hardware_security_module_resource.go:185",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dedicated_host",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/dedicated_host_resource.go:189",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dedicated_host_group",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/compute/dedicated_host_group_resource.go:124",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_center",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/devcenter/dev_center_resource.go:111",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_center_dev_box_definition",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/devcenter/dev_center_dev_box_definition_resource.go:136",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_center_environment_type",
+      "create": "in-create",
+      "call": "client.EnvironmentTypesCreateOrUpdate",
+      "at": "internal/services/devcenter/dev_center_environment_type_resource.go:101",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_center_network_connection",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/devcenter/dev_center_network_connection_resource.go:162",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_center_project",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/devcenter/dev_center_project_resource.go:137",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_center_project_environment_type",
+      "create": "in-create",
+      "call": "client.ProjectEnvironmentTypesCreateOrUpdate",
+      "at": "internal/services/devcenter/dev_center_project_environment_type_resource.go:176",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_center_project_pool",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/devcenter/dev_center_project_pool_resource.go:176",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_test_global_vm_shutdown_schedule",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/devtestlabs/dev_test_global_vm_shutdown_schedule_resource.go:168",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_test_lab",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/devtestlabs/dev_test_lab_resource.go:131",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_test_linux_virtual_machine",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/devtestlabs/dev_test_linux_virtual_machine_resource.go:235",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_test_policy",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/devtestlabs/dev_test_policy_resource.go:151",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_test_schedule",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/devtestlabs/dev_test_schedule_resource.go:249",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_test_virtual_network",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/devtestlabs/dev_test_virtual_network_resource.go:178",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dev_test_windows_virtual_machine",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/devtestlabs/dev_test_windows_virtual_machine_resource.go:225",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_digital_twins_instance",
+      "create": "in-create",
+      "call": "client.DigitalTwinsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/digitaltwins/digital_twins_instance_resource.go:99",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_disk_access",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/disk_access_resource.go:86",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_disk_encryption_set",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/disk_encryption_set_resource.go:162",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dns_a_record",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/dns/dns_a_record_resource.go:151",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dns_aaaa_record",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/dns/dns_aaaa_record_resource.go:154",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dns_caa_record",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/dns/dns_caa_record_resource.go:152",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dns_cname_record",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/dns/dns_cname_record_resource.go:148",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dns_mx_record",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/dns/dns_mx_record_resource.go:143",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dns_ns_record",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/dns/dns_ns_record_resource.go:129",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dns_ptr_record",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/dns/dns_ptr_record_resource.go:126",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dns_srv_record",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/dns/dns_srv_record_resource.go:149",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dns_txt_record",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/dns/dns_txt_record_resource.go:135",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dns_zone",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/dns/dns_zone_resource.go:216",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_dynatrace_monitor",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/dynatrace/dynatrace_monitor_resource.go:253",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_elastic_cloud_elasticsearch",
+      "create": "in-create",
+      "call": "client.MonitorsCreateCallbackThenPoll",
+      "at": "internal/services/elastic/elastic_cloud_elasticsearch_resource.go:198",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_elastic_san",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/elasticsan/elastic_san_resource.go:222",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_email_communication_service",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/communication/email_communication_service_resource.go:128",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_email_communication_service_domain",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/communication/email_communication_service_domain_resource.go:169",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_eventgrid_domain",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/eventgrid/eventgrid_domain_resource.go:286",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_eventgrid_namespace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/eventgrid/eventgrid_namespace_resource.go:282",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_eventgrid_partner_configuration",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/eventgrid/eventgrid_partner_configuration_resource.go:125",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_eventgrid_partner_namespace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/eventgrid/eventgrid_partner_namespace_resource.go:157",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_eventgrid_partner_registration",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/eventgrid/eventgrid_partner_registration_resource.go:99",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_eventgrid_system_topic",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/eventgrid/eventgrid_system_topic_resource.go:137",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_eventgrid_topic",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/eventgrid/eventgrid_topic_resource.go:276",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_eventhub_cluster",
+      "create": "in-create",
+      "call": "client.ClustersCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/eventhub/eventhub_cluster_resource.go:106",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_eventhub_namespace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/eventhub/eventhub_namespace_resource.go:331",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_express_route_circuit",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/express_route_circuit_resource.go:222",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_express_route_gateway",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/express_route_gateway_resource.go:131",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_express_route_port",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/express_route_port_resource.go:223",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_fabric_capacity",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/fabric/fabric_capacity_resource.go:160",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_firewall",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/firewall/firewall_resource.go:379",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_firewall_policy",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/firewall/firewall_policy_resource.go:141",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_fluid_relay_server",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/fluidrelay/fluid_relay_server_resource.go:214",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_frontdoor",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/frontdoor/frontdoor_resource.go:121",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_frontdoor_firewall_policy",
+      "create": "in-create",
+      "call": "client.PoliciesCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/frontdoor/frontdoor_firewall_policy_resource.go:433",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_function_app_flex_consumption",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/appservice/function_app_flex_consumption_resource.go:524",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_gallery_application",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/gallery_application_resource.go:184",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_gallery_application_version",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/gallery_application_version_resource.go:295",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_graph_services_account",
+      "create": "in-create",
+      "call": "client.AccountsCreateAndUpdateCallbackThenPoll",
+      "at": "internal/services/graphservices/graph_services_account_resource.go:111",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_hdinsight_hadoop_cluster",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/hdinsight/hdinsight_hadoop_cluster_resource.go:318",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_hdinsight_hbase_cluster",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/hdinsight/hdinsight_hbase_cluster_resource.go:258",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_hdinsight_interactive_query_cluster",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/hdinsight/hdinsight_interactive_query_cluster_resource.go:271",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_hdinsight_kafka_cluster",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/hdinsight/hdinsight_kafka_cluster_resource.go:313",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_hdinsight_spark_cluster",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/hdinsight/hdinsight_spark_cluster_resource.go:279",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_healthbot",
+      "create": "in-create",
+      "call": "client.BotsCreateCallbackThenPoll",
+      "at": "internal/services/bot/healthbot_resource.go:114",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_healthcare_dicom_service",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/healthcare/healthcare_dicom_service_resource.go:285",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_healthcare_fhir_service",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/healthcare/healthcare_fhir_service_resource.go:294",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_healthcare_medtech_service",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/healthcare/healthcare_medtech_service_resource.go:154",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_healthcare_service",
+      "create": "in-create",
+      "call": "client.ServicesCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/healthcare/healthcare_service_resource.go:273",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_healthcare_workspace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/healthcare/healthcare_workspace_resource.go:104",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_image",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/image_resource.go:265",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_iot_security_solution",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/securitycenter/iot_security_solution_resource.go:345",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_iotcentral_application",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/iotcentral/iotcentral_application_resource.go:167",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_iothub",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/iothub/iothub_resource.go:739",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_iothub_device_update_account",
+      "create": "in-create",
+      "call": "client.AccountsCreateCallbackThenPoll",
+      "at": "internal/services/iothub/iothub_device_update_account_resource.go:134",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_iothub_device_update_instance",
+      "create": "in-create",
+      "call": "client.InstancesCreateCallbackThenPoll",
+      "at": "internal/services/iothub/iothub_device_update_instance_resource.go:188",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_iothub_dps",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/iothub/iothub_dps_resource.go:238",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_ip_group",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/ip_group_resource.go:147",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_key_vault",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/keyvault/key_vault_resource.go:336",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_key_vault_certificate",
+      "create": "in-create",
+      "call": "client.ImportCertificate",
+      "at": "internal/services/keyvault/key_vault_certificate_resource.go:498",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_key_vault_key",
+      "create": "in-create",
+      "call": "client.CreateKey",
+      "at": "internal/services/keyvault/key_vault_key_resource.go:417",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_key_vault_managed_hardware_security_module",
+      "create": "in-create",
+      "call": "client.ManagedHsmClient.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/managedhsm/key_vault_managed_hardware_security_module_resource.go:217",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_key_vault_managed_hardware_security_module_key",
+      "create": "in-create",
+      "call": "client.CreateKey",
+      "at": "internal/services/managedhsm/key_vault_managed_hardware_security_module_key_resource.go:266",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_key_vault_managed_storage_account",
+      "create": "in-create",
+      "call": "client.SetStorageAccount",
+      "at": "internal/services/keyvault/key_vault_managed_storage_account_resource.go:130",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_key_vault_managed_storage_account_sas_token_definition",
+      "create": "in-create",
+      "call": "client.SetSasDefinition",
+      "at": "internal/services/keyvault/key_vault_managed_storage_account_sas_token_definition_resource.go:143",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_key_vault_secret",
+      "create": "in-create",
+      "call": "client.SetSecret",
+      "at": "internal/services/keyvault/key_vault_secret_resource.go:197",
+      "rules": {
+        "validator": "commonschema.TagsWithMaximumElements(15)",
+        "max_tags": 15,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_kubernetes_automatic_cluster",
+      "create": "in-create",
+      "call": "clusterClient.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/containers/kubernetes_automatic_cluster_resource.go:597",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_kubernetes_cluster",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/containers/kubernetes_cluster_resource.go:1982",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_kubernetes_cluster_node_pool",
+      "create": "in-create",
+      "call": "poolsClient.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/containers/kubernetes_cluster_node_pool_resource.go:696",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_kubernetes_fleet_manager",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/containers/kubernetes_fleet_manager_resource.go:119",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_kusto_cluster",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/kusto/kusto_cluster_resource.go:330",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_lb",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/loadbalancer/lb_resource.go:280",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_linux_function_app",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/appservice/linux_function_app_resource.go:581",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_linux_function_app_slot",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateSlotCallbackThenPoll",
+      "at": "internal/services/appservice/linux_function_app_slot_resource.go:573",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_linux_virtual_machine",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/linux_virtual_machine_resource.go:853",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_linux_virtual_machine_scale_set",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/linux_virtual_machine_scale_set_resource.go:460",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_linux_web_app",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/appservice/linux_web_app_resource.go:423",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_linux_web_app_slot",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateSlotCallbackThenPoll",
+      "at": "internal/services/appservice/linux_web_app_slot_resource.go:404",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_load_test",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/loadtestservice/load_test_resource.go:184",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_local_network_gateway",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/local_network_gateway_resource.go:146",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_log_analytics_cluster",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/loganalytics/log_analytics_cluster_resource.go:131",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_log_analytics_query_pack",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/loganalytics/log_analytics_query_pack_resource.go:97",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_log_analytics_query_pack_query",
+      "create": "in-create",
+      "call": "client.QueriesPut",
+      "at": "internal/services/loganalytics/log_analytics_query_pack_query_resource.go:410",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_log_analytics_saved_search",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/loganalytics/log_analytics_saved_search_resource.go:152",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_log_analytics_solution",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/loganalytics/log_analytics_solution_resource.go:187",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_log_analytics_workspace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/loganalytics/log_analytics_workspace_resource.go:342",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_logic_app_integration_account",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/logic/logic_app_integration_account_resource.go:114",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_logic_app_standard",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/logic/logic_app_standard_resource.go:512",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_logic_app_workflow",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/logic/logic_app_workflow_resource.go:361",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_machine_learning_compute_cluster",
+      "create": "in-create",
+      "call": "client.ComputeCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/machinelearning/machine_learning_compute_cluster_resource.go:256",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_machine_learning_compute_instance",
+      "create": "in-create",
+      "call": "client.ComputeCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/machinelearning/machine_learning_compute_instance_resource.go:254",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_machine_learning_datastore_blobstorage",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/machinelearning/machine_learning_datastore_blobstorage_resource.go:222",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_machine_learning_datastore_datalake_gen2",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/machinelearning/machine_learning_datastore_datalake_gen2_resource.go:207",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_machine_learning_datastore_fileshare",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/machinelearning/machine_learning_datastore_fileshare_resource.go:205",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_machine_learning_inference_cluster",
+      "create": "in-create",
+      "call": "client.ComputeCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/machinelearning/machine_learning_inference_cluster_resource.go:193",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_machine_learning_synapse_spark",
+      "create": "in-create",
+      "call": "client.ComputeCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/machinelearning/machine_learning_synapse_spark_resource.go:130",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_machine_learning_workspace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/machinelearning/machine_learning_workspace_resource.go:389",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_maintenance_configuration",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/maintenance/maintenance_configuration_resource.go:296",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_managed_application",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/managedapplications/managed_application_resource.go:218",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_managed_application_definition",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/managedapplications/managed_application_definition_resource.go:174",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_managed_devops_pool",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/manageddevopspools/managed_devops_pool_resource.go:449",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_managed_disk",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/managed_disk_resource.go:568",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_managed_lustre_file_system",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/storagecache/managed_lustre_file_system_resource.go:367",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_managed_redis",
+      "create": "in-create",
+      "call": "clusterClient.CreateCallbackThenPoll",
+      "at": "internal/services/managedredis/resources/managed_redis/r_create.go:54",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_management_group_template_deployment",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateAtManagementGroupScope",
+      "at": "internal/services/resource/management_group_template_deployment_resource.go:178",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_maps_account",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/maps/maps_account_resource.go:177",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_mongo_cluster",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/mongocluster/mongo_cluster_resource.go:442",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_action_group",
+      "create": "in-create",
+      "call": "client.ActionGroupsCreateOrUpdate",
+      "at": "internal/services/monitor/monitor_action_group_resource.go:512",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_activity_log_alert",
+      "create": "in-create",
+      "call": "client.ActivityLogAlertsCreateOrUpdate",
+      "at": "internal/services/monitor/monitor_activity_log_alert_resource.go:475",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_alert_processing_rule_action_group",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/monitor/monitor_alert_processing_rule_action_group_resource.go:106",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_alert_processing_rule_suppression",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/monitor/monitor_alert_processing_rule_suppression_resource.go:92",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_alert_prometheus_rule_group",
+      "create": "in-create",
+      "call": "client.PrometheusRuleGroupsCreateOrUpdate",
+      "at": "internal/services/monitor/monitor_alert_prometheus_rule_group_resource.go:301",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_autoscale_setting",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/monitor/monitor_autoscale_setting_resource.go:466",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_data_collection_endpoint",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/monitor/monitor_data_collection_endpoint_resource.go:151",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_data_collection_rule",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/monitor/monitor_data_collection_rule_resource.go:996",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_metric_alert",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/monitor/monitor_metric_alert_resource.go:455",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_private_link_scope",
+      "create": "in-create",
+      "call": "client.PrivateLinkScopesCreateOrUpdate",
+      "at": "internal/services/monitor/monitor_private_link_scope_resource.go:111",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_scheduled_query_rules_alert",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/monitor/monitor_scheduled_query_rules_alert_resource.go:297",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_scheduled_query_rules_alert_v2",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/monitor/monitor_scheduled_query_rules_alert_v2_resource.go:496",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_scheduled_query_rules_log",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/monitor/monitor_scheduled_query_rules_log_resource.go:184",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_smart_detector_alert_rule",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/monitor/monitor_smart_detector_alert_rule_resource.go:203",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_monitor_workspace",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/monitor/monitor_workspace_resource.go:134",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_mssql_database",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/mssql/mssql_database_resource.go:487",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_mssql_elasticpool",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/mssql/mssql_elasticpool_resource.go:305",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_mssql_failover_group",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/mssql/mssql_failover_group_resource.go:230",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_mssql_job_agent",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/mssql/mssql_job_agent_resource.go:126",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_mssql_managed_database",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/mssqlmanagedinstance/mssql_managed_database_resource.go:230",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_mssql_managed_instance",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/mssqlmanagedinstance/mssql_managed_instance_resource.go:508",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_mssql_server",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/mssql/mssql_server_resource.go:321",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_mssql_virtual_machine",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/mssql/mssql_virtual_machine_resource.go:545",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_mssql_virtual_machine_group",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/mssql/mssql_virtual_machine_group_resource.go:201",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_mysql_flexible_server",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/mysql/mysql_flexible_server_resource.go:471",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_nat_gateway",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/nat_gateway_resource.go:158",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_netapp_account",
+      "create": "in-create",
+      "call": "client.AccountsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/netapp/netapp_account_resource.go:220",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_netapp_backup_policy",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/netapp/netapp_backup_policy_resource.go:141",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_netapp_backup_vault",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/netapp/netapp_backup_vault_resource.go:104",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_netapp_pool",
+      "create": "in-create",
+      "call": "client.PoolsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/netapp/netapp_pool_resource.go:186",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_netapp_snapshot_policy",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/netapp/netapp_snapshot_policy_resource.go:251",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_netapp_volume",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/netapp/netapp_volume_resource.go:853",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_connection_monitor",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/network_connection_monitor_resource.go:457",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_ddos_protection_plan",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/network_ddos_protection_plan_resource.go:110",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_function_azure_traffic_collector",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/networkfunction/network_function_azure_traffic_collector_resource.go:115",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_function_collector_policy",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/networkfunction/network_function_collector_policy_resource.go:173",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_interface",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/network_interface_resource.go:326",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_manager",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/network/network_manager_resource.go:203",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_manager_ipam_pool",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/network/network_manager_ipam_pool_resource.go:151",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_manager_verifier_workspace",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/network/network_manager_verifier_workspace_resource.go:116",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_profile",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/network/network_profile_resource.go:153",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_security_group",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/network_security_group_resource.go:224",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_security_perimeter",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/network/network_security_perimeter_resource.go:94",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_watcher",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/network/network_watcher_resource.go:82",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_network_watcher_flow_log",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/network_watcher_flow_log_resource.go:271",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_nginx_deployment",
+      "create": "in-create",
+      "call": "client.DeploymentsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/nginx/nginx_deployment_resource.go:342",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_notification_hub",
+      "create": "in-create",
+      "call": "client.NotificationHubsCreateOrUpdate",
+      "at": "internal/services/notificationhub/notification_hub_resource.go:218",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_notification_hub_namespace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/notificationhub/notification_hub_namespace_resource.go:154",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_oracle_autonomous_database",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/oracle/oracle_autonomous_database_resource.go:311",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_oracle_autonomous_database_clone_from_backup",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/oracle/oracle_autonomous_database_clone_from_backup_resource.go:313",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_oracle_autonomous_database_clone_from_database",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/oracle/oracle_autonomous_database_clone_from_database_resource.go:321",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_oracle_autonomous_database_cross_region_disaster_recovery",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/oracle/oracle_autonomous_database_cross_region_disaster_recovery_resource.go:247",
+      "rules": {
+        "validator": "commonschema.TagsForceNew()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_oracle_cloud_vm_cluster",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/oracle/oracle_cloud_vm_cluster_resource.go:429",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_oracle_exadata_infrastructure",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/oracle/oracle_exadata_infrastructure_resource.go:267",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_oracle_exascale_database_storage_vault",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/oracle/oracle_exascale_database_storage_vault_resource.go:174",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_oracle_resource_anchor",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/oracle/oracle_resource_anchor_resource.go:94",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_orchestrated_virtual_machine_scale_set",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/orchestrated_virtual_machine_scale_set_resource.go:838",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_palo_alto_local_rulestack_rule",
+      "create": "in-create",
+      "call": "client.LocalRulesCreateOrUpdate",
+      "at": "internal/services/paloalto/palo_alto_local_rulestack_rule_resource.go:288",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_palo_alto_next_generation_firewall_virtual_hub_local_rulestack",
+      "create": "in-create",
+      "call": "client.FirewallsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/paloalto/palo_alto_next_generation_firewall_virtual_hub_local_rulestack_resource.go:166",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_palo_alto_next_generation_firewall_virtual_hub_panorama",
+      "create": "in-create",
+      "call": "client.FirewallsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/paloalto/palo_alto_next_generation_firewall_virtual_hub_panorama_resource.go:154",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_palo_alto_next_generation_firewall_virtual_hub_strata_cloud_manager",
+      "create": "in-create",
+      "call": "client.FirewallsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/paloalto/palo_alto_next_generation_firewall_virtual_hub_strata_cloud_manager_resource.go:155",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_palo_alto_next_generation_firewall_virtual_network_local_rulestack",
+      "create": "in-create",
+      "call": "client.FirewallsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/paloalto/palo_alto_next_generation_firewall_virtual_network_local_rulestack_resource.go:161",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_palo_alto_next_generation_firewall_virtual_network_panorama",
+      "create": "in-create",
+      "call": "client.FirewallsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/paloalto/palo_alto_next_generation_firewall_virtual_network_panorama_resource.go:149",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_palo_alto_next_generation_firewall_virtual_network_strata_cloud_manager",
+      "create": "in-create",
+      "call": "client.FirewallsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/paloalto/palo_alto_next_generation_firewall_virtual_network_strata_cloud_manager_resource.go:157",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_playwright_workspace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/loadtestservice/playwright_workspace_resource.go:111",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_point_to_site_vpn_gateway",
+      "create": "in-create",
+      "call": "client.P2sVpnGatewaysCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/point_to_site_vpn_gateway_resource.go:230",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_portal_dashboard",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/portal/portal_dashboard_resource.go:104",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_postgresql_flexible_server",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/postgres/postgresql_flexible_server_resource.go:817",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_powerbi_embedded",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/powerbi/powerbi_embedded_resource.go:130",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_a_record",
+      "create": "in-create",
+      "call": "client.RecordSetsCreateOrUpdate",
+      "at": "internal/services/privatedns/private_dns_a_record_resource.go:136",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_aaaa_record",
+      "create": "in-create",
+      "call": "client.RecordSetsCreateOrUpdate",
+      "at": "internal/services/privatedns/private_dns_aaaa_record_resource.go:123",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_cname_record",
+      "create": "in-create",
+      "call": "client.RecordSetsCreateOrUpdate",
+      "at": "internal/services/privatedns/private_dns_cname_record_resource.go:141",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_mx_record",
+      "create": "in-create",
+      "call": "client.RecordSetsCreateOrUpdate",
+      "at": "internal/services/privatedns/private_dns_mx_record_resource.go:143",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_ptr_record",
+      "create": "in-create",
+      "call": "client.RecordSetsCreateOrUpdate",
+      "at": "internal/services/privatedns/private_dns_ptr_record_resource.go:127",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_resolver",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/privatednsresolver/private_dns_resolver_resource.go:107",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_resolver_dns_forwarding_ruleset",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/privatednsresolver/private_dns_resolver_dns_forwarding_ruleset_resource.go:111",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_resolver_inbound_endpoint",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/privatednsresolver/private_dns_resolver_inbound_endpoint_resource.go:157",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_resolver_outbound_endpoint",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/privatednsresolver/private_dns_resolver_outbound_endpoint_resource.go:120",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_srv_record",
+      "create": "in-create",
+      "call": "client.RecordSetsCreateOrUpdate",
+      "at": "internal/services/privatedns/private_dns_srv_record_resource.go:153",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_txt_record",
+      "create": "in-create",
+      "call": "client.RecordSetsCreateOrUpdate",
+      "at": "internal/services/privatedns/private_dns_txt_record_resource.go:135",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_zone",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/privatedns/private_dns_zone_resource.go:197",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_dns_zone_virtual_network_link",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/privatedns/private_dns_zone_virtual_network_link_resource.go:138",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_endpoint",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/network/private_endpoint_resource.go:385",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_private_link_service",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/private_link_service_resource.go:218",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_proximity_placement_group",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/compute/proximity_placement_group_resource.go:130",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_public_ip",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/public_ip_resource.go:318",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_public_ip_prefix",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/public_ip_prefix_resource.go:168",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_purview_account",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/purview/purview_account_resource.go:193",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_qumulo_file_system",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/qumulo/qumulo_file_system_resource.go:185",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_recovery_services_vault",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/recoveryservices/recovery_services_vault_resource.go:294",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_redhat_openshift_cluster",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/redhatopenshift/redhat_openshift_cluster_resource.go:594",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_redis_cache",
+      "create": "in-create",
+      "call": "client.RedisCreateCallbackThenPoll",
+      "at": "internal/services/redis/redis_cache_resource.go:524",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_relay_namespace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/relay/relay_namespace_resource.go:133",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_resource_deployment_script_azure_cli",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/resource/resource_deployment_script_azure_cli_resource.go:116",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_resource_deployment_script_azure_power_shell",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/resource/resource_deployment_script_azure_power_shell_resource.go:116",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_resource_group",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/resource/resource_group_resource.go:98",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_resource_group_template_deployment",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/resource/resource_group_template_deployment_resource.go:204",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_route_filter",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/route_filter_resource.go:138",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_route_server",
+      "create": "in-create",
+      "call": "client.VirtualHubsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/route_server_resource.go:154",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_route_table",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/route_table_resource.go:151",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_search_service",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/search/search_service_resource.go:337",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_security_center_automation",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/securitycenter/security_center_automation_resource.go:231",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_service_fabric_cluster",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/servicefabric/service_fabric_cluster_resource.go:643",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_service_fabric_managed_cluster",
+      "create": "in-create",
+      "call": "clusterClient.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/servicefabricmanaged/service_fabric_managed_cluster_resource.go:272",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_service_plan",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/appservice/service_plan_resource.go:196",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_servicebus_namespace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/servicebus/servicebus_namespace_resource.go:339",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_shared_image",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/shared_image_resource.go:344",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_shared_image_gallery",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/shared_image_gallery_resource.go:169",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_shared_image_version",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/shared_image_version_resource.go:345",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_signalr_service",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/signalr/signalr_service_resource.go:169",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_snapshot",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/snapshot_resource.go:222",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_spring_cloud_service",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/springcloud/spring_cloud_service_resource.go:495",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_ssh_public_key",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/compute/ssh_public_key_resource.go:100",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_stack_hci_cluster",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/azurestackhci/stack_hci_cluster_resource.go:141",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_stack_hci_logical_network",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/azurestackhci/stack_hci_logical_network_resource.go:249",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_stack_hci_marketplace_gallery_image",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/azurestackhci/stack_hci_marketplace_gallery_image_resource.go:194",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_stack_hci_network_interface",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/azurestackhci/stack_hci_network_interface_resource.go:182",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_stack_hci_storage_path",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/azurestackhci/stack_hci_storage_path_resource.go:127",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_stack_hci_virtual_hard_disk",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/azurestackhci/stack_hci_virtual_hard_disk_resource.go:204",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_static_web_app",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateStaticSiteCallbackThenPoll",
+      "at": "internal/services/appservice/static_web_app_resource.go:238",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_storage_account",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/storage/storage_account_resource.go:1475",
+      "rules": {
+        "validator": "schema literal, ValidateFunc validate.StorageAccountTags",
+        "max_tags": 50,
+        "max_key_length": 128,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_storage_discovery_workspace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/storage/storage_discovery_workspace_resource.go:260",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_storage_mover",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/storagemover/storage_mover_resource.go:116",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_storage_sync",
+      "create": "in-create",
+      "call": "client.StorageSyncServicesCreateCallbackThenPoll",
+      "at": "internal/services/storage/storage_sync_resource.go:113",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_stream_analytics_cluster",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/streamanalytics/stream_analytics_cluster_resource.go:114",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_stream_analytics_job",
+      "create": "in-create",
+      "call": "client.CreateOrReplaceCallbackThenPoll",
+      "at": "internal/services/streamanalytics/stream_analytics_job_resource.go:322",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_subnet_service_endpoint_storage_policy",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/subnet_service_endpoint_storage_policy_resource.go:150",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_subscription",
+      "create": "after-create",
+      "call": "tagsClient.CreateOrUpdateAtScope",
+      "at": "internal/services/subscription/subscription_resource.go:248",
+      "create_call": "aliasClient.AliasCreateCallbackThenPoll",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_subscription_template_deployment",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateAtSubscriptionScope",
+      "at": "internal/services/resource/subscription_template_deployment_resource.go:174",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_synapse_private_link_hub",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/synapse/synapse_private_link_hub_resource.go:86",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_synapse_spark_pool",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/synapse/synapse_spark_pool_resource.go:288",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_synapse_sql_pool",
+      "create": "in-create",
+      "call": "sqlClient.Create",
+      "at": "internal/services/synapse/synapse_sql_pool_resource.go:280",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_synapse_workspace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/synapse/synapse_workspace_resource.go:363",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_system_center_virtual_machine_manager_availability_set",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/systemcentervirtualmachinemanager/system_center_virtual_machine_manager_availability_set_resource.go:128",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_system_center_virtual_machine_manager_cloud",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/systemcentervirtualmachinemanager/system_center_virtual_machine_manager_cloud_resource.go:130",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_system_center_virtual_machine_manager_server",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/systemcentervirtualmachinemanager/system_center_virtual_machine_manager_server_resource.go:161",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_system_center_virtual_machine_manager_virtual_machine_template",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/systemcentervirtualmachinemanager/system_center_virtual_machine_manager_virtual_machine_template_resource.go:130",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_system_center_virtual_machine_manager_virtual_network",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/systemcentervirtualmachinemanager/system_center_virtual_machine_manager_virtual_network_resource.go:130",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_tenant_template_deployment",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateAtTenantScope",
+      "at": "internal/services/resource/tenant_template_deployment_resource.go:164",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_traffic_manager_profile",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/trafficmanager/traffic_manager_profile_resource.go:245",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_trusted_signing_account",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/codesigning/trusted_signing_account_resource.go:119",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_user_assigned_identity",
+      "create": "in-create",
+      "call": "client.UserAssignedIdentitiesCreateOrUpdate",
+      "at": "internal/services/managedidentity/user_assigned_identity_resource.go:152",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_video_indexer_account",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/videoindexer/video_indexer_account_resource.go:156",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_desktop_application_group",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/desktopvirtualization/virtual_desktop_application_group_resource.go:147",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_desktop_host_pool",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/desktopvirtualization/virtual_desktop_host_pool_resource.go:258",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_desktop_scaling_plan",
+      "create": "in-create",
+      "call": "client.Create",
+      "at": "internal/services/desktopvirtualization/virtual_desktop_scaling_plan_resource.go:266",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_desktop_workspace",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/desktopvirtualization/virtual_desktop_workspace_resource.go:130",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_hub",
+      "create": "in-create",
+      "call": "client.VirtualHubsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/virtual_hub_resource.go:210",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_hub_security_partner_provider",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/virtual_hub_security_partner_provider_resource.go:110",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_machine",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/legacy/virtual_machine_resource.go:730",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_machine_extension",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/virtual_machine_extension_resource.go:215",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_machine_restore_point_collection",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/compute/virtual_machine_restore_point_collection_resource.go:109",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_machine_run_command",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/virtual_machine_run_command_resource.go:406",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_machine_scale_set",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/legacy/virtual_machine_scale_set_resource.go:900",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_machine_scale_set_standby_pool",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/virtual_machine_scale_set_standby_pool_resource.go:167",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_network",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/virtual_network_resource.go:402",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_network_gateway",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/virtual_network_gateway_resource.go:704",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_network_gateway_connection",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/virtual_network_gateway_connection_resource.go:353",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_virtual_wan",
+      "create": "in-create",
+      "call": "client.VirtualWansCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/virtual_wan_resource.go:117",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_vmware_private_cloud",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/vmware/vmware_private_cloud_resource.go:246",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_vpn_gateway",
+      "create": "in-create",
+      "call": "client.VpnGatewaysCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/vpn_gateway_resource.go:261",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_vpn_server_configuration",
+      "create": "in-create",
+      "call": "client.VpnServerConfigurationsCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/vpn_server_configuration_resource.go:373",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_vpn_site",
+      "create": "in-create",
+      "call": "client.VpnSitesCreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/network/vpn_site_resource.go:221",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_web_application_firewall_policy",
+      "create": "in-create",
+      "call": "client.CreateOrUpdate",
+      "at": "internal/services/network/web_application_firewall_policy_resource.go:483",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_web_pubsub",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/signalr/web_pubsub_resource.go:263",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_web_pubsub_socketio",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/signalr/web_pubsub_socketio_resource.go:327",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_windows_function_app",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/appservice/windows_function_app_resource.go:575",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_windows_function_app_slot",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateSlotCallbackThenPoll",
+      "at": "internal/services/appservice/windows_function_app_slot_resource.go:592",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_windows_virtual_machine",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/windows_virtual_machine_resource.go:880",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_windows_virtual_machine_scale_set",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/compute/windows_virtual_machine_scale_set_resource.go:468",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_windows_web_app",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateCallbackThenPoll",
+      "at": "internal/services/appservice/windows_web_app_resource.go:430",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_windows_web_app_slot",
+      "create": "in-create",
+      "call": "client.CreateOrUpdateSlotCallbackThenPoll",
+      "at": "internal/services/appservice/windows_web_app_slot_resource.go:405",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_workloads_sap_discovery_virtual_instance",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/workloads/workloads_sap_discovery_virtual_instance_resource.go:187",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_workloads_sap_single_node_virtual_instance",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/workloads/workloads_sap_single_node_virtual_instance_resource.go:504",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    },
+    {
+      "type": "azurerm_workloads_sap_three_tier_virtual_instance",
+      "create": "in-create",
+      "call": "client.CreateCallbackThenPoll",
+      "at": "internal/services/workloads/workloads_sap_three_tier_virtual_instance_resource.go:1164",
+      "rules": {
+        "validator": "commonschema.Tags()",
+        "max_tags": 50,
+        "max_key_length": 512,
+        "max_value_length": 256
+      }
+    }
+  ]
+}

@@ -46,6 +46,12 @@ type segment struct {
 	prefix string
 	// rng is where a refusal about this segment points.
 	rng hcl.Range
+	// idParts, when non-nil, is what the segment contributes to the
+	// import ID in place of prefix and parts, which still supply its
+	// identity attribute: an azapi_resource's type rewrites the parent_id
+	// segment before it into the text azapi joins it with (GitHub issue
+	// #1120, [Component.ARMTypeSegment]).
+	idParts []Part
 }
 
 // placeholder is the name the provider's template calls this segment by:

@@ -32,6 +32,7 @@ the backend.
 | `local` | A directory beside the module, `.tofu-records` by default | `path` |
 | `s3` | A bucket you already own | `bucket` (required), `bucket_owner`, `key_prefix`, `region`, `allow_insecure` |
 | `kubernetes` | Secrets in a namespace you already own | `namespace` (defaults to `tofu-records-<estate>`), `key_prefix`, and the connection arguments of stock's `kubernetes` backend |
+| `azurerm` | Blobs in an Azure Storage container you already own | `storage_account_name`, `container_name`, `resource_group_name` (all required), `key_prefix`, `allow_insecure`, and the connection arguments of stock's `azurerm` backend |
 | `gcs` | A Google Cloud Storage bucket you already own, one per estate by default | `bucket` (required), `key_prefix`, `allow_insecure`, and the connection and encryption arguments of stock's `gcs` backend |
 
 A `live` block that declares no `record_store` gets the local one, the way
@@ -347,6 +348,31 @@ that cannot provision one reads exactly like an empty estate.
 Because a plan identity never creates the sentinel, its runs are never a first
 contact, and the four assertions above never run on one. `choudoufu
 live-cluster -plan-identity` is how that identity asks them on purpose.
+
+## The container
+
+`record_store "azurerm"` keeps the same records as blobs in one Azure
+Storage container, laid out under the bucket's three prefixes, each ending
+in `/`. It takes stock's `azurerm` backend arguments and its `ARM_*`
+environment variables, and authenticates through stock's own code.
+
+A create is Put Blob with `If-None-Match: *`, and an update or a delete
+carries `If-Match` with the ETag the writer read. Nothing is leased. The
+estate goes on every blob as the blob index tag `tofu-estate`, in the same
+request (`x-ms-tags`). A blob index tag value allows fewer characters than
+an AWS tag (letters, digits, space and `+ - . / : = _`, with no `@`), so a
+record whose escaped address holds an `@` is written with `tofu-estate`
+alone, never with an altered address.
+
+The storage account has to have blob versioning on, a lifecycle rule that
+deletes previous versions and never current ones, and anonymous access
+disallowed. Those are read through Azure Resource Manager, which needs an
+Azure AD credential and `resource_group_name`.
+[`examples/record-store-azurerm/CONTRACT.md`](../examples/record-store-azurerm/CONTRACT.md)
+has the three settings, their waivers, and the read fence:
+[`live/azure/record-store-abac.condition`](azure/record-store-abac.condition),
+a role assignment condition on the blob index tag. It binds Azure AD
+principals only, so an account key or a SAS token goes around it.
 
 ## The GCS bucket
 

@@ -413,10 +413,22 @@ gauntlet_helm_required_provider() {
   gauntlet_required_provider helm hashicorp/helm helm_provider_version "${1:-    }"
 }
 
+# gauntlet_azurerm_required_provider [indent] and
+# gauntlet_azapi_required_provider [indent]: the same for hashicorp/azurerm
+# and azure/azapi, from live/oracle-versions.json's azurerm_provider_version
+# and azapi_provider_version (#1120, the pins #1122 ruled). The azure lane's
+# reference estate hand-authors its root the way reference-k8s does.
+gauntlet_azurerm_required_provider() {
+  gauntlet_required_provider azurerm hashicorp/azurerm azurerm_provider_version "${1:-    }"
+}
+gauntlet_azapi_required_provider() {
+  gauntlet_required_provider azapi azure/azapi azapi_provider_version "${1:-    }"
+}
+
 # gauntlet_required_provider <local-name> <source> <field> [indent]: prints
 # one required_providers entry pinned exactly to live/oracle-versions.json's
-# <field>. The three functions above are the only callers; a fourth provider
-# pin would be a fourth field and a fourth one-line wrapper.
+# <field>. The five functions above are the only callers; another provider
+# pin is another field and another one-line wrapper.
 gauntlet_required_provider() {
   local name="$1" source="$2" field="$3" indent="${4:-    }" pin
   pin="$(gauntlet_oracle_pin "$field")"
@@ -474,6 +486,363 @@ gauntlet_kind_up() {
   [ -n "$image" ] || { printf 'gauntlet_kind_up: could not read the pinned node image from %s/live/kind-node-image\n' "$ROOT" >&2; return 1; }
   kind create cluster --image "$image" --name "$name" --kubeconfig "$cfg" --wait 120s >"${cfg}.kind.log" 2>&1 \
     || { printf 'gauntlet_kind_up: kind create cluster %s failed:\n' "$name" >&2; tail -5 "${cfg}.kind.log" >&2; return 1; }
+}
+
+# gauntlet_floci_az_up <name> <workdir>: the floci-az substrate (#1120).
+# An azure-lane crossing script runs against lex00/floci-az, pinned by
+# digest in live/floci-az-image, instead of the floci AWS emulator. One
+# container per call, started through gauntlet_floci_start so it carries the
+# ownership labels the leak sweep reads (name it choudoufu-<estate>-<pid>),
+# with the environment live/smoke's compose file gives the same image: TLS
+# on, memory storage, Azure parity, and from live/e2e/lib/floci-az.sh,
+# which live/smoke/lib.sh's azure_up shares, the storage suffix naming the
+# host port (picked before the start, since the suffix names it), Policy
+# evaluation and RBAC enforcement with the signed-in client as admin
+# (#2140). The certificate it serves is the operator's own from
+# scripts/floci-az-mac-cert.sh when floci_az_tls_select finds one, mounted
+# read-only (so estate A and oracle B, two calls, serve the same one), and
+# floci-az's per-start CA otherwise. macOS needs the operator's: Go there
+# reads only the keychain, so with none, or with one the keychain does not
+# trust, this fails by name before the container starts. It waits for
+# /ready, takes the CA (the operator's certificate itself, or the generated
+# one fetched into <workdir>/floci-az-ca.pem), and exports what azurerm,
+# azapi and the stock azurerm backend read: FLOCI_AZ_HOST,
+# FLOCI_AZ_ENDPOINT, FLOCI_AZ_CA_FILE, and floci_az_provider_env's set,
+# which live/smoke/lib.sh's azure_provider_env exports too. On Linux the CA joins a bundle SSL_CERT_FILE names.
+# Prints the reason and returns 1 on any failure, so the script's own fail()
+# records the stage it was setting up.
+#
+# Built for #1120 and not yet run by anyone: the maintainer's first
+# reference-azure run is its first boot.
+FLOCI_AZ_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000001"
+GAUNTLET_FLOCI_AZ_TENANT_ID="00000000-0000-0000-0000-000000000002"
+GAUNTLET_FLOCI_AZ_CLIENT_ID="00000000-0000-0000-0000-000000000003"
+gauntlet_floci_az_up() {
+  local name="$1" work="$2" image port published oid deadline system="" f line
+  local -a envargs=()
+  command -v docker >/dev/null 2>&1 || { printf 'gauntlet_floci_az_up: docker is not installed\n' >&2; return 1; }
+  # shellcheck source=floci-az.sh
+  . "$ROOT/live/e2e/lib/floci-az.sh" || { printf 'gauntlet_floci_az_up: could not source %s/live/e2e/lib/floci-az.sh\n' "$ROOT" >&2; return 1; }
+  image="$(cat "$ROOT/live/floci-az-image" 2>/dev/null)"
+  [ -n "$image" ] || { printf 'gauntlet_floci_az_up: could not read the pinned image from %s/live/floci-az-image\n' "$ROOT" >&2; return 1; }
+  port="$(floci_az_free_port)" && [ -n "$port" ] \
+    || { printf 'gauntlet_floci_az_up: could not pick a free host port for floci-az\n' >&2; return 1; }
+  oid="$(floci_az_client_oid "$GAUNTLET_FLOCI_AZ_CLIENT_ID")" && [ -n "$oid" ] \
+    || { printf 'gauntlet_floci_az_up: could not derive floci-az'"'"'s object id for client %s\n' "$GAUNTLET_FLOCI_AZ_CLIENT_ID" >&2; return 1; }
+  floci_az_tls_select || { printf 'gauntlet_floci_az_up: %s\n' "$FLOCI_AZ_TLS_PROBLEM" >&2; return 1; }
+  while IFS= read -r line; do
+    envargs+=(-e "$line")
+  done < <(floci_az_service_env "$port" "$oid"; floci_az_tls_env)
+  # GAUNTLET_FLOCI_AZ_ACCESS_LOG=1: Quarkus's HTTP access log on, one line
+  # per request on the container's console, which
+  # gauntlet_floci_az_requests_between counts (no_local_state's plan call
+  # counts). Off unless a caller asks, so no other run's log changes.
+  if [ "${GAUNTLET_FLOCI_AZ_ACCESS_LOG:-}" = "1" ]; then
+    envargs+=(-e QUARKUS_HTTP_ACCESS_LOG_ENABLED=true)
+  fi
+  if [ -n "$FLOCI_AZ_TLS_CERT_FILE" ]; then
+    envargs+=(-v "$FLOCI_AZ_TLS_CERT_FILE:$FLOCI_AZ_TLS_IN_CONTAINER/cert.pem:ro"
+      -v "$FLOCI_AZ_TLS_KEY_FILE:$FLOCI_AZ_TLS_IN_CONTAINER/key.pem:ro")
+  fi
+  gauntlet_floci_start "$name" -p "127.0.0.1:$port:4577" \
+    -e FLOCI_AZ_TLS_ENABLED=true -e FLOCI_AZ_STORAGE_MODE=memory -e FLOCI_AZ_PARITY=azure \
+    "${envargs[@]}" \
+    "$image" >"$work/floci-az.run.log" 2>&1 \
+    || { printf 'gauntlet_floci_az_up: starting %s failed:\n' "$name" >&2; tail -5 "$work/floci-az.run.log" >&2; return 1; }
+  published="$(docker port "$name" 4577 2>/dev/null | head -1 | sed 's/.*://')"
+  [ -n "$published" ] || { printf 'gauntlet_floci_az_up: could not read the published port of %s\n' "$name" >&2; return 1; }
+  [ "$published" = "$port" ] || { printf 'gauntlet_floci_az_up: %s is published on :%s, not the :%s its storage suffix names, so blob calls would miss it\n' "$name" "$published" "$port" >&2; return 1; }
+  FLOCI_AZ_HOST="localhost:$port"
+  FLOCI_AZ_ENDPOINT="https://$FLOCI_AZ_HOST"
+  deadline=$(( $(date +%s) + ${FLOCI_AZ_READY_SECS:-90} ))
+  until curl -fsS --max-time 2 "http://$FLOCI_AZ_HOST/ready" >/dev/null 2>&1; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      docker logs --tail 50 "$name" >"$work/floci-az.log" 2>&1 || true
+      printf 'gauntlet_floci_az_up: %s never answered /ready within %ss; its log is in %s\n' "$name" "${FLOCI_AZ_READY_SECS:-90}" "$work/floci-az.log" >&2
+      return 1
+    fi
+    sleep 1
+  done
+  if [ -n "$FLOCI_AZ_TLS_CERT_FILE" ]; then
+    FLOCI_AZ_CA_FILE="$FLOCI_AZ_TLS_CERT_FILE"
+  else
+    FLOCI_AZ_CA_FILE="$work/floci-az-ca.pem"
+    curl -fsS --max-time 10 "http://$FLOCI_AZ_HOST/_floci/tls-cert" -o "$FLOCI_AZ_CA_FILE" \
+      && grep -q "BEGIN CERTIFICATE" "$FLOCI_AZ_CA_FILE" \
+      || { printf 'gauntlet_floci_az_up: could not fetch a PEM CA from http://%s/_floci/tls-cert\n' "$FLOCI_AZ_HOST" >&2; return 1; }
+  fi
+  if [ "$(uname -s)" != "Darwin" ]; then
+    for f in "${SSL_CERT_FILE:-}" /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/cert.pem; do
+      if [ -n "$f" ] && [ -s "$f" ]; then system="$f"; break; fi
+    done
+    [ -n "$system" ] || { printf 'gauntlet_floci_az_up: found no system CA bundle to add the floci-az CA to\n' >&2; return 1; }
+    cat "$system" "$FLOCI_AZ_CA_FILE" > "$work/ca-bundle-with-floci-az.pem"
+    export SSL_CERT_FILE="$work/ca-bundle-with-floci-az.pem"
+  fi
+  export FLOCI_AZ_HOST FLOCI_AZ_ENDPOINT FLOCI_AZ_CA_FILE
+  # The endpoint lock (#2133, live/e2e/lib/floci-az.sh): the operator's own
+  # Azure credentials out of every child's environment, an empty Azure CLI
+  # config directory, and the ARM_* set aimed at this container.
+  floci_az_provider_env "$FLOCI_AZ_HOST" "$FLOCI_AZ_SUBSCRIPTION_ID" "$GAUNTLET_FLOCI_AZ_TENANT_ID" \
+    "$GAUNTLET_FLOCI_AZ_CLIENT_ID" "$work/azure-config-no-login" \
+    || { printf 'gauntlet_floci_az_up: could not lock the Azure environment to %s\n' "$FLOCI_AZ_HOST" >&2; return 1; }
+}
+
+# gauntlet_floci_az_provider_blocks prints an azure-lane configuration's two
+# provider blocks and the floci_az_host variable their metadata_host reads
+# (live/e2e/lib/floci-az.sh, floci_az_provider_blocks): every endpoint and
+# credential argument stated, so nothing in the operator's shell can aim a
+# provider anywhere but the floci-az the saved environment names. Callable
+# before any container is up, since the host is TF_VAR_floci_az_host's.
+gauntlet_floci_az_provider_blocks() {
+  gauntlet_floci_az_host_variable || return 1
+  echo
+  floci_az_provider_blocks var.floci_az_host "$FLOCI_AZ_SUBSCRIPTION_ID" "$GAUNTLET_FLOCI_AZ_TENANT_ID" "$GAUNTLET_FLOCI_AZ_CLIENT_ID"
+}
+
+# gauntlet_floci_az_azurerm_args, gauntlet_floci_az_azapi_args and
+# gauntlet_floci_az_host_variable are the same pieces one at a time, for a
+# published root whose own provider blocks gain the arguments rather than
+# being replaced (corpus-azapi-role-assignment's delta 2).
+gauntlet_floci_az_azurerm_args() {
+  # shellcheck source=floci-az.sh
+  . "$ROOT/live/e2e/lib/floci-az.sh" || return 1
+  floci_az_azurerm_args var.floci_az_host "$FLOCI_AZ_SUBSCRIPTION_ID" "$GAUNTLET_FLOCI_AZ_TENANT_ID" "$GAUNTLET_FLOCI_AZ_CLIENT_ID"
+}
+gauntlet_floci_az_azapi_args() {
+  # shellcheck source=floci-az.sh
+  . "$ROOT/live/e2e/lib/floci-az.sh" || return 1
+  floci_az_azapi_args "$FLOCI_AZ_SUBSCRIPTION_ID" "$GAUNTLET_FLOCI_AZ_TENANT_ID" "$GAUNTLET_FLOCI_AZ_CLIENT_ID"
+}
+gauntlet_floci_az_host_variable() {
+  # shellcheck source=floci-az.sh
+  . "$ROOT/live/e2e/lib/floci-az.sh" || return 1
+  floci_az_host_variable
+}
+
+# gauntlet_floci_az_down <name>: removes the container gauntlet_floci_az_up
+# started, and its anonymous volume. Idempotent and quiet, for a trap.
+gauntlet_floci_az_down() {
+  [ -n "${1:-}" ] || return 0
+  docker rm --force --volumes "$1" >/dev/null 2>&1 || true
+}
+
+# gauntlet_arm <METHOD> <path-with-api-version> [json-body]: one ARM call
+# against the floci-az gauntlet_floci_az_up started, the azure lane's
+# out-of-band hand (what the AWS CLI is to a floci estate and kubectl to a
+# kind one). Prints the body; non-zero on a non-2xx answer. floci-az accepts
+# any bearer token on ARM.
+gauntlet_arm() {
+  local method="$1" path="$2" body="${3:-}"
+  local args=(-sS --fail-with-body --max-time 30 --cacert "$FLOCI_AZ_CA_FILE"
+    -X "$method" -H "Authorization: Bearer floci-az" -H "Content-Type: application/json")
+  [ -n "$body" ] && args+=(--data "$body")
+  curl "${args[@]}" "${FLOCI_AZ_ENDPOINT}${path}"
+}
+
+# gauntlet_arm_set_tag <path-with-api-version> <key> <value|->: sets one tag
+# on an ARM resource (or removes it, for "-") and keeps every other tag and
+# field, the azure lane's out-of-band tamper. It reads the resource, edits
+# tags in the body it got back and PUTs that whole body to the same path:
+# what `az resource update --set tags.k=v` does, and valid on every ARM type,
+# since PUT is create-or-update and a body read back from ARM carries the
+# child arrays (a VNet's subnets) that a bare PUT would drop. A PATCH is not
+# used: floci-az serves none on Microsoft.Network (405 at lex00/floci-az
+# 30000b0, NetworkService.handleArm), which stopped reference-azure's
+# drift_reconverge on its second run (#1120). A key that matches another
+# only by case replaces it, since ARM rejects two such keys.
+gauntlet_arm_set_tag() {
+  local path="$1" key="$2" val="$3" body
+  body="$(gauntlet_arm GET "$path" | KEY="$key" VAL="$val" python3 -c '
+import json, os, sys
+r = json.load(sys.stdin)
+k, v = os.environ["KEY"], os.environ["VAL"]
+t = {a: b for a, b in (r.get("tags") or {}).items() if a.lower() != k.lower()}
+if v != "-":
+    t[k] = v
+r["tags"] = t
+print(json.dumps(r))')" || return 1
+  gauntlet_arm PUT "$path" "$body"
+}
+
+# ── record_store "azurerm" on floci-az (#1120) ────────────────────────────
+#
+# Records live in the record store and the state file is a cache (the
+# maintainer's ruling for the azure lane, 2026-10-21): an azure-lane estate
+# keeps its records as blobs in a storage account on the same floci-az
+# container its resources live in, through record_store "azurerm", never in
+# a local directory. Three helpers, generic over the estate: the operator's
+# account made out of band, the block that names it, and a mirror of the
+# container for a stage that reads a record back. They run against the
+# floci-az the current environment names (FLOCI_AZ_ENDPOINT,
+# FLOCI_AZ_CA_FILE), so a two-container script calls them under its own
+# on_a, as it does gauntlet_arm.
+
+# GAUNTLET_FLOCI_AZ_RECORD_LIFECYCLE is the account's one lifecycle rule:
+# block blobs' previous versions deleted after 30 days, current blobs never
+# touched, no prefix filter, so it covers every container in the account
+# (internal/live/staterecord/azurecontract.go's lifecycle_management
+# assertion; examples/record-store-azurerm/CONTRACT.md).
+GAUNTLET_FLOCI_AZ_RECORD_LIFECYCLE='{"properties":{"policy":{"rules":[{"name":"expire-previous-record-versions","enabled":true,"type":"Lifecycle","definition":{"filters":{"blobTypes":["blockBlob"]},"actions":{"version":{"delete":{"daysAfterCreationGreaterThan":30}}}}}]}}}'
+
+# gauntlet_floci_az_record_account <resource-group> <account> <container>...
+# makes the storage account a record_store "azurerm" block names, the way an
+# operator would before the first plan, with ARM calls a portal or `az`
+# sends: a resource group of its own (so an estate's teardown, which deletes
+# the estate's groups, leaves the records standing), a StorageV2 account
+# with anonymous blob access disallowed, blob versioning on, the lifecycle
+# rule above, and one container per name given. Those are the three
+# settings the store's opening checks assert (live/STORAGE.md, "The
+# container"), so the first contact passes them rather than being waived.
+# The group and the account carry no tags: nothing here is the estate's,
+# and the Resource Graph sweep, which matches tofu-estate, never sees them.
+# Prints the reason and returns 1 on the first call that fails.
+gauntlet_floci_az_record_account() {
+  local rg="$1" account="$2" sub id api="2023-05-01" c
+  shift 2
+  [ -n "$rg" ] && [ -n "$account" ] && [ "$#" -gt 0 ] \
+    || { printf 'gauntlet_floci_az_record_account: needs <resource-group> <account> <container>...\n' >&2; return 1; }
+  sub="/subscriptions/${FLOCI_AZ_SUBSCRIPTION_ID}"
+  id="${sub}/resourceGroups/${rg}/providers/Microsoft.Storage/storageAccounts/${account}"
+  gauntlet_arm PUT "${sub}/resourcegroups/${rg}?api-version=2021-04-01" '{"location":"eastus"}' >/dev/null \
+    || { printf 'gauntlet_floci_az_record_account: could not create resource group %s\n' "$rg" >&2; return 1; }
+  gauntlet_arm PUT "${id}?api-version=${api}" '{"location":"eastus","kind":"StorageV2","sku":{"name":"Standard_LRS"},"properties":{"allowBlobPublicAccess":false}}' >/dev/null \
+    || { printf 'gauntlet_floci_az_record_account: could not create storage account %s\n' "$account" >&2; return 1; }
+  gauntlet_arm PUT "${id}/blobServices/default?api-version=${api}" '{"properties":{"isVersioningEnabled":true}}' >/dev/null \
+    || { printf 'gauntlet_floci_az_record_account: could not turn blob versioning on for %s\n' "$account" >&2; return 1; }
+  gauntlet_arm PUT "${id}/managementPolicies/default?api-version=${api}" "$GAUNTLET_FLOCI_AZ_RECORD_LIFECYCLE" >/dev/null \
+    || { printf 'gauntlet_floci_az_record_account: could not set the lifecycle rule on %s\n' "$account" >&2; return 1; }
+  for c in "$@"; do
+    gauntlet_arm PUT "${id}/blobServices/default/containers/${c}?api-version=${api}" '{"properties":{}}' >/dev/null \
+      || { printf 'gauntlet_floci_az_record_account: could not create container %s in %s\n' "$c" "$account" >&2; return 1; }
+  done
+}
+
+# gauntlet_floci_az_record_store <host> <resource-group> <account> <container>
+# prints a record_store "azurerm" block, four-space indented for a live
+# block, naming that container, with the endpoint lock's connection
+# arguments (live/e2e/lib/floci-az.sh's floci_az_record_store_args): the
+# metadata host is <host> as a literal, since a live block is part of the
+# terraform block and reads no variable, so a configuration with this block
+# is written for one container.
+gauntlet_floci_az_record_store() {
+  local host="$1" rg="$2" account="$3" container="$4" conn
+  # shellcheck source=floci-az.sh
+  . "$ROOT/live/e2e/lib/floci-az.sh" || return 1
+  conn="$(floci_az_record_store_args "$host" "$FLOCI_AZ_SUBSCRIPTION_ID" "$GAUNTLET_FLOCI_AZ_TENANT_ID" "$GAUNTLET_FLOCI_AZ_CLIENT_ID")" || return 1
+  cat <<HCL
+    record_store "azurerm" {
+      storage_account_name = "$account"
+      container_name       = "$container"
+      resource_group_name  = "$rg"
+$conn
+    }
+HCL
+}
+
+# gauntlet_floci_az_blobs <account> <container> <dir> copies every current
+# blob in the container into <dir>, one file per blob at the blob's own name,
+# and prints how many it copied. <dir> must not exist yet or be empty, so a
+# caller takes a fresh one per reading and no earlier copy can answer for a
+# later one. It reads
+# through floci-az's path-style blob endpoint with a bearer token, which
+# floci-az accepts, the way az-records-in-a-storage-account.sh counts them.
+# The copy is what gauntlet_record_file, gauntlet_record_envelope_count and
+# gauntlet_record_residue read, so a stage asks a record store in a
+# container exactly what a stage on a local store asks the directory; it is
+# GAUNTLET_RECORDS_REFRESH's shape for the kubernetes store. Returns 1 when
+# the container cannot be listed or a blob cannot be read: a copy that
+# silently came back short would read as a missing record.
+gauntlet_floci_az_blobs() {
+  ACCOUNT="$1" CONTAINER="$2" DEST="$3" python3 - <<'PY'
+import os, ssl, sys, urllib.error, urllib.parse, urllib.request
+import xml.etree.ElementTree as ET
+ctx = ssl.create_default_context(cafile=os.environ["FLOCI_AZ_CA_FILE"])
+base = os.environ["FLOCI_AZ_ENDPOINT"] + "/" + os.environ["ACCOUNT"] + "/" + os.environ["CONTAINER"]
+headers = {"Authorization": "Bearer floci-az", "x-ms-version": "2023-11-03"}
+dest = os.environ["DEST"]
+def get(url):
+    return urllib.request.urlopen(urllib.request.Request(url, headers=headers), context=ctx, timeout=30).read()
+names, marker = [], ""
+try:
+    while True:
+        q = "?restype=container&comp=list" + ("&marker=" + urllib.parse.quote(marker) if marker else "")
+        root = ET.fromstring(get(base + q))
+        names += [b.findtext("Name") for b in root.iter("Blob") if b.findtext("Name")]
+        marker = root.findtext("NextMarker") or ""
+        if not marker:
+            break
+except (urllib.error.URLError, ET.ParseError) as e:
+    sys.exit("gauntlet_floci_az_blobs: could not list container %s: %s" % (base, e))
+if os.path.isdir(dest) and os.listdir(dest):
+    sys.exit("gauntlet_floci_az_blobs: %s is not empty; take a fresh directory per reading" % dest)
+os.makedirs(dest, exist_ok=True)
+for n in names:
+    try:
+        body = get(base + "/" + urllib.parse.quote(n, safe="/"))
+    except urllib.error.URLError as e:
+        sys.exit("gauntlet_floci_az_blobs: could not read blob %s: %s" % (n, e))
+    p = os.path.join(dest, *n.split("/"))
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "wb") as fh:
+        fh.write(body)
+print(len(names))
+PY
+}
+
+# gauntlet_floci_az_blob_delete <account> <container> <blob-name> deletes one
+# blob out of band, through the same endpoint: what an operator's
+# `az storage blob delete` does to a record.
+gauntlet_floci_az_blob_delete() {
+  local name
+  name="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe="/"))' "$3")" || return 1
+  curl -sS --fail-with-body --max-time 30 --cacert "$FLOCI_AZ_CA_FILE" -X DELETE \
+    -H "Authorization: Bearer floci-az" -H "x-ms-version: 2023-11-03" \
+    "${FLOCI_AZ_ENDPOINT}/$1/$2/${name}" >/dev/null
+}
+
+# gauntlet_floci_az_mark <token> sends one request whose line in floci-az's
+# access log carries gauntlet-mark=<token>, a boundary for
+# gauntlet_floci_az_requests_between.
+gauntlet_floci_az_mark() {
+  curl -fsS --max-time 5 "http://${FLOCI_AZ_HOST}/ready?gauntlet-mark=$1" >/dev/null 2>&1
+}
+
+# gauntlet_floci_az_requests_between <container> <start-token> <end-token>
+# prints how many requests floci-az's access log holds between the two marks,
+# the marks themselves left out: every ARM call, token request and blob call
+# the run in between sent, counted on the wire as live/smoke/k8sproxy.py
+# counts a cluster's. The container must have been started with
+# GAUNTLET_FLOCI_AZ_ACCESS_LOG=1. Returns 1 when either mark is not in the
+# log, which is how a log with no access lines shows.
+gauntlet_floci_az_requests_between() {
+  docker logs "$1" 2>&1 | awk -v s="gauntlet-mark=$2" -v e="gauntlet-mark=$3" '
+    index($0, s) { on = 1; n = 0; next }
+    on && index($0, e) { print n; found = 1; exit }
+    on && /"(GET|PUT|POST|PATCH|DELETE|HEAD|OPTIONS) / { n++ }
+    END { if (!found) exit 1 }'
+}
+
+# gauntlet_keep_log <estate> <label> <file>: keeps a log a stage wrote under
+# its own $WORK, which the EXIT trap deletes, by copying it next to the
+# runner's capture as live/gauntlet/logs/<estate>.<label>.log (gitignored),
+# and prints any provider panic in it into the run's own output, so a
+# failed stage's TF_LOG survives the run (#1120: run seven's azurerm panic
+# was in a TF_LOG file that went with $WORK). Never fails the caller.
+gauntlet_keep_log() {
+  local estate="$1" label="$2" file="$3" dir="$ROOT/live/gauntlet/logs" dest
+  [ -s "$file" ] || { printf '  (no %s log at %s to keep)\n' "$label" "$file"; return 0; }
+  dest="$dir/$estate.$label.log"
+  if mkdir -p "$dir" 2>/dev/null && cp "$file" "$dest" 2>/dev/null; then
+    printf '  kept the %s log at %s\n' "$label" "${dest#"$ROOT"/}"
+  else
+    printf '  (could not copy the %s log to %s)\n' "$label" "$dest"
+  fi
+  if grep -q 'panic: ' "$file"; then
+    printf '  provider panic in the %s log:\n' "$label"
+    grep -A 24 -m 1 'panic: ' "$file" | sed 's/^/    /' | cut -c1-400
+  fi
+  return 0
 }
 
 # gauntlet_kind_down <name>: deletes the cluster gauntlet_kind_up made.
@@ -1193,6 +1562,25 @@ for k in sorted((d.get('residue') or {}).get('attributes') or {}):
 PY
 }
 
+# gauntlet_record_identity <file> [deposed]: the import id a record envelope
+# names as its CURRENT object (identity.import_id), or with "deposed" the
+# import ids of the objects it holds under deposed keys, one per line. A
+# record also keeps every identity its address held and an apply destroyed
+# (its tombstone member), so grepping the file for an id says nothing about
+# which object the record names now; this reads the member that does.
+gauntlet_record_identity() {
+  python3 - "$1" "${2:-}" <<'PY'
+import json, sys
+with open(sys.argv[1]) as fh:
+    d = json.load(fh)
+if sys.argv[2] == "deposed":
+    for k in sorted((d.get('deposed') or {})):
+        print(((d['deposed'][k] or {}).get('identity') or {}).get('import_id', ''))
+else:
+    print((d.get('identity') or {}).get('import_id', ''))
+PY
+}
+
 # gauntlet_record_manifest_keys <file> <labels|annotations>: the metadata
 # map keys a kubernetes_manifest's record says its own applied manifest
 # DECLARED, space-separated and sorted, read off the envelope's
@@ -1683,10 +2071,66 @@ gauntlet_first_error_line() {
   { grep -m1 -E '^[[:space:]]*(│[[:space:]]*)?Error: ' || true; } | sed -E 's/^[[:space:]]*│?[[:space:]]*//'
 }
 
+# gauntlet_live_import_skips - every row of the SKIPPED group in a
+# live-import -approve report on stdin, as "<address>: <reason>" joined by
+# "; ", empty when the group is absent. live-import prints each skip with its
+# reason (internal/command/views/live_import.go, "  %-42s %-24s %s"), and a
+# skip is never an Error: line, so a migrate verdict that showed only
+# gauntlet_first_error_line read "" for every resource it skipped (#1120's
+# first Azure lane run: three azapi_resource instances, none named).
+gauntlet_live_import_skips() {
+  _gauntlet_live_import_skip_rows | awk -F '\t' '{ out = out (out == "" ? "" : "; ") $1 ": " $2 } END { print out }'
+}
+
+# _gauntlet_live_import_skip_rows - the SKIPPED group's rows on stdin, one
+# "<address><TAB><reason>" line each. A reason may hold "; " and ": ", so
+# the two functions around it split rows here and never re-split the joined
+# text.
+_gauntlet_live_import_skip_rows() {
+  awk '
+    /^SKIPPED \([0-9]+\) - / { in_group = 1; next }
+    in_group && !/^  [^ ]/ { in_group = 0 }
+    in_group {
+      line = $0
+      sub(/^  /, "", line)
+      addr = line; sub(/ .*/, "", addr)
+      reason = line; sub(/^[^ ]+ +[^ ]+ +/, "", reason)
+      print addr "\t" reason
+    }'
+}
+
+# gauntlet_live_import_skipped_addrs - the addresses of the SKIPPED group in
+# a live-import -approve report on stdin, sorted, one space between each;
+# empty when the group is absent. What a migrate gate compares against the
+# instances it expects skipped (the untaggable ones, whose identity is
+# recorded and whose marker write is what was skipped).
+gauntlet_live_import_skipped_addrs() {
+  _gauntlet_live_import_skip_rows | cut -f1 | sort | tr '\n' ' ' | sed 's/ $//'
+}
+
 # gauntlet_plan_line - the plan's own "Plan: ..." or "No changes." summary
 # line on stdin, without its trailing period; empty when there is none.
 gauntlet_plan_line() {
   { grep -m1 -E '^(Plan:|No changes)' || true; } | sed 's/\.$//'
+}
+
+# gauntlet_azure_sweep_note - for an Azure lane plan's output on stdin, the
+# clause a removal verdict appends when the plan warned "Azure sweep
+# unavailable"; empty when it did not. A removed block's resource of a type
+# that takes tags is found only by the Resource Graph sweep (the record leg
+# skips it, internal/live/discovery/recordorphan_read.go), so a plan whose
+# sweep failed plans no destroy for a day2_remove or a scale-down of such a
+# type. floci-az runs the sweep's query as sent since dfa33ca
+# (lex00/floci-az#11, which refused its union, mv-expand and bag_keys at
+# 30000b0), so the warning is no longer expected there: the clause names
+# it, and the warning's own detail in the log says what refused the query
+# this time (#1120's stage audit). A verdict without it failed for some
+# other reason.
+gauntlet_azure_sweep_note() {
+  if grep -qF "Azure sweep unavailable" ; then
+    printf '%s' '; the plan warned "Azure sweep unavailable": the Resource Graph sweep failed, which floci-az should no longer do since dfa33ca (lex00/floci-az#11), and only the sweep finds a removed resource of a type that takes tags'
+  fi
+  return 0
 }
 
 # gauntlet_replan_actions_verdict <context> < <plan output>

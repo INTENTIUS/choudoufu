@@ -61,7 +61,8 @@ func (cred *oidcAuth) Construct(ctx context.Context, config *Config) (azcore.Tok
 			return consolidateToken(config)
 		},
 		&azidentity.ClientAssertionCredentialOptions{
-			ClientOptions: clientOptions(httpclient.New(ctx), config.CloudConfig),
+			ClientOptions:            clientOptions(httpclient.New(ctx), config.CloudConfig),
+			DisableInstanceDiscovery: instanceDiscoveryOff(config),
 		},
 	)
 }

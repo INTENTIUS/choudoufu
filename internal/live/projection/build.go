@@ -380,6 +380,7 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 	for _, db := range opts.DeposedBindings {
 		b.materializeDeposed(ctx, db)
 	}
+	b.diags = b.diags.Append(b.pendingDisplaced())
 
 	sortOmissions(b.omissionList)
 	sort.Slice(b.materialized, func(i, j int) bool {
@@ -642,6 +643,11 @@ type builder struct {
 	// by this estate's own apply, keyed by this exact address. Written and
 	// read only on the sequential materialize goroutine, like cacheHits.
 	envelopeAdmitted map[string]bool
+
+	// refusedMarkedAtKey names the instances [builder.overwritesMarkedAtKey]
+	// refused, which [builder.pendingDisplaced] reads to withhold the
+	// displaced warning discovery left waiting on them.
+	refusedMarkedAtKey map[string]bool
 
 	diags tfdiags.Diagnostics
 }
@@ -1179,8 +1185,28 @@ func (b *builder) applyRecordFirst(ctx context.Context, resolutions []identity.R
 // found the record stale; [builder.checkOwnership] has already logged the
 // warning, and this function reports the address as unhandled with nothing
 // further to say.
+//
+// The record is looked up through [builder.locatedIdentityWithAliases], so a
+// `moved` block's origin address is consulted when nothing is recorded at
+// r.Addr. A bare HCL moved block never re-keys the store, and before this the
+// record-first read asked only the new address: an untaggable instance (an
+// azapi role assignment, whose record is its only ownership proof) renamed by
+// a moved block fell through to its declared id, found its own live object
+// there with no record bound to it, and refused it as an overwrite of an
+// unrecorded object (corpus-azapi-role-assignment's day2_rename). The located
+// door already did this; the record-first door now asks the same question.
+// Write-back moves the record to the new key after the apply
+// ([retireMovedRecords]).
 func (b *builder) materializeFromRecord(ctx context.Context, r identity.Resolution) bool {
-	rec, version, keyExists, identityFound, err := b.opts.RecordStore.GetIdentity(ctx, r.Addr)
+	rec, version, keyExists, identityFound, viaAlias, err := b.locatedIdentityWithAliases(ctx, r.Addr)
+	// Several recorded moved-from addresses: nothing here says which is this
+	// instance's. The declared-identity path refuses it by name, every
+	// candidate listed (main's [SummaryMovedRecordsAmbiguous], merged with
+	// this door's alias lookup), so the record-first door steps aside.
+	var ambiguous *movedAliasesAmbiguousError
+	if errors.As(err, &ambiguous) {
+		return false
+	}
 	if err != nil {
 		detail := fmt.Sprintf("Reading the record for %s failed: %s.", r.Addr, err)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a persisted record", detail))
@@ -1190,7 +1216,9 @@ func (b *builder) materializeFromRecord(ctx context.Context, r identity.Resoluti
 	if !identityFound {
 		return false
 	}
-	if keyExists {
+	// A version read through a moved alias belongs to the alias's key, not
+	// r.Addr's: see [builder.locatedIdentityWithAliases].
+	if keyExists && !viaAlias {
 		b.recordEnvelopeVersion(r.Addr, version)
 	}
 	return b.materialize(ctx, wanted{
@@ -2805,7 +2833,7 @@ func (b *builder) materializeDeposed(ctx context.Context, db DeposedBinding) {
 	// labels the configuration still declares changes nothing anyone will
 	// act on, and asking the cluster would buy a round trip and a
 	// possible warning for an analysis with no consumer.
-	obj, _, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, importTarget(w, schema), db.ImportID, db.Components, nil, nil, nil)
+	obj, _, status, matDiags := importAndRead(ctx, entry.provider, schema, typeName, providerAddr.Provider.Type, importTarget(w, schema), db.ImportID, db.Components, nil, nil, nil)
 	switch status {
 	case statusAbsent:
 		log.Printf("[TRACE] projection: %s's recorded deposed object %s (%s) no longer exists live; not folded into the projection", addr, db.DeposedKey, traceImportID(typeName, db.ImportID, cty.NilVal))
@@ -3234,7 +3262,10 @@ const (
 // stop applies untouched. That also means a warning-only response (no
 // errors at all) never reaches this function, since it is only consulted
 // under importResp.Diagnostics.HasErrors().
-func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
+//
+// object is what the import asked for: an Azure 404 reads as absence only
+// when it is about that object ([absent.Object], GitHub issue #2133).
+func notFoundDiagnostics(diags tfdiags.Diagnostics, object absent.Object) (bool, string) {
 	sawError := false
 	detail := ""
 	for _, d := range diags {
@@ -3244,7 +3275,7 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics) (bool, string) {
 		sawError = true
 		desc := d.Description()
 		text := strings.TrimSpace(desc.Summary + ": " + desc.Detail)
-		if !absent.Matches(desc.Summary, desc.Detail) {
+		if !absent.Matches(desc.Summary, desc.Detail, object) {
 			return false, ""
 		}
 		if detail == "" {
@@ -3975,6 +4006,10 @@ func withSeededAttrs(v cty.Value, seed map[string]cty.Value, block *configschema
 // ImportResourceState to turn an identity into a stub object, then
 // ReadResource to fill that stub in from the live system.
 //
+// providerType is the provider's type name ("azurerm", "aws"), which
+// decides whether its import errors are read for the Azure not-found shapes
+// at all ([absent.Object], GitHub issue #2140).
+//
 // target is the form the import is asked in - an identity object or an
 // import-ID string, never both, see [importTarget]. importID is carried
 // alongside whichever form was chosen because it is what every sentence here
@@ -4004,7 +4039,7 @@ func withSeededAttrs(v cty.Value, seed map[string]cty.Value, block *configschema
 // back is then bit-for-bit the same value that went in, and comparing the
 // two is the only way to tell that apart from a value ReadResource actually
 // produced - the schema itself carries no such signal to ask instead.
-func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName string, target providers.ImportTarget, importID string, identityValues map[string]string, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks, manifestKeys *manifestKeyLookup) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
+func importAndRead(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, providerType string, target providers.ImportTarget, importID string, identityValues map[string]string, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks, manifestKeys *manifestKeyLookup) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	if !target.IsIdentityBased() && !target.IsIDBased() {
@@ -4021,7 +4056,7 @@ func importAndRead(ctx context.Context, provider providers.Interface, schema pro
 		Target:   target,
 	})
 	if importResp.Diagnostics.HasErrors() {
-		if ok, detail := notFoundDiagnostics(importResp.Diagnostics); ok {
+		if ok, detail := notFoundDiagnostics(importResp.Diagnostics, absent.Object{ID: target.ID, Identity: identityValues, Provider: providerType}); ok {
 			// Some providers answer "there is no such object" as an error
 			// diagnostic out of ImportResourceState rather than an empty
 			// ImportedResources list - aws_lambda_permission is a confirmed

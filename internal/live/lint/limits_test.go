@@ -134,6 +134,18 @@ var enforcedLimits = map[string]Rule{
 	// the matrix, including the two halves that need provider schemas.
 	"strict-markers":              RuleStrictMarkers,
 	"strict-markers-unrecordable": RuleStrictMarkersUnrecordable,
+	// GitHub issue #1120: a Cosmos DB account with 14 tags, where Azure
+	// documents 15; the two markers make 16. A warning, like state-backend.
+	// See live/LIMITATIONS.md, "arm-tag-limit", and limitsCompanionRules
+	// for the one other rule allowed beside it.
+	"arm-tag-limit": RuleARMTagLimit,
+	// GitHub issue #1120: declared_untagged = "keep" in an estate that
+	// declares an azurerm resource group, whose create is a PUT that would
+	// overwrite an unmarked group at the declared id. #1546's refusal for
+	// the opposite server. See live/LIMITATIONS.md,
+	// "policy-overwrite-at-key"; unadmitted-type rides beside it for
+	// arm-tag-limit's reason.
+	"policy-overwrite-at-key": RulePolicyOverwriteAtKey,
 	// GitHub issue #1121's fence ruling: two google provider blocks naming
 	// two projects. A warning, like state-backend. The fixture declares no
 	// google resource, since without schemas every google type is
@@ -152,13 +164,15 @@ var enforcedLimits = map[string]Rule{
 // limitsCompanionRules is the one exception to TestLimitsEnforced's "that
 // rule and nothing else": a fixture whose rule is about a resource no
 // schemaless lint run admits. CheckContext has no provider schemas, and no
-// google type has a row in the admission table, so every google resource
-// is also refused as unadmitted-type. A gcp fixture must declare a google
-// resource to show its rule at all. The fixture's own rule must still
+// azurerm or google type has a row in the admission table, so every such
+// resource is also refused as unadmitted-type. An Azure or GCP fixture must
+// declare one to show its rule at all. The fixture's own rule must still
 // fire; only the named companion may fire beside it.
 var limitsCompanionRules = map[string]Rule{
-	"gcp-label-count":  RuleUnadmittedType,
-	"gcp-estate-label": RuleUnadmittedType,
+	"arm-tag-limit":           RuleUnadmittedType,
+	"policy-overwrite-at-key": RuleUnadmittedType,
+	"gcp-label-count":         RuleUnadmittedType,
+	"gcp-estate-label":        RuleUnadmittedType,
 }
 
 // notYetEnforcedLimits is every live/e2e/limits directory whose

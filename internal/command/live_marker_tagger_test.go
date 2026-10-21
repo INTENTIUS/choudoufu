@@ -73,7 +73,8 @@ func TestMarkerWriterChosenByTheWrite(t *testing.T) {
 // writer serves.
 type bindingFamily struct{ substrate.Substrate }
 
-func (bindingFamily) Name() string { return "graph" }
+func (bindingFamily) Name() string            { return "graph" }
+func (bindingFamily) ProviderTypes() []string { return []string{"graph"} }
 func (bindingFamily) Writes(markers.Surface) substrate.Writes {
 	return substrate.Writes{Create: substrate.WriteInCreate, PostCreate: "graph-binding"}
 }

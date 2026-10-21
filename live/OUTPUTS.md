@@ -214,6 +214,16 @@ verb, and a refusal by RBAC prints the `kubectl create role` and
 `live/smoke/drafts/k8s-an-estate-reads-another-by-declaring-it.sh` is the
 draft proof (not yet run).
 
+On `record_store "azurerm"` the read works as on `s3`: every estate sharing
+the container reads through the same store, and a `reads_outputs_of`
+block is refused. The grant is the difference. The ABAC read fence
+([`live/azure/record-store-abac.condition`](azure/record-store-abac.condition))
+lets a principal read only blobs tagged with its own estate and list only
+its own three prefixes, and there is no `render-policy.sh` for it yet, so a
+consumer under that condition needs a second role assignment, written by
+hand, whose condition names the producer's estate and its `tofu-outputs/`
+prefix. Built from the condition's documentation and not measured.
+
 A record goes when nothing stands behind it. A destroy of the whole estate
 (no `-target`, no `-exclude`) deletes every record under
 `tofu-outputs/<estate>/`, and an apply after an `output` block is removed

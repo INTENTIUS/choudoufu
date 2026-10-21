@@ -48,7 +48,8 @@ func (cred *clientSecretCredentialAuth) Construct(ctx context.Context, config *C
 		clientId,
 		clientSecret,
 		&azidentity.ClientSecretCredentialOptions{
-			ClientOptions: clientOptions(client, config.CloudConfig),
+			ClientOptions:            clientOptions(client, config.CloudConfig),
+			DisableInstanceDiscovery: instanceDiscoveryOff(config),
 		},
 	)
 }

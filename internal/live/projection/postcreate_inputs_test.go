@@ -40,6 +40,7 @@ type gadgetRules map[string]bool
 type gadgetFamily struct{ substrate.Substrate }
 
 func (gadgetFamily) Name() string                { return "gadget" }
+func (gadgetFamily) ProviderTypes() []string     { return []string{"gadget"} }
 func (gadgetFamily) Surfaces() []markers.Surface { return []markers.Surface{gadgetSurface} }
 func (gadgetFamily) MarkerWriter() substrate.Write {
 	return "gadget-bind"

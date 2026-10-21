@@ -300,6 +300,9 @@ type siteData struct {
 	// they carry no tier yet - see [Substrate]'s own doc comment.
 	Kubernetes siteSubstrate `json:"kubernetes"`
 
+	// Azure is GitHub issue #2119's Azure column: see [siteAzure].
+	Azure siteAzure `json:"azure"`
+
 	// Google is the hashicorp/google and google-beta substrate (#1119):
 	// its own tier-by-status cross tab, how each type comes back, and every
 	// type with its reason.
@@ -385,6 +388,7 @@ func buildSiteData(a Artifact, stamp string, pf pathFacts) siteData {
 	for _, r := range a.Kubernetes.Types {
 		d.Kubernetes.Types = append(d.Kubernetes.Types, siteType{Type: r.Type, Tier: r.Tier, Status: r.Status, Reason: reasonFor(r)})
 	}
+	d.Azure = buildSiteAzure(a.Azure)
 
 	g := siteGoogle{
 		Provider:     a.Google.Provider,

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/live/armtypes"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
@@ -111,10 +112,11 @@ func TestOneRowPerFamily(t *testing.T) {
 	}
 }
 
-// TestGCPAndAzureRowsAreNotAdded pins the ruling on #1119/#1120 the issue
-// body states ("GCP and Azure rows are not added"): the artifact carries
-// exactly aws and kubernetes today.
-func TestGCPAndAzureRowsAreNotAdded(t *testing.T) {
+// TestGCPRowIsNotAddedAndAzureIs pins the ruling on #1119/#1120 the issue
+// body states ("GCP and Azure rows are not added" until their epics), as
+// it stands once #1120 registered substrate.Azure: aws, azurerm and
+// kubernetes, and no GCP row.
+func TestGCPRowIsNotAddedAndAzureIs(t *testing.T) {
 	root := testRepoRoot(t)
 	art, err := Build(root)
 	if err != nil {
@@ -123,13 +125,12 @@ func TestGCPAndAzureRowsAreNotAdded(t *testing.T) {
 	var families []string
 	for _, r := range art.Rows {
 		families = append(families, r.Family)
-		if r.Family == "azure" || r.Family == "azurerm" || r.Family == "azapi" {
-			t.Errorf("row %q is an Azure row; #1588 rules those out until #1120", r.Family)
+		if r.Family == "gcp" || r.Family == "azure" || r.Family == "azapi" {
+			t.Errorf("row %q: the GCP family is the one row named google (#1119), and the Azure family the one named azurerm (#1122)", r.Family)
 		}
 	}
-	// GitHub issue #1119 lifted the GCP half: the google family has its row.
-	if len(families) != 3 {
-		t.Errorf("got families %v, want exactly aws, google and kubernetes", families)
+	if want := []string{"aws", "azurerm", "google", "kubernetes"}; !reflect.DeepEqual(families, want) {
+		t.Errorf("got families %v, want %v", families, want)
 	}
 }
 
@@ -214,6 +215,14 @@ func TestHarnessPinFilesAreReadFromDisk(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, r := range art.Rows {
+		if r.Harness.PinFile == "" {
+			// Not yet pinned (floci-az, GitHub issue #1120): no pin may be
+			// claimed without a file to read it from.
+			if r.Harness.Pin != "" {
+				t.Errorf("%s: harness.pin = %q with no pin file", r.Family, r.Harness.Pin)
+			}
+			continue
+		}
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(r.Harness.PinFile)))
 		if err != nil {
 			t.Fatalf("%s: reading %s: %v", r.Family, r.Harness.PinFile, err)
@@ -232,7 +241,8 @@ func TestHarnessPinFilesAreReadFromDisk(t *testing.T) {
 // controller-held recognition.
 type holdingFamily struct{ substrate.Substrate }
 
-func (holdingFamily) Name() string { return "fakehold" }
+func (holdingFamily) Name() string            { return "fakehold" }
+func (holdingFamily) ProviderTypes() []string { return []string{"fakehold"} }
 func (holdingFamily) HoldRecognition() substrate.HoldRecognition {
 	return substrate.HoldRecognition{Mechanism: "the fake controller's tag", Keys: []string{"fake.example/held-by"}}
 }
@@ -262,5 +272,56 @@ func TestControllerHeldColumnIsTheFamilysAnswer(t *testing.T) {
 	_, err = Build(root)
 	if err == nil || strings.Contains(err.Error(), "controller-held") || !strings.Contains(err.Error(), "fence") {
 		t.Errorf("Build with a third family: err = %v, want it to stop at the hand-kept fence and not at controller-held", err)
+	}
+}
+
+// TestAzureUntaggableCountIsArmtypes (GitHub issue #2119): the Azure row's
+// untaggable count is the azurerm types armtypes' azurerm tags table does
+// not give an ARM tags map, read from that table rather than from
+// live/readiness.json, so the cell cannot agree with the artifact by
+// reading the artifact. Every one is declaration-carried or record-carried.
+func TestAzureUntaggableCountIsArmtypes(t *testing.T) {
+	root := testRepoRoot(t)
+	rf, err := loadReadinessFacts(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	art, err := Build(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row Row
+	for _, r := range art.Rows {
+		if r.Family == "azurerm" {
+			row = r
+		}
+	}
+	tags := armtypes.DefaultRMTags()
+	notARM := map[string]bool{}
+	for _, n := range tags.NotARMTags {
+		notARM[n] = true
+	}
+	tagged := 0
+	for _, r := range tags.Rows() {
+		if !notARM[r.Type] {
+			tagged++
+		}
+	}
+	if len(rf.azurermTypes) == 0 {
+		t.Fatal("live/readiness.json has no azure.azurerm types; the Azure section is missing")
+	}
+	if want := len(rf.azurermTypes) - tagged; row.Untaggable.Count != want {
+		t.Errorf("azurerm untaggable = %d, want %d: %d azurerm types less the %d armtypes gives an ARM tags map",
+			row.Untaggable.Count, want, len(rf.azurermTypes), tagged)
+	}
+	sum := 0
+	for tier, n := range row.Untaggable.ByTier {
+		if tier != "declaration-carried" && tier != "record-carried" {
+			t.Errorf("an untaggable azurerm type is %s; only declaration-carried and record-carried hold one", tier)
+		}
+		sum += n
+	}
+	if sum != row.Untaggable.Count {
+		t.Errorf("by_tier sums to %d, count is %d", sum, row.Untaggable.Count)
 	}
 }

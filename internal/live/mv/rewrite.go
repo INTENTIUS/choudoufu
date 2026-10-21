@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -68,9 +69,14 @@ func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObjec
 	for k, v := range tags {
 		desiredTags[k] = v
 	}
-	desiredTags[discovery.TagEstate] = m.req.Estate
+	// GitHub issue #1120: an ARM tag key is case-insensitive, so a marker
+	// the object already carries as Tofu-Estate is rewritten under that
+	// spelling rather than joined by a second, lowercase key ARM would
+	// refuse. Every other surface sets and deletes the key as spelled.
+	fold := m.res.Surface == markers.SurfaceARMTags
+	setMarkerTag(desiredTags, discovery.TagEstate, m.req.Estate, fold)
 	for i, chunk := range chunks {
-		desiredTags[discovery.AddressTagKey(i)] = chunk
+		setMarkerTag(desiredTags, discovery.AddressTagKey(i), chunk, fold)
 	}
 	// A rename onto a shorter address needs fewer continuation tags than the
 	// old one did. Unlike stamp (which only ever adds a marker it did not
@@ -81,10 +87,26 @@ func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObjec
 	// shorter tofu-address and read back something this resource never
 	// declared.
 	for i := len(chunks); i < discovery.MaxContinuations; i++ {
-		delete(desiredTags, discovery.AddressTagKey(i))
+		deleteMarkerTag(desiredTags, discovery.AddressTagKey(i), fold)
 	}
 
 	desired, err := withTags(m.schema.Block, priorVal, desiredTags)
+	if err == nil && fold {
+		// GitHub issue #1120 unit 19: an azapi object whose configuration
+		// keeps its tags in body.tags has them sent from there, and azapi
+		// ignores the top-level argument then (expandBody,
+		// internal/services/azapi_resource.go at 2.13.0), so the marker is
+		// rewritten in the body, with the top-level value set to what azapi
+		// plans for it (tagsWithDefaultTags copies body.tags).
+		inBody, placed, why := projection.ARMTagPlacement(m.res.Anchor, m.schema.Block, priorVal)
+		switch {
+		case !placed:
+			return diags.Append(armUntaggableDiag(m.res.TypeName, why))
+		case inBody:
+			m.armInBody = true
+			desired, err = withARMBodyTags(desired, desiredTags)
+		}
+	}
 	if err != nil {
 		return diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
@@ -132,6 +154,9 @@ func (m *mover) planAndApply(ctx context.Context, prior *states.ResourceInstance
 		refused   tfdiags.Diagnostics
 	)
 	for _, candidate := range syntheticConfigs(m.schema.Block, desired) {
+		if m.armInBody {
+			candidate = armBodyConfig(candidate, desired)
+		}
 		resp := m.provider.PlanResourceChange(ctx, providers.PlanResourceChangeRequest{
 			TypeName:         m.res.TypeName,
 			PriorState:       priorVal,
@@ -269,7 +294,7 @@ func (m *mover) checkPlan(priorVal cty.Value, resp providers.PlanResourceChangeR
 	case relabelsGoogle(m.res.Surface):
 		extra, only = changedOutsideGoogleLabels(m.schema.Block, priorVal, planned), "A move or a rename of a GCP resource writes only its tofu-estate and tofu-address labels"
 	default:
-		extra = changedOutsideTags(m.schema.Block, priorVal, planned)
+		extra = changedOutsideARMTags(m.schema.Block, priorVal, planned, m.armInBody)
 	}
 	if len(extra) > 0 {
 		return diags.Append(refuse(
@@ -304,7 +329,7 @@ func (m *mover) verify(newState cty.Value) tfdiags.Diagnostics {
 		))
 	}
 
-	tags, taggable := tagsFromObject(m.schema, newState)
+	tags, taggable := m.markerTags(newState)
 	raw, corrupt := discovery.GatherAddress(tags)
 	// A cross-estate move is verified on both tags: the address alone
 	// would read as verified on a move that kept its address and changed
@@ -327,6 +352,55 @@ func (m *mover) verify(newState cty.Value) tfdiags.Diagnostics {
 // ---------------------------------------------------------------------------
 // Reading and rebuilding tags
 // ---------------------------------------------------------------------------
+
+// markerTags is [tagsFromObject] read for this move's surface: on the ARM
+// tags map (GitHub issue #1120) the marker keys come back in their
+// canonical lowercase spelling whatever case the object carries them in
+// ([markers.CanonicalARMMarkers]), so the comparisons below read Tofu-Estate
+// as tofu-estate the way ARM does.
+func (m *mover) markerTags(obj cty.Value) (map[string]string, bool) {
+	tags, ok := tagsFromObject(m.schema, obj)
+	if ok && m.res.Surface == markers.SurfaceARMTags {
+		tags = markers.CanonicalARMMarkers(tags)
+	}
+	return tags, ok
+}
+
+// listedMarkerTags is [tagsFromListed] read for this move's surface, the
+// sweep's counterpart of [mover.markerTags]: on the ARM tags map (GitHub
+// issue #1120) the marker keys come back in their canonical lowercase
+// spelling ([markers.CanonicalARMMarkers]), so [mover.sweep] finds an
+// object a configuration tagged Tofu-Estate and Tofu-Address, and
+// [mover.checkDestinationFree] sees a destination held under any spelling
+// (#2133 finding 3). Every other surface reads the map as listed.
+func (m *mover) listedMarkerTags(obj cty.Value) (map[string]string, bool) {
+	tags, ok := tagsFromListed(obj)
+	if ok && m.res.Surface == markers.SurfaceARMTags {
+		tags = markers.CanonicalARMMarkers(tags)
+	}
+	return tags, ok
+}
+
+// setMarkerTag sets the marker key to value in tags: with fold (the ARM
+// tags map) under the spelling the map already uses for it
+// ([markers.SetARMMarkerTag]), and as spelled otherwise.
+func setMarkerTag(tags map[string]string, key, value string, fold bool) {
+	if fold {
+		markers.SetARMMarkerTag(tags, key, value)
+		return
+	}
+	tags[key] = value
+}
+
+// deleteMarkerTag deletes the marker key from tags, every spelling of it
+// with fold.
+func deleteMarkerTag(tags map[string]string, key string, fold bool) {
+	if fold {
+		markers.DeleteARMMarkerTag(tags, key)
+		return
+	}
+	delete(tags, key)
+}
 
 // tagsFromObject reads the marker tags off a resource object.
 //
@@ -610,6 +684,71 @@ func mapElements(val cty.Value, f func(cty.Value) cty.Value) cty.Value {
 // carried a null - see [equivalent].
 func changedOutsideTags(block *configschema.Block, prior, planned cty.Value) []string {
 	return changedAttrs(block, prior, planned, map[string]bool{"tags": true, "tags_all": true})
+}
+
+// changedOutsideARMTags is [changedOutsideTags] for a rewrite that may also
+// set an azapi body's tags (inBody, GitHub issue #1120 unit 19): the body is
+// compared with its tags key left out ([markers.ARMBodyWithoutTags]). It is
+// internal/live/liveimport's function of the same name, duplicated for the
+// reason that package's tags.go gives.
+func changedOutsideARMTags(block *configschema.Block, prior, planned cty.Value, inBody bool) []string {
+	if !inBody {
+		return changedOutsideTags(block, prior, planned)
+	}
+	out := changedAttrs(block, prior, planned, map[string]bool{"tags": true, "tags_all": true, markers.ARMBodyArgument: true})
+	if prior == cty.NilVal || prior.IsNull() || planned == cty.NilVal || planned.IsNull() {
+		return out
+	}
+	p := markers.ARMBodyWithoutTags(prior.GetAttr(markers.ARMBodyArgument))
+	n := markers.ARMBodyWithoutTags(planned.GetAttr(markers.ARMBodyArgument))
+	if n.IsWhollyKnown() && !equivalent(p, n) {
+		out = append(out, fmt.Sprintf("%s outside its tags (%s -> %s)", markers.ARMBodyArgument, shortValue(p), shortValue(n)))
+		sort.Strings(out)
+	}
+	return out
+}
+
+// withARMBodyTags is obj with its azapi body's tags key set to tags
+// ([markers.WithARMBodyTags]).
+func withARMBodyTags(obj cty.Value, tags map[string]string) (cty.Value, error) {
+	body, ok := markers.WithARMBodyTags(obj.GetAttr(markers.ARMBodyArgument), tags)
+	if !ok {
+		return cty.NilVal, fmt.Errorf("its %s is not an object a tags key can be set in", markers.ARMBodyArgument)
+	}
+	if obj.IsMarked() {
+		return cty.NilVal, fmt.Errorf("it is marked as a whole")
+	}
+	vals := obj.AsValueMap()
+	vals[markers.ARMBodyArgument] = body
+	return cty.ObjectVal(vals), nil
+}
+
+// armBodyConfig is a synthetic configuration for a rewrite inside an azapi
+// body's tags: candidate with desired's body and a null top-level tags
+// argument, the configuration the object's operator wrote. See
+// internal/live/liveimport's armBodyConfig.
+func armBodyConfig(candidate, desired cty.Value) cty.Value {
+	if candidate.IsMarked() {
+		return candidate
+	}
+	vals := candidate.AsValueMap()
+	vals[markers.ARMBodyArgument] = desired.GetAttr(markers.ARMBodyArgument)
+	vals[markers.ARMTagsArgument] = cty.NullVal(candidate.GetAttr(markers.ARMTagsArgument).Type())
+	return cty.ObjectVal(vals)
+}
+
+// armUntaggableDiag is the refusal for an object on the ARM surface that
+// carries no marker, an azapi_resource whose ARM type takes no tags at its
+// API version: the answer an AWS type with no tags argument gets
+// ([mover.locateByIdentity]'s "Resource type with no tags"), because there
+// is nothing on the object to rewrite and its identity comes from its
+// configuration.
+func armUntaggableDiag(typeName, why string) tfdiags.Diagnostic {
+	return tfdiags.Sourceless(
+		tfdiags.Error,
+		"Resource type with no tags",
+		fmt.Sprintf("%s A %s of this ARM type carries no ownership marker, so there is nothing to rewrite. Its identity comes from its configuration, which means renaming the block is the whole rename.", why, typeName),
+	)
 }
 
 // changedAttrs is [changedOutsideTags] with the skipped names as an

@@ -14,6 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -268,7 +269,7 @@ func pruneSupersededEntry(ctx context.Context, store *projection.RecordStore, re
 
 	matches, survivor := 0, -1
 	for i := range entry.claimants {
-		if claimantMatchesRecord(rec, entry.claimants[i]) {
+		if claimantMatchesRecord(typeName, rec, entry.claimants[i]) {
 			matches++
 			survivor = i
 		}
@@ -303,7 +304,7 @@ func pruneSupersededEntry(ctx context.Context, store *projection.RecordStore, re
 		// tag shadow - see this file's "A deposed object is not a tag
 		// shadow". Keeping it leaves the set for [matchDeposedClaimant],
 		// which is the mechanism that acts on it.
-		if i == survivor || claimantMatchesAnyDeposed(deposed, entry.claimants[i]) {
+		if i == survivor || claimantMatchesAnyDeposed(typeName, deposed, entry.claimants[i]) {
 			kept = append(kept, entry.claimants[i])
 			continue
 		}
@@ -425,9 +426,9 @@ func claimantMatchesAnyTombstone(recs []projection.TombstoneRecord, c claimant) 
 // through the same [recordIdentityMatches] every other matcher here uses -
 // so the mark discipline, and the "by import ID or by every named component"
 // genericity, are the shared ones rather than a second copy.
-func claimantMatchesAnyDeposed(recs []projection.DeposedRecord, c claimant) bool {
+func claimantMatchesAnyDeposed(typeName string, recs []projection.DeposedRecord, c claimant) bool {
 	for _, rec := range recs {
-		if deposedClaimantMatches(rec, c) {
+		if deposedClaimantMatches(typeName, rec, c) {
 			return true
 		}
 	}
@@ -478,8 +479,12 @@ func recordIdentityDisplay(rec projection.LocatedRecord) string {
 // names. [orphanMatchesRecord]'s own comparison, for a [claimant] rather
 // than an [OwnedResource]; both go through [recordIdentityMatches], which is
 // where the mark discipline lives.
-func claimantMatchesRecord(rec projection.LocatedRecord, c claimant) bool {
-	return recordIdentityMatches(recordIdentity(rec.ImportID, rec.SecondaryID, rec.Components), c.importID, c.identity)
+//
+// typeName is the type of the address the record is kept for. It lets an
+// azurerm record, which holds its identity as components, be compared with
+// a claimant that carries only its ARM id: see [recordIdentityNames.ofType].
+func claimantMatchesRecord(typeName string, rec projection.LocatedRecord, c claimant) bool {
+	return recordIdentityMatches(recordIdentity(rec.ImportID, rec.SecondaryID, rec.Components).ofType(typeName), c.importID, c.identity)
 }
 
 // recordIdentityNames is every name a stored record holds for the one live
@@ -496,6 +501,25 @@ type recordIdentityNames struct {
 	importID    string
 	secondaryID string
 	components  map[string]string
+
+	// typeName is the resource type of the address the record is kept for,
+	// or empty when the caller does not know it. It is read for one thing:
+	// rebuilding an azurerm record's ARM id from its components
+	// ([substrate.AzurermRecordImportID]) when the live side is an ARM id
+	// with no identity object, which is every Resource Graph claimant. An
+	// azurerm type with a resource identity schema records components and
+	// no import id ([projection.LocatedRecordFromIn]'s composite branch),
+	// so without the rebuild such a record could never name a listed
+	// object: the #885 replace read as displaced, and an interrupted
+	// create_before_destroy rename's deposed half was never recognised.
+	typeName string
+}
+
+// ofType returns n carrying the address's resource type; see
+// [recordIdentityNames.typeName].
+func (n recordIdentityNames) ofType(typeName string) recordIdentityNames {
+	n.typeName = typeName
+	return n
 }
 
 // recordIdentity names one record's identity for [recordIdentityMatches].
@@ -538,15 +562,33 @@ func recordIdentityMatches(rec recordIdentityNames, liveImportID string, liveIde
 	// A miss falls through and changes nothing. Every record written
 	// before #879, and every record whose type has only one name, carries
 	// an empty SecondaryID and takes exactly the path it always took.
-	if rec.secondaryID != "" && rec.secondaryID == liveImportID {
+	//
+	// Both import-id comparisons go through [sameImportID]: an ARM id is
+	// compared case-insensitively (GitHub issue #2136), every other id
+	// exactly. A record written from the provider's casing has to match the
+	// lowercased id Resource Graph lists for the same object, or the
+	// ordinary replace #885 silences would read on Azure as displaced.
+	if rec.secondaryID != "" && sameImportID(rec.secondaryID, liveImportID) {
 		return true
 	}
 	if rec.importID != "" {
-		return rec.importID == liveImportID
+		return sameImportID(rec.importID, liveImportID)
 	}
 	components := rec.components
 	if len(components) == 0 {
 		return false
+	}
+	// An azurerm record of an identity-schema type holds components, and a
+	// Resource Graph claimant holds an ARM id and no identity object. The
+	// record's own ARM id is rebuilt from its components, every segment
+	// required (a hole answers no rebuild, never a guess), and compared
+	// whole, case-insensitively, as two ARM ids always are here. A type
+	// with no id template, or a live side that is not an ARM id, takes the
+	// component comparison below unchanged.
+	if rec.typeName != "" && isARMID(liveImportID) {
+		if id, ok := substrate.AzurermRecordImportID(rec.typeName, components); ok {
+			return sameImportID(id, liveImportID)
+		}
 	}
 	if liveIdentity == cty.NilVal || liveIdentity.IsNull() || !liveIdentity.IsKnown() || liveIdentity.IsMarked() || !liveIdentity.Type().IsObjectType() {
 		return false

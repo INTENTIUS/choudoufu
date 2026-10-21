@@ -169,6 +169,31 @@ func Stream(ctx context.Context, provider any, req Request, emit func(Result) bo
 		config = ts.EmptyConfig()
 	}
 
+	// A configuration missing a required argument is never sent. Stock
+	// validates a list block against its schema before the ListResource
+	// call; this package builds its configurations itself, and an
+	// estate-wide listing leaves a child type's parent argument unset
+	// (azurerm_subnet's virtual_network_id, azurerm_network_security_rule's
+	// network_security_group_id, azapi_resource's parent_id, aws_route's
+	// route_table_id). azurerm 5.10.0's SubnetListResource.List
+	// dereferences that null and panics, which kills the plugin process and
+	// fails every later call to it in the run: reference-azure's
+	// no_local_state, whose -refresh=false plan lists the cached types to
+	// vouch for them, measured exactly that (#1120, run seven). The refusal
+	// is an ordinary list failure, which every caller already handles: the
+	// type is not listed, and nothing else the run asks the provider breaks.
+	if schemas, schemaDiags := ListSchemas(ctx, lister); !schemaDiags.HasErrors() {
+		if ts, ok := schemas.Get(req.TypeName); ok {
+			if missing := ts.MissingRequired(config); len(missing) > 0 {
+				return diags.Append(tfdiags.Sourceless(
+					tfdiags.Error,
+					"Missing required list argument",
+					fmt.Sprintf("Listing %s needs %s, which this list configuration does not set, so the provider was not asked: a ListResource call with a required argument unset is not a valid request, and at least one provider crashes on it.", req.TypeName, joinQuoted(missing)),
+				))
+			}
+		}
+	}
+
 	streamDiags := lister.ListResourceStream(ctx, providers.ListResourceRequest{
 		TypeName:              req.TypeName,
 		Config:                config,

@@ -9,10 +9,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/substrate"
@@ -190,7 +192,7 @@ func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResour
 	if configElems == nil {
 		configElems = make(map[string]cty.Value, 1)
 	}
-	return n.stampSurface(surface, addr, config, configElems, creating)
+	return n.stampSurface(surface, addr, schema.Block, config, configElems, creating)
 }
 
 // stampSurface writes this instance's marker into config on the one
@@ -203,7 +205,9 @@ func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResour
 //
 // configElems is config's own attribute map, which the caller has already
 // read off an unmarked config; the arm that writes replaces one entry in it.
-func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResourceInstance, config cty.Value, configElems map[string]cty.Value, creating bool) (cty.Value, tfdiags.Diagnostics) {
+// block is the resource type's schema, which the ARM arm reads to tell an
+// azapi_resource-shaped type from an azurerm one (nodestamp_armtags.go).
+func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResourceInstance, block *configschema.Block, config cty.Value, configElems map[string]cty.Value, creating bool) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	switch surface {
@@ -306,6 +310,28 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 
 		configElems[tagsArgumentName] = newTags
 		return cty.ObjectVal(configElems), diags
+
+	case markers.SurfaceARMTags:
+		// The Azure Resource Manager shape (GitHub issue #1120): the AWS
+		// marker keys in the tags argument, matched case-insensitively, at
+		// top level or, for an azapi resource whose configuration already
+		// puts its tags in body, at body.tags. See nodestamp_armtags.go.
+		attr, newVal, stamped, armDiags := n.stampedARMTags(addr, block, config)
+		diags = diags.Append(armDiags)
+		if armDiags.HasErrors() || !stamped {
+			return config, diags
+		}
+		if withhold, wdiags := n.withholdsAtCreate(addr, surface, creating); withhold || wdiags.HasErrors() {
+			diags = diags.Append(wdiags)
+			if wdiags.HasErrors() {
+				return config, diags
+			}
+			// GitHub issue #1653: see the SurfaceLabels arm above.
+			log.Printf("[DEBUG] live/projection: %s: markers withheld from the create call; written after the create", addr)
+			return config, diags
+		}
+		configElems[attr] = newVal
+		return cty.ObjectVal(configElems), diags
 	}
 	return config, diags
 }
@@ -327,6 +353,13 @@ const tagsArgumentName = "tags"
 // end (WithMarks, a no-op for an empty mark set) means the result is exactly
 // as sensitive as tagsVal was, with two more plain-string entries.
 func (n *NodeResolver) stampedTags(addr addrs.AbsResourceInstance, tagsVal cty.Value, address string) (cty.Value, tfdiags.Diagnostics) {
+	return n.stampedTagMap(addr, tagsVal, address, false)
+}
+
+// stampedTagMap is [NodeResolver.stampedTags] with the marker keys matched
+// case-insensitively when fold is true, which is the ARM tags map (GitHub
+// issue #1120): see [NodeResolver.stampMarkerElems].
+func (n *NodeResolver) stampedTagMap(addr addrs.AbsResourceInstance, tagsVal cty.Value, address string, fold bool) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	tagsVal, tagsMarks := tagsVal.Unmark()
@@ -365,22 +398,34 @@ func (n *NodeResolver) stampedTags(addr addrs.AbsResourceInstance, tagsVal cty.V
 		}
 	}
 
-	diags = diags.Append(n.mergeMarkers(addr, elems, address, address))
+	diags = diags.Append(n.stampMarkerElems(addr, elems, address, address, fold))
 	if diags.HasErrors() {
 		return tagsVal.WithMarks(tagsMarks), diags
 	}
+
 	return cty.MapVal(elems).WithMarks(tagsMarks), diags
 }
 
-// mergeMarkers checks the marker entries elems (the marker map this
-// instance's own configuration declared) already carries against what this
-// run writes, and on no conflict adds them: tofu-estate, address under
-// tofu-address, and tofu-slot when the sweep assigned one to slotKey (the
-// escaped address, which is how [NodeResolver.Slots] is keyed). It is the
-// body the AWS tags map and the GCP labels map share
-// (nodestamp_googlelabels.go): only the address value differs, escaped on
-// AWS and encoded on GCP.
+// mergeMarkers is [NodeResolver.stampMarkerElems] with exact keys, for the
+// GCP labels map (nodestamp_googlelabels.go), whose address value is
+// encoded while [NodeResolver.Slots] stays keyed by the escaped address.
 func (n *NodeResolver) mergeMarkers(addr addrs.AbsResourceInstance, elems map[string]cty.Value, address, slotKey string) tfdiags.Diagnostics {
+	return n.stampMarkerElems(addr, elems, address, slotKey, false)
+}
+
+// stampMarkerElems checks and then adds this instance's tofu-estate,
+// tofu-address (address, escaped on AWS and ARM and encoded on GCP) and
+// (where the sweep assigned one to slotKey, the escaped address
+// [NodeResolver.Slots] is keyed by) tofu-slot to elems, the marker map the
+// configuration declared, in place. It is the body
+// [NodeResolver.stampedTags] has always had, shared with the ARM arms
+// (GitHub issue #1120) through fold: with fold true, a key the
+// configuration spells differently (Tofu-Estate) is the same marker, is
+// checked against this run with [markerConflictDiagAt] under its own
+// spelling, and is written under that spelling, so the map ends with
+// exactly one key per marker. ARM refuses two keys that differ only by
+// case, and keeps the spelling a write used.
+func (n *NodeResolver) stampMarkerElems(addr addrs.AbsResourceInstance, elems map[string]cty.Value, address, slotKey string, fold bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	// GitHub issue #451: before overwriting whatever this instance's
@@ -411,12 +456,22 @@ func (n *NodeResolver) mergeMarkers(addr addrs.AbsResourceInstance, elems map[st
 	// three and changes nothing here, same as stamp.Stamp's own untagged
 	// loop over its fixed marker list.
 	untagKey := n.PolicyUntag[addr.String()]
-
-	if untagKey != markers.TagEstate {
-		diags = diags.Append(markerConflictDiag(addr, elems, markers.TagEstate, n.Estate))
+	released := func(key string) bool {
+		if fold {
+			return strings.EqualFold(untagKey, key)
+		}
+		return untagKey == key
 	}
-	if untagKey != markers.TagAddress {
-		diags = diags.Append(markerConflictDiag(addr, elems, markers.TagAddress, address))
+
+	if !released(markers.TagEstate) {
+		for _, carrier := range markerKeySpellings(elems, markers.TagEstate, fold) {
+			diags = diags.Append(markerConflictDiagAt(addr, elems, carrier, markers.TagEstate, n.Estate))
+		}
+	}
+	if !released(markers.TagAddress) {
+		for _, carrier := range markerKeySpellings(elems, markers.TagAddress, fold) {
+			diags = diags.Append(markerConflictDiagAt(addr, elems, carrier, markers.TagAddress, address))
+		}
 	}
 	if diags.HasErrors() {
 		return diags
@@ -428,25 +483,54 @@ func (n *NodeResolver) mergeMarkers(addr addrs.AbsResourceInstance, elems map[st
 	// carries, which is the hand-written case above: nothing was released
 	// there. tofu-slot is recorded only where a slot was assigned, because
 	// without one there was no write to withhold.
-	if untagKey != markers.TagEstate {
-		elems[markers.TagEstate] = cty.StringVal(n.Estate)
-	} else {
-		n.noteUntagRelease(addr, markers.TagEstate, elems)
-	}
-	if untagKey != markers.TagAddress {
-		elems[markers.TagAddress] = cty.StringVal(address)
-	} else {
-		n.noteUntagRelease(addr, markers.TagAddress, elems)
-	}
-	if slot, ok := n.Slots[slotKey]; ok {
-		if untagKey != markers.TagSlot {
-			elems[markers.TagSlot] = cty.StringVal(slot)
-		} else {
-			n.noteUntagRelease(addr, markers.TagSlot, elems)
+	write := func(key, value string) {
+		if !released(key) {
+			setMarkerElem(elems, key, cty.StringVal(value), fold)
+			return
 		}
+		if fold && len(markerKeySpellings(elems, key, true)) > 0 {
+			// Hand-written, in some spelling: nothing was released, the
+			// case noteUntagRelease declines for an exact key.
+			return
+		}
+		n.noteUntagRelease(addr, key, elems)
+	}
+	write(markers.TagEstate, n.Estate)
+	write(markers.TagAddress, address)
+	if slot, ok := n.Slots[slotKey]; ok {
+		write(markers.TagSlot, slot)
 	}
 
 	return diags
+}
+
+// markerKeySpellings is the keys of elems that name marker key: key alone
+// when fold is false, and every case-insensitive spelling of it, sorted,
+// when it is true.
+func markerKeySpellings(elems map[string]cty.Value, key string, fold bool) []string {
+	if !fold {
+		return []string{key}
+	}
+	keys := make([]string, 0, len(elems))
+	for k := range elems {
+		keys = append(keys, k)
+	}
+	return markers.ARMTagKeySpellings(keys, key)
+}
+
+// setMarkerElem writes value under key in elems: with fold, under the
+// first spelling of key the configuration already uses, removing any other
+// spelling of it.
+func setMarkerElem(elems map[string]cty.Value, key string, value cty.Value, fold bool) {
+	spellings := markerKeySpellings(elems, key, fold)
+	if !fold || len(spellings) == 0 {
+		elems[key] = value
+		return
+	}
+	for _, k := range spellings[1:] {
+		delete(elems, k)
+	}
+	elems[spellings[0]] = value
 }
 
 // SummaryMarkerConflict names the fatal diagnostic [markerConflictDiag]

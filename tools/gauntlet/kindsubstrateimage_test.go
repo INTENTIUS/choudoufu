@@ -103,7 +103,7 @@ func TestKindLaneClearRowIsNeverEmulatorStale(t *testing.T) {
 	a := &Artifact{Estates: []EstateResult{
 		{Name: "k8s-clear", Protocol: ProtocolGauntlet, Stages: passEverything(), LastRun: &LastRun{Commit: "c", Date: "2026-01-01T00:00:00Z", SubstrateImage: kindPin}},
 	}}
-	a.Rebuild(m, &BehaviorIndex{}, "ghcr.io/lex00/floci@sha256:current", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, &BehaviorIndex{}, "ghcr.io/lex00/floci@sha256:current", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 
 	for _, r := range a.Estates {
 		if r.Name == "k8s-clear" && !r.Clear {
@@ -111,7 +111,7 @@ func TestKindLaneClearRowIsNeverEmulatorStale(t *testing.T) {
 		}
 	}
 
-	for _, u := range NextUnits(a, "all", kindPin) {
+	for _, u := range NextUnits(a, "all", SubstratePins{Kind: kindPin}) {
 		if u.Estate == "k8s-clear" {
 			t.Errorf("k8s-clear surfaced as a unit (%q) despite being clear with an unstamped, irrelevant emulator field: %+v", u.Stage, u)
 		}
@@ -137,10 +137,10 @@ func TestKindLaneClearRowGoesStaleOnANodeImageBump(t *testing.T) {
 		{Name: "k8s-old", Protocol: ProtocolGauntlet, Stages: passEverything(), LastRun: &LastRun{Commit: "c", Date: "2026-01-01T00:00:00Z", SubstrateImage: oldImage}},
 		{Name: "k8s-new", Protocol: ProtocolGauntlet, Stages: passEverything(), LastRun: &LastRun{Commit: "c", Date: "2026-01-01T00:00:00Z", SubstrateImage: newImage}},
 	}}
-	a.Rebuild(m, &BehaviorIndex{}, "ghcr.io/lex00/floci@sha256:current", OracleVersions{}, ProviderVersions{}, "", "")
+	a.Rebuild(m, &BehaviorIndex{}, "ghcr.io/lex00/floci@sha256:current", OracleVersions{}, ProviderVersions{}, "", SubstratePins{})
 
 	var got *Unit
-	for _, u := range NextUnits(a, "all", newImage) {
+	for _, u := range NextUnits(a, "all", SubstratePins{Kind: newImage}) {
 		u := u
 		switch u.Estate {
 		case "k8s-new":
