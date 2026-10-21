@@ -467,24 +467,24 @@
     "azure": {
       "label": "azure lane",
       "estates": 2,
-      "clear": 0,
+      "clear": 2,
       "verified": 0,
-      "carried": 0,
+      "carried": 2,
       "stages": {
         "cold_deploy": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "day2_count": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "day2_crash": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "day2_endpoints": {
           "pass": 0,
@@ -492,64 +492,64 @@
           "not_run": 2
         },
         "day2_remove": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "day2_rename": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "day2_replace": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "day2_teardown": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "drift_reconverge": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "greenfield": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "migrate": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "no_local_state": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "plan_approval": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "strict": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "test_apply": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "test_plan": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         }
       }
     },
@@ -1331,25 +1331,148 @@
       "substrate": "floci-az",
       "script": "live/e2e/corpus-azapi-role-assignment/run.sh",
       "stages": {
-        "cold_deploy": "not_run",
-        "day2_count": "not_run",
-        "day2_crash": "not_run",
+        "cold_deploy": "pass",
+        "day2_count": "pass",
+        "day2_crash": "pass",
         "day2_endpoints": "not_run",
-        "day2_remove": "not_run",
-        "day2_rename": "not_run",
-        "day2_replace": "not_run",
-        "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
-        "greenfield": "not_run",
-        "migrate": "not_run",
-        "no_local_state": "not_run",
-        "plan_approval": "not_run",
-        "strict": "not_run",
-        "test_apply": "not_run",
-        "test_plan": "not_run"
+        "day2_remove": "pass",
+        "day2_rename": "pass",
+        "day2_replace": "pass",
+        "day2_teardown": "pass",
+        "drift_reconverge": "pass",
+        "greenfield": "pass",
+        "migrate": "pass",
+        "no_local_state": "pass",
+        "plan_approval": "pass",
+        "strict": "pass",
+        "test_apply": "pass",
+        "test_plan": "pass"
       },
-      "clear": false,
-      "protocol": "legacy"
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 81
+        },
+        "day2_count": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 12
+        },
+        "day2_crash": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 13
+        },
+        "day2_remove": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 4
+        },
+        "day2_rename": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 6
+        },
+        "day2_replace": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 13
+        },
+        "day2_teardown": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 2
+        },
+        "drift_reconverge": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 4
+        },
+        "greenfield": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 28
+        },
+        "migrate": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 5
+        },
+        "no_local_state": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 3
+        },
+        "plan_approval": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 5
+        },
+        "strict": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 4
+        },
+        "test_apply": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 2
+        },
+        "test_plan": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:45:04Z",
+          "seconds": 1
+        }
+      },
+      "clear": true,
+      "protocol": "gauntlet",
+      "last_run": {
+        "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+        "date": "2026-10-21T20:45:04Z",
+        "substrate_image": "ghcr.io/lex00/floci-az@sha256:c56ce3e2fb0da9a554cfb6794df912b371c27b1448c979ff2fd4d54cb8d47cd9",
+        "oracle": {
+          "terraform": "1.15.8",
+          "tofu": "1.12.5"
+        },
+        "upstream_version": "1.13.0",
+        "exit_code": 0,
+        "detail": {
+          "cold_deploy": "3 resources (an azapi resource group, an azurerm user-assigned identity, an azapi role assignment granting it AcrPull, read through data \"azurerm_role_definition\") from plain terraform on the published root plus its deltas (the lane's provider pins, the endpoint lock in both provider blocks) against floci-az ghcr.io/lex00/floci-az@sha256:c56ce3e2fb0da9a554cfb6794df912b371c27b1448c979ff2fd4d54cb8d47cd9; a real terraform.tfstate with 3 managed instances, zero tofu-estate tags read back through ARM, the role assignment answering at its id; the identical root cold-deployed by stock on a second container as every later stage's oracle",
+          "day2_count": "a two-instance count of azapi user-assigned identities added beside the published root (it has no count block): 2 -> 1 destroyed exactly azapi_resource.shard[1] (ARM answers 404 for it, shard 0 kept its id); 1 -> 2 created exactly one, at shard[1]; the replan is empty; stock's plans for the same changes on the oracle container have the same shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails",
+          "day2_crash": "an apply creating two resources beside the published root was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 walker the instant azapi_resource.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second depends on crash_first, so the walker cannot have reached it. crash_first is a role assignment, which takes no tags: it answers at its ARM id and the interrupted apply left its record in the blob container naming it; crash_second answers 404. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, azapi_resource.crash_second created) and nothing for crash_first, bound by its record - not a second PUT to its id, not an orphan - matching stock's plan from the same position on B; the recovery apply added one, both answer through ARM, and the replan is empty. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 deletes crash_first's record and the same recovery check correctly fails",
+          "day2_remove": "the role assignment's block deleted: choudoufu planned exactly azapi_resource.role_assignment's destroy (0 add, 0 change, 1 destroy) for a resource that carries no tags, found through its record, as stock planned on the oracle, and after the apply ARM answers 404 for it",
+          "day2_rename": "a moved block renamed the role assignment's block roleAssignments -> role_assignment: zero churn (No changes. Your infrastructure matches the configuration), as stock planned with the same moved block on the oracle; the role assignment, which carries no tags, still answers at its ARM id, a record in the blob container now names azapi_resource.role_assignment, and the replan is empty. BREAK=1 changes the role assignment's own GUID and the zero-churn assertion correctly fails",
+          "day2_replace": "an azapi identity named with a generation and a role assignment granting it AcrPull, both create_before_destroy, added beside the published root (it has none): renaming a -> b plans as stock's replace on B, both blocks 'must be replaced', create replacement and then destroy, 2 add and 2 destroy, nothing else. At -parallelism=1 each new object's creation completes before its old object's deposed destroy starts (log lines: rotating 100<105, rotating_grant 102<103; stock on B: rotating 54<59, rotating_grant 56<57). ARM answers 404 for both generation-a objects; the generation-b identity carries tofu-address=azapi_resource.rotating, and the grant, which takes no tags, is named by its record in the blob container, which no longer names the destroyed one. The next plan is empty with no marker collision. The pair is removed from both roots afterwards (2 destroyed). BREAK_REPLACE=1 recreates the old identity carrying the block's markers and the next plan correctly does not stay silent",
+          "day2_teardown": "apply -destroy removed every resource in one apply (Resources: 0 added, 0 changed, 6 destroyed); nothing carries tofu-estate=corpus-azapi-role-assignment and the resource group answers 404, as do shard 0 and day2_crash's pair, the role assignment among them found only by its record",
+          "drift_reconverge": "a tag added to the identity with an ARM GET and PUT; choudoufu proposed exactly azurerm_user_assigned_identity.uai (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle container for the same tamper; apply changed 1 and the tag is gone, read through ARM. BREAK=1 tampers the resource group too and the single-resource assertion correctly fails",
+          "greenfield": "3 resources from one plain apply with a live block; read through ARM, resource by resource with the marker tags normalised out (and the role assignment's principal, which the server mints, left out), they match what stock's cold deploy made",
+          "migrate": "2 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped; both taggable resources (the resource group and the identity) carry tofu-estate=corpus-azapi-role-assignment, read back through ARM, and the role assignment, which has no tags at any API version, is the 1 skipped and is held by its record, read back from the record store's blob container on A",
+          "no_local_state": "the greenfield root's records live in a blob container on floci-az A (record_store \"azurerm\"), so the only local state is the state cache, and no .tofu-records or terraform.tfstate exists; with the cache deleted - a fresh clone with only the account and the store left - the plan created, destroyed and replaced nothing, 0 in-place update(s): the resource group and the identity found by their markers at their declared ARM ids, and the role assignment, which takes no tags, through its record in the container, which names it. The empty plan before the deletion was served from a cache written by a no-op apply (2 instance(s) answered by a cache hit). plan_calls_no_local_state=35 plan_calls_cache_serving=33 ratio=1.06x (both plan -refresh=false; every request floci-az A served between two marks, counted from its access log); stock in this position has no plan at all, only one import block per object. The cache was put back. BREAK_NO_LOCAL_STATE=1 strips the identity's markers and the check correctly fails",
+          "plan_approval": "plan -out wrote one update (the identity gains tags reviewed=yes); the world then moved out of band (a stray tag on the resource group, an ARM PUT) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied; with the tag removed the identical file applied, 0 added, 1 changed, 0 destroyed; stock's own planfile applied on the oracle container in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails",
+          "strict": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming azurerm_user_assigned_identity) against a scratch estate carrying random_password.db, its records in the strict blob container on A: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. The scratch estate reaches no Azure provider. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); resources carrying tofu-estate=corpus-azapi-role-assignment unchanged at 2, read through ARM",
+          "test_plan": "the plan with no state file is empty; all 3 ARM ids answer a GET with the same id, compared case-insensitively"
+        },
+        "duration_s": 183.5,
+        "stage_seconds": {
+          "cold_deploy": 81,
+          "day2_count": 12,
+          "day2_crash": 13,
+          "day2_remove": 4,
+          "day2_rename": 6,
+          "day2_replace": 13,
+          "day2_teardown": 2,
+          "drift_reconverge": 4,
+          "greenfield": 28,
+          "migrate": 5,
+          "no_local_state": 3,
+          "plan_approval": 5,
+          "strict": 4,
+          "test_apply": 2,
+          "test_plan": 1
+        }
+      }
     },
     {
       "name": "corpus-cloud-platform-components",
@@ -4400,25 +4523,148 @@
       "substrate": "floci-az",
       "script": "live/e2e/reference-azure/run.sh",
       "stages": {
-        "cold_deploy": "not_run",
-        "day2_count": "not_run",
-        "day2_crash": "not_run",
+        "cold_deploy": "pass",
+        "day2_count": "pass",
+        "day2_crash": "pass",
         "day2_endpoints": "not_run",
-        "day2_remove": "not_run",
-        "day2_rename": "not_run",
-        "day2_replace": "not_run",
-        "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
-        "greenfield": "not_run",
-        "migrate": "not_run",
-        "no_local_state": "not_run",
-        "plan_approval": "not_run",
-        "strict": "not_run",
-        "test_apply": "not_run",
-        "test_plan": "not_run"
+        "day2_remove": "pass",
+        "day2_rename": "pass",
+        "day2_replace": "pass",
+        "day2_teardown": "pass",
+        "drift_reconverge": "pass",
+        "greenfield": "pass",
+        "migrate": "pass",
+        "no_local_state": "pass",
+        "plan_approval": "pass",
+        "strict": "pass",
+        "test_apply": "pass",
+        "test_plan": "pass"
       },
-      "clear": false,
-      "protocol": "legacy"
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 123
+        },
+        "day2_count": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 31
+        },
+        "day2_crash": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 174
+        },
+        "day2_remove": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 25
+        },
+        "day2_rename": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 4
+        },
+        "day2_replace": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 111
+        },
+        "day2_teardown": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 33
+        },
+        "drift_reconverge": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 24
+        },
+        "greenfield": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 48
+        },
+        "migrate": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 14
+        },
+        "no_local_state": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 3
+        },
+        "plan_approval": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 6
+        },
+        "strict": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 34
+        },
+        "test_apply": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 2
+        },
+        "test_plan": {
+          "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+          "date": "2026-10-21T20:52:35Z",
+          "seconds": 2
+        }
+      },
+      "clear": true,
+      "protocol": "gauntlet",
+      "last_run": {
+        "commit": "01d69a5a75b19cc04d63a7863471dea49bdd7ca3",
+        "date": "2026-10-21T20:52:35Z",
+        "substrate_image": "ghcr.io/lex00/floci-az@sha256:c56ce3e2fb0da9a554cfb6794df912b371c27b1448c979ff2fd4d54cb8d47cd9",
+        "oracle": {
+          "terraform": "1.15.8",
+          "tofu": "1.12.5"
+        },
+        "upstream_version": "1.13.0",
+        "exit_code": 0,
+        "detail": {
+          "cold_deploy": "11 resources (resource group, VNet, subnet, NSG, NSG rule, storage account, identity, public IP, two count identities, and one azapi_resource identity) from plain terraform against floci-az ghcr.io/lex00/floci-az@sha256:c56ce3e2fb0da9a554cfb6794df912b371c27b1448c979ff2fd4d54cb8d47cd9, a real terraform.tfstate with 11 instances, zero tofu-estate tags read back through ARM; the identical shape cold-deployed by stock on a second container as every later stage's oracle",
+          "day2_count": "count 2 -> 1 destroyed exactly shard[1] (ARM answers 404 for it, shard 0 kept its id); 1 -> 2 created exactly one, at shard[1]",
+          "day2_crash": "The create_before_destroy rename window is interrupted first (the stage's own Proves): azurerm_user_assigned_identity.crash_rename renamed refaz-crash-a -> refaz-crash-b was killed by the engine's own hook the instant the new identity's create committed (exit 1), at -parallelism=1, leaving both carrying the block's tofu-address and the record in refazrecords/adopted holding refaz-crash-a as the address's deposed object. The next plan was stock's own in that position, Plan: 0 to add, 0 to change, 1 to destroy, the deposed object's destroy; one apply destroyed refaz-crash-a (ARM answers 404), left refaz-crash-b carrying the block's address, cleared the record's deposed entry, and the replan is empty. Then an apply creating two identities was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 graph walker the instant azurerm_user_assigned_identity.crash_first's create committed; crash_second depends on crash_first, so the walker cannot have reached it - ARM answers for refaz-crash-first, carrying tofu-estate=reference-azure from its create, and 404 for refaz-crash-second. The interrupted apply wrote exactly one record (envelopes 13 -> 14 in refazrecords/adopted), crash_first's. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, crash_second created) and nothing for crash_first, which it bound at its declared ARM id - matching stock's own plan from the same position on the oracle container, reached by applying crash_first alone; the recovery apply added exactly one identity, both answer through ARM, the plan after it is empty, and the estate's own marked count is unchanged at 8. The pair is removed from both roots afterwards. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips tofu-estate off refaz-crash-first and the same recovery check correctly fails",
+          "day2_remove": "the public IP's block deleted: choudoufu planned exactly azurerm_public_ip.app's destroy (0 add, 0 change, 1 destroy), as stock planned on the oracle, and after the apply ARM answers 404 for it",
+          "day2_rename": "a moved block renamed the identity's block app -> team: 0 add, 1 in-place change, 0 destroy, the change being the tofu-address tag, which reads azurerm_user_assigned_identity.team through ARM afterwards; stock with the same moved block planned zero churn on the oracle. BREAK=1 changes the identity's own name and the zero-churn assertion correctly fails",
+          "day2_replace": "a create_before_destroy identity whose name changes (refaz-cfg-a -> refaz-cfg-b) plans as stock's replace: 'azurerm_user_assigned_identity.hashed must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, because refaz-cfg-a's record binds it to the block and its tofu-address confirms the record. At -parallelism=1 the apply log shows refaz-cfg-b's creation complete (line 62) before refaz-cfg-a's deposed destroy starts (line 63), the order stock's own apply of the same rename shows on the oracle container; ARM answers 404 for refaz-cfg-a and refaz-cfg-b carries the block's tofu-address, and the next plan is empty. The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates refaz-cfg-a carrying the block's marker and the next plan correctly is not silent",
+          "day2_teardown": "apply -destroy removed every resource in one apply (Resources: 0 added, 0 changed, 10 destroyed); nothing carries tofu-estate=reference-azure and the resource group answers 404",
+          "drift_reconverge": "a tag added to the VNet with an ARM GET and PUT; choudoufu proposed exactly azurerm_virtual_network.app (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle container for the same tamper; apply changed 1 and the tag is gone, read through ARM. BREAK=1 tampers a second resource and the single-resource assertion correctly fails",
+          "greenfield": "11 resources from one plain apply with a live block; read through ARM, resource by resource with the marker tags normalised out, they match what stock's cold deploy made",
+          "migrate": "9 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 2 skipped; all 9 taggable resources carry tofu-estate=reference-azure, read back through ARM; the 2 skipped are the subnet and the NSG rule, which have no tags argument, and each has its record in the record store, a blob container on the same floci-az (refazrecords/adopted, 11 record envelopes)",
+          "no_local_state": "with the state cache deleted - a fresh clone with only the account left, the records being blobs in refazrecords/green and no local record directory existing at all - the plan (No changes. Your infrastructure matches the configuration) created, destroyed and replaced nothing: the nine resources that take tags found by their markers, the subnet and the NSG rule through their records in the container. In-place updates: none. The empty plan before the deletion was served from a cache a no-op apply wrote. plan_calls_no_local_state=14 plan_calls_cache_serving=15 ratio=0.93x (both plan -refresh=false, azurerm requests counted from TF_LOG=DEBUG); stock in this position has no plan at all, only one import block per resource. BREAK_NO_LOCAL_STATE=1 strips the VNet's markers and the check correctly fails",
+          "plan_approval": "plan -out wrote one update (the identity gains tags reviewed=yes); the world then moved out of band (a stray tag on shard 0, an ARM PUT) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied; with the tag removed the identical file applied, 0 added, 1 changed, 0 destroyed; stock's own planfile applied on the oracle container in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails",
+          "strict": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming azurerm_user_assigned_identity) against a scratch estate carrying random_password.db, its record store the lane's refazrecords/strict container: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); resources carrying tofu-estate=reference-azure unchanged at 9, read through ARM",
+          "test_plan": "the plan with no state file is empty; all 11 ARM ids answer a GET with the same id, compared case-insensitively"
+        },
+        "duration_s": 634.2,
+        "stage_seconds": {
+          "cold_deploy": 123,
+          "day2_count": 31,
+          "day2_crash": 174,
+          "day2_remove": 25,
+          "day2_rename": 4,
+          "day2_replace": 111,
+          "day2_teardown": 33,
+          "drift_reconverge": 24,
+          "greenfield": 48,
+          "migrate": 14,
+          "no_local_state": 3,
+          "plan_approval": 6,
+          "strict": 34,
+          "test_apply": 2,
+          "test_plan": 2
+        }
+      }
     },
     {
       "name": "reference-ec2-vpc",
