@@ -251,9 +251,22 @@ func TestFlociDigestFindingsIsRedOnABareDigest(t *testing.T) {
 // live/floci-gcp-image.
 var flociGCPDigestRef = regexp.MustCompile(`ghcr\.io/lex00/floci-gcp@sha256:[0-9a-f]{64}`)
 
+// flociGCPMeasuredRecords are the files that name the floci-gcp image a
+// recorded gauntlet run was measured against. That digest is evidence about
+// the run, not a pin to keep current, the same reason flociLiteralExceptions
+// gives for floci's board and artifact. The first recorded GCP run (run 8,
+// 9bf3d1480b) was measured on 4e9b7bff, and re-pinning to ea6da33 after it
+// must not rewrite what it ran on.
+var flociGCPMeasuredRecords = map[string]bool{
+	"live/gauntlet.json":       true,
+	"live/gauntlet-board.json": true,
+	"live/BOARD.md":            true,
+}
+
 // TestFlociGCPRefsMatchThePin holds every full floci-gcp reference in the
 // tree to live/floci-gcp-image, the way floci's references are held to
-// live/floci-image, and checks it reached the pin file itself.
+// live/floci-image, and checks it reached the pin file itself. A file in
+// flociGCPMeasuredRecords is skipped: it records what a run measured on.
 func TestFlociGCPRefsMatchThePin(t *testing.T) {
 	root := repoRoot(t)
 	data, err := os.ReadFile("floci-gcp-image")
@@ -272,6 +285,9 @@ func TestFlociGCPRefsMatchThePin(t *testing.T) {
 	for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		if f == "live/floci-gcp-image" {
 			reached = true
+		}
+		if flociGCPMeasuredRecords[f] {
+			continue
 		}
 		b, rerr := os.ReadFile(filepath.Join(root, f))
 		if rerr != nil {
