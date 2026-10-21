@@ -250,3 +250,39 @@ func TestGoogleIAMParseShapes(t *testing.T) {
 		t.Errorf("the long form's identity values = %v, want service_id=meta project=other database=sales", long.IdentityValues)
 	}
 }
+
+// TestGoogleHandwrittenCreateRows resolves one resource per way a
+// hand-written hashicorp/google type's create builds its id in code
+// (#2145 item 1), and asserts the id that create builds: a variable bound
+// from GetProject, d.Get as written, fmt.Sprintf, a package helper over
+// GetLocation, a struct method, a struct built by a package function, an
+// updater passed in at registration, a DCL ID(), ReplaceVarsForId in a
+// second file, and a prefix ParseFolderId trims.
+func TestGoogleHandwrittenCreateRows(t *testing.T) {
+	cfg := loadConfig(t, "testdata/gcp-handwritten", nil)
+	result, diags := Resolve(context.Background(), cfg)
+	assertNoErrors(t, diags)
+
+	want := map[string]string{
+		"google_app_engine_application.app":             "estate-prod",
+		"google_compute_shared_vpc_host_project.host":   "host-prj",
+		"google_compute_shared_vpc_service_project.svc": "host-prj/svc-prj",
+		"google_container_cluster.regional":             "projects/estate-prod/locations/us-east1/clusters/gke",
+		"google_container_cluster.defaulted":            "projects/estate-prod/locations/europe-west1/clusters/gke-default",
+		"google_cloudfunctions_function.fn":             "projects/estate-prod/locations/europe-west1/functions/fn",
+		"google_logging_project_sink.audit":             "projects/estate-prod/sinks/audit",
+		"google_logging_folder_sink.long":               "folders/123/sinks/f",
+		"google_logging_folder_sink.short":              "folders/456/sinks/g",
+		"google_logging_project_exclusion.noisy":        "projects/estate-prod/exclusions/noisy",
+		"google_dataproc_workflow_template.wt":          "projects/estate-prod/locations/europe-west1/workflowTemplates/wt",
+		"google_gke_hub_feature_membership.fm":          "projects/estate-prod/locations/global/features/configmanagement/membershipId/m1",
+		"google_project_organization_policy.serial":     "estate-prod:compute.disableSerialPortAccess",
+		"google_organization_policy.org":                "1234/constraints/compute.skipDefaultNetworkCreation",
+	}
+	for addr, id := range want {
+		got := resolutionAt(t, result, addr)
+		if got.Class != ClassConcrete || got.ImportID != id {
+			t.Errorf("%s = %s %q (%s), want CONCRETE %q", addr, got.Class, got.ImportID, got.Reason, id)
+		}
+	}
+}

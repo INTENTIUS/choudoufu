@@ -7,17 +7,17 @@
   "version": "8.6.0",
   "counts": {
     "types": 1485,
-    "rowed": 1188,
+    "rowed": 1210,
     "server_assigned": 14,
-    "markerless": 150,
+    "markerless": 153,
     "schema_routed": 37,
-    "refused": 260,
+    "refused": 238,
     "google": {
       "types": 1370,
-      "rowed": 1094,
-      "markerless": 141,
+      "rowed": 1116,
+      "markerless": 144,
       "schema_routed": 37,
-      "refused": 239
+      "refused": 217
     }
   },
   "types": [
@@ -1073,9 +1073,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "scoped": true,
+      "template": "{{project}}"
     },
     {
       "type": "google_app_engine_application_url_dispatch_rules",
@@ -2384,7 +2384,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/bigtable/resource_bigtable_gc_policy.go:319: d.SetId(i.GCPolicy) sets it from i, a loop variable)"
     },
     {
       "type": "google_bigtable_instance",
@@ -2595,9 +2595,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "markerless",
+      "reason": "the provider's create sets the id from what the API returns (google/services/resourcemanager/resource_google_billing_subaccount.go:100: d.SetId(res.Name) sets it from res.Name, read from what the API returned)"
     },
     {
       "type": "google_binary_authorization_attestor",
@@ -2764,7 +2763,7 @@
       "verdict": "unrowed",
       "schema_route": true,
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/ces/resource_ces_app_root_agent_association.go:252: d.SetId(fmt.Sprintf(\"%s/agents/%s\", parsedAppId, agentIdShort)) sets it from parsedAppId is assigned 2 times, to different values)"
     },
     {
       "type": "google_ces_app_version",
@@ -3891,9 +3890,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{region}}/functions/{{name}}"
     },
     {
       "type": "google_cloudfunctions_function_iam_binding",
@@ -4236,7 +4234,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/compute/resource_compute_disk_async_replication.go:228: d.SetId(resourceId) sets it from asyncReplicationGetDiskFromConfig, which returns no value there)"
     },
     {
       "type": "google_compute_disk_iam_binding",
@@ -4577,8 +4575,7 @@
       ],
       "labels": true,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id projects/{{project}}/zones/{{zone}}/instances/{{name}} from configuration (google-beta/services/compute/resource_compute_instance_from_machine_image.go:291), but the type has no importer, so a run cannot read the object back by that id"
     },
     {
       "type": "google_compute_instance_from_template",
@@ -4588,8 +4585,7 @@
       ],
       "labels": true,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id projects/{{project}}/zones/{{zone}}/instances/{{name}} from configuration (google/services/compute/resource_compute_instance_from_template.go:279), but the type has no importer, so a run cannot read the object back by that id"
     },
     {
       "type": "google_compute_instance_group",
@@ -5053,7 +5049,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/compute/resource_compute_network_peering.go:194: d.SetId(fmt.Sprintf(\"%s/%s\", networkFieldValue.Name, d.Get(\"name\").(string))) sets it from ParseGlobalFieldValue, which returns 3 different values)"
     },
     {
       "type": "google_compute_network_peering_routes_config",
@@ -5176,9 +5172,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "scoped": true,
+      "template": "{{project}}"
     },
     {
       "type": "google_compute_project_metadata",
@@ -5187,9 +5183,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "scoped": true,
+      "template": "{{project}}"
     },
     {
       "type": "google_compute_project_metadata_item",
@@ -5827,8 +5823,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id {{region}}/{{router}}/{{name}} (google/services/compute/resource_compute_router_interface.go:265), which carries no {{project}} although the type takes a project argument, so two instances in different projects would share one id"
     },
     {
       "type": "google_compute_router_named_set",
@@ -5935,9 +5930,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "scoped": true,
+      "template": "{{project}}"
     },
     {
       "type": "google_compute_shared_vpc_service_project",
@@ -5946,9 +5941,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "parents": [
+        "host_project"
+      ],
+      "template": "{{host_project}}/{{service_project}}"
     },
     {
       "type": "google_compute_snapshot",
@@ -6481,9 +6478,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/clusters/{{name}}"
     },
     {
       "type": "google_container_node_pool",
@@ -6503,8 +6499,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id from what the API returns (google/services/containeranalysis/resource_container_registry.go:143: d.SetId(res.Id) sets it from res.Id, read from what the API returned), and the type has no importer"
     },
     {
       "type": "google_data_catalog_entry",
@@ -6901,7 +6896,7 @@
       "labels": true,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google-beta/services/dataflow/resource_dataflow_flex_template_job.go:332: d.SetId(existingJob.Id) sets it from job, a loop variable)"
     },
     {
       "type": "google_dataflow_job",
@@ -6912,7 +6907,7 @@
       "labels": true,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/dataflow/resource_dataflow_job.go:378: d.SetId(job.Id) sets it from resourceDataflowJobCreateJob, which returns 2 different values)"
     },
     {
       "type": "google_dataform_config",
@@ -7671,8 +7666,7 @@
       ],
       "labels": true,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id projects/{{project}}/regions/{{region}}/clusters/{{name}} from configuration (google/services/dataproc/resource_dataproc_cluster.go:2506), but the type has no importer, so a run cannot read the object back by that id"
     },
     {
       "type": "google_dataproc_cluster_iam_binding",
@@ -7757,8 +7751,7 @@
       ],
       "labels": true,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id from what the API returns (google/services/dataproc/resource_dataproc_job.go:328: d.SetId(fmt.Sprintf(\"projects/%s/regions/%s/jobs/%s\", project, region, job.Reference.JobId)) sets it from job.Reference.JobId, read from what the API returned), and the type has no importer"
     },
     {
       "type": "google_dataproc_job_iam_binding",
@@ -7994,9 +7987,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/workflowTemplates/{{name}}"
     },
     {
       "type": "google_datastream_connection_profile",
@@ -8811,8 +8803,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id {{service_name}} (google/services/servicemanagement/resource_endpoints_service.go:291), which carries no {{project}} although the type takes a project argument, so two instances in different projects would share one id"
     },
     {
       "type": "google_endpoints_service_consumers_iam_binding",
@@ -9372,9 +9363,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/releases/{{name}}"
     },
     {
       "type": "google_firebaserules_ruleset",
@@ -9385,7 +9375,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/firebaserules/resource_firebaserules_ruleset.go:176: d.SetId(id) sets it from id is assigned 2 times, to different values)"
     },
     {
       "type": "google_firestore_backup_schedule",
@@ -9476,7 +9466,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/resourcemanager/resource_google_folder.go:177: d.SetId(name) sets it from responseMap, declared with no value and filled in elsewhere)"
     },
     {
       "type": "google_folder_access_approval_settings",
@@ -9547,9 +9537,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "{{folder}}/{{constraint}}"
     },
     {
       "type": "google_folder_service_identity",
@@ -9958,9 +9947,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "parents": [
+        "feature"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/features/{{feature}}/membershipId/{{membership}}"
     },
     {
       "type": "google_gke_hub_fleet",
@@ -11919,7 +11910,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/logging/resource_logging_bucket_config.go:235: d.SetId(id) sets it from billingAccount is assigned 2 times, to different values)"
     },
     {
       "type": "google_logging_billing_account_exclusion",
@@ -11928,9 +11919,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "billingAccounts/{{billing_account}}/exclusions/{{name}}"
     },
     {
       "type": "google_logging_billing_account_sink",
@@ -11939,9 +11929,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "billingAccounts/{{billing_account}}/sinks/{{name}}"
     },
     {
       "type": "google_logging_folder_bucket_config",
@@ -11952,7 +11941,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/logging/resource_logging_bucket_config.go:235: d.SetId(id) sets it from folder is assigned 2 times, to different values)"
     },
     {
       "type": "google_logging_folder_exclusion",
@@ -11961,9 +11950,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "folders/{{folder}}/exclusions/{{name}}"
     },
     {
       "type": "google_logging_folder_settings",
@@ -11982,9 +11970,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "folders/{{folder}}/sinks/{{name}}"
     },
     {
       "type": "google_logging_linked_dataset",
@@ -12079,7 +12066,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/logging/resource_logging_bucket_config.go:235: d.SetId(id) sets it from organization is assigned 2 times, to different values)"
     },
     {
       "type": "google_logging_organization_exclusion",
@@ -12088,9 +12075,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "organizations/{{org_id}}/exclusions/{{name}}"
     },
     {
       "type": "google_logging_organization_settings",
@@ -12109,9 +12095,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "organizations/{{org_id}}/sinks/{{name}}"
     },
     {
       "type": "google_logging_project_bucket_config",
@@ -12121,8 +12106,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id projects/{{project}}/locations/{{location}}/buckets/{{bucket_id}} (google/services/logging/resource_logging_project_bucket_config.go:218), and the importer at google/services/logging/resource_logging_bucket_config.go:161 sets project to \"projects/\u003cid\u003e\" where the create took the bare project ID; project is required, ForceNew and not diff-suppressed (resource_logging_project_bucket_config.go:33), so every plan after a read would replace the bucket"
     },
     {
       "type": "google_logging_project_exclusion",
@@ -12131,9 +12115,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/exclusions/{{name}}"
     },
     {
       "type": "google_logging_project_sink",
@@ -12142,9 +12125,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/sinks/{{name}}"
     },
     {
       "type": "google_logging_saved_query",
@@ -12430,9 +12412,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "markerless",
+      "reason": "the provider's create sets the id from what the API returns (google/services/monitoring/resource_monitoring_dashboard.go:164: d.SetId(name.(string)) sets it from transport_tpg.SendRequest(transport_tpg.SendRequestOptions{ Config: config, Method: \"POST\", Proje..., what the API returned)"
     },
     {
       "type": "google_monitoring_group",
@@ -13704,9 +13685,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "markerless",
+      "reason": "the provider's create sets the id from what the API returns (google/services/resourcemanager/resource_google_organization_iam_custom_role.go:132: d.SetId(r.Name) sets it from r.Name, read from what the API returned)"
     },
     {
       "type": "google_organization_iam_member",
@@ -13741,9 +13721,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "{{org_id}}/{{constraint}}"
     },
     {
       "type": "google_organization_service_identity",
@@ -14043,7 +14022,7 @@
       "verdict": "unrowed",
       "schema_route": true,
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/resourcemanager/resource_google_project.go:228: d.SetId(fmt.Sprintf(\"projects/%s\", pid)) sets it from pid is assigned 2 times, to different values)"
     },
     {
       "type": "google_project_access_approval_settings",
@@ -14063,8 +14042,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id projects/{{project}} from configuration (google/services/resourcemanager/resource_google_project_default_service_accounts.go:189), but the type has no importer, so a run cannot read the object back by that id"
     },
     {
       "type": "google_project_iam_audit_config",
@@ -14123,8 +14101,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id {{project}}/{{member}}/{{role}} from configuration (google/services/resourcemanager/resource_google_project_iam_member_remove.go:104), but the type has no importer, so a run cannot read the object back by that id"
     },
     {
       "type": "google_project_iam_policy",
@@ -14146,9 +14123,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "template": "{{project}}:{{constraint}}"
     },
     {
       "type": "google_project_service",
@@ -14160,7 +14136,7 @@
       "verdict": "unrowed",
       "schema_route": true,
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/resourcemanager/resource_google_project_service.go:232: d.SetId(id) sets it from project is assigned 2 times, to different values)"
     },
     {
       "type": "google_project_service_identity",
@@ -14179,9 +14155,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "verdict": "rowed",
+      "scoped": true,
+      "template": "{{project}}"
     },
     {
       "type": "google_public_ca_external_account_key",
@@ -14687,7 +14663,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/securitycenter/resource_scc_notification_service_account.go:205: d.SetId(email) sets it from getSccNotificationServiceAccountDetails, which returns 2 different values)"
     },
     {
       "type": "google_scc_organization_custom_module",
@@ -15279,7 +15255,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/resourcemanager/resource_google_service_account_key.go:172: d.SetId(sak.Name) sets it from sak is assigned 3 times, to different values)"
     },
     {
       "type": "google_service_directory_endpoint",
@@ -15401,7 +15377,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/servicenetworking/resource_service_networking_connection.go:247: d.SetId(connectionId.Id()) sets it from url.QueryEscape(id.Network) escapes the value, which a row cannot reproduce)"
     },
     {
       "type": "google_service_networking_peered_dns_domain",
@@ -15412,7 +15388,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/servicenetworking/resource_google_service_networking_peered_dns_domain.go:169: d.SetId(id) sets it from strconv.FormatInt(projectCall.ProjectNumber, 10), which this reader does not model)"
     },
     {
       "type": "google_service_networking_vpc_service_controls",
@@ -15688,8 +15664,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id {{project}}/{{instance}} from configuration (google/services/sql/resource_sql_provision_script.go:196), but the type has no importer, so a run cannot read the object back by that id"
     },
     {
       "type": "google_sql_source_representation_instance",
@@ -15709,8 +15684,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id from what the API returns (google/services/sql/resource_sql_ssl_cert.go:161: d.SetId(fmt.Sprintf(\"projects/%s/instances/%s/sslCerts/%s\", project, instance, fingerprint)) sets it from resp.ClientCert.CertInfo.Sha1Fingerprint, read from what the API returned), and the type has no importer"
     },
     {
       "type": "google_sql_user",
@@ -15720,8 +15694,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id {{name}}/{{host}}/{{instance}} (google/services/sql/resource_sql_user.go:397), which carries no {{project}} although the type takes a project argument, so two instances in different projects would share one id"
     },
     {
       "type": "google_storage_anywhere_cache",
@@ -15754,7 +15727,7 @@
       "verdict": "unrowed",
       "schema_route": true,
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/storage/resource_storage_bucket.go:1016: d.SetId(res.Id) sets it from res is assigned 2 times, to different values)"
     },
     {
       "type": "google_storage_bucket_access_control",
@@ -15777,8 +15750,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id {{bucket}}-acl from configuration (google/services/storage/resource_storage_bucket_acl.go:257), but the type has no importer, so a run cannot read the object back by that id"
     },
     {
       "type": "google_storage_bucket_iam_binding",
@@ -15827,8 +15799,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id from what the API returns (google/services/storage/resource_storage_bucket_object.go:651: d.SetId(objectGetID(res)) sets it from object.Bucket, read from what the API returned), and the type has no importer"
     },
     {
       "type": "google_storage_control_folder_intelligence_config",
@@ -15881,8 +15852,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id {{bucket}} from configuration (google/services/storage/resource_storage_default_object_acl.go:146), but the type has no importer, so a run cannot read the object back by that id"
     },
     {
       "type": "google_storage_folder",
@@ -16037,8 +16007,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create sets the id {{object}}-acl from configuration (google/services/storage/resource_storage_object_acl.go:229), but the type has no importer, so a run cannot read the object back by that id"
     },
     {
       "type": "google_storage_transfer_agent_pool",
@@ -16059,7 +16028,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google/services/storagetransfer/resource_storage_transfer_job.go:1068: d.SetId(fmt.Sprintf(\"%s/%s\", project, name)) sets it from res is assigned 2 times, to different values)"
     },
     {
       "type": "google_tags_location_tag_binding",
@@ -16091,7 +16060,7 @@
       "labels": false,
       "verdict": "unrowed",
       "no_source": true,
-      "reason": "the provider source sets this type's id some other way than an id format template"
+      "reason": "the provider's create builds the id in code this generator does not read to the end (google-beta/services/tags/resource_tags_tag_binding_collection.go:227: d.SetId(fmt.Sprintf(\"locations/%s/tagBindingCollections/%s\", location, encodedResourceName)) sets it from url.PathEscape(resourceName) escapes the value, which a row cannot reproduce)"
     },
     {
       "type": "google_tags_tag_key",

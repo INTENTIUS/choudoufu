@@ -69,8 +69,7 @@ func sameSource(sources map[string]Source, facts map[string]TypeFacts) (Source, 
 	}
 	var first Source
 	for i, p := range sortedProviders(sources) {
-		s := sources[p]
-		s.File = ""
+		s := providerNeutral(sources[p])
 		if i == 0 {
 			first = s
 			continue

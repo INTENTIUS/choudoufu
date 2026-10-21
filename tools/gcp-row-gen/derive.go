@@ -143,7 +143,7 @@ type unrowedFunc func(noSource bool, format string, args ...any) Decision
 
 func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Decision {
 	if src.IDFormat == "" {
-		return unrowed(true, "the provider source sets this type's id some other way than an id format template")
+		return decideHandwritten(d, src, tfs, unrowed)
 	}
 	if src.IDFromResponse != "" {
 		// The id format found is the importer's; what a create leaves as
@@ -214,14 +214,38 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc
 		if tok.into != "" {
 			comp.IdentityAttr = intoAttr(tok)
 		}
-		if src.IDShortened {
+		if src.IDShortened || containsStr(src.CreateShort, name) {
 			// ReplaceVarsForId substitutes the last path segment of every
 			// argument it reads, and trims "projects/", "regions/" and
 			// "zones/" off the scope values; the row substitutes the whole
-			// value (#2144).
+			// value (#2144). A hand-written create does the same through
+			// GetResourceNameFromSelfLink or a DCL SelfLinkToName.
 			comp.LongForm = identity.LongFormLastSegment
 		}
-		if cloud, ok := cloudPlaceholders[name]; ok && flag != "R" {
+		if prefix, ok := src.CreateTrim[name]; ok {
+			// A hand-written create trims a literal prefix off the value
+			// (resourcemanager.ParseFolderId's "folders/").
+			comp.LongForm = identity.LongFormTrimPrefix
+			comp.Qualifiers = []string{prefix}
+		}
+		if containsStr(src.CreateLocated, name) {
+			// tpgresource.GetLocation: the argument's last segment, else
+			// the provider's region, else its zone. It reads the
+			// resource's own region and zone first, so it is the
+			// provider's value only on a type with neither.
+			if attrFlags(tfs, "region") != "" || attrFlags(tfs, "zone") != "" {
+				return unrowed(false, "the create reads {{%s}} with tpgresource.GetLocation, which falls back to this type's own region or zone argument", name)
+			}
+			if flag != "" {
+				comp.Attrs = []string{name}
+			}
+			comp.Cloud = identity.CloudLocation
+			comp.LongForm = identity.LongFormLastSegment
+			comps = append(comps, comp)
+			continue
+		}
+		raw := containsStr(src.CreateRaw, name)
+		if cloud, ok := cloudPlaceholders[name]; ok && flag != "R" && !raw {
 			if flag != "" {
 				comp.Attrs = []string{name}
 			}
@@ -581,7 +605,19 @@ func sameIdentitySource(a, b Source) bool {
 	a.APIService, b.APIService = "", ""
 	a.CAINameFormats, b.CAINameFormats = nil, nil
 	a.DocImportFormats, b.DocImportFormats = nil, nil
-	return reflect.DeepEqual(a, b)
+	return reflect.DeepEqual(providerNeutral(a), providerNeutral(b))
+}
+
+// providerNeutral is s without what names each provider's own files: the
+// file the type is registered in, and where the create reader found the id
+// or what stopped it.
+func providerNeutral(s Source) Source {
+	s.File = ""
+	s.CreateIDAt = nil
+	s.ImporterAt = ""
+	s.CreateUnread = strings.ReplaceAll(s.CreateUnread, "google-beta/services/", "google/services/")
+	s.ImporterUnread = strings.ReplaceAll(s.ImporterUnread, "google-beta/services/", "google/services/")
+	return s
 }
 
 func missingProviders(sources map[string]Source, facts map[string]TypeFacts) []string {

@@ -313,6 +313,16 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"exceptions - this file is the same contract one level up.",
 		Data: 8, Code: 0,
 	},
+	"tools/gcp-row-gen/handwritten.go": {
+		Reason: "importerRulings (#2145 item 1): the 11 hand-written google importers that are custom code with no " +
+			"ParseImportId regex (logging sinks and exclusions, organization policy, usage export bucket, project bucket " +
+			"config), each read by hand for whether it accepts and keeps the id the create sets, which createread.go reads " +
+			"at code level. What a strings.Split or a package regex in custom code accepts is not something the reader " +
+			"evaluates, so it cannot be derived; each entry carries the fingerprint of the importer code it was read " +
+			"against, and the generator refuses an entry whose code, create id or importer kind has moved, or that a " +
+			"ParseImportId importer no longer needs.",
+		Data: 11, Code: 0,
+	},
 	"tools/gcp-row-gen/assetnames.go": {
 		Reason: "documentedAssets: the 20 labelled google types whose provider source at 8.6.0 states no Cloud Asset " +
 			"Inventory name (handwritten, no cai_asset_name_format), each mapped by hand to the asset type Google's asset " +
@@ -729,7 +739,10 @@ const (
 	// instance templates leave documentedAssets, since their labels map only
 	// labels the VMs made from them and they are no longer labelled types.
 	// Two Data literals removed, none moved.
-	typeLiteralDataTotal = 1239
+	// 1239 -> 1250 data, code unchanged, on 2026-10-20 (#2145 item 1):
+	// gcp-row-gen's importerRulings, 11 hand-read custom importers. 11 new
+	// Data literals, none moved.
+	typeLiteralDataTotal = 1250
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

@@ -226,6 +226,7 @@ func extractSources(dir string) (map[string]Source, error) {
 		}
 		return tpgresourceText
 	}
+	loader := newPkgLoader(dir)
 	services := filepath.Join(sourceRoot(dir), "services")
 	err = filepath.WalkDir(services, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -259,6 +260,16 @@ func extractSources(dir string) (map[string]Source, error) {
 				s.APIService = m.apiService
 				s.CAINameFormats = m.caiNames
 				s.DocImportFormats = docImportFormats(dir, typeName)
+				if s.IDFormat == "" {
+					h, err := readHandwritten(loader, filepath.Dir(path), typeName)
+					if err != nil {
+						return fmt.Errorf("%s: %w", typeName, err)
+					}
+					s.CreateID, s.CreateIDAt, s.CreateUnread, s.CreateMinted = h.CreateID, h.CreateIDAt, h.CreateUnread, h.CreateMinted
+					s.CreateRaw, s.CreateShort, s.CreateTrim, s.CreateLocated = h.CreateRaw, h.CreateShort, h.CreateTrim, h.CreateLocated
+					s.Importer, s.ImporterAt, s.ImporterHash = h.Importer, h.ImporterAt, h.ImporterHash
+					s.ImporterFormats, s.ImporterID, s.ImporterUnread = h.ImporterFormats, h.ImporterID, h.ImporterUnread
+				}
 			}
 			s.File = rel
 			out[typeName] = s
@@ -445,7 +456,7 @@ func iamSource(typeName, text string, grammar map[string]string, pkgText, tpgres
 		// file of its package defines, by the one name it passes.
 		if name := parseFuncRefs(text); name != "" {
 			parseText = pkg
-			funcs = regexp.MustCompile(`func ` + regexp.QuoteMeta(name) + `\(d \*schema\.ResourceData`).FindAllStringSubmatchIndex(pkg, -1)
+			funcs = regexp.MustCompile(`func `+regexp.QuoteMeta(name)+`\(d \*schema\.ResourceData`).FindAllStringSubmatchIndex(pkg, -1)
 		}
 	}
 	if len(funcs) != 1 {

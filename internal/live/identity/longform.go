@@ -95,6 +95,23 @@ func (r *resolver) longFormValue(comp Component, addr addrs.AbsResourceInstance,
 			addr.String(), attr.Name, parent, comp.LongForm.describe())
 		return nil, false
 	}
+	if comp.LongForm == LongFormTrimPrefix {
+		if len(comp.Qualifiers) != 1 {
+			r.errorf(attr.Range, "Rewritten identity argument not composable",
+				"%s sets %s to %q. %s, and this fork did not read which prefix, so the instance is refused rather than given an id (#2145).",
+				addr.String(), attr.Name, v, comp.LongForm.describe())
+			return nil, false
+		}
+		short := strings.TrimPrefix(v, comp.Qualifiers[0])
+		if short == "" {
+			r.errorf(attr.Range, "Rewritten identity argument not composable",
+				"%s sets %s to %q. %s (%q), which leaves nothing of this value, and an id with an empty segment names no "+
+					"object, so the instance is refused rather than given one (#2145).",
+				addr.String(), attr.Name, v, comp.LongForm.describe(), comp.Qualifiers[0])
+			return nil, false
+		}
+		return []Part{{Literal: short}}, true
+	}
 	if comp.LongForm != LongFormLastSegment {
 		return got, true
 	}
