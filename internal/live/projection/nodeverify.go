@@ -258,6 +258,28 @@ func carrierMarkers(providerType string, obj cty.Value, schema providers.Schema)
 		}
 		return markers.ARMTagsOf(obj)
 
+	case markers.SurfaceGoogleLabels:
+		// The tags arm's read over the GCP maps (GitHub issue #1119), in
+		// [markers.GoogleLabelsOf]'s order, the explicit labels last. A
+		// planned create's effective_labels is unknown and is skipped.
+		out := map[string]string{}
+		found := false
+		for _, name := range []string{markers.GoogleEffectiveLabelsAttr, markers.GoogleTerraformLabelsAttr, markers.GoogleLabelsAttr} {
+			if !obj.Type().HasAttribute(name) {
+				continue
+			}
+			v := obj.GetAttr(name)
+			if v.IsMarked() {
+				return nil, false
+			}
+			if v.IsNull() || !v.IsKnown() || !v.CanIterateElements() {
+				continue
+			}
+			found = true
+			collectStrings(v, out)
+		}
+		return out, found
+
 	case markers.SurfaceLabels:
 		labels, ok := labelSurfaceLabels(obj)
 		if !ok {

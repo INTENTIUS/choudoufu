@@ -127,6 +127,11 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1061's label branch found a Kubernetes metadata block that is not exactly one object with a labels attribute - the shape every label-surface schema requires - so it left the resource's configuration value exactly as evaluated.",
 	},
 	{
+		Summary: SummaryGoogleLabelDefaultsUnread,
+		What:    "GitHub issue #1119: a hashicorp/google provider block's default_labels key set or add_terraform_attribution_label is not known statically, so the projection could not rebuild terraform_labels after the read, which the provider empties on a prior re-derived without a state file. Each labelled resource through that provider shows terraform_labels as a change on a cache-less plan. A default label whose key is written out and whose value comes from another resource or a data source is read: only the keys are needed.",
+		Warning: true,
+	},
+	{
 		Summary: "Cannot merge ownership markers into this tags value",
 		What:    "GitHub issue #388's node-path stamp (NodeResolver.AdjustConfigValue) found a tags argument it does not know how to add the two ownership markers into - a non-map value, a map of something other than strings, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated.",
 	},
@@ -388,7 +393,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryNameHeld,
-		What:    "GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = \"adopt\" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected. The same refusal stops a declared markerless instance with no record whose provider family says a create at a held identity collides (the 2026-10-20 ruling); no family registered today says so.",
+		What:    "GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = \"adopt\" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected. The same refusal stops a declared markerless instance with no record whose provider family says a create at a held identity collides (the 2026-10-20 ruling): the google family says so for a type whose create Google refuses with 409 alreadyExists at a held name, such as google_compute_firewall, and for a labelless type whose create the provider source does not show either way.",
 	},
 	{
 		Summary: SummaryMovedRecordsAmbiguous,

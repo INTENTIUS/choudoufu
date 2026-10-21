@@ -1,0 +1,25 @@
+---
+title: Proof
+description: What will be proven on the emulator and where the numbers live.
+prompt: |
+  Follow https://intentius.io/choudoufu/gcp/proof/ and report which GCP claims are open.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+## Claims you can run
+
+Each `gcp-*` [claim](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/README.md) runs on floci-gcp. Under `BREAK=1` it must catch the injected fault. None has a dated run yet.
+
+## Where the numbers are
+
+- [CLAIMS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/CLAIMS.md): which claims hold
+- [PROOF.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/gcp/PROOF.md): the harness and its gaps
+
+## Run one
+
+```
+just smoke gcp-greenfield
+```

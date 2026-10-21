@@ -223,7 +223,7 @@ type Substrate interface {
 // asked before it. TestTheCatchAllFamilyIsLast holds it (GitHub issue
 // #1742). The surface questions are asked of the provider's own family
 // ([SurfaceOf]), so for a claimed provider the order does not decide them.
-var All = []Substrate{Kubernetes, Azure, AWS}
+var All = []Substrate{Kubernetes, Azure, Google, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
 // "kubernetes"): the one whose [Substrate.ProviderTypes] lists it. It
@@ -251,7 +251,10 @@ func ForProvider(providerType string) (Substrate, bool) {
 // leg lists every kind the cluster serves and joins the result against the
 // estate's objects. Azure answers true from its Resource Graph sweep's
 // design ([azure.SweepFindsUnadmitted]); until that leg is built, the
-// plan's NO_SWEEP_LEG gap names the family instead. AWS's own sweep ([SweepTaggingIndex]) is
+// plan's NO_SWEEP_LEG gap names the family instead. GCP's Asset Inventory
+// leg sees every labelled asset type but plans no removal and cannot see an
+// unlabelled type, so it answers false and its deleted blocks are the record
+// leg's (GitHub issue #2134). AWS's own sweep ([SweepTaggingIndex]) is
 // the admission table read a different way, so a type with no row gets
 // nothing extra from it, and neither does an unregistered provider
 // ForProvider does not recognise at all.
@@ -265,6 +268,23 @@ func ForProvider(providerType string) (Substrate, bool) {
 func Sweeps(providerType string) bool {
 	s, ok := ForProvider(providerType)
 	return ok && s.SweepFindsUnadmitted()
+}
+
+// RecordsRemoveUnrowed reports whether providerType's family removes a
+// deleted block's objects from the estate's records alone, for a type with
+// no admission-table row as well as one with a row: the record-orphan leg
+// admits an unrowed type through the provider's identity schema on such a
+// pass. True for the GCP family, whose Asset Inventory leg plans no removal
+// of its own (GitHub issue #2134, item 1). [Sweeps] stays false for it,
+// because the deposed-record and label-list paths that read [Sweeps] need a
+// sweep that lists, and the Asset search does not list for removal.
+//
+// The identity package's no-orphan-recovery warning asks both: a type of
+// such a family is recovered from its record once its last block is
+// deleted, which is what the warning says nothing does.
+func RecordsRemoveUnrowed(providerType string) bool {
+	s, ok := ForProvider(providerType)
+	return ok && s.Sweep() == SweepAssetSearch
 }
 
 // TombstonesRead reports whether a record tombstone written for an object
@@ -502,6 +522,26 @@ func CreateCollidesOnKey(surface markers.Surface) bool {
 func CreateOverwritesAtKey(surface markers.Surface) bool {
 	s := For(surface)
 	return s != nil && s.CreateOverwritesAtKey(surface)
+}
+
+// nameHeldWording is the optional half of a family whose own words for
+// GitHub issue #1546's refusal differ from the Kubernetes sentence the
+// projection carries: what keys the object, and which markers adopt it.
+type nameHeldWording interface {
+	NameHeldDetail(typeName, importID string, addr addrs.AbsResourceInstance, estate string) string
+}
+
+// NameHeldDetail is surface's family's sentence for an unlabelled object
+// holding the name a declared create would send, and false when the family
+// has none of its own. The first GCP gauntlet run printed the Kubernetes
+// sentence (API server, kind and namespace, one label) for a compute
+// instance.
+func NameHeldDetail(surface markers.Surface, typeName, importID string, addr addrs.AbsResourceInstance, estate string) (string, bool) {
+	w, ok := For(surface).(nameHeldWording)
+	if !ok {
+		return "", false
+	}
+	return w.NameHeldDetail(typeName, importID, addr, estate), true
 }
 
 // CarrierPhrase names where surface's marker map lives ("tags attribute",
@@ -812,6 +852,11 @@ type HoldEvidence struct {
 	// ARMTags are an Azure Resource Manager object's tags, kept apart from
 	// Tags so that each family still reads only its own field.
 	ARMTags map[string]string
+	// Labels are a GCP resource's labels, and AssetType its Cloud Asset
+	// Inventory asset type (compute.googleapis.com/Instance): a GCP hold
+	// is recognised by a reserved label key on a given kind of asset.
+	Labels    map[string]string
+	AssetType string
 }
 
 // Hold is a family's answer for a held object.

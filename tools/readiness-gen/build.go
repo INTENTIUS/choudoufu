@@ -234,6 +234,19 @@ type Artifact struct {
 	// (azure.go), and kept apart from Types/Counts for the same reason
 	// Kubernetes is.
 	Azure AzureSubstrate `json:"azure"`
+
+	// Google is every hashicorp/google and google-beta resource type
+	// (#1119), tiered from live/gcp-survey.json the way Types is tiered
+	// from live/survey-full.json, and kept apart from Types/Counts for the
+	// same reason Kubernetes is.
+	Google GoogleSubstrate `json:"google"`
+}
+
+// GoogleSubstrate is [Substrate] for hashicorp/google and google-beta.
+type GoogleSubstrate struct {
+	Provider string `json:"provider"`
+	Counts   Counts `json:"counts"`
+	Types    []Row  `json:"types"`
 }
 
 // Substrate is one non-AWS provider's admitted types and their readiness
@@ -325,12 +338,12 @@ type Facts struct {
 	// The Azure section's facts (azure.go), set only on an [AzureSubstrate]
 	// row. ARMIDClass is live/azurerm-ids.json's class for an azurerm type,
 	// or "withheld" for a template internal/live/substrate refuses to
-	// admit. SchemaRoute is an azurerm type the identity-schema route
-	// admits at run time. ARMScope is where an instance lives, read off
-	// the id template, which decides whether a resource-group role
-	// assignment reaches it. VersionDependent is an azapi ARM type whose
-	// taggability differs between two of its API versions; Taggable is
-	// its latest version's.
+	// admit. SchemaRoute is set on an azurerm or a [GoogleSubstrate] row
+	// whose type has no row and the identity-schema route admits at run
+	// time. ARMScope is where an instance lives, read off the id template,
+	// which decides whether a resource-group role assignment reaches it.
+	// VersionDependent is an azapi ARM type whose taggability differs
+	// between two of its API versions; Taggable is its latest version's.
 	ARMIDClass       string `json:"arm_id_class,omitempty"`
 	SchemaRoute      bool   `json:"schema_route,omitempty"`
 	ARMScope         string `json:"arm_scope,omitempty"`
@@ -504,6 +517,11 @@ func Build(root string) (Artifact, error) {
 		return Artifact{}, err
 	}
 
+	google, err := buildGoogleSubstrate(root)
+	if err != nil {
+		return Artifact{}, err
+	}
+
 	return Artifact{
 		GeneratedBy:     GeneratedBy,
 		Provider:        survey.Provider,
@@ -512,7 +530,98 @@ func Build(root string) (Artifact, error) {
 		Types:           rows,
 		Kubernetes:      kubernetes,
 		Azure:           azure,
+		Google:          google,
 	}, nil
+}
+
+// GCPSurveyJSONRel is tools/gcp-row-gen's survey of every hashicorp/google
+// and google-beta resource type.
+const GCPSurveyJSONRel = "live/gcp-survey.json"
+
+// gcpSurvey is the subset of live/gcp-survey.json read here.
+type gcpSurvey struct {
+	Providers []string `json:"providers"`
+	Version   string   `json:"version"`
+	Types     []struct {
+		Type        string `json:"type"`
+		Labels      bool   `json:"labels"`
+		Verdict     string `json:"verdict"`
+		SchemaRoute bool   `json:"schema_route"`
+		NoSource    bool   `json:"no_source"`
+	} `json:"types"`
+}
+
+// googleTier is a GCP type's tier, from live/gcp-survey.json's facts the
+// way [classify] reads AWS's: a type with the google-labels surface is
+// tier A; an unlabelled type the declaration re-derives (a rowed type
+// whose id the configuration supplies, or one the identity-schema route
+// admits) is tier B; anything else, server-minted with no labels or with no
+// route at all, is held by its record, tier C.
+func googleTier(labels bool, verdict string, schemaRoute bool) string {
+	switch {
+	case labels:
+		return TierMarkerCarried
+	case verdict == "rowed", verdict == "unrowed" && schemaRoute:
+		return TierDeclarationCarried
+	}
+	return TierRecordCarried
+}
+
+// buildGoogleSubstrate tiers every type in live/gcp-survey.json, and
+// refuses a survey that disagrees with the generated table it was written
+// beside: a rowed type must be in identity.GoogleTable, a markerless one in
+// identity.GoogleMarkerlessTypes, and nothing else in either.
+func buildGoogleSubstrate(root string) (GoogleSubstrate, error) {
+	var gs gcpSurvey
+	if err := decodeJSON(root, GCPSurveyJSONRel, &gs); err != nil {
+		return GoogleSubstrate{}, err
+	}
+	out := GoogleSubstrate{
+		Provider: strings.Join(gs.Providers, " and ") + " " + gs.Version,
+		Counts:   Counts{Tiers: map[string]int{}, Statuses: map[string]int{}},
+	}
+	rowed, markerless := 0, 0
+	for _, t := range gs.Types {
+		_, inTable := identity.GoogleTable[t.Type]
+		_, vetoed := identity.GoogleMarkerlessTypes[t.Type]
+		isRowed := t.Verdict == "rowed" || t.Verdict == "server-assigned"
+		if isRowed != inTable || (t.Verdict == "markerless") != vetoed {
+			return GoogleSubstrate{}, fmt.Errorf("%s says %s is %s, which identity.GoogleTable and GoogleMarkerlessTypes disagree with; regenerate with `go run ./tools/gcp-row-gen`",
+				GCPSurveyJSONRel, t.Type, t.Verdict)
+		}
+		if isRowed {
+			rowed++
+		}
+		if vetoed {
+			markerless++
+		}
+		tier := googleTier(t.Labels, t.Verdict, t.SchemaRoute)
+		status := StatusPendingRatification
+		switch {
+		case isRowed:
+			status = StatusInContract
+		case vetoed:
+			status = StatusPendingMechanism
+		case t.NoSource && !t.SchemaRoute:
+			status = StatusNeedsEvidence
+		}
+		row := Row{Type: t.Type, Tier: tier, Status: status, Facts: Facts{
+			Admitted:     isRowed,
+			Markerless:   vetoed,
+			LabelSurface: t.Labels,
+			SchemaRoute:  t.SchemaRoute,
+		}}
+		out.Types = append(out.Types, row)
+		out.Counts.Types++
+		out.Counts.Tiers[tier]++
+		out.Counts.Statuses[status]++
+	}
+	if rowed != len(identity.GoogleTable) || markerless != len(identity.GoogleMarkerlessTypes) {
+		return GoogleSubstrate{}, fmt.Errorf("%s names %d rowed and %d markerless types; identity.GoogleTable has %d and GoogleMarkerlessTypes %d",
+			GCPSurveyJSONRel, rowed, markerless, len(identity.GoogleTable), len(identity.GoogleMarkerlessTypes))
+	}
+	sort.Slice(out.Types, func(i, j int) bool { return out.Types[i].Type < out.Types[j].Type })
+	return out, nil
 }
 
 // KubernetesProviderVersion is the hashicorp/kubernetes release every

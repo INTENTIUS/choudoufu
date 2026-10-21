@@ -423,7 +423,7 @@ func (n *NodeResolver) stampedBodyTags(addr addrs.AbsResourceInstance, body cty.
 			fmt.Sprintf("%s's body.tags evaluated to a %s, not an object of strings; the configuration's own value is used unchanged and no ownership marker was written.", addr, tagsVal.Type().FriendlyName())))
 	}
 
-	diags = diags.Append(n.stampMarkerElems(addr, elems, address, true))
+	diags = diags.Append(n.stampMarkerElems(addr, elems, address, address, true))
 	if diags.HasErrors() {
 		return cty.NilVal, false, diags
 	}

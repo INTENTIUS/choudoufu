@@ -137,6 +137,34 @@ carrying it exists. It says nothing about a child derived from it. Existence
 of an untaggable resource is settled by reading it, never by reading its
 parent's tag.
 
+## On GCP
+
+The same contract, carried by labels
+([#1121](https://github.com/INTENTIUS/choudoufu/issues/1121)). A label
+value cannot spell an address, so `tofu-address` holds a fixed-length
+encoding of it, two SHA-256 prefixes for the block and the instance, which
+a plan matches against the configuration and never decodes:
+
+```
+tofu-estate  = prod-networking
+tofu-address = pbto3ksmyaajifkcwdi2kvn7ls-pbto3ksmyaajifkcwdi2kvn7ls
+```
+
+That is `google_compute_network.main`. `live/MARKERS.md`, "GCP: labels",
+has the encoding precisely enough to compute it elsewhere. `tofu-slot`
+works as on AWS, because GCP has server-named types whose `count` sets are
+fungible.
+
+The two recovery paths above hold, with one difference in the second. A
+labelled type the server names is found by listing on the estate label
+through Cloud Asset Inventory and matching the address label. GCP's
+untaggable share is its network skeleton (networks, subnetworks, firewalls,
+routes, routers, service accounts, custom roles), and like AWS's it is
+declaration-carried: its identity is recomputed from the configuration's
+`name`, `project` and location on every run. What it loses is governance
+and the sweep: no label means nothing for the sweep to find an undeclared
+one by, and the fence on every GCP type is the project, not the marker.
+
 ## Renaming
 
 Rename the block, then rewrite the tag.

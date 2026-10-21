@@ -46,7 +46,7 @@ const (
 )
 
 // smokeProviderNames is how a page heads a provider's section: "## On AWS".
-var smokeProviderNames = map[string]string{"aws": "AWS", "kubernetes": "Kubernetes", "azure": "Azure"}
+var smokeProviderNames = map[string]string{"aws": "AWS", "kubernetes": "Kubernetes", "azure": "Azure", "gcp": "GCP"}
 
 type smokeClaimsFile struct {
 	Themes        map[string]string `json:"themes"`

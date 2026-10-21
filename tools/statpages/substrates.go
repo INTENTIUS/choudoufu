@@ -39,6 +39,7 @@ type substratesData struct {
 			Count      int            `json:"count"`
 			ByTier     map[string]int `json:"by_tier"`
 			Unrecorded string         `json:"unrecorded"`
+			ByAnswer   map[string]int `json:"unrecorded_by_type"`
 		} `json:"untaggable"`
 		Fence   string `json:"fence"`
 		Harness struct {
@@ -110,6 +111,9 @@ func substratesSpans(root string) (map[string]string, error) {
 		return out
 	})
 	row("Untaggable, no record, object live", func(i int) string {
+		if by := d.Rows[i].Untaggable.ByAnswer; len(by) > 0 {
+			return fmt.Sprintf("not owned, per type: %d plan the create (the create cannot collide), %d stop with the name-held refusal (it would, or the source does not say)", by["creates"], by["name-held"])
+		}
 		switch d.Rows[i].Untaggable.Unrecorded {
 		case "parent-owned":
 			return "admitted: owned through its tagged parents"

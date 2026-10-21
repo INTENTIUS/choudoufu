@@ -505,14 +505,18 @@ func bindCountBySlot(ctx context.Context, req Request, decl *declared, cb *count
 // which there is no import ID to build a projection entry from.
 func bindOne(typeName string, addr addrs.AbsResourceInstance, escaped string, c claimant, res *Result, diags *tfdiags.Diagnostics) (Binding, bool) {
 	if c.noIdentity {
+		detail := c.noIdentityDetail
+		if detail == "" {
+			detail = fmt.Sprintf(
+				"The live %s bound to %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The identity this type is looked up by (%s) was not among the attributes the list call returned. A provider that serves no identity at all cannot be discovered by marker; one that serves a different set is issue #105.",
+				typeName, addr, identityAttrNames(typeName))
+		}
 		*diags = diags.Append(problemDiag(res, Problem{
 			Kind:     ProblemNoIdentity,
 			TypeName: typeName,
 			Addr:     addr,
 			Marker:   escaped,
-			Detail: fmt.Sprintf(
-				"The live %s bound to %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The identity this type is looked up by (%s) was not among the attributes the list call returned. A provider that serves no identity at all cannot be discovered by marker; one that serves a different set is issue #105.",
-				typeName, addr, identityAttrNames(typeName)),
+			Detail:   detail,
 		}))
 		return Binding{}, false
 	}

@@ -905,11 +905,13 @@ func TestStateBackendIsWarningSeverity(t *testing.T) {
 }
 
 // warningRules is every rule that declares [SeverityWarning]: state-backend
-// (#210) and arm-tag-limit (#1120, which Azure refuses with its own error
-// and nothing is created wrongly).
+// (#210), arm-tag-limit (#1120, which Azure refuses with its own error and
+// nothing is created wrongly) and gcp-multi-project (#1121, a weaker fence
+// rather than a wrong plan).
 var warningRules = map[Rule]bool{
-	RuleStateBackend: true,
-	RuleARMTagLimit:  true,
+	RuleStateBackend:    true,
+	RuleARMTagLimit:     true,
+	RuleGCPMultiProject: true,
 }
 
 // TestOnlyDeclaredRulesAreWarningSeverity is the mechanism check for #210: it

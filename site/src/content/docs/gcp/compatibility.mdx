@@ -1,0 +1,38 @@
+---
+title: Compatibility
+description: Every type with a labels map plans. A short list is refused by name.
+prompt: |
+  Follow https://intentius.io/choudoufu/gcp/compatibility/. Run `choudoufu live-check` here and report each refusal.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+## The backend
+
+Refused, as on [AWS](/choudoufu/aws/compatibility/).
+
+## Expansions and identity arguments
+
+Every expansion works. The address label is a fixed-length hash, so no key is too long.
+
+## Resource types
+
+Every `google_*` and `google-beta` type with a `labels` map carries the marker. The network skeleton binds by name and project. The sweep needs the Cloud Asset API enabled.
+
+### Refused
+
+| What | Fix |
+|---|---|
+| A marker label in an instance template | Remove it |
+| An estate name over 63 characters | Shorten it |
+| An unlabelled type the server names, with no `live` block | Add the `live` block; its record holds the identity |
+
+## Running it
+
+`-target` and plan files work.
+
+## Other providers
+
+One estate per project. Two estates sharing a project are not fenced from each other ([COMPATIBILITY.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/gcp/COMPATIBILITY.md)).

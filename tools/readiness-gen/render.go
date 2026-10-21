@@ -292,6 +292,8 @@ type siteData struct {
 	Total        int   `json:"total"`
 	// Types is every row of live/readiness.json with its reason.
 	Types []siteType `json:"types"`
+	// Paths is how each AWS type comes back, tallied by tier (paths.go).
+	Paths []sitePath `json:"paths"`
 
 	// Kubernetes is issue #1600's addition: the non-AWS substrate's own
 	// admitted types, rendered separately from Tiers/Types above because
@@ -300,6 +302,31 @@ type siteData struct {
 
 	// Azure is GitHub issue #2119's Azure column: see [siteAzure].
 	Azure siteAzure `json:"azure"`
+
+	// Google is the hashicorp/google and google-beta substrate (#1119):
+	// its own tier-by-status cross tab, how each type comes back, and every
+	// type with its reason.
+	Google siteGoogle `json:"google"`
+}
+
+// siteGoogle is the Google substrate's site-rendered summary.
+type siteGoogle struct {
+	Provider     string     `json:"provider"`
+	Statuses     []string   `json:"statuses"`
+	Tiers        []siteTier `json:"tiers"`
+	ColumnTotals []int      `json:"column_totals"`
+	Total        int        `json:"total"`
+	Paths        []sitePath `json:"paths"`
+	Types        []siteType `json:"types"`
+}
+
+// sitePath is one row of a path table: a path, a tier its types sit in,
+// how many, and what the path means. A path no type takes has no tier.
+type sitePath struct {
+	Path  string `json:"path"`
+	Tier  string `json:"tier"`
+	Count int    `json:"count"`
+	Means string `json:"means"`
 }
 
 // siteSubstrate is one non-AWS substrate's site-rendered summary.
@@ -324,11 +351,11 @@ type siteType struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-// buildSiteData computes SiteDataRel's content from the artifact and the
-// given stamp alone, with no file I/O or git calls of its own, so
-// render_test.go's drift guard builds the same bytes runRender would write
-// without touching the filesystem.
-func buildSiteData(a Artifact, stamp string) siteData {
+// buildSiteData computes SiteDataRel's content from the artifact, the
+// given stamp and the path facts alone, with no file I/O or git calls of
+// its own, so render_test.go's drift guard builds the same bytes runRender
+// would write without touching the filesystem.
+func buildSiteData(a Artifact, stamp string, pf pathFacts) siteData {
 	cross := readinessCrossTab(a)
 	d := siteData{
 		Stamp:        stamp,
@@ -350,6 +377,7 @@ func buildSiteData(a Artifact, stamp string) siteData {
 	for _, r := range a.Types {
 		d.Types = append(d.Types, siteType{Type: r.Type, Tier: r.Tier, Status: r.Status, Reason: reasonFor(r)})
 	}
+	d.Paths = awsSitePaths(a, pf)
 
 	d.Kubernetes = siteSubstrate{
 		Provider: a.Kubernetes.Provider,
@@ -361,13 +389,57 @@ func buildSiteData(a Artifact, stamp string) siteData {
 		d.Kubernetes.Types = append(d.Kubernetes.Types, siteType{Type: r.Type, Tier: r.Tier, Status: r.Status, Reason: reasonFor(r)})
 	}
 	d.Azure = buildSiteAzure(a.Azure)
+
+	g := siteGoogle{
+		Provider:     a.Google.Provider,
+		Statuses:     append([]string(nil), statusOrder...),
+		ColumnTotals: make([]int, len(statusOrder)),
+		Types:        []siteType{},
+	}
+	gcross := map[crossKey]int{}
+	for _, r := range a.Google.Types {
+		gcross[crossKey{Tier: r.Tier, Status: r.Status}]++
+		g.Types = append(g.Types, siteType{Type: r.Type, Tier: r.Tier, Status: r.Status, Reason: googleReasonFor(r)})
+	}
+	for _, tier := range tierOrder {
+		row := siteTier{Tier: tier}
+		for i, s := range statusOrder {
+			n := gcross[crossKey{Tier: tier, Status: s}]
+			row.Counts = append(row.Counts, n)
+			row.Total += n
+			g.ColumnTotals[i] += n
+		}
+		g.Total += row.Total
+		g.Tiers = append(g.Tiers, row)
+	}
+	g.Paths = googleSitePaths(a, pf)
+	d.Google = g
 	return d
+}
+
+// googleReasonFor is [reasonFor] for a Google substrate row, whose reasons
+// are about the provider source rather than a ratification batch.
+func googleReasonFor(r Row) string {
+	switch r.Status {
+	case StatusInContract:
+		return ""
+	case StatusPendingMechanism:
+		return "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+	case StatusNeedsEvidence:
+		return "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+	case StatusPendingRatification:
+		if r.Facts.SchemaRoute {
+			return "no row; the provider's identity schema admits it at run time, as it would an unrowed AWS type."
+		}
+		return "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+	}
+	return reasonFor(r)
 }
 
 // renderSiteData is SiteDataRel's on-disk form: two-space indented with a
 // trailing newline, the way every other derived summary is written.
-func renderSiteData(a Artifact, stamp string) ([]byte, error) {
-	out, err := json.MarshalIndent(buildSiteData(a, stamp), "", "  ")
+func renderSiteData(a Artifact, stamp string, pf pathFacts) ([]byte, error) {
+	out, err := json.MarshalIndent(buildSiteData(a, stamp, pf), "", "  ")
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +466,11 @@ func runRender() error {
 	if err := renderSpan(root, CoverageMDRel, spanReadinessTable, table); err != nil {
 		return err
 	}
-	data, err := renderSiteData(artifact, stamp)
+	pf, err := loadPathFacts(root)
+	if err != nil {
+		return err
+	}
+	data, err := renderSiteData(artifact, stamp, pf)
 	if err != nil {
 		return err
 	}

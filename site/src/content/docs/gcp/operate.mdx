@@ -1,0 +1,44 @@
+---
+title: Operate
+description: Rename, keep records in a bucket, remove.
+prompt: |
+  Follow https://intentius.io/choudoufu/gcp/operate/ for my change. Edit the configuration, run `choudoufu plan -out=plan.bin` and report the plan.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+## Rename
+
+Rename the block and plan, or run `live-mv`. Either rewrites the address label in place.
+
+### Records
+
+```hcl
+record_store "gcs" {
+  bucket = "my-estate-records"
+}
+```
+
+Use one bucket per estate. GCS cannot fence a listing.
+
+## Remove
+
+A labelled resource with your label and no block is proposed for deletion. GKE, Dataproc and Batch VMs and disks are excluded.
+
+## Scale
+
+A `count` set the server names carries `tofu-slot`, so scaling down keeps every survivor's index.
+
+## Plan, review, apply
+
+As on [AWS](/choudoufu/aws/operate/).
+
+## From CI
+
+The CI principal holds the project bindings the gate grants.
+
+## Two runs at once
+
+The record write is conditional, so choudoufu refuses the second apply ([OPERATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/gcp/OPERATE.md)).

@@ -552,6 +552,22 @@
       "unresolved_modules": 0
     },
     {
+      "name": "corpus-k8s-infra-gcp-gcve",
+      "types": [
+        "google_compute_firewall",
+        "google_compute_network",
+        "google_compute_subnetwork",
+        "google_project_service",
+        "google_storage_bucket",
+        "random_password"
+      ],
+      "count": 6,
+      "sources": [
+        "script"
+      ],
+      "unresolved_modules": 0
+    },
+    {
       "name": "corpus-k8s-metrics-server",
       "types": [
         "kubernetes_api_service",
@@ -1063,6 +1079,25 @@
         "random_password"
       ],
       "count": 18,
+      "sources": [
+        "script"
+      ],
+      "unresolved_modules": 0
+    },
+    {
+      "name": "reference-gcp",
+      "types": [
+        "google_compute_disk",
+        "google_compute_firewall",
+        "google_compute_instance",
+        "google_compute_network",
+        "google_compute_subnetwork",
+        "google_pubsub_topic",
+        "google_service_account",
+        "google_storage_bucket",
+        "random_password"
+      ],
+      "count": 9,
       "sources": [
         "script"
       ],

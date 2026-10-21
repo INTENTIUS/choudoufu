@@ -7,6 +7,7 @@ package identity
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -104,7 +105,7 @@ func TestRecordFallbackTypeAgreesWithMarkersTaggable(t *testing.T) {
 	untaggable := locatedSchema(map[string]*configschema.Attribute{
 		"name": {Type: cty.String, Optional: true, Computed: true},
 	})
-	if !RecordFallbackType("aws_autoscaling_group", map[string]providers.Schema{"aws_autoscaling_group": untaggable}) {
+	if !RecordFallbackType("aws_autoscaling_group", "aws", map[string]providers.Schema{"aws_autoscaling_group": untaggable}) {
 		t.Fatal("RecordFallbackType(untaggable ASG-shaped schema) = false, want true")
 	}
 
@@ -112,7 +113,7 @@ func TestRecordFallbackTypeAgreesWithMarkersTaggable(t *testing.T) {
 		"name": {Type: cty.String, Optional: true, Computed: true},
 		"tags": {Type: cty.Map(cty.String), Optional: true},
 	})
-	if RecordFallbackType("aws_autoscaling_group", map[string]providers.Schema{"aws_autoscaling_group": taggable}) {
+	if RecordFallbackType("aws_autoscaling_group", "aws", map[string]providers.Schema{"aws_autoscaling_group": taggable}) {
 		t.Fatal("RecordFallbackType(taggable ASG-shaped schema) = true, want false: a settable top-level tags map means the ordinary marker-fallback path applies, not the record rung")
 	}
 }
@@ -241,5 +242,110 @@ func TestRecordFallbackClassifiesSiblingApplyUntaggable(t *testing.T) {
 	}
 	if bucket.Cause != DiscoverySiblingApply {
 		t.Errorf("aws_s3_bucket.logs resolved NEEDS_DISCOVERY with cause %s, want %s", bucket.Cause, DiscoverySiblingApply)
+	}
+}
+
+// googleLabelledSchema is a hashicorp/google resource reduced to what the
+// google-labels surface reads: a settable top-level labels map with the
+// computed effective_labels beside it ([markers.GoogleLabelSurface]).
+func googleLabelledSchema(extra map[string]*configschema.Attribute) providers.Schema {
+	s := locatedSchema(extra)
+	s.Block.Attributes["labels"] = &configschema.Attribute{Type: cty.Map(cty.String), Optional: true}
+	s.Block.Attributes["effective_labels"] = &configschema.Attribute{Type: cty.Map(cty.String), Computed: true}
+	return s
+}
+
+// TestRecordFallbackLeavesLabelledGoogleTypeToItsLabel is INTENTIUS/choudoufu#2134
+// item 6: a server-named google type whose schema carries the google-labels
+// surface has somewhere to carry a marker, so [RecordFallbackType] must not
+// clear it, and its instance stays needs-discovery for the GCP sweep to
+// bind by its tofu-address label rather than dropping to the record rung as
+// if it were markerless. Asking the AWS tags-map predicate answered the
+// opposite for every google type.
+func TestRecordFallbackLeavesLabelledGoogleTypeToItsLabel(t *testing.T) {
+	const typeName = "google_recaptcha_enterprise_key"
+	labelled := googleLabelledSchema(map[string]*configschema.Attribute{
+		"name":         {Type: cty.String, Computed: true},
+		"display_name": {Type: cty.String, Required: true},
+		"project":      {Type: cty.String, Optional: true, Computed: true},
+	})
+	schemas := map[string]providers.Schema{typeName: labelled}
+
+	if RecordFallbackType(typeName, "google", schemas) {
+		t.Fatalf("RecordFallbackType(%s with a labels map) = true, want false: its labels carry the marker", typeName)
+	}
+
+	cfg := loadConfig(t, filepath.Join("testdata", "record-fallback-google-labelled"), nil)
+	result, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
+	assertNoErrors(t, diags)
+	site := resolutionAt(t, result, typeName+".site")
+	if site.Class != ClassNeedsDiscovery {
+		t.Fatalf("%s.site resolved %s, want %s: a labelled google type is bound by its tofu-address label, never recorded as markerless", typeName, site.Class, ClassNeedsDiscovery)
+	}
+	if site.RecordFallback {
+		t.Fatalf("%s.site carries RecordFallback; the record is not its only carrier", typeName)
+	}
+}
+
+// TestRecordFallbackHoldsAPrefixedInstanceTemplate: an instance template's
+// labels are copied onto the VMs made from it and are not its own
+// ([markers.GooglePropagatedLabels]), so it carries no marker. A template
+// named by name_prefix gets its name from the provider at create, which
+// nothing before apply knows, and the record is then its only carrier: it
+// must resolve record-located, never needs-discovery waiting on a label
+// the template will never carry. One that states its name re-derives from
+// configuration and needs no record.
+func TestRecordFallbackHoldsAPrefixedInstanceTemplate(t *testing.T) {
+	const typeName = "google_compute_instance_template"
+	schema := locatedSchema(map[string]*configschema.Attribute{
+		"name":        {Type: cty.String, Optional: true, Computed: true},
+		"name_prefix": {Type: cty.String, Optional: true, Computed: true},
+		"project":     {Type: cty.String, Optional: true, Computed: true},
+	})
+	schema.Block.Attributes["labels"] = &configschema.Attribute{Type: cty.Map(cty.String), Optional: true, Description: "A set of key/value label pairs to assign to instances created from this template."}
+	schema.Block.Attributes["effective_labels"] = &configschema.Attribute{Type: cty.Map(cty.String), Computed: true}
+	schemas := map[string]providers.Schema{typeName: schema}
+
+	if !RecordFallbackType(typeName, "google", schemas) {
+		t.Fatalf("RecordFallbackType(%s) = false, want true: its labels are the VMs', not a marker carrier", typeName)
+	}
+
+	// Written to a temporary directory rather than testdata, so the
+	// identity golden's fixture walk does not pick it up.
+	dir := t.TempDir()
+	src := `
+terraform {
+  live {
+    estate = "record-fallback-google"
+
+    record_store "local" {
+      path = ".tofu-records"
+    }
+  }
+}
+
+resource "google_compute_instance_template" "prefixed" {
+  name_prefix = "web-"
+  project     = "proj-a"
+}
+
+resource "google_compute_instance_template" "named" {
+  name    = "web"
+  project = "proj-a"
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := loadConfig(t, dir, nil)
+	result, diags := ResolveWith(context.Background(), cfg, Context{Schemas: schemas})
+	assertNoErrors(t, diags)
+	prefixed := resolutionAt(t, result, typeName+".prefixed")
+	if prefixed.Class != ClassRecordLocated || !prefixed.RecordFallback {
+		t.Fatalf("%s.prefixed resolved %s (record fallback %v), want %s through the record fallback", typeName, prefixed.Class, prefixed.RecordFallback, ClassRecordLocated)
+	}
+	named := resolutionAt(t, result, typeName+".named")
+	if named.Class != ClassConcrete || named.ImportID != "projects/proj-a/global/instanceTemplates/web" {
+		t.Fatalf("%s.named resolved %s %q, want CONCRETE projects/proj-a/global/instanceTemplates/web", typeName, named.Class, named.ImportID)
 	}
 }

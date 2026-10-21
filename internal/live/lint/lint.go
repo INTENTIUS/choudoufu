@@ -98,8 +98,8 @@ type Context struct {
 // [RuleUnadmittedType], [RuleMarkerlessType], [RuleCountIndex],
 // [RuleIgnoreChanges], [RuleGenerateName], [RuleForEachKey],
 // [RuleOverlongAddress], [RuleReceiptLeaf], [RuleReceiptValue],
-// [RuleReceiptSecret] and [RuleARMTagLimit], plus
-// [CheckResidueAttributes]' warning. Every other
+// [RuleReceiptSecret], [RuleARMTagLimit], [RuleGCPLabelCount] and
+// [RuleGCPEstateLabel], plus [CheckResidueAttributes]' warning. Every other
 // rule is about the configuration, a module call or the live block itself,
 // and none of those is an [addrs.ConfigResource] for a scope to answer
 // about.
@@ -176,6 +176,9 @@ func CheckWith(ctx context.Context, cfg *configs.Config, lctx Context) []Issue {
 
 	var issues []Issue
 	checkStrictMarkers(cfg, lctx.Schemas, &issues)
+	checkGCPMultiProject(ctx, cfg, &issues)
+	checkGCPLabelCount(ctx, cfg, lctx.Schemas, lctx.Scope, &issues)
+	checkGCPEstateLabel(cfg, lctx.Schemas, lctx.Scope, &issues)
 	checkConfig(ctx, cfg, addrs.RootModuleInstance, lctx.Schemas, lctx.Scope, signal, recordStoreConfigured, secrets, markersRecord, nil, &issues)
 	sortIssues(issues)
 	return issues
@@ -697,7 +700,7 @@ func checkManagedResources(ctx context.Context, cfg *configs.Config, path addrs.
 						"rather than by a ratification batch that has not reached it: %s. Applying a "+
 						"block of this type %s No configuration edit changes that, and no future batch "+
 						"reaches it.",
-					resource.Type, identity.MarkerlessReason, UnfindableClause,
+					resource.Type, identity.MarkerlessReasonFor(resource.Type), UnfindableClause,
 				),
 				Subject: resource.DeclRange,
 			})

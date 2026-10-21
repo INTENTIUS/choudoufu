@@ -248,6 +248,27 @@ const (
 	// moved to lint so the configuration fails before any plan. GitHub
 	// issue #1120. See policy.go.
 	RulePolicyOverwriteAtKey Rule = "policy-overwrite-at-key"
+
+	// RuleGCPMultiProject covers a configuration whose google provider
+	// blocks and google resources name more than one GCP project between
+	// them. The fence is project-scoped (GitHub issue #1121), so one estate
+	// over two projects cannot be fenced as one. A warning: the plan is
+	// correct either way, and only the fence is weaker. See
+	// gcp_multi_project.go.
+	RuleGCPMultiProject Rule = "gcp-multi-project"
+
+	// RuleGCPLabelCount covers a google resource whose labels come to more
+	// than GCP's 64 once this run adds its ownership markers: a create stock
+	// would make that fails only because of the markers. See
+	// gcp_label_count.go.
+	RuleGCPLabelCount Rule = "gcp-label-count"
+
+	// RuleGCPEstateLabel covers a google resource whose labels would carry
+	// the tofu-estate marker when the live block's estate name is not a
+	// legal GCP label value: longer than 63 characters, which the estate
+	// grammar allows. The node stamp refuses each such instance at plan;
+	// this names them before it. See gcp_estate_label.go.
+	RuleGCPEstateLabel Rule = "gcp-estate-label"
 )
 
 // UnfindableClause is what an apply with no usable handle costs, as a
@@ -474,6 +495,19 @@ var ruleInfo = map[Rule]struct {
 		summary:  "Azure resource has no room for its ownership markers",
 		docsRef:  `live/LIMITATIONS.md, "arm-tag-limit"`,
 		severity: SeverityWarning,
+	},
+	RuleGCPMultiProject: {
+		summary:  "GCP estate spans more than one project",
+		docsRef:  `live/LIMITATIONS.md, "gcp-multi-project"`,
+		severity: SeverityWarning,
+	},
+	RuleGCPLabelCount: {
+		summary: "GCP resource has no room for its ownership markers",
+		docsRef: `live/LIMITATIONS.md, "gcp-label-count"`,
+	},
+	RuleGCPEstateLabel: {
+		summary: "Estate name is not a legal GCP label value",
+		docsRef: `live/LIMITATIONS.md, "gcp-estate-label"`,
 	},
 }
 

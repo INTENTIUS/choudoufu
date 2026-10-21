@@ -19,6 +19,10 @@ func TestMatches(t *testing.T) {
 		"kubernetes in summary": {"configmaps \"app-config\" not found", "", true},
 		"english not found":     {"Provider produced invalid response", "the endpoint was not found in the region", false},
 		"forbidden":             {"Unauthorized", "serviceaccounts is forbidden: User \"x\" cannot get resource", false},
+		"googleapi 404":         {"Error when reading or editing ComputeNetwork", "googleapi: Error 404: The resource 'projects/p/global/networks/n' was not found, notFound", true},
+		"googleapi bare 404":    {"Error reading bucket", "googleapi: got HTTP response code 404 with body: Not Found", true},
+		"googleapi 403":         {"Error when reading or editing ComputeNetwork", "googleapi: Error 403: Required 'compute.networks.get' permission, forbidden", false},
+		"googleapi 4040 is not": {"x", "googleapi: Error 4040: y", false},
 		"empty":                 {"", "", false},
 	} {
 		if got := Matches(tc.summary, tc.detail, Object{}); got != tc.want {

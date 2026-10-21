@@ -24,6 +24,7 @@ type readinessData struct {
 	ColumnTotals []int           `json:"column_totals"`
 	Total        int             `json:"total"`
 	Types        []readinessType `json:"types"`
+	Paths        []readinessPath `json:"paths"`
 	Kubernetes   struct {
 		Provider string          `json:"provider"`
 		Total    int             `json:"total"`
@@ -31,6 +32,28 @@ type readinessData struct {
 		Types    []readinessType `json:"types"`
 	} `json:"kubernetes"`
 	Azure readinessAzure `json:"azure"`
+	Google struct {
+		Provider string   `json:"provider"`
+		Statuses []string `json:"statuses"`
+		Tiers    []struct {
+			Tier   string `json:"tier"`
+			Counts []int  `json:"counts"`
+			Total  int    `json:"total"`
+		} `json:"tiers"`
+		ColumnTotals []int           `json:"column_totals"`
+		Total        int             `json:"total"`
+		Paths        []readinessPath `json:"paths"`
+		Types        []readinessType `json:"types"`
+	} `json:"google"`
+}
+
+// readinessPath is one row of a path table; tools/readiness-gen's paths.go
+// is where the paths are named and read from the tier facts.
+type readinessPath struct {
+	Path  string `json:"path"`
+	Tier  string `json:"tier"`
+	Count int    `json:"count"`
+	Means string `json:"means"`
 }
 
 // readinessAzure is the Azure section (GitHub issue #2119).
@@ -100,11 +123,38 @@ func readinessSpans(root string) (map[string]string, error) {
 	k8s := fmt.Sprintf("%s: %d admitted type(s), %d awaiting a tier ruling.\n\n", d.Kubernetes.Provider, d.Kubernetes.Total, d.Kubernetes.Awaiting) +
 		typesTable(d.Kubernetes.Types)
 
+	var gcp strings.Builder
+	fmt.Fprintf(&gcp, "%s: %d resource types.\n\n| Tier", d.Google.Provider, d.Google.Total)
+	for _, s := range d.Google.Statuses {
+		fmt.Fprintf(&gcp, " | %s", s)
+	}
+	gcp.WriteString(" | Total |\n|---")
+	for range d.Google.Statuses {
+		gcp.WriteString("|---")
+	}
+	gcp.WriteString("|---|\n")
+	for _, t := range d.Google.Tiers {
+		fmt.Fprintf(&gcp, "| %s", t.Tier)
+		for _, n := range t.Counts {
+			fmt.Fprintf(&gcp, " | %d", n)
+		}
+		fmt.Fprintf(&gcp, " | %d |\n", t.Total)
+	}
+	gcp.WriteString("| Total")
+	for _, n := range d.Google.ColumnTotals {
+		fmt.Fprintf(&gcp, " | %d", n)
+	}
+	fmt.Fprintf(&gcp, " | %d |\n\n", d.Google.Total)
+	gcp.WriteString(typesTable(d.Google.Types))
+
 	return map[string]string{
 		"tiers":     tiers.String(),
 		"types":     typesTable(d.Types),
 		"k8s-types": k8s,
 		"azure":     azureReadiness(d.Azure),
+		"gcp-types": gcp.String(),
+		"paths":     pathsTable(d.Paths),
+		"gcp-paths": pathsTable(d.Google.Paths),
 	}, nil
 }
 
@@ -162,6 +212,26 @@ func azureReadiness(a readinessAzure) string {
 	}
 	s.WriteString("\nThe azurerm types short of in-contract:\n\n")
 	s.WriteString(typesTable(a.Types))
+	return s.String()
+}
+
+// pathsTable is how each type comes back: one row per path and tier, with
+// the path's meaning on its first row.
+func pathsTable(paths []readinessPath) string {
+	var s strings.Builder
+	s.WriteString("| How it comes back | Tier | Types | What it means |\n|---|---|---|---|\n")
+	last := ""
+	for _, p := range paths {
+		tier, means := p.Tier, ""
+		if tier == "" {
+			tier = "-"
+		}
+		if p.Path != last {
+			means = cell(p.Means)
+		}
+		last = p.Path
+		fmt.Fprintf(&s, "| %s | %s | %d | %s |\n", p.Path, tier, p.Count, means)
+	}
 	return s.String()
 }
 

@@ -125,11 +125,11 @@ func TestGCPRowIsNotAddedAndAzureIs(t *testing.T) {
 	var families []string
 	for _, r := range art.Rows {
 		families = append(families, r.Family)
-		if r.Family == "gcp" || r.Family == "google" || r.Family == "azure" || r.Family == "azapi" {
-			t.Errorf("row %q: GCP has no row until #1119, and the Azure family is the one row named azurerm (#1122)", r.Family)
+		if r.Family == "gcp" || r.Family == "azure" || r.Family == "azapi" {
+			t.Errorf("row %q: the GCP family is the one row named google (#1119), and the Azure family the one named azurerm (#1122)", r.Family)
 		}
 	}
-	if want := []string{"aws", "azurerm", "kubernetes"}; !reflect.DeepEqual(families, want) {
+	if want := []string{"aws", "azurerm", "google", "kubernetes"}; !reflect.DeepEqual(families, want) {
 		t.Errorf("got families %v, want %v", families, want)
 	}
 }

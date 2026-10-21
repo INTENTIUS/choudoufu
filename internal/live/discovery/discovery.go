@@ -669,6 +669,11 @@ func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdia
 	// is a child of the phase.
 	scanCtx, endScan := discoverPhase(ctx, "scan")
 	for _, typeName := range decl.typeNames() {
+		if legScansDeclared(req, typeName) {
+			// A sweep leg below finds this type's declared instances
+			// itself ([declaredScanner]).
+			continue
+		}
 		diags = diags.Append(scanTypeReporting(scanCtx, req, schemas, decl, typeName, res, false, req.CollectUnclaimed, &typesScanned, &resourcesFound))
 	}
 
@@ -818,6 +823,9 @@ func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdia
 		// itself be untaggable and composite rather than concrete. See
 		// internal/live/discovery/fold_read.go's package doc comment.
 		diags = diags.Append(foldChildReadSweep(legsCtx, req, schemas, res))
+		// GitHub issue #2134: a GCP hit a record now destroys is not also
+		// reported as left alone. See gcp.go.
+		dropGCPHitsTheRecordsRemove(res)
 		endLegs()
 	}
 	if req.RecordRemoval && !req.Sweep {
@@ -828,8 +836,12 @@ func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdia
 		// behind Sweep.
 		legsCtx, endLegs := discoverPhase(ctx, "removal-legs")
 		diags = diags.Append(recordOrphanReadSweep(legsCtx, req, schemas, res))
+		dropGCPHitsTheRecordsRemove(res)
 		endLegs()
 	}
+	// What is left of the GCP leg's hits, once the records have said which
+	// of them they destroy.
+	diags = diags.Append(gcpOrphanWarning(req.Estate, res))
 
 	// Policy narrows the undeclared_tagged quadrant last, once every removal
 	// classifyOrphans and parentReadSweep would otherwise propose is
@@ -1089,6 +1101,20 @@ type claimant struct {
 	// where the leg that found it files it under its marker's, for a
 	// message about the object. Empty when the two are the same.
 	objectType string
+
+	// resourcePath is a GCP Asset Inventory hit's full resource name less
+	// its "//service/" host ("projects/p/global/networks/n"). The Asset
+	// search returns no identity object, so [configIdentityMismatch]
+	// compares the configuration's identity values with its segments
+	// (GitHub issue #2134 item 13, the GCP side of #2136). Empty for every
+	// other source.
+	resourcePath string
+
+	// noIdentityDetail, when set, is why a noIdentity claimant has no
+	// import ID, said by the source that knows: a GCP Asset hit whose type
+	// has no accepted import form (INTENTIUS/choudoufu#2139 item 7). The
+	// binding refusal uses it in place of its list-call wording.
+	noIdentityDetail string
 }
 
 // displayID is how a claimant is named in a message: its live identity, or a
@@ -3780,6 +3806,11 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 	byAddr := make(map[string][]int)
 	for i := range res.Orphans {
 		o := &res.Orphans[i]
+		if o.LabelHash {
+			// A GCP hit: its label is a hash, never decoded, and the GCP
+			// leg has already classified it. See [OwnedResource.LabelHash].
+			continue
+		}
 		o.Addr, o.Addressable = UnescapeAddress(o.Normalized)
 		if o.Addressable {
 			byAddr[o.Addr.String()] = append(byAddr[o.Addr.String()], i)
@@ -3870,6 +3901,9 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 
 	for i := range res.Orphans {
 		o := &res.Orphans[i]
+		if o.LabelHash {
+			continue
+		}
 		block := orphanBlockKey(o)
 
 		switch {
@@ -4786,14 +4820,18 @@ func quotedList(vals []string) string {
 // Binding was recorded; diag is only meaningful when it is true.
 func bindClaimant(res *Result, bound map[string]Binding, typeName, escaped string, addr addrs.AbsResourceInstance, c claimant) (diag tfdiags.Diagnostic, hasProblem bool) {
 	if c.noIdentity {
+		detail := c.noIdentityDetail
+		if detail == "" {
+			detail = fmt.Sprintf(
+				"The live %s carrying the marker for %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The identity this type is looked up by (%s) was not among the attributes the list call returned. A provider that serves no identity at all cannot be discovered by marker; one that serves a different set is issue #105.",
+				typeName, addr, identityAttrNames(typeName))
+		}
 		return problemDiag(res, Problem{
 			Kind:     ProblemNoIdentity,
 			TypeName: typeName,
 			Addr:     addr,
 			Marker:   escaped,
-			Detail: fmt.Sprintf(
-				"The live %s carrying the marker for %s came back from the list call with no usable identity, so there is no import ID to build a projection from. The identity this type is looked up by (%s) was not among the attributes the list call returned. A provider that serves no identity at all cannot be discovered by marker; one that serves a different set is issue #105.",
-				typeName, addr, identityAttrNames(typeName)),
+			Detail:   detail,
 		}), true
 	}
 	b := Binding{
@@ -5004,4 +5042,5 @@ var problemSummaries = map[ProblemKind]string{
 	ProblemDirectReadUnresolved:      "Direct read could not settle a tag-index-lagged instance",
 	ProblemRecordedProviderAbsent:    "Removed resource's provider configuration is gone",
 	ProblemRemovedTypeUnserved:       "No configured provider serves a removed resource's type",
+	ProblemUncomposableRecord:        "Removed resource's record has no import ID to destroy it by",
 }

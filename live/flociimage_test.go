@@ -402,3 +402,46 @@ func TestEveryFlociRefExemptionIsStillEarned(t *testing.T) {
 		}
 	}
 }
+
+// flociGCPImageFields is flociImageFields for the GCP emulator (#1119): each
+// artifact under live/ that records the lex00/floci-gcp image it is judged
+// against, and the field holding it. live/gauntlet.json's emulator_gcp is
+// the pin the next gcp-lane run will launch, rewritten by `gauntlet render`
+// the way its emulator field is; a floci-gcp row's own
+// last_run.substrate_image is the evidence and is judged against it.
+// TestFlociGCPRefsMatchThePin (floci_literal_pin_test.go) already holds
+// every full floci-gcp reference to the pin; this names the fields that
+// must carry one, so an artifact that stops recording it fails here
+// instead of passing that scan by saying nothing.
+var flociGCPImageFields = map[string]string{
+	"gauntlet.json": "emulator_gcp",
+}
+
+func TestFlociGCPMeasurementsMatchThePin(t *testing.T) {
+	data, err := os.ReadFile("floci-gcp-image")
+	if err != nil {
+		t.Fatalf("reading live/floci-gcp-image: %v", err)
+	}
+	pin := strings.TrimSpace(string(data))
+	for file, field := range flociGCPImageFields {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Errorf("%s is listed in flociGCPImageFields but cannot be read: %v", file, err)
+			continue
+		}
+		var doc map[string]any
+		if err := json.Unmarshal(raw, &doc); err != nil {
+			t.Errorf("decoding %s: %v", file, err)
+			continue
+		}
+		got, ok := doc[field].(string)
+		if !ok {
+			t.Errorf("%s has no string %q field; flociGCPImageFields is stale, or the artifact stopped recording the floci-gcp pin", file, field)
+			continue
+		}
+		if got != pin {
+			t.Errorf("%s records floci-gcp image %s, but live/floci-gcp-image pins %s.\n"+
+				"Run `go run ./tools/gauntlet render`, which rewrites it from the pin.", file, got, pin)
+		}
+	}
+}

@@ -76,6 +76,25 @@ services:
     ports:
       - "127.0.0.1:${FLOCI_AZ_PORT:-0}:4577"
 
+  # The GCP emulator (#1119): lex00/floci-gcp, pinned by digest in
+  # live/floci-gcp-image and exported by lib.sh as FLOCI_GCP_IMAGE. Only a
+  # GCP scenario starts it (lib.sh's gcp_up names it); the profile keeps a
+  # bare `up` from pulling it. 4588 is the one port every emulated API
+  # shares. No Docker socket: the scenarios use Compute, Cloud Storage, IAM
+  # and Pub/Sub, none of which runs a sidecar.
+  floci-gcp:
+    image: ${FLOCI_GCP_IMAGE:?smoke.sh exports this from live/floci-gcp-image}
+    profiles: ["gcp"]
+    environment:
+      FLOCI_GCP_DEFAULT_PROJECT_ID: ${SMOKE_GCP_PROJECT:-chdf-smoke-a}
+      # Off by default, as for floci. gcp-the-label-is-the-boundary
+      # exports FLOCI_GCP_IAM_ENFORCEMENT=enforce before gcp_up, so a token
+      # the emulator minted for a service account is held to the project's
+      # allow policy.
+      FLOCI_GCP_SERVICES_IAM_AUTHORIZATION_MODE: ${FLOCI_GCP_IAM_ENFORCEMENT:-disabled}
+    ports:
+      - "127.0.0.1:${FLOCI_GCP_PORT:-4688}:4588"
+
   opentofu:
     image: ${OPENTOFU_IMAGE:?smoke.sh exports this from live/oracle-versions.json}
     profiles: ["oracle"]

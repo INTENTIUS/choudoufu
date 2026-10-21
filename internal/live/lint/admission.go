@@ -30,17 +30,22 @@ import (
 // is the one admission artifact and there is nothing for lint to fall out
 // of step with. Tests may delete an entry and restore it in t.Cleanup, which
 // is why this stays a package variable rather than a function.
-var admittedTypesV0 = deriveAdmittedTypes(identity.DefaultTable)
+//
+// hashicorp/google's rows are a second generated table,
+// [identity.GoogleTable] (tools/gcp-row-gen), and admit the same way.
+var admittedTypesV0 = deriveAdmittedTypes(identity.DefaultTable, identity.GoogleTable)
 
 // deriveAdmittedTypes is admittedTypesV0's whole relationship to the
-// identity table.
-func deriveAdmittedTypes(table map[string]identity.TypeIdentity) map[string]struct{} {
-	out := make(map[string]struct{}, len(table))
-	for typeName, row := range table {
-		if row.RecordBacked {
-			continue
+// identity tables.
+func deriveAdmittedTypes(tables ...map[string]identity.TypeIdentity) map[string]struct{} {
+	out := make(map[string]struct{})
+	for _, table := range tables {
+		for typeName, row := range table {
+			if row.RecordBacked {
+				continue
+			}
+			out[typeName] = struct{}{}
 		}
-		out[typeName] = struct{}{}
 	}
 	return out
 }
@@ -144,8 +149,7 @@ func markerlessVetoed(resourceType string) bool {
 	if _, ok := admittedTypesV0[resourceType]; ok {
 		return false
 	}
-	_, vetoed := identity.MarkerlessTypes[resourceType]
-	return vetoed
+	return identity.IsMarkerless(resourceType)
 }
 
 // notImportableVetoed reports whether resourceType is refused because the
@@ -211,7 +215,7 @@ func markerlessLocatedDetail(resourceType string) string {
 			" The record answers only which object "+
 			"this is; it is never read as permission to delete anything, and losing it "+
 			"proposes a create rather than a destroy.",
-		resourceType, identity.MarkerlessReason, UnfindableClause, markerlessLocatedSupportExists, resourceType,
+		resourceType, identity.MarkerlessReasonFor(resourceType), UnfindableClause, markerlessLocatedSupportExists, resourceType,
 	)
 }
 

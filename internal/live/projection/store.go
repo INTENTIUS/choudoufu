@@ -153,6 +153,7 @@ func isStoreFault(err error) bool {
 		foreign     *staterecord.ForeignEstateRecordError
 		duplicate   *staterecord.DuplicateRecordKeyError
 		admission   *staterecord.AdmissionDeniedError
+		gcsKMS      *staterecord.GCSKMSError
 	)
 	return errors.As(err, &kms) ||
 		errors.As(err, &unusable) ||
@@ -164,7 +165,8 @@ func isStoreFault(err error) bool {
 		errors.As(err, &unannotated) ||
 		errors.As(err, &foreign) ||
 		errors.As(err, &duplicate) ||
-		errors.As(err, &admission)
+		errors.As(err, &admission) ||
+		errors.As(err, &gcsKMS)
 }
 
 // openBuiltStore is everything [NewRecordStore] does to a store once it is
@@ -207,7 +209,10 @@ func openBuiltStore(ctx context.Context, store staterecord.Store, rs *configs.Li
 // not valid unpadded base64 of an address), which is the documented
 // contract for keys this package did not write, so every List consumer
 // skips it the way it skips any foreign key.
-const sentinelKeyName = ".store-sentinel"
+//
+// It is staterecord's constant because the GCS bucket contract looks for
+// other estates' sentinels by this name (staterecord.CheckGCSBucketContract).
+const sentinelKeyName = staterecord.SentinelName
 
 // sentinelPayload deliberately says what the record is for, so an operator
 // reading the raw store sees an explanation rather than an opaque blob.
@@ -411,9 +416,15 @@ func newRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 		// reached with stock's azurerm backend authentication.
 		return newAzureRMStore(ctx, rs, estate, o)
 
+	case "gcs":
+		// Stock's gcs backend builds the client; see gcs_store.go. No AWS
+		// configuration is loaded on this path either.
+		o.estate = estate
+		return newGCSStore(ctx, rs, rt, o)
+
 	default:
 		// internal/configs/live.go's decodeRecordStoreBlock already refuses
-		// anything but "local"/"s3"/"kubernetes"/"azurerm" at config-decode time, so a
+		// anything but "local"/"s3"/"kubernetes"/"azurerm"/"gcs" at config-decode time, so a
 		// caller reaching here has a *configs.LiveRecordStore that bypassed
 		// that decoder - an internal inconsistency, not a configuration
 		// mistake an operator could have made.

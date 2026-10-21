@@ -392,6 +392,20 @@ func compareIdentity(typeName string, res identity.Resolution, c claimant) (want
 		}
 	}
 
+	// A GCP Asset hit carries no identity object, so the precise path above
+	// never compares, and a google row has more than one component, so the
+	// import-ID fallback below never runs either. Left there, an object
+	// still wearing a declared address's label after its name was changed
+	// in configuration would vouch for that address, unread (GitHub issue
+	// #2134 item 13, the GCP side of #2136). Its full resource name says
+	// which object it is: every identity value the configuration computes
+	// (project, region or zone, name) must be one of its path segments, and
+	// the last segment must be one of them.
+	if c.resourcePath != "" && len(res.IdentityValues) > 0 {
+		want, mismatched := gcpPathMismatch(res, c.resourcePath)
+		return want, mismatched, true
+	}
+
 	// The fallback: the whole import ID, and only where it cannot be a join.
 	if res.ImportID == "" || c.importID == "" {
 		return "", false, false
@@ -628,4 +642,39 @@ func (d *declared) declaredAt(typeName, importID string) (addrs.AbsResourceInsta
 		}
 	}
 	return best, found
+}
+
+// gcpPathMismatch is [configIdentityMismatch] for a GCP Asset claimant:
+// want names the first configured identity value missing from path's
+// segments, sorted by attribute for a stable message, or the resource's
+// own name when path ends in none of them.
+func gcpPathMismatch(res identity.Resolution, path string) (want string, mismatched bool) {
+	segments := strings.Split(path, "/")
+	have := make(map[string]bool, len(segments))
+	for _, seg := range segments {
+		have[seg] = true
+	}
+	names := make([]string, 0, len(res.IdentityValues))
+	for name := range res.IdentityValues {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	lastIsAValue := false
+	last := segments[len(segments)-1]
+	for _, name := range names {
+		v := res.IdentityValues[name]
+		if v == "" {
+			continue
+		}
+		if v == last {
+			lastIsAValue = true
+		}
+		if !have[v] {
+			return fmt.Sprintf("%s=%s", name, v), true
+		}
+	}
+	if !lastIsAValue {
+		return res.ImportID, true
+	}
+	return "", false
 }

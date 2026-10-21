@@ -757,6 +757,11 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		// write is a hand-over of ownership - fieldgranular.go.
 		return approveFieldGranular(ctx, estate, addr, e)
 	}
+	if e.googleLabelled {
+		// GitHub issue #1119: the tags write, on the GCP labels map -
+		// googlelabels.go.
+		return approveGoogleLabels(ctx, estate, addr, e, slot)
+	}
 	if e.manifested {
 		// GitHub issue #1109: the same one label, on an object with no
 		// typed metadata block to write it into, so it goes as an API

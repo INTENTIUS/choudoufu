@@ -290,11 +290,32 @@ func flociAzImagePin(root string) string {
 	return strings.TrimSpace(string(b))
 }
 
-// substratePins reads both non-floci substrate pins from the checkout
-// (kindNodeImagePin, flociAzImagePin), the value every freshness judgement
-// takes beside floci's own emulator pin.
+// substratePins reads every non-floci substrate pin from the checkout
+// (kindNodeImagePin, flociAzImagePin, flociGCPImagePin), the value every
+// freshness judgement takes beside floci's own emulator pin.
 func substratePins(root string) SubstratePins {
-	return SubstratePins{Kind: kindNodeImagePin(root), FlociAz: flociAzImagePin(root)}
+	return SubstratePins{Kind: kindNodeImagePin(root), FlociAz: flociAzImagePin(root), FlociGCP: flociGCPImagePin(root)}
+}
+
+// flociGCPImagePin reads live/floci-gcp-image (#1119), the gcp lane's
+// counterpart to kindNodeImagePin: the lex00/floci-gcp digest a floci-gcp
+// row's script starts. A missing file reads as the zero value, as the
+// other two pins do.
+func flociGCPImagePin(root string) string {
+	b, err := os.ReadFile(filepath.Join(root, "live", "floci-gcp-image"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// rebuildFromPins rebuilds a against the checkout at root: every pin read
+// from its file, the floci-gcp one included (Artifact.EmulatorGCP). Every
+// command that rebuilds the committed artifact goes through it, so no path
+// can stamp one pin and forget another.
+func rebuildFromPins(a *Artifact, root string, m *Manifest, bi *BehaviorIndex) {
+	a.EmulatorGCP = flociGCPImagePin(root)
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
 }
 
 // loadAll loads manifest and artifact and rebuilds the derived parts,
@@ -313,7 +334,7 @@ func loadAll(root string) (*Manifest, *Artifact, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
+	rebuildFromPins(a, root, m, bi)
 	return m, a, nil
 }
 
@@ -450,7 +471,7 @@ func cmdRun(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
+	rebuildFromPins(a, root, m, bi)
 
 	// The regression ratchet (issue #553): a stage this run reports as
 	// anything other than pass, for an estate/stage the committed artifact
@@ -527,7 +548,7 @@ func planRun(root string, m *Manifest, a *Artifact, sel runSelection, parallelFl
 // rows the way a hand-merged artifact once did (3/25 against four rows
 // reading clear). The rendered pages are not written here, only at the end.
 func saveRunCheckpoint(root string, m *Manifest, bi *BehaviorIndex, a *Artifact) error {
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
+	rebuildFromPins(a, root, m, bi)
 	return SaveArtifact(root, a)
 }
 
@@ -588,7 +609,7 @@ func cmdBehaviors(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
+	rebuildFromPins(a, root, m, bi)
 	tt, err := LoadTypeIndexTotals(root)
 	if err != nil {
 		return err
@@ -1096,7 +1117,7 @@ func cmdImportLegacy(root string) error {
 	if err != nil {
 		return err
 	}
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
+	rebuildFromPins(a, root, m, bi)
 	tt, err := LoadTypeIndexTotals(root)
 	if err != nil {
 		return err
@@ -1169,7 +1190,7 @@ func StaleFilesReport(root string) (stale, scriptOnly []string, err error) {
 	}
 	// Same fresh emulator pin `render` itself would use - there is no
 	// stamp left to freeze for content-only comparison (#414).
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
+	rebuildFromPins(a, root, m, bi)
 	// tt is read from the real checkout root, never from tmp below: tmp is
 	// a write-only scratch directory with no live/estate-types.json of its
 	// own, the same reason m, a and bi are all loaded from root rather than

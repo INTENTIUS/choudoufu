@@ -196,6 +196,9 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 	if err != nil {
 		return nil, err
 	}
+	// The floci-gcp pin is the checkout's (#1119); it has no flag of its own.
+	pins.FlociGCP = flociGCPImagePin(root)
+	cmp.EmulatorGCP = pins.FlociGCP
 	baseRows := indexRows(cmp.Estates)
 
 	got := map[string]EstateResult{}
@@ -227,16 +230,9 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 		// nightly hit: every kind row read "measured against emulator
 		// <none>" against a run that pins a floci digest, forever, because
 		// a kind row is NEVER stamped with Emulator.
-		if entry.Substrate() == SubstrateFlociAz {
-			// floci-az (#1120) is not floci: its row records the floci-az
-			// image, held to live/floci-az-image here the way a kind row is
-			// held to the node image.
-			if row.LastRun.SubstrateImage != pins.FlociAz {
-				return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured against floci-az image %s and this run pins %s (%s); rows measured against different images are not one board", s.Estate, orNone(row.LastRun.SubstrateImage), orNone(pins.FlociAz), s.Path)
-			}
-		} else if entry.Substrate() == SubstrateKind {
-			if row.LastRun.SubstrateImage != pins.Kind {
-				return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured against kind node image %s and this run pins %s (%s); rows measured against different images are not one board", s.Estate, orNone(row.LastRun.SubstrateImage), pins.Kind, s.Path)
+		if pin, ok := substrateImagePin(entry.Substrate(), pins); ok {
+			if row.LastRun.SubstrateImage != pin {
+				return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured against %s %s and this run pins %s (%s); rows measured against different images are not one board", s.Estate, substrateImageNoun(entry.Substrate()), orNone(row.LastRun.SubstrateImage), orNone(pin), s.Path)
 			}
 		} else if row.LastRun.Emulator != emulator {
 			return nil, fmt.Errorf("combine-shards: refusing - estate %q was measured against emulator %s and this run pins %s (%s); rows measured against different images are not one board", s.Estate, orNone(row.LastRun.Emulator), emulator, s.Path)
@@ -278,6 +274,7 @@ func CombineShards(root string, base *Artifact, shards []ShardArtifact, expect [
 	}
 
 	out := &Artifact{Estates: rows, LiveCert: base.LiveCert}
+	out.EmulatorGCP = pins.FlociGCP
 	out.Rebuild(m, bi, emulator, oracleVersions(root), providerVersions(root), engineVersion(root), pins)
 	return out, nil
 }

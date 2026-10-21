@@ -51,6 +51,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/substrate"
@@ -204,8 +205,43 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// reach this population; the record store is the only place
 			// left that knows it.
 			schema, ok := providerSchemaFor(schemas, typeName)
-			located := ok && identity.LocatedType(typeName, map[string]providers.Schema{typeName: schema})
-			if !located && !substrate.AzurermRecordable(typeName) {
+			if ok && removedOnlyFromRecords(req) && schema.IdentitySchema == nil {
+				// A google type with no list route still serves its identity
+				// schema with its resource schema. On the GCP pass alone:
+				// on AWS the same fill-in newly admits types this gate never
+				// admitted (GitHub issue #2139, item 4).
+				if id, version, has := schemas.ResourceIdentity(typeName); has {
+					schema.IdentitySchema, schema.IdentitySchemaVersion = id, version
+				}
+			}
+			schemaMap := map[string]providers.Schema{typeName: schema}
+			schemaAdmitted := false
+			if ok && removedOnlyFromRecords(req) {
+				// GitHub issue #2134, item 1: a family whose sweep plans no
+				// removal (GCP's Asset Inventory leg reports what it finds
+				// and nothing more) has its deleted blocks removed here or
+				// nowhere, the labelled types the identity schema admits
+				// included. On AWS the tag sweep removes those, so this
+				// widening is the GCP pass's alone.
+				// The whole provider's schemas, not the one type's: the
+				// identity-schema route corroborates a context attribute
+				// (project, region) against the provider's other types.
+				_, schemaAdmitted = identity.SynthesizeTypeIdentity(typeName, schemas.ResourceSchemas(), nil)
+				if !schemaAdmitted {
+					// INTENTIUS/choudoufu#2145 item 4: the identity-schema
+					// route refuses a type whose identity has an optional
+					// attribute that is not provider context (google_sql_user's
+					// host, an IAM member's condition_title) unless the block
+					// itself settles it, and the block is gone. The record
+					// was written when the block was admitted, and where the
+					// type's importer at the pin takes the record's identity,
+					// that is what this leg needs; the identity check below
+					// decides per record.
+					_, schemaAdmitted = identity.GoogleIdentityImports[typeName]
+				}
+			}
+			located := ok && identity.LocatedType(typeName, schemaMap)
+			if !schemaAdmitted && !located && !substrate.AzurermRecordable(typeName) {
 				// Not an admitted type at all, by either door - a stray or
 				// foreign key, not this leg's to guess at, the same
 				// discipline [builder.discoverOrphanedRecords] applies to a
@@ -243,6 +279,18 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				// [Merge] refuses when every pass noted it.
 				unserved = true
 			}
+		}
+		if !unserved && !selection.Selects(addr.ConfigResource()) && removedOnlyFromRecords(req) && googleLabelled(schemas, typeName) && !liveLabelVouches(res, addr) {
+			// GitHub issue #2139, item 1: the GCP form of the skip below. A
+			// labelled google type is judged by its live labels, as a
+			// taggable AWS type is by its live tag (the 2026-09-03 ruling):
+			// its record alone never destroys it. The Asset search has to
+			// have seen the object this run carrying this estate's label and
+			// this address's encoded label. An object live-mv moved to
+			// another estate carries that estate's label, the search for
+			// this one never sees it, and its stale record here destroys
+			// nothing.
+			continue
 		}
 		if !unserved && !azapi && typeTaggable(schemas, typeName) && !selection.Selects(addr.ConfigResource()) {
 			// Taggable, meaning the ordinary tag sweep already covers it
@@ -415,6 +463,21 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 					continue
 				}
 			}
+			if google := strings.HasPrefix(typeName, "google_"); google && importID == "" {
+				// A google row with no components (a markerless type's)
+				// composes nothing at all, which is no import ID either.
+				ok = false
+			}
+			if !ok {
+				// INTENTIUS/choudoufu#2145 item 4: where the type's
+				// importer at the pin takes an identity object and the
+				// record carries every attribute it needs, the object is
+				// imported by the identity, the way a declared record-held
+				// instance is ([projection.importTarget]).
+				if values, byIdentity := identity.GoogleIdentityImportValues(typeName, rec.Components); byIdentity {
+					importID, identityValues, ok = "", values, true
+				}
+			}
 			if !ok && !elsewhere {
 				// A component this composer does not know how to resolve (a
 				// nested Block, a Default substitute, an OmitIfAbsent
@@ -423,6 +486,20 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				// rather than flattening one arbitrarily, is the same
 				// discipline [scanTypeLocatedFallback] applies to its own
 				// composite records.
+				if why, google := googleUncomposable(typeName); google {
+					// INTENTIUS/choudoufu#2139 item 3: a google type with no
+					// row reaches here only through the identity schema, so
+					// skipping it would leave the object live with nobody
+					// told. It is refused by name instead.
+					diags = diags.Append(problemDiag(res, Problem{
+						Kind:     ProblemUncomposableRecord,
+						TypeName: typeName,
+						Addr:     resolvedAddr,
+						Detail:   fmt.Sprintf("The block for %s was removed, and its record holds the identity as %s with no import ID. %s, and %s, so nothing here can read or destroy the object. Import it to a declared block, or destroy it by hand and remove the record.", resolvedAddr, componentNames(rec.Components), why, googleIdentityImportWhy(typeName, rec.Components)),
+					}))
+					known[addr.String()] = true
+					known[resolvedAddr.String()] = true
+				}
 				continue
 			}
 		}
@@ -615,7 +692,11 @@ func destroyParentDependency(req Request, schemas listclient.Schemas, res *Resul
 func composeImportIDFromComponents(typeName string, components map[string]string) (string, bool) {
 	entry, ok := identity.LookupType(typeName)
 	if !ok {
-		return "", false
+		// A google type with no row (INTENTIUS/choudoufu#2139 item 3) is
+		// composed by the import forms tools/gcp-row-gen read off the
+		// provider source at the pin, in the order its importer tries
+		// them. Every other type without a row has none.
+		return identity.GoogleCompositeImportID(typeName, components)
 	}
 	var b strings.Builder
 	for _, c := range entry.Components {
@@ -880,4 +961,52 @@ func splitImportIDByComponents(entry identity.TypeIdentity, importID string) (ma
 		return nil, false
 	}
 	return out, true
+}
+
+// removedOnlyFromRecords reports whether this pass's provider family sweeps
+// with a leg that plans no removal of its own, so the record leg is the
+// only place a deleted block of an admitted type is destroyed: GCP's Asset
+// Inventory search ([substrate.SweepAssetSearch], GitHub issue #2134).
+//
+// The family is the pass's own provider's. ScopeProvider names it only on
+// a multi-provider root: the single-provider path leaves it at its zero
+// value, which means "no scoping", and VouchProvider is the pass's own
+// configuration on both paths. Reading ScopeProvider alone answered false
+// for every single-provider GCP root, so the record leg never admitted a
+// google type with no ratified row (google_project_service,
+// google_storage_bucket): a removed for_each key of one was proposed by
+// nothing (corpus-k8s-infra-gcp-gcve's day2_count, first GCP run).
+func removedOnlyFromRecords(req Request) bool {
+	pass := req.ScopeProvider
+	if pass.Provider.Type == "" {
+		pass = req.VouchProvider
+	}
+	return substrate.RecordsRemoveUnrowed(pass.Provider.Type)
+}
+
+// googleLabelled reports whether typeName carries the google family's
+// marker surface, asked of the family rather than of the AWS tags
+// predicate [typeTaggable] reads.
+func googleLabelled(schemas listclient.Schemas, typeName string) bool {
+	block, ok := schemas.ResourceSchema(typeName)
+	if !ok {
+		return false
+	}
+	_, labelled := substrate.SurfaceOf("google", block)
+	return labelled
+}
+
+// liveLabelVouches reports whether this run's GCP leg found a live object
+// carrying this estate's label and addr's encoded tofu-address label: the
+// withheld orphan [GCPAssetSweep] files for a hit naming no declared
+// address. That object is this estate's and this address's now, so its
+// record may propose its destroy.
+func liveLabelVouches(res *Result, addr addrs.AbsResourceInstance) bool {
+	want := markers.GoogleAddressValue(addr)
+	for _, o := range res.Orphans {
+		if !o.Removal && o.Withheld != "" && o.Marker == want {
+			return true
+		}
+	}
+	return false
 }

@@ -1,0 +1,17 @@
+{
+  "bindings": [
+    {
+      "role": "roles/storage.objectUser",
+      "members": ["serviceAccount:prod-apply@my-project.iam.gserviceaccount.com"],
+      "condition": {
+        "title": "choudoufu-estate-prod",
+        "description": "Objects under estate prod's three record store prefixes",
+        "expression": "resource.name.startsWith(\"projects/_/buckets/choudoufu-records/objects/tofu-records/prod/\") || resource.name.startsWith(\"projects/_/buckets/choudoufu-records/objects/tofu-hints/prod/\") || resource.name.startsWith(\"projects/_/buckets/choudoufu-records/objects/tofu-outputs/prod/\")"
+      }
+    },
+    {
+      "role": "roles/storage.legacyBucketReader",
+      "members": ["serviceAccount:prod-apply@my-project.iam.gserviceaccount.com"]
+    }
+  ]
+}

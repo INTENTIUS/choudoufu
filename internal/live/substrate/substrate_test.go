@@ -83,8 +83,13 @@ func TestEverySubstrateAnswersEveryQuestion(t *testing.T) {
 	if _, ok := MarkersOf("", cty.EmptyObjectVal); ok {
 		t.Error("MarkersOf the zero Surface read a map")
 	}
-	if _, ok := ForProvider("google"); ok {
-		t.Error("ForProvider(\"google\") found a family; none is written (#1118's ruling)")
+	for _, name := range []string{"google", "google-beta"} {
+		if got, ok := ForProvider(name); !ok || got != Google {
+			t.Errorf("ForProvider(%q) = %v, %v; want the google family (#1119)", name, got, ok)
+		}
+	}
+	if _, ok := ForProvider("helm"); ok {
+		t.Error("ForProvider(\"helm\") found a family; none is written")
 	}
 }
 
@@ -288,9 +293,10 @@ func TestSurfaceWording(t *testing.T) {
 	for provider, want := range map[string]string{
 		"aws":        "aws_thing has no tags map this configuration can set, so there is nowhere to carry an ownership marker.",
 		"kubernetes": "kubernetes_labels has no metadata.labels map and no manifest.metadata.labels map, so there is nowhere on it to carry an ownership marker.",
-		"google":     "google_thing is from a provider this fork has no marker surface for, so there is nowhere to carry an ownership marker.",
+		"google":     "google_thing has no labels map this configuration can set, so there is nowhere on it to carry an ownership marker.",
+		"helm":       "helm_thing is from a provider this fork has no marker surface for, so there is nowhere to carry an ownership marker.",
 	} {
-		typeName := map[string]string{"aws": "aws_thing", "kubernetes": "kubernetes_labels", "google": "google_thing"}[provider]
+		typeName := map[string]string{"aws": "aws_thing", "kubernetes": "kubernetes_labels", "google": "google_thing", "helm": "helm_thing"}[provider]
 		if got := NotACarrier(provider, block, typeName); got != want {
 			t.Errorf("NotACarrier(%q):\n got %q\nwant %q", provider, got, want)
 		}

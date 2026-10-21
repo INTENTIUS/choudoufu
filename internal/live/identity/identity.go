@@ -310,6 +310,15 @@ type cloudScopeKey struct {
 	// a [CloudSubscriptionID] component can read that configuration's own
 	// subscription_id ([resolver.cloudValueFor]). Never compared.
 	provider addrs.AbsProviderConfig
+
+	// project and zone are the resolved provider configuration's own
+	// static `project` and `zone` arguments, empty when it states none or
+	// states them in a way this package cannot read without applying.
+	// They answer a [CloudProject] or [CloudZone] component and play no
+	// part in collision checks: a resource's project already shows in its
+	// identity whenever the identity embeds one.
+	project string
+	zone    string
 }
 
 // Type returns the resource type name, e.g. "aws_route".

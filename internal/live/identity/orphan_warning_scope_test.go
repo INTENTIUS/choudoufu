@@ -7,6 +7,7 @@ package identity
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/providers"
@@ -137,4 +138,41 @@ func schemaFirstRowSchemas() map[string]providers.Schema {
 			identity: map[string]string{"role": "req", "policy_arn": "req"},
 		},
 	})
+}
+
+// TestOrphanWarningOffForGoogleTypesTheRecordRemoves is the first GCP
+// gauntlet run's "Resource type has no orphan recovery" warning on
+// google_storage_bucket and google_project_service. Neither has a row, but
+// the GCP pass's record-orphan leg admits both through their identity
+// schemas and destroys a deleted block's objects from their records, so the
+// warning's "no run proposing to remove it" was false. An unrowed AWS type
+// keeps it: the AWS removal legs draw from the table.
+func TestOrphanWarningOffForGoogleTypesTheRecordRemoves(t *testing.T) {
+	for _, typeName := range []string{"google_storage_bucket", "google_project_service", "aws_unrowed_thing"} {
+		if _, hasRow := LookupType(typeName); hasRow {
+			t.Fatalf("%s has a row in DefaultTable now; this test needs unrowed types", typeName)
+		}
+	}
+	r := &resolver{
+		synth: map[string]*TypeIdentity{
+			"google_storage_bucket":  {Type: "google_storage_bucket"},
+			"google_project_service": {Type: "google_project_service"},
+			"aws_unrowed_thing":      {Type: "aws_unrowed_thing"},
+		},
+		typeProviders: map[string]string{
+			"google_storage_bucket":  "google",
+			"google_project_service": "google",
+			"aws_unrowed_thing":      "aws",
+		},
+	}
+	r.warnUnsweepableTypes()
+	var warned []string
+	for _, d := range r.diags {
+		if d.Description().Summary == SummaryNoOrphanRecovery {
+			warned = append(warned, strings.SplitN(d.Description().Detail, " ", 2)[0])
+		}
+	}
+	if len(warned) != 1 || warned[0] != "aws_unrowed_thing" {
+		t.Fatalf("warned for %v, want only aws_unrowed_thing", warned)
+	}
 }
