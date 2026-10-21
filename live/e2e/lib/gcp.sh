@@ -192,3 +192,81 @@ print(n(r"(\d+) resource\(s\) newly stamped"), n(r"(\d+) skipped\."), len(other)
 gcp_failed_rows() {
   sed -n '/^FAILED (/,/^$/p' | grep -E '^  [a-z]' | head -3 | tr -s ' ' | sed 's/^ //' | paste -sd ';' -
 }
+
+# Stage isolation. Four GCP runs each stopped at their first failing
+# stage, because a script's fail() exits the run. A day-2 stage now runs in
+# a subshell,
+#
+#   ( gauntlet_begin_stage day2_x; ...; ); gcp_stage_done $? day2_x reconverge
+#
+# so its fail() records the stage's verdict and exits the subshell only.
+# When the subshell exited non-zero and a command is given, gcp_stage_done
+# runs it to put both emulators back in line with the roots on disk, so the
+# next stage starts from a converged estate instead of inheriting the
+# failure. Then it restarts the duration clock, which the subshell advanced
+# only for itself. The command is best effort: if it fails too, the next stage
+# reports what it finds. cold_deploy, migrate and test_plan stay outside:
+# nothing after them means anything when they fail.
+#
+# Shell state a subshell sets is lost with it, so a stage that changes the
+# shape later stages render has to write it to a file the caller re-reads
+# (gcve's write_config does).
+gcp_stage_done() {
+  local rc="$1" id="$2"
+  shift 2
+  if [ "$rc" -ne 0 ]; then
+    printf '  %s ended with exit %s; the run goes on to the next stage\n' "$id" "$rc"
+    if [ "$#" -gt 0 ]; then
+      printf '  reconverging both emulators to the roots on disk before the next stage\n'
+      "$@" || printf '  the reconverge after %s failed; the next stage starts from whatever is there\n' "$id"
+    fi
+  fi
+  # After the reconverge, so its time is neither stage's.
+  _GAUNTLET_LAST_T=$(date +%s)
+  return 0
+}
+
+# gcp_fail_flag <file>: from here on, every fail verdict also touches
+# <file>, so gcp_exit_status can end the run non-zero when any stage
+# failed, whether its fail() exited a subshell or the stage recorded fail
+# and went on.
+gcp_fail_flag() {
+  GCP_FAIL_FLAG="$1"
+  eval "$(declare -f gauntlet_stage | sed '1s/^gauntlet_stage /_gcp_gauntlet_stage /')"
+  gauntlet_stage() {
+    if [ "${2:-}" = "fail" ] && [ -n "${GCP_FAIL_FLAG:-}" ]; then
+      : > "$GCP_FAIL_FLAG"
+    fi
+    _gcp_gauntlet_stage "$@"
+  }
+}
+
+# gcp_exit_status: exits 1 when gcp_fail_flag's file exists, 0 otherwise.
+gcp_exit_status() {
+  if [ -n "${GCP_FAIL_FLAG:-}" ] && [ -e "$GCP_FAIL_FLAG" ]; then
+    exit 1
+  fi
+  exit 0
+}
+
+# gcp_not_created <expected addresses file>: reads an apply's output on
+# stdin and prints, space-separated, each address in the file (one per
+# line) that has no "<address>: Creation complete" line. greenfield names
+# what its apply did not create instead of only that the count was off.
+gcp_not_created() {
+  EXPECTED="$1" python3 -c '
+import os, re, sys
+created = set(re.findall(r"^(\S.*?): Creation complete after ", sys.stdin.read(), re.M))
+want = [l.strip() for l in open(os.environ["EXPECTED"]) if l.strip()]
+print(" ".join(a for a in want if a not in created))
+'
+}
+
+# gcp_churn_count: reads a plan on stdin and prints how many resource
+# headers propose a create, a destroy or a replace. A replace's header says
+# "must be replaced", never "will be replaced", so a pattern on "will be"
+# alone counted none (no_local_state's first spelling); the k8s estates
+# that match both learned the same thing.
+gcp_churn_count() {
+  grep -cE '^[[:space:]]*# .* (will be (created|destroyed)|must be replaced)' || true
+}

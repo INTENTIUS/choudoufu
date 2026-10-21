@@ -77,8 +77,12 @@
 #
 # A stage this script cannot pass records fail with the reason and the run
 # continues where it can; the runner, not the script, decides what "clear"
-# means. A fault in the substrate itself (an emulator that never came up) is
-# a fail on the stage being set up and an exit.
+# means. Every stage after test_plan runs in a subshell (gcp_stage_done in
+# live/e2e/lib/gcp.sh), so its fail() ends that stage only; a failed day-2
+# stage is followed by a reconverging apply on both emulators, and the run
+# exits 1 at the end if any stage failed. cold_deploy, migrate and test_plan
+# still end the run, as does a fault in the substrate itself (an emulator
+# that never came up).
 #
 #   go run ./tools/gauntlet run corpus-k8s-infra-gcp-gcve   # asks for "run" at the terminal
 #   bash live/e2e/corpus-k8s-infra-gcp-gcve/run.sh
@@ -165,6 +169,7 @@ cleanup() {
   rm -rf "$WORK"
 }
 trap cleanup EXIT
+gcp_fail_flag "$WORK/stage-failed"
 gauntlet_begin
 
 # ── 0. tools and the corpus pin ──────────────────────────────────────────
@@ -361,7 +366,11 @@ PY
 }
 write_config() { # $1 dir, $2 live|stock, $3 endpoint
   mkdir -p "$1" || return 1
-  versions_block "$2" "$3" > "$1/providers.tf" && shape_root "$1"
+  versions_block "$2" "$3" > "$1/providers.tf" && shape_root "$1" || return 1
+  # A stage runs in a subshell, so the shape it set is saved for the stages
+  # after it (stage_done reads it back).
+  printf 'FW_BLOCK=%q\nFW_NAME=%q\nFW_DESC=%q\nDROP_INTERNAL=%q\nDROP_SERVICE=%q\n' \
+    "$FW_BLOCK" "$FW_NAME" "$FW_DESC" "$DROP_INTERNAL" "$DROP_SERVICE" > "$WORK/shape.env"
 }
 
 # day2_replace's scratch bucket and day2_crash's pair, in files of their own
@@ -420,6 +429,21 @@ apply_a() { ( cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-colo
 both_roots() { # rewrite both roots from the day-2 state
   write_config "$ADOPTED" live "$EPA" || fail "could not rewrite the adopted root"
   write_config "$ORACLE" stock "$EPB" || fail "could not rewrite the oracle root"
+}
+# reconverge: both emulators applied to the roots on disk, after a day-2
+# stage failed partway.
+reconverge() {
+  local rc=0
+  ( apply_a >/dev/null 2>&1 ) || { log "  the reconverging apply on A failed"; rc=1; }
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || { log "  stock's reconverging apply on B failed"; rc=1; }
+  return $rc
+}
+# stage_done <rc> <id> [reconverge]: the shape the stage's subshell saved,
+# then gcp_stage_done.
+stage_done() {
+  # shellcheck disable=SC1091
+  [ -f "$WORK/shape.env" ] && . "$WORK/shape.env"
+  gcp_stage_done "$@"
 }
 
 # ── 1. cold_deploy: stock stands the estate up on A (and B, the oracle) ──
@@ -496,6 +520,7 @@ else
 fi
 [ "$(count_a)" = "1" ] || fail "$(count_a) bucket(s) carry tofu-estate=$ESTATE after adoption, want 1"
 
+(
 # ── 4. test_apply: no-op apply, marker count unchanged ───────────────────
 gauntlet_begin_stage test_apply
 log "=== 4. test_apply: apply the empty plan; the labelled-object count must not move ==="
@@ -506,6 +531,9 @@ AFTER_N="$(count_a)"
 [ "$BEFORE_N" = "$AFTER_N" ] || fail "labelled-object count moved across a no-op apply: $BEFORE_N -> $AFTER_N"
 gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); buckets carrying tofu-estate=$ESTATE unchanged at $BEFORE_N, counted with the REST API"
 
+); stage_done $? test_apply reconverge
+
+(
 # ── 5. drift_reconverge: one firewall tampered out of band ───────────────
 gauntlet_begin_stage drift_reconverge
 log "=== 5. drift_reconverge: a REST PATCH on maintenance-firewall-internet's sourceRanges on A and on B; stock's plan on B is the oracle ==="
@@ -536,6 +564,9 @@ else
   gauntlet_stage drift_reconverge pass "the internet firewall's sourceRanges tampered with a REST PATCH; choudoufu proposed exactly google_compute_firewall.maintenance-firewall-internet (0 add, 1 change, 0 destroy), a declaration-carried object read at the identity its configuration computes, matching stock's own plan on the oracle emulator for the same tamper; apply changed 1 and 0.0.0.0/0 reads back. BREAK=1 tampers the internal firewall as well and the single-object assertion correctly fails"
 fi
 
+); stage_done $? drift_reconverge reconverge
+
+(
 # ── 6. plan_approval: plan -out, the world moves, apply refuses ──────────
 gauntlet_begin_stage plan_approval
 log "=== 6. plan_approval: a saved plan, an out-of-band firewall change, a refusal; then the same file applies once the world is back ==="
@@ -568,6 +599,9 @@ else
   gauntlet_stage plan_approval pass "plan -out wrote one update (the internet firewall gains a description); the world then moved out of band (the internal firewall's sourceRanges, a REST PATCH, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3; with the range put back the identical file applied, 0 added, 1 changed, 0 destroyed, and the description reads back; stock's own planfile applied on the oracle emulator in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
 fi
 
+); stage_done $? plan_approval reconverge
+
+(
 # ── 7. day2_rename: a moved block on a declaration-carried firewall ──────
 gauntlet_begin_stage day2_rename
 log "=== 7. day2_rename: google_compute_firewall.maintenance-firewall-internet becomes .maintenance_firewall_internet through a moved block ==="
@@ -603,6 +637,9 @@ else
   gauntlet_stage day2_rename pass "moved block: google_compute_firewall.maintenance-firewall-internet -> $NEW_FW, zero churn (no add, change or destroy), the apply touching nothing and the replan empty, the firewall still there (REST); a firewall carries no label, so its record is what followed the block. Stock's plan for the same moved block on the oracle emulator is zero churn too. live-mv is not exercised by this stage, so the moved block is the only rename measured. BREAK=1 renames the firewall itself, which is a genuine identity change and plans a destroy and a create"
 fi
 
+); stage_done $? day2_rename reconverge
+
+(
 # ── 8. day2_remove: delete the internal firewall's block ─────────────────
 gauntlet_begin_stage day2_remove
 log "=== 8. day2_remove: maintenance-firewall-internal leaves the configuration; its network and subnetwork stay ==="
@@ -635,6 +672,9 @@ else
   gauntlet_stage day2_remove pass "deleting google_compute_firewall.maintenance-firewall-internal's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at $D_ADDR, stock's own address for it - a firewall carries no label, so the estate's record is what proposed the removal - applied cleanly, the firewall gone (REST: 404), the network and the subnetwork it read its range from still there, and the next plan empty; stock's plan for the same removal on the oracle emulator is also exactly one destroy. BREAK_REMOVE=1 keeps the block and no destroy is proposed"
 fi
 
+); stage_done $? day2_remove reconverge
+
+(
 # ── 9. day2_count: a key leaves the services' for_each and comes back ────
 gauntlet_begin_stage day2_count
 log "=== 9. day2_count: google_project_service.project loses essentialcontacts.googleapis.com, then gets it back ==="
@@ -678,6 +718,9 @@ else
   gauntlet_stage day2_count pass "dropping $GONE from google_project_service.project's for_each destroyed exactly that key (the service left $GONE_A, as stock's own destroy left it on the oracle, since the root leaves disable_on_destroy unset; the other four still ENABLED, read with the REST API; the replan empty) - a service carries no label, so the key is found through the record and the configuration's identity; putting it back created exactly that key and the next plan is empty; stock's plans for the same two changes on the oracle emulator have the identical shape. BREAK_COUNT=1 asserts the dropped service differs from stock's and correctly fails"
 fi
 
+); stage_done $? day2_count reconverge
+
+(
 # ── 9b. day2_replace: a create_before_destroy rename ─────────────────────
 #
 # A bucket's name is unique, so the replacement create_before_destroy is used
@@ -724,6 +767,9 @@ rm -f "$ADOPTED/day2_replace.tf" "$ORACLE/day2_replace.tf"
 ( apply_a >/dev/null ) || fail "could not remove the replace block from A"
 ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not remove the replace block from B"
 
+); stage_done $? day2_replace reconverge
+
+(
 # ── 10. day2_crash: an apply of two buckets, killed after the first ──────
 #
 # The engine's own interrupt (internal/command/apply_e2etesting_crash.go)
@@ -774,6 +820,8 @@ elif [ "${BREAK_CRASH_UNBOUND:-}" = "1" ]; then
   ( apply_a >/dev/null ) || fail "BREAK_CRASH_UNBOUND: the apply after the cleanup failed"
 elif ! recovered; then
   gauntlet_stage day2_crash fail "the plan after a real interrupt between the create of google_storage_bucket.crash_first and the create of google_storage_bucket.crash_second is not exactly the remainder: ${R_LINE:-no plan line} (exit $R_RC). $CF exists carrying tofu-estate=$ESTATE and the second bucket does not, both read with the REST API; stock, walked into the same position on the oracle emulator, plans exactly one add"
+  # Best effort, so day2_teardown compares the same set of buckets on A and B.
+  ( apply_a >/dev/null 2>&1 ) || log "  the apply after day2_crash's failed recovery check failed too; day2_teardown's count may differ by the crash pair"
 else
   R_APPLY="$(apply_a)" || { printf '%s\n' "$R_APPLY" | tail -20; fail "the recovery apply failed"; }
   grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed" <<< "$R_APPLY" || fail "the recovery apply did not add exactly the one remaining bucket"
@@ -783,6 +831,9 @@ else
 fi
 gauntlet_end_stage
 
+); stage_done $? day2_crash reconverge
+
+(
 # ── 11. day2_teardown: destroy the adopted estate ────────────────────────
 gauntlet_begin_stage day2_teardown
 log "=== 11. day2_teardown: apply -destroy on the adopted estate, and stock's own destroy on B ==="
@@ -795,15 +846,21 @@ for path in "compute/v1/projects/$PROJECT/global/networks/maintenance-vpc-networ
             "$(fw_path maintenance-firewall-internet)"; do
   exists_a "$path" && fail "$path still exists after the destroy - an unlabelled resource the estate declared was left behind"
 done
-for svc in cloudasset compute essentialcontacts secretmanager vmwareengine; do
-  [ "$(svc_a "$svc.googleapis.com")" = "ENABLED" ] && fail "$svc.googleapis.com is still ENABLED after the destroy - a google_project_service the estate declared was left behind"
-done
 O_EXPECT="$(stock_b state list 2>/dev/null | grep -vc '^data\.\|\.data\.' | tr -d ' ')"
 O_T="$(stock_b apply -destroy -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_T" | tail -10; fail "stock's destroy failed on B"; }
 grep -qF "Resources: 0 added, 0 changed, $O_EXPECT destroyed" <<< "$O_T" || fail "stock's destroy on B did not remove exactly the $O_EXPECT objects its state held"
 [ "${T_N:-}" = "$O_EXPECT" ] || fail "apply -destroy removed ${T_N:-an unreported number of} object(s); stock's destroy of the same estate removed $O_EXPECT (cache listed ${T_EXPECT:-?})"
-gauntlet_stage day2_teardown pass "apply -destroy removed $T_N objects in one apply, the same number stock's destroy of the same estate removed on the oracle emulator; no bucket carries tofu-estate=$ESTATE, the unlabelled network, subnetwork and firewall are gone (REST: 404) and none of the five services reads ENABLED"
+# A destroyed google_project_service leaves the API as stock's destroy
+# leaves it on B: the root leaves disable_on_destroy unset, so both stay
+# ENABLED (gcve_service_mismatches says why). Asserting "not ENABLED" here
+# failed a destroy that did exactly what stock does.
+SVC_DIFF="$(gcve_service_mismatches "$EPA" "$EPB" "$PROJECT")"
+[ -z "$SVC_DIFF" ] || fail "after both destroys a service differs from stock's oracle: $SVC_DIFF"
+gauntlet_stage day2_teardown pass "apply -destroy removed $T_N objects in one apply, the same number stock's destroy of the same estate removed on the oracle emulator; no bucket carries tofu-estate=$ESTATE, the unlabelled network, subnetwork and firewall are gone (REST: 404), and each of the five services is in the state stock's own destroy left it in on the oracle ($(svc_a compute.googleapis.com) for compute.googleapis.com: the root leaves disable_on_destroy unset, so neither destroy disables an API)"
 
+); stage_done $? day2_teardown
+
+(
 # ── 12. greenfield: the same root, fresh, with a live block ──────────────
 gauntlet_begin_stage greenfield
 log "=== 12. greenfield: choudoufu applies the root fresh on the now-empty emulator A ==="
@@ -811,25 +868,40 @@ FW_BLOCK="maintenance-firewall-internet"; FW_NAME=""; FW_DESC=""; DROP_INTERNAL=
 write_config "$GREEN" live "$EPA" || fail "could not write the greenfield root"
 ( cd "$GREEN" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield init failed"
 G_OUT="$(cd "$GREEN" && "$TOFU" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$G_OUT" | tail -20; fail "greenfield apply failed: $(gauntlet_first_error_line <<< "$G_OUT")"; }
-grep -qF "Apply complete! Resources: $EXPECT_N added, 0 changed, 0 destroyed" <<< "$G_OUT" || fail "greenfield apply did not add exactly $EXPECT_N instances"
-[ ! -f "$GREEN/terraform.tfstate" ] || fail "a terraform.tfstate appeared after a live-block apply"
-[ "$(count_a)" = "1" ] || fail "$(count_a) bucket(s) carry tofu-estate=$ESTATE after the greenfield apply, want 1"
-G_PLAN="$( cd "$GREEN" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "the greenfield replan failed"
-grep -q "No changes." <<< "$G_PLAN" || { printf '%s\n' "$G_PLAN" | tail -20; fail "the greenfield replan is not empty"; }
+# Every check below runs and the verdict names each that failed, so one run
+# says whether the count, the replans and the inventory hold, not only the
+# first of them.
+G_PROBLEMS=""
+g_problem() { G_PROBLEMS="${G_PROBLEMS:+$G_PROBLEMS; }$*"; }
+if ! grep -qF "Apply complete! Resources: $EXPECT_N added, 0 changed, 0 destroyed" <<< "$G_OUT"; then
+  ( cd "$STOCK" && terraform state list 2>/dev/null ) | grep -v '^data\.\|\.data\.' > "$WORK/greenfield.expected"
+  g_problem "the apply did not add exactly $EXPECT_N instances ($(grep -oE 'Resources: [0-9]+ added, [0-9]+ changed, [0-9]+ destroyed' <<< "$G_OUT" | head -1)); stock's cold-deploy addresses with no Creation complete line: $(gcp_not_created "$WORK/greenfield.expected" <<< "$G_OUT")"
+fi
+[ ! -f "$GREEN/terraform.tfstate" ] || g_problem "a terraform.tfstate appeared after a live-block apply"
+G_N="$(count_a)"
+[ "$G_N" = "1" ] || g_problem "$G_N bucket(s) carry tofu-estate=$ESTATE after the greenfield apply, want 1"
+G_PLAN="$(cd "$GREEN" && "$TOFU" plan -input=false -no-color 2>&1)"; G_RC=$?
+{ [ "$G_RC" -eq 0 ] && grep -q "No changes." <<< "$G_PLAN"; } || { printf '%s\n' "$G_PLAN" | tail -20; g_problem "the greenfield replan is not empty (exit $G_RC, $(gauntlet_plan_line <<< "$G_PLAN"))"; }
 rm -f "$GREEN/.terraform/choudoufu-cache.tfstate"
-G_PLAN2="$(cd "$GREEN" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "the greenfield replan without the cache failed"
-grep -q "No changes." <<< "$G_PLAN2" || { printf '%s\n' "$G_PLAN2" | tail -20; fail "the greenfield replan without the cache is not empty"; }
+G_PLAN2="$(cd "$GREEN" && "$TOFU" plan -input=false -no-color 2>&1)"; G_RC2=$?
+{ [ "$G_RC2" -eq 0 ] && grep -q "No changes." <<< "$G_PLAN2"; } || { printf '%s\n' "$G_PLAN2" | tail -20; g_problem "the greenfield replan without the cache is not empty (exit $G_RC2, $(gauntlet_plan_line <<< "$G_PLAN2"))"; }
 DROP=""; [ "${BREAK:-}" = "1" ] && DROP="firewall/maintenance-firewall-internet"
-gcve_inventory "$EPA" "$PROJECT" "$REGION" "$BUCKET" "$DROP" > "$WORK/inventory.green.json" || fail "could not read the greenfield inventory"
+gcve_inventory "$EPA" "$PROJECT" "$REGION" "$BUCKET" "$DROP" > "$WORK/inventory.green.json" || fail "could not read the greenfield inventory${G_PROBLEMS:+; also: $G_PROBLEMS}"
 if [ "${BREAK:-}" = "1" ]; then
   diff -q "$WORK/inventory.stock.json" "$WORK/inventory.green.json" >/dev/null \
     && fail "BREAK=1: with the internet firewall dropped from the greenfield inventory the two inventories still match"
-  gauntlet_stage greenfield pass "BREAK=1 control: dropping the internet firewall from the greenfield inventory makes the object-by-object comparison correctly fail; the estate applied ($EXPECT_N added, no terraform.tfstate) and replanned empty with and without the cache"
+  gauntlet_stage greenfield pass "BREAK=1 control: dropping the internet firewall from the greenfield inventory makes the object-by-object comparison correctly fail${G_PROBLEMS:+ (the other checks: $G_PROBLEMS)}"
 else
-  diff -u "$WORK/inventory.stock.json" "$WORK/inventory.green.json" || fail "the greenfield inventory differs from stock's cold-deploy inventory (diff above)"
-  gauntlet_stage greenfield pass "$EXPECT_N instances applied fresh with a live block and no terraform.tfstate, the bucket carrying tofu-estate=$ESTATE (REST API); replanned empty with and without the cache; the emulator's inventory (the network, the subnetwork's range, both firewalls' rules, the bucket's location, versioning and storage.admin member, the five services' state, the five roles' members in the project policy) matches stock's cold deploy on the same emulator object by object, labels never compared. BREAK=1 drops the internet firewall from the expected inventory and the match correctly fails"
+  diff -u "$WORK/inventory.stock.json" "$WORK/inventory.green.json" || g_problem "the greenfield inventory differs from stock's cold-deploy inventory (diff above)"
+  if [ -n "$G_PROBLEMS" ]; then
+    gauntlet_stage greenfield fail "$G_PROBLEMS"
+  else
+    gauntlet_stage greenfield pass "$EXPECT_N instances applied fresh with a live block and no terraform.tfstate, the bucket carrying tofu-estate=$ESTATE (REST API); replanned empty with and without the cache; the emulator's inventory (the network, the subnetwork's range, both firewalls' rules, the bucket's location, versioning and storage.admin member, the five services' state, the five roles' members in the project policy) matches stock's cold deploy on the same emulator object by object, labels never compared. BREAK=1 drops the internet firewall from the expected inventory and the match correctly fails"
+  fi
 fi
+); stage_done $? greenfield
 
+(
 # ── no_local_state: the record store and the cache both gone ────────────
 gauntlet_begin_stage no_local_state
 log "=== no_local_state: the cache-serving plan, then no record store and no cache at all ==="
@@ -844,7 +916,7 @@ fi
 ( cd "$GREEN" && TF_LOG=debug TF_LOG_PATH="$NLS/cold.log" "$TOFU" plan -input=false -no-color > "$NLS/cold.plan" 2>&1 ); N_RC=$?
 REQ_C="$(gcp_request_count "$NLS/cached.log")"; REQ_N="$(gcp_request_count "$NLS/cold.log")"
 N_LINE="$(grep -E '^Plan:|^No changes|^Error' "$NLS/cold.plan" | head -1)"
-N_BAD="$(grep -cE '^[[:space:]]*# .* will be (created|destroyed|replaced)' "$NLS/cold.plan" || true)"
+N_BAD="$(gcp_churn_count < "$NLS/cold.plan")"
 if [ "${BREAK_NO_LOCAL_STATE:-}" = "1" ]; then
   if [ "$N_RC" -eq 0 ] && grep -q "No changes." "$NLS/cold.plan"; then
     fail "BREAK_NO_LOCAL_STATE=1: with the bucket's label stripped the plan with no local state is still empty"
@@ -861,6 +933,9 @@ rm -rf "$GREEN/.tofu-records"; cp -R "$NLS/records.keep" "$GREEN/.tofu-records" 
 cp "$NLS/cache.keep" "$GREEN/.terraform/choudoufu-cache.tfstate" 2>/dev/null || true
 ( cd "$GREEN" && "$TOFU" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  greenfield teardown failed; the emulator goes with the run"
 
+); stage_done $? no_local_state
+
+(
 # ── 13. strict: every toggle on, one refusal ─────────────────────────────
 gauntlet_begin_stage strict
 STRICT="$WORK/strict"
@@ -913,5 +988,8 @@ else
 fi
 gauntlet_end_stage
 
+); stage_done $? strict
+
 gauntlet_end
 log "corpus-k8s-infra-gcp-gcve: done"
+gcp_exit_status
