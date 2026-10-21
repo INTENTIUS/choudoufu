@@ -62,8 +62,9 @@ type classHandler struct {
 	// comparableIdentity says this class carries an identity the
 	// configuration's computed identity can be compared against, so
 	// [declared.displacedFrom] can reach a verdict at all. False is
-	// displaced.go's "nothing to compare", one of the six ways that
-	// function declines to answer, and it answers [verdictOwnObject].
+	// displaced.go's "nothing to compare", one of the ways that function
+	// declines to answer, and it answers [verdictUncompared], which does
+	// not vouch (GitHub issue #2137).
 	comparableIdentity bool
 
 	// boundResolution says this class is what a provider-configuration

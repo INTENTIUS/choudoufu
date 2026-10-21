@@ -1600,9 +1600,10 @@ func fileCandidate(ctx context.Context, req Request, decl *declared, typeName st
 			// Issue #885: neither reported nor vouched. See
 			// [verdictIdentityChanging].
 		case verdictUncompared:
-			// An Azure sighting with no ARM id on the address's side to
-			// compare it with: neither reported nor vouched. See
-			// [verdictUncompared].
+			// No comparison could run (an Azure sighting with no ARM id on
+			// the address's side, or, since GitHub issue #2137, any
+			// sighting whose identity nothing compares): unproven, so
+			// neither reported nor vouched. See [verdictUncompared].
 		}
 		return diags
 	}

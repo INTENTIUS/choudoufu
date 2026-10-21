@@ -44,7 +44,7 @@ func instanceAddr(typ, name string, key addrs.InstanceKey) addrs.AbsResourceInst
 // id is displaced), and where the address has no ARM id to compare with
 // (a parent-derived formula, or a concrete resolution whose import id is
 // not an ARM id) the answer is verdictUncompared, never the vouching
-// default. AWS's no-comparison default is left as it is (#2137).
+// default. AWS's no-comparison case answers the same since #2137.
 func TestDisplacedFrom_azureSightingAlwaysCompares(t *testing.T) {
 	addr := instanceAddr("azurerm_route_table", "rt", addrs.NoKey)
 	escaped := markers.EscapeAddress(addr.String())
@@ -73,12 +73,12 @@ func TestDisplacedFrom_azureSightingAlwaysCompares(t *testing.T) {
 	}
 
 	// The AWS control: a listed object with no ARM id against a class with
-	// nothing to compare keeps the shared default, which #2137 decides.
+	// nothing to compare is unproven too since #2137, and does not vouch.
 	bucket := instanceAddr("aws_s3_bucket", "b", addrs.NoKey)
 	be := markers.EscapeAddress(bucket.String())
 	_, got := declaredOf(identity.Resolution{Addr: bucket, Class: identity.ClassParentDerived}).displacedFrom(context.Background(), "aws_s3_bucket", be, claimant{importID: "b-old", escaped: be})
-	if got != verdictOwnObject {
-		t.Errorf("AWS no-comparison verdict %d, want the unchanged default %d", got, verdictOwnObject)
+	if got != verdictUncompared {
+		t.Errorf("AWS no-comparison verdict %d, want verdictUncompared (%d) since #2137", got, verdictUncompared)
 	}
 }
 
@@ -190,7 +190,8 @@ func TestDisplacedProblem_saysWhereTheObjectSits(t *testing.T) {
 // finding 5: with no declared entry for the marker, or an ambiguous one,
 // an ARM-id sighting is still the ARM comparison's question and answers
 // verdictUncompared, never the vouching default the nil and ambiguous
-// checks give every other platform. The AWS controls keep that default.
+// checks gave every platform before #2137. The AWS control now answers the
+// same.
 func TestDisplacedFrom_azureSightingWithNoSingleEntry(t *testing.T) {
 	addr := instanceAddr("azurerm_route_table", "rt", addrs.NoKey)
 	escaped := markers.EscapeAddress(addr.String())
@@ -211,7 +212,7 @@ func TestDisplacedFrom_azureSightingWithNoSingleEntry(t *testing.T) {
 
 	bucket := instanceAddr("aws_s3_bucket", "b", addrs.NoKey)
 	be := markers.EscapeAddress(bucket.String())
-	if _, got := declaredOf().displacedFrom(context.Background(), "aws_s3_bucket", be, claimant{importID: "b-old", escaped: be}); got != verdictOwnObject {
-		t.Errorf("AWS no-entry verdict %d, want the unchanged default %d", got, verdictOwnObject)
+	if _, got := declaredOf().displacedFrom(context.Background(), "aws_s3_bucket", be, claimant{importID: "b-old", escaped: be}); got != verdictUncompared {
+		t.Errorf("AWS no-entry verdict %d, want verdictUncompared (%d) since #2137", got, verdictUncompared)
 	}
 }

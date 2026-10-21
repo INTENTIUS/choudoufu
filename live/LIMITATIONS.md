@@ -1134,6 +1134,15 @@ provider attaches to a listed object are two different things that usually,
 not always, spell the same string - so it is built to report only on
 positive evidence and to stay silent wherever it cannot compare like with
 like. Costing a line of output rather than a destroy is what pays for that.
+Silent there does not mean confirmed: a sighting that no comparison could
+run on vouches for nothing (#2137). An `aws_ecs_service` listed by the
+Tagging API carries no identity object, and its identity has three parts, so
+nothing compares it with the configuration's. Before #2137 such a sighting
+counted as the address's own object, and a renamed service's leftover let
+whatever sat at the new name in without its tags being read. Now the object
+at the declared identity is read and judged by its own markers, and on a
+`-refresh=false` plan the address is not served from the cache on that
+sighting's word.
 
 A module call's arguments are deliberately excluded from this second
 question and keep the shape analysis alone. Proving a call's own arguments

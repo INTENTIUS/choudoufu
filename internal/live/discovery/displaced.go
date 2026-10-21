@@ -84,7 +84,9 @@ import (
 // working configurations" this repository has been bitten by.
 //
 // So displacedFrom compares only where it can compare like with like, and
-// every case it cannot reach returns "not displaced" - today's silence:
+// every case it cannot reach returns "not displaced" - silence - and, since
+// GitHub issue #2137, "not proven" as well: [verdictUncompared], which
+// neither reports nor vouches:
 //
 //   - Not [identity.ClassConcrete]: nothing to compare. A needs-discovery
 //     address never reaches this code at all (it is bound through
@@ -108,7 +110,17 @@ import (
 //     id) the answer is
 //     [verdictUncompared], which neither reports nor vouches: an Azure
 //     sighting never reaches the "nothing to compare" vouch.
-//   - Anything else: not displaced.
+//   - Anything else: not displaced, and not proven either. Before #2137 this
+//     case answered [verdictOwnObject] and vouched. aws_ecs_service, whose
+//     identity row has three components, was measured doing what #2136
+//     found on Azure: a Tagging API claimant carries no identity object,
+//     the fallback declines a multi-component row, and the old service left
+//     at a renamed argument's old name vouched for the address, so the
+//     projection would have admitted whatever sat at the new name without
+//     reading its tags (unprovensighting_test.go). Unproven, the projection
+//     reads the object at the declared id and judges it by its own tags;
+//     the cost is that such a sighting no longer lets the state cache serve
+//     the address ([Result.VerifiedDeclared]).
 //   - The estate's own record names this very object as the one the address
 //     owns right now ([recordOwners]). The identities disagree because the
 //     address is about to be replaced, not because a second object holds it.
@@ -144,6 +156,11 @@ import (
 // identity-poor provider. Recount these numbers rather than quoting them if
 // the admission table has moved.
 //
+// The other side of the same count: the 148 multi-component types, and any
+// type whose claimant carries no identity object and has no one-component
+// row, reach no comparison at all. Since #2137 they answer
+// [verdictUncompared] and never vouch.
+//
 // The narrowing that matters most is not in this list: displacedFrom is only
 // ever asked about an object that already carries THIS estate's tofu-estate
 // marker AND a tofu-address the configuration declares. An object of a type
@@ -161,10 +178,10 @@ import (
 type addressVerdict int
 
 const (
-	// verdictOwnObject: nothing here contradicts this object being the
-	// instance the address names. Either the identities agree, or nothing
-	// comparable was available (see this file's doc comment). This is the
-	// answer that vouches.
+	// verdictOwnObject: a comparison ran and the identities agree, so this
+	// object is the instance the address names. This is the answer that
+	// vouches. Before GitHub issue #2137 it was also the answer when
+	// nothing comparable was available; that is [verdictUncompared] now.
 	verdictOwnObject addressVerdict = iota
 
 	// verdictDisplaced: the configuration computes an identity this object
@@ -181,16 +198,25 @@ const (
 	// configuration names, which this sighting says nothing about.
 	verdictIdentityChanging
 
-	// verdictUncompared: the object was listed with an ARM id, and the
-	// address its marker names has no ARM id of its own to compare it with
-	// (a class with nothing comparable, or an import id that is not an ARM
-	// id). Neither reported nor vouched. Every Azure sighting carries its
-	// ARM id, so on Azure the verdict is always the ARM id comparison and
-	// never [verdictOwnObject]'s "nothing comparable was available": that
-	// default handed out GitHub issue #2136's vouch, and an Azure sighting
-	// that could not be compared is the same doubt in another place. The
-	// shared default for every other platform is GitHub issue #2137's
-	// question and is unchanged here.
+	// verdictUncompared: no comparison could run, so the sighting is
+	// unproven. Neither reported nor vouched: the projection reads the
+	// object at the address's own id and judges it by its own tags.
+	//
+	// On Azure (GitHub issue #2136) the object was listed with an ARM id
+	// and the address its marker names has no ARM id of its own to compare
+	// it with (no single entry, a class with nothing comparable, or an
+	// import id that is not an ARM id). Every Azure sighting carries its
+	// ARM id, so on Azure the verdict is otherwise always the ARM id
+	// comparison.
+	//
+	// Everywhere else (GitHub issue #2137, maintainer ruling 2026-10-20)
+	// it is every case this file's doc comment lists as declining to
+	// compare: no single entry, a class with nothing comparable, or a
+	// concrete address whose identity values the claimant does not carry
+	// and whose type has no one-component row for the whole-import-id
+	// fallback. Those used to answer [verdictOwnObject] and vouch, which
+	// let a renamed object's old sighting admit whatever sat at the new id
+	// unread.
 	verdictUncompared
 )
 
@@ -198,9 +224,10 @@ const (
 // marker, and returns the identity the configuration computes for that
 // address alongside, for the message.
 //
-// The asymmetry is deliberate: it answers [verdictDisplaced] only on
-// evidence, and answers [verdictOwnObject] for every kind of doubt. See this
-// file's doc comment for the six ways it declines to answer.
+// It answers [verdictDisplaced] only on evidence and [verdictOwnObject]
+// only on evidence; every kind of doubt is [verdictUncompared], which
+// neither reports nor vouches (GitHub issue #2137). See this file's doc
+// comment for the ways it declines to answer.
 func (d *declared) displacedFrom(ctx context.Context, typeName, escaped string, c claimant) (want string, verdict addressVerdict) {
 	entry := d.all[typeName][escaped]
 	if isARMID(c.importID) && (entry == nil || entry.ambiguous || !classTable[entry.res.Class].comparableIdentity || !isARMID(entry.res.ImportID)) {
@@ -212,14 +239,19 @@ func (d *declared) displacedFrom(ctx context.Context, typeName, escaped string, 
 		return "", verdictUncompared
 	}
 	if entry == nil || entry.ambiguous {
-		return "", verdictOwnObject
+		return "", verdictUncompared
 	}
 	res := entry.res
 	if !classTable[res.Class].comparableIdentity {
-		return "", verdictOwnObject
+		return "", verdictUncompared
 	}
 
-	want, mismatched := configIdentityMismatch(typeName, res, c)
+	want, mismatched, compared := compareIdentity(typeName, res, c)
+	if !compared {
+		// GitHub issue #2137: nothing comparable on both sides. Unproven,
+		// not the address's own object.
+		return "", verdictUncompared
+	}
 	if !mismatched {
 		return "", verdictOwnObject
 	}
@@ -238,8 +270,20 @@ func (d *declared) displacedFrom(ctx context.Context, typeName, escaped string, 
 // the one this live object carries", which is true of a displaced object and
 // equally true of an object a ForceNew replace is about to supersede.
 //
-// want is the identity the configuration computes, for the message.
+// want is the identity the configuration computes, for the message. It is
+// [compareIdentity] without the third answer, for callers that only ask
+// whether the two disagree.
 func configIdentityMismatch(typeName string, res identity.Resolution, c claimant) (want string, mismatched bool) {
+	want, mismatched, _ = compareIdentity(typeName, res, c)
+	return want, mismatched
+}
+
+// compareIdentity is [configIdentityMismatch] with the answer GitHub issue
+// #2137 needs: compared reports whether any comparison ran at all. When it
+// is false, mismatched is false too, and that false means "nothing to
+// compare", which [declared.displacedFrom] reads as unproven rather than
+// as agreement.
+func compareIdentity(typeName string, res identity.Resolution, c claimant) (want string, mismatched, compared bool) {
 	// GitHub issue #2136: an ARM id on both sides is an object's whole name,
 	// never a join, so it is compared whatever the type's table row says.
 	// No azurerm or azapi type has a DefaultTable row, and a Resource Graph
@@ -253,9 +297,9 @@ func configIdentityMismatch(typeName string, res identity.Resolution, c claimant
 	// object, and a subset of identity attributes agreeing says less.
 	if isARMID(res.ImportID) && isARMID(c.importID) {
 		if sameImportID(res.ImportID, c.importID) {
-			return "", false
+			return "", false, true
 		}
-		return res.ImportID, true
+		return res.ImportID, true, true
 	}
 
 	// The precise path: identity attributes both sides name. Sorted so that
@@ -268,7 +312,6 @@ func configIdentityMismatch(typeName string, res identity.Resolution, c claimant
 		}
 		sort.Strings(names)
 
-		compared := false
 		var firstMismatch string
 		for _, name := range names {
 			wantVal := res.IdentityValues[name]
@@ -290,22 +333,22 @@ func configIdentityMismatch(typeName string, res identity.Resolution, c claimant
 			}
 		}
 		if compared {
-			return firstMismatch, firstMismatch != ""
+			return firstMismatch, firstMismatch != "", true
 		}
 	}
 
 	// The fallback: the whole import ID, and only where it cannot be a join.
 	if res.ImportID == "" || c.importID == "" {
-		return "", false
+		return "", false, false
 	}
 	ti, ok := identity.LookupType(typeName)
 	if !ok || len(ti.Components) != 1 {
-		return "", false
+		return "", false, false
 	}
 	if c.importID == res.ImportID {
-		return "", false
+		return "", false, true
 	}
-	return res.ImportID, true
+	return res.ImportID, true, true
 }
 
 // isARMID reports whether id is an Azure Resource Manager id, the import id

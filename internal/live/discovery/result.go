@@ -79,8 +79,10 @@ type Verdicts struct {
 	// VerifiedDeclared is issue #692's other half of the vouching set:
 	// declared instances whose identity came out of the configuration (so
 	// no Binding was ever created for them), but whose live object the
-	// estate sweep saw carrying exactly their marker, with no displacement
-	// verdict against it. Without this, the sweep's sighting of a
+	// estate sweep saw carrying exactly their marker, at an identity that
+	// compared equal to the configuration's ([verdictOwnObject]; a sighting
+	// no comparison could run on is unproven and vouches for nothing,
+	// GitHub issue #2137). Without this, the sweep's sighting of a
 	// client-named instance was discarded at the "already declared" branch
 	// (see displaced.go), and the state cache - forbidden from serving
 	// anything the sweep has not vouched for - could never serve the
