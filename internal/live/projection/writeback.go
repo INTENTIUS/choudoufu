@@ -469,7 +469,16 @@ func writeBackObjects(ctx context.Context, req WriteBackRequest) (tfdiags.Diagno
 // this run's plan resolved it through #1675's record-fallback door or let it
 // through #1637's exemption - the same three doors whose failure to record
 // [writeBackRecordEnvelopes] already treats as a run-stopping error.
-func recordCarried(req WriteBackRequest, selects bool, viaRecordFallback map[string]bool, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig) bool {
+//
+// Or, one door the type cannot answer: current, the object the apply step
+// left, is an azapi_resource whose ARM type takes no tags
+// ([azapiCarriesNoMarker]: a role assignment, a subnet). azapi_resource is
+// one type over every ARM type, and as a type it takes tags, so none of the
+// type-level questions above reaches such an object, and before this the
+// mid-apply write (#1944) skipped it: a run killed after creating one left
+// it with no record, and the next plan refused it as an overwrite of an
+// unrecorded object (corpus-azapi-role-assignment's day2_crash, #1120).
+func recordCarried(req WriteBackRequest, selects bool, viaRecordFallback map[string]bool, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, current *states.ResourceInstanceObjectSrc) bool {
 	if viaRecordFallback[addr.String()] {
 		return true
 	}
@@ -479,8 +488,18 @@ func recordCarried(req WriteBackRequest, selects bool, viaRecordFallback map[str
 		return false
 	}
 	typeSchemas := map[string]providers.Schema{typeName: *schemaPtr}
-	return identity.LocatedType(typeName, typeSchemas) ||
-		(selects && identity.SelectedLocatedType(typeName, typeSchemas))
+	if identity.LocatedType(typeName, typeSchemas) ||
+		(selects && identity.SelectedLocatedType(typeName, typeSchemas)) {
+		return true
+	}
+	if current == nil || !azapiShaped(schemaPtr.Block) {
+		return false
+	}
+	obj, err := current.Decode(schemaPtr.Block.ImpliedType())
+	if err != nil {
+		return false
+	}
+	return azapiCarriesNoMarker(schemaPtr.Block, obj.Value)
 }
 
 // destroyedDeposedFor is the deposed-destroy set one write tombstones
@@ -1097,7 +1116,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 			// GitHub issue #1944: the mid-apply write is for an instance
 			// whose record is its only identity carrier. Every other
 			// instance's record is bookkeeping the final pass writes.
-			if req.Only != nil && !recordCarried(req, selection.Selects(addr.ConfigResource()), viaRecordFallback, addr, res.ProviderConfig) {
+			if req.Only != nil && !recordCarried(req, selection.Selects(addr.ConfigResource()), viaRecordFallback, addr, res.ProviderConfig, ri.Current) {
 				continue
 			}
 
