@@ -6,6 +6,7 @@
 package projection
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -568,6 +569,9 @@ const SummaryUnrecordedMarkerless = "Unrecorded live object at a declared identi
 //   - a family answering [substrate.UnrecordedParentOwned]: AWS, whose
 //     untaggable types are attachments and associations identified by
 //     tagged parents (this file's checkOwnership doc comment);
+//   - an instance whose record sits at an address a honoured `moved` chain
+//     says it used to have ([builder.recordedAtMovedFrom]): a stock rename
+//     does not re-key the record, and that record is this instance's;
 //   - declared_untagged = "adopt" or "converge", which an operator wrote to
 //     admit declared objects that carry no marker.
 func (b *builder) unrecordedMarkerless(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, declared, recordFirst, atDeclaredKey bool) ownershipVerdict {
@@ -584,6 +588,9 @@ func (b *builder) unrecordedMarkerless(addr addrs.AbsResourceInstance, typeName,
 	}
 	rule := substrate.UnrecordedFor(providerType, typeName)
 	if rule == substrate.UnrecordedParentOwned {
+		return ownershipOK
+	}
+	if b.recordedAtMovedFrom(addr) {
 		return ownershipOK
 	}
 	verb := own.Policy.Verb(true, false)
@@ -614,6 +621,41 @@ func (b *builder) unrecordedMarkerless(addr addrs.AbsResourceInstance, typeName,
 	}
 	b.omit(addr, ReasonUnowned, detail, cause)
 	return ownershipUnowned
+}
+
+// recordedAtMovedFrom reports whether exactly one address a honoured `moved`
+// statement chain says addr used to have holds an identity record. A record
+// is keyed by the address it was written under, and nothing re-keys it for a
+// bare HCL `moved` block (only `live-mv` does, through
+// [RecordStore.MoveRecord]), so after a stock rename the instance's record
+// sits at its old address. That record is this instance's claim, and
+// [builder.unrecordedMarkerless] must not read its absence at the new key as
+// "no record" (corpus-k8s-infra-gcp-gcve's day2_rename). The walk is
+// [moved.Aliases], the one [builder.locatedIdentityWithAliases] uses for a
+// record-located instance and [moved.Accepts] uses for a marker, so a chain
+// of statements is followed the way the plan's own move resolution follows
+// it.
+//
+// More than one alias carrying a record, or a store error, answers false:
+// guessing which prior record is this instance's is the wrong-marker shape
+// the safety rule forbids, and false keeps option A's refusal, which names
+// the way out.
+//
+// The read uses context.Background() because the ownership check is not
+// handed a context; [RecordStore.GetIdentity] is served from the run's
+// record cache (#636), so this costs no round trip.
+func (b *builder) recordedAtMovedFrom(addr addrs.AbsResourceInstance) bool {
+	matches := 0
+	for _, origin := range moved.Aliases(b.movedStmts, addr) {
+		_, _, _, found, err := b.opts.RecordStore.GetIdentity(context.Background(), origin)
+		if err != nil {
+			return false
+		}
+		if found {
+			matches++
+		}
+	}
+	return matches == 1
 }
 
 // SummaryNameHeld is the Error GitHub issue #1546's refusal carries.
