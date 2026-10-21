@@ -48,6 +48,7 @@ const (
 	GuardSweep        = "sweep-outside-cone"
 	GuardNonNative    = "json-config"
 	GuardModuleRemote = "remote-module-changed"
+	GuardNewRoot      = "root-new-at-base"
 )
 
 // Options is one cone computation.
@@ -171,9 +172,23 @@ func Compute(ctx context.Context, o Options) (*Result, error) {
 		}
 	}
 
-	baseFiles, err := baseConfigFiles(ctx, dir, res.BaseSHA, prefix)
+	baseFiles, baseExists, err := baseConfigFiles(ctx, dir, res.BaseSHA, prefix)
 	if err != nil {
 		return nil, err
+	}
+	// A root with nothing to compare against at base is new there: every
+	// block would read as added, and the first one to trip a guard (a
+	// terraform or provider block, or the share) would name the wrong
+	// cause.
+	where := strings.TrimSuffix(prefix, "/")
+	if where == "" {
+		where = "the repository top"
+	}
+	switch {
+	case !baseExists:
+		res.fall(GuardNewRoot, fmt.Sprintf("the root's directory (%s) did not exist at %s, so there is no base configuration to diff", where, o.Base))
+	case len(baseFiles) == 0:
+		res.fall(GuardNewRoot, fmt.Sprintf("the root's directory (%s) held no configuration at %s, so there is no base configuration to diff", where, o.Base))
 	}
 	headFiles, err := headConfigFiles(dir)
 	if err != nil {
@@ -439,16 +454,21 @@ type file struct {
 }
 
 // baseConfigFiles reads the root's configuration files at base. prefix is
-// the root's path from the repository top (rev-parse --show-prefix), and
-// both reads name it that way. Without --full-tree, ls-tree run from a
-// subdirectory filters the listing by the working directory as well, so a
-// root below the repository top listed nothing and read as an empty base
-// module (#2062).
-func baseConfigFiles(ctx context.Context, dir, base, prefix string) ([]file, error) {
+// the root's path from the repository top (rev-parse --show-prefix, which
+// git computes from the real path, so a symlinked working directory names
+// the same subdirectory), and both reads name it that way. Without
+// --full-tree, ls-tree run from a subdirectory filters the listing by the
+// working directory as well, so a root below the repository top listed
+// nothing and read as an empty base module (#2062). exists is false when
+// the root's path is not a directory at base.
+func baseConfigFiles(ctx context.Context, dir, base, prefix string) (files []file, exists bool, err error) {
+	if _, err := gitOut(ctx, dir, "cat-file", "-e", base+":"+prefix); err != nil {
+		return nil, false, nil
+	}
 	list, err := gitOut(ctx, dir, "ls-tree", "--full-tree", "--name-only", "-z", base+":"+prefix)
 	if err != nil {
-		// The directory did not exist at base: an empty base module.
-		return nil, nil
+		// The path is a file at base, not a directory.
+		return nil, false, nil
 	}
 	var out []file
 	for _, name := range strings.Split(list, "\x00") {
@@ -457,11 +477,11 @@ func baseConfigFiles(ctx context.Context, dir, base, prefix string) ([]file, err
 		}
 		src, err := gitOut(ctx, dir, "show", base+":"+prefix+name)
 		if err != nil {
-			return nil, err
+			return nil, true, err
 		}
 		out = append(out, file{name: name, src: []byte(src)})
 	}
-	return out, nil
+	return out, true, nil
 }
 
 func headConfigFiles(dir string) ([]file, error) {
