@@ -218,6 +218,22 @@ const (
 	// let a renamed object's old sighting admit whatever sat at the new id
 	// unread.
 	verdictUncompared
+
+	// verdictDeposed: the configuration computes an identity this object
+	// does not have, the record's current identity does not name it either,
+	// and the record names it as the address's DEPOSED object, exactly one
+	// deposed entry matching. That is what an apply interrupted between a
+	// create_before_destroy replace's create and its destroy leaves (#361):
+	// the new object at the identity the configuration computes, the old
+	// one still standing with the same marker, and the write-back holding
+	// it as deposed. It is neither reported nor vouched; the caller hands
+	// it to the projection as a [projection.DeposedBinding]
+	// ([declared.appendDeposedBinding]), which reads it once more and
+	// proposes its destroy, stock's own deposed-object destroy. Before
+	// #1120's reference-azure day2_crash it read as displaced, and the
+	// interrupted rename's old object was left standing for good on every
+	// leg that files such an object through this function.
+	verdictDeposed
 )
 
 // displacedFrom classifies one live object wearing a declared address's
@@ -261,7 +277,46 @@ func (d *declared) displacedFrom(ctx context.Context, typeName, escaped string, 
 	if d.records.namesClaimant(ctx, res.Addr, c) {
 		return want, verdictIdentityChanging
 	}
+	if _, ok := d.deposedBindingFor(typeName, escaped, c); ok {
+		return want, verdictDeposed
+	}
 	return want, verdictDisplaced
+}
+
+// deposedBindingFor is the deposed binding [verdictDeposed] stands for: the
+// one deposed entry the estate's record holds for the address escaped names
+// that c is, by [deposedClaimantMatches]. Exactly one entry must match, as
+// [matchDeposedClaimant] requires; none, or more than one, is no binding.
+func (d *declared) deposedBindingFor(typeName, escaped string, c claimant) (projection.DeposedBinding, bool) {
+	entry := d.all[typeName][escaped]
+	if entry == nil || entry.ambiguous {
+		return projection.DeposedBinding{}, false
+	}
+	addr := entry.res.Addr
+	var found projection.DeposedBinding
+	matches := 0
+	for dk, rec := range d.deposed[addr.String()] {
+		if deposedClaimantMatches(typeName, rec, c) {
+			matches++
+			found = projection.NewDeposedBinding(addr, dk, rec)
+		}
+	}
+	return found, matches == 1
+}
+
+// appendDeposedBinding appends c's [declared.deposedBindingFor] binding to
+// bindings, once: two legs of one pass can list the same object.
+func (d *declared) appendDeposedBinding(bindings []projection.DeposedBinding, typeName, escaped string, c claimant) []projection.DeposedBinding {
+	db, ok := d.deposedBindingFor(typeName, escaped, c)
+	if !ok {
+		return bindings
+	}
+	for _, have := range bindings {
+		if have.Addr.String() == db.Addr.String() && have.DeposedKey == db.DeposedKey {
+			return bindings
+		}
+	}
+	return append(bindings, db)
 }
 
 // configIdentityMismatch is displacedFrom's comparison proper, split out so
@@ -469,7 +524,7 @@ func (r *recordOwners) namesClaimant(ctx context.Context, addr addrs.AbsResource
 	if rec == nil {
 		return false
 	}
-	return claimantMatchesRecord(*rec, c)
+	return claimantMatchesRecord(addr.Resource.Resource.Type, *rec, c)
 }
 
 // displacedProblem is the finding [declared.displacedFrom] produces.

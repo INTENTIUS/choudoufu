@@ -50,9 +50,9 @@
 #      access off, the three settings the store refuses an account without)
 #      is made with ARM calls before migrate, in a resource group of its own
 #      outside the estate, with one container per root: adopted, green and
-#      strict (gauntlet_floci_az_record_store in live/e2e/lib/gauntlet.sh).
+#      strict (gauntlet_floci_az_record_account in live/e2e/lib/gauntlet.sh).
 #      No root holds a .tofu-records directory; a record is read back by
-#      copying the container's blobs out (gauntlet_floci_az_blob_mirror).
+#      copying the container's blobs out (gauntlet_floci_az_blobs).
 # Stage additions, each in the stage that needs it: plan_approval gives the
 # identity tags = { reviewed = "yes" }; day2_rename renames the role
 # assignment's block (roleAssignments -> role_assignment) with a moved
@@ -252,7 +252,7 @@ AZURERM_REQUIRED_PROVIDER="$(gauntlet_azurerm_required_provider)" \
 #   CRASH    day2_crash's pair for crash.tf: first (crash_first alone, the
 #            oracle's position), both, or empty for none
 # and, for live mode, RECORD_STORE_HCL, the record_store block live.tf
-# carries (gauntlet_floci_az_record_store_block); live mode without one
+# carries (gauntlet_floci_az_record_store); live mode without one
 # fails rather than write a root whose records go nowhere the ruling allows.
 #
 # The directory itself is kept: write_root replaces the files it writes and
@@ -542,12 +542,12 @@ managed_count() { ( cd "$1" && terraform state list | grep -vc '^data\.' ); }
 # record_file <container> <address>: the path of a copy of the one record
 # whose envelope is for <address> in A's blob container <container>, or
 # nothing with status 1. Each call copies the container afresh into a new
-# directory under $WORK (gauntlet_floci_az_blob_mirror), so what it reads is
+# directory under $WORK (gauntlet_floci_az_blobs), so what it reads is
 # what the store holds now.
 record_file() {
   local d
   d="$(mktemp -d "$WORK/records.XXXXXX")" || return 1
-  on_a gauntlet_floci_az_blob_mirror "$REC_ACCOUNT" "$1" "$d" >/dev/null || return 1
+  on_a gauntlet_floci_az_blobs "$REC_ACCOUNT" "$1" "$d" >/dev/null || return 1
   gauntlet_record_file "$d" "$2"
 }
 # names_id <record-file> <arm-id>: the record names <arm-id> as its current
@@ -596,11 +596,13 @@ gauntlet_begin_stage migrate
 log "=== 2. migrate: live-import against the stock state file, read-only then -approve ==="
 # The record store, before anything reads it: the operator's account on A,
 # made with ARM calls, one container per choudoufu root.
-on_a gauntlet_floci_az_record_store "$REC_RG" "$REC_ACCOUNT" adopted green strict \
+on_a gauntlet_floci_az_record_account "$REC_RG" "$REC_ACCOUNT" adopted green strict \
   || fail "could not make the record store's storage account on A"
-RS_ADOPTED="$(on_a gauntlet_floci_az_record_store_block "$REC_ACCOUNT" adopted "$REC_RG")" || fail "could not render the adopted root's record_store block"
-RS_GREEN="$(on_a gauntlet_floci_az_record_store_block "$REC_ACCOUNT" green "$REC_RG")" || fail "could not render the greenfield root's record_store block"
-RS_STRICT="$(on_a gauntlet_floci_az_record_store_block "$REC_ACCOUNT" strict "$REC_RG")" || fail "could not render the strict root's record_store block"
+# A live block reads no variable, so each block names A's host literally.
+HOST_A="$(on_a printenv FLOCI_AZ_HOST)" && [ -n "$HOST_A" ] || fail "could not read container A's host from its saved environment"
+RS_ADOPTED="$(gauntlet_floci_az_record_store "$HOST_A" "$REC_RG" "$REC_ACCOUNT" adopted)" || fail "could not render the adopted root's record_store block"
+RS_GREEN="$(gauntlet_floci_az_record_store "$HOST_A" "$REC_RG" "$REC_ACCOUNT" green)" || fail "could not render the greenfield root's record_store block"
+RS_STRICT="$(gauntlet_floci_az_record_store "$HOST_A" "$REC_RG" "$REC_ACCOUNT" strict)" || fail "could not render the strict root's record_store block"
 RECORD_STORE_HCL="$RS_ADOPTED"
 write_root "$ADOPTED" live
 ( tofu_a "$ADOPTED" init -input=false -no-color >/dev/null 2>&1 ) || fail "adopted init failed"

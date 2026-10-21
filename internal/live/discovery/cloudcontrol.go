@@ -520,6 +520,8 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 			case verdictIdentityChanging:
 				// Issue #885: neither reported nor vouched. See
 				// [verdictIdentityChanging].
+			case verdictDeposed:
+				res.DeposedBindings = decl.appendDeposedBinding(res.DeposedBindings, bindType, escaped, c)
 			case verdictUncompared:
 				// GitHub issue #2137: no comparison could run, so the
 				// sighting is unproven and neither reported nor vouched.

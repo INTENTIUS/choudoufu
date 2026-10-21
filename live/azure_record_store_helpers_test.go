@@ -4,112 +4,17 @@
 package residue
 
 import (
-	"encoding/pem"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// The azure lane's record-store helpers in live/e2e/lib/gauntlet.sh
-// (#1120): corpus-azapi-role-assignment keeps its records in a blob
-// container on floci-az, record_store "azurerm", and every stage gate that
-// used to read .tofu-records now reads the container through these.
-
-// TestGauntletFlociAzRecordStoreMakesTheAccountTheStoreAccepts drives
-// gauntlet_floci_az_record_store with gauntlet_arm replaced by a logger:
-// the account, its three settings and each container, in the order an
-// operator would make them, with the settings record_store "azurerm"
-// refuses an account without.
-func TestGauntletFlociAzRecordStoreMakesTheAccountTheStoreAccepts(t *testing.T) {
-	logf := filepath.Join(t.TempDir(), "calls.log")
-	runBash(t, `source e2e/lib/gauntlet.sh
-gauntlet_arm() { printf '%s\t%s\t%s\n' "$1" "$2" "${3:-}" >> "$LOGF"; }
-gauntlet_floci_az_record_store recs acct adopted green`, "LOGF="+logf)
-	calls := strings.Split(strings.TrimRight(readFile(t, logf), "\n"), "\n")
-	acct := "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/recs/providers/Microsoft.Storage/storageAccounts/acct"
-	want := []string{
-		"PUT\t/subscriptions/00000000-0000-0000-0000-000000000001/resourcegroups/recs?api-version=2021-04-01",
-		"PUT\t" + acct + "?api-version=2023-05-01\t",
-		"PUT\t" + acct + "/blobServices/default?api-version=2023-05-01\t",
-		"PUT\t" + acct + "/managementPolicies/default?api-version=2023-05-01\t",
-		"PUT\t" + acct + "/blobServices/default/containers/adopted?api-version=2023-05-01\t",
-		"PUT\t" + acct + "/blobServices/default/containers/green?api-version=2023-05-01\t",
-	}
-	if len(calls) != len(want) {
-		t.Fatalf("want %d ARM calls, got %d:\n%s", len(want), len(calls), strings.Join(calls, "\n"))
-	}
-	for i, w := range want {
-		if !strings.HasPrefix(calls[i], w) {
-			t.Errorf("call %d = %q, want it to start %q", i, calls[i], w)
-		}
-	}
-	for i, body := range map[int]string{
-		1: `"allowBlobPublicAccess":false`,
-		2: `"isVersioningEnabled":true`,
-		3: `"version":{"delete":{"daysAfterCreationGreaterThan":30}}`,
-	} {
-		if !strings.Contains(calls[i], body) {
-			t.Errorf("call %d does not send %s: %q", i, body, calls[i])
-		}
-	}
-	// A rule that deletes current blobs, or one scoped to a prefix the
-	// records do not sit under, is refused by the store's opening check.
-	if strings.Contains(calls[3], "baseBlob") || strings.Contains(calls[3], "prefixMatch") {
-		t.Errorf("the lifecycle rule touches current blobs or is prefix-scoped: %q", calls[3])
-	}
-}
-
-// TestGauntletFlociAzBlobMirrorReadsRecordsBack serves a container listing
-// in two pages over TLS and checks that the mirror copies every blob, so
-// gauntlet_record_file finds a record by its envelope's address exactly as
-// it does in a local store.
-func TestGauntletFlociAzBlobMirrorReadsRecordsBack(t *testing.T) {
-	const (
-		recName  = "tofu-records/corpus-azapi-role-assignment/azapi_resource/YXphcGlfcmVzb3VyY2Uucm9sZUFzc2lnbm1lbnRz"
-		sentinel = "tofu-records/corpus-azapi-role-assignment/.store-sentinel"
-	)
-	var unauthorized []string
-	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer floci-az" || r.Header.Get("x-ms-version") == "" {
-			unauthorized = append(unauthorized, r.URL.String())
-		}
-		switch {
-		case r.URL.Path == "/acct/adopted" && r.URL.Query().Get("comp") == "list" && r.URL.Query().Get("marker") == "":
-			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="utf-8"?><EnumerationResults><Blobs><Blob><Name>` + recName + `</Name></Blob></Blobs><NextMarker>page2</NextMarker></EnumerationResults>`))
-		case r.URL.Path == "/acct/adopted" && r.URL.Query().Get("marker") == "page2":
-			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="utf-8"?><EnumerationResults><Blobs><Blob><Name>` + sentinel + `</Name></Blob></Blobs><NextMarker/></EnumerationResults>`))
-		case r.URL.Path == "/acct/adopted/"+recName:
-			_, _ = w.Write([]byte(`{"address":"azapi_resource.roleAssignments","identity":{"import_id":"/subscriptions/s/resourceGroups/acctest0001/providers/Microsoft.Authorization/roleAssignments/g"}}`))
-		case r.URL.Path == "/acct/adopted/"+sentinel:
-			_, _ = w.Write([]byte("sentinel"))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer srv.Close()
-	ca := filepath.Join(t.TempDir(), "ca.pem")
-	if err := os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw}), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	dir := filepath.Join(t.TempDir(), "mirror")
-	out := runBash(t, `source e2e/lib/gauntlet.sh
-n="$(gauntlet_floci_az_blob_mirror acct adopted "$D")" || exit 1
-printf 'copied=%s\n' "$n"
-printf 'record=%s\n' "$(gauntlet_record_file "$D" azapi_resource.roleAssignments)"
-printf 'envelopes=%s\n' "$(gauntlet_record_envelope_count "$D")"`,
-		"FLOCI_AZ_ENDPOINT="+srv.URL, "FLOCI_AZ_CA_FILE="+ca, "D="+dir)
-	for _, want := range []string{"copied=2", "record=" + filepath.Join(dir, recName), "envelopes=1"} {
-		if !strings.Contains(out, want+"\n") {
-			t.Errorf("the mirror's output lacks %q:\n%s", want, out)
-		}
-	}
-	if len(unauthorized) != 0 {
-		t.Errorf("requests without floci-az's bearer token or an x-ms-version: %v", unauthorized)
-	}
-}
+// The azure lane's request counter in live/e2e/lib/gauntlet.sh (#1120).
+// The record-store helpers beside it (gauntlet_floci_az_record_account,
+// gauntlet_floci_az_blobs) are driven by tools/gauntlet's
+// azurerecords_test.go, and gauntlet_floci_az_record_store's block by this
+// package's azure_endpoints_test.go.
 
 // TestGauntletFlociAzRequestsBetweenCountsOneSpan reads a stubbed container
 // log: the requests between the two marks are counted, the marks and

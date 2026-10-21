@@ -239,15 +239,49 @@ func TestAzureSmokeProviderBlocksAreLocked(t *testing.T) {
 }
 
 // TestAzureReferenceProviderBlocksAreLocked renders reference-azure's own
-// versions_block, read out of its run.sh, in both modes.
+// versions_block, read out of its run.sh, in both modes. The live mode's
+// record store is record_store "azurerm" on container A's blob storage (the
+// maintainer's ruling of 2026-10-21: records live in the record store, the
+// state file is a cache), aimed at A's host with the endpoint lock's
+// arguments, never a local directory.
 func TestAzureReferenceProviderBlocksAreLocked(t *testing.T) {
 	for _, mode := range []string{"stock", "live"} {
 		t.Run(mode, func(t *testing.T) {
 			out := runBash(t, `source e2e/lib/gauntlet.sh
 eval "$(awk '/^versions_block\(\) \{/{on=1} /^# resource_block writes/{on=0} on' e2e/reference-azure/run.sh)"
 ESTATE=reference-azure AZURERM_REQUIRED_PROVIDER="" AZAPI_REQUIRED_PROVIDER=""
-versions_block "$MODE"`, "MODE="+mode)
+REC_RG=refaz-records-rg REC_ACCOUNT=refazrecords
+versions_block "$MODE"`, "MODE="+mode, "HOST_A="+azTestHost)
 			checkAzureBlocks(t, out, "azurerm", "azapi")
+			if strings.Contains(out, `record_store "local"`) || strings.Contains(out, ".tofu-records") {
+				t.Errorf("reference-azure keeps its records in a local directory:\n%s", out)
+			}
+			if mode == "stock" {
+				if strings.Contains(out, "record_store") {
+					t.Errorf("the stock configuration names a record store:\n%s", out)
+				}
+				return
+			}
+			_, block, found := strings.Cut(out, `record_store "azurerm" {`)
+			if !found {
+				t.Fatalf("the live configuration has no record_store \"azurerm\" block:\n%s", out)
+			}
+			block, _, _ = strings.Cut(block, "\n    }")
+			got := map[string]string{}
+			for _, l := range strings.Split(block, "\n") {
+				if a := azArgLine.FindStringSubmatch(l); a != nil {
+					got[a[1]] = a[2]
+				}
+			}
+			for k, v := range map[string]string{
+				"storage_account_name": `"refazrecords"`, "container_name": `"adopted"`,
+				"resource_group_name": `"refaz-records-rg"`, "metadata_host": `"` + azTestHost + `"`,
+				"client_secret": `"` + azTestSecret + `"`, "use_cli": "false", "use_msi": "false",
+			} {
+				if got[k] != v {
+					t.Errorf("record_store %s = %q, want %s:\n%s", k, got[k], v, out)
+				}
+			}
 		})
 	}
 }
@@ -295,7 +329,7 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 eval "$(awk '/^write_root\(\) \{/{on=1} /^# ── substrate helpers/{on=0} on' e2e/corpus-azapi-role-assignment/run.sh)"
 SRC="$CSRC" RA_GUID=6faae21a-0cd6-4536-8c23-a278823d12ed ESTATE=corpus-azapi-role-assignment
 AZAPI_REQUIRED_PROVIDER="$(gauntlet_azapi_required_provider)" AZURERM_REQUIRED_PROVIDER="$(gauntlet_azurerm_required_provider)"
-RECORD_STORE_HCL="$(FLOCI_AZ_HOST="$H" gauntlet_floci_az_record_store_block choudoufuazrarecords adopted choudoufu-records)" || exit 1
+RECORD_STORE_HCL="$(gauntlet_floci_az_record_store "$H" choudoufu-records choudoufuazrarecords adopted)" || exit 1
 write_root "$DST" live`, "CSRC="+src, "DST="+dst, "H="+azTestHost)
 	// The live block's records go to the blob container on floci-az, the
 	// lane's ruling, through the endpoint lock's connection arguments.

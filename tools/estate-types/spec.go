@@ -283,7 +283,7 @@ var estateSpecs = []estateSpec{
 		Name:       "reference-azure",
 		ConfigDirs: nil,
 		ScanScript: true,
-		Note:       `The "azure" lane's first estate (#1120): no external source, a hand-written shape kept in this repository and crossed on floci-az. run.sh's resource_block() heredoc carries the whole estate: azurerm_resource_group, azurerm_virtual_network, azurerm_subnet, azurerm_network_security_group, azurerm_network_security_rule, azurerm_storage_account, azurerm_user_assigned_identity (one, plus a two-instance count set), azurerm_public_ip, and one azapi_resource of type Microsoft.ManagedIdentity/userAssignedIdentities - no module, no AWS provider. Built and not yet run.`,
+		Note:       `The "azure" lane's first estate (#1120): no external source, a hand-written shape kept in this repository and crossed on floci-az. run.sh's resource_block() heredoc carries the whole estate: azurerm_resource_group, azurerm_virtual_network, azurerm_subnet, azurerm_network_security_group, azurerm_network_security_rule, azurerm_storage_account, azurerm_user_assigned_identity (one, plus a two-instance count set), azurerm_public_ip, and one azapi_resource of type Microsoft.ManagedIdentity/userAssignedIdentities - no module, no AWS provider. Its mi_block() heredoc adds day2_replace's and day2_crash's identities (azurerm_user_assigned_identity, no new type), and its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the estate itself.`,
 	},
 	{
 		Name:       "reference-k8s",
