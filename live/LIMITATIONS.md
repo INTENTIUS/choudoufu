@@ -2964,6 +2964,7 @@ refused, and each says so in its own entry.
 | - | - | projection | No provider access | error | `internal/live/projection` | "No provider access" |
 | - | - | projection | No provider for a deposed object | error | `internal/live/projection` | "No provider for a deposed object" |
 | - | - | projection | No provider for an undeclared resource | error | `internal/live/projection` | "No provider for an undeclared resource" |
+| - | - | projection | No record kept for a resource with no ownership marker | warning | `internal/live/projection` | "No record kept for a resource with no ownership marker" |
 | - | - | projection | No source for this instance's identity | error | `internal/live/projection` | "No source for this instance's identity" |
 | - | - | projection | No state returned by the provider | error | `internal/live/projection` | "No state returned by the provider" |
 | - | - | projection | Object would be created without its marker | error | `internal/live/projection` | "Object would be created without its marker" |
@@ -3000,7 +3001,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**294 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**295 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4851,6 +4852,14 @@ reserved for the limits wing's fixture directories, and
 #### No provider for an undeclared resource
 
 **What.** An owned-but-undeclared resource was found whose provider this run has no handle for, so its current state cannot be read. Reported as a warning: the sweep still knows the resource exists.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### No record kept for a resource with no ownership marker
+
+**What.** GitHub issue #2141: an apply created or updated a resource whose type has no marker surface (an untaggable AWS or Azure type, so the record is the only thing that remembers the estate owns it), and no identity record could be written for it - the record store cannot hold that type's identity in full, or the identity is an attribute the provider marks sensitive - and no earlier record holds one. Names the type and every such address. A warning: the resource exists, but if its block is later removed no plan will find it to destroy and it is left running outside every estate. Destroy it with tofu destroy -target before removing the block, or remove it by hand afterwards. Taggable types reaching the same branch are only logged, because their marker still decides ownership.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

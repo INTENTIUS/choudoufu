@@ -1060,6 +1060,13 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 	// which of the two, asked once per instance that reaches the branch.
 	unrecordableLogged := map[string]bool{}
 
+	// unrecordedUnmarked is GitHub issue #2141's slice of that branch: the
+	// instances of a type with no marker surface that this pass could not
+	// record and no earlier record holds, by type. Raised as one warning
+	// per type once the loop is done ([unrecordedUnmarkedDiags]), so a
+	// for_each of fifty draws one warning naming fifty addresses.
+	unrecordedUnmarked := map[string][]unrecordedInstance{}
+
 	if req.FinalState != nil {
 		for _, entry := range req.FinalState.AllResourceInstanceObjectAddrs() {
 			if entry.DeposedKey != states.NotDeposed || !req.covers(entry.Instance) {
@@ -1243,7 +1250,36 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 						// the 27 and the (empty) sensitive subset by value;
 						// a failure there naming an added type is what
 						// reopens this question.
-						if !unrecordableLogged[typeName] {
+						//
+						// GitHub issue #2141 corrects the premise for one
+						// slice of it. "Not this instance's only carrier"
+						// is decided by the automatic, selected and
+						// fallback doors, and a type with no marker surface
+						// at all (no tags, labels, ARM tags or manifest
+						// metadata to stamp: an untaggable AWS or Azure
+						// type) reaches here whenever none of them opened,
+						// so there is no marker to decide ownership and
+						// the record was the only memory this estate would
+						// have of it. #2140 proved that a present record
+						// is what plans the destroy when such a block is
+						// removed; an absent one leaves the object running
+						// unowned with nothing on screen. So for that
+						// slice the log line becomes a named warning
+						// ([SummaryUntaggableUnrecorded]) - unless an
+						// earlier record (an earlier apply's, or
+						// live-import's) already holds the identity, which
+						// this branch leaves alone and which still finds
+						// the object. Taggable types keep the log line.
+						// writeback_unrecorded_census_test.go pins which
+						// admitted types reach this from the type alone:
+						// 14 at hashicorp/aws 6.59.0, none at azurerm
+						// 5.10.0 or azapi 2.13.0 (2026-10-20).
+						if req.Only == nil && unmarkedUnrecorded(res.ProviderConfig.Provider.Type, schema) && !recordHoldsIdentity(ctx, req.Store, addr) {
+							unrecordedUnmarked[typeName] = append(unrecordedUnmarked[typeName], unrecordedInstance{
+								addr:   addr.String(),
+								secret: identity.SensitiveIdentityAttr(typeName, schema),
+							})
+						} else if !unrecordableLogged[typeName] {
 							unrecordableLogged[typeName] = true
 							if secret := identity.SensitiveIdentityAttr(typeName, schema); secret != "" {
 								log.Printf("[INFO] projection: no identity record is written for %s (e.g. %s) on purpose: the identity a record would hold is its %q attribute, which the provider marks sensitive, and the record store is not where this fork puts secret material. Ownership stays marker-carried and any existing record is left alone", typeName, addr, secret)
@@ -1533,6 +1569,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 			}
 		}
 	}
+	diags = diags.Append(unrecordedUnmarkedDiags(unrecordedUnmarked))
 
 	for _, rv := range req.EnvelopeVersions {
 		if seen[rv.Addr.String()] || !req.covers(rv.Addr) {
