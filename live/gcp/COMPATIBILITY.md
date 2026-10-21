@@ -18,8 +18,8 @@ No project needed. It names each block a GCP root cannot plan, and why.
 ([#1121](https://github.com/INTENTIUS/choudoufu/issues/1121)). The marker
 goes in through the provider's own `labels` argument, in the create call
 it already makes, and nothing else in the plan differs from what stock
-would show. No resource is synthesized. Drop the `live` block, keep the
-cache file, and stock OpenTofu with the same provider carries on.
+would show. No resource is synthesized. Delete `estate.chdf.hcl` (or the
+`live` block), keep the cache file, and stock OpenTofu with the same provider carries on.
 Everything stock accepts either works or is refused by name.
 
 Both provider names are one family (`substrate.Google`): a type spelled

@@ -3,8 +3,9 @@
 A platform here is a provider family the live backend runs an estate on.
 Two meet the contract today, AWS and Kubernetes, and neither is the
 template for the other: each answers the same requirements in its own way.
-Azure is the third, built on the `azure` branch and not yet measured: every
-Azure claim cell is `open` and its lane has not run. This page lists the
+Azure is the third: both Azure estates, `reference-azure` and
+`corpus-azapi-role-assignment`, clear every gauntlet stage on floci-az
+([the board](BOARD.md)). This page lists the
 requirements with real paths for all three, and marks which parts are fixed
 and which are a per-platform choice needing a ruling.
 
@@ -68,7 +69,7 @@ platform, as published at the pin: `hashicorp/aws`, `hashicorp/kubernetes`,
   accepts, on the create call it already makes.
 - Apart from that argument, the plan is what stock would show. No resources
   are synthesized.
-- The exit holds: remove the `live` block, keep the cache, and stock
+- The exit holds: delete `estate.chdf.hcl` (or the `live` block), keep the cache, and stock
   OpenTofu with the same provider carries on.
 - Every configuration stock accepts either works or is refused by name with
   a lint rule.
@@ -368,10 +369,10 @@ Things one platform meets and the other does not, as the tree says today:
 - AWS's sweep cannot find a type with no row; Kubernetes's can.
 - Kubernetes has no slots or continuation markers, by ruling.
 
-And where Azure stands against both, from the `azure` branch:
+And where Azure stands against both:
 
-- Every Azure claim cell reads `open`; the four proofs are drafts, and
-  `reference-azure` has not run.
+- Both Azure estates clear every gauntlet stage on floci-az; the four
+  smoke proofs are drafts.
 - The Azure fence covers writes only, like Kubernetes's, and through
   Policy rather than per principal.
 - Azure's sweep can find a type with no row, like Kubernetes's.
@@ -392,7 +393,7 @@ definition of the contract.
 | 4. Admission | carrier | PR #1068: `ObjectMetaShape`, `generate-name`, `absent` | units 10 and 13: `azurerm-ids.json`, azapi's natural key, `absent` | identity golden values, the lint fixture |
 | 5. Sweep | admission | PR #1070: `kubesweep`, discovery's Kubernetes leg | unit 11: `azsweep`, the Resource Graph leg; draft `az-no-silent-orphans`, not run | claim 1, BREAK strips the label |
 | 6. Fence | sweep, fence ruling | PR #1071: `estate-boundary.yaml` | unit 8: `estate-grant.json`, `estate-boundary.json`; draft, not run | claim 13, BREAK removes the policy |
-| 7. Lane | the claims above | PR #1074, PR #1089 | unit 15: `reference-azure`, not run | lane reads clear |
+| 7. Lane | the claims above | PR #1074, PR #1089 | unit 15: `reference-azure`, clear on floci-az | lane reads clear |
 | 8. Migration | carrier | PR #1078: label carrier in `live-import` | unit 1: the ARM tags in `live-import` | lane migrate stage |
 | 9. Record store | optional | PR #1435 | `record_store "azurerm"`; draft `az-records-in-a-storage-account`, not run | claim 29, BREAK removes the fences |
 
@@ -404,9 +405,10 @@ Azure did that: the family value and the address carrier came in unit 1,
 with the carrier ruling. It also built every step before any could run,
 because the emulator lacked the sweep, the fence and the store's settings
 (`live/FLOCI.md`). floci-az serves all three since 30000b0, and the
-sweep's query since dfa33ca, not yet run. Only the ruling and admission are closed, admission by
+sweep's query since dfa33ca. The ruling and admission are closed, admission by
 `internal/live/check/testdata/azure-synthesis-golden.txt` and the two lint
-fixtures; every step a claim or the lane closes is still open.
+fixtures, and so are the lane and the migration: both Azure estates read
+clear on [the board](BOARD.md).
 
 Known differences for the next two:
 

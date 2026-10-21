@@ -33,8 +33,12 @@ reach).
 ## From a stock state file
 
 ```
-choudoufu live-import -approve
+choudoufu live-import -state=terraform.tfstate -estate=my-estate
+choudoufu live-import -state=terraform.tfstate -estate=my-estate -approve
 ```
+
+The first run writes nothing and prints the report; `-approve` writes the
+labels.
 
 The same bulk path as on AWS ([#1073](https://github.com/INTENTIUS/choudoufu/issues/1073)):
 the stock state is read once, each object is verified by namespace and

@@ -195,7 +195,7 @@ rename rule, and says which protections were tested rather than assumed.
 The marker is the same tag pair, `tofu-estate` and `tofu-address`, in the
 `tags` argument azurerm and azapi both accept
 ([#1122](https://github.com/INTENTIUS/choudoufu/issues/1122)). Three
-things differ, and all three are built and not yet measured.
+things differ.
 
 ARM tag keys and ARM ids are case-insensitive. The stamp writes the keys
 lowercase and every reader folds case, so a configuration that sets
