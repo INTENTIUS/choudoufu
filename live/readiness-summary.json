@@ -1,5 +1,5 @@
 {
-  "stamp": "`live/readiness.json` last committed at commit `40b3c126c7` on 2026-10-20T18:01:05-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
+  "stamp": "`live/readiness.json` last committed at commit `cd6a68e09f` on 2026-10-20T19:19:31-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.",
   "statuses": [
     "in-contract",
     "pending-ratification",
@@ -9235,26 +9235,26 @@
       {
         "tier": "marker-carried",
         "counts": [
-          301,
+          299,
           9,
           0,
           10,
           0,
           0
         ],
-        "total": 320
+        "total": 318
       },
       {
         "tier": "declaration-carried",
         "counts": [
-          887,
+          889,
           28,
           0,
           0,
           0,
           0
         ],
-        "total": 915
+        "total": 917
       },
       {
         "tier": "record-carried",
@@ -9294,13 +9294,13 @@
       {
         "path": "marker",
         "tier": "marker-carried",
-        "count": 320,
+        "count": 318,
         "means": "The `tofu-address` label on the object is the identity; the sweep reads it back."
       },
       {
         "path": "client-named",
         "tier": "declaration-carried",
-        "count": 311,
+        "count": 313,
         "means": "The configuration names it, under a project or location it also names or the provider supplies."
       },
       {
@@ -11417,7 +11417,7 @@
       },
       {
         "type": "google_compute_instance_template",
-        "tier": "marker-carried",
+        "tier": "declaration-carried",
         "status": "in-contract"
       },
       {
@@ -11757,7 +11757,7 @@
       },
       {
         "type": "google_compute_region_instance_template",
-        "tier": "marker-carried",
+        "tier": "declaration-carried",
         "status": "in-contract"
       },
       {

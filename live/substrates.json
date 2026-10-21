@@ -106,10 +106,10 @@
         ]
       },
       "untaggable": {
-        "definition": "a google or google-beta 8.6.0 type whose schema carries no settable labels map beside effective_labels (live/readiness.json google.types, every tier but marker-carried)",
-        "count": 1165,
+        "definition": "a google or google-beta 8.6.0 type whose schema carries no settable labels map beside effective_labels, or one that only labels what the type creates, an instance template's (live/readiness.json google.types, every tier but marker-carried)",
+        "count": 1167,
         "by_tier": {
-          "declaration-carried": 915,
+          "declaration-carried": 917,
           "record-carried": 250
         }
       },
@@ -118,7 +118,7 @@
         "name": "floci-gcp",
         "pin_file": "live/floci-gcp-image",
         "pin": "ghcr.io/lex00/floci-gcp@sha256:ed1a178190dad7f3a43f40dffbc1e8a2d70d28453b0d4bc3c27a53238ad9ac60",
-        "notes": "the lex00/floci-gcp fork's GHCR image pinned by digest; Resource Manager tags, Cloud Asset search and matchTag are still gaps on it (lex00/floci-gcp#4 to #8)."
+        "notes": "the lex00/floci-gcp fork's GHCR image pinned by digest; the fork's issues for Resource Manager tags, Cloud Asset search, matchTag and IAM enforce mode (lex00/floci-gcp#4 to #9) are closed, and no gcp-lane run on it has passed yet."
       }
     },
     {

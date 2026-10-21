@@ -314,12 +314,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 8, Code: 0,
 	},
 	"tools/gcp-row-gen/assetnames.go": {
-		Reason: "documentedAssets: the 22 labelled google types whose provider source at 8.6.0 states no Cloud Asset " +
+		Reason: "documentedAssets: the 20 labelled google types whose provider source at 8.6.0 states no Cloud Asset " +
 			"Inventory name (handwritten, no cai_asset_name_format), each mapped by hand to the asset type Google's asset " +
 			"names page lists for it, with a Basis field saying what the mapping rests on. Nothing in the provider source " +
 			"names the asset type, so it cannot be derived; the host half is checked against the type's api_service_name, " +
-			"and the derivation refuses an entry the page does not list or a type that no longer needs one.",
-		Data: 22, Code: 0,
+			"and the derivation refuses an entry the page does not list or a type that no longer needs one. " +
+			"22 -> 20 for #2145: the two instance templates left, because their labels map only labels the VMs " +
+			"made from them (TypeFacts.LabelsPropagate), so they are not labelled types and the derivation refused them.",
+		Data: 20, Code: 0,
 	},
 
 	"tools/survey-gen/untaggable_render.go": {
@@ -723,7 +725,11 @@ const (
 	// types whose provider source states no Asset name, each mapped by hand
 	// to the asset type Google's asset names page lists for it. 22 new Data
 	// literals, none moved.
-	typeLiteralDataTotal = 1241
+	// 1241 -> 1239 data, code unchanged, on 2026-10-20 (#2145): the two
+	// instance templates leave documentedAssets, since their labels map only
+	// labels the VMs made from them and they are no longer labelled types.
+	// Two Data literals removed, none moved.
+	typeLiteralDataTotal = 1239
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

@@ -4694,7 +4694,7 @@
         "google",
         "google-beta"
       ],
-      "labels": true,
+      "labels": false,
       "verdict": "rowed",
       "template": "projects/{{project}}/global/instanceTemplates/{{name}}"
     },
@@ -5450,7 +5450,7 @@
         "google",
         "google-beta"
       ],
-      "labels": true,
+      "labels": false,
       "verdict": "rowed",
       "template": "projects/{{project}}/regions/{{region}}/instanceTemplates/{{name}}"
     },

@@ -80,14 +80,18 @@ var scopePlaceholders = map[string]bool{
 
 // LabelSurface is the google-labels shape: a settable `labels` map with the
 // provider's computed `effective_labels` beside it, in every provider that
-// serves the type.
+// serves the type, and a labels map the type keeps rather than copies onto
+// what it creates. The last is [markers.GoogleLabelSurface]'s own
+// exclusion, recorded by the extract as [TypeFacts.LabelsPropagate]:
+// without it the two instance templates read as marker-carried here while
+// the stamp refuses them (GitHub issue #2145).
 func LabelSurface(tfs []TypeFacts) bool {
 	if len(tfs) == 0 {
 		return false
 	}
 	for _, tf := range tfs {
 		l := tf.Attrs["labels"]
-		if (l != "O" && l != "OC") || tf.Attrs["effective_labels"] != "C" {
+		if (l != "O" && l != "OC") || tf.Attrs["effective_labels"] != "C" || tf.LabelsPropagate {
 			return false
 		}
 	}

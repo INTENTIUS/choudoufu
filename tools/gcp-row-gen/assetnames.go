@@ -191,8 +191,6 @@ var documentedAssets = map[string]documentedAsset{
 	"google_compute_instance":                    {AssetType: "compute.googleapis.com/Instance", Basis: basisKind},
 	"google_compute_instance_from_machine_image": {AssetType: "compute.googleapis.com/Instance", Basis: basisKind + "; the resource creates an ordinary instance"},
 	"google_compute_instance_from_template":      {AssetType: "compute.googleapis.com/Instance", Basis: basisKind + "; the resource creates an ordinary instance"},
-	"google_compute_instance_template":           {AssetType: "compute.googleapis.com/InstanceTemplate", Basis: basisKind},
-	"google_compute_region_instance_template":    {AssetType: "compute.googleapis.com/InstanceTemplate", Basis: basisKind + "; the page lists no RegionInstanceTemplate, and InstanceTemplate's second format is the regional one"},
 	"google_compute_security_policy":             {AssetType: "compute.googleapis.com/SecurityPolicy", Basis: basisKind},
 	"google_dataflow_flex_template_job":          {AssetType: "dataflow.googleapis.com/Job", Basis: basisKind + "; a flex template launches an ordinary Dataflow job"},
 	"google_dataflow_job":                        {AssetType: "dataflow.googleapis.com/Job", Basis: basisKind},

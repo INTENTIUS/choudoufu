@@ -10,14 +10,14 @@ package identity
 // GoogleAssetImports says, for each labelled hashicorp/google and
 // google-beta 8.6.0 type whose import form the provider source at the pin
 // states, how a Cloud Asset Inventory hit's name becomes an import ID
-// (INTENTIUS/choudoufu#2139 item 7). Of 320 labelled types (299 served by
-// hashicorp/google), 303 take the Asset path as it is (285), 3 take it
+// (INTENTIUS/choudoufu#2139 item 7). Of 318 labelled types (297 served by
+// hashicorp/google), 301 take the Asset path as it is (283), 3 take it
 // rewritten into another accepted form (3), and 14 are unknown (11) and
 // have no row: a hit of one is refused by name, never imported with a
 // guessed ID.
 //
 // The provider source states no Asset name for a handwritten type, and
-// 13 rows (13) take the name Google documents for the type's asset type
+// 11 rows (11) take the name Google documents for the type's asset type
 // instead, marked Documented. The page is
 // https://docs.cloud.google.com/asset-inventory/docs/asset-names
 // (last updated 2026-10-19), read into live/gcp-asset-names.json.
@@ -66,12 +66,10 @@ var GoogleAssetImports = map[string]GoogleAssetImport{
 	"google_compute_ha_vpn_gateway":                                {Host: "compute.googleapis.com", Asset: "projects/{{project}}/regions/{{region}}/vpnGateways/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/regions/{{region}}/vpnGateways/{{name}}", Regex: "^projects/(?P<project>[^/]+)/regions/(?P<region>[^/]+)/vpnGateways/(?P<name>[^/]+)$"}},
 	"google_compute_image":                                         {Host: "compute.googleapis.com", Asset: "projects/{{project}}/global/images/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/global/images/{{name}}", Regex: "^projects/(?P<project>[^/]+)/global/images/(?P<name>[^/]+)$"}},
 	"google_compute_instance":                                      {Host: "compute.googleapis.com", Asset: "projects/{{project}}/zones/{{zone}}/instances/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/zones/{{zone}}/instances/{{name}}", Regex: "^projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/instances/(?P<name>[^/]+)$"}, Documented: true},
-	"google_compute_instance_template":                             {Host: "compute.googleapis.com", Asset: "projects/{{project}}/global/instanceTemplates/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/global/instanceTemplates/{{name}}", Regex: "projects/(?P<project>[^/]+)/global/instanceTemplates/(?P<name>[^/]+)"}, Documented: true},
 	"google_compute_instant_snapshot":                              {Host: "compute.googleapis.com", Asset: "projects/{{project}}/zones/{{zone}}/instantSnapshots/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/zones/{{zone}}/instantSnapshots/{{name}}", Regex: "^projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/instantSnapshots/(?P<name>[^/]+)$"}},
 	"google_compute_interconnect":                                  {Host: "compute.googleapis.com", Asset: "projects/{{project}}/global/interconnects/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/global/interconnects/{{name}}", Regex: "^projects/(?P<project>[^/]+)/global/interconnects/(?P<name>[^/]+)$"}},
 	"google_compute_interconnect_attachment":                       {Host: "compute.googleapis.com", Asset: "projects/{{project}}/regions/{{region}}/interconnectAttachments/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/regions/{{region}}/interconnectAttachments/{{name}}", Regex: "^projects/(?P<project>[^/]+)/regions/(?P<region>[^/]+)/interconnectAttachments/(?P<name>[^/]+)$"}},
 	"google_compute_region_disk":                                   {Host: "compute.googleapis.com", Asset: "projects/{{project}}/regions/{{region}}/disks/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/regions/{{region}}/disks/{{name}}", Regex: "^projects/(?P<project>[^/]+)/regions/(?P<region>[^/]+)/disks/(?P<name>[^/]+)$"}},
-	"google_compute_region_instance_template":                      {Host: "compute.googleapis.com", Asset: "projects/{{project}}/regions/{{region}}/instanceTemplates/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/regions/{{region}}/instanceTemplates/{{name}}", Regex: "projects/(?P<project>[^/]+)/regions/(?P<region>[^/]+)/instanceTemplates/(?P<name>[^/]+)"}, Documented: true},
 	"google_compute_region_instant_snapshot":                       {Host: "compute.googleapis.com", Asset: "projects/{{project}}/regions/{{region}}/instantSnapshots/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/regions/{{region}}/instantSnapshots/{{name}}", Regex: "^projects/(?P<project>[^/]+)/regions/(?P<region>[^/]+)/instantSnapshots/(?P<name>[^/]+)$"}},
 	"google_compute_security_policy":                               {Host: "compute.googleapis.com", Asset: "projects/{{project}}/global/securityPolicies/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/global/securityPolicies/{{name}}", Regex: "projects/(?P<project>[^/]+)/global/securityPolicies/(?P<name>[^/]+)"}, Documented: true},
 	"google_compute_snapshot":                                      {Host: "compute.googleapis.com", Asset: "projects/{{project}}/global/snapshots/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/global/snapshots/{{name}}", Regex: "^projects/(?P<project>[^/]+)/global/snapshots/(?P<name>[^/]+)$"}},

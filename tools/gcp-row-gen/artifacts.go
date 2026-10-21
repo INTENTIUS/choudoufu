@@ -185,6 +185,13 @@ type TypeFacts struct {
 	// Identity is the resource identity schema: "R" required for import,
 	// "O" optional. Absent when the provider serves none for the type.
 	Identity map[string]string `json:"i,omitempty"`
+
+	// LabelsPropagate is true when the type's labels map is copied onto
+	// what the type creates and never kept by the type itself, as its
+	// description says ([markers.GoogleLabelsPropagate]): an instance
+	// template's. The attribute flags cannot say it; the description is
+	// the schema's only channel for it.
+	LabelsPropagate bool `json:"lp,omitempty"`
 }
 
 // BlockFacts is one nested block's leaf attributes.

@@ -68,6 +68,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `child-module` | This module call cannot be expanded under live resource markers | error | "child-module" | `live/e2e/limits/child-module/` |
 | `count-index` | count.index is not available in resource arguments | error | "count-index-in-tag" | `live/e2e/limits/count-index-in-tag/` |
 | `for-each-key` | for_each key is outside the marker character set | error | "foreach-invalid-key" | `live/e2e/limits/foreach-invalid-key/` |
+| `gcp-estate-label` | Estate name is not a legal GCP label value | error | "gcp-estate-label" | `live/e2e/limits/gcp-estate-label/` |
 | `gcp-label-count` | GCP resource has no room for its ownership markers | error | "gcp-label-count" | `live/e2e/limits/gcp-label-count/` |
 | `gcp-multi-project` | GCP estate spans more than one project | warning | "gcp-multi-project" | `live/e2e/limits/gcp-multi-project/` |
 | `generate-name` | Kubernetes object name is minted by the server | error | "generate-name" | `live/e2e/limits/generate-name/` |
@@ -97,7 +98,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `unadmitted-type` | Resource type is outside the live-markers subset | error | "unadmitted-type" | `live/e2e/limits/unadmitted-type/` |
 | `undeclared-provider-alias` | Provider configuration is not declared | error | "undeclared-provider-alias" | `live/e2e/limits/undeclared-provider-alias/` |
 
-**32 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 29 of the 32 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
+**33 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 30 of the 33 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
 <!-- limits-gen:end lint-roster -->
 
 ### local-exec
@@ -2263,11 +2264,21 @@ fences match the marker itself, wherever the object lives.
 **Forwarding address.** Point every google block at one project, or split the
 configuration into one estate per project.
 
-**What is not counted.** A `project` this pass cannot read from configuration
-alone: a variable with no default, a reference to another resource,
-`each.value`, a provider block with its own `for_each`, and a project named
-only in the environment (`GOOGLE_PROJECT` and its siblings). Each is skipped
-silently, the default every lint rule gives an unknown. A resource with no
+**What is read per instance.** On a `count` or `for_each` block whose
+collection is known from configuration, a `project` written with
+`count.index`, `each.key` or `each.value` is read once per instance. A
+`project` written as another resource's argument, such as
+`google_project.NAME.project_id`, is that argument when the other block's
+configuration states it.
+
+**What is not counted.** A `project` that cannot be known before apply: a
+variable with no default, another resource's argument that its own block
+does not state or that only apply fills, a data source or module output, a `count` or `for_each` collection that cannot be read, a
+provider block with its own `for_each`, and a project named only in the
+environment (`GOOGLE_PROJECT` and its siblings). The rule fails open on
+these, the default every lint rule gives an unknown. When the warning does
+fire on the projects it can read, it names each block it could not, so its
+list of projects is not mistaken for the whole. A resource with no
 `project` argument takes its provider block's, which is already counted.
 
 **Enforcement.** `RuleGCPMultiProject`,
@@ -2313,6 +2324,46 @@ before the markers (61 on a count block), or set
 `internal/live/lint/gcp_label_count.go` (`checkGCPLabelCount`), one refusal
 per block, honouring `-target` and `-exclude`. Fixture at
 `live/e2e/limits/gcp-label-count/`, which lint also refuses as
+`unadmitted-type` without provider schemas.
+
+### gcp-estate-label
+
+**Construct.** A live block whose estate name is longer than 63 characters,
+over any google resource that carries its marker as a label:
+
+```hcl
+terraform {
+  live {
+    estate = "a-name-that-the-estate-grammar-allows-but-a-gcp-label-cannot-hold"
+  }
+}
+
+resource "google_storage_bucket" "named" {
+  name     = "example"
+  location = "EU"
+}
+```
+
+**Why banned.** The estate grammar allows up to 128 characters, so the
+name is legal on AWS. On GCP the `tofu-estate` marker is a label, and a
+label value stops at 63 characters. The node stamp refuses every such
+instance at plan, apply, live-import and live-mv
+(`internal/live/projection/nodestamp_googlelabels.go`). This rule names the
+same blocks before the plan, so live-check reports them too.
+
+**What is read.** The root live block's own `estate` argument. With
+provider schemas only a type whose labels map carries the marker is
+refused, so an instance template, whose labels go to its VMs and are never
+stamped, is not. An estate passed only as `-estate` on the command line is
+not seen here; the stamp still refuses it at plan.
+
+**Forwarding address.** Rename the estate to at most 63 characters, or keep
+the google resources out of this estate.
+
+**Enforcement.** `RuleGCPEstateLabel`,
+`internal/live/lint/gcp_estate_label.go` (`checkGCPEstateLabel`), one
+refusal per block, honouring `-target` and `-exclude`. Fixture at
+`live/e2e/limits/gcp-estate-label/`, which lint also refuses as
 `unadmitted-type` without provider schemas.
 
 ## The un-migration guard
@@ -2871,6 +2922,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | for_each over a resource that is not keyed | error | `internal/live/identity` | "for_each over a resource that is not keyed" |
 | 0 | 0 | lint | child-live-config | error | `internal/live/lint` | "child-live-config" |
 | 0 | 0 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
+| - | - | lint | gcp-estate-label | error | `internal/live/lint` | "gcp-estate-label" |
 | - | - | lint | gcp-label-count | error | `internal/live/lint` | "gcp-label-count" |
 | - | - | lint | gcp-multi-project | warning | `internal/live/lint` | "gcp-multi-project" |
 | 0 | 0 | lint | generate-name | error | `internal/live/lint` | "generate-name" |
@@ -2983,7 +3035,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**289 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**290 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Four layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->

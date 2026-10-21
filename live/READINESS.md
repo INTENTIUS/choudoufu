@@ -20,7 +20,7 @@ around the generated markers, never inside them.
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
 | Total | 1119 | 492 | 4 | 19 | 62 | 3 | 1699 |
 
-`live/readiness.json` last committed at commit `40b3c126c7` on 2026-10-20T18:01:05-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
+`live/readiness.json` last committed at commit `cd6a68e09f` on 2026-10-20T19:19:31-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
 <!-- readiness-gen:end tiers -->
 
 ## How each type comes back
@@ -86,8 +86,8 @@ the provider's own source at the pin.
 <!-- readiness-gen:begin gcp-paths -->
 | How it comes back | Tier | Types | What it means |
 |---|---|---|---|
-| marker | marker-carried | 320 | The `tofu-address` label on the object is the identity; the sweep reads it back. |
-| client-named | declaration-carried | 311 | The configuration names it, under a project or location it also names or the provider supplies. |
+| marker | marker-carried | 318 | The `tofu-address` label on the object is the identity; the sweep reads it back. |
+| client-named | declaration-carried | 313 | The configuration names it, under a project or location it also names or the provider supplies. |
 | parent-derived | declaration-carried | 588 | Composed over a containing resource the configuration also names; every IAM type is this shape. |
 | project-derived | declaration-carried | 16 | Only project, region or zone names it: one per project or region. |
 | unique-name | - | 0 | Nothing in the google source states a name the API refuses to issue twice, so no type is here. |
@@ -100,8 +100,8 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 
 | Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
 |---|---|---|---|---|---|---|---|
-| marker-carried | 301 | 9 | 0 | 10 | 0 | 0 | 320 |
-| declaration-carried | 887 | 28 | 0 | 0 | 0 | 0 | 915 |
+| marker-carried | 299 | 9 | 0 | 10 | 0 | 0 | 318 |
+| declaration-carried | 889 | 28 | 0 | 0 | 0 | 0 | 917 |
 | record-carried | 0 | 36 | 0 | 64 | 150 | 0 | 250 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | Total | 1188 | 73 | 0 | 74 | 150 | 0 | 1485 |
@@ -514,7 +514,7 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_compute_instance_iam_member` | declaration-carried | in-contract |  |
 | `google_compute_instance_iam_policy` | declaration-carried | in-contract |  |
 | `google_compute_instance_settings` | declaration-carried | in-contract |  |
-| `google_compute_instance_template` | marker-carried | in-contract |  |
+| `google_compute_instance_template` | declaration-carried | in-contract |  |
 | `google_compute_instance_template_iam_binding` | declaration-carried | in-contract |  |
 | `google_compute_instance_template_iam_member` | declaration-carried | in-contract |  |
 | `google_compute_instance_template_iam_policy` | declaration-carried | in-contract |  |
@@ -581,7 +581,7 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_compute_region_health_check` | declaration-carried | in-contract |  |
 | `google_compute_region_health_source` | declaration-carried | in-contract |  |
 | `google_compute_region_instance_group_manager` | declaration-carried | in-contract |  |
-| `google_compute_region_instance_template` | marker-carried | in-contract |  |
+| `google_compute_region_instance_template` | declaration-carried | in-contract |  |
 | `google_compute_region_instant_snapshot` | marker-carried | in-contract |  |
 | `google_compute_region_instant_snapshot_iam_binding` | declaration-carried | in-contract |  |
 | `google_compute_region_instant_snapshot_iam_member` | declaration-carried | in-contract |  |

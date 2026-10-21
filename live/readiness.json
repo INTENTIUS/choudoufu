@@ -24519,8 +24519,8 @@
     "counts": {
       "types": 1485,
       "tiers": {
-        "declaration-carried": 915,
-        "marker-carried": 320,
+        "declaration-carried": 917,
+        "marker-carried": 318,
         "record-carried": 250
       },
       "statuses": {
@@ -29792,7 +29792,7 @@
       },
       {
         "type": "google_compute_instance_template",
-        "tier": "marker-carried",
+        "tier": "declaration-carried",
         "status": "in-contract",
         "facts": {
           "taggable": false,
@@ -29800,7 +29800,6 @@
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
-          "label_surface": true,
           "rejected": false
         }
       },
@@ -30669,7 +30668,7 @@
       },
       {
         "type": "google_compute_region_instance_template",
-        "tier": "marker-carried",
+        "tier": "declaration-carried",
         "status": "in-contract",
         "facts": {
           "taggable": false,
@@ -30677,7 +30676,6 @@
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
-          "label_surface": true,
           "rejected": false
         }
       },

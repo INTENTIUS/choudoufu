@@ -143,6 +143,10 @@ var enforcedLimits = map[string]Rule{
 	// live/LIMITATIONS.md, "gcp-label-count", and limitsCompanionRules for
 	// the one other rule allowed beside it.
 	"gcp-label-count": RuleGCPLabelCount,
+	// A 64-character estate name over one google_storage_bucket: one past
+	// GCP's 63-character label value. See live/LIMITATIONS.md,
+	// "gcp-estate-label", and limitsCompanionRules.
+	"gcp-estate-label": RuleGCPEstateLabel,
 }
 
 // limitsCompanionRules is the one exception to TestLimitsEnforced's "that
@@ -153,7 +157,8 @@ var enforcedLimits = map[string]Rule{
 // resource to show its rule at all. The fixture's own rule must still
 // fire; only the named companion may fire beside it.
 var limitsCompanionRules = map[string]Rule{
-	"gcp-label-count": RuleUnadmittedType,
+	"gcp-label-count":  RuleUnadmittedType,
+	"gcp-estate-label": RuleUnadmittedType,
 }
 
 // notYetEnforcedLimits is every live/e2e/limits directory whose
