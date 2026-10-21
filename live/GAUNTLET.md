@@ -321,6 +321,8 @@ Oracle: Stock's own state for the migration's source (stock creates the scratch 
 
 Break: Delete one unlabelled object's record from the bucket before the plan with no state cache; that plan must then not be empty, and the stage must fail.
 
+On the floci-az substrate: Not run on this substrate; the stage is reference-gcp's, on floci-gcp's Cloud Storage.
+
 On the floci-eks substrate: Not run on this substrate; the stage is reference-gcp's.
 
 On the floci-gcp substrate: Run by reference-gcp only, last, against emulator A's Cloud Storage through record_store "gcs"'s storage_custom_endpoint: the bucket is made with the REST API to the contract's four settings, the records are listed with the JSON API, and the race is two applies of one estate on one bucket. The pinned image (641e6e8) serves every call the store makes, read from its source; no open floci-gcp issue is on the stage's path. lex00/floci-gcp#32 (an object request in a missing bucket answers "Object not found" where GCS says the bucket does not exist) is off it, since the stage never deletes its bucket mid-run.

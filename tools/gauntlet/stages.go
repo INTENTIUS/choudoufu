@@ -296,6 +296,7 @@ var flociAzNotes = map[string]string{
 	"strict":           "As on floci; the toggles are substrate-neutral. The scratch estate's record store is the lane's own, a blob container.",
 	"no_local_state":   "Records live in the record store, record_store \"azurerm\" on floci-az blob storage, so the only local artifact is the state cache, and it is what is deleted; no local record directory exists to delete. Every taggable resource must then be found by its marker, read at its declared ARM id with the Resource Graph sweep (whose query floci-az serves since dfa33ca, lex00/floci-az#11) finding anything the configuration no longer declares, and every untaggable one through its record in the container, with nothing created, destroyed or replaced. The plan call counts are each estate's own reading, named in its verdict: requests floci-az served between two marks in its access log, or the providers' request lines under TF_LOG=DEBUG.",
 	"day2_endpoints":   "Not run on this substrate; the stage is reference-gcp's (#2145 item 6).",
+	"record_store_gcs": "Not run on this substrate; the stage is reference-gcp's, on floci-gcp's Cloud Storage.",
 }
 
 // flociGCPNotes is how each stage reads on SubstrateFlociGCP (#1119): a
