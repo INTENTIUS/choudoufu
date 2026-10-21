@@ -4,7 +4,7 @@
 // that does not resolve.
 
 export type Link = { label: string; href: string };
-export type Platform = 'aws' | 'kubernetes' | 'azure';
+export type Platform = 'aws' | 'kubernetes';
 
 export type Room = {
 	id: string;
@@ -49,14 +49,12 @@ export const FROM: { id: string; label: string; blurb: string; room: string; car
 export const PLATFORMS: { id: Platform; label: string; room: string; hub: string }[] = [
 	{ id: 'aws', label: 'AWS', room: 'aws', hub: '/aws/' },
 	{ id: 'kubernetes', label: 'Kubernetes', room: 'kubernetes', hub: '/kubernetes/' },
-	{ id: 'azure', label: 'Azure', room: 'azure', hub: '/azure/' },
 ];
 
 /** Where records live. */
 export const STORES: { id: string; label: string; line: string; href: string }[] = [
 	{ id: 's3', label: 'S3 bucket', line: 'Records in your bucket', href: '/docs/use/bucket/' },
 	{ id: 'kubernetes', label: "Cluster's Secrets", line: 'Records as Secrets in your namespace', href: '/kubernetes/operate/' },
-	{ id: 'azurerm', label: 'Azure Storage', line: 'Records as blobs in your container', href: '/azure/operate/' },
 	{ id: 'local', label: 'Local', line: 'Records as local files', href: '/how-it-works/values/' },
 ];
 
@@ -164,21 +162,6 @@ export const ROOMS: Room[] = [
 		howto: [{ label: 'Adopt', href: '/kubernetes/adopt/' }, { label: 'Operate', href: '/kubernetes/operate/' }],
 		explain: [{ label: 'Gate', href: '/kubernetes/gate/' }, { label: 'Identity', href: '/how-it-works/identity/' }],
 		reference: [{ label: 'Compatibility', href: '/kubernetes/compatibility/' }, { label: 'Proof', href: '/kubernetes/proof/' }],
-	},
-	{
-		id: 'azure',
-		title: 'On Azure',
-		lede: 'Your resources live in Azure subscriptions.',
-		works: [
-			'azurerm and azapi carry the markers in their own tags argument',
-			'A plan stops at an unmarked resource on a declared id and never overwrites it',
-			'Records can live in a storage container',
-		],
-		differs: ['RBAC cannot read tags, so the fence is drawn around resource groups.'],
-		first: { label: 'The Azure hub', href: '/azure/' },
-		howto: [{ label: 'Adopt', href: '/azure/adopt/' }, { label: 'Operate', href: '/azure/operate/' }],
-		explain: [{ label: 'Gate', href: '/azure/gate/' }, { label: 'Identity', href: '/how-it-works/identity/' }],
-		reference: [{ label: 'Compatibility', href: '/azure/compatibility/' }, { label: 'Proof', href: '/azure/proof/' }],
 	},
 	{
 		id: 'security',

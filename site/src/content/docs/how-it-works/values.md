@@ -19,14 +19,13 @@ ownership.
 | `identity` | A resource with a live object: what a read cannot return |
 | `object` | A resource with no live object, such as `random_*` or `tls_*`: the whole value |
 
-## Four stores
+## Three stores
 
 | Store | Records are | For |
 |---|---|---|
 | `local` | Files in `.tofu-records` | One operator (default) |
 | `s3` | Objects in your bucket | A team on AWS |
 | `kubernetes` | Secrets in your namespace | A team on a cluster |
-| `azurerm` | Blobs in your Storage container | A team on Azure |
 
 ```hcl
 record_store "s3" {

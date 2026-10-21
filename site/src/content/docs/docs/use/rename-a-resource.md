@@ -27,9 +27,3 @@ choudoufu live-mv -from-estate=monolith aws_iam_role.team aws_iam_role.team
 
 `live-mv` or the next apply rewrites the address annotation. A move between
 estates needs rights in both.
-
-## On Azure
-
-`live-mv` rewrites the `tofu-address` tag, keys matched case-insensitively.
-To change a resource's estate, first move its Azure Policy assignments
-([Gate](/choudoufu/azure/gate/)).

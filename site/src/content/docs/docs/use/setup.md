@@ -34,7 +34,6 @@ estate = "my-estate"
 | `local` | Nothing. Gitignore `.tofu-records/` |
 | `s3` | The bucket ([set it up](../bucket/)) |
 | `kubernetes` | The namespace, and a role bound to Secrets in it ([`examples/record-store-cluster`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-cluster/README.md)) |
-| `azurerm` | The storage account and container, with versioning, a lifecycle rule that deletes previous versions, and public access off |
 
 Create the store outside the estate that uses it.
 

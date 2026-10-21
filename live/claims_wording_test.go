@@ -37,7 +37,7 @@ func claimWordingMarkdown(t *testing.T) []string {
 		t.Fatalf("no claim pages under %s (%v); this test is checking nothing", siteClaimsPages, err)
 	}
 	sort.Strings(pages)
-	return append([]string{"CLAIMS.md", "../site/src/content/docs/aws/proof.mdx", "../site/src/content/docs/kubernetes/proof.mdx", "../site/src/content/docs/azure/proof.mdx"}, pages...)
+	return append([]string{"CLAIMS.md", "../site/src/content/docs/aws/proof.mdx", "../site/src/content/docs/kubernetes/proof.mdx"}, pages...)
 }
 
 // claimWordingSource are the site files that link the claims; every line of
