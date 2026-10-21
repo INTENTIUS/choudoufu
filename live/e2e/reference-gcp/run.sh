@@ -37,9 +37,12 @@
 #
 # A stage this script cannot pass records fail with the reason and the run
 # continues to the next; the runner, not the script, decides what "clear"
-# means. The one exception is a fault in the substrate itself (an emulator
-# that never came up), which is a fail on the stage being set up and an
-# exit.
+# means. Every stage after test_plan runs in a subshell (gcp_stage_done in
+# live/e2e/lib/gcp.sh), so its fail() ends that stage only; a failed day-2
+# stage is followed by a reconverging apply on both emulators, and the run
+# exits 1 at the end if any stage failed. cold_deploy, migrate and test_plan
+# still end the run, as does a fault in the substrate itself (an emulator
+# that never came up).
 #
 #   go run ./tools/gauntlet run reference-gcp     # asks for "run" at the terminal
 #   bash live/e2e/reference-gcp/run.sh
@@ -123,6 +126,7 @@ cleanup() {
   rm -rf "$WORK"
 }
 trap cleanup EXIT
+gcp_fail_flag "$WORK/stage-failed"
 gauntlet_begin
 
 # ── 0. tools ─────────────────────────────────────────────────────────────
@@ -301,6 +305,41 @@ exists_a() { ra GET "$1" >/dev/null 2>&1; }
 topic_path() { printf 'v1/projects/%s/topics/%s' "$PROJECT" "$1"; }
 plan_a() { ( cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1 ); }
 apply_a() { ( cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color 2>&1 ); }
+# reconverge: both emulators applied to the roots on disk, after a day-2
+# stage failed partway.
+reconverge() {
+  local rc=0
+  ( apply_a >/dev/null 2>&1 ) || { log "  the reconverging apply on A failed"; rc=1; }
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || { log "  stock's reconverging apply on B failed"; rc=1; }
+  return $rc
+}
+stage_done() { gcp_stage_done "$@"; }
+
+# The day-2 shape's pieces, here rather than in the stage that first uses
+# them because every stage runs in its own subshell: plan_approval's label,
+# day2_rename's moved block, day2_remove's firewall removal and
+# day2_count's rewrite of both roots at a count.
+REVIEWED='    reviewed = "yes"'
+moved_block() { cat <<'EOF'
+
+moved {
+  from = google_pubsub_topic.events
+  to   = google_pubsub_topic.stream
+}
+EOF
+}
+remove_fw() { python3 - "$1" <<'PY'
+import re, sys
+p = sys.argv[1]; s = open(p).read()
+s = re.sub(r'\nresource "google_compute_firewall" "ssh" \{.*?\n\}\n', '\n', s, flags=re.S)
+assert 'google_compute_firewall' not in s
+open(p, 'w').write(s)
+PY
+}
+scale_to() { # $1 count, both roots, firewall already gone
+  write_config "$ADOPTED" live "$EPA" stream "$1" "$REVIEWED"; moved_block >> "$ADOPTED/main.tf"; remove_fw "$ADOPTED/main.tf" || fail "could not rewrite the adopted root at count $1"
+  write_config "$ORACLE" stock "$EPB" stream "$1" "$REVIEWED"; moved_block >> "$ORACLE/main.tf"; remove_fw "$ORACLE/main.tf" || fail "could not rewrite the oracle root at count $1"
+}
 
 # ── 1. cold_deploy: stock stands the estate up on A (and B, the oracle) ──
 gauntlet_begin_stage cold_deploy
@@ -374,6 +413,7 @@ else
 fi
 [ "$(count_a)" = "6" ] || fail "$(count_a) object(s) carry tofu-estate=$ESTATE after adoption, want 6"
 
+(
 # ── 4. test_apply: no-op apply, marker count unchanged ───────────────────
 gauntlet_begin_stage test_apply
 log "=== 4. test_apply: apply the empty plan; the labelled-object count must not move ==="
@@ -384,6 +424,9 @@ AFTER_N="$(count_a)"
 [ "$BEFORE_N" = "$AFTER_N" ] || fail "labelled-object count moved across a no-op apply: $BEFORE_N -> $AFTER_N"
 gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=$ESTATE unchanged at $BEFORE_N across the four labelled types, counted with the REST API"
 
+); stage_done $? test_apply reconverge
+
+(
 # ── 5. drift_reconverge: one object tampered out of band ─────────────────
 gauntlet_begin_stage drift_reconverge
 log "=== 5. drift_reconverge: a REST PATCH on the bucket's tier label on A and on B; stock's plan on B is the oracle ==="
@@ -414,50 +457,57 @@ else
   gauntlet_stage drift_reconverge pass "one bucket label tampered with a REST PATCH; choudoufu proposed exactly google_storage_bucket.logs (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle emulator for the same tamper; apply changed 1 and tier=logs reads back. BREAK=1 tampers the topic as well and the single-object assertion correctly fails"
 fi
 
+); stage_done $? drift_reconverge reconverge
+
+(
 # ── 6. plan_approval: plan -out, the world moves, apply refuses ──────────
 gauntlet_begin_stage plan_approval
-log "=== 6. plan_approval: a saved plan, an out-of-band label, a refusal; then the same file applies once the world is back ==="
-REVIEWED='    reviewed = "yes"'
+log "=== 6. plan_approval: a saved plan, an out-of-band label change, a refusal; then the same file applies once the world is back ==="
 write_config "$ADOPTED" live "$EPA" events 2 "$REVIEWED"
 write_config "$ORACLE" stock "$EPB" events 2 "$REVIEWED"
 P_PLAN="$(cd "$ADOPTED" && "$TOFU" plan -out=approved.tfplan -input=false -no-color 2>&1)" || { printf '%s\n' "$P_PLAN" | tail -20; fail "plan -out failed"; }
 grep -qF "Plan: 0 to add, 1 to change, 0 to destroy." <<< "$P_PLAN" || { printf '%s\n' "$P_PLAN" | tail -10; fail "the saved plan is not exactly one change"; }
-ra PATCH "$(topic_path refgcp-shard-0)" '{"topic":{"labels":{"stray":"yes","tofu-estate":"'"$ESTATE"'","tofu-address":"'"$(gcp_address_label google_pubsub_topic.shard 'google_pubsub_topic.shard[0]')"'"}},"updateMask":"labels"}' >/dev/null \
-  || fail "could not move the world (a stray label on refgcp-shard-0) on A"
+# The world moves on a value the configuration declares: the bucket's tier
+# label. A label the configuration does not declare would not do it.
+# hashicorp/google's labels are non-authoritative at 8.6.0: the planned
+# effective_labels is the prior's plus terraform_labels
+# (tpgresource.setLabelsFields, google/tpgresource/labels.go:136-151), so an
+# undeclared key rides along on both sides and the fresh plan proposes
+# nothing for it, stock's and choudoufu's alike. The stray label this stage
+# used to add (an AWS port, where tags are authoritative) left the fresh plan
+# identical to the saved one, and the apply would have gone through.
+# A bucket PATCH merges labels, so the markers stay.
+ra PATCH "storage/v1/b/$BUCKET" '{"labels":{"tier":"moved"}}' >/dev/null \
+  || fail "could not move the world (the bucket's tier label) on A"
 P_APPLY="$(cd "$ADOPTED" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)"; P_RC=$?
-put_shard_back() {
-  ra PATCH "$(topic_path refgcp-shard-0)" '{"topic":{"labels":{"tofu-estate":"'"$ESTATE"'","tofu-address":"'"$(gcp_address_label google_pubsub_topic.shard 'google_pubsub_topic.shard[0]')"'"}},"updateMask":"labels"}' >/dev/null
+put_world_back() {
+  ra PATCH "storage/v1/b/$BUCKET" '{"labels":{"tier":"logs"}}' >/dev/null
 }
 if [ "${BREAK_APPROVAL:-}" = "1" ]; then
   [ "$P_RC" -eq 0 ] && fail "BREAK_APPROVAL=1: applying the saved plan after the world moved succeeded - the refusal is not load-bearing"
   log "  BREAK_APPROVAL=1: caught - the apply after the world moved exited $P_RC"
-  put_shard_back || fail "BREAK_APPROVAL: could not put the world back"
+  put_world_back || fail "BREAK_APPROVAL: could not put the world back"
   ( cd "$ADOPTED" && "$TOFU" apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: the saved plan did not apply once the world was put back"
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_APPROVAL: stock could not apply the reviewed change on B"
   gauntlet_stage plan_approval pass "BREAK_APPROVAL=1 control: applying the saved plan after the world moved exited $P_RC (refused), so the stage's own Break line correctly fails; applied once the world was put back"
 else
   [ "$P_RC" -eq 3 ] || { printf '%s\n' "$P_APPLY" | tail -20; fail "apply of the saved plan after the world moved exited $P_RC, want 3 (the refusal)"; }
   grep -qF "The approved plan no longer matches the live system" <<< "$P_APPLY" || { printf '%s\n' "$P_APPLY" | tail -20; fail "the refusal does not carry its documented sentence"; }
-  put_shard_back || fail "could not put the world back"
+  put_world_back || fail "could not put the world back"
   P_APPLY2="$(cd "$ADOPTED" && "$TOFU" apply -input=false -no-color approved.tfplan 2>&1)" || { printf '%s\n' "$P_APPLY2" | tail -20; fail "the saved plan did not apply once the world was put back"; }
   grep -qF "Apply complete! Resources: 0 added, 1 changed, 0 destroyed" <<< "$P_APPLY2" || fail "the saved plan's apply did not change exactly one object"
   GOT="$(gcp_labels "$EPA" "$(topic_path refgcp-events)" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("reviewed",""))')"
   [ "$GOT" = "yes" ] || fail "the events topic does not read reviewed=yes after the saved plan applied"
   ( stock_b plan -out=approved.tfplan -input=false -no-color >/dev/null 2>&1 && stock_b apply -input=false -no-color approved.tfplan >/dev/null 2>&1 ) || fail "stock's own planfile did not apply on B"
-  gauntlet_stage plan_approval pass "plan -out wrote one update (the events topic gains reviewed=yes); the world then moved out of band (a stray label on refgcp-shard-0, a REST PATCH, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3; with the stray label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle emulator in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
+  gauntlet_stage plan_approval pass "plan -out wrote one update (the events topic gains reviewed=yes); the world then moved out of band (the bucket's declared tier label set to moved, a REST PATCH, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3; with tier=logs put back the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle emulator in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
 fi
 
+); stage_done $? plan_approval reconverge
+
+(
 # ── 7. day2_rename: a moved block ────────────────────────────────────────
 gauntlet_begin_stage day2_rename
 log "=== 7. day2_rename: google_pubsub_topic.events becomes .stream through a moved block ==="
-moved_block() { cat <<'EOF'
-
-moved {
-  from = google_pubsub_topic.events
-  to   = google_pubsub_topic.stream
-}
-EOF
-}
 if [ "${BREAK:-}" = "1" ]; then
   # A bare block rename does not destroy the topic either: the block name
   # is not part of its identity, so it plans the same in-place
@@ -493,17 +543,12 @@ else
   gauntlet_stage day2_rename pass "moved block: google_pubsub_topic.events -> .stream, no add and no destroy, one in-place change confined to the tofu-address label rewrite (0 add, 1 change, 0 destroy), the label reading the encoding of google_pubsub_topic.stream afterwards, read with the REST API; stock's plan for the same moved block on the oracle emulator is zero churn, since stock never writes the label. The moved-block half only: live-mv is not exercised by this stage. BREAK=1 renames the topic itself, which is a genuine identity change and plans a destroy and a create"
 fi
 
+); stage_done $? day2_rename reconverge
+
+(
 # ── 8. day2_remove: delete the firewall's block ──────────────────────────
 gauntlet_begin_stage day2_remove
 log "=== 8. day2_remove: the firewall block leaves the configuration; its network stays ==="
-remove_fw() { python3 - "$1" <<'PY'
-import re, sys
-p = sys.argv[1]; s = open(p).read()
-s = re.sub(r'\nresource "google_compute_firewall" "ssh" \{.*?\n\}\n', '\n', s, flags=re.S)
-assert 'google_compute_firewall' not in s
-open(p, 'w').write(s)
-PY
-}
 FW="compute/v1/projects/$PROJECT/global/firewalls/refgcp-ssh"
 if [ "${BREAK_REMOVE:-}" = "1" ]; then
   K_PLAN="$(plan_a)" || fail "BREAK_REMOVE: the plan with the block kept failed"
@@ -532,13 +577,12 @@ else
   gauntlet_stage day2_remove pass "deleting google_compute_firewall.ssh's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at $D_ADDR, stock's own address for it - a firewall carries no label, so the estate's record for it is what proposed the removal - applied cleanly, the firewall gone (REST: 404), the network it sat on still there, and the next plan empty; stock's plan for the same removal on the oracle emulator is also exactly one destroy. BREAK_REMOVE=1 keeps the block and no destroy is proposed"
 fi
 
+); stage_done $? day2_remove reconverge
+
+(
 # ── 9. day2_count: shards 2 -> 1 -> 2 ────────────────────────────────────
 gauntlet_begin_stage day2_count
 log "=== 9. day2_count: google_pubsub_topic.shard scales 2 -> 1 -> 2 ==="
-scale_to() { # $1 count, both roots, firewall already gone
-  write_config "$ADOPTED" live "$EPA" stream "$1" "$REVIEWED"; moved_block >> "$ADOPTED/main.tf"; remove_fw "$ADOPTED/main.tf" || fail "could not rewrite the adopted root at count $1"
-  write_config "$ORACLE" stock "$EPB" stream "$1" "$REVIEWED"; moved_block >> "$ORACLE/main.tf"; remove_fw "$ORACLE/main.tf" || fail "could not rewrite the oracle root at count $1"
-}
 scale_to 1
 O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-down plan failed on B"
 grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's scale-down plan on B is not exactly one destroy"; }
@@ -568,6 +612,9 @@ else
   gauntlet_stage day2_count pass "scaling google_pubsub_topic.shard from 2 to 1 destroyed exactly google_pubsub_topic.shard[1] (refgcp-shard-0 untouched, both read with the REST API) - the instance key is in the topic's tofu-address label, so the leaving instance is found at its own address; back to 2 created exactly google_pubsub_topic.shard[1]; the next plan is empty; stock's plans for the same two changes on the oracle emulator have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
 fi
 
+); stage_done $? day2_count reconverge
+
+(
 # ── 9b. day2_replace: a create_before_destroy rename ─────────────────────
 #
 # A topic's name is unique in its project, so the replacement
@@ -623,6 +670,9 @@ rm -f "$ADOPTED/day2_replace.tf" "$ORACLE/day2_replace.tf"
 ( apply_a >/dev/null ) || fail "could not remove the replace block from A"
 ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not remove the replace block from B"
 
+); stage_done $? day2_replace reconverge
+
+(
 # ── 10. day2_crash: an apply of two objects, killed after the first ─────
 #
 # The engine's own interrupt (internal/command/apply_e2etesting_crash.go)
@@ -672,6 +722,8 @@ elif [ "${BREAK_CRASH_UNBOUND:-}" = "1" ]; then
   ( apply_a >/dev/null ) || fail "BREAK_CRASH_UNBOUND: the apply after the cleanup failed"
 elif ! recovered; then
   gauntlet_stage day2_crash fail "the plan after a real interrupt between the create of google_pubsub_topic.crash_first and the create of google_pubsub_topic.crash_second is not exactly the remainder: ${R_LINE:-no plan line} (exit $R_RC). refgcp-crash-first exists carrying tofu-estate=$ESTATE and the second topic does not, both read with the REST API; stock, walked into the same position on the oracle emulator, plans exactly one add"
+  # Best effort, so day2_teardown compares the same set of objects on A and B.
+  ( apply_a >/dev/null 2>&1 ) || log "  the apply after day2_crash's failed recovery check failed too; day2_teardown's count may differ by the crash pair"
 else
   R_APPLY="$(apply_a)" || { printf '%s\n' "$R_APPLY" | tail -20; fail "the recovery apply failed"; }
   grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed" <<< "$R_APPLY" || fail "the recovery apply did not add exactly the one remaining topic"
@@ -681,6 +733,9 @@ else
 fi
 gauntlet_end_stage
 
+); stage_done $? day2_crash reconverge
+
+(
 # ── 11. day2_teardown: destroy the adopted estate ────────────────────────
 gauntlet_begin_stage day2_teardown
 log "=== 11. day2_teardown: apply -destroy on the adopted estate, and stock's own destroy on B ==="
@@ -697,6 +752,9 @@ grep -qF "Resources: 0 added, 0 changed, $O_EXPECT destroyed" <<< "$O_T" || fail
 [ "${T_N:-}" = "$O_EXPECT" ] || fail "apply -destroy removed ${T_N:-an unreported number of} object(s); stock's destroy of the same estate removed $O_EXPECT (cache listed ${T_EXPECT:-?})"
 gauntlet_stage day2_teardown pass "apply -destroy removed $T_N objects in one apply, the same number stock's destroy of the same estate removed on the oracle emulator; no object of the four labelled types carries tofu-estate=$ESTATE and the unlabelled network, subnetwork and service account are gone (REST: 404)"
 
+); stage_done $? day2_teardown
+
+(
 # ── 12. greenfield: the same shape, fresh, with a live block ─────────────
 gauntlet_begin_stage greenfield
 log "=== 12. greenfield: choudoufu applies the shape fresh on the now-empty emulator A ==="
@@ -704,25 +762,40 @@ mkdir -p "$GREEN"
 write_config "$GREEN" live "$EPA"
 ( cd "$GREEN" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "greenfield init failed"
 G_OUT="$(cd "$GREEN" && "$TOFU" apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$G_OUT" | tail -20; fail "greenfield apply failed"; }
-grep -qF "Apply complete! Resources: 10 added, 0 changed, 0 destroyed" <<< "$G_OUT" || fail "greenfield apply did not add exactly 10 instances"
-[ ! -f "$GREEN/terraform.tfstate" ] || fail "a terraform.tfstate appeared after a live-block apply"
-[ "$(count_a)" = "6" ] || fail "$(count_a) object(s) carry tofu-estate=$ESTATE after the greenfield apply, want 6"
-G_PLAN="$( cd "$GREEN" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "the greenfield replan failed"
-grep -q "No changes." <<< "$G_PLAN" || { printf '%s\n' "$G_PLAN" | tail -20; fail "the greenfield replan is not empty"; }
+# Every check below runs and the verdict names each that failed, so one run
+# says whether the count, the replans and the inventory hold, not only the
+# first of them.
+G_PROBLEMS=""
+g_problem() { G_PROBLEMS="${G_PROBLEMS:+$G_PROBLEMS; }$*"; }
+if ! grep -qF "Apply complete! Resources: 10 added, 0 changed, 0 destroyed" <<< "$G_OUT"; then
+  ( cd "$STOCK" && terraform state list 2>/dev/null ) > "$WORK/greenfield.expected"
+  g_problem "the apply did not add exactly 10 instances ($(grep -oE 'Resources: [0-9]+ added, [0-9]+ changed, [0-9]+ destroyed' <<< "$G_OUT" | head -1)); stock's cold-deploy addresses with no Creation complete line: $(gcp_not_created "$WORK/greenfield.expected" <<< "$G_OUT")"
+fi
+[ ! -f "$GREEN/terraform.tfstate" ] || g_problem "a terraform.tfstate appeared after a live-block apply"
+G_N="$(count_a)"
+[ "$G_N" = "6" ] || g_problem "$G_N object(s) carry tofu-estate=$ESTATE after the greenfield apply, want 6"
+G_PLAN="$(cd "$GREEN" && "$TOFU" plan -input=false -no-color 2>&1)"; G_RC=$?
+{ [ "$G_RC" -eq 0 ] && grep -q "No changes." <<< "$G_PLAN"; } || { printf '%s\n' "$G_PLAN" | tail -20; g_problem "the greenfield replan is not empty (exit $G_RC, $(gauntlet_plan_line <<< "$G_PLAN"))"; }
 rm -f "$GREEN/.terraform/choudoufu-cache.tfstate"
-G_PLAN2="$(cd "$GREEN" && "$TOFU" plan -input=false -no-color 2>&1)" || fail "the greenfield replan without the cache failed"
-grep -q "No changes." <<< "$G_PLAN2" || { printf '%s\n' "$G_PLAN2" | tail -20; fail "the greenfield replan without the cache is not empty"; }
+G_PLAN2="$(cd "$GREEN" && "$TOFU" plan -input=false -no-color 2>&1)"; G_RC2=$?
+{ [ "$G_RC2" -eq 0 ] && grep -q "No changes." <<< "$G_PLAN2"; } || { printf '%s\n' "$G_PLAN2" | tail -20; g_problem "the greenfield replan without the cache is not empty (exit $G_RC2, $(gauntlet_plan_line <<< "$G_PLAN2"))"; }
 DROP=""; [ "${BREAK:-}" = "1" ] && DROP="instance/refgcp-vm"
-gcp_inventory "$EPA" "$PROJECT" "$REGION" "$ZONE" "$DROP" > "$WORK/inventory.green.json" || fail "could not read the greenfield inventory"
+gcp_inventory "$EPA" "$PROJECT" "$REGION" "$ZONE" "$DROP" > "$WORK/inventory.green.json" || fail "could not read the greenfield inventory${G_PROBLEMS:+; also: $G_PROBLEMS}"
 if [ "${BREAK:-}" = "1" ]; then
   diff -q "$WORK/inventory.stock.json" "$WORK/inventory.green.json" >/dev/null \
     && fail "BREAK=1: with the instance dropped from the greenfield inventory the two inventories still match"
-  gauntlet_stage greenfield pass "BREAK=1 control: dropping the instance from the greenfield inventory makes the object-by-object comparison correctly fail; the estate applied (10 added, no terraform.tfstate) and replanned empty with and without the cache"
+  gauntlet_stage greenfield pass "BREAK=1 control: dropping the instance from the greenfield inventory makes the object-by-object comparison correctly fail${G_PROBLEMS:+ (the other checks: $G_PROBLEMS)}"
 else
-  diff -u "$WORK/inventory.stock.json" "$WORK/inventory.green.json" || fail "the greenfield inventory differs from stock's cold-deploy inventory (diff above)"
-  gauntlet_stage greenfield pass "10 instances applied fresh with a live block and no terraform.tfstate, the 6 labelled ones carrying tofu-estate=$ESTATE (REST API); replanned empty with and without the cache; the emulator's inventory (the network, the subnetwork's range, the firewall's rule, the service account, the bucket's location and access, the topics, the disk's size and type, the instance's machine type, subnetwork and boot disk) matches stock's cold deploy on the same emulator object by object, labels never compared. BREAK=1 drops the instance from the expected inventory and the match correctly fails"
+  diff -u "$WORK/inventory.stock.json" "$WORK/inventory.green.json" || g_problem "the greenfield inventory differs from stock's cold-deploy inventory (diff above)"
+  if [ -n "$G_PROBLEMS" ]; then
+    gauntlet_stage greenfield fail "$G_PROBLEMS"
+  else
+    gauntlet_stage greenfield pass "10 instances applied fresh with a live block and no terraform.tfstate, the 6 labelled ones carrying tofu-estate=$ESTATE (REST API); replanned empty with and without the cache; the emulator's inventory (the network, the subnetwork's range, the firewall's rule, the service account, the bucket's location and access, the topics, the disk's size and type, the instance's machine type, subnetwork and boot disk) matches stock's cold deploy on the same emulator object by object, labels never compared. BREAK=1 drops the instance from the expected inventory and the match correctly fails"
+  fi
 fi
+); stage_done $? greenfield
 
+(
 # ── no_local_state: the record store and the cache both gone ────────────
 gauntlet_begin_stage no_local_state
 log "=== no_local_state: the cache-serving plan, then no record store and no cache at all ==="
@@ -737,7 +810,7 @@ fi
 ( cd "$GREEN" && TF_LOG=debug TF_LOG_PATH="$NLS/cold.log" "$TOFU" plan -input=false -no-color > "$NLS/cold.plan" 2>&1 ); N_RC=$?
 REQ_C="$(gcp_request_count "$NLS/cached.log")"; REQ_N="$(gcp_request_count "$NLS/cold.log")"
 N_LINE="$(grep -E '^Plan:|^No changes|^Error' "$NLS/cold.plan" | head -1)"
-N_BAD="$(grep -cE '^[[:space:]]*# .* will be (created|destroyed|replaced)' "$NLS/cold.plan" || true)"
+N_BAD="$(gcp_churn_count < "$NLS/cold.plan")"
 if [ "${BREAK_NO_LOCAL_STATE:-}" = "1" ]; then
   if [ "$N_RC" -eq 0 ] && grep -q "No changes." "$NLS/cold.plan"; then
     fail "BREAK_NO_LOCAL_STATE=1: with the bucket's label stripped the plan with no local state is still empty"
@@ -754,6 +827,9 @@ rm -rf "$GREEN/.tofu-records"; cp -R "$NLS/records.keep" "$GREEN/.tofu-records" 
 cp "$NLS/cache.keep" "$GREEN/.terraform/choudoufu-cache.tfstate" 2>/dev/null || true
 ( cd "$GREEN" && "$TOFU" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  greenfield teardown failed; the emulator goes with the run"
 
+); stage_done $? no_local_state
+
+(
 # ── 13. strict: every toggle on, one refusal ─────────────────────────────
 gauntlet_begin_stage strict
 STRICT="$WORK/strict"
@@ -806,5 +882,8 @@ else
 fi
 gauntlet_end_stage
 
+); stage_done $? strict
+
 gauntlet_end
 log "reference-gcp: done"
+gcp_exit_status

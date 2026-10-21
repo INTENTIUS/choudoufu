@@ -97,3 +97,29 @@ if drop:
 print(json.dumps(inv, sort_keys=True, indent=1))
 PY
 }
+
+# GCVE_SERVICES: the five APIs main.tf's google_project_service enables.
+GCVE_SERVICES="cloudasset.googleapis.com compute.googleapis.com essentialcontacts.googleapis.com secretmanager.googleapis.com vmwareengine.googleapis.com"
+
+# gcve_service_mismatches <endpoint A> <endpoint B> <project>: each of the
+# five services whose state on A differs from its state on B, as
+# "<service> (A=<state>, B=<state>)" joined by "; ", or nothing when all
+# five agree. day2_teardown's check: what a destroy does to a service is
+# stock's call. At hashicorp/google 8.6.0 disable_on_destroy is Optional
+# with no default and the k8s.io root leaves it unset, so Delete drops the
+# resource and never calls the API
+# (resource_google_project_service.go:334-338); stock's own destroy on the
+# oracle is the expectation, never "not ENABLED".
+gcve_service_mismatches() {
+  local epa="$1" epb="$2" project="$3" svc a b out=""
+  for svc in $GCVE_SERVICES; do
+    a="$(gcve_service_state "$epa" "$project" "$svc" 2>/dev/null)" || a="unread"
+    b="$(gcve_service_state "$epb" "$project" "$svc" 2>/dev/null)" || b="unread"
+    [ -n "$a" ] || a="unread"
+    [ -n "$b" ] || b="unread"
+    if [ "$a" != "$b" ] || [ "$a" = "unread" ]; then
+      out="${out:+$out; }$svc (A=$a, B=$b)"
+    fi
+  done
+  printf '%s' "$out"
+}

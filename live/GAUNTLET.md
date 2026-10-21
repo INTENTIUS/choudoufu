@@ -211,7 +211,7 @@ Break: Leave one resource; the assertion that the estate is empty must fail.
 
 On the floci-eks substrate: Both legs end empty: the AWS listing as on floci, and kubectl in the k3s container returning nothing for every kind the estate declared. The cluster leg is destroyed before the cluster it lives on, the order the configuration's own dependency graph gives, so no load balancer or network interface outlives the cluster.
 
-On the floci-gcp substrate: An empty estate is no labelled object carrying tofu-estate=<estate> through the REST API, and the declaration-carried skeleton gone (404). The destroy count is compared with stock's destroy of the same estate on the oracle emulator.
+On the floci-gcp substrate: An empty estate is no labelled object carrying tofu-estate=<estate> through the REST API, and the declaration-carried skeleton gone (404). The destroy count is compared with stock's destroy of the same estate on the oracle emulator. An object a destroy leaves in place by stock's own rules (a google_project_service with disable_on_destroy unset stays ENABLED) is compared with what stock's destroy left on the oracle.
 
 On the kind substrate: An empty cluster is `kubectl get <kind> -A -l tofu-estate=<estate>` returning nothing for every kind.
 
@@ -225,7 +225,7 @@ Break: Apply the planfile after a mutation and expect success; the run must refu
 
 On the floci-eks substrate: As on floci; the saved plan carries both legs, and the apply of it configures the kubernetes provider from the same cluster the plan read.
 
-On the floci-gcp substrate: The out-of-band move is a REST PATCH adding a label to an estate object.
+On the floci-gcp substrate: The out-of-band move is a REST PATCH on a value the configuration declares: a declared label or a firewall's source ranges. hashicorp/google's labels are non-authoritative, so a label the configuration does not name rides along in effective_labels and moves no plan, stock's or the tool's.
 
 On the kind substrate: The out-of-band move is a kubectl label.
 
