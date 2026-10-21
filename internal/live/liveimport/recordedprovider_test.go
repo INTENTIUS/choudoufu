@@ -135,3 +135,82 @@ func TestStockStateRecordIsRemovedThroughTheConfiguredProvider(t *testing.T) {
 		t.Errorf("the merge proposes %d removals of %s, want 1:\n%s", removals, addr, merged)
 	}
 }
+
+// TestRecordNamingAnotherAliasStaysThatAliassRemoval is the honest
+// "recorded elsewhere" control: the stock state recorded the role
+// assignment under azapi.west, so the record names the west configuration
+// (on the configuration's host), the default azapi pass leaves it to that
+// configuration, and the west pass proposes the destroy.
+func TestRecordNamingAnotherAliasStaysThatAliassRemoval(t *testing.T) {
+	stockWest := stockAzapi
+	stockWest.Alias = "west"
+	raw, store := migrateRoleAssignment(t, stockWest)
+	addr := mustAddr(t, "azapi_resource.roleAssignments")
+	configWest := configAzapi
+	configWest.Alias = "west"
+	if _, recorded, _, _, err := store.GetIdentityWithProvider(context.Background(), addr); err != nil {
+		t.Fatal(err)
+	} else if recorded != configWest.String() {
+		t.Errorf("the record names provider %s, want %s", recorded, configWest)
+	}
+
+	cfg := loadSlotTestConfig(t, azureTestConfigDir(t, fmt.Sprintf(refazConfigTmpl, azSub)+`
+provider "azapi" {
+  alias = "west"
+}
+`))
+	var passes []discovery.Pass
+	for _, scope := range []addrs.AbsProviderConfig{configAzapi, configWest} {
+		res, diags := discovery.Discover(context.Background(), discovery.Request{
+			Estate:        testEstate,
+			Config:        cfg,
+			Provider:      listingAzureCloud{newAzureCloud()},
+			HintStore:     raw,
+			RecordRemoval: true,
+			ScopeProvider: scope,
+			VouchProvider: scope,
+		})
+		if diags.HasErrors() {
+			t.Fatalf("Discover through %s: %s", scope, diags.Err())
+		}
+		passes = append(passes, discovery.Pass{Provider: scope, Result: res})
+	}
+	if got := passes[0].Result.RecordedElsewhere; len(got) != 1 || got[0].Provider != configWest.String() {
+		t.Errorf("the default azapi pass's RecordedElsewhere is %+v, want the role assignment left to %s", got, configWest)
+	}
+	merged, providerOf, mdiags := discovery.Merge(testEstate, passes, false)
+	if mdiags.HasErrors() {
+		t.Fatalf("Merge: %s", mdiags.Err())
+	}
+	var removals int
+	for _, r := range merged.Resolutions {
+		if r.Addr.String() == addr.String() && r.Undeclared {
+			removals++
+		}
+	}
+	if removals != 1 {
+		t.Errorf("the merge proposes %d removals of %s, want 1:\n%s", removals, addr, merged)
+	}
+	if got := providerOf[addr.String()]; got.String() != configWest.String() {
+		t.Errorf("the removal is read through %s, want %s", got, configWest)
+	}
+}
+
+// TestRecordedProviderAddrKeepsAnUnrecognisedSource: only the host is ever
+// taken from the configuration. A state provider whose namespace or type
+// the configuration does not resolve the type to (here no required_providers
+// entry, so the hashicorp default) is recorded as the state wrote it, and
+// the module path and alias always are.
+func TestRecordedProviderAddrKeepsAnUnrecognisedSource(t *testing.T) {
+	bare := loadSlotTestConfig(t, azureTestConfigDir(t, `terraform {}`))
+	if got := recordedProviderAddr(bare, "azapi_resource", stockAzapi); got.String() != stockAzapi.String() {
+		t.Errorf("with no azapi requirement: %s, want the state's %s", got, stockAzapi)
+	}
+	stockAWS := addrs.AbsProviderConfig{Module: addrs.RootModule.Child("net"), Alias: "east", Provider: addrs.Provider{
+		Hostname: "registry.terraform.io", Namespace: "hashicorp", Type: "aws",
+	}}
+	want := `module.net.provider["registry.opentofu.org/hashicorp/aws"].east`
+	if got := recordedProviderAddr(bare, "aws_iam_role", stockAWS); got.String() != want {
+		t.Errorf("a stock aws address: %s, want %s", got, want)
+	}
+}

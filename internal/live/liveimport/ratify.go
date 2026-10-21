@@ -156,12 +156,12 @@ type residuable struct {
 	typeName string
 
 	// providerAddr is the managing provider instance address the migrated
-	// state file recorded for this resource (states.Resource.ProviderConfig,
-	// not [impliedProviderAddr]'s rewritten namespace) - GitHub issue #389
-	// research, written into every record this migration seeds so a record
-	// is a source of that fact later (issue #361's deposed-object case, and
-	// issue #69's undeclared-resource provider selection) that is not a
-	// sweep.
+	// state file recorded for this resource (states.Resource.ProviderConfig),
+	// with its provider source as this configuration resolves it
+	// ([recordedProviderAddr]) - GitHub issue #389 research, written into
+	// every record this migration seeds so a record is a source of that fact
+	// later (issue #361's deposed-object case, and issue #69's
+	// undeclared-resource provider selection) that is not a sweep.
 	providerAddr addrs.AbsProviderConfig
 
 	// applied is the object this instance's arguments are classified from.
@@ -745,6 +745,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	entry := Entry{Addr: addr, TypeName: typeName}
 
 	providerAddr := impliedProviderAddr(req.Config, res)
+	recordedProvider := recordedProviderAddr(req.Config, typeName, res.ProviderConfig)
 	if _, admitted := identity.LookupType(typeName); !admitted {
 		// The two schema doors below both need the provider. A provider
 		// this run cannot reach is said by name, as MISSING, and never
@@ -826,7 +827,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 				typeName, req.Secrets, strict.DefaultSecrets)
 			return entry, carriers{}
 		}
-		return ratifyRecordBacked(entry, typeName, schema, inst, res.ProviderConfig)
+		return ratifyRecordBacked(entry, typeName, schema, inst, recordedProvider)
 	}
 
 	// GitHub issue #365 slice 2's migrate-time half. Checked ahead of the
@@ -888,7 +889,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		manifested = !selected
 	default:
 		if !selected {
-			return ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
+			return ratifyUntaggable(entry, provider, schema, typeName, inst, recordedProvider)
 		}
 	}
 
@@ -914,7 +915,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	if armTagged && !selected {
 		inBody, placed, why := projection.ARMTagPlacement(addr, schema.Block, priorVal)
 		if !placed {
-			untaggable, car := ratifyUntaggable(entry, provider, schema, typeName, inst, res.ProviderConfig)
+			untaggable, car := ratifyUntaggable(entry, provider, schema, typeName, inst, recordedProvider)
 			untaggable.Detail = why + " It is migrated as an untaggable type is: its identity is recorded in the estate's record store when one is configured."
 			return untaggable, car
 		}
@@ -974,7 +975,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		manifestKeys: seedManifestKeys(schema, priorVal),
 		identity:     readResp.NewIdentity,
 		private:      readResp.Private,
-		providerAddr: res.ProviderConfig,
+		providerAddr: recordedProvider,
 	}
 	if selected {
 		// The identity lives in the estate's record store, not in a marker:
@@ -1233,6 +1234,38 @@ func configProviderAddr(cfg *configs.Config, typeName, alias string) addrs.AbsPr
 		Provider: provider,
 		Alias:    alias,
 	}
+}
+
+// recordedProviderAddr is the provider configuration address a record this
+// migration seeds names: the one the state file recorded (its module path
+// and alias), with the provider source replaced by the one this
+// configuration's required_providers resolve the type to
+// ([configProviderAddr]) when that is the same namespace and type.
+//
+// GitHub issue #1120. A stock terraform state records its providers under
+// registry.terraform.io; a live plan resolves the configuration's,
+// registry.opentofu.org, and its write-back records that address on every
+// apply. A multi-provider plan scopes each discovery pass to one configured
+// address, and the record leg proposes a removed block's record only in the
+// pass whose address the record names. Recorded verbatim, every record this
+// migration seeded named an address no pass runs, so a removed untaggable
+// resource (the Azure estates' role assignment, found only through its
+// record) was refused as RECORDED_PROVIDER_ABSENT instead of destroyed.
+// Normalised here, once, rather than by an equivalence rule at each reader:
+// OpenTofu treats the two hosts as two providers everywhere else, and only
+// the configuration can say which one it means.
+//
+// A configuration that resolves the type to a different namespace or type
+// (a fork, or no required_providers entry for a non-hashicorp provider)
+// keeps the state's address: nothing here can tell that it is the same
+// provider, and an unrecognised address is refused by name downstream.
+func recordedProviderAddr(cfg *configs.Config, typeName string, recorded addrs.AbsProviderConfig) addrs.AbsProviderConfig {
+	resolved := configProviderAddr(cfg, typeName, recorded.Alias).Provider
+	if resolved.Namespace != recorded.Provider.Namespace || resolved.Type != recorded.Provider.Type {
+		return recorded
+	}
+	recorded.Provider = resolved
+	return recorded
 }
 
 // providerSchemaFor is the provider schema the two schema admission doors
