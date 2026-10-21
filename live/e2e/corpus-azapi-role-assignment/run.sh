@@ -33,11 +33,15 @@
 #      with no version, so each entry is replaced by the lane's pin, read
 #      from live/oracle-versions.json (gauntlet_azapi_required_provider,
 #      gauntlet_azurerm_required_provider);
-#   2. both provider blocks gain subscription_id = floci-az's subscription,
-#      because identity reads the subscription from the provider block
-#      (#1120's corrections) and azurerm 5 requires one; the endpoints and
-#      the credential are gauntlet_floci_az_up's ARM_* environment, and the
-#      root's own skip_provider_registration = false is kept;
+#   2. both provider blocks gain the endpoint lock's arguments (#2133,
+#      live/e2e/lib/floci-az.sh's floci_az_azurerm_args and
+#      floci_az_azapi_args): floci-az's subscription, because identity reads
+#      the subscription from the provider block (#1120's corrections) and
+#      azurerm 5 requires one, and every endpoint and credential argument,
+#      so nothing in the operator's shell can aim either provider anywhere
+#      but floci-az; azurerm's metadata_host is var.floci_az_host, declared
+#      in floci-az.tf; the root's own skip_provider_registration = false is
+#      kept;
 #   3. choudoufu's roots get a live block, in a file of its own (live.tf).
 # Stage additions, each in the stage that needs it: plan_approval gives the
 # identity tags = { reviewed = "yes" }; day2_rename renames the role
@@ -162,7 +166,11 @@ write_root() {
   local dst="$1" mode="$2"
   rm -rf "$dst"; mkdir -p "$dst"
   cp "$SRC/main.tf" "$dst/main.tf" || fail "could not copy the root out of .corpus"
-  DST="$dst" SUBID="$FLOCI_AZ_SUBSCRIPTION_ID" ROOT_GUID="$RA_GUID" \
+  local azurerm_args azapi_args host_variable
+  azurerm_args="$(gauntlet_floci_az_azurerm_args)" || fail "could not render the azurerm provider block's endpoint lock"
+  azapi_args="$(gauntlet_floci_az_azapi_args)" || fail "could not render the azapi provider block's endpoint lock"
+  host_variable="$(gauntlet_floci_az_host_variable)" || fail "could not render the floci_az_host variable"
+  DST="$dst" AZURERM_ARGS="$azurerm_args" AZAPI_ARGS="$azapi_args" HOST_VARIABLE="$host_variable" ROOT_GUID="$RA_GUID" \
     AZAPI_REQ="$AZAPI_REQUIRED_PROVIDER" AZURERM_REQ="$AZURERM_REQUIRED_PROVIDER" \
     RA="${RA:-roleAssignments}" RA_NAME="${RA_NAME:-$RA_GUID}" REVIEWED="${REVIEWED:-0}" \
     MOVED="${MOVED:-0}" SHARDS="${SHARDS:-0}" python3 - <<'PY' || fail "a delta did not match the published root - the corpus pin has moved"
@@ -181,11 +189,10 @@ def once(old, new, what):
 # Delta 1: the lane's provider pins in place of the unversioned entries.
 once('    azapi = {\n      source = "Azure/azapi"\n    }\n    azurerm = {\n      source = "hashicorp/azurerm"\n    }\n',
      env["AZAPI_REQ"] + "\n" + env["AZURERM_REQ"] + "\n", "delta 1 (required_providers)")
-# Delta 2: the subscription in both provider blocks.
-sub = '  subscription_id = "%s"\n' % env["SUBID"]
-once('provider "azurerm" {\n  features {\n  }\n}\n', 'provider "azurerm" {\n' + sub + '  features {\n  }\n}\n', "delta 2 (azurerm provider)")
+# Delta 2: the endpoint lock's arguments in both provider blocks.
+once('provider "azurerm" {\n  features {\n  }\n}\n', 'provider "azurerm" {\n' + env["AZURERM_ARGS"] + '\n  features {\n  }\n}\n', "delta 2 (azurerm provider)")
 once('provider "azapi" {\n  skip_provider_registration = false\n}\n',
-     'provider "azapi" {\n  subscription_id            = "%s"\n  skip_provider_registration = false\n}\n' % env["SUBID"], "delta 2 (azapi provider)")
+     'provider "azapi" {\n' + env["AZAPI_ARGS"] + '\n  skip_provider_registration = false\n}\n', "delta 2 (azapi provider)")
 
 # plan_approval's tags on the identity.
 if env["REVIEWED"] == "1":
@@ -206,6 +213,9 @@ elif env["RA"] == "none":
 elif env["RA"] != "roleAssignments":
     sys.exit("RA=%s is not roleAssignments, role_assignment or none" % env["RA"])
 open(path, "w").write(src)
+open(os.path.join(env["DST"], "floci-az.tf"), "w").write(
+    "# Delta 2, added by live/e2e/corpus-azapi-role-assignment/run.sh: the host\n"
+    "# azurerm's metadata_host reads, from each container's TF_VAR_floci_az_host.\n" + env["HOST_VARIABLE"] + "\n")
 
 if env["MOVED"] == "1":
     open(os.path.join(env["DST"], "moved.tf"), "w").write(
@@ -242,7 +252,7 @@ EOF
 # ── substrate helpers ────────────────────────────────────────────────────
 # As reference-azure: each container's ARM_* values are saved after
 # gauntlet_floci_az_up and every command runs under one of the two.
-save_env() { env | grep -E '^(FLOCI_AZ_(HOST|ENDPOINT|CA_FILE)|ARM_[A-Z_]+|SSL_CERT_FILE)=' > "$1"; }
+save_env() { env | grep -E '^(FLOCI_AZ_(HOST|ENDPOINT|CA_FILE)|ARM_[A-Z_]+|SSL_CERT_FILE|AZURE_CONFIG_DIR|TF_VAR_floci_az_host)=' > "$1"; }
 on_a() { ( set -a; . "$WORK/a.env"; set +a; "$@" ); }
 on_b() { ( set -a; . "$WORK/b.env"; set +a; "$@" ); }
 stock_b() { ( cd "$ORACLE" && on_b terraform "$@" ); }
@@ -369,7 +379,7 @@ on_a gauntlet_arm GET "$RA_ID?api-version=$RA_API" >/dev/null || fail "the role 
 inventory a > "$WORK/inventory.stock.json" || fail "could not read the cold-deployed inventory on A"
 ( stock_b init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed on B"
 { APPLY_OUT="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "Apply complete! Resources: 3 added" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock cold deploy failed on B"; }
-gauntlet_stage cold_deploy pass "3 resources (an azapi resource group, an azurerm user-assigned identity, an azapi role assignment granting it AcrPull, read through data \"azurerm_role_definition\") from plain terraform on the published root plus its deltas (the lane's provider pins, the subscription in both provider blocks) against floci-az $(cat "$ROOT/live/floci-az-image"); a real terraform.tfstate with 3 managed instances, zero tofu-estate tags read back through ARM, the role assignment answering at its id; the identical root cold-deployed by stock on a second container as every later stage's oracle"
+gauntlet_stage cold_deploy pass "3 resources (an azapi resource group, an azurerm user-assigned identity, an azapi role assignment granting it AcrPull, read through data \"azurerm_role_definition\") from plain terraform on the published root plus its deltas (the lane's provider pins, the endpoint lock in both provider blocks) against floci-az $(cat "$ROOT/live/floci-az-image"); a real terraform.tfstate with 3 managed instances, zero tofu-estate tags read back through ARM, the role assignment answering at its id; the identical root cold-deployed by stock on a second container as every later stage's oracle"
 
 # ── 2. migrate: choudoufu live-import against stock's state ──────────────
 gauntlet_begin_stage migrate

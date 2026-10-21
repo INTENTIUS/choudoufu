@@ -64,7 +64,8 @@ func (cred *clientCertAuth) Construct(ctx context.Context, config *Config) (azco
 		[]*x509.Certificate{certificate},
 		privateKey,
 		&azidentity.ClientCertificateCredentialOptions{
-			ClientOptions: clientOptions(client, config.CloudConfig),
+			ClientOptions:            clientOptions(client, config.CloudConfig),
+			DisableInstanceDiscovery: instanceDiscoveryOff(config),
 		},
 	)
 }

@@ -78,14 +78,20 @@ proof "a correct account, stated as data: versioning on, a previous-versions lif
 # write_estate <dir> <estate> [allow_insecure list] writes one working copy:
 # the record store block and a resource group to apply. Each refusal case
 # below is its own estate, so each run is that estate's first contact with
-# the container, the run the checks guard.
+# the container, the run the checks guard. The store's connection arguments
+# are the endpoint lock's (live/e2e/lib/floci-az.sh,
+# floci_az_record_store_args, #2133): floci-az's metadata host and the
+# harness's client secret, stated in the block so no ARM_* or az login in
+# the operator's shell can aim it anywhere else.
 write_estate() {
-  local dir="$1" estate="$2" waive="${3:-}"
+  local dir="$1" estate="$2" waive="${3:-}" conn
   mkdir -p "$dir"
+  conn="$(floci_az_record_store_args "$AZURE_HOST" "$AZURE_SUBSCRIPTION_ID" "$AZURE_TENANT_ID" "$AZURE_CLIENT_ID")" || return 1
   azure_terraform_block "$estate" "record_store \"azurerm\" {
       storage_account_name = \"${ACCOUNT}\"
       container_name       = \"${CONTAINER}\"
-      resource_group_name  = \"${RG}\"${waive:+
+      resource_group_name  = \"${RG}\"
+${conn}${waive:+
       allow_insecure       = ${waive}}
     }" > "$dir/versions.tf" || return 1
   cat > "$dir/main.tf" <<TF

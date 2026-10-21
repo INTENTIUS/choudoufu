@@ -7,6 +7,7 @@ package azsweep
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 )
@@ -77,6 +78,11 @@ type Attrs struct {
 	ResourceManagerEndpoint      string
 	ResourceManagerAudience      string
 	ActiveDirectoryAuthorityHost string
+	// DisableInstanceDiscovery is azapi's disable_instance_discovery (azapi
+	// 2.13.0 provider.go:566-576, ARM_DISABLE_INSTANCE_DISCOVERY when
+	// unset): the token request skips Microsoft's instance discovery
+	// service. azurerm has none; its go-azure-sdk credentials never ask.
+	DisableInstanceDiscovery *bool
 
 	// Marked names the arguments the block sets to a marked value that
 	// [ProviderAttrs] therefore left unread. [New] refuses a client when
@@ -160,6 +166,7 @@ func ProviderAttrs(providerType string, val cty.Value, ok bool) Attrs {
 	switch providerType {
 	case ProviderAzAPI:
 		a.ADOServiceConnectionID = str(val, "oidc_azure_service_connection_id")
+		a.DisableInstanceDiscovery = boolean("disable_instance_discovery")
 		if val.Type().HasAttribute("endpoint") {
 			// A list nested attribute of at most one object.
 			if e, marked := endpointBlock(val.GetAttr("endpoint")); marked {
@@ -275,7 +282,7 @@ func EnvNames() []string {
 	for _, d := range boolDefaults {
 		out = append(out, d.name)
 	}
-	return out
+	return append(out, "ARM_DISABLE_INSTANCE_DISCOVERY")
 }
 
 // WithEnv fills every argument a left unset from the environment variable
@@ -319,6 +326,14 @@ func (a Attrs) WithEnv(getenv func(string) string) Attrs {
 		}
 		if b, err := strconv.ParseBool(getenv(d.name)); err == nil {
 			*p = &b
+		}
+	}
+	// azapi alone reads this one, comparing case-insensitively with "true"
+	// (provider.go:566-576).
+	if provider == ProviderAzAPI && a.DisableInstanceDiscovery == nil && !marked["disable_instance_discovery"] {
+		if v := getenv("ARM_DISABLE_INSTANCE_DISCOVERY"); v != "" {
+			b := strings.EqualFold(v, "true")
+			a.DisableInstanceDiscovery = &b
 		}
 	}
 	return a

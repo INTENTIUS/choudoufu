@@ -518,3 +518,45 @@ func TestClassify(t *testing.T) {
 		}
 	}
 }
+
+// TestAzAPICustomEnvironment: azapi's environment = "custom" is a cloud of
+// its three endpoint values alone, as azapi 2.13.0 builds it
+// (provider.go:635-658), and a missing one is refused by name rather than
+// filled from the public cloud (GitHub issue #2133, the endpoint lock).
+func TestAzAPICustomEnvironment(t *testing.T) {
+	env := map[string]string{
+		"ARM_ENVIRONMENT":                     "custom",
+		"ARM_RESOURCE_MANAGER_ENDPOINT":       "https://localhost:45770",
+		"ARM_RESOURCE_MANAGER_AUDIENCE":       "https://localhost:45770/",
+		"ARM_ACTIVE_DIRECTORY_AUTHORITY_HOST": "https://localhost:45770/",
+		"ARM_DISABLE_INSTANCE_DISCOVERY":      "TRUE",
+	}
+	a := Attrs{Provider: ProviderAzAPI}.WithEnv(func(k string) string { return env[k] })
+	cfg, err := a.cloudConfig(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rm := cfg.Services[cloud.ResourceManager]
+	if rm.Endpoint != "https://localhost:45770" || rm.Audience != "https://localhost:45770/" || cfg.ActiveDirectoryAuthorityHost != "https://localhost:45770/" || len(cfg.Services) != 1 {
+		t.Errorf("cloud = %+v", cfg)
+	}
+	if !on(a.DisableInstanceDiscovery, false) || !a.authConfig(cfg).DisableInstanceDiscovery {
+		t.Errorf("ARM_DISABLE_INSTANCE_DISCOVERY=TRUE did not turn discovery off: %v", a.DisableInstanceDiscovery)
+	}
+
+	delete(env, "ARM_ACTIVE_DIRECTORY_AUTHORITY_HOST")
+	a = Attrs{Provider: ProviderAzAPI}.WithEnv(func(k string) string { return env[k] })
+	if _, err := a.cloudConfig(context.Background()); err == nil || !strings.Contains(err.Error(), "active_directory_authority_host") {
+		t.Errorf("custom without its authority = %v, want a refusal naming active_directory_authority_host", err)
+	}
+	// azurerm has no "custom": go-azure-sdk's environments.FromName refuses it.
+	rmAttrs := Attrs{Provider: ProviderAzureRM}.WithEnv(func(k string) string { return env[k] })
+	if _, err := rmAttrs.cloudConfig(context.Background()); err == nil {
+		t.Error(`azurerm with environment "custom" and no metadata_host built a cloud`)
+	}
+	// The block's own disable_instance_discovery wins over the environment.
+	val := cty.ObjectVal(map[string]cty.Value{"disable_instance_discovery": cty.False})
+	if b := ProviderAttrs(ProviderAzAPI, val, true).WithEnv(func(k string) string { return env[k] }); on(b.DisableInstanceDiscovery, true) {
+		t.Error("ARM_DISABLE_INSTANCE_DISCOVERY overrode the block's disable_instance_discovery = false")
+	}
+}

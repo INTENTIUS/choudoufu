@@ -10,7 +10,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -22,6 +25,37 @@ import (
 	"github.com/intentius/choudoufu/internal/httpclient"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
+
+// instanceDiscoveryOff reports whether a credential built from config must
+// not ask Microsoft's instance discovery service about its authority. MSAL
+// validates an authority host it does not already trust by calling
+// https://login.microsoftonline.com/common/discovery/instance
+// (microsoft-authentication-library-for-go apps/internal/oauth/ops/authority
+// AADInstanceDiscovery, through the azidentity credentials here), and a
+// loopback host, an emulator such as floci-az, is never one it trusts. Left
+// on, every token request for such an authority first sent the run's tenant
+// and authority to Microsoft and then failed with invalid_instance (GitHub
+// issue #2133, the endpoint lock). So discovery is off when the caller says
+// so or when the authority is loopback; Azure's own authorities, which MSAL
+// trusts without asking, are unaffected either way.
+func instanceDiscoveryOff(config *Config) bool {
+	return config.DisableInstanceDiscovery || loopbackAuthority(config.CloudConfig.ActiveDirectoryAuthorityHost)
+}
+
+// loopbackAuthority reports whether authority's host is localhost, a name
+// under .localhost, or a loopback address.
+func loopbackAuthority(authority string) bool {
+	u, err := url.Parse(authority)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
 
 func clientOptions(client *http.Client, cloudConfig cloud.Configuration) policy.ClientOptions {
 	return policy.ClientOptions{

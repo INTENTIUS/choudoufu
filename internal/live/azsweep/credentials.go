@@ -59,12 +59,33 @@ type Endpoints struct {
 
 // cloudConfig is the cloud the block names, in the precedence the
 // providers apply: azurerm's metadata_host over environment, and azapi's
-// endpoint block over environment, field by field.
+// endpoint block over environment, field by field. azapi's environment
+// "custom" is a cloud of its three endpoint values alone, each required
+// (azapi 2.13.0 provider.go:635-658); azurerm has no "custom" and refuses
+// it, as go-azure-sdk's environments.FromName does.
 func (a Attrs) cloudConfig(ctx context.Context) (cloud.Configuration, error) {
 	var cfg cloud.Configuration
 	var err error
 	if a.MetadataHost != "" {
 		cfg, err = auth.CloudConfigFromMetadataHost(ctx, a.MetadataHost)
+	} else if a.providerName() == ProviderAzAPI && strings.EqualFold(a.Environment, "custom") {
+		var missing []string
+		for _, f := range []struct{ name, val string }{
+			{"active_directory_authority_host", a.ActiveDirectoryAuthorityHost},
+			{"resource_manager_endpoint", a.ResourceManagerEndpoint},
+			{"resource_manager_audience", a.ResourceManagerAudience},
+		} {
+			if f.val == "" {
+				missing = append(missing, f.name)
+			}
+		}
+		if len(missing) > 0 {
+			return cloud.Configuration{}, fmt.Errorf("environment \"custom\" needs %s", strings.Join(missing, ", "))
+		}
+		cfg = cloud.Configuration{
+			ActiveDirectoryAuthorityHost: a.ActiveDirectoryAuthorityHost,
+			Services:                     map[cloud.ServiceName]cloud.ServiceConfiguration{cloud.ResourceManager: {}},
+		}
 	} else {
 		cfg, _, err = auth.CloudConfigFromAddresses(ctx, a.Environment, "")
 	}
@@ -125,6 +146,7 @@ func (a Attrs) authConfig(cfg cloud.Configuration) *auth.Config {
 			TenantID:       a.TenantID,
 		},
 		WorkloadIdentityAuthConfig: auth.WorkloadIdentityAuthConfig{UseAKSWorkloadIdentity: on(a.UseAKSWorkloadIdentity, false)},
+		DisableInstanceDiscovery:   on(a.DisableInstanceDiscovery, false),
 	}
 }
 

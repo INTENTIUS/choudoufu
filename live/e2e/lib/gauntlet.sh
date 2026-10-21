@@ -506,16 +506,16 @@ gauntlet_kind_up() {
 # trust, this fails by name before the container starts. It waits for
 # /ready, takes the CA (the operator's certificate itself, or the generated
 # one fetched into <workdir>/floci-az-ca.pem), and exports what azurerm,
-# azapi and the stock azurerm backend read, the set live/smoke/lib.sh's
-# azure_provider_env exports and for the reasons it gives there:
-# FLOCI_AZ_HOST, FLOCI_AZ_ENDPOINT, FLOCI_AZ_CA_FILE and the ARM_*
-# variables. On Linux the CA joins a bundle SSL_CERT_FILE names.
+# azapi and the stock azurerm backend read: FLOCI_AZ_HOST,
+# FLOCI_AZ_ENDPOINT, FLOCI_AZ_CA_FILE, and floci_az_provider_env's set,
+# which live/smoke/lib.sh's azure_provider_env exports too. On Linux the CA joins a bundle SSL_CERT_FILE names.
 # Prints the reason and returns 1 on any failure, so the script's own fail()
 # records the stage it was setting up.
 #
 # Built for #1120 and not yet run by anyone: the maintainer's first
 # reference-azure run is its first boot.
 FLOCI_AZ_SUBSCRIPTION_ID="00000000-0000-0000-0000-000000000001"
+GAUNTLET_FLOCI_AZ_TENANT_ID="00000000-0000-0000-0000-000000000002"
 GAUNTLET_FLOCI_AZ_CLIENT_ID="00000000-0000-0000-0000-000000000003"
 gauntlet_floci_az_up() {
   local name="$1" work="$2" image port published oid deadline system="" f line
@@ -573,19 +573,44 @@ gauntlet_floci_az_up() {
     export SSL_CERT_FILE="$work/ca-bundle-with-floci-az.pem"
   fi
   export FLOCI_AZ_HOST FLOCI_AZ_ENDPOINT FLOCI_AZ_CA_FILE
-  export ARM_SUBSCRIPTION_ID="$FLOCI_AZ_SUBSCRIPTION_ID"
-  export ARM_TENANT_ID="00000000-0000-0000-0000-000000000002"
-  export ARM_CLIENT_ID="$GAUNTLET_FLOCI_AZ_CLIENT_ID"
-  export ARM_CLIENT_SECRET="floci-az-does-not-check-this"
-  export ARM_USE_CLI=false ARM_USE_MSI=false
-  export ARM_METADATA_HOSTNAME="$FLOCI_AZ_HOST" ARM_METADATA_HOST="$FLOCI_AZ_HOST"
-  export ARM_ENVIRONMENT=custom
-  export ARM_ACTIVE_DIRECTORY_AUTHORITY_HOST="$FLOCI_AZ_ENDPOINT/"
-  export ARM_RESOURCE_MANAGER_ENDPOINT="$FLOCI_AZ_ENDPOINT"
-  export ARM_RESOURCE_MANAGER_AUDIENCE="$FLOCI_AZ_ENDPOINT/"
-  export ARM_DISABLE_INSTANCE_DISCOVERY=true
-  export ARM_RESOURCE_PROVIDER_REGISTRATIONS=none ARM_SKIP_PROVIDER_REGISTRATION=true
-  export ARM_DISABLE_TERRAFORM_PARTNER_ID=true
+  # The endpoint lock (#2133, live/e2e/lib/floci-az.sh): the operator's own
+  # Azure credentials out of every child's environment, an empty Azure CLI
+  # config directory, and the ARM_* set aimed at this container.
+  floci_az_provider_env "$FLOCI_AZ_HOST" "$FLOCI_AZ_SUBSCRIPTION_ID" "$GAUNTLET_FLOCI_AZ_TENANT_ID" \
+    "$GAUNTLET_FLOCI_AZ_CLIENT_ID" "$work/azure-config-no-login" \
+    || { printf 'gauntlet_floci_az_up: could not lock the Azure environment to %s\n' "$FLOCI_AZ_HOST" >&2; return 1; }
+}
+
+# gauntlet_floci_az_provider_blocks prints an azure-lane configuration's two
+# provider blocks and the floci_az_host variable their metadata_host reads
+# (live/e2e/lib/floci-az.sh, floci_az_provider_blocks): every endpoint and
+# credential argument stated, so nothing in the operator's shell can aim a
+# provider anywhere but the floci-az the saved environment names. Callable
+# before any container is up, since the host is TF_VAR_floci_az_host's.
+gauntlet_floci_az_provider_blocks() {
+  gauntlet_floci_az_host_variable || return 1
+  echo
+  floci_az_provider_blocks var.floci_az_host "$FLOCI_AZ_SUBSCRIPTION_ID" "$GAUNTLET_FLOCI_AZ_TENANT_ID" "$GAUNTLET_FLOCI_AZ_CLIENT_ID"
+}
+
+# gauntlet_floci_az_azurerm_args, gauntlet_floci_az_azapi_args and
+# gauntlet_floci_az_host_variable are the same pieces one at a time, for a
+# published root whose own provider blocks gain the arguments rather than
+# being replaced (corpus-azapi-role-assignment's delta 2).
+gauntlet_floci_az_azurerm_args() {
+  # shellcheck source=floci-az.sh
+  . "$ROOT/live/e2e/lib/floci-az.sh" || return 1
+  floci_az_azurerm_args var.floci_az_host "$FLOCI_AZ_SUBSCRIPTION_ID" "$GAUNTLET_FLOCI_AZ_TENANT_ID" "$GAUNTLET_FLOCI_AZ_CLIENT_ID"
+}
+gauntlet_floci_az_azapi_args() {
+  # shellcheck source=floci-az.sh
+  . "$ROOT/live/e2e/lib/floci-az.sh" || return 1
+  floci_az_azapi_args "$FLOCI_AZ_SUBSCRIPTION_ID" "$GAUNTLET_FLOCI_AZ_TENANT_ID" "$GAUNTLET_FLOCI_AZ_CLIENT_ID"
+}
+gauntlet_floci_az_host_variable() {
+  # shellcheck source=floci-az.sh
+  . "$ROOT/live/e2e/lib/floci-az.sh" || return 1
+  floci_az_host_variable
 }
 
 # gauntlet_floci_az_down <name>: removes the container gauntlet_floci_az_up

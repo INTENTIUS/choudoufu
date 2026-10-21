@@ -142,18 +142,13 @@ EOF
   cat <<EOF
 }
 
-# The subscription is stated here because identity reads it from the
-# provider block (#1120's corrections); the endpoints and the credential
-# are gauntlet_floci_az_up's ARM_* environment.
-provider "azurerm" {
-  features {}
-  subscription_id = "${FLOCI_AZ_SUBSCRIPTION_ID}"
-}
-
-provider "azapi" {
-  subscription_id = "${FLOCI_AZ_SUBSCRIPTION_ID}"
-}
 EOF
+  # The provider blocks state the subscription (identity reads it from the
+  # block, #1120's corrections) and every endpoint and credential argument
+  # (the endpoint lock, #2133): metadata_host is var.floci_az_host, which
+  # each container's saved environment sets, and nothing is left for the
+  # operator's shell to fill.
+  gauntlet_floci_az_provider_blocks || return 1
 }
 # resource_block writes the eleven resources. $1 is the identity's block
 # name (app, then team after the rename); $2 is the shard count; $3 is an
@@ -244,7 +239,8 @@ EOF
 write_config() { # $1 dir, $2 live|stock, then resource_block's args
   local dir="$1" mode="$2"; shift 2
   mkdir -p "$dir"
-  { versions_block "$mode"; echo; resource_block "$@"; } > "$dir/main.tf"
+  { versions_block "$mode" && echo && resource_block "$@"; } > "$dir/main.tf" \
+    || fail "could not write $dir/main.tf's provider blocks"
 }
 moved_block() { printf '\nmoved {\n  from = azurerm_user_assigned_identity.app\n  to   = azurerm_user_assigned_identity.team\n}\n'; }
 
@@ -252,7 +248,7 @@ moved_block() { printf '\nmoved {\n  from = azurerm_user_assigned_identity.app\n
 # Each container is aimed at by its own ARM_* values. gauntlet_floci_az_up
 # exports them; they are saved per container and every command below runs
 # under one of the two (on_a, on_b), so nothing reaches the wrong one.
-save_env() { env | grep -E '^(FLOCI_AZ_(HOST|ENDPOINT|CA_FILE)|ARM_[A-Z_]+|SSL_CERT_FILE)=' > "$1"; }
+save_env() { env | grep -E '^(FLOCI_AZ_(HOST|ENDPOINT|CA_FILE)|ARM_[A-Z_]+|SSL_CERT_FILE|AZURE_CONFIG_DIR|TF_VAR_floci_az_host)=' > "$1"; }
 on_a() { ( set -a; . "$WORK/a.env"; set +a; "$@" ); }
 on_b() { ( set -a; . "$WORK/b.env"; set +a; "$@" ); }
 stock_b() { ( cd "$ORACLE" && on_b terraform "$@" ); }

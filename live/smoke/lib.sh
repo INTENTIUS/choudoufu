@@ -363,9 +363,11 @@ cluster_down() {
 # operator's certificate from scripts/floci-az-mac-cert.sh when there is
 # one, which macOS requires, or the one floci-az generated at start),
 # proves one HTTPS read of /metadata/endpoints through that CA, and then
-# exports the environment both providers read
-# (azure_provider_env below), so a fixture's provider blocks need nothing
-# but `features {}`. live/FLOCI.md's Azure section says what the emulator
+# exports the environment both providers read with the operator's own
+# Azure credentials taken out (azure_provider_env below). A fixture's
+# provider blocks come from azure_terraform_block, which states the same
+# endpoints and credentials again, since an argument in the block wins over
+# the environment. live/FLOCI.md's Azure section says what the emulator
 # serves and what it does not.
 #
 # Built for #1120 and not yet booted by anyone: the first scenario that
@@ -532,41 +534,20 @@ azure_trust_bundle() {
   export SSL_CERT_FILE="$SMOKE_WORKROOT/ca-bundle-with-floci-az.pem"
 }
 
-# azure_provider_env exports what aims stock hashicorp/azurerm 5.10.0,
-# azure/azapi 2.13.0 and OpenTofu's stock azurerm backend at floci-az, each
-# read from that provider's source at the pin:
-#
-#   azurerm   ARM_METADATA_HOSTNAME: with metadata_host set it builds its
-#             whole environment from https://<host>/metadata/endpoints and
-#             ignores `environment` (internal/provider/provider.go).
-#   backend   ARM_METADATA_HOST, a different variable from the provider's
-#             (internal/backend/remote-state/azure/backend.go). A metadata
-#             host wins over ARM_ENVIRONMENT there too.
-#   azapi     no metadata host: ARM_ENVIRONMENT=custom plus the three
-#             endpoint variables, and instance discovery off, since the
-#             authority is not one Entra's discovery service knows.
-#
-# Credentials are a client secret floci-az does not check, and the Azure
-# CLI is turned off so a developer's own `az login` is never picked up.
-# Provider registration is off in both: floci-az answers the providers
-# listing with an empty list.
+# azure_provider_env aims stock hashicorp/azurerm 5.10.0, azure/azapi
+# 2.13.0, OpenTofu's stock azurerm backend and record_store "azurerm" at
+# floci-az, and takes the operator's own Azure credentials out of reach:
+# live/e2e/lib/floci-az.sh's floci_az_provider_env (the endpoint lock,
+# #2133), which the gauntlet's gauntlet_floci_az_up runs too, and whose
+# comment cites each provider's source for every variable it sets or
+# unexports. The Azure CLI's config directory becomes an empty one under
+# the run's work root, so no `az login` is found even by a client told to
+# look. The provider blocks state the same values (azure_terraform_block),
+# which win over this environment where the providers read both.
 azure_provider_env() {
-  export ARM_SUBSCRIPTION_ID="$AZURE_SUBSCRIPTION_ID"
-  export ARM_TENANT_ID="$AZURE_TENANT_ID"
-  export ARM_CLIENT_ID="$AZURE_CLIENT_ID"
-  export ARM_CLIENT_SECRET="floci-az-does-not-check-this"
-  export ARM_USE_CLI=false
-  export ARM_USE_MSI=false
-  export ARM_METADATA_HOSTNAME="$AZURE_HOST"
-  export ARM_METADATA_HOST="$AZURE_HOST"
-  export ARM_ENVIRONMENT=custom
-  export ARM_ACTIVE_DIRECTORY_AUTHORITY_HOST="$AZURE_ENDPOINT/"
-  export ARM_RESOURCE_MANAGER_ENDPOINT="$AZURE_ENDPOINT"
-  export ARM_RESOURCE_MANAGER_AUDIENCE="$AZURE_ENDPOINT/"
-  export ARM_DISABLE_INSTANCE_DISCOVERY=true
-  export ARM_RESOURCE_PROVIDER_REGISTRATIONS=none
-  export ARM_SKIP_PROVIDER_REGISTRATION=true
-  export ARM_DISABLE_TERRAFORM_PARTNER_ID=true
+  floci_az_provider_env "$AZURE_HOST" "$AZURE_SUBSCRIPTION_ID" "$AZURE_TENANT_ID" "$AZURE_CLIENT_ID" \
+    "$SMOKE_WORKROOT/azure-config-no-login" \
+    || fail "azure" "could not lock the Azure environment to floci-az at $AZURE_HOST"
 }
 
 # azure_down removes the one container azure_up started, and its anonymous
@@ -608,10 +589,13 @@ arm_tags() {
 # fixture's terraform block and its two provider blocks: azurerm and azapi
 # pinned exactly to live/oracle-versions.json's azurerm_provider_version and
 # azapi_provider_version (#1122's pins), a live block for <estate>, and the
-# record store given (record_store "local" when none is). The subscription
-# is stated in the provider block because identity reads it from there,
-# the way AWS reads its region (#1120's corrections); everything else the
-# providers need is azure_provider_env's.
+# record store given (record_store "local" when none is). The provider
+# blocks are live/e2e/lib/floci-az.sh's floci_az_provider_blocks: the
+# subscription, because identity reads it from there the way AWS reads its
+# region (#1120's corrections), and every endpoint and credential argument
+# (the endpoint lock, #2133), so the operator's shell cannot aim either
+# provider anywhere but this run's floci-az. Called after azure_up, which
+# sourced floci-az.sh and knows the host.
 azure_terraform_block() {
   local estate="$1" store="${2:-}" azurerm_pin azapi_pin
   azurerm_pin="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["azurerm_provider_version"])' "$ROOT/live/oracle-versions.json")" || return 1
@@ -619,6 +603,8 @@ azure_terraform_block() {
   [ -n "$store" ] || store='record_store "local" {
       path = ".tofu-records"
     }'
+  local blocks
+  blocks="$(floci_az_provider_blocks "$AZURE_HOST" "$AZURE_SUBSCRIPTION_ID" "$AZURE_TENANT_ID" "$AZURE_CLIENT_ID")" || return 1
   cat <<EOF
 terraform {
   required_providers {
@@ -637,14 +623,7 @@ terraform {
   }
 }
 
-provider "azurerm" {
-  features {}
-  subscription_id = "${AZURE_SUBSCRIPTION_ID}"
-}
-
-provider "azapi" {
-  subscription_id = "${AZURE_SUBSCRIPTION_ID}"
-}
+$blocks
 EOF
 }
 

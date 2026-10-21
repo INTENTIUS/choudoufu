@@ -324,6 +324,17 @@ the CA to `SSL_CERT_FILE`. On macOS Go ignores that variable and trusts
 only the keychain, so the harness needs a certificate trusted there in
 advance (below).
 
+**The endpoint lock (#2133).** The provider blocks state the same thing:
+azurerm's `metadata_host`, azapi's `environment = "custom"` and
+`disable_instance_discovery`, the fake tenant, client and secret, and
+`use_cli`, `use_msi`, `use_oidc` and `use_aks_workload_identity` all false.
+An argument in the block beats the environment in both providers, so a real
+`ARM_*` in the operator's shell cannot win. `floci_az_provider_env`
+(`live/e2e/lib/floci-az.sh`) also stops exporting every other Azure
+credential variable and points `AZURE_CONFIG_DIR` at an empty directory, so
+no `az login` is found. `live/azure_endpoints_test.go` renders every block
+and the exported environment and fails on anything that is not floci-az.
+
 **TLS certificate and hosts.** With TLS on and no certificate given,
 floci-az generates a new CA every time a container starts. Given
 `FLOCI_AZ_TLS_CERT_PATH` and `FLOCI_AZ_TLS_KEY_PATH` (both PEM, both
