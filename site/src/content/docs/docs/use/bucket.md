@@ -8,7 +8,9 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-Create one bucket for all your estates.
+On AWS, create one bucket for all your estates. On Kubernetes the records
+can live in the cluster instead, as Secrets in one namespace per estate
+([operate on Kubernetes](../../../kubernetes/operate/#records)).
 
 ```
 cd examples/record-store-bucket

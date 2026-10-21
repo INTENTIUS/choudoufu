@@ -25,7 +25,7 @@ const repo = (path: string) => `https://github.com/INTENTIUS/choudoufu/blob/main
 /** What every reader gets. */
 export const ASSUMED: Link[] = [
 	{ label: 'Deleting the state file changes no plan', href: '/how-it-works/cache/' },
-	{ label: 'The create call writes the estate tag', href: '/how-it-works/identity/' },
+	{ label: 'The create call writes the estate marker', href: '/how-it-works/identity/' },
 	{ label: 'Record writes are conditional requests', href: repo('live/CONCURRENCY.md') },
 	{ label: 'A pull request plans only what it touches', href: repo('live/PLAN-CONE.md') },
 	{ label: 'Other estates are read live', href: '/docs/use/day2/' },
@@ -40,7 +40,7 @@ export const LIMITS: { label: string; why: string; href: string }[] = [
 		href: repo('live/COMPATIBILITY.md'),
 	},
 	{
-		label: 'Untaggable types',
+		label: 'Untaggable AWS types',
 		why: 'live-import skips them. IAM tag conditions cannot govern them.',
 		href: repo('live/IDENTITY.md'),
 	},
@@ -90,7 +90,7 @@ export const STORES: { id: string; label: string; line: string; href: string }[]
 ];
 
 export const ROLES: { label: string; room: string }[] = [
-	{ label: 'I review security or own IAM', room: 'security' },
+	{ label: 'I review security or own access', room: 'security' },
 	{ label: 'I am evaluating', room: 'evaluate' },
 	{ label: 'I drive a coding agent', room: 'agents' },
 	{ label: 'I want to contribute', room: 'contribute' },
@@ -107,7 +107,7 @@ export const ROOMS: Room[] = [
 		title: 'From a state file',
 		lede: 'You run OpenTofu or Terraform.',
 		works: [
-			'live-import tags every resource in your state',
+			'live-import marks every resource in your state',
 			'count, for_each, modules and multiple providers work',
 		],
 		differs: [
@@ -118,7 +118,7 @@ export const ROOMS: Room[] = [
 		proof: ['aws', 'kubernetes'],
 		howto: [migrate, setup, { label: 'Run it from CI', href: '/docs/use/cicd/' }],
 		explain: [whatItIs, { label: 'The cache', href: '/how-it-works/cache/' }],
-		reference: [{ label: 'AWS compatibility', href: '/aws/compatibility/' }, reference],
+		reference: [{ label: 'AWS compatibility', href: '/aws/compatibility/' }, { label: 'Kubernetes compatibility', href: '/kubernetes/compatibility/' }, reference],
 	},
 	{
 		id: 'terragrunt',
@@ -203,18 +203,18 @@ export const ROOMS: Room[] = [
 	},
 	{
 		id: 'security',
-		title: 'Security and IAM',
+		title: 'Security and access',
 		lede: 'You decide who may change what.',
 		works: [
-			'Tag conditions scope a role to an estate',
-			'A handover is two IAM changes',
-			'The fence covers plain aws CLI calls',
+			'IAM tag conditions scope an AWS role to an estate',
+			'One admission policy fences Kubernetes writes by label',
+			'Either fence covers plain aws and kubectl calls',
 		],
 		differs: ['Guard the record store as you guard a state file.'],
-		first: { label: 'Gate on AWS', href: '/aws/gate/' },
+		first: { label: 'Who may change what', href: '/how-it-works/identity/' },
 		proof: ['aws', 'kubernetes'],
-		howto: [{ label: 'Create the bucket', href: '/docs/use/bucket/' }, { label: 'Gate on Kubernetes', href: '/kubernetes/gate/' }],
-		explain: [{ label: 'Identity', href: '/how-it-works/identity/' }],
+		howto: [{ label: 'Gate on AWS', href: '/aws/gate/' }, { label: 'Gate on Kubernetes', href: '/kubernetes/gate/' }, { label: 'Create the bucket', href: '/docs/use/bucket/' }],
+		explain: [whatItIs],
 		reference: [
 			{ label: 'IAM reference', href: repo('live/IAM-REFERENCE.md') },
 			{ label: 'Secrets', href: repo('live/SECRETS.md') },

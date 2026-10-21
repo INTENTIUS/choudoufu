@@ -25,12 +25,16 @@ password. [Records](values/) has the kinds and stores.
 
 ## The marker says what you own
 
-A plan finds resources by marker and reads each one live. Your IAM or RBAC
-decides who may change each resource. Any cloud tool can list an estate:
+A plan finds resources by marker and reads each one live. The policy engine
+you already run decides who may change each resource: IAM tag conditions on
+AWS, one admission policy on the label on Kubernetes. Any tool can list an
+estate:
 
 ```
 aws resourcegroupstaggingapi get-resources \
   --tag-filters Key=tofu-estate,Values=prod-networking
+
+kubectl get configmaps,services -A -l tofu-estate=prod-networking
 ```
 
 ## The state file becomes a cache
@@ -53,7 +57,8 @@ OpenTofu carries on with it ([the cache](cache/)).
 
 Reading the live system makes a plan slower
 ([`live/PLAN-CONE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/PLAN-CONE.md)). A marker must be knowable before the resource exists.
-[Compatibility](../aws/compatibility/) lists what that rules out.
+Compatibility on [AWS](../aws/compatibility/) and
+[Kubernetes](../kubernetes/compatibility/) lists what that rules out.
 
 ## Upstream
 
