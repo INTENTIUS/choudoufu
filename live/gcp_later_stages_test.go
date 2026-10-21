@@ -713,9 +713,9 @@ func refgcpEndpointsStage(t *testing.T) string {
 	}
 	s := string(raw)
 	i := strings.Index(s, "\ngauntlet_begin_stage day2_endpoints\n")
-	j := strings.Index(s, "\n); stage_done $? day2_endpoints reconverge\n")
+	j := strings.Index(s, "\n); stage_done $? day2_endpoints\n")
 	if i < 0 || j < i {
-		t.Fatal("run.sh: no day2_endpoints stage closed by \"); stage_done $? day2_endpoints reconverge\"")
+		t.Fatal("run.sh: no day2_endpoints stage closed by \"); stage_done $? day2_endpoints\"")
 	}
 	if open := strings.LastIndex(s[:i], "\n(\n"); open < 0 || strings.Contains(s[open:i], "); stage_done ") {
 		t.Fatal("run.sh: day2_endpoints does not open its own subshell, so a fail() in it ends the run")
@@ -744,11 +744,12 @@ func TestRefGCPEndpointsStageGates(t *testing.T) {
 		t.Helper()
 		w := t.TempDir()
 		body := gcpFail + `source e2e/reference-gcp/gcp.sh
-W="` + w + `"; WORK="$W"; ADOPTED="$W/a"; ORACLE="$W/b"; PROJECT=p; REGION=r
-mkdir -p "$ADOPTED/.terraform" "$ADOPTED/.tofu-records" "$ORACLE"
-echo '{"cache":1}' > "$ADOPTED/.terraform/choudoufu-cache.tfstate"
-echo '{}' > "$ADOPTED/.tofu-records/pre"
+W="` + w + `"; WORK="$W"; ADOPTED="$W/a"; ORACLE="$W/b"; PROJECT=p; REGION=r; ESTATE=reference-gcp; EPA=a; EPB=b
+# The headline estate's roots: the stage must never touch them.
+mkdir -p "$ADOPTED/.tofu-records" "$ORACLE"; echo '{}' > "$ADOPTED/.tofu-records/pre"; echo x > "$ORACLE/main.tf"
 log() { printf '%s\n' "$*"; }
+versions_block() { echo "# versions $1 $2 estate=$ESTATE"; }
+gauntlet_locked_init() { return 0; }
 NEGS="refgcp-gneg-ip refgcp-gneg-fqdn refgcp-rneg-ip refgcp-rneg-fqdn"
 live() { [ -f "$W/$1.$(basename "$2")" ]; }
 want_ep() { case "$1" in
@@ -774,9 +775,13 @@ ra() { rest A "$@"; }
 rb() { rest B "$@"; }
 exists_a() { live A "$1"; }
 apply_side() { # $1 side, $2 root
+  [ -f "$2/net.tf" ] && : > "$W/$1.refgcp-ep-net"
   if [ -f "$2/day2_endpoints.tf" ]; then
     if [ "$1" = B ] && [ -n "${B_MK_ERR:-}" ]; then printf '\nError: Error creating GlobalNetworkEndpointGroup: googleapi: Error 404: not found\n'; return 1; fi
     for n in $NEGS; do : > "$W/$1.$n"; done
+    if [ "$1" = A ]; then
+      mkdir -p "$2/.terraform" "$2/.tofu-records"; echo '{"cache":1}' > "$2/.terraform/choudoufu-cache.tfstate"
+    fi
     if [ "$1" = A ] && [ -z "${NO_RECORD:-}" ]; then
       i=0
       for pair in "google_compute_global_network_endpoint.ip p/refgcp-gneg-ip/203.0.113.10//443" \
@@ -784,26 +789,35 @@ apply_side() { # $1 side, $2 root
                   "google_compute_region_network_endpoint.ip p/r/refgcp-rneg-ip/203.0.113.20//8080" \
                   "google_compute_region_network_endpoint.fqdn ${RECORD_ID:-p/r/refgcp-rneg-fqdn//db.example.com/5432}"; do
         i=$((i + 1)); set -- $pair
-        printf '{"format_version":2,"address":"%s","kind":"identity","identity":{"secondary_id":"%s"}}' "$1" "$2" > "$ADOPTED/.tofu-records/r$i"
+        printf '{"format_version":2,"address":"%s","kind":"identity","identity":{"secondary_id":"%s"}}' "$1" "$2" > "$EP_A/.tofu-records/r$i"
       done
       set -- A
     fi
-    local var="MK_N_$1"; printf '\nApply complete! Resources: %s added, 0 changed, 0 destroyed.\n' "${!var:-8}"
+    local var="MK_N_$1"; printf '\nApply complete! Resources: %s added, 0 changed, 0 destroyed.\n' "${!var:-9}"
   else
     local leave="LEAVE_$1"
     [ -n "${!leave:-}" ] || for n in $NEGS; do rm -f "$W/$1.$n"; done
     local var="RM_N_$1"; printf '\nApply complete! Resources: 0 added, 0 changed, %s destroyed.\n' "${!var:-8}"
   fi
 }
-apply_a() { apply_side A "$ADOPTED"; }
-plan_a() {
-  if [ ! -f "$ADOPTED/.terraform/choudoufu-cache.tfstate" ]; then printf '%s\n' "${NOSTATE_PLAN:-No changes.}"
-  elif [ -f "$ADOPTED/day2_endpoints.tf" ]; then printf '%s\n' "${A_PLAN:-No changes.}"
+plan_side_a() {
+  if [ ! -f "$EP_A/.terraform/choudoufu-cache.tfstate" ]; then printf '%s\n' "${NOSTATE_PLAN:-No changes.}"
+  elif [ -f "$EP_A/day2_endpoints.tf" ]; then printf '%s\n' "${A_PLAN:-No changes.}"
   else printf '%s\n' "${LAST_PLAN:-No changes.}"; fi
 }
-stock_b() {
+tofu_stub() {
   case "$1" in
-    apply) apply_side B "$ORACLE" ;;
+    init) return 0 ;;
+    plan) plan_side_a ;;
+    apply) if [ "${2:-}" = "-destroy" ]; then [ -n "${KEEP_NET_A:-}" ] || rm -f "$W/A.refgcp-ep-net"; else apply_side A "$PWD"; fi ;;
+  esac
+}
+TOFU=tofu_stub
+terraform() {
+  case "$1" in
+    init) return 0 ;;
+    apply) apply_side B "$PWD" ;;
+    destroy) rm -f "$W/B.refgcp-ep-net" ;;
     plan) printf '%s\n' "${B_PLAN:-No changes.}" ;;
     state) return 0 ;;
     import) local id="${*: -1}"; echo "import $id" >> "$W/imports"
@@ -815,10 +829,9 @@ CURRENT_STAGE=""
 )
 echo "rc=$?"
 echo "left: $(cd "$W" && ls A.* B.* 2>/dev/null | tr '\n' ' ')"
-[ -e "$ADOPTED/day2_endpoints.tf" ] && echo "SCRATCH LEFT ON A"
-[ -e "$ORACLE/day2_endpoints.tf" ] && echo "SCRATCH LEFT ON B"
-[ -f "$ADOPTED/.terraform/choudoufu-cache.tfstate" ] || echo "CACHE NOT RESTORED"
-echo "records: $(ls "$ADOPTED/.tofu-records" | tr '\n' ' ')"
+for f in "$W"/endpoints-a/day2_endpoints.tf "$W"/endpoints-b/day2_endpoints.tf; do [ -e "$f" ] && [ -n "${PASS_CASE:-}" ] && echo "SCRATCH LEFT"; done
+[ "$(ls "$ADOPTED/.tofu-records" | tr '\n' ' ')" = "pre " ] && [ "$(ls "$ADOPTED")" = "" ] && [ "$(cat "$ORACLE/main.tf")" = x ] && [ "$(ls "$ORACLE")" = "main.tf" ] || echo "HEADLINE TOUCHED"
+grep -q 'estate=reference-gcp-endpoints' "$W/endpoints-a/versions.tf" 2>/dev/null || echo "NOT ITS OWN ESTATE"
 [ -f "$W/imports" ] && cat "$W/imports"
 true`
 		out, _ := gcpBash(t, env, body)
@@ -826,7 +839,7 @@ true`
 	}
 
 	t.Run("pass", func(t *testing.T) {
-		out := run(t)
+		out := run(t, "PASS_CASE=1")
 		for _, want := range []string{"GAUNTLET stage=day2_endpoints verdict=pass", "rc=0", "left: \n",
 			"import p/refgcp-gneg-ip/203.0.113.10//443", "import p/refgcp-gneg-fqdn//backend.example.com/443",
 			"import p/r/refgcp-rneg-ip/203.0.113.20//8080", "import p/r/refgcp-rneg-fqdn//db.example.com/5432",
@@ -835,7 +848,7 @@ true`
 				t.Errorf("the pass case lacks %q:\n%s", want, out)
 			}
 		}
-		for _, bad := range []string{"FAIL", "verdict=fail", "LEFT", "CACHE NOT RESTORED"} {
+		for _, bad := range []string{"FAIL", "verdict=fail", "LEFT", "HEADLINE TOUCHED", "NOT ITS OWN ESTATE"} {
 			if strings.Contains(out, bad) {
 				t.Errorf("the pass case carries %q:\n%s", bad, out)
 			}
@@ -848,8 +861,9 @@ true`
 		want string
 	}{
 		"the emulator lacks the NEGs":     {[]string{"B_MK_ERR=1"}, "lex00/floci-gcp#26): Error: Error creating GlobalNetworkEndpointGroup"},
-		"stock creates another count":     {[]string{"MK_N_B=7"}, "stock's create on B did not add exactly the 8 scratch objects"},
-		"choudoufu creates another count": {[]string{"MK_N_A=7"}, "choudoufu's create on A did not add exactly the 8 scratch objects"},
+		"stock creates another count":     {[]string{"MK_N_B=8"}, "stock's create on B did not add exactly the 8 scratch objects and the scratch network"},
+		"choudoufu creates another count": {[]string{"MK_N_A=8"}, "choudoufu's create on A did not add exactly the 8 scratch objects and the network"},
+		"the scratch network left on A":   {[]string{"KEEP_NET_A=1"}, "refgcp-ep-net still exists on A after the scratch estate's teardown"},
 		"a wrong endpoint on A":           {[]string{"BAD_EP=A"}, `refgcp-rneg-ip on A holds endpoint(s) "203.0.113.20||8081", want exactly "203.0.113.20||8080"`},
 		"a wrong endpoint on B":           {[]string{"BAD_EP=B"}, `refgcp-rneg-ip on B holds endpoint(s) "203.0.113.20||8081"`},
 		"the next plan is not empty":      {[]string{"A_PLAN=" + notEmpty}, "the plan after the create is not empty (Plan: 1 to add"},
@@ -872,19 +886,13 @@ true`
 			if strings.Contains(out, "verdict=pass") || !strings.Contains(out, "rc=1") {
 				t.Errorf("the stage did not end failed:\n%s", out)
 			}
-			for _, bad := range []string{"SCRATCH LEFT", "CACHE NOT RESTORED"} {
-				if strings.Contains(out, bad) {
-					t.Errorf("the scrub left %q:\n%s", bad, out)
-				}
-			}
 			if !strings.Contains(out, "left: \n") {
-				t.Errorf("a NEG outlived the failed stage on A or B:\n%s", out)
+				t.Errorf("a NEG or the scratch network outlived the failed stage on A or B:\n%s", out)
 			}
-			// The NEGs were deleted with the REST API, so a record of them
-			// left on A would be imported by every later plan and fail it
-			// (run 9): the store must be the one the stage started with.
-			if !strings.Contains(out, "records: pre \n") {
-				t.Errorf("A's record store is not the one the stage started with:\n%s", out)
+			// The stage runs in a scratch estate of its own: the headline
+			// estate's roots and records are never touched, failed or not.
+			if strings.Contains(out, "HEADLINE TOUCHED") {
+				t.Errorf("the failed stage touched the headline estate's roots:\n%s", out)
 			}
 		})
 	}
@@ -948,5 +956,39 @@ func TestRefGCPNegEndpointLines(t *testing.T) {
 	}
 	if got, want := string(out), "203.0.113.10||443\n|backend.example.com|443\n"; got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// day2_endpoints is not a headline stage, so it must never decide a
+// headline verdict: in the ninth GCP run, placed after day2_replace, its
+// failure took day2_crash, day2_teardown, greenfield and no_local_state
+// down with it. It runs after strict, the last headline stage, in roots of
+// its own, never the headline estate's adopted or oracle root.
+func TestRefGCPEndpointsRunsLastInItsOwnEstate(t *testing.T) {
+	raw, err := os.ReadFile("e2e/reference-gcp/run.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	strictDone := strings.Index(s, "\n); stage_done $? strict\n")
+	begin := strings.Index(s, "\ngauntlet_begin_stage day2_endpoints\n")
+	end := strings.Index(s, "\ngauntlet_end\n")
+	if strictDone < 0 || begin < 0 || end < 0 {
+		t.Fatal("run.sh: strict, day2_endpoints or gauntlet_end not found")
+	}
+	if begin < strictDone || begin > end {
+		t.Errorf("day2_endpoints begins at byte %d, want after strict's stage_done (%d) and before gauntlet_end (%d)", begin, strictDone, end)
+	}
+	for _, other := range []string{"day2_crash", "day2_teardown", "greenfield", "no_local_state", "strict"} {
+		if i := strings.Index(s, "\ngauntlet_begin_stage "+other+"\n"); i > begin {
+			t.Errorf("headline stage %s begins after day2_endpoints", other)
+		}
+	}
+	stage := refgcpEndpointsStage(t)
+	if m := regexp.MustCompile(`(^|[^_a-z])(plan_a|apply_a|stock_b)\b`).FindString(stage); m != "" {
+		t.Errorf("day2_endpoints calls the headline estate's %s", strings.TrimSpace(m))
+	}
+	if strings.Contains(stage, "$ADOPTED") || strings.Contains(stage, "$ORACLE") {
+		t.Error("day2_endpoints names $ADOPTED or $ORACLE, the headline estate's roots")
 	}
 }
