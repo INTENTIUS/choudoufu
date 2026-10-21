@@ -3406,7 +3406,7 @@ func (r *resolver) siblingLiteralExpr(parent addrs.AbsResourceInstance, attrName
 		return nil, instScope{}, false
 	}
 	attrSchema, known := typeSchema.Block.Attributes[attrName]
-	if !known || attrSchema.Computed {
+	if !known || (attrSchema.Computed && !r.armKeyArgument(parent.Resource.Resource.Type, attrName)) {
 		return nil, instScope{}, false
 	}
 
@@ -3437,6 +3437,41 @@ func (r *resolver) siblingLiteralExpr(parent addrs.AbsResourceInstance, attrName
 		return nil, instScope{}, false
 	}
 	return attr.Expr, exp.scope(parent.Resource.Key), true
+}
+
+// armKeyArgument reports whether attrName is one of the arguments typeName's
+// ARM resource id is built from ([TypeIdentity.ARMResourceID]): azapi_resource's
+// parent_id, type and name (#1079's natural key), or an argument an azurerm
+// id template reads. It is [resolver.siblingLiteralExpr]'s one exception to
+// its Computed boundary (GitHub issue #1120's second Azure lane run).
+//
+// azapi marks parent_id and name Optional+Computed only because it fills
+// them in when the block omits them (the provider's default_name, the
+// subscription for a resource group); a block that sets one is read as
+// written, since azapi builds the object's id from it and ARM answers at
+// that id. The parent's own identity already reads the configured
+// expression for the same argument, so reading the attribute through it
+// cannot disagree with the id the parent asserts, the argument
+// [Resolution.attrParts] makes for an identity attribute. An argument the
+// block leaves out is still refused: siblingLiteralExpr finds nothing set.
+// Every other Computed attribute of the type (azapi's location, which it
+// plans from the parent and normalises) keeps the boundary.
+func (r *resolver) armKeyArgument(typeName, attrName string) bool {
+	entry, ok := r.lookupType(typeName)
+	if !ok || !entry.ARMResourceID {
+		return false
+	}
+	for _, c := range entry.Components {
+		if c.Cloud != "" {
+			continue
+		}
+		for _, a := range c.Attrs {
+			if a == attrName {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // isSymbolic reports whether an expression references something whose value
