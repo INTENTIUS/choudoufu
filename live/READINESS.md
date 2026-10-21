@@ -20,7 +20,7 @@ around the generated markers, never inside them.
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
 | Total | 1119 | 492 | 4 | 19 | 62 | 3 | 1699 |
 
-`live/readiness.json` last committed at commit `2e30879f75` on 2026-10-20T21:36:51-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
+`live/readiness.json` last committed at commit `d5a4bbcedc` on 2026-10-21T13:40:58-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
 <!-- readiness-gen:end tiers -->
 
 ## How each type comes back
