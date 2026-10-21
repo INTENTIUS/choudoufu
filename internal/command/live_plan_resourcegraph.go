@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -37,6 +38,16 @@ import (
 // block names, built once per block and kept on projectionProviders; and
 // each subscription is assigned to exactly one pass, because two passes
 // filing one orphan is a cross-provider collision to discovery.Merge.
+//
+// Each pass also learns every family configuration and the subscription
+// it names (discovery.ResourceGraphSweep's Self and Family), so that each
+// listed resource is filed by the one pass that should read it: the
+// configuration declaring its address when that configuration reaches its
+// subscription, else one whose provider serves its type. Every pass then
+// queries the subscriptions its own block names, and the query runs once
+// per subscription per plan all the same: liveDiscover opens a
+// resourceGraphMemo, and every pass's coverage answers through it
+// (GitHub issue #1120, the Azure lane's fourth run).
 
 // resourceGraphClient is one provider block's client, the subscription it
 // names (empty when it names none), and the error that stood in the way of
@@ -67,10 +78,14 @@ func (p *projectionProviders) resourceGraphLeg(ctx context.Context, sub substrat
 
 	cov := azsweep.Coverage{}
 	owner := map[string]string{}
-	leg := discovery.ResourceGraphSweep{Coverage: cov, TakesUnnamed: configs[0].String() == addr.String()}
+	leg := discovery.ResourceGraphSweep{Coverage: cov, TakesUnnamed: configs[0].String() == addr.String(), Self: addr}
 	leg.Untaggable = p.azureUntaggableTypes(ctx, sub)
+	p.mu.Lock()
+	memo := p.resourceGraphMemo
+	p.mu.Unlock()
 	for _, c := range configs {
 		built := p.resourceGraphClientFor(ctx, sub, c)
+		leg.Family = append(leg.Family, discovery.FamilyConfig{Provider: c, Subscription: built.subscription})
 		if built.subscription == "" {
 			continue
 		}
@@ -84,7 +99,7 @@ func (p *projectionProviders) resourceGraphLeg(ctx context.Context, sub substrat
 			}
 		}
 		if built.searcher != nil && !coverageHas(cov, key) {
-			cov[built.subscription] = built.searcher
+			cov[built.subscription] = memo.wrap(built.searcher)
 		}
 	}
 
@@ -98,6 +113,62 @@ func (p *projectionProviders) resourceGraphLeg(ctx context.Context, sub substrat
 			fmt.Sprintf("Provider configuration %s names no subscription_id, and ARM_SUBSCRIPTION_ID is unset, so the estate sweep cannot tell which subscription its resources are in: a resource the estate marks there whose block was deleted is not proposed for removal unless another provider block names the subscription. Set subscription_id on the block.", addr)))
 	}
 	return leg, diags
+}
+
+// resourceGraphMemo holds one Resource Graph answer per subscription and
+// estate for the length of one discovery run (GitHub issue #1120). Every
+// pass of a multi-provider plan queries the subscriptions its own block
+// names ([discovery.ResourceGraphSweep]'s Family), so without it a
+// subscription azurerm and azapi both name would be queried once per
+// pass. liveDiscover opens a fresh one each run, so a later run in the
+// same process never reads an earlier run's answer; nil (live-ls, which
+// queries each subscription once through its owner) wraps nothing.
+type resourceGraphMemo struct {
+	mu      sync.Mutex
+	answers map[string]*resourceGraphAnswer
+}
+
+type resourceGraphAnswer struct {
+	once      sync.Once
+	resources []azsweep.Resource
+	err       error
+}
+
+// beginResourceGraphSweep opens the memo one discovery run's passes share.
+func (p *projectionProviders) beginResourceGraphSweep() {
+	p.mu.Lock()
+	p.resourceGraphMemo = &resourceGraphMemo{answers: map[string]*resourceGraphAnswer{}}
+	p.mu.Unlock()
+}
+
+func (m *resourceGraphMemo) wrap(s azsweep.Searcher) azsweep.Searcher {
+	if m == nil {
+		return s
+	}
+	return memoSearcher{memo: m, inner: s}
+}
+
+// memoSearcher answers each subscription and estate from the first query
+// sent for it this run, the error included: a second pass asking again
+// would only be throttled or refused the same way.
+type memoSearcher struct {
+	memo  *resourceGraphMemo
+	inner azsweep.Searcher
+}
+
+func (s memoSearcher) Search(ctx context.Context, subscription, estate string) ([]azsweep.Resource, error) {
+	key := strings.ToLower(subscription) + "\x00" + estate
+	s.memo.mu.Lock()
+	a, ok := s.memo.answers[key]
+	if !ok {
+		a = &resourceGraphAnswer{}
+		s.memo.answers[key] = a
+	}
+	s.memo.mu.Unlock()
+	a.once.Do(func() { a.resources, a.err = s.inner.Search(ctx, subscription, estate) })
+	// A slice of its own per caller: the passes share the resources, not
+	// the slice header.
+	return append([]azsweep.Resource(nil), a.resources...), a.err
 }
 
 // azureUntaggableTypes is [untaggableARMTypes] over this run's
