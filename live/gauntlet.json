@@ -465,8 +465,8 @@
         },
         "drift_reconverge": {
           "pass": 0,
-          "fail": 0,
-          "not_run": 2
+          "fail": 1,
+          "not_run": 1
         },
         "greenfield": {
           "pass": 0,
@@ -474,8 +474,8 @@
           "not_run": 2
         },
         "migrate": {
-          "pass": 0,
-          "fail": 2,
+          "pass": 2,
+          "fail": 0,
           "not_run": 0
         },
         "no_local_state": {
@@ -494,13 +494,13 @@
           "not_run": 2
         },
         "test_apply": {
-          "pass": 0,
+          "pass": 1,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "test_plan": {
-          "pass": 0,
-          "fail": 2,
+          "pass": 1,
+          "fail": 1,
           "not_run": 0
         }
       }
@@ -1176,7 +1176,7 @@
         "day2_teardown": "not_run",
         "drift_reconverge": "not_run",
         "greenfield": "not_run",
-        "migrate": "fail",
+        "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "not_run",
         "strict": "not_run",
@@ -1185,26 +1185,26 @@
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
-          "date": "2026-10-21T01:22:12Z",
-          "seconds": 85
+          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
+          "date": "2026-10-21T03:22:06Z",
+          "seconds": 73
         },
         "migrate": {
-          "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
-          "date": "2026-10-21T01:22:12Z",
-          "seconds": 8
+          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
+          "date": "2026-10-21T03:22:06Z",
+          "seconds": 6
         },
         "test_plan": {
-          "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
-          "date": "2026-10-21T01:22:12Z",
-          "seconds": 3
+          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
+          "date": "2026-10-21T03:22:06Z",
+          "seconds": 2
         }
       },
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
-        "date": "2026-10-21T01:22:12Z",
+        "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
+        "date": "2026-10-21T03:22:06Z",
         "substrate_image": "ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8",
         "oracle": {
           "terraform": "1.15.8",
@@ -1214,14 +1214,14 @@
         "exit_code": 1,
         "detail": {
           "cold_deploy": "3 resources (an azapi resource group, an azurerm user-assigned identity, an azapi role assignment granting it AcrPull, read through data \"azurerm_role_definition\") from plain terraform on the published root plus its deltas (the lane's provider pins, the endpoint lock in both provider blocks) against floci-az ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8; a real terraform.tfstate with 3 managed instances, zero tofu-estate tags read back through ARM, the role assignment answering at its id; the identical root cold-deployed by stock on a second container as every later stage's oracle",
-          "migrate": "live-import -approve: 1 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 2 skipped; 1 of 2 taggable resources carry tofu-estate=corpus-azapi-role-assignment through ARM; role assignment record: none; first Error: line: \"\"",
-          "test_plan": "the plan with no state file is not empty or failed (; first Error: line: \"Error: Unmarked live object at the declared id would be overwritten\") or an id did not answer as itself (none); the plan warned \"Azure sweep unavailable\" (lex00/floci-az#11: the sweep's KQL is outside floci-az's subset), so the sweep was incomplete"
+          "migrate": "2 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped; both taggable resources (the resource group and the identity) carry tofu-estate=corpus-azapi-role-assignment, read back through ARM, and the role assignment, which has no tags at any API version, is the 1 skipped and is held by its record",
+          "test_plan": "the plan with no state file is not empty or failed (Plan: 1 to import, 0 to add, 0 to change, 0 to destroy; first Error: line: \"\") or an id did not answer as itself (none); the plan warned \"Azure sweep unavailable\" (lex00/floci-az#11: the sweep's KQL is outside floci-az's subset), so the sweep was incomplete"
         },
-        "duration_s": 96.9,
+        "duration_s": 85.9,
         "stage_seconds": {
-          "cold_deploy": 85,
-          "migrate": 8,
-          "test_plan": 3
+          "cold_deploy": 73,
+          "migrate": 6,
+          "test_plan": 2
         }
       }
     },
@@ -4226,37 +4226,46 @@
         "day2_rename": "not_run",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
+        "drift_reconverge": "fail",
         "greenfield": "not_run",
-        "migrate": "fail",
+        "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "not_run",
         "strict": "not_run",
-        "test_apply": "not_run",
-        "test_plan": "fail"
+        "test_apply": "pass",
+        "test_plan": "pass"
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
-          "date": "2026-10-21T01:23:02Z",
-          "seconds": 125
+          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
+          "date": "2026-10-21T03:22:52Z",
+          "seconds": 113
+        },
+        "drift_reconverge": {
+          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
+          "date": "2026-10-21T03:22:52Z"
         },
         "migrate": {
-          "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
-          "date": "2026-10-21T01:23:02Z",
-          "seconds": 20
+          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
+          "date": "2026-10-21T03:22:52Z",
+          "seconds": 16
+        },
+        "test_apply": {
+          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
+          "date": "2026-10-21T03:22:52Z",
+          "seconds": 2
         },
         "test_plan": {
-          "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
-          "date": "2026-10-21T01:23:02Z",
+          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
+          "date": "2026-10-21T03:22:52Z",
           "seconds": 1
         }
       },
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
-        "date": "2026-10-21T01:23:02Z",
+        "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
+        "date": "2026-10-21T03:22:52Z",
         "substrate_image": "ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8",
         "oracle": {
           "terraform": "1.15.8",
@@ -4266,13 +4275,17 @@
         "exit_code": 1,
         "detail": {
           "cold_deploy": "11 resources (resource group, VNet, subnet, NSG, NSG rule, storage account, identity, public IP, two count identities, and one azapi_resource identity) from plain terraform against floci-az ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8, a real terraform.tfstate with 11 instances, zero tofu-estate tags read back through ARM; the identical shape cold-deployed by stock on a second container as every later stage's oracle",
-          "migrate": "live-import -approve: 8 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 3 skipped; 8 of 9 taggable resources carry tofu-estate=reference-azure through ARM; first Error: line: \"\"",
-          "test_plan": "the plan with no state file is not empty or failed (; first Error: line: \"Error: Unmarked live object at the declared id would be overwritten\") or an id did not answer as itself (none)"
+          "drift_reconverge": "could not tamper the VNet on A",
+          "migrate": "9 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 2 skipped; all 9 taggable resources carry tofu-estate=reference-azure, read back through ARM; the 2 skipped are the subnet and the NSG rule, which have no tags argument",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); resources carrying tofu-estate=reference-azure unchanged at 9, read through ARM",
+          "test_plan": "the plan with no state file is empty; all 11 ARM ids answer a GET with the same id, compared case-insensitively"
         },
-        "duration_s": 147.4,
+        "duration_s": 131.8,
         "stage_seconds": {
-          "cold_deploy": 125,
-          "migrate": 20,
+          "cold_deploy": 113,
+          "drift_reconverge": 0,
+          "migrate": 16,
+          "test_apply": 2,
           "test_plan": 1
         }
       }
