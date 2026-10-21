@@ -277,7 +277,7 @@ Break: Hand stock the import id with the empty segment collapsed, the rendering 
 
 On the floci-eks substrate: Not run on this substrate; the stage is reference-gcp's (#2145 item 6).
 
-On the floci-gcp substrate: Run by reference-gcp only, on scratch global and regional internet NEGs, which a NEG and its endpoints carry no label for, so the record alone claims them. The pinned image serves only zonal GCE_VM_IP_PORT NEGs; global and regional internet NEGs are lex00/floci-gcp#26, and until an image serves them the stage fails at stock's own create on the oracle emulator, naming #26.
+On the floci-gcp substrate: Run by reference-gcp only, on scratch global and regional internet NEGs, which a NEG and its endpoints carry no label for, so the record alone claims them. The pinned image (ea6da33) serves global and regional internet NEGs, which lex00/floci-gcp#26 added; on an image without them the stage fails at stock's own create on the oracle emulator, naming #26.
 
 ## The plan-fidelity contract
 

@@ -800,8 +800,8 @@ endpoints_block > "$ORACLE/$EP_FILE" || fail "could not write the scratch endpoi
 endpoints_block > "$ADOPTED/$EP_FILE" || fail "could not write the scratch endpoints to the adopted root"
 
 # Stock creates them on B first: a failure here is the emulator or stock,
-# never choudoufu (floci-gcp d29a091 serves only zonal GCE_VM_IP_PORT NEGs;
-# global and regional internet NEGs are lex00/floci-gcp#26).
+# never choudoufu (global and regional internet NEGs arrived in floci-gcp
+# ea6da33, closing lex00/floci-gcp#26).
 O_MK="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_MK" | tail -20; fail "stock could not create the four NEGs and their endpoints on B, so the emulator does not serve them (lex00/floci-gcp#26): $(gauntlet_first_error_line <<< "$O_MK")"; }
 grep -qF "Resources: 8 added, 0 changed, 0 destroyed" <<< "$O_MK" || { printf '%s\n' "$O_MK" | tail -10; fail "stock's create on B did not add exactly the 8 scratch objects: $(grep -E 'Resources:' <<< "$O_MK" | head -1)"; }
 X_MK="$(apply_a)" || { printf '%s\n' "$X_MK" | tail -20; fail "choudoufu could not create the scratch endpoints on A: $(gauntlet_first_error_line <<< "$X_MK")"; }
