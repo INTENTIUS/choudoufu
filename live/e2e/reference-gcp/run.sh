@@ -335,22 +335,17 @@ APPROVE_OUT="$(cd "$ADOPTED" && "$TOFU" live-import -state="$STOCK/terraform.tfs
 SUMMARY_LINE="$(grep -E 'resource\(s\) newly stamped' <<< "$APPROVE_OUT" | head -1 | sed 's/\.$//')"
 log "  approve: ${SUMMARY_LINE:-no summary line}"
 # The six labelled instances are stamped through a labels-only plan
-# (#1121's google-labels-plan write); the four the provider gives no
-# labels argument are recorded. Every one accounted for, none skipped.
-read -r M_STAMPED M_RECORDED M_FAILED M_SKIPPED < <(python3 - "$SUMMARY_LINE" <<'PY'
-import re, sys
-s = sys.argv[1]
-def n(label):
-    m = re.search(r"(\d+) " + label, s)
-    return m.group(1) if m else "?"
-print(n("newly stamped"), n("newly recorded"), n("failed"), n("skipped"))
-PY
-)
+# (#1121's google-labels-plan write). The four the provider gives no labels
+# argument are SKIPPED with their identities recorded, as AWS's untaggable
+# resources are (reference-eks): the skip is the marker write, and "10
+# identities recorded" says all ten went into the record store. Only the
+# missing-labels reason may be skipped; a failed stamp prints its own row.
+read -r M_STAMPED M_SKIPPED M_SKIPPED_OTHER M_FAILED M_IDENTITIES < <(gcp_migrate_counts <<< "$APPROVE_OUT")
 LABELLED="$(count_a)"
-if [ "$M_STAMPED" = "6" ] && [ "$M_RECORDED" = "4" ] && [ "$M_FAILED" = "0" ] && [ "$M_SKIPPED" = "0" ] && [ "$LABELLED" = "6" ]; then
-  gauntlet_stage migrate pass "10 of 10 bound, 0 skipped: the 6 labelled instances stamped through a labels-only plan and carrying tofu-estate=$ESTATE read back with the REST API, the 4 with no labels argument (network, subnetwork, firewall, service account) recorded"
+if [ "$M_STAMPED" = "6" ] && [ "$M_SKIPPED" = "4" ] && [ "$M_SKIPPED_OTHER" = "0" ] && [ "$M_FAILED" = "0" ] && [ "$M_IDENTITIES" = "10" ] && [ "$LABELLED" = "6" ]; then
+  gauntlet_stage migrate pass "10 of 10 bound: the 6 labelled instances stamped through a labels-only plan and carrying tofu-estate=$ESTATE read back with the REST API; the 4 with no labels argument (network, subnetwork, firewall, service account) skipped for that reason alone, and all 10 identities recorded"
 else
-  gauntlet_stage migrate fail "live-import -approve did not bind 10 of 10 with 6 stamped, 4 recorded, 0 failed and 0 skipped: ${SUMMARY_LINE:-it printed no summary line}; $LABELLED object(s) carry tofu-estate=$ESTATE on the emulator. First Error: line: \"$(gauntlet_first_error_line <<< "$APPROVE_OUT")\". If the stamped count is right and the label count is not, the emulator did not keep the labels as written (lex00/floci-gcp#6)"
+  gauntlet_stage migrate fail "live-import -approve did not bind 10 of 10 with 6 stamped, 4 skipped for having no labels argument, 0 failed and 10 identities recorded: ${SUMMARY_LINE:-it printed no summary line} ($M_SKIPPED_OTHER skipped for another reason, $M_IDENTITIES identities recorded); $LABELLED object(s) carry tofu-estate=$ESTATE on the emulator. FAILED rows: \"$(gcp_failed_rows <<< "$APPROVE_OUT")\". First Error: line: \"$(gauntlet_first_error_line <<< "$APPROVE_OUT")\". If the stamped count is right and the label count is not, the emulator did not keep the labels as written (lex00/floci-gcp#6)"
 fi
 
 # ── 3. test_plan: replan from nothing ────────────────────────────────────

@@ -47,12 +47,15 @@ func TestGoogleControllerHeld(t *testing.T) {
 
 // TestGoogleSweepFindsNothingUnadmitted (GitHub issue #2139, item 5): the
 // GCP leg plans no removal and cannot see an unlabelled type, so its
-// family answers false and the identity package's no-orphan-recovery
-// warning stays on for google types.
+// family answers false. Its deleted blocks are the record leg's, which
+// RecordsRemoveUnrowed answers for.
 func TestGoogleSweepFindsNothingUnadmitted(t *testing.T) {
 	for _, name := range []string{"google", "google-beta"} {
 		if Sweeps(name) {
 			t.Errorf("Sweeps(%q) = true; the GCP leg removes nothing a record does not", name)
+		}
+		if !RecordsRemoveUnrowed(name) {
+			t.Errorf("RecordsRemoveUnrowed(%q) = false; the record leg is where a deleted google block is removed", name)
 		}
 	}
 }

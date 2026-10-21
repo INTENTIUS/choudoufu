@@ -251,6 +251,12 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 // provider configuration whose own address has Type "kubernetes". Reading
 // NonAWSProvider as "swept" made the warning silently wrong for that case;
 // asking the substrate by the resource's actual provider cannot be.
+//
+// A third way back exists on GCP ([substrate.RecordsRemoveUnrowed]): the
+// record-orphan leg admits an unrowed google type through its identity
+// schema, so a deleted block's objects are destroyed from their records.
+// The warning said otherwise for google_storage_bucket and
+// google_project_service on the first GCP gauntlet run.
 func (r *resolver) warnUnsweepableTypes() {
 	names := make([]string, 0, len(r.synth))
 	for typeName, entry := range r.synth {
@@ -260,7 +266,7 @@ func (r *resolver) warnUnsweepableTypes() {
 		if _, hasRow := LookupType(typeName); hasRow {
 			continue
 		}
-		if substrate.Sweeps(r.typeProviders[typeName]) {
+		if substrate.Sweeps(r.typeProviders[typeName]) || substrate.RecordsRemoveUnrowed(r.typeProviders[typeName]) {
 			continue
 		}
 		names = append(names, typeName)
