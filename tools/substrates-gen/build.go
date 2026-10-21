@@ -245,7 +245,7 @@ var harnessByFamily = map[string]struct {
 	"google": {
 		Name:    "floci-gcp",
 		PinFile: "live/floci-gcp-image",
-		Notes:   "the lex00/floci-gcp fork's GHCR image pinned by digest; the fork's issues for Resource Manager tags, Cloud Asset search, matchTag and IAM enforce mode (lex00/floci-gcp#4 to #9) are closed, and no gcp-lane run on it has passed yet.",
+		Notes:   "the lex00/floci-gcp fork's GHCR image pinned by digest; the fork's issues for Resource Manager tags, Cloud Asset search, matchTag and IAM enforce mode (lex00/floci-gcp#4 to #9) and the Compute confidentialInstanceConfig gap (#23) are closed, and no gcp-lane run on it has passed yet.",
 	},
 }
 
