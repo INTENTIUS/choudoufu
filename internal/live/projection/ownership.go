@@ -481,7 +481,7 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// Only under the default verb. "adopt" and "converge" admitted the
 		// object above; "keep" and "report" are an operator's explicit
 		// choice of a softer refusal and keep their meaning.
-		b.conflictsOnKey(addr, typeName, importID)
+		b.conflictsOnKey(addr, typeName, importID, surface)
 		return ownershipUnowned
 	}
 
@@ -693,11 +693,19 @@ const SummaryNameHeld = "Unlabelled live object holds the declared name"
 // used to sit beside proposed a create the API server answers with 409
 // AlreadyExists, and a plan that is wrong before the server sees it is one a
 // human should be stopped at rather than asked to approve.
-func (b *builder) conflictsOnKey(addr addrs.AbsResourceInstance, typeName, importID string) {
+//
+// The sentence below is the Kubernetes one: the key is the object's kind,
+// namespace and name, and the marker is one label. A family with words of
+// its own supplies them ([substrate.NameHeldDetail]); the first GCP
+// gauntlet run printed the Kubernetes sentence for a compute instance.
+func (b *builder) conflictsOnKey(addr addrs.AbsResourceInstance, typeName, importID string, surface markers.Surface) {
 	own := b.opts.Ownership
 	detail := fmt.Sprintf(
 		"A live %s already exists at %q, the namespace and name %s declares, and carries no %s label, so this estate does not own it. The API server keys this object by its kind, namespace and name, so the create this configuration declares would be refused with 409 AlreadyExists while that object holds the name; this plan stops here instead of proposing it. To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, or write the label %s=%q onto it and re-run. To keep it out of this estate, point this resource at a name nobody is using.",
 		typeName, importID, addr, markers.TagEstate, markers.TagEstate, own.Estate)
+	if fam, ok := substrate.NameHeldDetail(surface, typeName, importID, addr, own.Estate); ok {
+		detail = fam
+	}
 	b.unownedList = append(b.unownedList, Unowned{
 		Addr:     addr,
 		TypeName: typeName,
