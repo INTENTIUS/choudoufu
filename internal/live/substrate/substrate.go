@@ -430,6 +430,26 @@ func CreateCollidesOnKey(surface markers.Surface) bool {
 	return s != nil && s.CreateCollidesOnKey(surface)
 }
 
+// nameHeldWording is the optional half of a family whose own words for
+// GitHub issue #1546's refusal differ from the Kubernetes sentence the
+// projection carries: what keys the object, and which markers adopt it.
+type nameHeldWording interface {
+	NameHeldDetail(typeName, importID string, addr addrs.AbsResourceInstance, estate string) string
+}
+
+// NameHeldDetail is surface's family's sentence for an unlabelled object
+// holding the name a declared create would send, and false when the family
+// has none of its own. The first GCP gauntlet run printed the Kubernetes
+// sentence (API server, kind and namespace, one label) for a compute
+// instance.
+func NameHeldDetail(surface markers.Surface, typeName, importID string, addr addrs.AbsResourceInstance, estate string) (string, bool) {
+	w, ok := For(surface).(nameHeldWording)
+	if !ok {
+		return "", false
+	}
+	return w.NameHeldDetail(typeName, importID, addr, estate), true
+}
+
 // CarrierPhrase names where surface's marker map lives ("tags attribute",
 // "metadata.labels map"), for the one refusal that has to tell an operator
 // the provider returned no such map. Empty for the zero Surface, which has

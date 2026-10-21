@@ -534,21 +534,17 @@ const SummaryNameHeld = "Unlabelled live object holds the declared name"
 // AlreadyExists, and a plan that is wrong before the server sees it is one a
 // human should be stopped at rather than asked to approve.
 //
-// The wording is the family's. On the Kubernetes label surface the key is
-// the object's kind, namespace and name and the marker is one label. On the
-// google labels surface the key is the name within the type's project or
-// location, and the marker is two labels, the estate and the encoded
-// address; the first GCP gauntlet run printed the Kubernetes sentence for a
-// compute instance.
+// The sentence below is the Kubernetes one: the key is the object's kind,
+// namespace and name, and the marker is one label. A family with words of
+// its own supplies them ([substrate.NameHeldDetail]); the first GCP
+// gauntlet run printed the Kubernetes sentence for a compute instance.
 func (b *builder) conflictsOnKey(addr addrs.AbsResourceInstance, typeName, importID string, surface markers.Surface) {
 	own := b.opts.Ownership
 	detail := fmt.Sprintf(
 		"A live %s already exists at %q, the namespace and name %s declares, and carries no %s label, so this estate does not own it. The API server keys this object by its kind, namespace and name, so the create this configuration declares would be refused with 409 AlreadyExists while that object holds the name; this plan stops here instead of proposing it. To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, or write the label %s=%q onto it and re-run. To keep it out of this estate, point this resource at a name nobody is using.",
 		typeName, importID, addr, markers.TagEstate, markers.TagEstate, own.Estate)
-	if surface == markers.SurfaceGoogleLabels {
-		detail = fmt.Sprintf(
-			"A live %s already exists at %q, the name %s declares, and carries no %s label, so this estate does not own it. Google Cloud refuses a create at a name already held in the same project or location with 409 alreadyExists, so the create this configuration declares would fail while that object holds the name; this plan stops here instead of proposing it. To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, or write the labels %s=%q and %s=%q onto it and re-run (choudoufu live-import -approve writes both for an object a stock state file records). To keep it out of this estate, point this resource at a name nobody is using.",
-			typeName, importID, addr, markers.TagEstate, markers.TagEstate, own.Estate, markers.TagAddress, markers.GoogleAddressValue(addr))
+	if fam, ok := substrate.NameHeldDetail(surface, typeName, importID, addr, own.Estate); ok {
+		detail = fam
 	}
 	b.unownedList = append(b.unownedList, Unowned{
 		Addr:     addr,
