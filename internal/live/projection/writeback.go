@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/retry"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -1046,6 +1047,10 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 
 	seen := make(map[string]bool, len(req.EnvelopeVersions))
 
+	// written is every address whose identity this pass recorded, for
+	// [retireMovedRecords].
+	var written []writtenIdentity
+
 	// unrecordableLogged makes issue #671's skip visible once per TYPE per
 	// write-back: a silently absent record is indistinguishable from a
 	// forgotten one, and the read half (superseded-claimant recovery, the
@@ -1566,10 +1571,13 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 			})
 			if err != nil {
 				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err, req.Backend, req.Retry))
+			} else if setIdentity != nil {
+				written = append(written, writtenIdentity{addr: addr, identity: setIdentity})
 			}
 		}
 	}
 	diags = diags.Append(unrecordedUnmarkedDiags(unrecordedUnmarked))
+	diags = diags.Append(retireMovedRecords(ctx, req, written))
 
 	for _, rv := range req.EnvelopeVersions {
 		if seen[rv.Addr.String()] || !req.covers(rv.Addr) {
@@ -1591,6 +1599,93 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 		}
 	}
 
+	return diags
+}
+
+// writtenIdentity is one address [writeBackRecordEnvelopes] recorded an
+// identity for, and the identity it recorded.
+type writtenIdentity struct {
+	addr     addrs.AbsResourceInstance
+	identity *identityPayload
+}
+
+// retireMovedRecords completes a `moved` block's rename in the record store.
+//
+// A bare HCL moved block never re-keys the store: the plan finds a record
+// still sitting under the moved-from address through
+// [builder.locatedIdentityWithAliases], and this pass has just written the
+// same identity under the new one. The old key is then a second record
+// naming one live object. It is inert while the moved block stays (every
+// reader asks by address, and the orphan-record leg translates through
+// [moved.Newest]), but once the operator deletes the moved block, as stock
+// lets them after one apply, nothing translates it any more: the old key
+// reads as a removed block's record and the next plan proposes destroying
+// the object the new address owns (corpus-azapi-role-assignment's
+// day2_rename, an untaggable azapi role assignment held only by its record).
+//
+// So for every address this pass recorded, each moved-from origin
+// ([moved.Aliases]) that the final state no longer holds, whose record names
+// the very identity just written, has its current-object facts (identity,
+// residue, provisioner taint, field-granular record) cleared, which deletes
+// the key unless it also carries deposed entries or tombstones, facts about
+// other objects that stay where they were written. An origin naming any
+// other identity is left alone: a moved block says the two addresses are one
+// instance, but two records disagreeing about which object that is is the
+// wrong-marker shape the safety rule exists to stop, and guessing would be
+// worse than leaving a stale key. An origin the plan read as its own
+// instance (in EnvelopeVersions) is the tombstone loop's, not this one's.
+//
+// Final pass only: [WriteInstance]'s mid-apply write records the new key and
+// leaves the old one for [WriteBack], which always follows.
+func retireMovedRecords(ctx context.Context, req WriteBackRequest, written []writtenIdentity) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if req.Only != nil || req.Config == nil || len(written) == 0 {
+		return diags
+	}
+	stmts := moved.Honoured(req.Config)
+	if len(stmts) == 0 {
+		return diags
+	}
+	readByPlan := make(map[string]bool, len(req.EnvelopeVersions))
+	for _, rv := range req.EnvelopeVersions {
+		readByPlan[rv.Addr.String()] = true
+	}
+	done := map[string]bool{}
+	for _, w := range written {
+		want := tombstoneKey(w.identity)
+		if want == "" {
+			continue
+		}
+		for _, origin := range moved.Aliases(stmts, w.addr) {
+			key := origin.String()
+			if done[key] || readByPlan[key] || origin.Equal(w.addr) {
+				continue
+			}
+			if req.FinalState != nil && req.FinalState.ResourceInstance(origin) != nil {
+				continue
+			}
+			env, version, exists, err := req.Store.getRawFresh(ctx, origin)
+			if err != nil {
+				// Nothing is lost: the new key holds the record, and the
+				// old one is inert while the moved block stays. The next
+				// apply tries again.
+				log.Printf("[WARN] projection: %s was recorded at its new address, but the record left at its moved-from address %s could not be read to retire it: %s", w.addr, origin, err)
+				continue
+			}
+			if !exists || env.Kind != recordKindIdentity || tombstoneKey(env.Identity) != want {
+				continue
+			}
+			done[key] = true
+			if _, err := req.Store.mergeEnvelope(ctx, origin, version, func(env *recordEnvelope) {
+				env.Identity = nil
+				env.Residue = nil
+				env.Provisioned = nil
+				env.FieldGranular = nil
+			}); err != nil {
+				diags = diags.Append(writeBackConflictDiag(origin, "Deleting", err, req.Backend, req.Retry))
+			}
+		}
+	}
 	return diags
 }
 

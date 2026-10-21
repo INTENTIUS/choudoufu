@@ -189,12 +189,13 @@ func (b *builder) materializeLocated(ctx context.Context, addr addrs.AbsResource
 // [writeBackRecordEnvelopes]'s stale-key path (RecordStore.currentVersion),
 // which reads addr's real version at write-back time - "no key yet", for an
 // ordinary move - and still catches a genuine concurrent write to addr's own
-// key between plan and apply. The OLD key is left exactly as it was: it is
-// never proposed for destruction ([builder.discoverOrphanedRecords] skips
-// every kind=identity key on principle), so leaving it in place costs
-// nothing and risks nothing, the same way a moved marker's old tag value is
-// never scrubbed separately from the ordinary in-place rewrite that
-// completes the move.
+// key between plan and apply. The plan leaves the OLD key exactly as it
+// was; the apply's write-back records the identity under addr and then
+// retires the old key when it names the same object ([retireMovedRecords]),
+// so the record follows the rename the way a re-stamped tofu-address does
+// and nothing is left behind to read as a removed block's record once the
+// moved block itself is deleted. [builder.materializeFromRecord] reads
+// through this function too.
 func (b *builder) locatedIdentityWithAliases(ctx context.Context, addr addrs.AbsResourceInstance) (rec LocatedRecord, version string, keyExists bool, identityFound bool, viaAlias bool, err error) {
 	rec, version, keyExists, identityFound, err = b.opts.RecordStore.GetIdentity(ctx, addr)
 	if err != nil || identityFound {
