@@ -256,6 +256,15 @@ type Source struct {
 	// CreateNameArg.
 	NameFlatten map[string]string `json:"name_flatten,omitempty"`
 
+	// NameCollection is, for a generated resource whose id format is one
+	// placeholder whole ("{{name}}"), the path of its Create's URL after
+	// the base URL and any API version, with the query dropped:
+	// "projects/{{project}}/locations/{{location}}/jobs". The API names
+	// the object it creates there under that collection, so it is the
+	// shape the placeholder holds, which neither the id format nor an
+	// import form "{{name}}" says (createname.go).
+	NameCollection string `json:"name_collection,omitempty"`
+
 	// LocationSet says how a generated Create whose id format names
 	// {{location}} sets it before building the id (location.go, #2145
 	// item 7): "none", "provider-region" (an encoder's

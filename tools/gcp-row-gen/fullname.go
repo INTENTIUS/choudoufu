@@ -189,6 +189,38 @@ func decideFullName(d AssetDecision, src Source, host, path string, names AssetN
 	return d, true
 }
 
+// decideCollection decides an as-is row d whose Asset name is the id format
+// whole, "//transcoder.googleapis.com/{{name}}", taken because an import
+// form is that same "{{name}}". The placeholder holds the name the API
+// gives the object under its Create's collection, [Source.NameCollection]
+// and one more segment, so the row stands only when an Asset name Google
+// documents under host has that shape with a project ID in it. Otherwise
+// it is unknown: a page that spells the project as a number names it by a
+// value the provider's project argument does not hold, and a page with no
+// such name documents no asset a hit could be (dataproc_session_template's
+// sessionTemplates).
+func decideCollection(d AssetDecision, src Source, host, path string, names AssetNames) AssetDecision {
+	shape := src.NameCollection + "/" + path
+	numbered := ""
+	for _, p := range pagePaths(names, host) {
+		ok, number := alignPage(p, shape)
+		switch {
+		case ok && !number:
+			return d
+		case ok && numbered == "":
+			numbered = p
+		}
+	}
+	origin := fmt.Sprintf("the import form %q is the whole name the API gives it under %s", path, src.NameCollection)
+	d.Verdict, d.Row = AssetUnknown, identity.GoogleAssetImport{}
+	if numbered != "" {
+		d.Reason = fmt.Sprintf("%s, and Google documents its Asset name as //%s/%s; a project number is not the project ID the provider's project argument holds", origin, host, numbered)
+		return d
+	}
+	d.Reason = fmt.Sprintf("%s, and no Asset name Google documents under %s has that shape", origin, host)
+	return d
+}
+
 // passthroughReason says why a type whose importer is
 // schema.ImportStatePassthrough and whose Create names the object by no
 // ReplaceVars template has no import form for its Asset name: the import ID
