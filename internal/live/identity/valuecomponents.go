@@ -540,3 +540,53 @@ func SensitiveComponentsAttr(t TypeIdentity, schema providers.Schema) string {
 	}
 	return ""
 }
+
+// RewriteIdentityValues applies typeName's row rewrites ([valueLongForm])
+// to identity values read off a stored object, returning a copy. A google
+// Read can store an identity argument in a form its importer refuses: the
+// region network endpoint group flattens region to a self link, its
+// identity is set from that, and ParseImportId's
+// projects/(?P<project>[^/]+)/regions/(?P<region>[^/]+)/... rejects it.
+// Stock never imports by that identity; choudoufu does, so the value it
+// hands the importer is the one the provider's own id carries (the seventh
+// GCP run's day2_endpoints). A type with no row, or a value a rewrite would
+// empty, is left as read.
+func RewriteIdentityValues(typeName string, values map[string]string) map[string]string {
+	row, ok := LookupType(typeName)
+	if !ok || len(values) == 0 {
+		return values
+	}
+	var out map[string]string
+	for _, c := range row.Components {
+		if len(c.Attrs) == 0 {
+			continue
+		}
+		switch c.LongForm {
+		case LongFormLastSegment, LongFormTrimPrefix:
+		default:
+			continue
+		}
+		for _, arg := range c.Attrs {
+			name := c.identityAttrFor(arg)
+			v, has := values[name]
+			if !has {
+				continue
+			}
+			short, ok := valueLongForm(c, arg, v)
+			if !ok || short == v {
+				continue
+			}
+			if out == nil {
+				out = make(map[string]string, len(values))
+				for k, x := range values {
+					out[k] = x
+				}
+			}
+			out[name] = short
+		}
+	}
+	if out == nil {
+		return values
+	}
+	return out
+}
