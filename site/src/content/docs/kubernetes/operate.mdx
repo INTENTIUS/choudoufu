@@ -19,7 +19,16 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 record_store "kubernetes" {}
 ```
 
-Each record is a Secret in `tofu-records-<estate>`.
+Each record is a Secret in `tofu-records-<estate>`. Install [the admission policy](/choudoufu/kubernetes/gate/) and run the API server with encryption at rest. On EKS, GKE or AKS, name the cluster so its encryption setting is read from the provider:
+
+```hcl
+record_store "kubernetes" {
+  control_plane "eks" {
+    name   = "prod"
+    region = "us-east-1"
+  }
+}
+```
 
 ## Remove
 

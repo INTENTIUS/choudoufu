@@ -2,7 +2,7 @@
 title: Adopt
 description: Bring running AWS resources under management with one command.
 prompt: |
-  Follow https://intentius.io/choudoufu/aws/adopt/. Run `choudoufu live-import` without `-approve` and report its output.
+  Follow https://intentius.io/choudoufu/aws/adopt/. Run `choudoufu live-import -state=stock.tfstate -estate=<name>` without `-approve` and report its output.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 import PlatformSwitch from '../../../components/PlatformSwitch.astro';
@@ -14,7 +14,7 @@ A resource is yours once it carries the tags `tofu-estate` and `tofu-address`.
 ## The bulk path
 
 ```
-choudoufu live-import -approve
+choudoufu live-import -state=stock.tfstate -estate=my-estate -approve
 ```
 
 Run it before the first apply. It tags every state entry that matches its live object. Keep the state file until the next plan is empty.
@@ -25,4 +25,4 @@ Tagged and named resources bind on the first plan.
 
 ## Leaving
 
-Copy the cache to `terraform.tfstate` and remove the `live` block ([Migrate](/choudoufu/docs/use/migrate/)).
+Copy `.terraform/choudoufu-cache.tfstate` to `terraform.tfstate` and delete `estate.chdf.hcl` ([Undo](/choudoufu/docs/use/migrate/#undo)).

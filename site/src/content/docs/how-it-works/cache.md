@@ -13,6 +13,6 @@ correctly from an empty cache.
 
 ## The exit
 
-Copy the file to `terraform.tfstate` and remove the `live` block. Stock
-OpenTofu runs with it. It holds sensitive values in clear
+Copy the file to `terraform.tfstate` and delete `estate.chdf.hcl`. Stock
+OpenTofu runs with it ([Undo](../../docs/use/migrate/#undo)). It holds sensitive values in clear
 ([`live/STORAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STORAGE.md)).

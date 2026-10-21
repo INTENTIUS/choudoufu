@@ -27,6 +27,17 @@ Markers record ownership, so the configuration carries no `backend` or `cloud` b
 
 Stock azurerm and azapi. An azurerm type with an ARM id template plans, and so does every ARM type through `azapi_resource` ([READINESS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/READINESS.md#azure)).
 
+Write a role assignment as an `azapi_resource`:
+
+```hcl
+resource "azapi_resource" "reader" {
+  type      = "Microsoft.Authorization/roleAssignments@2022-04-01"
+  name      = "4f6a2c1e-8b3d-4e5f-9a7b-1c2d3e4f5a6b"
+  parent_id = azurerm_resource_group.app.id
+  body      = { properties = { principalId = var.principal_id, roleDefinitionId = var.reader_role_id } }
+}
+```
+
 ## Running it
 
 `-target` and plan files work.

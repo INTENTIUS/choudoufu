@@ -1,13 +1,13 @@
 ---
 // The home page's picker, in terragucci's DoorPicker shape: what you run today
-// as tiles, where it runs and where records live as switches, and the roles as
-// a line of links. Two cards then say what works for that pick (the tile's
-// room, the record store's line and what carries over) and the first step. A
+// as tiles, where it runs as a switch, and the roles as a line of links. Two
+// cards then say what works for that pick (the tile's room and what carries
+// over) and the first step. A
 // quiet line under them says what differs. Every list comes from
 // data/rooms.ts, the room pages' source. The first pick is rendered on the
 // server, so the cards read the same without script.
 import Cube from './Cube.astro';
-import { FROM, PLATFORMS, ROLES, STORES, room } from '../data/rooms';
+import { FROM, PLATFORMS, ROLES, room } from '../data/rooms';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (h: string) => (/^https?:/.test(h) ? h : `${base}${h}`);
@@ -19,11 +19,9 @@ const platforms = PLATFORMS.map((p) => {
 	const r = room(p.room);
 	return { id: p.id, label: p.label, room: href(`/for/${p.room}/`), title: r.title, differs: r.differs };
 });
-const stores = STORES.map((s) => ({ ...s, href: href(s.href) }));
-const data = { tiles, platforms, stores };
+const data = { tiles, platforms };
 const [tile] = tiles;
 const [platform] = platforms;
-const [store] = stores;
 ---
 <section class="cd-picker not-content" aria-label="Where to start">
 	<div class="tiles" role="group" aria-label="What you run today">
@@ -42,12 +40,6 @@ const [store] = stores;
 				{platforms.map((p, i) => <button type="button" data-pick="platform" value={p.id} aria-pressed={String(i === 0)}>{p.label}</button>)}
 			</div>
 		</div>
-		<div class="switch">
-			<span id="cd-pick-store">Records in</span>
-			<div class="seg" role="group" aria-labelledby="cd-pick-store">
-				{stores.map((s, i) => <button type="button" data-pick="store" value={s.id} aria-pressed={String(i === 0)}>{s.label}</button>)}
-			</div>
-		</div>
 	</div>
 	<nav class="roles" aria-label="By role">
 		<span>Or start from your role</span>
@@ -58,7 +50,6 @@ const [store] = stores;
 			<p class="h">Works</p>
 			<ul class="cube-list" data-works>
 				{tile.works.map((w) => <li>{w}</li>)}
-				<li><a data-store href={store.href}>{store.line}</a></li>
 			</ul>
 			<div data-carries hidden={!tile.carries.length}>
 				<p class="h from" data-carries-title>Carries over from {tile.label}</p>
@@ -83,12 +74,11 @@ const [store] = stores;
 	type Data = {
 		tiles: { id: string; label: string; room: string; title: string; works: string[]; differs: string[]; carries: string[]; first: Link }[];
 		platforms: { id: string; label: string; room: string; title: string; differs: string[] }[];
-		stores: { id: string; label: string; line: string; href: string }[];
 	};
 	const key = 'cd-picker';
 	for (const section of document.querySelectorAll<HTMLElement>('.cd-picker')) {
 		const data = JSON.parse(section.querySelector('[data-picker-data]')!.textContent!) as Data;
-		const pick: Record<string, string> = { tile: data.tiles[0].id, platform: data.platforms[0].id, store: data.stores[0].id };
+		const pick: Record<string, string> = { tile: data.tiles[0].id, platform: data.platforms[0].id };
 		try {
 			const saved = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, string>;
 			for (const k of Object.keys(pick)) if (saved[k]) pick[k] = saved[k];
@@ -103,13 +93,10 @@ const [store] = stores;
 		const show = () => {
 			const tile = data.tiles.find((t) => t.id === pick.tile) ?? data.tiles[0];
 			const platform = data.platforms.find((p) => p.id === pick.platform) ?? data.platforms[0];
-			const store = data.stores.find((s) => s.id === pick.store) ?? data.stores[0];
 			for (const b of section.querySelectorAll<HTMLButtonElement>('button[data-pick]')) {
 				b.setAttribute('aria-pressed', String(pick[b.dataset.pick!] === b.value));
 			}
-			const storeLink = link(store.line, store.href);
-			storeLink.dataset.store = '';
-			$('[data-works]').replaceChildren(...tile.works.map((w) => li(w)), li(storeLink));
+			$('[data-works]').replaceChildren(...tile.works.map((w) => li(w)));
 			$('[data-carries]').hidden = !tile.carries.length;
 			$('[data-carries-title]').textContent = `Carries over from ${tile.label}`;
 			$('[data-carries-list]').replaceChildren(...tile.carries.map((c) => li(c)));

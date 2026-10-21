@@ -9,14 +9,14 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 <PlatformSwitch />
 
-An estate owns the resource groups it declares. Deploy two templates:
+An estate owns the resource groups it declares. As an Owner or User Access Administrator of the subscription, deploy two templates:
 
 ```
 az deployment sub create --location <region> \
-  --template-file live/azure/estate-grant.json \
+  --template-uri https://raw.githubusercontent.com/INTENTIUS/choudoufu/main/live/azure/estate-grant.json \
   --parameters estate=<estate> resourceGroups='["<rg>"]' principalId=<object-id>
 az deployment sub create --location <region> \
-  --template-file live/azure/estate-boundary.json \
+  --template-uri https://raw.githubusercontent.com/INTENTIUS/choudoufu/main/live/azure/estate-boundary.json \
   --parameters estate=<estate> resourceGroups='["<rg>"]'
 ```
 

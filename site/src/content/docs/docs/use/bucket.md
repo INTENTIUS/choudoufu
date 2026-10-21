@@ -12,7 +12,8 @@ One bucket serves all your AWS estates. On Kubernetes, records can live in the
 cluster instead ([operate on Kubernetes](../../../kubernetes/operate/#records)).
 
 ```
-cd examples/record-store-bucket
+git clone https://github.com/INTENTIUS/choudoufu.git
+cd choudoufu/examples/record-store-bucket
 npm install
 just up
 just verify
@@ -25,8 +26,10 @@ to `just up` for your own KMS key.
 
 ## The estate role's policy
 
+From the same directory:
+
 ```
-examples/record-store-bucket/iam/render-policy.sh prod <bucket> --account 111122223333
+iam/render-policy.sh prod <bucket> --account 111122223333
 ```
 
 The role reaches only its estate's objects. Add `--read-only` for a plan job.
