@@ -660,3 +660,44 @@ func TestRefGCPNoLocalStateWantsTheFourMarkerlessRefusals(t *testing.T) {
 		t.Errorf("the four refusals in the real format do not satisfy the check: %q", out)
 	}
 }
+
+// no_local_state puts the record store back after a plan with none. That
+// plan recreates an empty .tofu-records (the local store makes its
+// directory), and a bare `cp -R keep .tofu-records` then nests the copy
+// inside it and leaves the store empty: the seventh GCP run failed both
+// estates' no_local_state on exactly that. Each estate's own restore lines
+// must leave the records at the top of the store.
+func TestGCPNoLocalStateRestoresTheRecordsAtTheStoreRoot(t *testing.T) {
+	for _, estate := range []string{"corpus-k8s-infra-gcp-gcve", "reference-gcp"} {
+		t.Run(estate, func(t *testing.T) {
+			raw, err := os.ReadFile(filepath.Join("e2e", estate, "run.sh"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			s := string(raw)
+			i := strings.Index(s, "# The record store put back and the cache still gone")
+			j := strings.Index(s, `( cd "$GREEN" && TF_LOG=debug TF_LOG_PATH="$NLS/records.log"`)
+			if i < 0 || j < i {
+				t.Fatal("run.sh: no_local_state's record restore not found")
+			}
+			green, nls := t.TempDir(), t.TempDir()
+			// What the record-less plan leaves: an empty store directory.
+			if err := os.MkdirAll(filepath.Join(green, ".tofu-records"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Join(nls, "records.keep", "identity"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(nls, "records.keep", "identity", "r.json"), []byte("{}"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			script := "fail() { echo \"FAIL: $*\" >&2; exit 1; }\nGREEN=" + green + "\nNLS=" + nls + "\n" + s[i:j]
+			if out, err := exec.Command("bash", "-c", script).CombinedOutput(); err != nil {
+				t.Fatalf("the restore failed: %v\n%s", err, out)
+			}
+			if _, err := os.Stat(filepath.Join(green, ".tofu-records", "identity", "r.json")); err != nil {
+				t.Errorf("the restored record is not at the store root (%v); a nested copy leaves the store empty", err)
+			}
+		})
+	}
+}

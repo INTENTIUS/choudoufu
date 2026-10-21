@@ -955,8 +955,11 @@ NLS_HELD=("projects/$PROJECT/global/networks/maintenance-vpc-network"
 N_PROBLEMS="$(gcp_name_held_check "$NLS/cold.plan" "${NLS_HELD[@]}")"
 [ "$N_RC" -ne 0 ] || N_PROBLEMS="${N_PROBLEMS}the plan exited 0; "
 # The record store put back and the cache still gone: the records alone
-# claim the markerless objects again, and the plan is empty.
-cp -R "$NLS/records.keep" "$GREEN/.tofu-records" 2>/dev/null || true
+# claim the markerless objects again, and the plan is empty. The record-less
+# plan above recreated an empty .tofu-records (NewLocalStore makes its
+# directory), so a bare cp -R nests the copy inside it and leaves the store
+# empty (the seventh GCP run); remove it first.
+rm -rf "$GREEN/.tofu-records"; cp -R "$NLS/records.keep" "$GREEN/.tofu-records" || fail "could not put the record store back"
 ( cd "$GREEN" && TF_LOG=debug TF_LOG_PATH="$NLS/records.log" "$TOFU" plan -input=false -no-color > "$NLS/records.plan" 2>&1 ); R_RC=$?
 REQ_C="$(gcp_request_count "$NLS/cached.log")"; REQ_R="$(gcp_request_count "$NLS/records.log")"
 R_LINE="$(grep -E '^Plan:|^No changes|^Error' "$NLS/records.plan" | head -1)"
