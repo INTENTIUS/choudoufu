@@ -39,6 +39,12 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.31.0 (Unreleased)
 
+- Emulator repinned from `ghcr.io/lex00/floci@sha256:5ec92ae8...` to
+  `ghcr.io/lex00/floci@sha256:980a67e2...` (lex00/floci `48c6e47`, 2554
+  commits past the old pin's `c688f52`, including a large upstream sync).
+  `live/floci-capabilities.json` still describes the old digest until the
+  maintainer re-probes it, and every gauntlet row reads stale until
+  re-measured.
 - Changed: claims hold only the promise and its proof. A cell is `proven`
   or `n/a`; `unproven`, `open`, `restated` and the stale marking are gone,
   and each proof shows the date and commit it last ran. Claim 47 left the

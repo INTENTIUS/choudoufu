@@ -73,6 +73,15 @@ var flociImageFields = map[string]string{
 // decision that says what re-measuring would cost; empty is the intended
 // state.
 //
+// 2026-10-21 repin: sha256:980a67e2 (tag 48c6e47, also :latest, amd64 and
+// arm64) is lex00/floci commit 48c6e4769d, 2554 commits past the previous
+// pin's source c688f52, so it carries a large upstream sync. The digest was
+// resolved from the ghcr.io manifest list without pulling or running the
+// image. live/floci-capabilities.json was NOT re-probed: the probe boots the
+// emulator, which is the maintainer's to do, so the manifest still describes
+// sha256:5ec92ae8 and is listed below until it is. Every gauntlet row reads
+// as stale against this pin until the maintainer re-measures.
+//
 // 2026-10-17 repin (issue #2047, lex00/floci#228): sha256:5ec92ae8 (tag
 // c688f52, amd64 and arm64) is the previous pin's source commit (39d9c7c)
 // plus one commit, c688f52 (branch fix/eks-tag-subresources-on-pin-228), a
@@ -235,6 +244,9 @@ var staleFlociMeasurements = map[string]string{
 	// cohort-acceptance.json's own re-measurement (its own generated_by
 	// field says so); it cannot be re-measured independently of that file.
 	"cohort-triage.json": "reconciled by hand against cohort-acceptance.json (see this file's own generated_by field); re-measuring depends on that artifact's own re-measurement, which is the entry above",
+	// floci-capability-gen probes a running container of the pinned image;
+	// nobody booted 48c6e47 for this repin.
+	"floci-capabilities.json": "probed against sha256:5ec92ae8, the previous pin; the 48c6e47 repin moved live/floci-image without a re-probe, because the probe boots the emulator and that is the maintainer's to run (-mode=all, -mode=tagging, the hand rows, then -mode=prune)",
 }
 
 // flociPinRef is live/floci-image's full ref.
