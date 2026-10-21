@@ -216,6 +216,7 @@ func extractSources(dir string) (map[string]Source, error) {
 	if err != nil {
 		return nil, err
 	}
+	iamIdentity := iamKindIdentity(dir)
 	out := map[string]Source{}
 	tpgresourceText := ""
 	tpgresourceOnce := false
@@ -246,10 +247,13 @@ func extractSources(dir string) (map[string]Source, error) {
 				return fmt.Errorf("%s is registered twice (again in %s)", typeName, rel)
 			}
 			var s Source
+			pkg := func() string { return packageText(filepath.Dir(path)) }
 			if regType == "SchemaTypeIAMResource" {
-				s = iamSource(typeName, text, grammar, func() string { return packageText(filepath.Dir(path)) }, helpers)
+				s = iamSource(typeName, text, grammar, pkg, helpers)
+				s.IdentityImport = iamIdentityImport(text, s.Kind, pkg, iamIdentity)
 			} else {
 				s = resourceSource(text)
+				s.IdentityImport = resourceIdentityImport(text, pkg)
 				m := meta[typeName]
 				s.Generation = m.generation
 				s.APIService = m.apiService

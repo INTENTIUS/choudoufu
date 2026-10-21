@@ -248,7 +248,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Removed resource's record has no import ID to destroy it by",
-		What:    "INTENTIUS/choudoufu#2139 item 3: a resource block was removed, and the record its instance left holds the identity as its identity schema's attributes with no import ID. The type has no identity-table row, and the provider source at the pin states no import format made of those attributes (or the record lacks one the format needs), so there is nothing to read or destroy the object by. The plan refuses, naming the type, rather than drop the record and leave the object live. Importing the object to a declared block, or destroying it by hand and deleting the record, clears it.",
+		What:    "INTENTIUS/choudoufu#2139 item 3: a resource block was removed, and the record its instance left holds the identity as its identity schema's attributes with no import ID. No import ID composes from them (the type's identity-table row, or the import formats the provider source at the pin states, need a part the record does not carry), and the type's importer at the pin takes no identity object either, or needs an attribute the record lacks (#2145 item 4), so there is nothing to read or destroy the object by. The plan refuses, naming the type, rather than drop the record and leave the object live. Importing the object to a declared block, or destroying it by hand and deleting the record, clears it.",
 	},
 	{
 		Summary: "Resolved resource missing from the configuration",

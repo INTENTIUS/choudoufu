@@ -154,6 +154,10 @@ type Source struct {
 	// framework's own error message spells it ("resource_name role member
 	// [condition_title]").
 	IAMGrammar string `json:"iam_grammar,omitempty"`
+
+	// IdentityImport is how the type's importer reads an identity object
+	// (identityimport.go). Nil when the type declares no identity schema.
+	IdentityImport *IdentityImport `json:"identity_import,omitempty"`
 }
 
 // Facts is live/gcp-schema-facts.json: the parts of each provider's schema

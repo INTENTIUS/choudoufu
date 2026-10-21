@@ -222,6 +222,18 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 				// identity-schema route corroborates a context attribute
 				// (project, region) against the provider's other types.
 				_, schemaAdmitted = identity.SynthesizeTypeIdentity(typeName, schemas.ResourceSchemas(), nil)
+				if !schemaAdmitted {
+					// INTENTIUS/choudoufu#2145 item 4: the identity-schema
+					// route refuses a type whose identity has an optional
+					// attribute that is not provider context (google_sql_user's
+					// host, an IAM member's condition_title) unless the block
+					// itself settles it, and the block is gone. The record
+					// was written when the block was admitted, and where the
+					// type's importer at the pin takes the record's identity,
+					// that is what this leg needs; the identity check below
+					// decides per record.
+					_, schemaAdmitted = identity.GoogleIdentityImports[typeName]
+				}
 			}
 			if !schemaAdmitted && (!ok || !identity.LocatedType(typeName, schemaMap)) {
 				// Not an admitted type at all, by either door - a stray or
@@ -361,6 +373,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 		}
 		elsewhere := req.ScopeProvider.Provider.Type != "" && recordedProvider != "" && recordedProvider != req.ScopeProvider.String()
 		importID := rec.ImportID
+		var identityValues map[string]string
 		if importID == "" {
 			// A composite identity from the provider's own wire identity
 			// schema ([projection.LocatedRecord.Components] populated
@@ -375,6 +388,21 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			// on the SAME provider version.
 			var ok bool
 			importID, ok = composeImportIDFromComponents(typeName, rec.Components)
+			if google := strings.HasPrefix(typeName, "google_"); google && importID == "" {
+				// A google row with no components (a markerless type's)
+				// composes nothing at all, which is no import ID either.
+				ok = false
+			}
+			if !ok {
+				// INTENTIUS/choudoufu#2145 item 4: where the type's
+				// importer at the pin takes an identity object and the
+				// record carries every attribute it needs, the object is
+				// imported by the identity, the way a declared record-held
+				// instance is ([projection.importTarget]).
+				if values, byIdentity := identity.GoogleIdentityImportValues(typeName, rec.Components); byIdentity {
+					importID, identityValues, ok = "", values, true
+				}
+			}
 			if !ok && !elsewhere {
 				// A component this composer does not know how to resolve (a
 				// nested Block, a Default substitute, an OmitIfAbsent
@@ -392,7 +420,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 						Kind:     ProblemUncomposableRecord,
 						TypeName: typeName,
 						Addr:     resolvedAddr,
-						Detail:   fmt.Sprintf("The block for %s was removed, and its record holds the identity as %s with no import ID. %s, so nothing here can read or destroy the object. Import it to a declared block, or destroy it by hand and remove the record.", resolvedAddr, componentNames(rec.Components), why),
+						Detail:   fmt.Sprintf("The block for %s was removed, and its record holds the identity as %s with no import ID. %s, and %s, so nothing here can read or destroy the object. Import it to a declared block, or destroy it by hand and remove the record.", resolvedAddr, componentNames(rec.Components), why, googleIdentityImportWhy(typeName, rec.Components)),
 					}))
 					known[addr.String()] = true
 					known[resolvedAddr.String()] = true
@@ -480,6 +508,7 @@ func recordOrphanReadSweep(ctx context.Context, req Request, schemas listclient.
 			Addr:             resolvedAddr,
 			Class:            identity.ClassConcrete,
 			ImportID:         importID,
+			IdentityValues:   identityValues,
 			Undeclared:       true,
 			DestroyDependsOn: dependsOn,
 			// See [identity.Resolution.RecordRooted]'s doc comment: this
