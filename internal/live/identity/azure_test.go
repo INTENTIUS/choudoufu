@@ -584,3 +584,49 @@ func TestARMTypeSegment(t *testing.T) {
 		}
 	}
 }
+
+// GitHub issue #2142's Azure audit: azapi 2.13.0 names an azapi_resource
+// that omits `name` with its provider block's default_name, and refuses the
+// block only when the provider sets none (nameWithDefaultNaming). So a
+// static default_name is the name, read from the block's own provider
+// configuration as its subscription_id is; another provider configuration's
+// default_name is not, and with none the missing argument stays refused.
+func TestAzapiOmittedNameIsTheProvidersDefaultName(t *testing.T) {
+	result, errs := resolveAzure(t, azureProviders+`
+provider "azapi" {
+  alias           = "named"
+  subscription_id = "`+azureSub+`"
+  default_name    = "fixed"
+}
+resource "azapi_resource" "x" {
+  provider  = azapi.named
+  type      = "Microsoft.Network/virtualNetworks@2024-01-01"
+  parent_id = "/subscriptions/`+azureSub+`/resourceGroups/rg"
+}
+`)
+	if errs != "" {
+		t.Fatalf("refused: %s", errs)
+	}
+	got := azureResolution(t, result, "azapi_resource.x")
+	want := "/subscriptions/" + azureSub + "/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/fixed"
+	if got.Class != ClassConcrete || got.ImportID != want {
+		t.Errorf("azapi_resource.x = %s, want CONCRETE %s", got, want)
+	}
+
+	// The default provider configuration sets no default_name: the aliased
+	// one's is not this block's, and azapi refuses the block itself.
+	_, errs = resolveAzure(t, azureProviders+`
+provider "azapi" {
+  alias           = "named"
+  subscription_id = "`+azureSub+`"
+  default_name    = "fixed"
+}
+resource "azapi_resource" "x" {
+  type      = "Microsoft.Network/virtualNetworks@2024-01-01"
+  parent_id = "/subscriptions/`+azureSub+`/resourceGroups/rg"
+}
+`)
+	if !strings.Contains(errs, `has no value for "name"`) {
+		t.Errorf("no default_name on the block's provider: %q, want the missing-name refusal", errs)
+	}
+}
