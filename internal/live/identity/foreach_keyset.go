@@ -194,6 +194,48 @@ func collectStaticForEachKeys(ctx context.Context, cfg *configs.Config, subject 
 				}
 			}
 		}
+		// #2142: a sibling module's output, `for_each =
+		// module.helper.keys`, chased into the output's own expression in
+		// the child's configuration and recursed into there - which is
+		// also where the whole-value evaluation below then happens, in the
+		// child module's own static evaluator, so an output reading
+		// anything that is not statically knowable refuses exactly as the
+		// same expression written here would. The guards are
+		// [parseModuleOutputRef]'s; a sensitive output refuses on its
+		// declaration, and a selector past the output declines.
+		//
+		// A REPEATED call declines, indexed or not. This function reads
+		// configuration, not instances: the child's static evaluator is
+		// one per call, built from the call's arguments without any
+		// instance's each or count, so it cannot answer for module.x["a"]
+		// rather than module.x["b"]. That is [chaseVarOrLocal]'s rule for
+		// the same reason, from the other side of the same boundary. It is
+		// defence in depth today: an argument reading count.index or each
+		// does not evaluate in that call-level scope either, so removing
+		// this line changes no fixture's verdict (mutation-checked).
+		if trav, diags := hcl.AbsTraversalForExpr(e); !diags.HasErrors() && len(trav) >= 3 && trav.RootName() == "module" {
+			if callStep, ok := trav[1].(hcl.TraverseAttr); ok {
+				ref, ok := parseModuleOutputRef(ctx, cfg, callStep.Name, trav[2:])
+				if !ok || ref.repeated || ref.out.Sensitive || len(ref.rest) > 0 {
+					return nil, false
+				}
+				child := cfg.Children[callStep.Name]
+				if names, ok := collectStaticForEachKeys(ctx, child, subject, ref.out.Expr); ok {
+					return names, true
+				}
+				// The structural walk has no case for every shape an
+				// output is written in (`cond ? toset(local.keys) : []`
+				// is a call other than merge), so the output's
+				// expression is evaluated whole in the child, strictly,
+				// exactly as the fallback below evaluates one written
+				// here.
+				val, ok := staticSubValue(ctx, child.Module, subject, ref.out.Expr)
+				if !ok {
+					return nil, false
+				}
+				return collectionKeyNames(val)
+			}
+		}
 	}
 
 	// Anything else is proven only if it evaluates whole under the static

@@ -453,6 +453,16 @@ func (r *resolver) staticCollElems(expr hcl.Expression, ident configs.StaticIden
 		}
 	}
 
+	// #2142: a child module's output, `for_each = module.helper.keys` -
+	// terraform-google-modules/iam's projects_iam shape, whose helper module
+	// reshapes its variables into the set the caller ranges over. See
+	// [resolver.moduleOutputCollElems].
+	if trav, diags := hcl.AbsTraversalForExpr(expr); !diags.HasErrors() && len(trav) >= 3 && trav.RootName() == "module" {
+		if callStep, ok := trav[1].(hcl.TraverseAttr); ok {
+			return r.moduleOutputCollElems(callStep.Name, trav[2:], ident, depth, tupleIsArgs)
+		}
+	}
+
 	// A collection reached through an enclosing for-comprehension's own
 	// value variable - the binding [instScope.exprVars] carries and nothing
 	// on this side used to be able to see. See [resolver.elemVarSource].
@@ -1770,89 +1780,29 @@ func (r *resolver) namedLeaf(expr hcl.Expression, scope instScope, ident configs
 // refusal internal/configs already raised standing - never a quieter
 // message in place of a real one.
 func (r *resolver) resolveModuleOutput(callName string, rest []hcl.Traverser, ident configs.StaticIdentifier) ([]Part, bool, bool) {
-	mc, ok := r.mod.ModuleCalls[callName]
-	if !ok || mc.Config == nil {
+	// The guards - the call exists, indexed iff repeated, the key is one
+	// the call expands to, a whole-module reference declines - are
+	// [parseModuleOutputRef]'s, shared with every other reader of a module
+	// output. TestModuleOutputRefusesWhatItCannotName isolates each with a
+	// literal-valued output, so that nothing downstream of the module hop
+	// can mask a missing guard.
+	ref, ok := parseModuleOutputRef(r.ctx, r.curCfg, callName, rest)
+	if !ok {
 		return nil, false, false
 	}
-
-	// An indexed reference supplies the instance key; an unindexed one is
-	// only meaningful when the call has no repetition at all. Both
-	// mismatched pairings are left to the existing refusal rather than
-	// guessed at: "module.foo.bar" on a call with count or for_each names
-	// a tuple or an object holding every instance's value, which is not a
-	// single identity part, and "module.foo[0].bar" on a call with neither
-	// names an instance that does not exist.
-	//
-	// The whole-module half of that is belt and braces: the expansion
-	// check below rejects it too, because addrs.NoKey is never among a
-	// repeated call's keys. It is written out anyway because it refuses
-	// for the reason a reader would give, one step earlier, and because it
-	// does not depend on NoKey's relationship to the key set staying what
-	// it is. Only the indexed-on-an-unrepeated-call half and the
-	// expansion check itself are independently load-bearing; see
-	// TestModuleOutputRefusesWhatItCannotName, whose fixtures isolate each
-	// with a literal-valued output so that nothing downstream of the
-	// module hop can mask a missing guard.
-	repeated := mc.Count != nil || mc.ForEach != nil
-	key := addrs.InstanceKey(addrs.NoKey)
-	if len(rest) > 0 {
-		if idx, isIndex := rest[0].(hcl.TraverseIndex); isIndex {
-			if !repeated {
-				return nil, false, false
-			}
-			k, ok := indexKeyValue(idx.Key)
-			if !ok {
-				return nil, false, false
-			}
-			key = k
-			rest = rest[1:]
-		} else if repeated {
-			return nil, false, false
-		}
-	} else if repeated {
-		return nil, false, false
-	}
-
-	// The key has to be one the call actually expands to. Without this a
-	// reference to module.foo[7] on a three-instance call would enter the
-	// child module anyway - [addrs.ModuleInstance.Child] builds any step
-	// asked of it, and ConfigForModule resolves by name - and resolve an
-	// identity for an instance that will never exist.
-	if repeated {
-		subject := "module." + callName
-		if _, ok := ChildModuleRepetitionData(r.ctx, r.curCfg, subject, mc.Count, mc.ForEach, key); !ok {
-			return nil, false, false
-		}
-	}
-
-	if len(rest) == 0 {
-		// "module.foo" with no output named: a whole-module reference,
-		// which is an object of every output rather than one value.
-		return nil, false, false
-	}
-	outStep, isAttr := rest[0].(hcl.TraverseAttr)
-	if !isAttr {
-		return nil, false, false
-	}
-	rest = rest[1:]
 
 	savedMod, savedCfg, savedInst, savedEval := r.mod, r.curCfg, r.modInst, r.eval
-	if !r.enterModuleFor(r.modInst.Child(callName, key)) {
+	if !r.enterModuleFor(r.modInst.Child(callName, ref.key)) {
 		return nil, false, false
 	}
 	defer func() { r.mod, r.curCfg, r.modInst, r.eval = savedMod, savedCfg, savedInst, savedEval }()
-
-	out, ok := r.mod.Outputs[outStep.Name]
-	if !ok || out.Expr == nil {
-		return nil, false, false
-	}
 
 	// A fresh scope, not the caller's: the output's expression is written
 	// in the child module, where the referring resource's own count.index,
 	// each.key and for-comprehension variables do not exist. Carrying the
 	// caller's scope across the boundary would let a name bound out here
 	// silently satisfy a reference in there.
-	return r.selectStatic(out.Expr, rest, instScope{}, ident, 0)
+	return r.selectStatic(ref.out.Expr, ref.rest, instScope{}, ident, 0)
 }
 
 // resolveNamed resolves "local.name<rest>" or "var.name<rest>": it looks up
