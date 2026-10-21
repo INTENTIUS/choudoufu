@@ -627,3 +627,36 @@ func TestGCPNameHeldCheckWantsExactlyTheMarkerlessRefusals(t *testing.T) {
 		t.Error("gcve's no_local_state does not check the plan with no local state with gcp_name_held_check")
 	}
 }
+
+// reference-gcp's no_local_state under option A: the plan with no record
+// store refuses exactly the four markerless objects the greenfield root
+// declares (network, subnetwork, firewall, service account) by the
+// identity each refusal quotes. Red against 8e4055c205, where the stage
+// expected the plan to be empty.
+func TestRefGCPNoLocalStateWantsTheFourMarkerlessRefusals(t *testing.T) {
+	raw, err := os.ReadFile("e2e/reference-gcp/run.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"global/networks/refgcp-net", "regions/$REGION/subnetworks/refgcp-subnet", "global/firewalls/refgcp-ssh", "serviceAccounts/refgcp-app@$PROJECT.iam.gserviceaccount.com"} {
+		if !strings.Contains(string(raw), `"projects/$PROJECT/`+id+`"`) {
+			t.Errorf("reference-gcp's no_local_state does not require a refusal naming projects/$PROJECT/%s", id)
+		}
+	}
+	if !strings.Contains(string(raw), `gcp_name_held_check "$NLS/cold.plan" "${NLS_HELD[@]}"`) {
+		t.Error("reference-gcp's no_local_state does not check the plan with no local state with gcp_name_held_check")
+	}
+	ids := []string{"projects/chdf-refgcp/global/networks/refgcp-net", "projects/chdf-refgcp/regions/us-central1/subnetworks/refgcp-subnet",
+		"projects/chdf-refgcp/global/firewalls/refgcp-ssh", "projects/chdf-refgcp/serviceAccounts/refgcp-app@chdf-refgcp.iam.gserviceaccount.com"}
+	var b strings.Builder
+	for _, id := range ids {
+		fmt.Fprintf(&b, "\nError: Unlabelled live object holds the declared name\n\nA live object already exists at\n%q, the identity it declares.\n", id)
+	}
+	f := filepath.Join(t.TempDir(), "cold.plan")
+	if err := os.WriteFile(f, []byte(b.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, _ := gcpBash(t, nil, `gcp_name_held_check "`+f+`" "`+strings.Join(ids, `" "`)+`"`); out != "" {
+		t.Errorf("the four refusals in the real format do not satisfy the check: %q", out)
+	}
+}

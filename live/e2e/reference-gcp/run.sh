@@ -827,21 +827,37 @@ rm -rf "$GREEN/.tofu-records" "$GREEN/.terraform/choudoufu-cache.tfstate"
 if [ "${BREAK_NO_LOCAL_STATE:-}" = "1" ]; then
   ra PATCH "storage/v1/b/$BUCKET" '{"labels":{"tofu-estate":null}}' >/dev/null || fail "BREAK_NO_LOCAL_STATE: could not strip the bucket's label"
 fi
-( cd "$GREEN" && TF_LOG=debug TF_LOG_PATH="$NLS/cold.log" "$TOFU" plan -input=false -no-color > "$NLS/cold.plan" 2>&1 ); N_RC=$?
-REQ_C="$(gcp_request_count "$NLS/cached.log")"; REQ_N="$(gcp_request_count "$NLS/cold.log")"
-N_LINE="$(grep -E '^Plan:|^No changes|^Error' "$NLS/cold.plan" | head -1)"
-N_BAD="$(gcp_churn_count < "$NLS/cold.plan")"
+( cd "$GREEN" && "$TOFU" plan -input=false -no-color > "$NLS/cold.plan" 2>&1 ); N_RC=$?
+# Option A (#2152, ruled 2026-10-20): a record is the only claim this estate
+# has on a markerless object, so with the record store gone the four that
+# hold a name (the network, the subnetwork, the firewall and the service
+# account) are refused by name and the plan stops. The six labelled objects
+# are still found by their labels, and nothing else is refused.
+NLS_HELD=("projects/$PROJECT/global/networks/refgcp-net"
+          "projects/$PROJECT/regions/$REGION/subnetworks/refgcp-subnet"
+          "projects/$PROJECT/global/firewalls/refgcp-ssh"
+          "projects/$PROJECT/serviceAccounts/refgcp-app@$PROJECT.iam.gserviceaccount.com")
+N_PROBLEMS="$(gcp_name_held_check "$NLS/cold.plan" "${NLS_HELD[@]}")"
+[ "$N_RC" -ne 0 ] || N_PROBLEMS="${N_PROBLEMS}the plan exited 0; "
+# The record store put back and the cache still gone: the records alone
+# claim the markerless objects again, and the plan is empty.
+cp -R "$NLS/records.keep" "$GREEN/.tofu-records" 2>/dev/null || true
+( cd "$GREEN" && TF_LOG=debug TF_LOG_PATH="$NLS/records.log" "$TOFU" plan -input=false -no-color > "$NLS/records.plan" 2>&1 ); R_RC=$?
+REQ_C="$(gcp_request_count "$NLS/cached.log")"; REQ_R="$(gcp_request_count "$NLS/records.log")"
+R_LINE="$(grep -E '^Plan:|^No changes|^Error' "$NLS/records.plan" | head -1)"
 if [ "${BREAK_NO_LOCAL_STATE:-}" = "1" ]; then
-  if [ "$N_RC" -eq 0 ] && grep -q "No changes." "$NLS/cold.plan"; then
-    fail "BREAK_NO_LOCAL_STATE=1: with the bucket's label stripped the plan with no local state is still empty"
-  fi
-  gauntlet_stage no_local_state pass "BREAK_NO_LOCAL_STATE=1 control: with the bucket's tofu-estate label stripped, the plan with no record store and no cache is no longer empty (${N_LINE:-exit $N_RC}), so the check correctly fails"
+  [ -n "$N_PROBLEMS" ] || fail "BREAK_NO_LOCAL_STATE=1: with the bucket's label stripped the plan with no local state still refuses exactly the four markerless objects and nothing else"
+  gauntlet_stage no_local_state pass "BREAK_NO_LOCAL_STATE=1 control: with the bucket's tofu-estate label stripped, the plan with no record store and no cache no longer refuses exactly the four markerless objects and nothing else (${N_PROBLEMS%; }), so the check correctly fails"
 elif [ "$C_RC" -ne 0 ] || ! grep -q "No changes." "$NLS/cached.plan"; then
   gauntlet_stage no_local_state fail "the cache-serving plan before the deletion was not empty (exit $C_RC), so there is nothing to compare the plan with no local state against"
-elif [ "$N_RC" -ne 0 ] || [ "$N_BAD" != "0" ]; then
-  gauntlet_stage no_local_state fail "with the record store and the cache deleted the plan exited $N_RC and proposes $N_BAD create/destroy/replace(s) (${N_LINE:-no plan line}); the labelled objects are found by their labels, but the four with no labels argument have only their records and their configuration to be found by. Provider requests: $REQ_N with no local state, $REQ_C cache-serving"
+elif [ -n "$N_PROBLEMS" ]; then
+  printf '%s\n' "$(grep -E '^(Error|Warning): ' "$NLS/cold.plan" | sort | uniq -c)"
+  gauntlet_stage no_local_state fail "with the record store and the cache deleted the plan (exit $N_RC) did not refuse exactly the network, the subnetwork, the firewall and the service account by name and nothing else: ${N_PROBLEMS%; }"
+elif [ "$R_RC" -ne 0 ] || ! grep -q "No changes." "$NLS/records.plan"; then
+  printf '%s\n' "$(tail -20 "$NLS/records.plan")"
+  gauntlet_stage no_local_state fail "with the record store put back and the cache still deleted the plan is not empty (exit $R_RC, ${R_LINE:-no plan line})"
 else
-  gauntlet_stage no_local_state pass "after the greenfield apply's empty plan, deleting both the record store and the state cache left a plan that created, destroyed and replaced nothing (${N_LINE:-No changes}): the six labelled objects found by their labels, the four declaration-carried ones by the identity their configuration computes. hashicorp/google sent $REQ_N request(s) for that plan against $REQ_C for the cache-serving plan before it (counted from TF_LOG=debug's request blocks). BREAK_NO_LOCAL_STATE=1 strips the bucket's label and the plan is no longer empty"
+  gauntlet_stage no_local_state pass "after the greenfield apply's empty plan, deleting both the record store and the state cache made the plan refuse, by name, exactly the four markerless objects holding a declared name (the network, the subnetwork, the firewall, the service account), with no record left to claim them (option A, #2152), and nothing else: the six labelled objects were found by their labels. With the record store put back and the cache still deleted the plan was empty (${R_LINE:-No changes}): the records alone claim the declaration-carried instances. hashicorp/google sent $REQ_R request(s) for that plan against $REQ_C for the cache-serving plan (counted from TF_LOG=debug's request blocks). BREAK_NO_LOCAL_STATE=1 strips the bucket's label and the refusal check correctly fails"
 fi
 rm -rf "$GREEN/.tofu-records"; cp -R "$NLS/records.keep" "$GREEN/.tofu-records" 2>/dev/null || true
 cp "$NLS/cache.keep" "$GREEN/.terraform/choudoufu-cache.tfstate" 2>/dev/null || true
