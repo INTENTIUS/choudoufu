@@ -256,6 +256,17 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, names AssetNames, u
 			// GetResourceNameFromSelfLink or a DCL SelfLinkToName.
 			comp.LongForm = identity.LongFormLastSegment
 		}
+		if comp.LongForm == "" && (name == "region" || name == "zone") && !containsStr(src.CreateRaw, name) {
+			// Plain ReplaceVars shortens no ordinary argument, but it
+			// builds {{region}} and {{zone}} through GetRegion and
+			// GetZone, which keep the last segment of the resource's own
+			// argument (tpgresource.GetRegionFromSchema). A Read that
+			// fills region with a self link (the region network
+			// endpoint group's ConvertSelfLinkToV1) therefore still ids
+			// by the bare name, and so must the row (the seventh GCP
+			// run's day2_endpoints).
+			comp.LongForm = identity.LongFormLastSegment
+		}
 		if prefix, ok := src.CreateTrim[name]; ok {
 			// A hand-written create trims a literal prefix off the value
 			// (resourcemanager.ParseFolderId's "folders/").
