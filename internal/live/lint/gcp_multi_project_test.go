@@ -102,6 +102,9 @@ resource "google_storage_bucket" "logs" {
 			name: "unknown projects are skipped",
 			files: map[string]string{"main.tf": gcpRequiredProviders + `
 variable "project" {}
+variable "projects" {
+  type = set(string)
+}
 provider "google" {
   project = "app"
 }
@@ -110,7 +113,7 @@ provider "google" {
   project = var.project
 }
 resource "google_storage_bucket" "logs" {
-  for_each = toset(["a"])
+  for_each = var.projects
   name     = each.key
   location = "EU"
   project  = each.value
@@ -121,6 +124,151 @@ resource "google_storage_bucket" "data" {
   project  = google_storage_bucket.logs["a"].project
 }
 `},
+		},
+		{
+			// GitHub issue #2145: each.value used to be skipped even where
+			// the for_each collection is known, so this estate over three
+			// projects read as one.
+			name: "each.value is read per instance",
+			files: map[string]string{"main.tf": gcpRequiredProviders + `
+provider "google" {
+  project = "app"
+}
+resource "google_storage_bucket" "logs" {
+  for_each = toset(["app", "audit"])
+  name     = "logs-${each.key}"
+  location = "EU"
+  project  = each.value
+}
+`},
+			want: []string{`"app" by google_storage_bucket.logs["app"], provider "google"`, `"audit" by google_storage_bucket.logs["audit"]`},
+		},
+		{
+			name: "a for_each map's values are read per instance",
+			files: map[string]string{"main.tf": gcpRequiredProviders + `
+locals {
+  envs = { dev = "proj-dev", prod = "proj-prod" }
+}
+resource "google_storage_bucket" "env" {
+  for_each = local.envs
+  name     = each.key
+  location = "EU"
+  project  = each.value
+}
+`},
+			want: []string{`"proj-dev" by google_storage_bucket.env["dev"]`, `"proj-prod" by google_storage_bucket.env["prod"]`},
+		},
+		{
+			name: "count.index is read per instance",
+			files: map[string]string{"main.tf": gcpRequiredProviders + `
+variable "projects" {
+  default = ["one", "two"]
+}
+resource "google_storage_bucket" "b" {
+  count    = 2
+  name     = "b${count.index}"
+  location = "EU"
+  project  = var.projects[count.index]
+}
+`},
+			want: []string{`"one" by google_storage_bucket.b[0]`, `"two" by google_storage_bucket.b[1]`},
+		},
+		{
+			// A created project whose id configuration states is that id,
+			// and a second project beside the provider's.
+			name: "a referenced project argument is read from its block",
+			files: map[string]string{"main.tf": gcpRequiredProviders + `
+provider "google" {
+  project = "app"
+}
+resource "google_project" "p" {
+  name       = "p"
+  project_id = "made-here"
+}
+resource "google_storage_bucket" "b" {
+  name     = "b"
+  location = "EU"
+  project  = google_project.p.project_id
+}
+`},
+			want: []string{`"made-here" by google_storage_bucket.b`, `"app" by provider "google"`},
+		},
+		{
+			// An id only apply knows is named, never guessed.
+			name: "a referenced project known only at apply is named",
+			files: map[string]string{"main.tf": gcpRequiredProviders + `
+variable "suffix" {}
+provider "google" {
+  project = "app"
+}
+resource "google_project" "p" {
+  name       = "p"
+  project_id = "p-${var.suffix}"
+}
+resource "google_storage_bucket" "b" {
+  name     = "b"
+  location = "EU"
+  project  = google_project.p.project_id
+}
+resource "google_storage_bucket" "c" {
+  name     = "c"
+  location = "EU"
+  project  = "audit"
+}
+`},
+			want: []string{"google_storage_bucket.b (its project is google_project.p.project_id, which is known only after apply)"},
+		},
+		{
+			name: "a created project with a known id is that id",
+			files: map[string]string{"main.tf": gcpRequiredProviders + `
+provider "google" {
+  project = "app"
+}
+resource "google_project" "p" {
+  name       = "p"
+  project_id = "app"
+}
+resource "google_storage_bucket" "b" {
+  name     = "b"
+  location = "EU"
+  project  = google_project.p.project_id
+}
+`},
+		},
+		{
+			// The warning still fires on what it can read, and names what
+			// it could not, so its list of projects is not taken as whole.
+			name: "unknowns are named when the warning fires",
+			files: map[string]string{"main.tf": gcpRequiredProviders + `
+variable "projects" {
+  type = set(string)
+}
+provider "google" {
+  project = "app"
+}
+resource "google_storage_bucket" "audit" {
+  name     = "audit"
+  location = "EU"
+  project  = "audit"
+}
+resource "google_storage_bucket" "logs" {
+  for_each = var.projects
+  name     = each.key
+  location = "EU"
+  project  = each.value
+}
+resource "google_storage_bucket" "data" {
+  name     = "data"
+  location = "EU"
+  project  = data.google_project.x.project_id
+}
+data "google_project" "x" {}
+`},
+			want: []string{
+				"Not counted, because their project cannot be known before apply",
+				"google_storage_bucket.data (its project refers to data, which is known only after apply)",
+				"google_storage_bucket.logs (its project is read per instance, and its for_each collection cannot be read before apply)",
+			},
 		},
 		{
 			name: "an aws provider's project-shaped argument is not google's",

@@ -3341,7 +3341,13 @@ const (
 	//
 	// 708 -> 717 (fixture-dirs 677 -> 686): merging main (#2143, #2142) into gcp-lane: the union of both sides' added rows, regenerated with -update; 0 identities changed, the 12 #2142 rows plus gcp-lane's own, nothing removed.
 	// 717 -> 718 (fixture-dirs 686 -> 687): #2144 interim (gcp/2144-interim, merged onto the main merge): 5 rows added in the new fixture internal/live/identity/testdata/gcp-long-form - 4 CONCRETE (the policy, the secret, byname, the org posture) and 1 NEEDS_DISCOVERY (recaptcha key); the refused long-form instances render nothing; 0 changed, 0 removed; regenerated with -update.
-	identityGoldenPinDirs = 718
+	// 718 -> 719 (fixture-dirs 687 -> 688): #2145's gcp-estate-label lint
+	// rule, one new fixture, live/e2e/limits/gcp-estate-label, which
+	// declares one google_storage_bucket under a 64-character estate. It
+	// takes the identity-schema route and renders nothing in the
+	// schema-less golden, so it adds no row; instances and body-sha256 are
+	// unchanged, and the cohort pins are untouched.
+	identityGoldenPinDirs = 719
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

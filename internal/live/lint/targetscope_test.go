@@ -151,6 +151,7 @@ var lintRuleTargetScope = map[Rule]struct {
 	RuleReceiptValue:    {ruleScoped, "the receipt block's own declaration, for a receipt this run will not write"},
 	RuleReceiptSecret:   {ruleScoped, "same block, same run"},
 	RuleGCPLabelCount:   {ruleScoped, "a create this run will not make cannot overflow; TestGCPLabelCountHonoursTheTargetScope pins it, outside the shared fixture"},
+	RuleGCPEstateLabel:  {ruleScoped, "the node stamp refuses per instance, and a block this run leaves out is never stamped; TestGCPEstateLabelHonoursTheTargetScope pins it, outside the shared fixture"},
 
 	// ---- names a block, and still does not narrow ------------------
 	RuleMovedBlock:              {ruleBlockButUnscoped, "internal/live/discovery's declaredInstances is built on lint refusing exactly the statements it leaves out; and a moved endpoint is an addrs.MoveEndpoint whose FROM address the configuration no longer declares, so the plan graph has no vertex for it. See checkMovedBlocks"},
@@ -189,16 +190,18 @@ func scopedRuleSet() []Rule {
 }
 
 // scopedRules are the members of [scopedRuleSet] this fixture actually
-// trips. Three of the thirteen are absent. Two ride the identical
+// trips. Four of the fourteen are absent. Two ride the identical
 // `continue` in checkManagedResources that RuleProvisioner,
 // RuleLogicalResource, RuleUnadmittedType, RuleCountIndex and
 // RuleIgnoreChanges are pinned on here: RuleMarkerlessType (whose #1203
 // twin, check.NodeStampUnmarkedApply, is pinned by
 // TestNodeStampUnmarkedApplyHonoursTheTargetScope over the same question)
-// and RuleGenerateName (Kubernetes only). The third, RuleGCPLabelCount,
-// has its own fixture (TestGCPLabelCountHonoursTheTargetScope). Stated
-// rather than silently omitted, and [TestEveryScopedRuleIsInTheFixture]
-// holds the set to exactly those three.
+// and RuleGenerateName (Kubernetes only). The other two, RuleGCPLabelCount
+// and RuleGCPEstateLabel, have fixtures of their own
+// (TestGCPLabelCountHonoursTheTargetScope,
+// TestGCPEstateLabelHonoursTheTargetScope). Stated rather than silently
+// omitted, and [TestEveryScopedRuleIsInTheFixture] holds the set to
+// exactly those four.
 var scopedRules = []Rule{
 	RuleProvisioner,
 	RuleLogicalResource,
@@ -376,20 +379,22 @@ func TestEveryScopedRuleIsInTheFixture(t *testing.T) {
 		}
 	}
 	//
-	// gcp-label-count is the third. Without provider schemas every google
-	// type is also refused as unadmitted-type, so a google pair in the
-	// shared fixture would move unadmitted-type's own counts;
-	// TestGCPLabelCountHonoursTheTargetScope runs the same three arms on a
-	// fixture of its own.
+	// gcp-label-count and gcp-estate-label are the other two. Without
+	// provider schemas every google type is also refused as
+	// unadmitted-type, so a google pair in the shared fixture would move
+	// unadmitted-type's own counts; TestGCPLabelCountHonoursTheTargetScope
+	// and TestGCPEstateLabelHonoursTheTargetScope run the same three arms
+	// on fixtures of their own (gcp-estate-label also needs a live block
+	// the shared fixture does not have).
 	for rule := range uncovered {
-		if rule != RuleMarkerlessType && rule != RuleGenerateName && rule != RuleGCPLabelCount {
+		if rule != RuleMarkerlessType && rule != RuleGenerateName && rule != RuleGCPLabelCount && rule != RuleGCPEstateLabel {
 			t.Errorf("%s is classified scoped and this fixture does not exercise it. Add a _targeted/_excluded pair to %s, "+
-				"or say here why it cannot be one - the three standing exceptions are markerless-type, generate-name and gcp-label-count.",
+				"or say here why it cannot be one - the four standing exceptions are markerless-type, generate-name, gcp-label-count and gcp-estate-label.",
 				rule, lintTargetScopeFixture)
 		}
 	}
-	if len(uncovered) != 3 {
-		t.Errorf("want exactly the three documented uncovered scoped rules, got %d: %v", len(uncovered), uncovered)
+	if len(uncovered) != 4 {
+		t.Errorf("want exactly the four documented uncovered scoped rules, got %d: %v", len(uncovered), uncovered)
 	}
 }
 
