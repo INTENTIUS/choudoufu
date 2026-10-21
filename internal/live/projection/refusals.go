@@ -367,6 +367,10 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = \"adopt\" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected. The same refusal stops a declared markerless instance with no record whose provider family says a create at a held identity collides (the 2026-10-20 ruling); no family registered today says so.",
 	},
 	{
+		Summary: SummaryMovedRecordsAmbiguous,
+		What:    "A declared markerless instance with no record at its own address, under the 2026-10-20 ruling, is owned when exactly one address its honoured moved blocks lead from holds a record: a stock moved block does not re-key the record store, so after a rename the record sits at the old address. When more than one such address holds a record, nothing says which is this instance's, so the plan stops and names the instance and every recorded moved-from address rather than picking one or planning a create. Removing the stale records, or using live-mv, which moves a record to its new address, clears it.",
+	},
+	{
 		Summary: "Unsupported resource type for the provider",
 		What:    "A resource's type is not one the configured provider serves.",
 	},
