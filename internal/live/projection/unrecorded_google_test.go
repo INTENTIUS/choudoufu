@@ -147,3 +147,60 @@ func TestUnrecordedGoogle_serviceReAddedPlansCreate(t *testing.T) {
 		})
 	})
 }
+
+// buildMovedFirewall is [buildFirewall] over a configuration whose moved
+// blocks rename google_compute_firewall.ssh-v1 to .ssh_v2 and on to .ssh,
+// with the firewall's record seeded at recordedAt (or nowhere when empty).
+func buildMovedFirewall(t *testing.T, recordedAt string) (*Result, error) {
+	t.Helper()
+	ctx := context.Background()
+	addr := mustAddr(t, `google_compute_firewall.ssh`)
+	rs := newTestLocatedStore(localHintStore(t), ownershipEstate).rs
+	if recordedAt != "" {
+		rec, ok := LocatedRecordFrom("google_compute_firewall", googleFirewallSchema(), googleFirewallObject())
+		if !ok {
+			t.Fatal("no record derivable for the firewall")
+		}
+		if _, err := SeedLocatedForInstance(ctx, rs, mustAddr(t, recordedAt), googleProvider, rec); err != nil {
+			t.Fatalf("seeding the firewall's record at %s: %s", recordedAt, err)
+		}
+	}
+	res, diags := BuildWith(ctx, loadConfig(t, "testdata/unrecorded-google-firewall-moved"),
+		[]identity.Resolution{{Addr: addr, Class: identity.ClassConcrete, ImportID: gcpFirewallID}},
+		SingleProvider(googleProvider, firewallCloud()),
+		Options{RecordStore: rs, Ownership: &Ownership{Estate: ownershipEstate}})
+	return res, diags.Err()
+}
+
+// TestUnrecordedGoogle_movedFirewallKeepsItsRecord is
+// corpus-k8s-infra-gcp-gcve's day2_rename: a stock moved block renames a
+// markerless firewall whose record sits under the address it was migrated
+// at. That record is this instance's, so the firewall binds and the plan
+// is the move, as it was before the 2026-10-20 ruling. Both the direct
+// moved-from address and the head of a two-statement chain are covered.
+func TestUnrecordedGoogle_movedFirewallKeepsItsRecord(t *testing.T) {
+	for _, at := range []string{`google_compute_firewall.ssh_v2`, `google_compute_firewall.ssh-v1`} {
+		t.Run(at, func(t *testing.T) {
+			res, err := buildMovedFirewall(t, at)
+			if err != nil {
+				t.Fatalf("a firewall recorded at its moved-from address %s was refused:\n%s", at, err)
+			}
+			assertMaterialized(t, res, []string{"google_compute_firewall.ssh"})
+		})
+	}
+}
+
+// TestUnrecordedGoogle_recordOutsideTheMoveChainStillRefuses keeps option A
+// whole beside the fix above: a record at an address no moved block leads
+// from, or no record at all, is no claim on the firewall at .ssh.
+func TestUnrecordedGoogle_recordOutsideTheMoveChainStillRefuses(t *testing.T) {
+	for _, at := range []string{``, `google_compute_firewall.unrelated`} {
+		t.Run("recorded at "+at, func(t *testing.T) {
+			res, err := buildMovedFirewall(t, at)
+			if err == nil || !strings.Contains(err.Error(), SummaryNameHeld) {
+				t.Fatalf("want the %q refusal, got %v", SummaryNameHeld, err)
+			}
+			assertOmitted(t, res, map[string]Reason{"google_compute_firewall.ssh": ReasonUnowned})
+		})
+	}
+}
