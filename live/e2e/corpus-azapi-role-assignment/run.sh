@@ -517,14 +517,16 @@ fi
 # ── 6. day2_rename: a moved block carries an untaggable's record ─────────
 # The role assignment has no tags, so nothing on Azure names its address:
 # the rename is its record's alone, and the cloud sees no change at all.
-# The apply writes the record under the new address; the record under the
-# old one is left where it is (internal/live/projection/located.go,
-# locatedIdentityWithAliases: a moved block's origin key is never re-keyed
-# or proposed for destruction), so the gate asserts the new record and not
-# the old one's absence. moved.tf stays in every stage after this one, as
-# Terraform's own guidance keeps a moved block, so that the old key goes on
-# resolving to role_assignment: without it, day2_remove would read the two
-# records of one object as two removed blocks.
+# The plan finds the record under the old address through the moved block
+# (internal/live/projection/located.go, locatedIdentityWithAliases, which
+# the record-first read uses); the apply writes it under the new address
+# and retires the old key when it names the same object
+# (internal/live/projection/writeback.go, retireMovedRecords). The gate
+# asserts the new record; it does not assert the old one's absence.
+# moved.tf stays in every stage after this one, as Terraform's own guidance
+# keeps a moved block, so that an old key left by an earlier build or an
+# interrupted apply still resolves to role_assignment and day2_remove does
+# not read two records of one object as two removed blocks.
 gauntlet_begin_stage day2_rename
 log "=== 6. day2_rename: the role assignment's block renamed roleAssignments -> role_assignment with a moved block ==="
 if [ "${BREAK:-}" = "1" ]; then
@@ -556,9 +558,9 @@ fi
 
 # ── 7. day2_remove: a deleted block's untaggable resource is destroyed ───
 # With no tag to find it by, the destroy can only come from the record.
-# moved.tf stays (see day2_rename), so the record left under the old address
-# resolves to role_assignment and the one object is proposed once, at the
-# address its block last had.
+# moved.tf stays (see day2_rename), so any record still under the old
+# address resolves to role_assignment and the one object is proposed once,
+# at the address its block last had.
 #
 # A failure here is recorded and the run goes on: the role assignment is
 # removed by hand on A (and by stock on B), so the stages after this one

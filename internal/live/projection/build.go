@@ -1177,8 +1177,20 @@ func (b *builder) applyRecordFirst(ctx context.Context, resolutions []identity.R
 // found the record stale; [builder.checkOwnership] has already logged the
 // warning, and this function reports the address as unhandled with nothing
 // further to say.
+//
+// The record is looked up through [builder.locatedIdentityWithAliases], so a
+// `moved` block's origin address is consulted when nothing is recorded at
+// r.Addr. A bare HCL moved block never re-keys the store, and before this the
+// record-first read asked only the new address: an untaggable instance (an
+// azapi role assignment, whose record is its only ownership proof) renamed by
+// a moved block fell through to its declared id, found its own live object
+// there with no record bound to it, and refused it as an overwrite of an
+// unrecorded object (corpus-azapi-role-assignment's day2_rename). The located
+// door already did this; the record-first door now asks the same question.
+// Write-back moves the record to the new key after the apply
+// ([retireMovedRecords]).
 func (b *builder) materializeFromRecord(ctx context.Context, r identity.Resolution) bool {
-	rec, version, keyExists, identityFound, err := b.opts.RecordStore.GetIdentity(ctx, r.Addr)
+	rec, version, keyExists, identityFound, viaAlias, err := b.locatedIdentityWithAliases(ctx, r.Addr)
 	if err != nil {
 		detail := fmt.Sprintf("Reading the record for %s failed: %s.", r.Addr, err)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a persisted record", detail))
@@ -1188,7 +1200,9 @@ func (b *builder) materializeFromRecord(ctx context.Context, r identity.Resoluti
 	if !identityFound {
 		return false
 	}
-	if keyExists {
+	// A version read through a moved alias belongs to the alias's key, not
+	// r.Addr's: see [builder.locatedIdentityWithAliases].
+	if keyExists && !viaAlias {
 		b.recordEnvelopeVersion(r.Addr, version)
 	}
 	return b.materialize(ctx, wanted{
