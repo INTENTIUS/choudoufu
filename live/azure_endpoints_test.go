@@ -290,10 +290,7 @@ func TestAzureCorpusProviderBlocksAreLocked(t *testing.T) {
 	}
 	src, _ = filepath.Abs(src)
 	dst := filepath.Join(t.TempDir(), "root")
-	// rm is a no-op here: write_root clears its destination first, and
-	// this one is fresh.
 	runBash(t, `source e2e/lib/gauntlet.sh
-rm() { :; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 eval "$(awk '/^write_root\(\) \{/{on=1} /^# ── substrate helpers/{on=0} on' e2e/corpus-azapi-role-assignment/run.sh)"
 SRC="$CSRC" RA_GUID=6faae21a-0cd6-4536-8c23-a278823d12ed ESTATE=corpus-azapi-role-assignment

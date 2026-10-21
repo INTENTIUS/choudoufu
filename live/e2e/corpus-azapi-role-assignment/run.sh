@@ -46,7 +46,8 @@
 # Stage additions, each in the stage that needs it: plan_approval gives the
 # identity tags = { reviewed = "yes" }; day2_rename renames the role
 # assignment's block (roleAssignments -> role_assignment) with a moved
-# block in moved.tf; day2_remove deletes that block; day2_count declares a
+# block in moved.tf, which every later stage keeps; day2_remove deletes
+# the role assignment's block; day2_count declares a
 # two-instance count of azapi user-assigned identities in shards.tf, since
 # the published root has no count block.
 #
@@ -57,12 +58,17 @@
 # root fresh with a live block); B is the oracle, where stock applies the
 # identical root and every day-2 change itself.
 #
-# Written for #1120 and NOT RUN. floci-az's gaps (live/FLOCI.md, Azure) are
-# expected to show by name on the first run rather than be skipped: the
-# plan's Resource Graph sweep is refused (lex00/floci-az#11), which
-# choudoufu reports as the "Azure sweep unavailable" warning, an incomplete
-# sweep. day2_replace, day2_crash, strict and no_local_state report not_run
-# with the reason, as on reference-azure.
+# Run for #1120: cold_deploy and migrate pass on floci-az 30000b0.
+# floci-az's gaps (live/FLOCI.md, Azure) show by name rather than being
+# skipped: the plan's Resource Graph sweep is refused (lex00/floci-az#11),
+# which choudoufu reports as the "Azure sweep unavailable" warning, an
+# incomplete sweep, and only the sweep finds a removed resource of a type
+# that takes tags, so day2_count's scale-down fails naming that gap. The
+# role assignment's removal comes from its record, so day2_remove does not
+# need the sweep. A stage that fails records the reason and the run goes on
+# where it can, the shape the later stages expect put back by hand.
+# day2_replace, day2_crash, strict and no_local_state report not_run with
+# the reason, as on reference-azure.
 #
 #   go run ./tools/gauntlet run corpus-azapi-role-assignment   # the maintainer, by hand
 #   bash live/e2e/corpus-azapi-role-assignment/run.sh           # asks for "run" at the terminal
@@ -162,9 +168,19 @@ AZURERM_REQUIRED_PROVIDER="$(gauntlet_azurerm_required_provider)" \
 #   REVIEWED 1 to give the identity tags = { reviewed = "yes" }
 #   MOVED    1 to write moved.tf (roleAssignments -> role_assignment)
 #   SHARDS   how many azapi identities shards.tf declares; 0 writes none
+#
+# The directory itself is kept: write_root replaces the files it writes and
+# removes moved.tf and shards.tf when the shape has none, and leaves
+# everything else where it is. Every stage after cold_deploy and migrate
+# rewrites a root that holds .terraform, the lock file, the record store
+# (.tofu-records) and, on the oracle, stock's terraform.tfstate. Clearing the
+# directory, as this did until #1120's stage audit, threw all four away at
+# plan_approval: the next plan had no providers installed, the role
+# assignment lost the record that is its only marker, and the oracle lost
+# its state.
 write_root() {
   local dst="$1" mode="$2"
-  rm -rf "$dst"; mkdir -p "$dst"
+  mkdir -p "$dst" || fail "could not make $dst"
   cp "$SRC/main.tf" "$dst/main.tf" || fail "could not copy the root out of .corpus"
   local azurerm_args azapi_args host_variable
   azurerm_args="$(gauntlet_floci_az_azurerm_args)" || fail "could not render the azurerm provider block's endpoint lock"
@@ -217,12 +233,21 @@ open(os.path.join(env["DST"], "floci-az.tf"), "w").write(
     "# Delta 2, added by live/e2e/corpus-azapi-role-assignment/run.sh: the host\n"
     "# azurerm's metadata_host reads, from each container's TF_VAR_floci_az_host.\n" + env["HOST_VARIABLE"] + "\n")
 
+def drop(name):
+    p = os.path.join(env["DST"], name)
+    if os.path.exists(p):
+        os.remove(p)
+
 if env["MOVED"] == "1":
     open(os.path.join(env["DST"], "moved.tf"), "w").write(
         "# Added by live/e2e/corpus-azapi-role-assignment/run.sh for day2_rename.\n"
         "moved {\n  from = azapi_resource.roleAssignments\n  to   = azapi_resource.role_assignment\n}\n")
+else:
+    drop("moved.tf")
 shards = int(env["SHARDS"])
-if shards > 0:
+if shards == 0:
+    drop("shards.tf")
+else:
     open(os.path.join(env["DST"], "shards.tf"), "w").write(
         "# Added by live/e2e/corpus-azapi-role-assignment/run.sh for day2_count:\n"
         "# the published root declares no count block of its own.\n"
@@ -491,6 +516,14 @@ fi
 # ── 6. day2_rename: a moved block carries an untaggable's record ─────────
 # The role assignment has no tags, so nothing on Azure names its address:
 # the rename is its record's alone, and the cloud sees no change at all.
+# The apply writes the record under the new address; the record under the
+# old one is left where it is (internal/live/projection/located.go,
+# locatedIdentityWithAliases: a moved block's origin key is never re-keyed
+# or proposed for destruction), so the gate asserts the new record and not
+# the old one's absence. moved.tf stays in every stage after this one, as
+# Terraform's own guidance keeps a moved block, so that the old key goes on
+# resolving to role_assignment: without it, day2_remove would read the two
+# records of one object as two removed blocks.
 gauntlet_begin_stage day2_rename
 log "=== 6. day2_rename: the role assignment's block renamed roleAssignments -> role_assignment with a moved block ==="
 if [ "${BREAK:-}" = "1" ]; then
@@ -515,51 +548,69 @@ else
   ( tofu_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the rename did not apply"
   on_a gauntlet_arm GET "$RA_ID?api-version=$RA_API" >/dev/null || fail "the role assignment no longer answers at $RA_ID after the rename"
   NEW_REC="$(gauntlet_record_file "$ADOPTED/.tofu-records/tofu-records" azapi_resource.role_assignment || true)"
-  OLD_REC="$(gauntlet_record_file "$ADOPTED/.tofu-records/tofu-records" azapi_resource.roleAssignments || true)"
   [ -n "$NEW_REC" ] || fail "no record names azapi_resource.role_assignment after the rename"
-  [ -z "$OLD_REC" ] || fail "a record still names azapi_resource.roleAssignments after the rename: $OLD_REC"
   grep -q "No changes." <<< "$(tofu_a "$ADOPTED" plan -input=false -no-color 2>&1)" || fail "the replan after the rename is not empty"
-  gauntlet_stage day2_rename pass "a moved block renamed the role assignment's block roleAssignments -> role_assignment: zero churn ($(gauntlet_plan_line <<< "$R_PLAN")), as stock planned with the same moved block on the oracle; the role assignment, which carries no tags, still answers at its ARM id, its record now names azapi_resource.role_assignment and none names the old address, and the replan is empty. BREAK=1 changes the role assignment's own GUID and the zero-churn assertion correctly fails"
+  gauntlet_stage day2_rename pass "a moved block renamed the role assignment's block roleAssignments -> role_assignment: zero churn ($(gauntlet_plan_line <<< "$R_PLAN")), as stock planned with the same moved block on the oracle; the role assignment, which carries no tags, still answers at its ARM id, a record now names azapi_resource.role_assignment, and the replan is empty. BREAK=1 changes the role assignment's own GUID and the zero-churn assertion correctly fails"
 fi
 
 # ── 7. day2_remove: a deleted block's untaggable resource is destroyed ───
 # With no tag to find it by, the destroy can only come from the record.
+# moved.tf stays (see day2_rename), so the record left under the old address
+# resolves to role_assignment and the one object is proposed once, at the
+# address its block last had.
+#
+# A failure here is recorded and the run goes on: the role assignment is
+# removed by hand on A (and by stock on B), so the stages after this one
+# start from the shape they expect and are measured rather than lost.
 gauntlet_begin_stage day2_remove
 log "=== 7. day2_remove: the role assignment's block is deleted ==="
 if [ "${BREAK_REMOVE:-}" = "1" ]; then
-  REVIEWED=1 RA=role_assignment write_root "$ADOPTED" live
+  REVIEWED=1 RA=role_assignment MOVED=1 write_root "$ADOPTED" live
   M_PLAN="$(tofu_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$M_PLAN" | tail -20; fail "the plan with the block kept failed"; }
   grep -q "azapi_resource.role_assignment will be destroyed" <<< "$M_PLAN" && fail "BREAK_REMOVE=1: the block is kept and a destroy is still proposed"
   # The real removal, on both sides, so the stages after this one start
   # from the shape they expect.
-  REVIEWED=1 RA=none write_root "$ADOPTED" live
-  REVIEWED=1 RA=none write_root "$ORACLE" stock
+  REVIEWED=1 RA=none MOVED=1 write_root "$ADOPTED" live
+  REVIEWED=1 RA=none MOVED=1 write_root "$ORACLE" stock
   ( tofu_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_REMOVE: the real removal did not apply on A"
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "BREAK_REMOVE: stock could not apply the removal on B"
   gauntlet_stage day2_remove pass "BREAK_REMOVE=1 control: with the block kept no destroy is proposed ($(gauntlet_plan_line <<< "$M_PLAN")), so 'a destroy is proposed' correctly fails"
 else
-  REVIEWED=1 RA=none write_root "$ADOPTED" live
-  REVIEWED=1 RA=none write_root "$ORACLE" stock
+  REVIEWED=1 RA=none MOVED=1 write_root "$ADOPTED" live
+  REVIEWED=1 RA=none MOVED=1 write_root "$ORACLE" stock
   O_PLAN="$(stock_b plan -input=false -no-color 2>&1)"
   grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's plan without the block on B is not one destroy"; }
   M_PLAN="$(tofu_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n' "$M_PLAN" | tail -20; fail "the plan without the role assignment's block failed"; }
-  grep -q "azapi_resource.role_assignment will be destroyed" <<< "$M_PLAN" || { printf '%s\n' "$M_PLAN" | tail -20; fail "the plan does not destroy azapi_resource.role_assignment"; }
-  grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$M_PLAN" || fail "the plan destroys more than the role assignment: $(gauntlet_plan_line <<< "$M_PLAN")"
-  ( tofu_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the destroying apply failed"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not apply the removal on B"
-  gone_a "$RA_ID" "$RA_API" || fail "ARM still answers for the role assignment after its block was removed and applied"
-  gauntlet_stage day2_remove pass "the role assignment's block deleted: choudoufu planned exactly azapi_resource.role_assignment's destroy (0 add, 0 change, 1 destroy) for a resource that carries no tags, found through its record, as stock planned on the oracle, and after the apply ARM answers 404 for it"
+  if grep -q "azapi_resource.role_assignment will be destroyed" <<< "$M_PLAN" && grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$M_PLAN"; then
+    ( tofu_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the destroying apply failed"
+    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not apply the removal on B"
+    gone_a "$RA_ID" "$RA_API" || fail "ARM still answers for the role assignment after its block was removed and applied"
+    gauntlet_stage day2_remove pass "the role assignment's block deleted: choudoufu planned exactly azapi_resource.role_assignment's destroy (0 add, 0 change, 1 destroy) for a resource that carries no tags, found through its record, as stock planned on the oracle, and after the apply ARM answers 404 for it"
+  else
+    printf '%s\n' "$M_PLAN" | tail -20
+    gauntlet_stage day2_remove fail "the plan without the role assignment's block does not destroy exactly azapi_resource.role_assignment ($(gauntlet_plan_line <<< "$M_PLAN"); first Error: line: \"$(gauntlet_first_error_line <<< "$M_PLAN")\")$(gauntlet_azure_sweep_note <<< "$M_PLAN")"
+    log "  removing the role assignment by hand on A and through stock on B, so the stages below start from the shape they expect"
+    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not apply the removal on B"
+    on_a gauntlet_arm DELETE "$RA_ID?api-version=$RA_API" >/dev/null || fail "could not delete the role assignment on A through ARM after day2_remove failed"
+  fi
 fi
 
 # ── 8. day2_count: a two-instance count of azapi identities ──────────────
+# The shards take tags, so the one that leaves the count is found by its
+# marker through the Resource Graph sweep and by nothing else: the record
+# leg skips an instance whose ARM type takes tags. On floci-az the sweep is
+# refused (lex00/floci-az#11), so the scale-down plans no destroy there and
+# the stage fails naming that gap. The run then goes on with both shards
+# still standing and the configuration back at two, the shape the teardown
+# expects (the oracle stays at one; nothing after this stage reads it).
 gauntlet_begin_stage day2_count
 log "=== 8. day2_count: a two-instance count of azapi identities the script declares scales 2 -> 1 -> 2 ==="
-REVIEWED=1 RA=none SHARDS=2 write_root "$ADOPTED" live
-REVIEWED=1 RA=none SHARDS=2 write_root "$ORACLE" stock
+REVIEWED=1 RA=none MOVED=1 SHARDS=2 write_root "$ADOPTED" live
+REVIEWED=1 RA=none MOVED=1 SHARDS=2 write_root "$ORACLE" stock
 { APPLY_OUT="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "2 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "stock could not add the two shards on B"; }
 { APPLY_OUT="$(tofu_a "$ADOPTED" apply -auto-approve -input=false -no-color 2>&1)" && grep -qF "2 added, 0 changed, 0 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "choudoufu could not add the two shards on A"; }
-REVIEWED=1 RA=none SHARDS=1 write_root "$ADOPTED" live
-REVIEWED=1 RA=none SHARDS=1 write_root "$ORACLE" stock
+REVIEWED=1 RA=none MOVED=1 SHARDS=1 write_root "$ADOPTED" live
+REVIEWED=1 RA=none MOVED=1 SHARDS=1 write_root "$ORACLE" stock
 O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-down plan failed on B"
 grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's scale-down plan on B is not exactly one destroy"; }
 ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-down apply failed on B"
@@ -567,14 +618,17 @@ C_PLAN="$(tofu_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n
 if [ "${BREAK_COUNT:-}" = "1" ]; then
   grep -q 'azapi_resource.shard\[0\] will be destroyed' <<< "$C_PLAN" && fail "BREAK_COUNT=1: shard[0] is planned for destroy - the wrong instance"
   gauntlet_stage day2_count pass "BREAK_COUNT=1 control: the assertion that shard[0] is destroyed correctly fails; the plan destroys $(grep -oE 'azapi_resource.shard\[[0-9]\] will be destroyed' <<< "$C_PLAN" | head -1)"
+elif ! { grep -q 'azapi_resource.shard\[1\] will be destroyed' <<< "$C_PLAN" && grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN"; }; then
+  printf '%s\n' "$C_PLAN" | tail -20
+  gauntlet_stage day2_count fail "the scale-down 2 -> 1 does not destroy exactly azapi_resource.shard[1] ($(gauntlet_plan_line <<< "$C_PLAN"); first Error: line: \"$(gauntlet_first_error_line <<< "$C_PLAN")\")$(gauntlet_azure_sweep_note <<< "$C_PLAN")"
+  log "  shard[1] is still standing; the configuration goes back to two shards for the stages below"
+  REVIEWED=1 RA=none MOVED=1 SHARDS=2 write_root "$ADOPTED" live
 else
-  grep -q 'azapi_resource.shard\[1\] will be destroyed' <<< "$C_PLAN" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down does not destroy shard[1]"; }
-  grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || fail "the scale-down is not exactly one destroy: $(gauntlet_plan_line <<< "$C_PLAN")"
   ( tofu_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the scale-down apply failed"
   gone_a "$SHARD1_ID" "$MI_API" || fail "ARM still answers for shard 1 after the scale-down"
   gone_a "$SHARD0_ID" "$MI_API" && fail "shard 0 is gone after the scale-down; the survivor did not keep its identity"
-  REVIEWED=1 RA=none SHARDS=2 write_root "$ADOPTED" live
-  REVIEWED=1 RA=none SHARDS=2 write_root "$ORACLE" stock
+  REVIEWED=1 RA=none MOVED=1 SHARDS=2 write_root "$ADOPTED" live
+  REVIEWED=1 RA=none MOVED=1 SHARDS=2 write_root "$ORACLE" stock
   O_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || fail "stock's scale-up plan failed on B"
   grep -qF "Plan: 1 to add, 0 to change, 0 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's scale-up plan on B is not exactly one add"; }
   ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock's scale-up apply failed on B"

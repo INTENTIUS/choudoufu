@@ -585,6 +585,28 @@ arm_tags() {
   arm GET "$1?api-version=$2" | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin).get("tags") or {}, sort_keys=True))'
 }
 
+# arm_set_tag <path-with-api-version> <key> <value|-> sets one tag on an ARM
+# resource, or removes it for "-", and keeps every other tag and field: a
+# GET, the tag edited in the body read back, and a PUT of that whole body,
+# what `az resource update --set tags.k=v` does. The scenarios' out-of-band
+# tag edit, as gauntlet_arm_set_tag is the gauntlet's. Not a PATCH:
+# floci-az answers 405 to every PATCH on Microsoft.Network (lex00/floci-az#18,
+# NetworkService.handleArm at 30000b0). A key that matches another only by
+# case replaces it, since ARM rejects two such keys.
+arm_set_tag() {
+  local path="$1" key="$2" val="$3" body
+  body="$(arm GET "$path" | KEY="$key" VAL="$val" python3 -c '
+import json, os, sys
+r = json.load(sys.stdin)
+k, v = os.environ["KEY"], os.environ["VAL"]
+t = {a: b for a, b in (r.get("tags") or {}).items() if a.lower() != k.lower()}
+if v != "-":
+    t[k] = v
+r["tags"] = t
+print(json.dumps(r))')" || return 1
+  arm PUT "$path" "$body"
+}
+
 # azure_terraform_block <estate> [record-store-hcl] prints an Azure
 # fixture's terraform block and its two provider blocks: azurerm and azapi
 # pinned exactly to live/oracle-versions.json's azurerm_provider_version and

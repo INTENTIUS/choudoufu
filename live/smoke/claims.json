@@ -731,7 +731,7 @@
               "scenario": "live/smoke/scenarios/az-identity-is-a-tag.sh",
               "command": "just smoke az-identity-is-a-tag",
               "minutes": 4,
-              "break_mode": "BREAK=1 strips tofu-estate from the VNet with an ARM PATCH and requires the default replan to refuse it by name (\"Unmarked live object at the declared id would be overwritten\") rather than PUT over it, and under policy { declared_untagged = \"adopt\" } the apply to write the tag back, read through ARM"
+              "break_mode": "BREAK=1 strips tofu-estate from the VNet with an ARM GET and PUT and requires the default replan to refuse it by name (\"Unmarked live object at the declared id would be overwritten\") rather than PUT over it, and under policy { declared_untagged = \"adopt\" } the apply to write the tag back, read through ARM"
             }
           ],
           "note": "Unproven until a dated run: az-identity-is-a-tag.sh has no evidence file yet. A resource group, a VNet and a user-assigned identity through azurerm and a second identity through azapi_resource are applied; tofu-estate and tofu-address are read back through ARM on both providers' objects, and the replan must be empty with no state file and with the cache deleted. A carve between estates is one tag write and is not in the scenario. floci-az keeps tags on every type used, but every plan reaches the Resource Graph sweep, and the sweep's query uses union, mv-expand and bag_keys, which floci-az's KQL subset refuses with 400 InvalidQuery, although Resource Graph itself is served there since 30000b0 (live/FLOCI.md, Azure)."

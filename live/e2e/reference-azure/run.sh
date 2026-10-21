@@ -28,18 +28,22 @@
 # estate, read with ARM GETs; the out-of-band hand is an ARM GET and PUT
 # (gauntlet_arm_set_tag), not the AWS CLI.
 #
-# Written for #1120 and NOT RUN. floci-az's gaps (live/FLOCI.md, Azure) are
-# expected to fail stages by name on the first run rather than be skipped:
-# the plan's Resource Graph sweep has no route, and storage account tags
-# are dropped, so migrate's marker count reads one short of nine. Those are
-# the emulator's to close (emulator policy, live/ADDING-A-PLATFORM.md).
-# day2_replace, day2_crash, strict and no_local_state report not_run with
-# the reason until each is written for this substrate.
+# Run twice for #1120: cold_deploy through test_apply pass on floci-az
+# 30000b0. floci-az's gaps (live/FLOCI.md, Azure) fail stages by name rather
+# than being skipped: its Resource Graph refuses the sweep's query
+# (lex00/floci-az#11), which the plan reports as the "Azure sweep
+# unavailable" warning and goes on without, and only the sweep finds a
+# removed resource of a type that takes tags, so day2_remove and day2_count
+# fail naming that gap. Those are the emulator's to close (emulator policy,
+# live/ADDING-A-PLATFORM.md). day2_replace, day2_crash, strict and
+# no_local_state report not_run with the reason until each is written for
+# this substrate.
 #
 # A stage this script cannot pass records fail with the reason and the run
-# continues where it can; the runner, not the script, decides what "clear"
-# means. A fault in the substrate itself (a container that never came up)
-# is a fail on the stage being set up and an exit.
+# continues where it can (day2_remove and day2_count put the shape the later
+# stages expect back by hand); the runner, not the script, decides what
+# "clear" means. A fault in the substrate itself (a container that never
+# came up) is a fail on the stage being set up and an exit.
 #
 #   go run ./tools/gauntlet run reference-azure   # the maintainer, by hand
 #   bash live/e2e/reference-azure/run.sh           # asks for "run" at the terminal
@@ -507,6 +511,13 @@ else
 fi
 
 # ── 7. day2_remove: a deleted block's resource is destroyed ──────────────
+# The public IP takes tags, so its removal is found by its marker through
+# the Resource Graph sweep and by nothing else: the record leg skips a type
+# that takes tags. On floci-az the sweep is refused (lex00/floci-az#11), so
+# the plan proposes no destroy there and the stage fails naming that gap
+# (gauntlet_azure_sweep_note). The run goes on: the public IP is removed by
+# hand on A and by stock on B, so the stages below start from the shape
+# they expect.
 gauntlet_begin_stage day2_remove
 log "=== 7. day2_remove: the public IP's block is deleted ==="
 drop_pip() { python3 -c '
@@ -524,15 +535,25 @@ if [ "${BREAK_REMOVE:-}" = "1" ]; then
   gauntlet_stage day2_remove pass "BREAK_REMOVE=1 control: with the block kept no destroy is proposed ($(gauntlet_plan_line <<< "$M_PLAN")), so 'a destroy is proposed' correctly fails"
 else
   grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$O_PLAN" || { printf '%s\n' "$O_PLAN" | tail -10; fail "stock's plan without the block on B is not one destroy"; }
-  grep -q "azurerm_public_ip.app will be destroyed" <<< "$M_PLAN" || { printf '%s\n' "$M_PLAN" | tail -20; fail "the plan does not destroy azurerm_public_ip.app"; }
-  grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$M_PLAN" || fail "the plan destroys more than the public IP: $(gauntlet_plan_line <<< "$M_PLAN")"
-  ( tofu_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the destroying apply failed"
-  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not apply the removal on B"
-  gone_a "$PIP_ID" "$NET_API" || fail "ARM still answers for the public IP after its block was removed and applied"
-  gauntlet_stage day2_remove pass "the public IP's block deleted: choudoufu planned exactly azurerm_public_ip.app's destroy (0 add, 0 change, 1 destroy), as stock planned on the oracle, and after the apply ARM answers 404 for it"
+  if grep -q "azurerm_public_ip.app will be destroyed" <<< "$M_PLAN" && grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$M_PLAN"; then
+    ( tofu_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the destroying apply failed"
+    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not apply the removal on B"
+    gone_a "$PIP_ID" "$NET_API" || fail "ARM still answers for the public IP after its block was removed and applied"
+    gauntlet_stage day2_remove pass "the public IP's block deleted: choudoufu planned exactly azurerm_public_ip.app's destroy (0 add, 0 change, 1 destroy), as stock planned on the oracle, and after the apply ARM answers 404 for it"
+  else
+    printf '%s\n' "$M_PLAN" | tail -20
+    gauntlet_stage day2_remove fail "the plan without the public IP's block does not destroy exactly azurerm_public_ip.app ($(gauntlet_plan_line <<< "$M_PLAN"); first Error: line: \"$(gauntlet_first_error_line <<< "$M_PLAN")\")$(gauntlet_azure_sweep_note <<< "$M_PLAN")"
+    log "  removing the public IP by hand on A and through stock on B, so the stages below start from the shape they expect"
+    ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not apply the removal on B"
+    on_a gauntlet_arm DELETE "$PIP_ID?api-version=$NET_API" >/dev/null || fail "could not delete the public IP on A through ARM after day2_remove failed"
+  fi
 fi
 
 # ── 8. day2_count: scale the shard identities down and back up ───────────
+# As day2_remove: the identity that leaves the count is found only by the
+# sweep, so on floci-az the scale-down plans no destroy (lex00/floci-az#11),
+# the stage fails naming it, and the configuration goes back to two shards
+# with both still standing, the shape the teardown expects.
 gauntlet_begin_stage day2_count
 log "=== 8. day2_count: shard count 2 -> 1 -> 2 ==="
 current_block() { write_config "$1" "$2" team "$3" "$REVIEWED"; moved_block >> "$1/main.tf"; drop_pip "$1/main.tf"; }
@@ -541,9 +562,12 @@ C_PLAN="$(tofu_a "$ADOPTED" plan -input=false -no-color 2>&1)" || { printf '%s\n
 if [ "${BREAK_COUNT:-}" = "1" ]; then
   grep -q 'azurerm_user_assigned_identity.shard\[0\] will be destroyed' <<< "$C_PLAN" && fail "BREAK_COUNT=1: shard[0] is planned for destroy - the wrong instance"
   gauntlet_stage day2_count pass "BREAK_COUNT=1 control: the assertion that shard[0] is destroyed correctly fails; the plan destroys $(grep -oE 'azurerm_user_assigned_identity.shard\[[0-9]\] will be destroyed' <<< "$C_PLAN" | head -1)"
+elif ! { grep -q 'azurerm_user_assigned_identity.shard\[1\] will be destroyed' <<< "$C_PLAN" && grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN"; }; then
+  printf '%s\n' "$C_PLAN" | tail -20
+  gauntlet_stage day2_count fail "the scale-down 2 -> 1 does not destroy exactly azurerm_user_assigned_identity.shard[1] ($(gauntlet_plan_line <<< "$C_PLAN"); first Error: line: \"$(gauntlet_first_error_line <<< "$C_PLAN")\")$(gauntlet_azure_sweep_note <<< "$C_PLAN")"
+  log "  shard[1] is still standing; the configuration goes back to two shards for the stages below"
+  current_block "$ADOPTED" live 2
 else
-  grep -q 'azurerm_user_assigned_identity.shard\[1\] will be destroyed' <<< "$C_PLAN" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down does not destroy shard[1]"; }
-  grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || fail "the scale-down is not exactly one destroy: $(gauntlet_plan_line <<< "$C_PLAN")"
   ( tofu_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "the scale-down apply failed"
   gone_a "$SHARD1_ID" "$MI_API" || fail "ARM still answers for shard 1 after the scale-down"
   gone_a "$SHARD0_ID" "$MI_API" && fail "shard 0 is gone after the scale-down; the survivor did not keep its identity"

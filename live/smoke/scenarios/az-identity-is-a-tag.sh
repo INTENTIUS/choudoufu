@@ -5,7 +5,8 @@
 # carries its marker as ARM tags (tofu-estate and tofu-address, written
 # lowercase) on the create itself, any ARM read shows them, the replan is
 # empty with no state file, and losing the cache changes nothing. BREAK=1
-# strips the tofu-estate tag with an ARM PATCH behind choudoufu's back: the
+# strips the tofu-estate tag with an ARM GET and PUT behind choudoufu's back
+# (arm_set_tag; floci-az serves no PATCH on Microsoft.Network): the
 # default replan must refuse the object by name rather than PUT over it
 # (#1120's create-or-update refusal), and under policy { declared_untagged =
 # "adopt" } the replan must propose the tag write and the apply must restore
@@ -117,18 +118,18 @@ proof "an empty plan, with nothing stored anywhere that could have remembered th
 if [ "${BREAK:-0}" = "1" ]; then
   step "BREAK control - strip the tag; the replan must refuse, and adopt must restore it"
   explain \
-    "This removes tofu-estate from the VNet with an ARM PATCH, behind" \
+    "This removes tofu-estate from the VNet with an ARM GET and PUT, behind" \
     "choudoufu's back. If the next plan is still empty, the tag is not what" \
     "the plan reads. A VNet create is a PUT, and a PUT to an id that exists" \
     "updates it, so the plan must not propose one: it stops and names the" \
     "object. Then the live block opts in with declared_untagged = \"adopt\"," \
     "and the replan must propose writing the tag back."
-  cmd "PATCH ${VNET_ID} {\"tags\": {tofu-address only}}"
-  arm PATCH "${VNET_ID}?api-version=${NET_API}" '{"tags":{"tofu-address":"azurerm_virtual_network.app"}}' >/dev/null \
-    || fail "az-identity" "BREAK: could not strip the tag with an ARM PATCH"
+  cmd "GET ${VNET_ID}, then PUT it back without tofu-estate"
+  arm_set_tag "${VNET_ID}?api-version=${NET_API}" tofu-estate - >/dev/null \
+    || fail "az-identity" "BREAK: could not strip the tag with an ARM GET and PUT"
   STRIPPED="$(arm_tags "$VNET_ID" "$NET_API" 2>&1)"
   if grep -q 'tofu-estate' <<< "$STRIPPED"; then
-    fail "az-identity" "BREAK: the PATCH left tofu-estate on the VNet, so this control would prove nothing: $STRIPPED"
+    fail "az-identity" "BREAK: the PUT left tofu-estate on the VNet, so this control would prove nothing: $STRIPPED"
   fi
   BRC=0
   BOUT="$(cd "$SMOKE_WORK" && chdf plan -input=false -no-color 2>&1)" || BRC=$?
