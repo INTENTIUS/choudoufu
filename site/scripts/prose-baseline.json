@@ -22,6 +22,7 @@
   "discourse/punchy-fragments": 1
  },
  "site/src/content/docs/kubernetes/compatibility.mdx": {
+  "discourse/staccato-register": 1,
   "discourse/punchy-fragments": 1
  },
  "site/src/content/docs/kubernetes/gate.mdx": {
