@@ -17,6 +17,8 @@ gcloud projects add-iam-policy-binding PROJECT --member=PRINCIPAL --role=roles/c
 gcloud projects add-iam-policy-binding PROJECT --member=PRINCIPAL --role=ROLE --condition=None
 ```
 
+ROLE is the GCP role for the resource types in the estate, such as `roles/compute.networkAdmin`. choudoufu reads Application Default Credentials, set with `gcloud auth application-default login`.
+
 ## What that buys
 
 Reads and writes are fenced per principal. Handing an estate over moves the bindings, and `gcloud` meets the same fence.

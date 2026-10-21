@@ -53,15 +53,6 @@ export const PLATFORMS: { id: Platform; label: string; room: string; hub: string
 	{ id: 'azure', label: 'Azure', room: 'azure', hub: '/azure/' },
 ];
 
-/** Where records live. */
-export const STORES: { id: string; label: string; line: string; href: string }[] = [
-	{ id: 's3', label: 'S3 bucket', line: 'Records in your bucket', href: '/docs/use/bucket/' },
-	{ id: 'kubernetes', label: "Cluster's Secrets", line: 'Records as Secrets in your namespace', href: '/kubernetes/operate/' },
-	{ id: 'gcs', label: 'GCS bucket', line: 'Your GCS bucket holds the records', href: '/gcp/operate/' },
-	{ id: 'azurerm', label: 'Azure Storage', line: 'Your storage container holds the records', href: '/azure/operate/' },
-	{ id: 'local', label: 'Local', line: 'Records as local files', href: '/how-it-works/values/' },
-];
-
 export const ROLES: { label: string; room: string }[] = [
 	{ label: 'I review security or own access', room: 'security' },
 	{ label: 'I am evaluating', room: 'evaluate' },
@@ -84,7 +75,7 @@ export const ROOMS: Room[] = [
 			'count, for_each, modules and multiple providers work',
 		],
 		differs: [
-			'A one-line sidecar file naming the estate takes the place of the backend block.',
+			'A file naming the estate and its record_store block takes the place of the backend block.',
 			'Run live-import before the first apply, so every resource carries its marker.',
 		],
 		first: migrate,
@@ -128,7 +119,7 @@ export const ROOMS: Room[] = [
 		title: 'Starting new',
 		lede: 'You are starting a new estate.',
 		works: [
-			'The tutorial needs only Docker',
+			'The tutorial needs Docker, the aws CLI and Go',
 			'An estate is one name in estate.chdf.hcl',
 		],
 		differs: [],
@@ -221,9 +212,9 @@ export const ROOMS: Room[] = [
 		title: 'Evaluating',
 		lede: 'You want to see it work first.',
 		works: [
-			'The tutorial needs only Docker',
+			'The tutorial needs Docker, the aws CLI and Go',
 			'Each claim is a scenario you can run and break',
-			'Leaving is one file copy and deleting the live block',
+			'Leaving is one file copy and deleting the estate file',
 		],
 		differs: [],
 		first: { label: 'Tutorial', href: '/docs/tutorial/' },
@@ -278,7 +269,6 @@ export function roomLinks(): (Link & { where: string })[] {
 	for (const r of ROOMS) {
 		for (const l of [r.first, ...r.howto, ...r.explain, ...r.reference]) out.push({ ...l, where: `room ${r.id}` });
 	}
-	for (const s of STORES) out.push({ label: s.label, href: s.href, where: 'STORES' });
 	for (const p of PLATFORMS) out.push({ label: p.label, href: p.hub, where: 'PLATFORMS' });
 	return out;
 }

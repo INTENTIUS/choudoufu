@@ -15,12 +15,19 @@ and plans again from the markers alone.
 
 ## Before you start
 
-Start Docker so that `docker info` succeeds. For Kubernetes, also install
-`kind` and `kubectl`.
+Install Docker (started, so `docker info` succeeds), the `aws` CLI and Go,
+then clone the repository:
+
+```
+git clone https://github.com/INTENTIUS/choudoufu.git
+cd choudoufu
+```
+
+For Kubernetes, also install `kind`, `kubectl` and `just`.
 
 ## On AWS
 
-From the root of a checkout of this repository:
+From the root of the clone:
 
 ```
 bash live/e2e/run.sh --expect 5

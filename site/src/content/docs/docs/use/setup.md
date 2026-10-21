@@ -10,21 +10,30 @@ prompt: >-
 | Piece | Who creates it |
 |---|---|
 | Credentials and an access policy | You |
-| `estate.chdf.hcl` | You, one line |
-| A shared record store, a bucket or a namespace | You |
+| `estate.chdf.hcl`, with the estate name and the `record_store` block | You |
+| The record store: a bucket, a namespace or a storage container | You |
 | Markers on new resources | The apply |
 | Markers on existing resources | You, by [migrating](../migrate/) |
 
 ## Credentials
 
-On AWS, set `AWS_PROFILE` and a region. On Kubernetes, the provider reads your
-kubeconfig or `KUBE_CONFIG_PATH`.
+| Platform | Credentials |
+|---|---|
+| AWS | `AWS_PROFILE` and a region |
+| Kubernetes | Your kubeconfig, or `KUBE_CONFIG_PATH` |
+| GCP | `gcloud auth application-default login` |
+| Azure | `az login`, and `subscription_id` in the `azurerm` provider block |
 
 ## The estate declaration
 
 ```hcl
 # estate.chdf.hcl
 estate = "my-estate"
+
+record_store "s3" {
+  bucket = "my-records-bucket"
+  region = "us-east-2"
+}
 ```
 
 ## The record store
@@ -33,12 +42,17 @@ estate = "my-estate"
 |---|---|
 | `local` | Nothing. Gitignore `.tofu-records/` |
 | `s3` | The bucket ([set it up](../bucket/)) |
-| `kubernetes` | The namespace, and a role bound to Secrets in it ([`examples/record-store-cluster`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-cluster/README.md)) |
+| `kubernetes` | The namespace, a role bound to Secrets in it ([`examples/record-store-cluster`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-cluster/README.md)), [the admission policy](../../../kubernetes/gate/) and encryption at rest ([Records](../../../kubernetes/operate/#records)) |
+| `gcs` | The bucket ([CONTRACT.md](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-gcs/CONTRACT.md)) |
+| `azurerm` | The storage account and container ([CONTRACT.md](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-azurerm/CONTRACT.md)) |
 
 Create the store outside the estate that uses it.
 
 ## Permissions
 
-On AWS, adoption needs the service's tagging action, such as `ec2:CreateTags`
-([`live/IAM-REFERENCE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/IAM-REFERENCE.md)).
-On Kubernetes, each writer needs `use` on its estate ([the gate](../../../kubernetes/gate/)).
+| Platform | What each writer holds |
+|---|---|
+| AWS | The service's tagging action, such as `ec2:CreateTags` ([`live/IAM-REFERENCE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/IAM-REFERENCE.md)) |
+| Kubernetes | `use` on its estate ([the gate](../../../kubernetes/gate/)) |
+| GCP | The roles for the estate's types, on its project ([the gate](../../../gcp/gate/)) |
+| Azure | A role on the estate's resource groups ([the gate](../../../azure/gate/)) |

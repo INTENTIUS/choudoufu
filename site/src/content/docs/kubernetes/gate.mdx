@@ -9,10 +9,17 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 <PlatformSwitch />
 
-An admin installs the admission policy once:
+On Kubernetes 1.30 or later, an admin first grants `use` on its estate to every identity that already writes labelled objects, one binding each:
 
 ```
-kubectl apply -f live/kubernetes/estate-boundary.yaml
+curl -fsSL https://raw.githubusercontent.com/INTENTIUS/choudoufu/main/live/kubernetes/estate-grant.yaml \
+  | sed 's/PRINCIPAL_NAMESPACE/ci/g; s/PRINCIPAL/deployer/g; s/ESTATE/my-estate/g' | kubectl apply -f -
+```
+
+Then the admin installs the admission policy once:
+
+```
+kubectl apply -f https://raw.githubusercontent.com/INTENTIUS/choudoufu/main/live/kubernetes/estate-boundary.yaml
 ```
 
 A write passes when the caller holds `use` on `estates.choudoufu.intentius.io/<estate>`.
