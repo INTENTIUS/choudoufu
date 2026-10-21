@@ -1,12 +1,10 @@
 ---
-// The home page under the hero and its lead: the picker, three short cards, the
-// measured figures with their date and commit, then what every reader gets
-// and what choudoufu does not do. The lists come from data/rooms.ts and the
-// figures from data/proof.ts, which counts them at build from live/. The
+// The home page under the hero and its lead: the picker, three short cards,
+// the proven figures with their last run, and a link to the claims. The
+// figures come from data/proof.ts, which counts them at build from live/. The
 // stink lines (hr.cd-wisps, styled in choudoufu.css) part the sections.
 import Picker from './Picker.astro';
-import { ASSUMED, LIMITS } from '../data/rooms';
-import { boardFigure, claimsFigure, type Figure } from '../data/proof';
+import { CLAIMS, boardFigure, claimsFigure, type Figure } from '../data/proof';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (h: string) => (/^https?:/.test(h) ? h : `${base}${h}`);
@@ -31,8 +29,8 @@ const figures = [boardFigure('aws'), boardFigure('kubernetes'), claimsFigure('ku
 		))}
 	</ul>
 	<hr class="cd-wisps" />
-	<section aria-labelledby="cd-measured">
-		<h2 id="cd-measured">Measured</h2>
+	<section aria-labelledby="cd-proven">
+		<h2 id="cd-proven">Proven</h2>
 		<ul class="figures">
 			{figures.map((f) => (
 				<li>
@@ -46,16 +44,7 @@ const figures = [boardFigure('aws'), boardFigure('kubernetes'), claimsFigure('ku
 		</ul>
 	</section>
 	<hr class="cd-wisps" />
-	<div class="lists">
-		<section aria-labelledby="cd-assumed">
-			<h2 id="cd-assumed">What every reader gets</h2>
-			<ul>{ASSUMED.map((a) => <li><a href={href(a.href)}>{a.label}</a></li>)}</ul>
-		</section>
-		<section aria-labelledby="cd-limits">
-			<h2 id="cd-limits">What it does not do</h2>
-			<ul>{LIMITS.map((l) => <li><a href={href(l.href)}>{l.label}</a>. {l.why}</li>)}</ul>
-		</section>
-	</div>
+	<p class="claims"><a href={CLAIMS}>Every claim is proven</a></p>
 </div>
 
 <style>
@@ -123,44 +112,23 @@ const figures = [boardFigure('aws'), boardFigure('kubernetes'), claimsFigure('ku
 		font-size: var(--sl-text-xs);
 		color: var(--sl-color-gray-3);
 	}
-	.lists {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 2rem;
-	}
-	.lists ul {
-		display: grid;
-		gap: 0.5rem;
-	}
-	.lists li {
-		position: relative;
-		padding-left: 1.6rem;
-		color: var(--sl-color-gray-2);
-	}
-	.lists li::before {
-		content: '';
-		position: absolute;
-		left: 0;
-		top: calc((1lh - 16px) / 2);
-		width: 16px;
-		height: 16px;
-		background: url('/choudoufu/brand/cube-16.png') no-repeat;
-		image-rendering: pixelated;
-	}
 	hr.cd-wisps {
 		margin: 0 auto;
 	}
-	.lists a {
+	.claims {
+		margin: 0;
+		text-align: center;
+	}
+	.claims a {
 		color: var(--cd-accent);
 		text-decoration-color: color-mix(in srgb, var(--cd-accent) 35%, transparent);
 	}
-	.lists a:hover {
+	.claims a:hover {
 		text-decoration-color: var(--cd-gold);
 	}
 	@media (max-width: 52rem) {
 		.cards,
-		.figures,
-		.lists {
+		.figures {
 			grid-template-columns: minmax(0, 1fr);
 		}
 	}

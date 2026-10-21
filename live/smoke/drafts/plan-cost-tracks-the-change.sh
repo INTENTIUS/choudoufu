@@ -19,4 +19,4 @@ WORK="$SMOKE_WORKROOT/cone"
 mkdir -p "$WORK"
 go build -o "$WORK/terralith-gen" ./tools/terralith-gen || fail "cone" "tools/terralith-gen did not build"
 
-fail "cone" "plan-cost-tracks-the-change is not written yet (GitHub issue #1956); claim 47 stays unproven"
+fail "cone" "plan-cost-tracks-the-change is not written yet (GitHub issue #1956); number 47 is reserved for it"

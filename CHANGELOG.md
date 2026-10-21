@@ -39,6 +39,13 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.31.0 (Unreleased)
 
+- Changed: claims hold only the promise and its proof. A cell is `proven`
+  or `n/a`; `unproven`, `open`, `restated` and the stale marking are gone,
+  and each proof shows the date and commit it last ran. Claim 47 left the
+  list, its number reserved. Removed caveats are GitHub issues. A Go test
+  (`TestClaimWordingIsProofOnly`) fails on hedging words in the claims, the
+  table and the site's proof pages and figures. The home page's figures
+  read "Proven" with a count and a last run.
 - Changed: a claim cell keeps its last measured result across releases. A
   scenario proof may carry `last_run` (status, claim, commit, date,
   version), and `live/CLAIMS.md` and the site mark any run older than the

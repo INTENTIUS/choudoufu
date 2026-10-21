@@ -35,9 +35,9 @@
   "anaphora/repeated-opening": 1
  },
  "site/src/data/rooms.ts": {
-  "discourse/staccato-register": 1,
   "discourse/punchy-fragments": 9,
-  "repetition/near-duplicate": 4,
+  "discourse/staccato-register": 1,
+  "repetition/near-duplicate": 3,
   "anaphora/repeated-opening": 2,
   "tricolon/comma-series": 1
  }

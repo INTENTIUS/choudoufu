@@ -66,8 +66,7 @@ The plan covers the whole estate instead, with a warning naming why, when:
 Drift outside the cone is not reported: merge and scheduled drift plans
 should stay full. Data sources are not compared with the cache, so a data
 source whose value moved (a latest AMI) widens nothing. The binary version
-is not compared. The saving is unmeasured until
-[claim 47](smoke/claims/plan-cost-tracks-the-change.md) runs.
+is not compared.
 
 ## What a plan costs
 
