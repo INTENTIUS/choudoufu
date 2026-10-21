@@ -8,5 +8,5 @@ azurerm and azapi are one family. Every Azure claim is still open: nothing here 
 - [Adopt](/choudoufu/azure/adopt/): bring resources under management.
 - [Gate](/choudoufu/azure/gate/): fence an estate by resource group and Policy.
 - [Operate](/choudoufu/azure/operate/): rename, remove, keep records in a storage account.
-- [Compatibility](/choudoufu/azure/compatibility/): what is refused by name.
-- [Proof](/choudoufu/azure/proof/): what is written and what each claim waits on.
+- [Compatibility](/choudoufu/azure/compatibility/): what the plan stops on by name.
+- [Proof](/choudoufu/azure/proof/): the Azure estates on the board.

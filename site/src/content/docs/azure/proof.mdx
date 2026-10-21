@@ -1,8 +1,8 @@
 ---
 title: Proof
-description: Nothing is proven on Azure yet. What is written and what each claim waits on.
+description: What runs on the floci-az emulator and where the numbers live.
 prompt: |
-  Follow https://intentius.io/choudoufu/azure/proof/. Read live/CLAIMS.md and report each Azure cell and the draft that would close it.
+  Follow https://intentius.io/choudoufu/azure/proof/. Read live/BOARD.md and report each Azure estate's stages.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 import PlatformSwitch from '../../../components/PlatformSwitch.astro';
@@ -11,18 +11,16 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 ## Claims you can run
 
-Four `az-*` drafts cover claims 7, 1, 13 and 29 on the floci-az emulator. None has run. The emulator serves Resource Graph, Policy and role assignments since `30000b0`, and the sweep's query since `dfa33ca` ([FLOCI.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/FLOCI.md#azure-floci-az)).
+Azure carries no claim cell. Each `az-*` script runs on the floci-az emulator, and under `BREAK=1` it must catch the injected fault; a script becomes a claim's proof with its first dated run. Two Azure estates, `reference-azure` and `corpus-azapi-role-assignment`, run every gauntlet stage on the same emulator.
 
 ## Where the numbers are
 
-- [CLAIMS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/CLAIMS.md): every Azure cell, all open
+- [BOARD.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/BOARD.md): the Azure estates by stage
 - [READINESS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/READINESS.md#azure): every type's tier
-- [PROOF.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/azure/PROOF.md): the drafts and the lane
+- [PROOF.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/azure/PROOF.md): the lane and its scripts
 
 ## Run one now
 
 ```
 just smoke az-identity-is-a-tag
 ```
-
-Against today's emulator it stops at the sweep, which floci-az answers `400 InvalidQuery`.

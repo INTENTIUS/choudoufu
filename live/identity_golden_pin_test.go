@@ -3278,15 +3278,28 @@ const (
 	// the others have a required variable unset or no resource. fixture-dirs
 	// 671 -> 680 on the same row; the cohort pins are untouched.
 	//
-	// 711 -> 714 merging the Azure lane (#1120), which added three
+	// 711 -> 712 for the 2026-10-20 ruling on unrecorded markerless
+	// instances: one new fixture,
+	// internal/live/projection/testdata/unrecorded-markerless, a
+	// google_project_service for_each with no google schema in the sweep, so
+	// it adds no row and instances and body-sha256 are unchanged.
+	// fixture-dirs 680 -> 681 on the same row; the cohort pins are untouched.
+	//
+	// 712 -> 713 for option A honouring moved blocks: one new fixture,
+	// internal/live/projection/testdata/unrecorded-k8s-moved, a markerless
+	// stand-in type (kubernetes_unlabelled_stub) no table admits, so it adds
+	// no row and instances and body-sha256 are unchanged. fixture-dirs
+	// 681 -> 682 on the same row; the cohort pins are untouched.
+	//
+	// 713 -> 716 merging the Azure lane (#1120), which added three
 	// fixtures that add no row: live/e2e/limits/arm-tag-limit, an
 	// azurerm_cosmosdb_account the schemaless sweep leaves unadmitted;
 	// live/e2e/limits/policy-overwrite-at-key, an azurerm_resource_group
 	// left the same way; and
 	// internal/live/lint/testdata/strict-markers-azurerm-aks (#2135), a
 	// `markers "record"` selection with no resource block. fixture-dirs
-	// 680 -> 683; instances and the cohort pins are unchanged by them.
-	identityGoldenPinDirs = 714
+	// 682 -> 685; instances and the cohort pins are unchanged by them.
+	identityGoldenPinDirs = 716
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

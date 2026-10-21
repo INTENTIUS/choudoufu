@@ -12,7 +12,7 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 A resource is yours once it carries `tofu-estate` and `tofu-address` in its `tags`. ARM tag keys are case-insensitive, so `Tofu-Estate` counts.
 
 :::caution
-An ARM create is a PUT that updates whatever is at its id. An unmarked resource at a declared id is refused by name, never overwritten, unless the policy admits it. Adopt it with `policy { declared_untagged = "adopt" }`, which writes the markers onto it in the plan.
+An ARM create is a PUT that updates whatever is at its id. The plan stops by name at an unmarked resource on a declared id and never overwrites it, unless the policy admits it. Adopt it with `policy { declared_untagged = "adopt" }`, which writes the markers onto it in the plan.
 :::
 
 ## The bulk path

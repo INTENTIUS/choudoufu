@@ -24,6 +24,6 @@ az deployment sub create --location <region> \
 
 The grant gives one principal a role on the estate's groups, and that role alone decides who may delete. The Policy denies a write whose `tofu-estate` is missing or names another estate. `deleteLock=true` adds an opt-in lock on deleting a tagged resource; it refuses the estate's own destroys too, so each one then needs an `az policy exemption create` on the lock. Handing over moves the role assignments.
 
-## What it cannot reach
+## Guarding the marker
 
-Reads, anything outside the estate's groups, and untaggable types under Policy. Policy applies to every caller, the estate's own included. None of this is measured yet ([GATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/azure/GATE.md)).
+The Policy applies to every caller, the estate's own included, so no write removes or rewrites `tofu-estate` on a resource in the estate's groups ([GATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/azure/GATE.md)).

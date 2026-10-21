@@ -51,7 +51,8 @@
           "declaration-carried": 379,
           "excluded by design": 2,
           "record-carried": 471
-        }
+        },
+        "unrecorded": "parent-owned"
       },
       "fence": "IAM conditions on aws:ResourceTag, reads and writes, per principal (live/MARKERS.md).",
       "harness": {
@@ -103,7 +104,8 @@
         "by_tier": {
           "declaration-carried": 492,
           "record-carried": 227
-        }
+        },
+        "unrecorded": "parent-owned"
       },
       "fence": "Resource-group RBAC per principal (a custom role or Contributor on the estate's groups), plus Azure Policy on the tofu-estate tag: deny a write that lacks it or changes it. The RBAC alone governs deletes; a denyAction delete lock is opt-in (deleteLock, off by default). Template files an operator applies, never plan resources.",
       "harness": {
@@ -166,7 +168,8 @@
       "untaggable": {
         "definition": "an admitted Kubernetes type whose schema carries no metadata.labels block (live/readiness.json kubernetes.types facts.label_surface=false)",
         "count": 0,
-        "by_tier": {}
+        "by_tier": {},
+        "unrecorded": "creates"
       },
       "fence": "One ValidatingAdmissionPolicy, writes only, enforced per principal through the cluster's authorizer.",
       "harness": {

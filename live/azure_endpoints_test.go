@@ -390,7 +390,7 @@ func TestAzureRecordStoreArgsAreLocked(t *testing.T) {
 			t.Errorf("record_store %s = %q, want %s", k, got[k], v)
 		}
 	}
-	scenario := readFile(t, "smoke/scenarios/az-records-in-a-storage-account.sh")
+	scenario := readFile(t, "smoke/drafts/az-records-in-a-storage-account.sh")
 	if !strings.Contains(scenario, `floci_az_record_store_args "$AZURE_HOST"`) {
 		t.Error(`az-records-in-a-storage-account.sh's record_store "azurerm" does not take floci_az_record_store_args`)
 	}
@@ -401,7 +401,7 @@ func TestAzureRecordStoreArgsAreLocked(t *testing.T) {
 // lane's scripts would be one the tests above never render.
 func TestAzureLaneWritesNoOtherProviderBlock(t *testing.T) {
 	files := []string{"smoke/lib.sh", "e2e/lib/gauntlet.sh", "e2e/reference-azure/run.sh"}
-	scenarios, err := filepath.Glob("smoke/scenarios/az-*.sh")
+	scenarios, err := filepath.Glob("smoke/drafts/az-*.sh")
 	if err != nil || len(scenarios) == 0 {
 		t.Fatalf("found no az-*.sh scenarios: %v", err)
 	}

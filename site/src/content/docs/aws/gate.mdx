@@ -9,7 +9,7 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 <PlatformSwitch />
 
-The marker is a tag written with the create call, so a role can be scoped by it.
+The create call writes the tag, so a role can be scoped by it.
 
 ```json
 {
@@ -24,12 +24,10 @@ The marker is a tag written with the create call, so a role can be scoped by it.
 }
 ```
 
-`aws:ResourceTag` covers existing resources. `aws:RequestTag` covers creates.
-
 ## What that buys
 
-Handing an estate over moves this policy to the new role. Splitting one is `choudoufu live-mv -from-estate=<old> <address>`. The fence binds the credential, so plain `aws` calls meet it too.
+Handing an estate over moves this policy to the new role, and plain `aws` calls meet the same fence.
 
-## What it cannot reach
+## Guarding the marker
 
-Types with no tag surface fall outside the grant ([IAM-REFERENCE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/IAM-REFERENCE.md)). An SCP denying the untag actions protects the tag itself ([GOVERNANCE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/GOVERNANCE.md)).
+An SCP that denies the untag actions keeps the tag on every resource in the account ([GOVERNANCE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/GOVERNANCE.md)).

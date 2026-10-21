@@ -6,6 +6,7 @@
 package projection
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"sort"
@@ -202,6 +203,9 @@ const (
 // only ever produce a false accusation. That boundary is stated in
 // live/MARKERS.md and is the one gap in "nothing enters the prior state
 // unverified" that is a property of the cloud rather than of this code.
+// Since the maintainer's ruling of 2026-10-20 it holds as written for the
+// AWS family only: elsewhere a markerless instance with no record is not
+// owned ([builder.unrecordedMarkerless]).
 // declared says whether addr has a resource block in this configuration -
 // false for a sweep orphan, a parent-read finding, or a scoped
 // reconciliation candidate, every one of which reaches this function on the
@@ -309,7 +313,13 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// -refresh=false contract this arm only ever runs under.
 		return ownershipOK
 	case surface == "":
-		return ownershipOK
+		// The maintainer's ruling of 2026-10-20 ("option A"): with a record
+		// store in play, a declared markerless instance whose identity came
+		// from its configuration and which has no record is not owned, even
+		// though an object is live at that identity. See
+		// [builder.unrecordedMarkerless] for which instances it reaches and
+		// why the AWS family keeps the admission this case always gave.
+		return b.unrecordedMarkerless(addr, typeName, importID, schema, declared, recordFirst, atDeclaredKey)
 	}
 
 	// GitHub issue #1120's first Azure lane run. azapi_resource's schema has
@@ -619,6 +629,156 @@ const (
 	SummaryOutsideEstate = "Live resource outside this estate"
 	SummaryWrongAddress  = "Live resource marked for another address"
 )
+
+// SummaryUnrecordedMarkerless is the warning [builder.unrecordedMarkerless]
+// carries when it leaves a live object out and the plan proposes the create.
+const SummaryUnrecordedMarkerless = "Unrecorded live object at a declared identity"
+
+// unrecordedMarkerless decides a declared instance of a type with no marker
+// surface, found live at the identity its configuration computes. Until the
+// maintainer's ruling of 2026-10-20 ("option A") every such object was
+// admitted with nothing asked, so an object somebody else made at a declared
+// name planned "No changes", and so did one this estate destroyed and left in
+// place: a google_project_service with disable_on_destroy unset stays
+// enabled after its destroy, and when its for_each key came back stock
+// planned one add where this planned nothing (corpus-k8s-infra-gcp-gcve's
+// day2_count).
+//
+// The ruling: when a record store exists, such an instance with no current
+// record is not owned. A record is the one place this estate writes that it
+// made a markerless object, and live-import writes one for every instance it
+// migrates, so a missing record is a missing claim. Not owned means the
+// family's [substrate.Unrecorded] answer: the plan proposes the create
+// ([substrate.UnrecordedCreates]), or stops with the name-held refusal where
+// that create would collide ([substrate.UnrecordedNameHeld]).
+//
+// Admitted as before, for each of these:
+//
+//   - no record store (no live block at all), the compatible default;
+//   - an undeclared instance, whose verdict is discovery's;
+//   - a record-first read (recordFirst), whose record is the claim, and the
+//     located route, which returned above;
+//   - an identity some record supplied rather than the configuration
+//     (!atDeclaredKey);
+//   - a field-granular Kubernetes patch type, whose marker is its field
+//     manager ([fieldGranularOwned]);
+//   - a family answering [substrate.UnrecordedParentOwned]: AWS, whose
+//     untaggable types are attachments and associations identified by
+//     tagged parents (this file's checkOwnership doc comment);
+//   - an instance whose record sits at exactly one address a honoured
+//     `moved` chain says it used to have ([builder.recordedAtMovedFrom]): a
+//     stock rename does not re-key the record, and that record is this
+//     instance's (more than one such record is refused by name);
+//   - declared_untagged = "adopt" or "converge", which an operator wrote to
+//     admit declared objects that carry no marker.
+func (b *builder) unrecordedMarkerless(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, declared, recordFirst, atDeclaredKey bool) ownershipVerdict {
+	own := b.opts.Ownership
+	if b.opts.RecordStore == nil || !declared || recordFirst || !atDeclaredKey {
+		return ownershipOK
+	}
+	providerType := b.providerType(addr, typeName)
+	if providerType == "" {
+		providerType = addrs.Resource{Mode: addrs.ManagedResourceMode, Type: typeName}.ImpliedProvider()
+	}
+	if fieldGranularOwned("", schema) {
+		return ownershipOK
+	}
+	rule := substrate.UnrecordedFor(providerType, typeName)
+	if rule == substrate.UnrecordedParentOwned {
+		return ownershipOK
+	}
+	switch origins := b.recordedAtMovedFrom(addr); {
+	case len(origins) == 1:
+		return ownershipOK
+	case len(origins) > 1:
+		b.movedRecordsAmbiguous(addr, typeName, importID, origins)
+		return ownershipUnowned
+	}
+	verb := own.Policy.Verb(true, false)
+	nonDefault := verb != policy.DefaultVerb[policy.DeclaredUntagged]
+	if nonDefault {
+		switch verb {
+		case policy.Adopt, policy.Converge:
+			b.policyList = append(b.policyList, PolicyOutcome{Addr: addr, TypeName: typeName, Tagged: false, Verb: verb})
+			return ownershipOK
+		case policy.Keep, policy.Report:
+			b.policyList = append(b.policyList, PolicyOutcome{Addr: addr, TypeName: typeName, Tagged: false, Verb: verb})
+		}
+	}
+	cause := fmt.Sprintf("the live %s at its identity carries no ownership marker and this estate holds no record of it.", typeName)
+	if rule == substrate.UnrecordedNameHeld && !nonDefault {
+		detail := fmt.Sprintf(
+			"A live %s already exists at %q, the identity %s declares. A %s carries no ownership marker and this estate's record store holds no record of it, so this estate does not own it, and the create this configuration declares would be refused while that object holds the identity; this plan stops here instead of proposing it. If the object is this estate's and its record was lost, restore the record store or run live-import against a state file that holds it (live/RECOVERY.md), then re-run. To adopt it on this run instead, set policy { declared_untagged = \"adopt\" } in the live block. To keep it out of this estate, point this resource at an identity nobody is using.",
+			typeName, importID, addr, typeName)
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryNameHeld, detail))
+		b.omit(addr, ReasonUnowned, detail, cause)
+		return ownershipUnowned
+	}
+	detail := fmt.Sprintf(
+		"A live %s exists at %q, the identity %s declares. A %s carries no ownership marker and this estate's record store holds no record of it, so nothing says this estate made it: it is left out of the prior state, and the plan proposes creating the resource this configuration declares, as stock does for an object its state does not hold. If the object is this estate's and its record was lost, restore the record store or run live-import against a state file that holds it (live/RECOVERY.md), then re-run. To adopt it on this run instead, set policy { declared_untagged = \"adopt\" } in the live block.",
+		typeName, importID, addr, typeName)
+	if !(nonDefault && verb == policy.Keep) {
+		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryUnrecordedMarkerless, detail))
+	}
+	b.omit(addr, ReasonUnowned, detail, cause)
+	return ownershipUnowned
+}
+
+// recordedAtMovedFrom returns the addresses a honoured `moved` statement
+// chain says addr used to have that hold an identity record. A record is
+// keyed by the address it was written under, and nothing re-keys it for a
+// bare HCL `moved` block (only `live-mv` does, through
+// [RecordStore.MoveRecord]), so after a stock rename the instance's record
+// sits at its old address. That record is this instance's claim, and
+// [builder.unrecordedMarkerless] must not read its absence at the new key as
+// "no record" (corpus-k8s-infra-gcp-gcve's day2_rename). The walk is
+// [moved.Aliases], the one [builder.locatedIdentityWithAliases] uses for a
+// record-located instance and [moved.Accepts] uses for a marker, so a chain
+// of statements is followed the way the plan's own move resolution follows
+// it.
+//
+// Exactly one recorded origin is this instance's record. More than one is
+// refused by name ([builder.movedRecordsAmbiguous]): guessing which prior
+// record is this instance's is the wrong-marker shape the safety rule
+// forbids. A store error answers none, which keeps option A's refusal.
+//
+// The read uses context.Background() because the ownership check is not
+// handed a context; [RecordStore.GetIdentity] is served from the run's
+// record cache (#636), so this costs no round trip.
+func (b *builder) recordedAtMovedFrom(addr addrs.AbsResourceInstance) []addrs.AbsResourceInstance {
+	var recorded []addrs.AbsResourceInstance
+	for _, origin := range moved.Aliases(b.movedStmts, addr) {
+		_, _, _, found, err := b.opts.RecordStore.GetIdentity(context.Background(), origin)
+		if err != nil {
+			return nil
+		}
+		if found {
+			recorded = append(recorded, origin)
+		}
+	}
+	return recorded
+}
+
+// SummaryMovedRecordsAmbiguous is the Error a markerless instance carries
+// when more than one address its `moved` chain leads from holds a record.
+const SummaryMovedRecordsAmbiguous = "Several moved-from addresses hold a record"
+
+// movedRecordsAmbiguous refuses addr by name: each of origins is an address
+// a honoured `moved` chain says addr used to have, and each holds a record,
+// so nothing says which one is this instance's. Picking one could bind the
+// wrong object, and option A's generic answer would plan a create beside an
+// object this estate made, so the plan stops and names every candidate.
+func (b *builder) movedRecordsAmbiguous(addr addrs.AbsResourceInstance, typeName, importID string, origins []addrs.AbsResourceInstance) {
+	names := make([]string, len(origins))
+	for i, o := range origins {
+		names[i] = o.String()
+	}
+	detail := fmt.Sprintf(
+		"%s is a %s, which carries no ownership marker, and the live object at %q is claimed by a record at more than one address its moved blocks lead from: %s. Only one of them can be this instance's, and this plan will not guess which, so it stops here. Remove the stale records (live-mv moves a record to its new address), or change the moved blocks so that only one recorded address leads to %s, then re-run.",
+		addr, typeName, importID, strings.Join(names, ", "), addr)
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMovedRecordsAmbiguous, detail))
+	b.omit(addr, ReasonUnowned, detail, fmt.Sprintf("records at %s each claim the live %s.", strings.Join(names, ", "), typeName))
+}
 
 // SummaryNameHeld is the Error GitHub issue #1546's refusal carries.
 const SummaryNameHeld = "Unlabelled live object holds the declared name"

@@ -6,11 +6,9 @@ claim: identity-is-a-tag
 # Claim 7: Identity is a tag you can read, move and carve by
 
 Ownership lives on each resource as a marker the platform holds: two tags
-on AWS, one label (with the address in an annotation) on Kubernetes. So
-any tool reads ownership without this one, estates in one account are
-apart by construction, a rename is a marker rewrite where stock needs
-`state mv`, and carving a monolith into estates is a marker write instead
-of state surgery.
+on AWS, one label with the address in an annotation on Kubernetes. Any
+tool reads it, a rename is a marker rewrite, and carving a monolith into
+estates is a marker write.
 
 Each scenario runs from the repository root and ends on a `PASS` line; its
 `BREAK=1` run breaks the thing the proof rests on and must print a
@@ -18,24 +16,19 @@ Each scenario runs from the repository root and ends on a `PASS` line; its
 
 ## On AWS
 
-The scenario this page was named for, `identity-is-a-tag.sh`, was dropped:
-two estates in one account are claim 13's two-estates-at-once, the plain
-CLI reading ownership is every scenario's evidence, and a `live-mv` rename
-that is a retag is the gauntlet's day2_rename stage.
-
-### carve-by-retag (claim 12 until #1817)
+### carve-by-retag
 
     just smoke carve-by-retag
     BREAK=1 just smoke carve-by-retag
 
-A stock terralith is adopted with one command, then carved into estates by
-rewriting `tofu-estate` on the resources that leave. Each side plans clean
-and nothing is rebuilt; a parent whose marker names another estate never
-anchors a child for this one, whatever a left-behind record says. Needs
-Go. `BREAK=1` does the git half of the carve and never rewrites a tag,
-and both sides must then plan the two-ledger mess stock lives in.
+Needs Go. A stock terralith is adopted with one command, then carved into
+estates by rewriting `tofu-estate` on the resources that leave. Each side
+plans clean and nothing is rebuilt; a parent whose marker names another
+estate never anchors a child for this one, whatever a left-behind record
+says. `BREAK=1` does the repository half of the carve and never rewrites a
+tag, and both sides must then plan the two-ledger mess stock lives in.
 
-### count-is-a-fungible-set (claim 11 until #1817)
+### count-is-a-fungible-set
 
     just smoke count-is-a-fungible-set
     BREAK=1 just smoke count-is-a-fungible-set
@@ -46,8 +39,7 @@ member and rebuilding nothing. A `count` block the configuration names
 through `count.index` gets no slot and binds by `tofu-address`. `BREAK=1`
 deletes the local files and strips one member's slot, and the plan must
 refuse the half-slotted set by name; `BREAK_SLOT=1` stamps a slot where
-none belongs, and the tag check must fail on it. On Kubernetes the case
-does not arise: names are unique per kind and namespace.
+none belongs, and the tag check must fail on it.
 
 ## On Kubernetes
 
@@ -59,12 +51,12 @@ does not arise: names are unique per kind and namespace.
 A Kubernetes estate applies with no AWS provider; kubectl reads
 `tofu-estate` back; `live-ls` lists the estate by its label; the replan is
 empty with the cache deleted; and an `api_version` change of a block's type
-is not a move. `BREAK=1` strips the label, and `live-ls` must drop the
-object while the replan refuses it by name; `BREAK_ANNOTATION=1` strips
-the address annotation from an object whose name is read at plan time,
-and the replan must refuse that block by name.
+is no move. `BREAK=1` strips the label, and `live-ls` must drop the object
+while the replan refuses it by name; `BREAK_ANNOTATION=1` strips the
+address annotation from an object whose name is read at plan time, and the
+replan must refuse that block by name.
 
-### k8s-custom-resource (claim 24 until #1817)
+### k8s-custom-resource
 
     just smoke k8s-custom-resource
     BREAK=1 just smoke k8s-custom-resource
@@ -86,23 +78,5 @@ widen.
 A carve on Kubernetes is one label write through `live-mv -from-estate`
 or `kubectl label`. With the admission policy installed the caller must
 hold both estates; [claim 13's Kubernetes
-scenario](the-tag-is-the-boundary.md#on-kubernetes) measures the refusal
-without the grant and the carve with it (claim 12 until #1817).
-
-## On Azure
-
-### az-identity-is-a-tag
-
-    just smoke az-identity-is-a-tag
-    BREAK=1 just smoke az-identity-is-a-tag
-
-A resource group, a VNet and an identity are applied through azurerm and a
-second identity through `azapi_resource`. The scenario reads `tofu-estate`
-and `tofu-address` back with ARM GETs, and requires an empty replan with no
-state file and with the cache deleted. `BREAK=1` strips `tofu-estate` from
-the VNet with an ARM PATCH: the default replan must refuse the VNet by name
-("Unmarked live object at the declared id would be overwritten") rather
-than PUT over it, and with `policy { declared_untagged = "adopt" }` the
-apply must write the tag back. A plan reaches the Resource Graph sweep.
-Floci-az runs the sweep's Resource Graph query, `union`, `mv-expand` and
-`bag_keys` included, since dfa33ca (lex00/floci-az#11), not yet run ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads unproven.
+scenario](the-tag-is-the-boundary.md#on-kubernetes) shows the refusal
+without the grant and the carve with it.

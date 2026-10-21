@@ -9,7 +9,7 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 <PlatformSwitch />
 
-An object is yours once it carries the `tofu-estate` label. A plan finds it by kind, namespace and name.
+An object is yours once it carries the `tofu-estate` label.
 
 ## The bulk path
 
@@ -17,12 +17,12 @@ An object is yours once it carries the `tofu-estate` label. A plan finds it by k
 choudoufu live-import -state=stock.tfstate -estate=my-estate -approve
 ```
 
-Without `-approve` it previews. Approved, it writes the label and address annotation. It refuses objects labelled for another estate.
+Without `-approve` it previews. Approved, it writes the label and the address annotation.
 
 ## What binds on its own
 
-Every object binds by its natural key. Objects a controller made stay out of adoption. The label goes on with the create call.
+Every object binds by kind, namespace and name.
 
 ## Leaving
 
-`tofu state pull > stock.tfstate` from the `kubernetes` backend gives you the file. Delete that backend's Secret last ([ADOPT.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/ADOPT.md)).
+Run `tofu state pull > stock.tfstate` from the `kubernetes` backend ([ADOPT.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/ADOPT.md)).

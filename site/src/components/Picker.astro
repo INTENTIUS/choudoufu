@@ -2,15 +2,12 @@
 // The home page's picker, in terragucci's DoorPicker shape: what you run today
 // as tiles, where it runs and where records live as switches, and the roles as
 // a line of links. Two cards then say what works for that pick (the tile's
-// room, the record store's line, what carries over, and the board rows and
-// claims that prove it) and the first step. A quiet line under them says what
-// differs. Every list comes from data/rooms.ts, the room pages' source, and
-// every number from data/proof.ts, which counts them at build from live/.
-// The first pick is rendered on the server, so the cards read the same
-// without script.
+// room, the record store's line and what carries over) and the first step. A
+// quiet line under them says what differs. Every list comes from
+// data/rooms.ts, the room pages' source. The first pick is rendered on the
+// server, so the cards read the same without script.
 import Cube from './Cube.astro';
 import { FROM, PLATFORMS, ROLES, STORES, room } from '../data/rooms';
-import { figures, type Figure } from '../data/proof';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (h: string) => (/^https?:/.test(h) ? h : `${base}${h}`);
@@ -20,14 +17,13 @@ const tiles = FROM.map((f) => {
 });
 const platforms = PLATFORMS.map((p) => {
 	const r = room(p.room);
-	return { id: p.id, label: p.label, room: href(`/for/${p.room}/`), title: r.title, differs: r.differs, figures: figures([p.id]).map((f) => ({ ...f, href: href(f.href) })) };
+	return { id: p.id, label: p.label, room: href(`/for/${p.room}/`), title: r.title, differs: r.differs };
 });
 const stores = STORES.map((s) => ({ ...s, href: href(s.href) }));
 const data = { tiles, platforms, stores };
 const [tile] = tiles;
 const [platform] = platforms;
 const [store] = stores;
-const figureText = (f: Figure) => `${f.value} ${f.label} (${f.measured}).`;
 ---
 <section class="cd-picker not-content" aria-label="Where to start">
 	<div class="tiles" role="group" aria-label="What you run today">
@@ -68,9 +64,6 @@ const figureText = (f: Figure) => `${f.value} ${f.label} (${f.measured}).`;
 				<p class="h from" data-carries-title>Carries over from {tile.label}</p>
 				<ul class="cube-list" data-carries-list>{tile.carries.map((c) => <li>{c}</li>)}</ul>
 			</div>
-			<ul class="proof" data-proof>
-				{platform.figures.map((f) => <li><a href={f.href}>{figureText(f)}</a></li>)}
-			</ul>
 		</div>
 		<div class="card">
 			<p class="h">First step</p>
@@ -89,7 +82,7 @@ const figureText = (f: Figure) => `${f.value} ${f.label} (${f.measured}).`;
 	type Link = { label: string; href: string };
 	type Data = {
 		tiles: { id: string; label: string; room: string; title: string; works: string[]; differs: string[]; carries: string[]; first: Link }[];
-		platforms: { id: string; label: string; room: string; title: string; differs: string[]; figures: { value: string; label: string; measured: string; href: string }[] }[];
+		platforms: { id: string; label: string; room: string; title: string; differs: string[] }[];
 		stores: { id: string; label: string; line: string; href: string }[];
 	};
 	const key = 'cd-picker';
@@ -120,7 +113,6 @@ const figureText = (f: Figure) => `${f.value} ${f.label} (${f.measured}).`;
 			$('[data-carries]').hidden = !tile.carries.length;
 			$('[data-carries-title]').textContent = `Carries over from ${tile.label}`;
 			$('[data-carries-list]').replaceChildren(...tile.carries.map((c) => li(c)));
-			$('[data-proof]').replaceChildren(...platform.figures.map((f) => li(link(`${f.value} ${f.label} (${f.measured}).`, f.href))));
 			const go = $<HTMLAnchorElement>('[data-first]');
 			go.href = tile.first.href;
 			go.textContent = tile.first.label;
@@ -310,22 +302,6 @@ const figureText = (f: Figure) => `${f.value} ${f.label} (${f.measured}).`;
 	}
 	.card :global(a) {
 		color: var(--cd-accent);
-	}
-	.proof {
-		display: grid;
-		gap: 0.3rem;
-		margin: 1rem 0 0;
-		padding: 0.75rem 0 0;
-		list-style: none;
-		border-top: 1px solid var(--cd-rule);
-		font-size: var(--sl-text-xs);
-	}
-	.proof :global(li) {
-		margin: 0;
-	}
-	.proof :global(a) {
-		color: var(--sl-color-gray-2);
-		text-decoration-color: var(--cd-gold);
 	}
 	.go {
 		display: inline-block;

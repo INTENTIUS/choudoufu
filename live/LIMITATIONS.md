@@ -2997,6 +2997,7 @@ refused, and each says so in its own entry.
 | - | - | projection | Residue record could not be read | error | `internal/live/projection` | "Residue record could not be read" |
 | - | - | projection | Resolved instance missing from the configuration | error | `internal/live/projection` | "Resolved instance missing from the configuration" |
 | - | - | projection | Resource type has no classic Importer | error | `internal/live/projection` | "Resource type has no classic Importer" |
+| - | - | projection | Several moved-from addresses hold a record | error | `internal/live/projection` | "Several moved-from addresses hold a record" |
 | - | - | projection | The destroy left record-backed instances behind | error | `internal/live/projection` | "The destroy left record-backed instances behind" |
 | - | - | projection | The estate boundary policy refused this run's record write | error | `internal/live/projection` | "The estate boundary policy refused this run's record write" |
 | - | - | projection | The record store contradicts itself about a record | error | `internal/live/projection` | "The record store contradicts itself about a record" |
@@ -3004,13 +3005,14 @@ refused, and each says so in its own entry.
 | - | - | projection | This estate may not read another estate's outputs | error | `internal/live/projection` | "This estate may not read another estate's outputs" |
 | - | - | projection | Unlabelled live object holds the declared name | error | `internal/live/projection` | "Unlabelled live object holds the declared name" |
 | - | - | projection | Unmarked live object at the declared id would be overwritten | error | `internal/live/projection` | "Unmarked live object at the declared id would be overwritten" |
+| - | - | projection | Unrecorded live object at a declared identity | warning | `internal/live/projection` | "Unrecorded live object at a declared identity" |
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
 | - | - | projection | Values from another estate are as of its last apply | warning | `internal/live/projection` | "Values from another estate are as of its last apply" |
 | - | - | projection | Values from another estate are as that estate's plan proposes them | warning | `internal/live/projection` | "Values from another estate are as that estate's plan proposes them" |
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**295 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**297 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -5058,6 +5060,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Several moved-from addresses hold a record
+
+**What.** A declared markerless instance with no record at its own address, under the 2026-10-20 ruling, is owned when exactly one address its honoured moved blocks lead from holds a record: a stock moved block does not re-key the record store, so after a rename the record sits at the old address. When more than one such address holds a record, nothing says which is this instance's, so the plan stops and names the instance and every recorded moved-from address rather than picking one or planning a create. Removing the stale records, or using live-mv, which moves a record to its new address, clears it.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### The destroy left record-backed instances behind
 
 **What.** GitHub issue #1355: a destroy of the whole estate finished, and the record store still holds a record-backed instance's record that the destroy's plan never listed. For a record-backed resource the record is the instance, so it was not destroyed, and the run fails rather than report a complete destroy.
@@ -5100,7 +5110,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Unlabelled live object holds the declared name
 
-**What.** GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = "adopt" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected.
+**What.** GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = "adopt" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected. The same refusal stops a declared markerless instance with no record whose provider family says a create at a held identity collides (the 2026-10-20 ruling); no family registered today says so.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
@@ -5109,6 +5119,14 @@ reserved for the limits wing's fixture directories, and
 #### Unmarked live object at the declared id would be overwritten
 
 **What.** GitHub issue #1120, ruled on #1122: a declared Azure resource (azurerm, or azapi_resource) was read at the ARM id its block declares, and it carries no tofu-estate tag. Under declared_untagged's default the plan would propose creating it, and an ARM create is a PUT, which updates an object already at that id instead of failing; the run stops instead, before anything is applied. Both providers read the id before their PUT and fail the apply when an object is there, azapi_resource always and azurerm for most types unless its features block sets skip_import_check_on_create_and_allow_overwriting_existing_resources, so the refusal is usually earlier than an apply-time error and, under azurerm with that flag or a type that skips the read, the only guard against a silent takeover (GitHub issue #2133); the message says which applies to the resource's provider. It holds under declared_untagged = "refuse" (the default), "keep" and "report": unlike #1546's refusal, keep and report do not soften it, since those verbs leave the same create standing, and lint's policy-overwrite-at-key refuses them before any plan. "adopt" and "converge" never reach it, because they admit the object first and the plan writes this estate's markers onto it. policy { declared_untagged = "adopt" } adopts the object, and writing the tofu-estate and tofu-address tags onto it does the same by hand. An azapi_resource whose ARM type takes no tags at its API version (Microsoft.Authorization/roleAssignments, for one) carries no marker and none is looked for: a record in the estate's record store binding it admits it, and without one the message names that record as the missing carrier and offers adopt and live-import -approve, which write it, never tags. An absent object never triggers this; an object carrying another estate's marker, or this estate's for another address, is refused under its own summary, "Live object marked for another owner at the declared id would be overwritten" (GitHub issue #2135); AWS and Kubernetes types are unaffected.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Unrecorded live object at a declared identity
+
+**What.** The maintainer's ruling of 2026-10-20: a declared instance of a type with no marker surface was read live at the identity its configuration computes, and the estate's record store holds no record of it, so nothing says this estate made the object. It is left out of the prior state and the plan proposes the create, as stock does for an object its state does not hold. A destroy that left the object in place (a google_project_service with disable_on_destroy unset) and a lost record store both end here. AWS types are unaffected: their untaggable types are attachments owned through their tagged parents. Restoring the record store, live-import from a state file, or policy { declared_untagged = "adopt" } admits the object.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

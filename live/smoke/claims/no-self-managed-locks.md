@@ -5,19 +5,10 @@ claim: no-self-managed-locks
 
 # Claim 2: Nothing is held
 
-Stock takes a lock before it touches state, because two writers corrupting
-one file is fatal when the file is the record, and a run that dies holding
-the lock strands the next one until someone runs `force-unlock`. Nothing
-here takes a lock. Two applies racing on a resource are refereed by the
-platform's own uniqueness rules, two racing on a record by one
-conditional write that lands or is refused, and two saved plans racing on
-an attribute the provider reads back by the apply's re-read of the live
-system. A run killed at any point leaves nothing behind for the next run
-to clear.
-
-Two plain `apply` runs that change the same attribute of one cloud
-resource, one the provider reads back, are last-writer-wins at the cloud
-API, as they are under stock.
+Nothing takes a lock. The platform's uniqueness rules referee racing
+applies on a resource, one conditional write referees racing writes on a
+record, and a run killed at any point leaves nothing for the next run to
+clear.
 
 Each scenario runs from the repository root and ends on a `PASS` line; its
 `BREAK=1` run breaks the thing the proof rests on and must print a
@@ -33,12 +24,10 @@ Each scenario runs from the repository root and ends on a `PASS` line; its
 `force-unlock` refuses with the true reason, that there is no lock. Two
 applies of one client-named IAM role start together; the cloud's
 name-uniqueness referees, "Acquiring state lock" appears in neither
-output, and the loser's next plan is `No changes.` Server-assigned
-resources can really duplicate, and the duplicate surfaces as a named pair
-for a human to resolve with one delete. `BREAK=1` strips the race winner's
-marker, and convergence must fail.
+output, and the loser's next plan is `No changes.` `BREAK=1` strips the
+race winner's marker, and convergence must fail.
 
-### two-writers-one-record (claim 32 until #1817)
+### two-writers-one-record
 
     just smoke two-writers-one-record
     BREAK=1 just smoke two-writers-one-record
@@ -47,31 +36,25 @@ Every record write is one conditional `PutObject` carrying the version it
 read (`If-Match`). A proxy holds two applies' writes until both are in
 flight, over several rounds: exactly one lands, the other is told the
 version it expected and the one it found, and its recovery is an ordinary
-re-plan. A writer killed mid-write strands nothing. `BREAK=1` rebuilds
-choudoufu with no `If-Match` (`go build -overlay`, so it needs Go), and
-both racing applies must be caught reporting success over one record.
+re-plan. A writer killed mid-write strands nothing. Needs Go. `BREAK=1`
+rebuilds choudoufu with no `If-Match` (`go build -overlay`), and both
+racing applies must be caught reporting success over one record.
 
-Two approved plans that change one attribute the provider reads back from
-the cloud are refereed by the apply's re-read, which is claim 15's
-mechanism: that race is steps 8-14 of
-[apply-what-was-approved](apply-what-was-approved.md#on-aws), and was
-two-saved-plans-one-attribute here until it merged there.
-backend-sets-itself-up (claim 4) was dropped: a killed apply stranding
-nothing is two-writers-one-record's last step, and the bucket `just up`
-builds is the recommended secure configuration demo's.
+Two approved plans that change one attribute the provider reads back are
+refereed by the apply's re-read: steps 8-14 of
+[apply-what-was-approved](apply-what-was-approved.md#on-aws).
 
-### cas-holds-under-every-sse-flavour (claim 33 until #1817; real AWS)
+### cas-holds-under-every-sse-flavour
 
     SMOKE_REAL_AWS=1 just smoke cas-holds-under-every-sse-flavour
     SMOKE_REAL_AWS=1 BREAK=1 just smoke cas-holds-under-every-sse-flavour
 
-Maintainer-run: an emulator does not reproduce the ETag semantics that are
-the subject. The conditional write holds under SSE-S3, SSE-KMS with the
-AWS-managed key, SSE-KMS with a customer managed key and DSSE-KMS, because
-the store treats the ETag as opaque. `BREAK=1` builds a binary that checks
-each ETag is the MD5 of the payload, a check someone might add in good
-faith; it must work under SSE-S3 and fail, on that check alone, under all
-three KMS flavours.
+Real AWS, maintainer-run with `SMOKE_REAL_AWS=1`. Needs Go. The
+conditional write holds under SSE-S3, SSE-KMS with the AWS-managed key,
+SSE-KMS with a customer managed key and DSSE-KMS, because the store
+treats the ETag as opaque. `BREAK=1` builds a binary that checks each
+ETag is the MD5 of the payload; it must work under SSE-S3 and fail, on
+that check alone, under all three KMS flavours.
 
 ## On Kubernetes
 
@@ -81,16 +64,12 @@ three KMS flavours.
     BREAK=1 just smoke k8s-records-in-the-cluster
 
 The scenario is [claim 29's](a-wrong-bucket-is-refused.md#on-kubernetes);
-two of its steps are this claim on the cluster's record store
+steps 3 and 10 are this claim on the cluster's record store
 (`record_store "kubernetes"`, one Secret per record, `resourceVersion` as
 the conditional write). Step 3 kills an apply with SIGKILL and the next
 run carries on, with no Lease and nothing lock-shaped in the records
 namespace. Step 10 holds two writers' first requests on the wire until
-both are parked: twelve rounds, each landing one write and refusing the
-other with a conflict naming both versions, no Lease taken. Its `BREAK=1`
-control swaps each write for the stock `backend "kubernetes"`
+both are parked: in each of twelve rounds one write lands and the other
+is refused with a conflict naming both versions, and no Lease is taken.
+`BREAK=1` swaps each write for the stock `backend "kubernetes"`
 read-then-update, and all twelve rounds must end with both writes landed.
-
-## On Azure
-
-Open. Nothing has run on Azure yet. `record_store "azurerm"` creates with `If-None-Match: *`, updates and deletes with `If-Match` on the ETag, and takes no lease ([the contract](../../../examples/record-store-azurerm/CONTRACT.md)); no race of two writers is written for floci-az.

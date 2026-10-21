@@ -1191,6 +1191,14 @@ func (b *builder) applyRecordFirst(ctx context.Context, resolutions []identity.R
 // ([retireMovedRecords]).
 func (b *builder) materializeFromRecord(ctx context.Context, r identity.Resolution) bool {
 	rec, version, keyExists, identityFound, viaAlias, err := b.locatedIdentityWithAliases(ctx, r.Addr)
+	// Several recorded moved-from addresses: nothing here says which is this
+	// instance's. The declared-identity path refuses it by name, every
+	// candidate listed (main's [SummaryMovedRecordsAmbiguous], merged with
+	// this door's alias lookup), so the record-first door steps aside.
+	var ambiguous *movedAliasesAmbiguousError
+	if errors.As(err, &ambiguous) {
+		return false
+	}
 	if err != nil {
 		detail := fmt.Sprintf("Reading the record for %s failed: %s.", r.Addr, err)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a persisted record", detail))
