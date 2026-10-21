@@ -1211,6 +1211,15 @@ type declared struct {
 	// when the run has no record store, which answers every question
 	// "the record says nothing".
 	records *recordOwners
+
+	// deposed is [Request.DeposedRecords]: the deposed objects this
+	// estate's record names per declared address. [declared.displacedFrom]
+	// reads it for a live object at a concrete address whose identity the
+	// configuration no longer computes, which is how the old half of an
+	// interrupted create_before_destroy rename is seen on a leg that files
+	// such an object as displaced rather than as a second claimant (the
+	// Resource Graph leg, #1120). See [verdictDeposed].
+	deposed map[string]map[string]projection.DeposedRecord
 }
 
 // declaredAddress is one escaped marker value the configuration declares, and
@@ -1441,6 +1450,7 @@ func declaredInstances(ctx context.Context, req Request) (*declared, tfdiags.Dia
 		unreadable:   make(map[string]int),
 		all:          make(map[string]map[string]*declaredAddress, len(req.Resolutions)),
 		records:      newRecordOwners(req),
+		deposed:      req.DeposedRecords,
 	}
 
 	// The moved blocks this configuration's markers can follow (GitHub issue
@@ -2757,6 +2767,8 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			case verdictIdentityChanging:
 				// Issue #885: neither reported nor vouched. See
 				// [verdictIdentityChanging].
+			case verdictDeposed:
+				res.DeposedBindings = decl.appendDeposedBinding(res.DeposedBindings, bindType, escaped, c)
 			case verdictUncompared:
 				// GitHub issue #2137: no comparison could run, so the
 				// sighting is unproven and neither reported nor vouched.
@@ -4819,7 +4831,7 @@ func matchDeposedClaimant(req Request, addr addrs.AbsResourceInstance, claimants
 	claimantIdx = -1
 	for dk, candidate := range perAddr {
 		for i, c := range claimants {
-			if deposedClaimantMatches(candidate, c) {
+			if deposedClaimantMatches(addr.Resource.Resource.Type, candidate, c) {
 				matches++
 				rec, deposedKey, claimantIdx = candidate, dk, i
 			}
@@ -4838,8 +4850,11 @@ func matchDeposedClaimant(req Request, addr addrs.AbsResourceInstance, claimants
 // property (identified by one string, or by several named components) every
 // admitted type already has one of. The comparison is
 // [recordIdentityMatches], shared with the three sibling matchers.
-func deposedClaimantMatches(rec projection.DeposedRecord, c claimant) bool {
-	return recordIdentityMatches(recordIdentity(rec.ImportID, rec.SecondaryID, rec.Components), c.importID, c.identity)
+//
+// typeName is the type of the address the deposed object was recorded for;
+// see [recordIdentityNames.ofType].
+func deposedClaimantMatches(typeName string, rec projection.DeposedRecord, c claimant) bool {
+	return recordIdentityMatches(recordIdentity(rec.ImportID, rec.SecondaryID, rec.Components).ofType(typeName), c.importID, c.identity)
 }
 
 func collisionProblem(req Request, typeName string, entry *declaredEntry) Problem {

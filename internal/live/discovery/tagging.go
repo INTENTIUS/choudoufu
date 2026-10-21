@@ -1599,6 +1599,8 @@ func fileCandidate(ctx context.Context, req Request, decl *declared, typeName st
 		case verdictIdentityChanging:
 			// Issue #885: neither reported nor vouched. See
 			// [verdictIdentityChanging].
+		case verdictDeposed:
+			res.DeposedBindings = decl.appendDeposedBinding(res.DeposedBindings, bindType, escaped, claim)
 		case verdictUncompared:
 			// No comparison could run (an Azure sighting with no ARM id on
 			// the address's side, or, since GitHub issue #2137, any
