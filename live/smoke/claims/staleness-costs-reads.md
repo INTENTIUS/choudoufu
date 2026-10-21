@@ -79,11 +79,3 @@ sweep vouched for from the cache and skips their reads (65 requests
 against 74 on the first run), and the two plans print the same answer.
 `BREAK=1` deletes the cache first, and the plan must serve nothing and pay
 the full price.
-
-## On GCP
-
-No GCP scenario is written yet, so the cell is open. A plan with no cache
-reads the markers out of `effective_labels`, because hashicorp/google's
-`labels` and `terraform_labels` keep only the keys a prior named, and
-mirrors them back, so a fresh cache, a stale one and none should give one
-plan.
