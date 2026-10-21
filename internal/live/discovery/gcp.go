@@ -21,6 +21,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -127,6 +128,8 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 	}
 
 	declared, _ := declaredGoogleAddresses(req.Resolutions)
+	stmts := moved.Honoured(req.Config)
+	declared.aliasMoved(req.Resolutions, stmts)
 	demand := g.googleDemand(decl)
 	projects := GCPSweepProjectsIn(ctx, req.Config, g.Project, req.Resolutions)
 	if len(projects) == 0 {
@@ -518,6 +521,41 @@ func declaredGoogleAddressesWith(resolutions []identity.Resolution, instanceValu
 		out.blocks[b] = block
 	}
 	return out, diags
+}
+
+// aliasMoved files each declared google instance under the labels of the
+// addresses a moved block says it used to have ([moved.Aliases]), and its
+// block under their block parts, as the AWS tag sweep files a declared
+// instance under each moved-from address ([declared.record]). A moved block
+// leaves the old label on the live object until the plan's label rewrite
+// lands, so a hit carrying it is that instance's object, not an orphan
+// (reference-gcp's day2_rename). An alias never displaces a label a
+// declared instance or block owns.
+func (g googleDeclared) aliasMoved(resolutions []identity.Resolution, stmts []moved.Statement) {
+	if len(stmts) == 0 {
+		return
+	}
+	instances := map[string]addrs.AbsResourceInstance{}
+	blocks := map[string]addrs.AbsResource{}
+	for _, r := range resolutions {
+		if !strings.HasPrefix(r.Type(), "google_") {
+			continue
+		}
+		for _, origin := range moved.Aliases(stmts, r.Addr) {
+			instances[markers.GoogleAddressValue(origin)] = r.Addr
+			blocks[markers.GoogleBlockValue(origin.ContainingResource())] = r.Addr.ContainingResource()
+		}
+	}
+	for v, addr := range instances {
+		if _, taken := g.instances[v]; !taken {
+			g.instances[v] = addr
+		}
+	}
+	for v, block := range blocks {
+		if _, taken := g.blocks[v]; !taken {
+			g.blocks[v] = block
+		}
+	}
 }
 
 // SummaryGCPAddressCollision is the refusal of two declared google
