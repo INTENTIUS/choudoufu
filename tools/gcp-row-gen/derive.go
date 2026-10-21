@@ -458,6 +458,13 @@ func decideIAM(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Dec
 	if computed {
 		parent = src.IAMComputedFormat
 	}
+	if src.IAMResourceIDUnread != "" && !computed {
+		// The import string parses as the parent, but the create's id is
+		// GetResourceId's, which runs the argument through code this
+		// generator did not read: a row over the argument as written
+		// would name a parent the provider never builds (#2145).
+		return unrowed(false, "the IAM updater's GetResourceId rebuilds the parent through code of its own (%s), which no row composes from configuration yet", src.IAMResourceIDUnread)
+	}
 	// The qualifier list is carried only where its first regex is the
 	// parent template itself, the shape every GetResourceId rebuilds; a
 	// list that disagrees leaves the component marked with none, and a
@@ -488,6 +495,19 @@ func decideIAM(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Dec
 				comp.LongForm = identity.LongFormComputedName
 				comp.Qualifiers = []string{src.IAMComputedPattern}
 			}
+		}
+		if prefix, ok := src.IAMResourceIDPrefixes[tok.name]; ok {
+			// GetResourceId adds a prefix the value lacks
+			// (CanonicalFolderId), so "123" names the parent
+			// "folders/123".
+			if comp.LongForm != "" {
+				return unrowed(false, "the IAM updater both parses {{%s}} as a long name and adds the prefix %q to it, which no row composes", tok.name, prefix)
+			}
+			if _, cloud := iamCloud(src, tfs, tok.name); cloud {
+				return unrowed(false, "the IAM updater adds the prefix %q to {{%s}}, which falls back to a provider default no row prefixes", prefix, tok.name)
+			}
+			comp.LongForm = identity.LongFormEnsurePrefix
+			comp.Qualifiers = []string{prefix}
 		}
 		if cloud, ok := iamCloud(src, tfs, tok.name); ok && flag != "R" {
 			if flag != "" {

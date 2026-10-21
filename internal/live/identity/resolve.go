@@ -1768,7 +1768,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		// is punctuation in the import-ID STRING, not part of the identity
 		// ATTRIBUTE's value, so it is carried as the segment's prefix and
 		// added to parts only.
-		emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, comp.Literal)
+		emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, ensuredPrefix(comp, got))
 	}
 	if !failed {
 		if group, ok := emptyAtLeastOneOf(entry.Components, segs); ok {

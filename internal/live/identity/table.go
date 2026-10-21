@@ -616,7 +616,7 @@ type Component struct {
 	// Qualifiers are the regexes the provider matches a [LongFormIAMParent]
 	// or [LongFormComputedName] value against, in the provider's order and
 	// spelled as its source spells them. For [LongFormTrimPrefix] it is the
-	// one literal prefix trimmed. Empty on a LongForm component,
+	// one literal prefix trimmed, for [LongFormEnsurePrefix] the one added. Empty on a LongForm component,
 	// the generator could not read the list, and a value that needs one
 	// refuses the instance by name.
 	Qualifiers []string
@@ -660,6 +660,15 @@ const (
 	// the id: resourcemanager.ParseFolderId turns "folders/123" and "123"
 	// alike into "123" (#2145 item 1).
 	LongFormTrimPrefix LongFormRule = "trim-prefix"
+
+	// LongFormEnsurePrefix is an argument a hand-written IAM updater
+	// passes through a helper that adds the sole entry of
+	// [Component.Qualifiers] to a value that lacks it before the value
+	// becomes the parent id: resourcemanager.CanonicalFolderId turns "123"
+	// and "folders/123" alike into "folders/123". The prefix is part of
+	// the import ID only; the identity attribute keeps the value as
+	// written, as the provider's state does.
+	LongFormEnsurePrefix LongFormRule = "ensure-prefix"
 )
 
 // describe is what the provider does to such a value, as a sentence for
@@ -674,6 +683,8 @@ func (l LongFormRule) describe() string {
 		return "The provider's IAM updater keeps this argument whole when it is already a full resource name and places it into the parent template otherwise"
 	case LongFormTrimPrefix:
 		return "The provider's create trims a fixed prefix off this argument's value"
+	case LongFormEnsurePrefix:
+		return "The provider's IAM updater adds a fixed prefix to this argument's value when the value lacks it"
 	}
 	return "The provider rewrites this argument's value before it becomes part of the id"
 }

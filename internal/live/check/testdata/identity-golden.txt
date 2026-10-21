@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=726 instances=2520
-# shape: class CONCRETE=1566
+# shape: dirs=726 instances=2523
+# shape: class CONCRETE=1569
 # shape: class NEEDS_DISCOVERY=789
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=695 fixture-instances=1816
+# shape: fixture-dirs=695 fixture-instances=1819
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=1af560e05d6f4453c31e04b4ce29c5d8a4796c642444d8c76436a0220d27edaf
+# shape: body-sha256=b3df4cb76383fd64c3e48834d1a0d9afaab151dbb65976d9ea3d111df9bed387
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -403,9 +403,12 @@ internal/live/identity/testdata/gcp-handwritten	google_logging_project_sink.audi
 internal/live/identity/testdata/gcp-handwritten	google_organization_policy.org	CONCRETE	1234/constraints/compute.skipDefaultNetworkCreation	constraint=constraints/compute.skipDefaultNetworkCreation,org_id=1234
 internal/live/identity/testdata/gcp-handwritten	google_project_organization_policy.serial	CONCRETE	estate-prod:compute.disableSerialPortAccess	constraint=compute.disableSerialPortAccess,project=estate-prod
 internal/live/identity/testdata/gcp-iam-parse	google_bigquery_dataset_iam_member.ds	CONCRETE	projects/estate-prod/datasets/analytics roles/bigquery.dataViewer group:a@example.com	dataset_id=analytics,member=group:a@example.com,role=roles/bigquery.dataViewer
+internal/live/identity/testdata/gcp-iam-parse	google_billing_account_iam_member.ba	CONCRETE	012345-6789AB-CDEF01 roles/billing.viewer group:a@example.com	billing_account_id=012345-6789AB-CDEF01,member=group:a@example.com,role=roles/billing.viewer
 internal/live/identity/testdata/gcp-iam-parse	google_dataproc_cluster_iam_member.cl	CONCRETE	projects/estate-prod/regions/europe-west1/clusters/batch roles/dataproc.viewer group:a@example.com	cluster=batch,member=group:a@example.com,role=roles/dataproc.viewer
 internal/live/identity/testdata/gcp-iam-parse	google_dataproc_metastore_database_iam_member.long	CONCRETE	projects/other/locations/us-east1/services/meta/databases/sales roles/metastore.user group:a@example.com	database=sales,location=us-east1,member=group:a@example.com,project=other,role=roles/metastore.user,service_id=meta
 internal/live/identity/testdata/gcp-iam-parse	google_dataproc_metastore_database_iam_member.short	CONCRETE	projects/estate-prod/locations/europe-west1/services/meta/databases/sales roles/metastore.user group:a@example.com	database=sales,member=group:a@example.com,role=roles/metastore.user,service_id=meta
+internal/live/identity/testdata/gcp-iam-parse	google_folder_iam_member.long	CONCRETE	folders/456 roles/viewer group:a@example.com	folder=folders/456,member=group:a@example.com,role=roles/viewer
+internal/live/identity/testdata/gcp-iam-parse	google_folder_iam_member.short	CONCRETE	folders/123 roles/viewer group:a@example.com	folder=123,member=group:a@example.com,role=roles/viewer
 internal/live/identity/testdata/gcp-iam-parse	google_iap_app_engine_service_iam_member.svc	CONCRETE	projects/estate-prod/iap_web/appengine-estate-prod/services/default roles/iap.httpsResourceAccessor group:a@example.com	app_id=estate-prod,member=group:a@example.com,role=roles/iap.httpsResourceAccessor,service=default
 internal/live/identity/testdata/gcp-iam-parse	google_spanner_database_iam_member.db	CONCRETE	estate-prod/core/ledger roles/spanner.databaseReader group:a@example.com	database=ledger,instance=core,member=group:a@example.com,role=roles/spanner.databaseReader
 internal/live/identity/testdata/gcp-iam-parse	google_spanner_instance_iam_member.inst	CONCRETE	estate-data/core roles/spanner.viewer group:a@example.com	instance=core,member=group:a@example.com,project=estate-data,role=roles/spanner.viewer

@@ -141,6 +141,12 @@ type Source struct {
 	IAMResourceID       string `json:"iam_resource_id,omitempty"`
 	IAMResourceIDUnread string `json:"iam_resource_id_unread,omitempty"`
 
+	// IAMResourceIDPrefixes are the arguments of IAMResourceID that the
+	// updater passes through a helper adding a fixed prefix the value
+	// lacks, by argument: {"folder": "folders/"} for CanonicalFolderId,
+	// so a folder of "123" is the parent "folders/123".
+	IAMResourceIDPrefixes map[string]string `json:"iam_resource_id_prefixes,omitempty"`
+
 	// IAMParseUnset are the values-map keys the IdParseFunc's updater
 	// struct reads that nothing in that function sets: "" after every
 	// import (parseUnsetKeys, #2145 item 7).

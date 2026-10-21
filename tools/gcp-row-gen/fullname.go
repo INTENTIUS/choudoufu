@@ -27,6 +27,15 @@ var (
 	// the id made from that attribute's value.
 	importNameSetRe = regexp.MustCompile(`(?s)tpgresource\.ParseImportId\(\[\]string\{(.*?)\}, d, config\).*?d\.Set\("([a-z0-9_]+)", "([^"]+)"\).*?\bid, err := tpgresource\.ReplaceVars\(d, config, d\.Get\("([a-z0-9_]+)"\)\.\(string\)\)`)
 
+	// importIDNameSetRe is the same rule spelled the other way round:
+	// ParseImportId, then the id made from a template, then that id set
+	// as the attribute (vertex_ai_tensorboard): `id, err :=
+	// tpgresource.ReplaceVars(d, config, "projects/.../{{name}}")`,
+	// `d.SetId(id)`, `d.Set("name", id)`, with nothing between that could
+	// change id (bigquery_analytics_hub_listing_subscription rebuilds it
+	// from a project number in between, and is not this shape).
+	importIDNameSetRe = regexp.MustCompile(`(?s)tpgresource\.ParseImportId\(\[\]string\{(.*?)\}, d, config\).*?\bid, err := tpgresource\.ReplaceVars\(d, config, "([^"]+)"\)\s*if err != nil \{[^}]*\}\s*d\.SetId\(id\)\s*if err := d\.Set\("([a-z0-9_]+)", id\); err != nil`)
+
 	// importIDSetRe is an importer that does nothing but set one
 	// attribute to the whole import ID: `if err := d.Set("name", d.Id());
 	// err != nil { return nil, err }`, then return.
@@ -53,6 +62,12 @@ func readImporterShapes(s *Source, text string) {
 	}
 	if n := importNameSetRe.FindStringSubmatch(body); n != nil && n[2] == n[4] {
 		ns := &ImportNameSet{Attr: n[2], Template: n[3]}
+		for _, q := range quotedRe.FindAllStringSubmatch(n[1], -1) {
+			ns.Regexes = append(ns.Regexes, q[1])
+		}
+		s.ImportNameSet = ns
+	} else if n := importIDNameSetRe.FindStringSubmatch(body); n != nil {
+		ns := &ImportNameSet{Attr: n[3], Template: n[2]}
 		for _, q := range quotedRe.FindAllStringSubmatch(n[1], -1) {
 			ns.Regexes = append(ns.Regexes, q[1])
 		}
