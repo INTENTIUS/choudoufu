@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec",
-  "banner": "Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 2 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-21T14:43:37Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "46 of 46 estates have a recorded run duration, totaling 13h36m1.3s, but not from one sweep: 8h32m40.9s across 18 estate(s) at commit `2f02038dd1`; 9m19.2s across 2 estate(s) at commit `31639780dd`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "**46 of 46 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 20 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-azapi-role-assignment, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-govuk-cluster-services, corpus-hongbomiao-labelbox, corpus-iam-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-azure, reference-ec2-vpc, reference-eks, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-argo-cd, reference-k8s-helm-cloudnative-pg, reference-k8s-helm-external-secrets, reference-k8s-helm-ingress-nginx, reference-k8s-helm-keda, reference-k8s-helm-kyverno, reference-k8s-helm-metallb, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads, reference-k8s-yaml-rollouts, terralith-scale.",
+  "banner": "Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 2 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-21T16:24:51Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "46 of 46 estates have a recorded run duration, totaling 13h40m11.7s, but not from one sweep: 8h32m40.9s across 18 estate(s) at commit `2f02038dd1`; 13m29.6s across 2 estate(s) at commit `4b34e44e3e`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "script_banner": "**44 of 46 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 20 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-govuk-cluster-services, corpus-hongbomiao-labelbox, corpus-iam-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-eks, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-argo-cd, reference-k8s-helm-cloudnative-pg, reference-k8s-helm-external-secrets, reference-k8s-helm-ingress-nginx, reference-k8s-helm-keda, reference-k8s-helm-kyverno, reference-k8s-helm-metallb, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads, reference-k8s-yaml-rollouts, terralith-scale.",
   "provider_banner": "Estates were last measured against different hashicorp/aws versions: 20 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 17 against `3.2.1` (current pin), 3 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
   "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 46 estates measured so far, 46 recorded running on it.",
@@ -3330,7 +3330,7 @@
       "set": "growing",
       "lane": "azure",
       "substrate": "floci-az",
-      "clear": false,
+      "clear": true,
       "source": "Azure/terraform-provider-azapi examples/Microsoft.Authorization_roleAssignments@2022-04-01 (tag v2.13.0), the azapi provider's own published role-assignment example: a resource group through azapi_resource, an azurerm_user_assigned_identity, the built-in AcrPull role read with data \"azurerm_role_definition\", and an azapi_resource role assignment granting it at the group's scope; the azure lane's first published estate, run against floci-az (#1120). Built and not yet run",
       "url": "https://github.com/Azure/terraform-provider-azapi.git",
       "pin": "v2.13.0",
@@ -3345,35 +3345,33 @@
         "pass",
         "pass",
         "pass",
-        "not run",
-        "not run",
         "pass",
         "pass",
         "pass",
-        "not run",
-        "not run"
+        "pass",
+        "pass",
+        "pass",
+        "pass"
       ],
-      "runtime_total": "3m3s",
-      "runtime_cells": "cold_deploy 1m43s, migrate 5s, test_plan 1s, test_apply 2s, drift_reconverge 5s, day2_rename 7s, day2_remove 5s, day2_count 14s, day2_replace -, day2_crash -, day2_teardown 3s, plan_approval 7s, greenfield 28s, strict 2s, no_local_state -",
-      "last_run_note": "Last run at commit `31639780dd` on 2026-10-21T14:40:24Z, exit code 0, against floci-az image `ghcr.io/lex00/floci-az@sha256:a417b3934fc5254085b75285038d34b091e38b49c2383c6b4ea7e82eb50180e0`. Total run time 3m3s.",
+      "runtime_total": "3m16.3s",
+      "runtime_cells": "cold_deploy 1m25s, migrate 7s, test_plan 1s, test_apply 2s, drift_reconverge 5s, day2_rename 6s, day2_remove 5s, day2_count 13s, day2_replace 14s, day2_crash 15s, day2_teardown 2s, plan_approval 6s, greenfield 28s, strict 3s, no_local_state 4s",
+      "last_run_note": "Last run at commit `4b34e44e3e` on 2026-10-21T16:17:54Z, exit code 0, against floci-az image `ghcr.io/lex00/floci-az@sha256:a417b3934fc5254085b75285038d34b091e38b49c2383c6b4ea7e82eb50180e0`. Total run time 3m16.3s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-azapi-role-assignment/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "1m43s",
+          "duration": "1m25s",
           "detail": "3 resources (an azapi resource group, an azurerm user-assigned identity, an azapi role assignment granting it AcrPull, read through data \"azurerm_role_definition\") from plain terraform on the published root plus its deltas (the lane's provider pins, the endpoint lock in both provider blocks) against floci-az ghcr.io/lex00/floci-az@sha256:a417b3934fc5254085b75285038d34b091e38b49c2383c6b4ea7e82eb50180e0; a real terraform.tfstate with 3 managed instances, zero tofu-estate tags read back through ARM, the role assignment answering at its id; the identical root cold-deployed by stock on a second container as every later stage's oracle"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "5s",
-          "detail": "2 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped; both taggable resources (the resource group and the identity) carry tofu-estate=corpus-azapi-role-assignment, read back through ARM, and the role assignment, which has no tags at any API version, is the 1 skipped and is held by its record"
+          "duration": "7s",
+          "detail": "2 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped; both taggable resources (the resource group and the identity) carry tofu-estate=corpus-azapi-role-assignment, read back through ARM, and the role assignment, which has no tags at any API version, is the 1 skipped and is held by its record, read back from the record store's blob container on A"
         },
         {
           "id": "test_plan",
@@ -3400,8 +3398,8 @@
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "7s",
-          "detail": "a moved block renamed the role assignment's block roleAssignments -\u003e role_assignment: zero churn (No changes. Your infrastructure matches the configuration), as stock planned with the same moved block on the oracle; the role assignment, which carries no tags, still answers at its ARM id, a record now names azapi_resource.role_assignment, and the replan is empty. BREAK=1 changes the role assignment's own GUID and the zero-churn assertion correctly fails"
+          "duration": "6s",
+          "detail": "a moved block renamed the role assignment's block roleAssignments -\u003e role_assignment: zero churn (No changes. Your infrastructure matches the configuration), as stock planned with the same moved block on the oracle; the role assignment, which carries no tags, still answers at its ARM id, a record in the blob container now names azapi_resource.role_assignment, and the replan is empty. BREAK=1 changes the role assignment's own GUID and the zero-churn assertion correctly fails"
         },
         {
           "id": "day2_remove",
@@ -3414,35 +3412,35 @@
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "14s",
+          "duration": "13s",
           "detail": "a two-instance count of azapi user-assigned identities added beside the published root (it has no count block): 2 -\u003e 1 destroyed exactly azapi_resource.shard[1] (ARM answers 404 for it, shard 0 kept its id); 1 -\u003e 2 created exactly one, at shard[1]; the replan is empty; stock's plans for the same changes on the oracle container have the same shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "not run",
-          "duration": "-",
-          "detail": "not yet written for the azure lane (#1120): the shape is a create_before_destroy resource whose name changes, as on kind and as on reference-azure"
+          "verdict": "pass",
+          "duration": "14s",
+          "detail": "an azapi identity named with a generation and a role assignment granting it AcrPull, both create_before_destroy, added beside the published root (it has none): renaming a -\u003e b plans as stock's replace on B, both blocks 'must be replaced', create replacement and then destroy, 2 add and 2 destroy, nothing else. At -parallelism=1 each new object's creation completes before its old object's deposed destroy starts (log lines: rotating 100\u003c105, rotating_grant 102\u003c103; stock on B: rotating 54\u003c59, rotating_grant 56\u003c57). ARM answers 404 for both generation-a objects; the generation-b identity carries tofu-address=azapi_resource.rotating, and the grant, which takes no tags, is named by its record in the blob container, which no longer names the destroyed one. The next plan is empty with no marker collision. The pair is removed from both roots afterwards (2 destroyed). BREAK_REPLACE=1 recreates the old identity carrying the block's markers and the next plan correctly does not stay silent"
         },
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
-          "verdict": "not run",
-          "duration": "-",
-          "detail": "not yet written for the azure lane (#1120): needs the e2e build's interrupt hook on an apply creating two resources, as the floci and kind estates do"
+          "verdict": "pass",
+          "duration": "15s",
+          "detail": "an apply creating two resources beside the published root was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 walker the instant azapi_resource.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second depends on crash_first, so the walker cannot have reached it. crash_first is a role assignment, which takes no tags: it answers at its ARM id and the interrupted apply left its record in the blob container naming it; crash_second answers 404. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, azapi_resource.crash_second created) and nothing for crash_first, bound by its record - not a second PUT to its id, not an orphan - matching stock's plan from the same position on B; the recovery apply added one, both answer through ARM, and the replan is empty. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 deletes crash_first's record and the same recovery check correctly fails"
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
           "verdict": "pass",
-          "duration": "3s",
-          "detail": "apply -destroy removed every resource in one apply (Resources: 0 added, 0 changed, 4 destroyed); nothing carries tofu-estate=corpus-azapi-role-assignment and the resource group answers 404"
+          "duration": "2s",
+          "detail": "apply -destroy removed every resource in one apply (Resources: 0 added, 0 changed, 6 destroyed); nothing carries tofu-estate=corpus-azapi-role-assignment and the resource group answers 404, as do shard 0 and day2_crash's pair, the role assignment among them found only by its record"
         },
         {
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "7s",
+          "duration": "6s",
           "detail": "plan -out wrote one update (the identity gains tags reviewed=yes); the world then moved out of band (a stray tag on the resource group, an ARM PUT) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied; with the tag removed the identical file applied, 0 added, 1 changed, 0 destroyed; stock's own planfile applied on the oracle container in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
         },
         {
@@ -3455,16 +3453,16 @@
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
-          "verdict": "not run",
-          "duration": "2s",
-          "detail": "not yet written for the azure lane (#1120)"
+          "verdict": "pass",
+          "duration": "3s",
+          "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming azurerm_user_assigned_identity) against a scratch estate carrying random_password.db, its records in the strict blob container on A: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. The scratch estate reaches no Azure provider. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         },
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
-          "verdict": "not run",
-          "duration": "-",
-          "detail": "not yet written for the azure lane (#1120): the plan with no local state reaches the Resource Graph sweep, whose query floci-az runs as sent since dfa33ca (lex00/floci-az#11), and the role assignment, untaggable, could only be found through its record"
+          "verdict": "pass",
+          "duration": "4s",
+          "detail": "the greenfield root's records live in a blob container on floci-az A (record_store \"azurerm\"), so the only local state is the state cache, and no .tofu-records or terraform.tfstate exists; with the cache deleted - a fresh clone with only the account and the store left - the plan created, destroyed and replaced nothing, 0 in-place update(s): the resource group and the identity found by their markers at their declared ARM ids, and the role assignment, which takes no tags, through its record in the container, which names it. The empty plan before the deletion was served from a cache written by a no-op apply (2 instance(s) answered by a cache hit). plan_calls_no_local_state=35 plan_calls_cache_serving=34 ratio=1.03x (both plan -refresh=false; every request floci-az A served between two marks, counted from its access log); stock in this position has no plan at all, only one import block per object. The cache was put back. BREAK_NO_LOCAL_STATE=1 strips the identity's markers and the check correctly fails"
         }
       ]
     },
@@ -4329,7 +4327,7 @@
       "set": "growing",
       "lane": "azure",
       "substrate": "floci-az",
-      "clear": false,
+      "clear": true,
       "source": "hand-written reference shape kept in this repository: a resource group, a VNet with a subnet, a network security group with one rule, a storage account, a user-assigned identity, a public IP and two count identities through hashicorp/azurerm, plus one azapi_resource identity; the azure lane's first estate, run against floci-az (#1120). Built and not yet run",
       "script": "live/e2e/reference-azure/run.sh",
       "protocol": "gauntlet",
@@ -4342,126 +4340,123 @@
         "pass",
         "pass",
         "pass",
-        "not run",
-        "not run",
         "pass",
         "pass",
         "pass",
+        "pass",
+        "pass",
         "not run",
-        "not run"
+        "FAIL"
       ],
-      "runtime_total": "6m16.2s",
-      "runtime_cells": "cold_deploy 2m19s, migrate 14s, test_plan 2s, test_apply 2s, drift_reconverge 27s, day2_rename 7s, day2_remove 26s, day2_count 33s, day2_replace -, day2_crash -, day2_teardown 33s, plan_approval 9s, greenfield 50s, strict 34s, no_local_state -",
-      "last_run_note": "Last run at commit `31639780dd` on 2026-10-21T14:43:37Z, exit code 0, against floci-az image `ghcr.io/lex00/floci-az@sha256:a417b3934fc5254085b75285038d34b091e38b49c2383c6b4ea7e82eb50180e0`. Total run time 6m16.2s.",
+      "runtime_total": "10m13.3s",
+      "runtime_cells": "cold_deploy 2m4s, migrate 17s, test_plan 1s, test_apply 3s, drift_reconverge 25s, day2_rename 5s, day2_remove 25s, day2_count 31s, day2_replace 1m52s, day2_crash 3m2s, day2_teardown 32s, plan_approval 5s, greenfield 48s, no_local_state 3s",
+      "last_run_note": "Last run at commit `4b34e44e3e` on 2026-10-21T16:24:51Z, exit code 1, against floci-az image `ghcr.io/lex00/floci-az@sha256:a417b3934fc5254085b75285038d34b091e38b49c2383c6b4ea7e82eb50180e0`. Total run time 10m13.3s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-azure/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
           "verdict": "pass",
-          "duration": "2m19s",
+          "duration": "2m4s",
           "detail": "11 resources (resource group, VNet, subnet, NSG, NSG rule, storage account, identity, public IP, two count identities, and one azapi_resource identity) from plain terraform against floci-az ghcr.io/lex00/floci-az@sha256:a417b3934fc5254085b75285038d34b091e38b49c2383c6b4ea7e82eb50180e0, a real terraform.tfstate with 11 instances, zero tofu-estate tags read back through ARM; the identical shape cold-deployed by stock on a second container as every later stage's oracle"
         },
         {
           "id": "migrate",
           "title": "Migrate",
           "verdict": "pass",
-          "duration": "14s",
-          "detail": "9 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 2 skipped; all 9 taggable resources carry tofu-estate=reference-azure, read back through ARM; the 2 skipped are the subnet and the NSG rule, which have no tags argument"
+          "duration": "17s",
+          "detail": "9 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 2 skipped; all 9 taggable resources carry tofu-estate=reference-azure, read back through ARM; the 2 skipped are the subnet and the NSG rule, which have no tags argument, and each has its record in the record store, a blob container on the same floci-az (refazrecords/adopted, 11 record envelopes)"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
           "verdict": "pass",
-          "duration": "2s",
+          "duration": "1s",
           "detail": "the plan with no state file is empty; all 11 ARM ids answer a GET with the same id, compared case-insensitively"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
           "verdict": "pass",
-          "duration": "2s",
+          "duration": "3s",
           "detail": "no-op apply (0 added, 0 changed, 0 destroyed); resources carrying tofu-estate=reference-azure unchanged at 9, read through ARM"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
           "verdict": "pass",
-          "duration": "27s",
+          "duration": "25s",
           "detail": "a tag added to the VNet with an ARM GET and PUT; choudoufu proposed exactly azurerm_virtual_network.app (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle container for the same tamper; apply changed 1 and the tag is gone, read through ARM. BREAK=1 tampers a second resource and the single-resource assertion correctly fails"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
           "verdict": "pass",
-          "duration": "7s",
+          "duration": "5s",
           "detail": "a moved block renamed the identity's block app -\u003e team: 0 add, 1 in-place change, 0 destroy, the change being the tofu-address tag, which reads azurerm_user_assigned_identity.team through ARM afterwards; stock with the same moved block planned zero churn on the oracle. BREAK=1 changes the identity's own name and the zero-churn assertion correctly fails"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
           "verdict": "pass",
-          "duration": "26s",
+          "duration": "25s",
           "detail": "the public IP's block deleted: choudoufu planned exactly azurerm_public_ip.app's destroy (0 add, 0 change, 1 destroy), as stock planned on the oracle, and after the apply ARM answers 404 for it"
         },
         {
           "id": "day2_count",
           "title": "Change count",
           "verdict": "pass",
-          "duration": "33s",
+          "duration": "31s",
           "detail": "count 2 -\u003e 1 destroyed exactly shard[1] (ARM answers 404 for it, shard 0 kept its id); 1 -\u003e 2 created exactly one, at shard[1]"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "not run",
-          "duration": "-",
-          "detail": "not yet written for the azure lane (#1120): the shape is a create_before_destroy identity whose name changes, as on kind"
+          "verdict": "pass",
+          "duration": "1m52s",
+          "detail": "a create_before_destroy identity whose name changes (refaz-cfg-a -\u003e refaz-cfg-b) plans as stock's replace: 'azurerm_user_assigned_identity.hashed must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, because refaz-cfg-a's record binds it to the block and its tofu-address confirms the record. At -parallelism=1 the apply log shows refaz-cfg-b's creation complete (line 62) before refaz-cfg-a's deposed destroy starts (line 63), the order stock's own apply of the same rename shows on the oracle container; ARM answers 404 for refaz-cfg-a and refaz-cfg-b carries the block's tofu-address, and the next plan is empty. The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates refaz-cfg-a carrying the block's marker and the next plan correctly is not silent"
         },
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
-          "verdict": "not run",
-          "duration": "-",
-          "detail": "not yet written for the azure lane (#1120): needs the e2e build's interrupt hook on an apply creating two resources, as the floci and kind estates do"
+          "verdict": "pass",
+          "duration": "3m2s",
+          "detail": "The create_before_destroy rename window is interrupted first (the stage's own Proves): azurerm_user_assigned_identity.crash_rename renamed refaz-crash-a -\u003e refaz-crash-b was killed by the engine's own hook the instant the new identity's create committed (exit 1), at -parallelism=1, leaving both carrying the block's tofu-address and the record in refazrecords/adopted holding refaz-crash-a as the address's deposed object. The next plan was stock's own in that position, Plan: 0 to add, 0 to change, 1 to destroy, the deposed object's destroy; one apply destroyed refaz-crash-a (ARM answers 404), left refaz-crash-b carrying the block's address, cleared the record's deposed entry, and the replan is empty. Then an apply creating two identities was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 graph walker the instant azurerm_user_assigned_identity.crash_first's create committed; crash_second depends on crash_first, so the walker cannot have reached it - ARM answers for refaz-crash-first, carrying tofu-estate=reference-azure from its create, and 404 for refaz-crash-second. The interrupted apply wrote exactly one record (envelopes 13 -\u003e 14 in refazrecords/adopted), crash_first's. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, crash_second created) and nothing for crash_first, which it bound at its declared ARM id - matching stock's own plan from the same position on the oracle container, reached by applying crash_first alone; the recovery apply added exactly one identity, both answer through ARM, the plan after it is empty, and the estate's own marked count is unchanged at 8. The pair is removed from both roots afterwards. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips tofu-estate off refaz-crash-first and the same recovery check correctly fails"
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
           "verdict": "pass",
-          "duration": "33s",
+          "duration": "32s",
           "detail": "apply -destroy removed every resource in one apply (Resources: 0 added, 0 changed, 10 destroyed); nothing carries tofu-estate=reference-azure and the resource group answers 404"
         },
         {
           "id": "plan_approval",
           "title": "Plan, review, apply",
           "verdict": "pass",
-          "duration": "9s",
+          "duration": "5s",
           "detail": "plan -out wrote one update (the identity gains tags reviewed=yes); the world then moved out of band (a stray tag on shard 0, an ARM PUT) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied; with the tag removed the identical file applied, 0 added, 1 changed, 0 destroyed; stock's own planfile applied on the oracle container in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
           "verdict": "pass",
-          "duration": "50s",
+          "duration": "48s",
           "detail": "11 resources from one plain apply with a live block; read through ARM, resource by resource with the marker tags normalised out, they match what stock's cold deploy made"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
           "verdict": "not run",
-          "duration": "34s",
           "detail": "not yet written for the azure lane (#1120)"
         },
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
-          "verdict": "not run",
-          "duration": "-",
-          "detail": "not yet written for the azure lane (#1120): the plan with no local state reaches the Resource Graph sweep, whose query floci-az runs as sent since dfa33ca (lex00/floci-az#11), and the stage is not yet written"
+          "verdict": "FAIL",
+          "duration": "3s",
+          "detail": "the cache-serving plan (exit 1) is not empty, so it is no baseline"
         }
       ]
     },
