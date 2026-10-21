@@ -249,7 +249,7 @@ var flociGCPNotes = map[string]string{
 	"plan_approval":    "The out-of-band move is a REST PATCH on a value the configuration declares: a declared label or a firewall's source ranges. hashicorp/google's labels are non-authoritative, so a label the configuration does not name rides along in effective_labels and moves no plan, stock's or the tool's.",
 	"greenfield":       "Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with labels and server-set fields normalised out; one emulator hosts both, in sequence.",
 	"strict":           "As on floci; the toggles name a google type.",
-	"no_local_state":   "The labelled objects are found by their labels, the declaration-carried ones by the identity their configuration computes. The request count is hashicorp/google's own, read from TF_LOG=debug's request blocks.",
+	"no_local_state":   "The labelled objects are found by their labels. A markerless object is claimed only by its record (option A, #2152), so with the record store gone the plan refuses each one at a held name by name and stops; with the record store put back and the cache still gone the plan is empty. The request count is hashicorp/google's own, read from TF_LOG=debug's request blocks.",
 }
 
 // flociEKSNotes is how each stage reads on SubstrateFlociEKS (#1113): an

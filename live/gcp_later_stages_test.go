@@ -557,3 +557,73 @@ echo REACHED_THE_END
 		})
 	}
 }
+
+// gcveNoLocalStateRefusal is the shape of no_local_state's plan once the
+// record store and the cache are deleted, under option A (#2152): the four
+// markerless objects at held names refused in the real format, and the
+// services and IAM, whose creates cannot collide, planned with a warning.
+func gcveNoLocalStateRefusal(ids []string, extra string) string {
+	var b strings.Builder
+	for _, w := range []string{"google_project_service.project[\"compute.googleapis.com\"]", "google_project_iam_binding.projects_iam[\"roles/owner\"]"} {
+		fmt.Fprintf(&b, "\nWarning: Unrecorded live object at a declared identity\n\nA live object exists at the identity %s declares.\n", w)
+	}
+	for _, id := range ids {
+		fmt.Fprintf(&b, "\nError: Unlabelled live object holds the declared name\n\nA live object already exists at\n%q,\nthe identity it declares.\n", id)
+	}
+	return b.String() + extra
+}
+
+// The sixth GCP run hid no_local_state behind day2_rename. Traced against
+// option A it deletes the record store and then planned for "No changes",
+// which option A answers with a name-held refusal for every markerless
+// object at a held name. The stage now requires exactly those refusals and
+// nothing else, so a refused bucket (the stage's Break, its label stripped)
+// or a missing firewall fails it.
+func TestGCPNameHeldCheckWantsExactlyTheMarkerlessRefusals(t *testing.T) {
+	const p = "broadcom-451918"
+	ids := []string{
+		"projects/" + p + "/global/networks/maintenance-vpc-network",
+		"projects/" + p + "/regions/us-central1/subnetworks/maintenance-subnet",
+		"projects/" + p + "/global/firewalls/maintenance-firewall-internet",
+		"projects/" + p + "/global/firewalls/maintenance-firewall-internal",
+	}
+	check := func(plan string) string {
+		t.Helper()
+		f := filepath.Join(t.TempDir(), "cold.plan")
+		if err := os.WriteFile(f, []byte(plan), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		args := `"` + strings.Join(ids, `" "`) + `"`
+		out, code := gcpBash(t, nil, `gcp_name_held_check "`+f+`" `+args)
+		if code != 0 {
+			t.Fatalf("gcp_name_held_check exited %d: %s", code, out)
+		}
+		return out
+	}
+	if out := check(gcveNoLocalStateRefusal(ids, "")); out != "" {
+		t.Errorf("exactly the four refusals: got %q, want nothing", out)
+	}
+	if out := check(gcveNoLocalStateRefusal(ids[:3], "")); !strings.Contains(out, "3 name-held refusal(s), want 4") || !strings.Contains(out, "no refusal names "+ids[3]) {
+		t.Errorf("a missing firewall refusal: got %q", out)
+	}
+	bucket := "\nError: Unlabelled live object holds the declared name\n\nA live google_storage_bucket already exists at\n\"" + p + "-gcve-bucket\",\nthe identity it declares.\n"
+	if out := check(gcveNoLocalStateRefusal(ids, bucket)); !strings.Contains(out, "5 name-held refusal(s), want 4") {
+		t.Errorf("the Break's refused bucket: got %q", out)
+	}
+	other := "\nError: Malformed ownership marker\n\nsomething\n"
+	if out := check(gcveNoLocalStateRefusal(ids, other)); !strings.Contains(out, "1 other error(s) (Error: Malformed ownership marker)") {
+		t.Errorf("another error beside the refusals: got %q", out)
+	}
+	raw, err := os.ReadFile("e2e/corpus-k8s-infra-gcp-gcve/run.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"global/networks/maintenance-vpc-network", "regions/$REGION/subnetworks/maintenance-subnet", "global/firewalls/maintenance-firewall-internet", "global/firewalls/maintenance-firewall-internal"} {
+		if !strings.Contains(string(raw), `"projects/$PROJECT/`+id+`"`) {
+			t.Errorf("gcve's no_local_state does not require a refusal naming projects/$PROJECT/%s", id)
+		}
+	}
+	if !strings.Contains(string(raw), `gcp_name_held_check "$NLS/cold.plan" "${NLS_HELD[@]}"`) {
+		t.Error("gcve's no_local_state does not check the plan with no local state with gcp_name_held_check")
+	}
+}
