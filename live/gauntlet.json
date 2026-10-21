@@ -86,7 +86,7 @@
       "oracle": "Stock `plan` after the same mutation, with marker tags normalised out of both plans, proposes the same change.",
       "break": "Mutate a second object as well; the single-object assertion must fail.",
       "substrates": {
-        "floci-az": "The mutation is an ARM PUT or PATCH made out of band with gauntlet_arm, never through the tool.",
+        "floci-az": "The mutation is an ARM GET and a PUT of the body read back, made out of band with gauntlet_arm_set_tag, never through the tool. Not a PATCH: floci-az answers 405 to every PATCH on Microsoft.Network (lex00/floci-az#18).",
         "floci-eks": "The mutation is made on either leg out of band: through the emulator's API on the AWS side, or as a kubectl label or patch inside the k3s container, never through the tool.",
         "kind": "The mutation is a kubectl label or patch, never through the tool."
       }
@@ -118,7 +118,7 @@
       "oracle": "Stock with the same block removed plans the same destroys in a working order.",
       "break": "Keep the block; no destroy may be proposed.",
       "substrates": {
-        "floci-az": "ARM confirms the object is gone with a 404 on its id. A resource group's delete takes its children with it; the order the cloud accepts is the one the configuration's dependency graph gives.",
+        "floci-az": "ARM confirms the object is gone with a 404 on its id. A resource group's delete takes its children with it; the order the cloud accepts is the one the configuration's dependency graph gives. A removed block's object of a type that takes tags is found only by its marker through the Resource Graph sweep, which floci-az's KQL subset refuses (lex00/floci-az#11), so there the plan proposes no destroy and the stage fails naming that gap; an untaggable one is found through its record and needs no sweep.",
         "floci-eks": "The removed block's object is confirmed gone on its own leg: through the emulator's API for AWS, with kubectl in the k3s container for Kubernetes. Objects EKS itself writes (CoreDNS, kube-proxy, add-on Deployments) carry no tofu-estate label and are never proposed; one the configuration declares, such as aws-auth, is the operator's, as it is in stock.",
         "kind": "kubectl confirms the object is gone. When the object's address annotation names an instance the configuration no longer declares, of a type that manages its kind, the sweep destroys it at that address, as stock destroys the state orphan (#1996). With no annotation, one naming an instance still declared, or one another orphan also carries, it plans the removal at `<type>.orphan_<namespace>_<name>` (`kubernetes_manifest.orphan_<kind>_<namespace>_<name>` for a manifest kind), under the versioned type once no block declares the kind; a controller's copies, which the sweep excludes, are never proposed."
       }
@@ -134,7 +134,7 @@
       "oracle": "Stock's plan for the same count change, normalised.",
       "break": "Expect a different instance to be destroyed; the assertion must fail.",
       "substrates": {
-        "floci-az": "Each instance is its own ARM id, so the instance that leaves the count is found at its id and destroyed, and the one that comes back is created there.",
+        "floci-az": "Each instance is its own ARM id. The instance that leaves the count is found by its marker through the Resource Graph sweep, as a removed block's is, so on floci-az, whose KQL subset refuses the sweep's query (lex00/floci-az#11), the scale-down plans no destroy and the stage fails naming that gap; the one that comes back is created at its id.",
         "floci-eks": "Read on the leg the counted block lives on, as that leg's own substrate reads it.",
         "kind": "The instance that leaves the count is found by its label and planned at the sweep's orphan address, since the label carries no index; kubectl confirms it is the same object stock destroys and that the survivor is untouched. The instance that comes back is created at its declared address."
       }
