@@ -7,17 +7,17 @@
   "version": "8.6.0",
   "counts": {
     "types": 1485,
-    "rowed": 1098,
-    "server_assigned": 13,
-    "markerless": 133,
+    "rowed": 1158,
+    "server_assigned": 14,
+    "markerless": 150,
     "schema_routed": 37,
-    "refused": 350,
+    "refused": 290,
     "google": {
       "types": 1370,
-      "rowed": 1006,
-      "markerless": 124,
+      "rowed": 1061,
+      "markerless": 141,
       "schema_routed": 37,
-      "refused": 327
+      "refused": 272
     }
   },
   "types": [
@@ -1105,8 +1105,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{priority}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "apps/{{project}}/firewall/ingressRules/{{priority}}"
     },
     {
       "type": "google_app_engine_flexible_app_version",
@@ -1115,8 +1115,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{version_id}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "service"
+      ],
+      "template": "apps/{{project}}/services/{{service}}/versions/{{version_id}}"
     },
     {
       "type": "google_app_engine_service_network_settings",
@@ -1145,8 +1148,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{version_id}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "service"
+      ],
+      "template": "apps/{{project}}/services/{{service}}/versions/{{version_id}}"
     },
     {
       "type": "google_apphub_application",
@@ -1342,8 +1348,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{name}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "reason": "the provider's create sets the id from the API response's \"gcpResourcename\", which only the API knows; the template /{{name}} is its importer's."
     },
     {
       "type": "google_backup_dr_service_config",
@@ -1794,8 +1800,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{database}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "database"
+      ],
+      "template": "{{database}}/tables/{{name}}"
     },
     {
       "type": "google_bigquery_analytics_hub_data_exchange",
@@ -1959,8 +1968,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/connections/{{connection_id}}"
     },
     {
       "type": "google_bigquery_connection_iam_binding",
@@ -2349,8 +2358,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{instance}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "instance"
+      ],
+      "template": "projects/{{project}}/instances/{{instance}}/appProfiles/{{app_profile_id}}"
     },
     {
       "type": "google_bigtable_authorized_view",
@@ -2436,8 +2448,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{instance}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "instance"
+      ],
+      "template": "projects/{{project}}/instances/{{instance}}/logicalViews/{{logical_view_id}}"
     },
     {
       "type": "google_bigtable_materialized_view",
@@ -2446,8 +2461,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{instance}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "instance"
+      ],
+      "template": "projects/{{project}}/instances/{{instance}}/materializedViews/{{materialized_view_id}}"
     },
     {
       "type": "google_bigtable_schema_bundle",
@@ -2456,8 +2474,12 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{instance}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "instance",
+        "table"
+      ],
+      "template": "projects/{{project}}/instances/{{instance}}/tables/{{table}}/schemaBundles/{{schema_bundle_id}}"
     },
     {
       "type": "google_bigtable_table",
@@ -3485,7 +3507,8 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "no_source": true,
+      "reason": "the provider source has no ParseImportId importer for this type"
     },
     {
       "type": "google_cloud_support_support_event_subscription",
@@ -3564,8 +3587,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "projects/{{project}}/locations/{{location}}/triggers/{{trigger_id}}",
+      "reason": "the provider's id format projects/{{project}}/locations/{{location}}/triggers/{{trigger_id}} embeds {{trigger_id}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_cloudbuild_worker_pool",
@@ -3933,8 +3957,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{name}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/notebookRuntimes/{{name}}"
     },
     {
       "type": "google_colab_runtime_template",
@@ -4425,8 +4449,13 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{ip_address}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "global_network_endpoint_group",
+        "ip_address",
+        "fqdn"
+      ],
+      "template": "{{project}}/{{global_network_endpoint_group}}/{{ip_address}}/{{fqdn}}/{{port}}"
     },
     {
       "type": "google_compute_global_network_endpoint_group",
@@ -4855,8 +4884,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{name}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/global/sslCertificates/{{name}}"
     },
     {
       "type": "google_compute_network",
@@ -4895,8 +4924,13 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{instance}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "network_endpoint_group",
+        "instance",
+        "ip_address"
+      ],
+      "template": "{{project}}/{{zone}}/{{network_endpoint_group}}/{{instance}}/{{ip_address}}/{{port}}"
     },
     {
       "type": "google_compute_network_endpoint_group",
@@ -5482,8 +5516,13 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{ip_address}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "region_network_endpoint_group",
+        "ip_address",
+        "fqdn"
+      ],
+      "template": "{{project}}/{{region}}/{{region_network_endpoint_group}}/{{ip_address}}/{{fqdn}}/{{port}}"
     },
     {
       "type": "google_compute_region_network_endpoint_group",
@@ -6837,8 +6876,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/connectionProfiles/{{connection_profile_id}}"
     },
     {
       "type": "google_database_migration_service_migration_job",
@@ -6847,8 +6886,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/migrationJobs/{{migration_job_id}}"
     },
     {
       "type": "google_database_migration_service_private_connection",
@@ -6957,8 +6996,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{repository}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "repository"
+      ],
+      "template": "projects/{{project}}/locations/{{region}}/repositories/{{repository}}/releaseConfigs/{{name}}"
     },
     {
       "type": "google_dataform_repository_workflow_config",
@@ -6966,8 +7008,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{repository}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "repository"
+      ],
+      "template": "projects/{{project}}/locations/{{region}}/repositories/{{repository}}/workflowConfigs/{{name}}"
     },
     {
       "type": "google_dataform_team_folder",
@@ -6987,8 +7032,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/aspectTypes/{{aspect_type_id}}"
     },
     {
       "type": "google_dataplex_aspect_type_iam_binding",
@@ -7213,7 +7258,8 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "no_source": true,
+      "reason": "the provider source has no ParseImportId importer for this type"
     },
     {
       "type": "google_dataplex_entry_group",
@@ -7222,8 +7268,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/entryGroups/{{entry_group_id}}"
     },
     {
       "type": "google_dataplex_entry_group_iam_binding",
@@ -7284,8 +7330,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/entryTypes/{{entry_type_id}}"
     },
     {
       "type": "google_dataplex_entry_type_iam_binding",
@@ -7343,8 +7389,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{glossary_id}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "glossary_id"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/glossaries/{{glossary_id}}/categories/{{category_id}}"
     },
     {
       "type": "google_dataplex_glossary_iam_binding",
@@ -7392,8 +7441,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{glossary_id}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "glossary_id"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/glossaries/{{glossary_id}}/terms/{{term_id}}"
     },
     {
       "type": "google_dataplex_lake",
@@ -7461,8 +7513,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "lake"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/lakes/{{lake}}/tasks/{{task_id}}"
     },
     {
       "type": "google_dataplex_task_iam_binding",
@@ -7611,8 +7666,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/batches/{{batch_id}}"
     },
     {
       "type": "google_dataproc_cluster",
@@ -7674,8 +7729,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{application_environment_id}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "serviceinstance"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/serviceInstances/{{serviceinstance}}/applicationEnvironments/{{application_environment_id}}"
     },
     {
       "type": "google_dataproc_gdc_service_instance",
@@ -7802,8 +7860,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/federations/{{federation_id}}"
     },
     {
       "type": "google_dataproc_metastore_federation_iam_binding",
@@ -8081,8 +8139,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "{{parent}}/entityTypes/{{name}}",
+      "reason": "the provider's id format {{parent}}/entityTypes/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_dialogflow_cx_environment",
@@ -8091,8 +8150,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "{{parent}}/environments/{{name}}",
+      "reason": "the provider's id format {{parent}}/environments/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_dialogflow_cx_flow",
@@ -8101,8 +8161,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "{{parent}}/flows/{{name}}",
+      "reason": "the provider's id format {{parent}}/flows/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_dialogflow_cx_generative_settings",
@@ -8111,8 +8172,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "{{parent}}/generativeSettings?languageCode={{language_code}}"
     },
     {
       "type": "google_dialogflow_cx_generator",
@@ -8121,8 +8182,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "{{parent}}/generators/{{name}}",
+      "reason": "the provider's id format {{parent}}/generators/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_dialogflow_cx_intent",
@@ -8131,8 +8193,9 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "server-assigned",
+      "template": "{{parent}}/intents/{{name}}",
+      "reason": "the provider's id format {{parent}}/intents/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_dialogflow_cx_page",
@@ -8141,8 +8204,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "{{parent}}/pages/{{name}}",
+      "reason": "the provider's id format {{parent}}/pages/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_dialogflow_cx_playbook",
@@ -8151,8 +8215,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "{{parent}}/playbooks/{{name}}",
+      "reason": "the provider's id format {{parent}}/playbooks/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_dialogflow_cx_security_settings",
@@ -8172,8 +8237,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "{{parent}}/testCases/{{name}}",
+      "reason": "the provider's id format {{parent}}/testCases/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_dialogflow_cx_tool",
@@ -8182,8 +8248,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "{{parent}}/tools/{{name}}",
+      "reason": "the provider's id format {{parent}}/tools/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_dialogflow_cx_tool_version",
@@ -8203,8 +8270,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "{{parent}}/versions/{{name}}",
+      "reason": "the provider's id format {{parent}}/versions/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_dialogflow_cx_webhook",
@@ -8213,8 +8281,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "{{parent}}/webhooks/{{name}}",
+      "reason": "the provider's id format {{parent}}/webhooks/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_dialogflow_encryption_spec",
@@ -8309,8 +8378,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "{{parent}}/versions/{{name}}",
+      "reason": "the provider's id format {{parent}}/versions/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_discovery_engine_acl_config",
@@ -9250,8 +9320,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{site_id}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/sites/{{site_id}}"
     },
     {
       "type": "google_firebase_hosting_version",
@@ -9290,8 +9360,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{bucket_id}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/buckets/{{bucket_id}}"
     },
     {
       "type": "google_firebase_storage_default_bucket",
@@ -9526,8 +9596,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/codeToolsSettings/{{code_tools_setting_id}}"
     },
     {
       "type": "google_gemini_code_tools_setting_binding",
@@ -9536,8 +9606,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "code_tools_setting_id"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/codeToolsSettings/{{code_tools_setting_id}}/settingBindings/{{setting_binding_id}}"
     },
     {
       "type": "google_gemini_data_sharing_with_google_setting",
@@ -9546,8 +9619,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/dataSharingWithGoogleSettings/{{data_sharing_with_google_setting_id}}"
     },
     {
       "type": "google_gemini_data_sharing_with_google_setting_binding",
@@ -9556,8 +9629,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "data_sharing_with_google_setting_id"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/dataSharingWithGoogleSettings/{{data_sharing_with_google_setting_id}}/settingBindings/{{setting_binding_id}}"
     },
     {
       "type": "google_gemini_gda_observability_setting",
@@ -9576,8 +9652,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "gda_observability_setting_id"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/gdaObservabilitySettings/{{gda_observability_setting_id}}/settingBindings/{{setting_binding_id}}"
     },
     {
       "type": "google_gemini_gemini_gcp_enablement_setting",
@@ -9596,8 +9675,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "gemini_gcp_enablement_setting_id"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/geminiGcpEnablementSettings/{{gemini_gcp_enablement_setting_id}}/settingBindings/{{setting_binding_id}}"
     },
     {
       "type": "google_gemini_gibq_observability_setting",
@@ -9606,8 +9688,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/gibqObservabilitySettings/{{gibq_observability_setting_id}}"
     },
     {
       "type": "google_gemini_gibq_observability_setting_binding",
@@ -9616,8 +9698,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "gibq_observability_setting_id"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/gibqObservabilitySettings/{{gibq_observability_setting_id}}/settingBindings/{{setting_binding_id}}"
     },
     {
       "type": "google_gemini_logging_setting",
@@ -9636,8 +9721,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "logging_setting_id"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/loggingSettings/{{logging_setting_id}}/settingBindings/{{setting_binding_id}}"
     },
     {
       "type": "google_gemini_release_channel_setting",
@@ -9656,8 +9744,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "release_channel_setting_id"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/releaseChannelSettings/{{release_channel_setting_id}}/settingBindings/{{setting_binding_id}}"
     },
     {
       "type": "google_gemini_repository_group",
@@ -9836,8 +9927,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{name}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/features/{{name}}"
     },
     {
       "type": "google_gke_hub_feature_iam_binding",
@@ -12567,8 +12658,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "volume_name"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/volumes/{{volume_name}}/quotaRules/{{name}}"
     },
     {
       "type": "google_netapp_volume_replication",
@@ -12801,8 +12895,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "{{parent}}/locations/{{location}}/addressGroups/{{name}}"
     },
     {
       "type": "google_network_security_address_group_iam_binding",
@@ -12909,8 +13003,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "{{parent}}/locations/{{location}}/firewallEndpointAssociations/{{name}}"
     },
     {
       "type": "google_network_security_gateway_security_policy",
@@ -12972,8 +13066,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{intercept_endpoint_group_association_id}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/interceptEndpointGroupAssociations/{{intercept_endpoint_group_association_id}}"
     },
     {
       "type": "google_network_security_mirroring_deployment",
@@ -13022,8 +13116,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{mirroring_endpoint_group_association_id}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/mirroringEndpointGroupAssociations/{{mirroring_endpoint_group_association_id}}"
     },
     {
       "type": "google_network_security_sac_attachment",
@@ -13050,8 +13144,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "{{parent}}/locations/{{location}}/securityProfiles/{{name}}"
     },
     {
       "type": "google_network_security_security_profile_group",
@@ -13060,8 +13154,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{parent}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "{{parent}}/locations/{{location}}/securityProfileGroups/{{name}}"
     },
     {
       "type": "google_network_security_server_tls_policy",
@@ -13080,8 +13174,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/tlsInspectionPolicies/{{name}}"
     },
     {
       "type": "google_network_security_ull_mirroring_collector",
@@ -14570,8 +14664,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "folders/{{folder}}/locations/{{location}}/securityHealthAnalyticsCustomModules/{{name}}",
+      "reason": "the provider's id format folders/{{folder}}/locations/{{location}}/securityHealthAnalyticsCustomModules/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_scc_management_organization_event_threat_detection_custom_module",
@@ -14591,8 +14686,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "organizations/{{organization}}/locations/{{location}}/securityHealthAnalyticsCustomModules/{{name}}",
+      "reason": "the provider's id format organizations/{{organization}}/locations/{{location}}/securityHealthAnalyticsCustomModules/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_scc_management_project_security_health_analytics_custom_module",
@@ -14601,8 +14697,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "projects/{{project}}/locations/{{location}}/securityHealthAnalyticsCustomModules/{{name}}",
+      "reason": "the provider's id format projects/{{project}}/locations/{{location}}/securityHealthAnalyticsCustomModules/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_scc_mute_config",
@@ -15474,8 +15571,12 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{name}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "instance",
+        "database"
+      ],
+      "template": "projects/{{project}}/instances/{{instance}}/databases/{{database}}/backupSchedules/{{name}}"
     },
     {
       "type": "google_spanner_database",
@@ -15691,8 +15792,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{job_id}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/global/jobs/{{job_id}}"
     },
     {
       "type": "google_storage_bucket",
@@ -16018,8 +16119,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "markerless",
+      "template": "{{location}}/{{name}}",
+      "reason": "the provider's id format {{location}}/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_tags_tag_binding",
@@ -16312,8 +16414,7 @@
       ],
       "labels": false,
       "verdict": "markerless",
-      "template": "projects/{{project}}/locations/{{location}}/endpoints/{{endpoint}}",
-      "reason": "the provider's id format projects/{{project}}/locations/{{location}}/endpoints/{{endpoint}} embeds {{endpoint}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's create sets the id from the API response's \"endpoint\", which only the API knows; the template projects/{{project}}/locations/{{location}}/endpoints/{{endpoint}} is its importer's."
     },
     {
       "type": "google_vertex_ai_evaluation_metric",
@@ -16333,8 +16434,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{name}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{region}}/featureGroups/{{name}}"
     },
     {
       "type": "google_vertex_ai_feature_group_feature",
@@ -16402,8 +16503,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{name}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "feature_online_store"
+      ],
+      "template": "projects/{{project}}/locations/{{region}}/featureOnlineStores/{{feature_online_store}}/featureViews/{{name}}"
     },
     {
       "type": "google_vertex_ai_feature_online_store_featureview_iam_binding",
@@ -16484,8 +16588,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{name}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{region}}/featurestores/{{name}}"
     },
     {
       "type": "google_vertex_ai_featurestore_entitytype",
@@ -16494,8 +16598,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{name}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "featurestore"
+      ],
+      "template": "{{featurestore}}/entityTypes/{{name}}"
     },
     {
       "type": "google_vertex_ai_featurestore_entitytype_feature",
@@ -16504,8 +16611,11 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{name}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "parents": [
+        "entitytype"
+      ],
+      "template": "{{entitytype}}/features/{{name}}"
     },
     {
       "type": "google_vertex_ai_featurestore_entitytype_iam_binding",
@@ -16620,8 +16730,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{name}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "{{name}}"
     },
     {
       "type": "google_vertex_ai_model_garden_enable_model",
@@ -16640,8 +16750,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/persistentResources/{{name}}"
     },
     {
       "type": "google_vertex_ai_rag_corpus",
@@ -16965,8 +17075,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "reason": "the id format names the optional {{location}}, and the source declares no default for it"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/workstationClusters/{{workstation_cluster_id}}"
     },
     {
       "type": "google_workstations_workstation_config",

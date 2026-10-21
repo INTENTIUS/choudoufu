@@ -9235,8 +9235,8 @@
       {
         "tier": "marker-carried",
         "counts": [
-          264,
-          46,
+          301,
+          9,
           0,
           10,
           0,
@@ -9247,26 +9247,26 @@
       {
         "tier": "declaration-carried",
         "counts": [
-          834,
+          857,
           28,
           0,
           0,
           0,
           0
         ],
-        "total": 862
+        "total": 885
       },
       {
         "tier": "record-carried",
         "counts": [
           0,
-          57,
+          15,
           0,
-          113,
-          133,
+          115,
+          150,
           0
         ],
-        "total": 303
+        "total": 280
       },
       {
         "tier": "excluded by design",
@@ -9282,11 +9282,11 @@
       }
     ],
     "column_totals": [
-      1098,
-      131,
+      1158,
+      52,
       0,
-      123,
-      133,
+      125,
+      150,
       0
     ],
     "total": 1485,
@@ -9300,13 +9300,13 @@
       {
         "path": "client-named",
         "tier": "declaration-carried",
-        "count": 301,
+        "count": 311,
         "means": "The configuration names it, under a project or location it also names or the provider supplies."
       },
       {
         "path": "parent-derived",
         "tier": "declaration-carried",
-        "count": 545,
+        "count": 558,
         "means": "Composed over a containing resource the configuration also names; every IAM type is this shape."
       },
       {
@@ -9324,13 +9324,13 @@
       {
         "path": "server-minted",
         "tier": "record-carried",
-        "count": 133,
+        "count": 150,
         "means": "The API mints the identity and the type has no labels; only a record holds it."
       },
       {
         "path": "unbindable",
         "tier": "record-carried",
-        "count": 170,
+        "count": 130,
         "means": "No row and no identity-schema route; a record is the only copy."
       }
     ],
@@ -9833,15 +9833,13 @@
       },
       {
         "type": "google_app_engine_firewall_rule",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_app_engine_flexible_app_version",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_app_engine_service_network_settings",
@@ -9855,9 +9853,8 @@
       },
       {
         "type": "google_app_engine_standard_app_version",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_apphub_application",
@@ -9951,8 +9948,8 @@
       {
         "type": "google_backup_dr_restore_workload",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_backup_dr_service_config",
@@ -10132,9 +10129,8 @@
       },
       {
         "type": "google_biglake_table",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_bigquery_analytics_hub_data_exchange",
@@ -10205,9 +10201,8 @@
       },
       {
         "type": "google_bigquery_connection",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_bigquery_connection_iam_binding",
@@ -10372,9 +10367,8 @@
       },
       {
         "type": "google_bigtable_app_profile",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_bigtable_authorized_view",
@@ -10412,21 +10406,18 @@
       },
       {
         "type": "google_bigtable_logical_view",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_bigtable_materialized_view",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_bigtable_schema_bundle",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_bigtable_table",
@@ -10904,8 +10895,8 @@
       {
         "type": "google_cloud_security_compliance_framework_deployment",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "needs-evidence",
+        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
       },
       {
         "type": "google_cloud_support_support_event_subscription",
@@ -10941,8 +10932,8 @@
       {
         "type": "google_cloudbuild_trigger",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_cloudbuild_worker_pool",
@@ -11098,9 +11089,8 @@
       },
       {
         "type": "google_colab_runtime",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_colab_runtime_template",
@@ -11321,9 +11311,8 @@
       },
       {
         "type": "google_compute_global_network_endpoint",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_compute_global_network_endpoint_group",
@@ -11514,9 +11503,8 @@
       },
       {
         "type": "google_compute_managed_ssl_certificate",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_compute_network",
@@ -11535,9 +11523,8 @@
       },
       {
         "type": "google_compute_network_endpoint",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_compute_network_endpoint_group",
@@ -11801,9 +11788,8 @@
       },
       {
         "type": "google_compute_region_network_endpoint",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_compute_region_network_endpoint_group",
@@ -12423,14 +12409,12 @@
       {
         "type": "google_database_migration_service_connection_profile",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_database_migration_service_migration_job",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_database_migration_service_private_connection",
@@ -12482,15 +12466,13 @@
       },
       {
         "type": "google_dataform_repository_release_config",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataform_repository_workflow_config",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataform_team_folder",
@@ -12501,8 +12483,7 @@
       {
         "type": "google_dataplex_aspect_type",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_dataplex_aspect_type_iam_binding",
@@ -12592,14 +12573,13 @@
       {
         "type": "google_dataplex_entry",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "needs-evidence",
+        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
       },
       {
         "type": "google_dataplex_entry_group",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_dataplex_entry_group_iam_binding",
@@ -12624,8 +12604,7 @@
       {
         "type": "google_dataplex_entry_type",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_dataplex_entry_type_iam_binding",
@@ -12650,8 +12629,7 @@
       {
         "type": "google_dataplex_glossary_category",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_dataplex_glossary_iam_binding",
@@ -12671,8 +12649,7 @@
       {
         "type": "google_dataplex_glossary_term",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_dataplex_lake",
@@ -12702,8 +12679,7 @@
       {
         "type": "google_dataplex_task",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_dataplex_task_iam_binding",
@@ -12763,8 +12739,7 @@
       {
         "type": "google_dataproc_batch",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_cluster",
@@ -12793,8 +12768,7 @@
       {
         "type": "google_dataproc_gdc_application_environment",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_gdc_service_instance",
@@ -12851,8 +12825,7 @@
       {
         "type": "google_dataproc_metastore_federation",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_metastore_federation_iam_binding",
@@ -12979,50 +12952,48 @@
       {
         "type": "google_dialogflow_cx_entity_type",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_dialogflow_cx_environment",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_dialogflow_cx_flow",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_dialogflow_cx_generative_settings",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dialogflow_cx_generator",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_dialogflow_cx_intent",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_dialogflow_cx_page",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_dialogflow_cx_playbook",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_dialogflow_cx_security_settings",
@@ -13033,14 +13004,14 @@
       {
         "type": "google_dialogflow_cx_test_case",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_dialogflow_cx_tool",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_dialogflow_cx_tool_version",
@@ -13051,14 +13022,14 @@
       {
         "type": "google_dialogflow_cx_version",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_dialogflow_cx_webhook",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_dialogflow_encryption_spec",
@@ -13110,8 +13081,8 @@
       {
         "type": "google_dialogflow_version",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_discovery_engine_acl_config",
@@ -13543,9 +13514,8 @@
       },
       {
         "type": "google_firebase_hosting_site",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_firebase_hosting_version",
@@ -13565,9 +13535,8 @@
       },
       {
         "type": "google_firebase_storage_bucket",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_firebase_storage_default_bucket",
@@ -13682,26 +13651,22 @@
       {
         "type": "google_gemini_code_tools_setting",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_gemini_code_tools_setting_binding",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_gemini_data_sharing_with_google_setting",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_gemini_data_sharing_with_google_setting_binding",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_gemini_gda_observability_setting",
@@ -13711,8 +13676,7 @@
       {
         "type": "google_gemini_gda_observability_setting_binding",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_gemini_gemini_gcp_enablement_setting",
@@ -13722,20 +13686,17 @@
       {
         "type": "google_gemini_gemini_gcp_enablement_setting_binding",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_gemini_gibq_observability_setting",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_gemini_gibq_observability_setting_binding",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_gemini_logging_setting",
@@ -13745,8 +13706,7 @@
       {
         "type": "google_gemini_logging_setting_binding",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_gemini_release_channel_setting",
@@ -13756,8 +13716,7 @@
       {
         "type": "google_gemini_release_channel_setting_binding",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_gemini_repository_group",
@@ -13832,8 +13791,7 @@
       {
         "type": "google_gke_hub_feature",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_gke_hub_feature_iam_binding",
@@ -15040,8 +14998,7 @@
       {
         "type": "google_netapp_volume_quota_rule",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_netapp_volume_replication",
@@ -15146,8 +15103,7 @@
       {
         "type": "google_network_security_address_group",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_network_security_address_group_iam_binding",
@@ -15197,8 +15153,7 @@
       {
         "type": "google_network_security_firewall_endpoint_association",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_network_security_gateway_security_policy",
@@ -15228,8 +15183,7 @@
       {
         "type": "google_network_security_intercept_endpoint_group_association",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_network_security_mirroring_deployment",
@@ -15254,8 +15208,7 @@
       {
         "type": "google_network_security_mirroring_endpoint_group_association",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_network_security_sac_attachment",
@@ -15270,14 +15223,12 @@
       {
         "type": "google_network_security_security_profile",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_network_security_security_profile_group",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_network_security_server_tls_policy",
@@ -15286,9 +15237,8 @@
       },
       {
         "type": "google_network_security_tls_inspection_policy",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_network_security_ull_mirroring_collector",
@@ -16001,8 +15951,8 @@
       {
         "type": "google_scc_management_folder_security_health_analytics_custom_module",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_scc_management_organization_event_threat_detection_custom_module",
@@ -16013,14 +15963,14 @@
       {
         "type": "google_scc_management_organization_security_health_analytics_custom_module",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_scc_management_project_security_health_analytics_custom_module",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_scc_mute_config",
@@ -16420,9 +16370,8 @@
       },
       {
         "type": "google_spanner_backup_schedule",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_spanner_database",
@@ -16521,9 +16470,8 @@
       },
       {
         "type": "google_storage_batch_operations_job",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_storage_bucket",
@@ -16672,8 +16620,8 @@
       {
         "type": "google_tags_location_tag_binding",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "pending-mechanism",
+        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
       },
       {
         "type": "google_tags_tag_binding",
@@ -16818,8 +16766,7 @@
       {
         "type": "google_vertex_ai_feature_group",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_vertex_ai_feature_group_feature",
@@ -16849,8 +16796,7 @@
       {
         "type": "google_vertex_ai_feature_online_store_featureview",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_vertex_ai_feature_online_store_featureview_iam_binding",
@@ -16885,20 +16831,17 @@
       {
         "type": "google_vertex_ai_featurestore",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_vertex_ai_featurestore_entitytype",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_vertex_ai_featurestore_entitytype_feature",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_vertex_ai_featurestore_entitytype_iam_binding",
@@ -16947,9 +16890,8 @@
       },
       {
         "type": "google_vertex_ai_metadata_store",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_vertex_ai_model_garden_enable_model",
@@ -16960,8 +16902,7 @@
       {
         "type": "google_vertex_ai_persistent_resource",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_vertex_ai_rag_corpus",
@@ -17109,8 +17050,7 @@
       {
         "type": "google_workstations_workstation_cluster",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "in-contract"
       },
       {
         "type": "google_workstations_workstation_config",

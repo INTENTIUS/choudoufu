@@ -54,3 +54,24 @@ func TestGoogleRowsRenderFromConfiguration(t *testing.T) {
 		t.Errorf("the reason does not name the missing project: %q", orphan.Reason)
 	}
 }
+
+// TestGoogleOptionalPlaceholderRow resolves a row whose id format names an
+// optional argument with no default: an instance that writes it is named
+// from configuration, and one that leaves it out is refused by name, the
+// type keeping its row.
+func TestGoogleOptionalPlaceholderRow(t *testing.T) {
+	cfg := loadConfig(t, "testdata/gcp-optional-placeholder", nil)
+	result, diags := Resolve(context.Background(), cfg)
+
+	got := resolutionAt(t, result, "google_bigquery_connection.lake")
+	if want := "projects/estate-prod/locations/EU/connections/lake"; got.Class != ClassConcrete || got.ImportID != want {
+		t.Errorf("written location: %s %q, want CONCRETE %q", got.Class, got.ImportID, want)
+	}
+
+	if len(diags) != 1 {
+		t.Fatalf("got %d diagnostics, want the one refusal: %v", len(diags), diags.Err())
+	}
+	if d := diags[0].Description(); !strings.Contains(d.Detail, "google_bigquery_connection.nowhere") || !strings.Contains(d.Detail, `"location"`) {
+		t.Errorf("the refusal does not name the instance and its missing location: %s", d.Detail)
+	}
+}

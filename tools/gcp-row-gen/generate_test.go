@@ -230,18 +230,61 @@ func TestDecideDerivedPlaceholder(t *testing.T) {
 	}
 }
 
-func TestDecideOptionalPlaceholderNeedsADefault(t *testing.T) {
+// TestDecideOptionalPlaceholder: an optional argument the schema does not
+// mark computed is configuration, so the id format naming it yields a row.
+// The component carries no default unless the source declares one, which
+// is what makes resolution refuse an instance that leaves it unwritten
+// rather than render the empty segment stock would. An optional-computed
+// id placeholder after it still decides the type as minted.
+func TestDecideOptionalPlaceholder(t *testing.T) {
 	tf := TypeFacts{Attrs: map[string]string{"id": "OC", "name": "R", "project": "OC", "location": "O"}}
 	src := Source{Kind: "resource", IDFormat: "projects/{{project}}/locations/{{location}}/certs/{{name}}"}
 	src.ImportIDFormat = src.IDFormat
 	d := Decide("google_cert", map[string]Source{ProviderGoogle: src}, map[string]TypeFacts{ProviderGoogle: tf})
-	if d.Verdict != VerdictUnrowed {
-		t.Errorf("verdict %s, want unrowed without a default", d.Verdict)
+	if d.Verdict != VerdictRowed {
+		t.Fatalf("verdict %s (%s), want rowed: a written location is known before apply", d.Verdict, d.Reason)
+	}
+	loc := d.Row.Components[3]
+	if !reflect.DeepEqual(loc.Attrs, []string{"location"}) || loc.Default != "" || loc.OmitIfAbsent || loc.ServerAssignedIfAbsent {
+		t.Errorf("location component %#v; want the argument alone, refused when absent", loc)
 	}
 	src.Defaults = map[string]string{"location": "global"}
 	d = Decide("google_cert", map[string]Source{ProviderGoogle: src}, map[string]TypeFacts{ProviderGoogle: tf})
 	if d.Verdict != VerdictRowed || d.Row.Components[3].Default != "global" {
 		t.Errorf("verdict %s; want a row whose location component defaults to global", d.Verdict)
+	}
+
+	// dialogflow_cx's shape: an optional parent, then a minted name.
+	tf = TypeFacts{Attrs: map[string]string{"id": "OC", "parent": "O", "name": "C", "display_name": "R"}}
+	src = Source{Kind: "resource", IDFormat: "{{parent}}/flows/{{name}}", ImportIDFormat: "{{parent}}/flows/{{name}}"}
+	d = Decide("google_flow", map[string]Source{ProviderGoogle: src}, map[string]TypeFacts{ProviderGoogle: tf})
+	if d.Verdict != VerdictMarkerless {
+		t.Errorf("verdict %s, want markerless: the name is minted and there are no labels", d.Verdict)
+	}
+}
+
+// TestDecideIDFromResponse: a file whose create sets the id from the API's
+// answer has no row, whatever template its importer rebuilds.
+func TestDecideIDFromResponse(t *testing.T) {
+	tf := TypeFacts{Attrs: map[string]string{"id": "OC", "name": "O"}}
+	src := Source{Kind: "resource", IDFormat: "/{{name}}", ImportIDFormat: "/{{name}}", IDFromResponse: "gcpResourcename"}
+	d := Decide("google_restore", map[string]Source{ProviderGoogle: src}, map[string]TypeFacts{ProviderGoogle: tf})
+	if d.Verdict != VerdictMarkerless || d.Row != nil {
+		t.Errorf("verdict %s, row %v; want markerless and no row", d.Verdict, d.Row)
+	}
+	text := `		if v, ok := tr["gcpResource"].(map[string]interface{}); ok {
+			if val, ok := gr["gcpResourcename"].(string); ok {
+				d.SetId(val)
+			}
+		}
+		if id, ok := item["id"].(string); ok && id != "" {
+			d.SetId(id)
+		}`
+	if got := idFromResponse(text); got != "gcpResourcename" {
+		t.Errorf("idFromResponse = %q, want gcpResourcename", got)
+	}
+	if got := idFromResponse("\tid, err := tpgresource.ReplaceVars(d, config, \"x/{{name}}\")\n\td.SetId(id)\n"); got != "" {
+		t.Errorf("idFromResponse over an id format = %q, want none", got)
 	}
 }
 
