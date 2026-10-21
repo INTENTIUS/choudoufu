@@ -357,13 +357,21 @@ func nodeResolveEnabled() bool {
 // liveBegin (live_mode.go) and LivePlanCommand's "-estate" form
 // (live_plan.go) call once projResult exists, at the two population sites
 // that field's own doc comment points to.
-func nodeResolverUnownedSet(unowned []projection.Unowned) map[string]bool {
-	if len(unowned) == 0 {
+//
+// The projection's [projection.Result.Released] instances join it: their
+// live object is one this estate destroyed and left in place, so the
+// configuration's identity names an object the estate does not own, and
+// the node must plan the create rather than import it.
+func nodeResolverUnownedSet(res *projection.Result) map[string]bool {
+	if res == nil || len(res.Unowned)+len(res.Released) == 0 {
 		return nil
 	}
-	out := make(map[string]bool, len(unowned))
-	for _, u := range unowned {
+	out := make(map[string]bool, len(res.Unowned)+len(res.Released))
+	for _, u := range res.Unowned {
 		out[u.Addr.String()] = true
+	}
+	for _, a := range res.Released {
+		out[a.String()] = true
 	}
 	return out
 }
@@ -1514,7 +1522,7 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 	// function. See that field's own doc comment for why leaving it unset
 	// would let the node adopt a client-named resource this run does not
 	// own.
-	r.resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
+	r.resolver.Unowned = nodeResolverUnownedSet(projResult)
 
 	// GitHub issue #949: internal/live/stamp.Request.PolicyUntag's node-path
 	// port. Set here for the identical reason Unowned two lines up is - the
