@@ -174,9 +174,22 @@ func armTagTarget(addr addrs.AbsResourceInstance, block *configschema.Block, con
 			"%s's body is marked as a whole, which this pass will not unmark to see whether it carries tags, so no ownership marker was written on it.", addr)))
 	}
 	switch {
+	case !body.IsKnown() && armTopLevelTagsSet(config):
+		// The body is unknown, but the configuration sets the top-level
+		// tags argument to a known, non-null value, and that settles where
+		// azapi sends tags (GitHub issue #2142's audit of Azure refusals):
+		// azapi 2.13.0 plans the top-level argument whenever it is not null
+		// (tagsWithDefaultTags step 1, internal/services/azapi_resource.go
+		// lines 1555-1559), sends it whenever body has no tags (expandBody,
+		// line 1722), and refuses a known body that also carries tags
+		// (validateDuplicatedDefinitions, lines 1738-1747, which ModifyPlan
+		// runs again once the body is known). So either the marker is sent
+		// from the top-level argument, or azapi refuses the configuration
+		// itself; it is never written to an argument azapi ignores.
+		return armTagsTopLevel, diags
 	case !body.IsKnown():
 		return armTagsNowhere, diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryARMTagsBodyUnknown, fmt.Sprintf(
-			"%s's body is not known at plan time, so this run cannot tell whether the configuration carries its tags in body.tags or in the top-level tags argument. azapi refuses a configuration that sets both, and a marker written to the one it ignores is never stored, so this run will not guess. Make body a known object at plan time (its values may still be unknown), or apply what it depends on first.", addr)))
+			"%s's body is not known at plan time, so this run cannot tell whether the configuration carries its tags in body.tags or in the top-level tags argument. azapi refuses a configuration that sets both, and a marker written to the one it ignores is never stored, so this run will not guess. Make body a known object at plan time (its values may still be unknown), set the top-level tags argument to a known value (azapi then sends it, and refuses a body that also carries tags), or apply what it depends on first.", addr)))
 	case body.IsNull():
 		return armTagsTopLevel, diags
 	case body.Type().IsObjectType():
@@ -192,6 +205,18 @@ func armTagTarget(addr addrs.AbsResourceInstance, block *configschema.Block, con
 	}
 	return armTagsNowhere, diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryARMBodyNotMergeable, fmt.Sprintf(
 		"%s's body evaluated to a %s, not an object, so this run cannot tell where its tags go and has written no ownership marker on it.", addr, body.Type().FriendlyName())))
+}
+
+// armTopLevelTagsSet reports whether config sets azapi_resource's top-level
+// tags argument to a known, non-null value. An unknown value does not
+// count: it may still turn out null at apply, and then azapi would send
+// body.tags instead.
+func armTopLevelTagsSet(config cty.Value) bool {
+	if !config.Type().IsObjectType() || !config.Type().HasAttribute(markers.ARMTagsArgument) {
+		return false
+	}
+	tags := config.GetAttr(markers.ARMTagsArgument)
+	return !tags.IsMarked() && tags.IsKnown() && !tags.IsNull()
 }
 
 // ARMTagPlacement is [armTagTarget] for a write onto an object that already

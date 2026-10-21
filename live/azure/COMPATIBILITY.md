@@ -65,7 +65,7 @@ On `azapi_resource`, three things stop the stamp:
 
 | Written like this | What happens |
 |---|---|
-| A `body` not known at plan time | Refused: the stamp cannot tell whether the tags go in `body.tags` or the top-level argument, and azapi refuses both |
+| A `body` not known at plan time, and no known top-level `tags` | Refused: the stamp cannot tell whether the tags go in `body.tags` or the top-level argument, and azapi refuses both. A known top-level `tags` settles it: azapi sends that, or refuses a body that also carries tags |
 | A `type` whose ARM type and version do not take tags, or are unknown | A warning; no marker is written |
 | A `body` or `body.tags` the markers cannot be merged into | A warning; the value is left as evaluated |
 
@@ -107,8 +107,11 @@ to last, is not read.
 Seven admitted untaggable azurerm types mint a GUID when their naming
 argument is left out: `azurerm_management_group`,
 `azurerm_role_definition` and five more. An instance that leaves it out is
-held by its record, the way an AWS `name_prefix` instance is. azapi refuses
-a block with no `name` itself.
+held by its record, the way an AWS `name_prefix` instance is. An
+`azapi_resource` with no `name` is named by its own provider block's
+`default_name` (azapi 2.13.0 `nameWithDefaultNaming`), read as that
+block's `subscription_id` is; with none, azapi refuses the block itself
+([#2142](https://github.com/INTENTIUS/choudoufu/issues/2142)).
 
 Every comparison of ids is case-insensitive, because ARM's is.
 

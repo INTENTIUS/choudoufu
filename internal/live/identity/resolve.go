@@ -1540,6 +1540,14 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				parts = append(parts, Part{Literal: armDefaultParent})
 				continue
 			}
+			if name, ok := r.armDefaultName(entry, i, cloudScope); ok {
+				// The name azapi gives an azapi_resource that omits it
+				// ([resolver.armDefaultName]).
+				got := []Part{{Literal: name}}
+				addTo(comp.identityAttrFor(comp.Attrs[0]), got)
+				parts = append(parts, got...)
+				continue
+			}
 			if comp.OmitIfAbsent {
 				// The provider's own grammar says this segment - and any
 				// Literal it carries as a prefix - is absent entirely when

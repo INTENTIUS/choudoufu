@@ -201,6 +201,31 @@ func AzapiResourceID(parentID, typ, name string) (string, bool) {
 	return joined + name, true
 }
 
+// armDefaultName is the name azapi gives an azapi_resource whose `name` is
+// omitted, for the component at index i of entry: the name component that
+// follows the [Component.ARMTypeSegment] one. azapi 2.13.0 plans an omitted
+// name as its provider block's default_name (internal/services/azapi_resource.go
+// nameWithDefaultNaming, lines 1543-1553, called from ModifyPlan at line
+// 599; internal/provider/provider.go lines 308-311 and 724), and refuses
+// the block with "The argument \"name\" is required" only when the provider
+// sets none. No environment variable stands in for it. So a static
+// default_name on the block's own provider configuration is the name, read
+// exactly as [CloudSubscriptionID] reads that block's subscription_id
+// ([resolver.providerStaticAttr]); without one, ok is false and the caller
+// refuses the missing argument, as azapi does (GitHub issue #2142's Azure
+// audit found this a value the configuration states and resolution
+// refused).
+func (r *resolver) armDefaultName(entry TypeIdentity, i int, cs cloudScopeKey) (string, bool) {
+	if i < 1 || i >= len(entry.Components) || !entry.Components[i-1].ARMTypeSegment {
+		return "", false
+	}
+	name, ok := r.providerStaticAttr(cs.provider, "default_name")
+	if !ok || name == "" {
+		return "", false
+	}
+	return name, true
+}
+
 // armResourceGroupType is azcore's arm.ResourceGroupResourceType, the type
 // azapi gives a default parent ([resolver.armParentDefault]).
 const armResourceGroupType = "Microsoft.Resources/resourceGroups"

@@ -4689,7 +4689,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Cannot tell where an azapi resource carries its tags
 
-**What.** GitHub issue #1120: an azapi_resource whose body is not known at plan time, so the stamp cannot tell whether its tags go in body.tags or in the top-level tags argument. azapi refuses both and ignores the top-level argument when body carries tags, so the stamp refuses rather than guess.
+**What.** GitHub issue #1120: an azapi_resource whose body is not known at plan time and whose top-level tags argument is unset or not known, so the stamp cannot tell whether its tags go in body.tags or in the top-level tags argument. azapi refuses both and ignores the top-level argument when body carries tags, so the stamp refuses rather than guess. A known top-level tags argument settles it (GitHub issue #2142's Azure audit): azapi sends that, or refuses a body that also carries tags.
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 
