@@ -362,3 +362,57 @@ func TestGoogleHandwrittenCreateRows(t *testing.T) {
 		}
 	}
 }
+
+// TestGoogleEmptySegmentRows resolves the rows whose id format names an
+// optional argument with no default that every import format captures
+// with [^/]* (#2145 item 6): left unset or written as null, the argument
+// renders as the empty segment stock's ReplaceVars writes, so a network
+// endpoint naming only an IP address or only an FQDN has stock's import
+// ID. An endpoint naming neither is refused, as the provider's own
+// AtLeastOneOf refuses it, and google_spanner_backup_schedule, whose
+// importer captures name with [^/]+, still refuses an unset name.
+func TestGoogleEmptySegmentRows(t *testing.T) {
+	cfg := loadConfig(t, "testdata/gcp-empty-segment", nil)
+	result, diags := Resolve(context.Background(), cfg)
+
+	concrete := map[string]string{
+		"google_compute_global_network_endpoint.by_ip":     "estate-prod/neg/10.0.0.1//80",
+		"google_compute_global_network_endpoint.by_fqdn":   "estate-prod/neg//api.example.com/443",
+		"google_compute_global_network_endpoint.null_fqdn": "estate-prod/neg/10.0.0.9//80",
+		"google_compute_region_network_endpoint.by_ip":     "estate-prod/europe-west1/rneg/10.0.0.2//8080",
+		"google_compute_region_network_endpoint.by_fqdn":   "estate-prod/europe-west1/rneg//db.example.com/5432",
+		"google_compute_network_endpoint.no_instance":      "estate-prod/europe-west1-b/zneg//10.0.0.3/80",
+	}
+	for addr, id := range concrete {
+		got := resolutionAt(t, result, addr)
+		if got.Class != ClassConcrete || got.ImportID != id {
+			t.Errorf("%s = %s %q (%s), want CONCRETE %q", addr, got.Class, got.ImportID, got.Reason, id)
+		}
+	}
+
+	refused := map[string][]string{
+		"google_compute_global_network_endpoint.neither": {`"ip_address"`, `"fqdn"`},
+		"google_spanner_backup_schedule.unnamed":         {`"name"`},
+	}
+	if len(diags) != len(refused) {
+		t.Fatalf("got %d diagnostics, want %d refusals: %v", len(diags), len(refused), diags.Err())
+	}
+	for addr, names := range refused {
+		found := false
+		for _, d := range diags {
+			desc := d.Description()
+			if desc.Summary != "Identity argument not set" || !strings.Contains(desc.Detail, addr+" ") {
+				continue
+			}
+			found = true
+			for _, n := range names {
+				if !strings.Contains(desc.Detail, n) {
+					t.Errorf("the refusal of %s does not name %s: %s", addr, n, desc.Detail)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s was not refused with Identity argument not set: %v", addr, diags.Err())
+		}
+	}
+}

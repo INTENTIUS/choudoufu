@@ -64,6 +64,11 @@ type Decision struct {
 	// object's id, when that is what names an object whose id embeds a
 	// value the API returns (createname.go, #2145 item 3).
 	CreateNamed string
+
+	// importFormats is every provider's importer regexes, one list per
+	// provider: the empty-segment rule (emptysegment.go) asks all of them,
+	// while the Source decideResource reads is the first provider's.
+	importFormats [][]string
 }
 
 // cloudPlaceholders are the three variables ReplaceVars never reads from the
@@ -132,6 +137,9 @@ func DecideWith(typeName string, sources map[string]Source, facts map[string]Typ
 		return unrowed(true, "%s's provider source registers no resource by this name", strings.Join(missingProviders(sources, facts), " and "))
 	}
 	var src Source
+	for _, p := range sortedProviders(sources) {
+		d.importFormats = append(d.importFormats, sources[p].ImportFormats)
+	}
 	for i, p := range sortedProviders(sources) {
 		s := sources[p]
 		if i == 0 {
@@ -326,6 +334,12 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, names AssetNames, u
 			if def, ok := src.Defaults[name]; ok {
 				comp.Default = def
 			}
+			if emptySegment(d, src, flag, name) {
+				// Unless stock renders it empty and parses the empty
+				// segment back (#2145 item 6): then omission is the
+				// empty string, and the instance resolves.
+				comp.OmitIfAbsent = true
+			}
 		case "C":
 			serverAssigned = append(serverAssigned, name)
 			continue
@@ -372,6 +386,8 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, names AssetNames, u
 		}
 		return d
 	}
+
+	attachAtLeastOneOf(comps, src)
 
 	identityAttrs := []string{"id"}
 	if len(comps) == 1 && len(comps[0].Attrs) == 1 && comps[0].Cloud == identity.CloudNone && !comps[0].ServerAssignedIfAbsent && comps[0].Default == "" {

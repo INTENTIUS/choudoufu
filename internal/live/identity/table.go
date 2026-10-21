@@ -380,7 +380,28 @@ type Component struct {
 	// as often when it names a live alias's version - stands and still
 	// refuses through the ordinary path, because "not known until apply"
 	// is a true statement about it and "absent" is not.
+	//
+	// A google row uses it with no Literal, between two standalone "/"
+	// separator components, and then the omission is an EMPTY segment
+	// rather than a missing one: stock's ReplaceVars renders an unset
+	// optional argument as "", so a google_compute_global_network_endpoint
+	// with only ip_address set has the id "p/neg/10.0.0.1//80". The
+	// generator emits that only where the argument is optional with no
+	// schema default AND every import format the provider's importer
+	// accepts captures it with `[^/]*`, so the empty segment parses back
+	// (#2145 item 6); see tools/gcp-row-gen's emptySegment.
 	OmitIfAbsent bool
+
+	// AtLeastOneOf names the arguments the provider's schema requires at
+	// least one of (its AtLeastOneOf), when this component is one of them
+	// and is [Component.OmitIfAbsent]. An instance that leaves every one of
+	// them unset is refused with "Identity argument not set" naming all of
+	// them, as a required argument left out is, rather than rendered with
+	// every segment empty: the provider's own validation rejects that
+	// configuration. Only components of the same entry are consulted.
+	// Empty everywhere except the google network endpoint rows (#2145 item
+	// 6), so no other row changes behavior.
+	AtLeastOneOf []string
 
 	// Default is the literal value this component contributes when none of
 	// Attrs is set in the configuration, for the arguments whose omission
