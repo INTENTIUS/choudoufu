@@ -11,8 +11,8 @@ package identity
 // google-beta 8.6.0 type whose import form the provider source at the pin
 // states, how a Cloud Asset Inventory hit's name becomes an import ID
 // (INTENTIUS/choudoufu#2139 item 7). Of 318 labelled types (297 served by
-// hashicorp/google), 301 take the Asset path as it is (283), 3 take it
-// rewritten into another accepted form (3), and 14 are unknown (11) and
+// hashicorp/google), 302 take the Asset path as it is (284), 3 take it
+// rewritten into another accepted form (3), and 13 are unknown (10) and
 // have no row: a hit of one is refused by name, never imported with a
 // guessed ID.
 //
@@ -30,6 +30,7 @@ var GoogleAssetImports = map[string]GoogleAssetImport{
 	"google_api_gateway_api":                                       {Host: "apigateway.googleapis.com", Asset: "projects/{{project}}/locations/global/apis/{{api_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/global/apis/{{api_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/global/apis/(?P<api_id>[^/]+)$"}},
 	"google_api_gateway_api_config":                                {Host: "apigateway.googleapis.com", Asset: "projects/{{project}}/locations/global/apis/{{api}}/configs/{{api_config_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/global/apis/{{api}}/configs/{{api_config_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/global/apis/(?P<api>[^/]+)/configs/(?P<api_config_id>[^/]+)$"}},
 	"google_api_gateway_gateway":                                   {Host: "apigateway.googleapis.com", Asset: "projects/{{project}}/locations/{{region}}/gateways/{{gateway_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{region}}/gateways/{{gateway_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<region>[^/]+)/gateways/(?P<gateway_id>[^/]+)$"}},
+	"google_apihub_api_hub_instance":                               {Host: "apihub.googleapis.com", Asset: "projects/{{project}}/locations/{{location}}/apiHubInstances/{{api_hub_instance_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/apiHubInstances/{{api_hub_instance_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/apiHubInstances/(?P<api_hub_instance_id>[^/]+)$"}},
 	"google_artifact_registry_repository":                          {Host: "artifactregistry.googleapis.com", Asset: "projects/{{project}}/locations/{{location}}/repositories/{{repository_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/repositories/{{repository_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/repositories/(?P<repository_id>[^/]+)$"}},
 	"google_backup_dr_backup_vault":                                {Host: "backupdr.googleapis.com", Asset: "projects/{{project}}/locations/{{location}}/backupVaults/{{backup_vault_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/backupVaults/{{backup_vault_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/backupVaults/(?P<backup_vault_id>[^/]+)$"}},
 	"google_bigquery_dataset":                                      {Host: "bigquery.googleapis.com", Asset: "projects/{{project}}/datasets/{{dataset_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/datasets/{{dataset_id}}", Regex: "^projects/(?P<project>[^/]+)/datasets/(?P<dataset_id>[^/]+)$"}},
@@ -333,17 +334,16 @@ var GoogleAssetImports = map[string]GoogleAssetImport{
 // gives one.
 var GoogleAssetUnknown = map[string]string{
 	"google_active_directory_peering":            "the provider source states no import format for this type",
-	"google_apihub_api_hub_instance":             "no import format carries exactly the parts of the Asset name \"{{name}}\"",
 	"google_assured_workloads_workload":          "no import format carries exactly the parts of the documented Asset name //assuredworkloads.googleapis.com/{WORKLOAD}",
 	"google_compute_instance_from_machine_image": "the provider source states no import format for this type (its documented asset type is compute.googleapis.com/Instance)",
 	"google_compute_instance_from_template":      "the provider source states no import format for this type (its documented asset type is compute.googleapis.com/Instance)",
 	"google_dataflow_flex_template_job":          "the provider source states no import format for this type (its documented asset type is dataflow.googleapis.com/Job)",
-	"google_dataflow_job":                        "no import format carries exactly the parts of the documented Asset name //dataflow.googleapis.com/projects/{PROJECT_ID}/locations/{LOCATION}/jobs/{JOB}",
+	"google_dataflow_job":                        "the importer is schema.ImportStatePassthrough and Create sets the id from no ReplaceVars template, so the import ID is the id alone. Google documents the Asset name as //dataflow.googleapis.com/projects/{PROJECT_ID}/locations/{LOCATION}/jobs/{JOB}, and only a real Asset response shows whether {JOB} is the value Create sets. The importer would also drop the name's other parts for the provider's defaults",
 	"google_dataproc_cluster":                    "the provider source states no import format for this type (its documented asset type is dataproc.googleapis.com/Cluster)",
 	"google_dataproc_job":                        "the provider source states no import format for this type (its documented asset type is dataproc.googleapis.com/Job)",
 	"google_project":                             "the provider source states no import format for this type (its documented asset type is cloudresourcemanager.googleapis.com/Project)",
 	"google_recaptcha_enterprise_key":            "no import format carries exactly the parts of the documented Asset name //recaptchaenterprise.googleapis.com/projects/{PROJECT_NUMBER}/keys/{KEY}; a project number is not the project ID the provider's project argument holds",
-	"google_service_directory_namespace":         "no import format carries exactly the parts of the Asset name \"{{name}}\"",
+	"google_service_directory_namespace":         "the importer takes the whole import ID as name, and Google documents its Asset name as //servicedirectory.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/namespaces/{NAMESPACE}; a project number is not the project ID the provider's project argument holds",
 	"google_vertex_ai_dataset":                   "the provider source states no import format for this type",
 	"google_workflows_workflow":                  "the provider source states no import format for this type",
 }
