@@ -130,6 +130,21 @@ if (hedges.length > 0) {
   process.exit(1);
 }
 
+// Cross-platform pointers. Each platform page states its own content, so a
+// sentence that only defers to another platform's page fails. It reads the
+// raw page source, since link text and targets matter here.
+const POINTER = /\b(as on \[?AWS\]?|same as AWS|as on Kubernetes)\b/gi;
+const pointers = [];
+for (const file of docFiles(DOCS_ROOT)) {
+  const src = readFileSync(file, "utf8");
+  for (const m of src.matchAll(POINTER)) pointers.push(`${relative(REPO, file)}:${lineOf(src, m.index)}: "${m[0]}"`);
+}
+if (pointers.length > 0) {
+  console.error(`prose lint: ${pointers.length} cross-platform pointer(s); state the content on this page:`);
+  for (const p of pointers) console.error(`  ${p}`);
+  process.exit(1);
+}
+
 // rooms.ts prose with the LIMITS entries' literals blanked, offsets kept.
 function blankLimits(src, prose) {
   const start = src.indexOf("export const LIMITS");
