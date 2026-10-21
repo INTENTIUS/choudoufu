@@ -9,11 +9,12 @@ On AWS that is two resource tags. The apply writes the marker and the next
 plan reads it back live. The state file becomes a cache you may lose. The
 policy engine you already run decides who may read or change what.
 
-It runs on three platforms:
+It runs on four platforms:
 
 - [AWS](https://intentius.io/choudoufu/aws/): two tags, scoped by IAM tag conditions.
 - [Kubernetes](https://intentius.io/choudoufu/kubernetes/): one label, fenced by one admission policy.
 - [GCP](https://intentius.io/choudoufu/gcp/): two labels, one project per estate.
+- [Azure](https://intentius.io/choudoufu/azure/): two tags, resource groups and Azure Policy.
 
 Three things persist between runs. A tag on the resource says which real
 resource an address refers to. Values with no home in AWS go in a

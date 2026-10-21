@@ -85,7 +85,7 @@ export default defineConfig({
 			editLink: {
 				baseUrl: 'https://github.com/INTENTIUS/choudoufu/edit/main/site/',
 			},
-			// The groups from #2092: Start here, AWS, Kubernetes, GCP, How it works, Use,
+			// The groups from #2092: Start here, AWS, Kubernetes, GCP, Azure, How it works, Use,
 			// Reference. A group joins this list when its first page is written.
 			// Every group but Start here starts collapsed.
 			sidebar: [
@@ -103,6 +103,7 @@ export default defineConfig({
 						{ label: 'On AWS', link: '/for/aws/' },
 						{ label: 'On Kubernetes', link: '/for/kubernetes/' },
 						{ label: 'On GCP', link: '/for/gcp/' },
+						{ label: 'On Azure', link: '/for/azure/' },
 						{ label: 'Security and access', link: '/for/security/' },
 						{ label: 'Evaluating', link: '/for/evaluate/' },
 						{ label: 'With a coding agent', link: '/for/agents/' },
@@ -143,6 +144,18 @@ export default defineConfig({
 						{ label: 'Operate', slug: 'gcp/operate' },
 						{ label: 'Compatibility', slug: 'gcp/compatibility' },
 						{ label: 'Proof', slug: 'gcp/proof' },
+					],
+				},
+				{
+					label: 'Azure',
+					collapsed: true,
+					items: [
+						{ label: 'Overview', slug: 'azure' },
+						{ label: 'Adopt', slug: 'azure/adopt' },
+						{ label: 'Gate', slug: 'azure/gate' },
+						{ label: 'Operate', slug: 'azure/operate' },
+						{ label: 'Compatibility', slug: 'azure/compatibility' },
+						{ label: 'Proof', slug: 'azure/proof' },
 					],
 				},
 				{

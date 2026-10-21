@@ -146,6 +146,45 @@ describes, then apply. The labels carry the address as a hash:
         }
 ```
 
+## On Azure
+
+`estate.chdf.hcl`:
+
+```hcl
+estate = "my-estate"
+
+record_store "azurerm" {
+  storage_account_name = "myrecords"
+  container_name       = "records"
+  resource_group_name  = "records-rg"
+}
+```
+
+`main.tf`:
+
+```hcl
+provider "azurerm" {
+  features {}
+  subscription_id = "00000000-0000-0000-0000-000000000000"
+}
+
+resource "azurerm_resource_group" "app" {
+  name     = "my-estate-app"
+  location = "eastus"
+}
+```
+
+The storage account needs the three settings in
+[CONTRACT.md](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-azurerm/CONTRACT.md).
+The plan writes both tags on the resource group:
+
+```
+      + tags     = {
+          + "tofu-address" = "azurerm_resource_group.app"
+          + "tofu-estate"  = "my-estate"
+        }
+```
+
 ## Check that the markers carry it
 
 Run `choudoufu plan` again. It reads the markers and reports no changes.

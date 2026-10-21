@@ -1,0 +1,28 @@
+---
+title: Adopt
+description: One command migrates a state file.
+prompt: |
+  Follow https://intentius.io/choudoufu/azure/adopt/. Run `choudoufu live-import -state=stock.tfstate -estate=<name>` without `-approve` and report its output.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+A resource is yours once its `tags` carry `tofu-estate` and `tofu-address` in any case.
+
+## The bulk path
+
+```
+choudoufu live-import -state=stock.tfstate -estate=my-estate -approve
+```
+
+Without `-approve` it previews. Approved, it writes both tags through a tags-only plan.
+
+## What binds on its own
+
+Every block binds by its ARM id. `policy { declared_untagged = "adopt" }` adopts an object already there.
+
+## Leaving
+
+Copy the cache to `terraform.tfstate` and remove the `live` block ([Migrate](/choudoufu/docs/use/migrate/)).

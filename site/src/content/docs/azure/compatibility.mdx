@@ -1,0 +1,36 @@
+---
+title: Compatibility
+description: Stock azurerm and azapi, checked offline by live-check.
+prompt: |
+  Follow https://intentius.io/choudoufu/azure/compatibility/. Run `choudoufu live-check` here and report each refusal.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+```
+choudoufu live-check
+```
+
+It reads the schemas `choudoufu init` fetched.
+
+## The backend
+
+Markers record ownership, so the configuration carries no `backend` or `cloud` block.
+
+## Expansions and identity arguments
+
+`count` and `for_each` work. The provider block names the subscription.
+
+## Resource types
+
+Stock azurerm and azapi. An azurerm type with an ARM id template plans, and so does every ARM type through `azapi_resource` ([READINESS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/READINESS.md#azure)).
+
+## Running it
+
+`-target` and plan files work.
+
+## Other providers
+
+The full list is [COMPATIBILITY.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/azure/COMPATIBILITY.md).
