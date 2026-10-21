@@ -189,6 +189,13 @@ type readPrep struct {
 	// GitHub issue #1863's stock hand-over read keeps only these keys.
 	// Nil for every other type.
 	fieldGranularDeclared map[string]cty.Value
+
+	// googleDefaultsUnread is GitHub issue #1119: a google-labels type whose
+	// provider block's default_labels or attribution setting is not known
+	// statically, so terraform_labels is not rebuilt after the read and the
+	// plan shows it as a change. [builder.materialize] warns once per
+	// provider configuration.
+	googleDefaultsUnread bool
 }
 
 // readTerminal is one of [builder.prepareRead]'s four refusals, carried as

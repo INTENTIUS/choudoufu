@@ -316,6 +316,10 @@ func LocatedRecordFrom(resourceType string, schema providers.Schema, obj cty.Val
 				for name, v := range identity.LocatedIdentityOptional(obj, plan.OptionalComponents) {
 					rec.Components[name] = v
 				}
+				// Recorded in the importer's form: a google Read can fill
+				// an identity argument with a self link its importer
+				// refuses ([identity.RewriteIdentityValues]).
+				rec.Components = identity.RewriteIdentityValues(resourceType, rec.Components)
 			}
 		case plan.Composed():
 			// The provider serves no identity object for this type, so

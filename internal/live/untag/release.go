@@ -211,6 +211,14 @@ func releaseOne(ctx context.Context, provider providers.Interface, cluster kubes
 			rewrite: markers.WithLabels,
 			judge:   notALabelsOnlyPlan,
 		}
+	case markers.SurfaceGoogleLabels:
+		w = writer{
+			noun:    "label",
+			rewrite: withGoogleLabelsKept,
+			judge:   notAGoogleLabelsOnlyPlan,
+			mirror:  markers.WithGoogleMarkersMirrored,
+			place:   "cloud",
+		}
 	case markers.SurfaceManifest:
 		// The manifest shape's write is an API merge patch, not a provider
 		// plan (substrate.WriteAPIPatch, ruled on #1109 and #1104; the
@@ -258,6 +266,12 @@ func releaseOne(ctx context.Context, provider providers.Interface, cluster kubes
 		return out
 	}
 	live := readResp.NewState
+	if w.mirror != nil {
+		// GitHub issue #1119: a GCP read on an imported prior names none
+		// of the object's labels, so the release would plan nothing. See
+		// markers.WithGoogleMarkersMirrored.
+		live = w.mirror(live)
+	}
 
 	current, hasMarkers := substrate.MarkersOf(surface, live)
 	if !hasMarkers {
@@ -369,10 +383,19 @@ type writer struct {
 	noun    string
 	rewrite func(block *configschema.Block, obj cty.Value, m map[string]string) (cty.Value, error)
 	judge   func(block *configschema.Block, prior cty.Value, typeName, key string, resp providers.PlanResourceChangeResponse) string
+	// mirror, when set, completes the read-back object before anything
+	// reads its markers: the GCP labels maps are non-authoritative.
+	mirror func(obj cty.Value) cty.Value
+	// place overrides what system names, where the noun alone would name
+	// the wrong one: a GCP label lives in the cloud, not a cluster.
+	place string
 }
 
 // system names what an operator verifies a write against.
 func (w writer) system() string {
+	if w.place != "" {
+		return w.place
+	}
 	if w.noun == "label" {
 		return "cluster"
 	}

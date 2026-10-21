@@ -8,7 +8,8 @@ integration surface external tools rely on: this document is a contract,
 and nothing else about the mode's internals is.
 
 A marker is an ownership record carried on the resource itself, as AWS
-resource tags, or on Kubernetes as one label (see "Kubernetes: one label").
+resource tags, on Kubernetes as one label (see "Kubernetes: one label"), or
+on GCP as three labels (see "GCP: labels").
 There is no side channel, no registry, and no shared library. If a tool
 reads and writes these tags according to the grammar below, it can identify,
 adopt, and safely modify resources that belong to a marker-managed estate,
@@ -680,6 +681,199 @@ annotation beside the label, and `live-mv` rewrites that annotation in
 the same write, though the policy itself still reads the label alone
 ("Granting a Kubernetes estate", above). Kyverno and Gatekeeper could
 express the same policy and are unverified for it.
+
+## GCP: labels
+
+On GCP (GitHub issue #1119, under #1121's ruling of 2026-10-11 and its
+address ruling of 2026-10-19) the marker is three labels in the
+resource's own top-level `labels` map, written by the create call
+hashicorp/google already makes:
+
+| Label | Meaning | Present on |
+|---|---|---|
+| `tofu-estate` | The estate that owns the resource. | Every managed resource of a type with a settable top-level `labels` map and the computed `effective_labels` map beside it: 297 of hashicorp/google 8.6.0's types, and google-beta's the same way. |
+| `tofu-address` | The resource's address, encoded ("The address label", below). | Every resource carrying `tofu-estate`. |
+| `tofu-slot` | The slot, exactly as `tofu-slot` below defines it. | `count` instances of a set whose members the configuration does not tell apart. |
+
+The surface is read from the schema (`markers.GoogleLabelSurface`), never
+from a list of type names. Two types with that shape are excluded:
+`google_compute_instance_template` and
+`google_compute_region_instance_template`, whose `labels` map is copied onto
+every VM made from the template and is not the template's own. A marker is
+never stamped there, and a configuration that writes one by hand is refused
+as "Ownership marker conflict", because every VM a managed instance group
+made would carry it with no block declaring it.
+
+A GCP label value is 0 to 63 characters of lowercase letters (international
+lowercase included), digits, `_` and `-`, and a key is the same but starts
+with a lowercase letter and is never empty. A marker value is never empty.
+An estate name is `[a-z][a-z0-9-]{0,127}` (below), so a name over 63
+characters is a legal estate and an illegal label; a run refuses to stamp
+it ("Ownership marker is not a legal label value") rather than send a
+create GCP rejects. A resource holds at most 64 labels, and the markers use two or three;
+`gcp-label-count` refuses a block they would push over.
+
+The provider reads labels non-authoritatively: on a read, `labels` and
+`terraform_labels` keep only the keys the prior state already named, and
+`effective_labels` holds every label on the resource whoever set it. A
+plan built without a cache therefore reads the markers from
+`effective_labels` and mirrors them into the other two maps, and rebuilds
+`terraform_labels` from the keys of the provider block's `default_labels`
+when those keys are known statically (a value may come from another
+resource). When they are not, the plan warns "Provider default labels not
+known at plan time" and shows `terraform_labels` as a change the apply
+makes no call for.
+
+### The address label
+
+A label value cannot hold `.`, `:`, `[` or a capital, so no escaped address
+fits, and 63 characters is too few for ordinary module-nested addresses
+anyway. The address is carried as a fixed-length encoding, and a reader
+that wants to compute it needs exactly this:
+
+1. The instance string is the full instance address as OpenTofu prints it,
+   module keys and the resource's own key included:
+   `module.net["a"].google_compute_subnetwork.this[2]`.
+2. The block string is the same address with the resource's own instance
+   key removed and every module key kept:
+   `module.net["a"].google_compute_subnetwork.this`. A resource with no
+   `count` or `for_each` has the same block and instance string.
+3. Each string is hashed with SHA-256 over its UTF-8 bytes. The 32-byte
+   digest is encoded in base32 with the RFC 4648 alphabet, without padding,
+   lowercased, and cut to its first 26 characters (130 bits).
+4. The value is the block part, `-`, then the instance part: 53 characters
+   matching `^[a-z2-7]{26}-[a-z2-7]{26}$`.
+
+| Address | `tofu-address` |
+|---|---|
+| `google_compute_network.main` | `pbto3ksmyaajifkcwdi2kvn7ls-pbto3ksmyaajifkcwdi2kvn7ls` |
+| `google_storage_bucket.logs["eu"]` | `woy7j4jfjdy7ijvlye5awlh43u-6qxg2rx7xztmivjddbzzxh2tul` |
+| `module.net["a"].google_compute_subnetwork.this[2]` | `kmnho6kggxe3eeoegodokage4s-ztdls6xmj5l4i2t2scn3mq3ic7` |
+
+`internal/live/markers/googlelabels_test.go` pins these three.
+
+The value is matched, never decoded. A reader holding the configuration
+computes the value of every declared address and compares; a reader without
+it can group a block's instances by the first 26 characters and can say no
+more. There is no escaping rule, no continuation label and no length limit
+on the address. The block part is what lets a slotted `count` member whose
+label names a stale index still match its block, the slot then settling
+the index. An address that changes, by a rename or a `moved` block, plans
+one in-place label change, as the AWS tag rewrite does.
+
+Because a label names no address a reader can recover, the sweep never
+plans removal of an object whose address label matches nothing declared. It
+reports it ("GCP resource carries this estate's label and no declared
+address") and the deleted block's record proposes the removal. The one
+exception is a slotted member of a declared `count` set past its count: the
+slot says which member it is, so a scale-down removes it as on AWS.
+
+The sweep is also how an instance whose identity the server assigns is
+found. Its address label binds it, and its import id comes from a table
+`tools/gcp-row-gen` writes from the provider source at the pin
+(`internal/live/identity/importids_generated_google.go`): the asset's path
+as it is where the type's importer accepts it, or its parts moved into a
+form the importer does accept. A type the source gives no form for, such
+as `google_storage_bucket`, is refused by name rather than imported with a
+guessed id. The index lags creates, so an object created moments ago can be
+missing; an estate with a record store finds it by its record first.
+
+### Why GCP carries `tofu-slot`
+
+Kubernetes has no slot because every object's name is in the
+configuration (`generate_name` is refused), so no `count` set is ever
+fungible. GCP has types whose name or id the server assigns
+(`google_vertex_ai_dataset` is one), and a `count` set of those is exactly
+the fungible set a slot exists for: nothing in the configuration says which
+live dataset is instance 1. So the slot rule is AWS's, unchanged: written
+only on such a set, all members or none, digits only, and the slot binds
+before the address. A slot value is digits, which a label value can hold
+as written.
+
+The sweep reads it the way the AWS tag sweep does. Every hit whose address
+label names one of the set's instances, or whose block part names the set,
+joins it; the set binds by slot when its members carry slots and by
+address when none do, and the slots it settles are the ones the next stamp
+writes.
+
+### Granting a GCP estate
+
+An IAM condition can match a resource's Resource Manager tags
+(`resource.matchTag`) and cannot match its labels. So the fence is the
+project (#1121): one estate per project, and granting an estate is an
+ordinary project IAM binding for the principal that runs it. Handover is
+that binding moving. The fence covers reads and writes, per principal, at
+project granularity. Resource Manager tag bindings, the GCP carrier a
+condition can match, are ruled later.
+
+`live/gcp/estate-grant.sh`, run once per estate by someone who may set the
+project's IAM policy:
+
+```sh
+# One GCP estate's grant (#1121; live/MARKERS.md, "Granting a GCP
+# estate"): the project IAM bindings that hand one estate to the principal
+# that runs it. An IAM condition cannot read a label, so the fence is the
+# project: one estate per project, and holding the estate is holding these
+# bindings on its project. Replace PROJECT, PRINCIPAL and ROLE, then run
+# the lines as someone who may enable services and set the project's IAM
+# policy. Handover is these bindings moving from one principal to
+# another; nothing on the resources changes.
+#
+# PRINCIPAL is an IAM member string, such as
+# serviceAccount:runner@PROJECT.iam.gserviceaccount.com. ROLE is a role
+# the estate's declared types need to be created, changed and deleted
+# (roles/compute.networkAdmin, roles/storage.admin, ...): repeat the last
+# binding once per role. The first two lines are the estate sweep's: the
+# Cloud Asset API enabled in the project, and
+# cloudasset.assets.searchAllResources on it, which
+# roles/cloudasset.viewer carries.
+#
+# Two estates sharing one project are not fenced from each other: each
+# principal holds the other estate's resources too. A binding on the
+# project's folder or organization inherits into the project and passes
+# this fence the way an account's root passes an IAM condition on AWS.
+gcloud services enable cloudasset.googleapis.com --project=PROJECT
+gcloud projects add-iam-policy-binding PROJECT --member=PRINCIPAL --role=roles/cloudasset.viewer --condition=None
+gcloud projects add-iam-policy-binding PROJECT --member=PRINCIPAL --role=ROLE --condition=None
+```
+
+**What the sweep needs.** The estate sweep is one Cloud Asset Inventory
+`searchAllResources` call per project the estate's google resources name,
+filtered on the estate label. In each of those projects the Cloud Asset API
+(`cloudasset.googleapis.com`) must be enabled and the principal must hold
+`cloudasset.assets.searchAllResources`, which `roles/cloudasset.viewer`
+carries. A project where either is missing is the warning "GCP sweep
+incomplete": a gap in coverage, never a wrong plan. When the configuration
+has instances only the search can find, whose names the server assigns,
+the plan also refuses their type as "Unlistable marker-discovered type"
+rather than plan a create of something that may exist. The index lags creates
+and deletes, so a deleted resource's labels can still be listed for a
+while, and a record tombstone tells that from a second claimant, as on AWS.
+
+**Two estates in one project are not fenced from each other.** Each
+principal's binding reaches the other estate's resources, and nothing GCP
+evaluates can tell them apart. Lint warns when one estate's google
+resources resolve to more than one project, since a project holding two
+estates is usually how that starts. A binding on the project's folder or
+organization inherits into the project and passes the fence, the way the
+account root passes an IAM condition on AWS.
+
+### What a GCP grant cannot reach
+
+Every gap is the project's granularity, stated per class of type:
+
+| Class | Identity | Fence | Sweep |
+|---|---|---|---|
+| Labelled types (the `google-labels` surface) | the address label, or the configured name | project only: any principal with write in the project can relabel or delete any estate's resource there | found by the estate label |
+| Declaration-carried skeleton (networks, subnetworks, firewalls, routes, routers, service accounts, custom roles and the other types with no `labels` map) | recomputed from the configuration's `name`, `project` and location | project only, the same | never found by label: an undeclared one is invisible to the sweep, and only a deleted block's record proposes its removal |
+| Instance templates | the configured name, or the record for one named by `name_prefix` | project only | the same gap as the skeleton |
+| Unlabelled types whose identity the server mints | the estate's record | project only | never found by label: only a deleted block's record proposes its removal |
+
+On the skeleton no stock argument can carry a marker: `description` is
+ForceNew on networks, subnetworks and routes, and is the user's own
+everywhere else. So a skeleton object that loses its record and its block
+together is an orphan nothing finds. Keep the record store (one bucket per
+estate, `live/STORAGE.md`) and that does not happen.
 
 ## `tofu-estate`
 

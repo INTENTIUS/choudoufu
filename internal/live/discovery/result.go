@@ -724,6 +724,14 @@ type OwnedResource struct {
 	// "the block is gone", and only the sweep can see the second one.
 	Swept bool
 
+	// LabelHash is true for a hit the GCP leg filed ([GCPAssetSweep]):
+	// Marker is a google tofu-address label, a one-way hash that is
+	// matched and never decoded, and Withheld already says why nothing
+	// was bound to it. [classifyOrphans] decodes markers by the escaping
+	// rule in live/MARKERS.md, so it leaves such an orphan alone; the
+	// record leg is what proposes its destroy ([liveLabelVouches]).
+	LabelHash bool
+
 	// Removal is true when this resource enters the prior state as an
 	// instance with no configuration, so that the plan engine proposes
 	// destroying it the way it destroys any resource whose block was
@@ -1520,6 +1528,15 @@ const (
 	// by #1729): the provider's block went with the resource's, so no
 	// pass can read or destroy the object.
 	ProblemRemovedTypeUnserved ProblemKind = "REMOVED_TYPE_UNSERVED"
+
+	// ProblemUncomposableRecord is INTENTIUS/choudoufu#2139 item 3's
+	// refusal: a removed block's record holds its identity as Components
+	// and no import ID, and the type has no form the record leg can put
+	// them into (a google type with no identity-table row whose importer
+	// states no form made of its identity attributes). Proposing nothing
+	// would leave the object live with nobody told, so the plan refuses,
+	// naming the type.
+	ProblemUncomposableRecord ProblemKind = "UNCOMPOSABLE_RECORD"
 )
 
 // RecordedElsewhere is one undeclared record a scoped pass did not

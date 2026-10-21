@@ -2,12 +2,12 @@
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec",
   "banner": "Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 2 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-13T01:50:50Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "44 of 44 estates have a recorded run duration, totaling 13h26m42.1s, but not from one sweep: 8h32m40.9s across 18 estate(s) at commit `2f02038dd1`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
-  "script_banner": "**41 of 44 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 17 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-govuk-cluster-services, corpus-hongbomiao-labelbox, corpus-iam-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-eks, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-argo-cd, reference-k8s-helm-cloudnative-pg, reference-k8s-helm-ingress-nginx, reference-k8s-helm-keda, reference-k8s-helm-metallb, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-yaml-rollouts, terralith-scale.",
+  "runtime_banner": "44 of 46 estates have a recorded run duration, totaling 13h26m42.1s, but not from one sweep: 8h32m40.9s across 18 estate(s) at commit `2f02038dd1`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 2 estate(s) with no recorded duration yet.",
+  "script_banner": "**44 of 46 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 20 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-govuk-cluster-services, corpus-hongbomiao-labelbox, corpus-iam-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-eks, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-argo-cd, reference-k8s-helm-cloudnative-pg, reference-k8s-helm-external-secrets, reference-k8s-helm-ingress-nginx, reference-k8s-helm-keda, reference-k8s-helm-kyverno, reference-k8s-helm-metallb, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads, reference-k8s-yaml-rollouts, terralith-scale. 2 more cannot be checked from this checkout: corpus-k8s-infra-gcp-gcve, reference-gcp.",
   "provider_banner": "Estates were last measured against different hashicorp/aws versions: 20 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 17 against `3.2.1` (current pin), 3 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
   "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 44 estates measured so far, 44 recorded running on it.",
-  "stage_count": 15,
+  "stage_count": 16,
   "stages": [
     {
       "id": "cold_deploy",
@@ -173,6 +173,17 @@
       "headline_cell": "no",
       "proves_first": "After the estate is applied and its plan is empty, deleting BOTH the local record store and the state cache - a fresh clone or a new machine, with only the account left - still yields a plan that finds every declared object by its own marker or a stamped parent: nothing created, destroyed or replaced.",
       "proves": "After the estate is applied and its plan is empty, deleting BOTH the local record store and the state cache - a fresh clone or a new machine, with only the account left - still yields a plan that finds every declared object by its own marker or a stamped parent: nothing created, destroyed or replaced. The verdict line reports that plan's API call count beside the same estate's cache-serving plan, because the ratio between them is the claim. Tested and shown per estate; not part of the headline bars."
+    },
+    {
+      "id": "day2_endpoints",
+      "order": 16,
+      "title": "Endpoints with an unset optional identity field",
+      "status": "planned",
+      "headline": false,
+      "tier1_gated": false,
+      "headline_cell": "no",
+      "proves_first": "A network endpoint whose identity names an optional field the block leaves unset (#2145 item 6: a global or regional internet NEG endpoint with only ip_address or only fqdn) is created, replans empty with and without the state cache, is bound by its record, and is destroyed on removal exactly as stock destroys it.",
+      "proves": "A network endpoint whose identity names an optional field the block leaves unset (#2145 item 6: a global or regional internet NEG endpoint with only ip_address or only fqdn) is created, replans empty with and without the state cache, is bound by its record, and is destroyed on removal exactly as stock destroys it. Run by reference-gcp only, last and in a scratch estate of its own (its own roots, record store and network), so it never touches the estate the headline stages measure; not part of the headline bars."
     }
   ],
   "estates": [
@@ -212,7 +223,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-alb-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-alb-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -310,6 +321,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -349,7 +365,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-autoscaling-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-autoscaling-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -447,6 +463,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -486,7 +507,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-dynamodb-table-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-dynamodb-table-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -584,6 +605,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -622,7 +648,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-ec2-instance-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-ec2-instance-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -720,6 +746,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -759,7 +790,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-ecs-fargate/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-ecs-fargate/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -857,6 +888,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -896,7 +932,7 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-eks-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-eks-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -994,6 +1030,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1033,7 +1074,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-evoteum-modules/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-evoteum-modules/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1131,6 +1172,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1170,7 +1216,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-giantswarm-crossplane/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-giantswarm-crossplane/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1268,6 +1314,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1307,7 +1358,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1405,6 +1456,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1444,7 +1500,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-iam-policy/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-iam-policy/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1542,6 +1598,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1581,7 +1642,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-lambda-simple/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-lambda-simple/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1679,6 +1740,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1718,7 +1784,7 @@
       "provider_note": "Provider: hashicorp/aws `5.100.0`. **Stale**: the current pin is `6.63.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-leynos-monitoring/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-leynos-monitoring/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1816,6 +1882,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1855,7 +1926,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-overture-tiles/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-overture-tiles/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1953,6 +2024,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1991,7 +2067,7 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-rds-complete-postgres/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-rds-complete-postgres/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2089,6 +2165,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2128,7 +2209,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-s3-bucket-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-s3-bucket-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2226,6 +2307,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2265,7 +2351,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-security-group-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-security-group-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2363,6 +2449,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2402,7 +2493,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-simpleinfra-dns/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-simpleinfra-dns/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2500,6 +2591,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2538,7 +2634,7 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-sqs-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-sqs-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2636,6 +2732,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2675,7 +2776,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-sumaform-aws/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-sumaform-aws/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2773,6 +2874,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2812,7 +2918,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-vpc-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-vpc-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2910,6 +3016,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2949,7 +3060,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-xancloud-iac/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-xancloud-iac/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3047,6 +3158,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3084,7 +3200,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-ec2-vpc/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-ec2-vpc/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3186,6 +3302,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3222,7 +3343,7 @@
       "provider_note": "Provider: hashicorp/aws `6.59.0`. **Stale**: the current pin is `6.63.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/terralith-scale/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/terralith-scale/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3322,6 +3443,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3360,7 +3486,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3466,6 +3592,11 @@
           "verdict": "pass",
           "duration": "43s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=117 plan_calls_cache_serving=117 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips verticalpodautoscaler monitoring/thanos-compactor's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3504,7 +3635,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.3.0`. **Stale**: the current pin is `3.2.1`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3610,6 +3741,11 @@
           "verdict": "pass",
           "duration": "35s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=124 plan_calls_cache_serving=124 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips clusterrole/ithctester's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3648,7 +3784,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.3.0`. **Stale**: the current pin is `3.2.1`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3754,6 +3890,127 @@
           "verdict": "not run",
           "duration": "1s",
           "detail": "the published root keeps 17 random_* values that live only in the local record store, so a plan with that store deleted regenerates them and rewrites the dex-client Secrets built from them; a lost record_store \"local\" is not survivable for this root by construction, and the stage waits for a cluster record store"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        }
+      ]
+    },
+    {
+      "name": "corpus-k8s-infra-gcp-gcve",
+      "set": "growing",
+      "lane": "gcp",
+      "substrate": "floci-gcp",
+      "clear": false,
+      "source": "kubernetes/k8s.io infra/gcp/terraform/k8s-infra-gcp-gcve (commit 4046258e7d, Apache-2.0), the Kubernetes project's own root for its VMware Engine CI project: five google_project_service over a for_each whose project comes from a data source, a custom-mode VPC, a subnetwork and two firewalls (one reading the subnetwork's range), terraform-google-modules simple_bucket (a bucket and its IAM member) and projects_iam in authoritative mode (five project IAM bindings keyed by its helper module's outputs) - 16 instances, one labelled, on hashicorp/google 8.6.0. The gcp lane's first published root (#1119): provider.tf replaced for the pin and the emulator, simple_bucket ~\u003e 12.4 for google 8.x, and the five VMware Engine resources left out because floci-gcp does not serve them",
+      "url": "https://github.com/kubernetes/k8s.io.git",
+      "pin": "4046258e7d54fdc156e2f39ad8da51b57be88f55",
+      "script": "live/e2e/corpus-k8s-infra-gcp-gcve/run.sh",
+      "protocol": "legacy",
+      "cells": [
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run"
+      ],
+      "runtime_total": "-",
+      "runtime_cells": "none recorded yet",
+      "legacy_note": "Verdicts were recorded from this estate's crossing script by hand before the script spoke the gauntlet protocol; the next run that does will replace them.",
+      "script_stale": "unknown",
+      "script_note": "**Unverified**: whether `live/e2e/corpus-k8s-infra-gcp-gcve` or `live/e2e/lib` has changed since the run recorded above cannot be told from this checkout - this row has recorded no run, so there is nothing to compare the script against. The verdicts above may describe an earlier version of the script (#1264, #1292).",
+      "stage_rows": [
+        {
+          "id": "cold_deploy",
+          "title": "Cold deploy",
+          "verdict": "not run"
+        },
+        {
+          "id": "migrate",
+          "title": "Migrate",
+          "verdict": "not run"
+        },
+        {
+          "id": "test_plan",
+          "title": "Replan from nothing",
+          "verdict": "not run"
+        },
+        {
+          "id": "test_apply",
+          "title": "No-op apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "drift_reconverge",
+          "title": "Drift and reconverge",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_rename",
+          "title": "Rename",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_remove",
+          "title": "Remove a block",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_count",
+          "title": "Change count",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_replace",
+          "title": "Replace with create_before_destroy",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_crash",
+          "title": "Crash mid-apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_teardown",
+          "title": "Teardown",
+          "verdict": "not run"
+        },
+        {
+          "id": "plan_approval",
+          "title": "Plan, review, apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "greenfield",
+          "title": "Greenfield apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "strict",
+          "title": "Strict profile (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3792,7 +4049,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3898,6 +4155,11 @@
           "verdict": "pass",
           "duration": "34s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 2 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=84 plan_calls_cache_serving=84 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips service kube-system/metrics-server's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3936,7 +4198,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-mastino-dns/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-mastino-dns/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4034,6 +4296,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4072,7 +4339,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.3.0`. **Stale**: the current pin is `3.2.1`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4178,6 +4445,11 @@
           "verdict": "pass",
           "duration": "38s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 18 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=117 plan_calls_cache_serving=117 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips configmap quickpizza/alloy-config's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4214,7 +4486,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin). Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-eks/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-eks/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4294,6 +4566,125 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        }
+      ]
+    },
+    {
+      "name": "reference-gcp",
+      "set": "growing",
+      "lane": "gcp",
+      "substrate": "floci-gcp",
+      "clear": false,
+      "source": "hand-written reference shape kept in this repository: a VPC network, a subnetwork, a firewall, a Cloud Storage bucket, a service account, a Pub/Sub topic, a blank boot disk and a Compute instance on it, plus a two-instance count topic, on hashicorp/google 8.6.0; the gcp lane's first estate, run against the floci-gcp emulator (#1119)",
+      "script": "live/e2e/reference-gcp/run.sh",
+      "protocol": "legacy",
+      "cells": [
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run"
+      ],
+      "runtime_total": "-",
+      "runtime_cells": "none recorded yet",
+      "legacy_note": "Verdicts were recorded from this estate's crossing script by hand before the script spoke the gauntlet protocol; the next run that does will replace them.",
+      "script_stale": "unknown",
+      "script_note": "**Unverified**: whether `live/e2e/reference-gcp` or `live/e2e/lib` has changed since the run recorded above cannot be told from this checkout - this row has recorded no run, so there is nothing to compare the script against. The verdicts above may describe an earlier version of the script (#1264, #1292).",
+      "stage_rows": [
+        {
+          "id": "cold_deploy",
+          "title": "Cold deploy",
+          "verdict": "not run"
+        },
+        {
+          "id": "migrate",
+          "title": "Migrate",
+          "verdict": "not run"
+        },
+        {
+          "id": "test_plan",
+          "title": "Replan from nothing",
+          "verdict": "not run"
+        },
+        {
+          "id": "test_apply",
+          "title": "No-op apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "drift_reconverge",
+          "title": "Drift and reconverge",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_rename",
+          "title": "Rename",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_remove",
+          "title": "Remove a block",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_count",
+          "title": "Change count",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_replace",
+          "title": "Replace with create_before_destroy",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_crash",
+          "title": "Crash mid-apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_teardown",
+          "title": "Teardown",
+          "verdict": "not run"
+        },
+        {
+          "id": "plan_approval",
+          "title": "Plan, review, apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "greenfield",
+          "title": "Greenfield apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "strict",
+          "title": "Strict profile (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4330,7 +4721,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4436,6 +4827,11 @@
           "verdict": "pass",
           "duration": "34s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 1 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=80 plan_calls_cache_serving=80 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips configmap refk8s/app-config's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4472,7 +4868,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4578,6 +4974,11 @@
           "verdict": "pass",
           "duration": "1m54s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=194 plan_calls_cache_serving=194 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips certificate cert-manager/example-com's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4614,7 +5015,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4720,6 +5121,11 @@
           "verdict": "pass",
           "duration": "2m47s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=197 plan_calls_cache_serving=197 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips networkpolicy argocd/rel-argocd-server's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4756,7 +5162,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4862,6 +5268,11 @@
           "verdict": "pass",
           "duration": "1m22s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 1 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=150 plan_calls_cache_serving=147 ratio=1.02x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips clusterrole/rel-cloudnative-pg's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4897,6 +5308,8 @@
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5002,6 +5415,11 @@
           "verdict": "pass",
           "duration": "1m9s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=185 plan_calls_cache_serving=185 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips secretstore external-secrets/rel-external-secrets's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5038,7 +5456,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5144,6 +5562,11 @@
           "verdict": "pass",
           "duration": "47s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=106 plan_calls_cache_serving=106 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips rolebinding ingress-nginx/rel-ingress-nginx's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5180,7 +5603,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5286,6 +5709,11 @@
           "verdict": "pass",
           "duration": "1m27s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=155 plan_calls_cache_serving=155 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips service keda/keda-operator's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5321,6 +5749,8 @@
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5426,6 +5856,11 @@
           "verdict": "pass",
           "duration": "2m20s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 4 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=260 plan_calls_cache_serving=248 ratio=1.05x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips rolebinding kyverno/rel-kyverno:reports-controller's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5462,7 +5897,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5568,6 +6003,11 @@
           "verdict": "pass",
           "duration": "1m49s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=191 plan_calls_cache_serving=191 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips role metallb-system/rel-frr-k8s-controller's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5604,7 +6044,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5710,6 +6150,11 @@
           "verdict": "pass",
           "duration": "4m29s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=347 plan_calls_cache_serving=347 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips servicemonitor monitoring/rel-kube-prometheus-stack-prometheus's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5746,7 +6191,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5852,6 +6297,11 @@
           "verdict": "pass",
           "duration": "47s",
           "detail": "app's records live in the cluster, so the only local state is the state cache; with it deleted - a fresh clone - the plan found every declared object by its label and namespace and name: nothing created, destroyed or replaced, 0 in-place update(s). The unchanged plan before the deletion was served from the cache (written by a no-op apply, since a plan never persists it): 9 instance(s) answered by a cache hit (#1864's vouch), 81 requests against reads = \"full\"'s 104 with 0 hits, both plans empty. plan_calls_no_local_state=104 plan_calls_cache_serving=81 ratio=1.28x (all plan -refresh=false, Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. BREAK_NO_LOCAL_STATE=1 strips the web Service's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5888,7 +6338,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5994,6 +6444,11 @@
           "verdict": "pass",
           "duration": "45s",
           "detail": "with both estates' local record stores and state caches deleted - a fresh clone with only the cluster left - neither plan created, destroyed or replaced anything: platform's objects found by their tofu-estate label, app's six field-granular instances by the fields choudoufu:shared-app owns on objects it does not own. plan_calls_no_local_state=21 plan_calls_cache_serving=21 ratio=1.00x (both estates' plans summed, the provider's HTTP requests counted from TF_LOG=DEBUG); stock in this position has no plan at all. BREAK_NO_LOCAL_STATE=1 strips settings' label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -6030,6 +6485,8 @@
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -6135,6 +6592,11 @@
           "verdict": "pass",
           "duration": "2s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 7 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=116 plan_calls_cache_serving=116 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips hpa refk8swl/web's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -6171,7 +6633,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gauntlet.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -6277,6 +6739,11 @@
           "verdict": "pass",
           "duration": "1m13s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=122 plan_calls_cache_serving=122 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips clusterrolebinding/argo-rollouts's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     }
@@ -6304,7 +6771,8 @@
     "opentofu-native",
     "reference",
     "published-deployment",
-    "kubernetes"
+    "kubernetes",
+    "gcp"
   ],
   "example_entry": "{\n  \"name\": \"corpus-alb-complete\",\n  \"source\": \"terraform-aws-modules/terraform-aws-alb examples/complete-alb (tag v9.9.0), its flagship application-load-balancer example\",\n  \"url\": \"https://github.com/terraform-aws-modules/terraform-aws-alb.git\",\n  \"pin\": \"v9.9.0\",\n  \"lane\": \"terraform-popular\",\n  \"set\": \"core\",\n  \"reason\": \"a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy\"\n}"
 }

@@ -90,32 +90,32 @@ overstates the damage. A type's tag surface decides where a marker could be
 written. It does not decide how the identity is recovered, and those are
 different questions with different answers.
 
-Of the 1,699 provider types, 852 are untaggable. The survey path - the answer
-to "how would a run find this object again" - is one of six, and not one of
-them is "read it out of a record". At commit `0182aea761` (survey-gen's path
-column has since been retired, #696; the live vocabulary for this axis is
-the readiness tiers in `live/readiness.json`, where the bottom four rows
-below are tier B, declaration-carried):
+Every untaggable type comes back one of a few ways, and none of them is
+"read it out of a record". How many types take each way, on AWS and on GCP,
+is the generated table in [`live/READINESS.md`](READINESS.md) ("How each
+type comes back"), rendered by `tools/readiness-gen` from the same data as
+the readiness tiers, so its figures cannot drift from them (#696, #2134):
 
-| Survey path | Types | What it means |
-|---|---|---|
-| moves to Ops | 561 | Nothing binds a listed object to an address; a human decides |
-| enumerable, unbindable | 135 | The cloud can list them; nothing pairs a listing with a declaration |
-| client-named | 73 | The configuration names it, so the name re-derives every run |
-| parent-derived | 48 | Composed from parents that are themselves identified |
-| account-derived | 31 | One per account or region; the account is the identity |
-| unique-name | 4 | The name is unique by construction |
+| How it comes back | What it means |
+|---|---|
+| server-minted | The API mints its identity and there is nothing to carry a marker; the markerless veto, held by a record where a record store can hold the identity |
+| unbindable | The cloud can list them, but nothing pairs a listing with a declaration |
+| client-named | The configuration names it, so the name re-derives every run |
+| parent-derived | Composed from parents that are themselves identified |
+| account-derived (AWS) or project-derived (GCP) | One per account, region or project; the scope is the identity |
+| unique-name | The name is unique by construction |
 
-The bottom four are 156 types that need no carrier at all: their identity
-re-derives from the declaration on every plan, with nothing stored anywhere.
-`aws_iam_group_policy_attachment` is the shape - untaggable, with nowhere to
-hang a marker, and fully identified as `{group}` `/` `{policy_arn}`, the two
-parents it attaches. Untaggable cloud resources are overwhelmingly derivable.
+The bottom four need no carrier at all: their identity re-derives from the
+declaration on every plan, with nothing stored anywhere. They are the
+declaration-carried tier. `aws_iam_group_policy_attachment` is the shape -
+untaggable, with nowhere to hang a marker, and fully identified as `{group}`
+`/` `{policy_arn}`, the two parents it attaches. Untaggable cloud resources
+are overwhelmingly derivable.
 
 The record store's own population is the other thing entirely: resources with
 no cloud object at all. The overlap - a live object exists, and a record is the
-only copy of which one it is - is the record-carried tier, 96 of whose members
-are usable today. That overlap is what the rest of this page is about, and it
+only copy of which one it is - is the record-carried tier, counted in the
+same generated table. That overlap is what the rest of this page is about, and it
 is the small part of untaggability, not the shape of it.
 
 ## What comes back from the live cloud alone
@@ -156,6 +156,25 @@ from a stock state file.
 The tombstone and deposed seeds live here too, and they are what make a crash
 between a destroy and a create recoverable. Losing them costs that
 recoverability, silently, until the next crash.
+
+### A removed block of an untaggable type, record lost
+
+A type with no marker surface (an untaggable AWS type, or a GCP type with
+no labels map such as `google_compute_subnetwork`) is declaration-carried:
+its identity is recomputed from configuration, and nothing lists it by
+marker. Remove its block and the plan destroys it from its record. Lose that
+record first, and nothing left in the run knows the object or its type: the
+configuration no longer declares it, the record is gone, and no sweep can
+see it. The object is left in place, never destroyed by a guess.
+
+What the plan does report is the gap itself. Every unlabelled type the
+configuration still declares appears under "Not swept for removal" as
+`TYPE_NOT_TAGGABLE`, on AWS and on GCP alike (GitHub issue #2119, D3). That
+list is the reminder that removals of those types ride on the records.
+
+The recovery is step 2 below: restore the record's noncurrent version, then
+plan, and the destroy comes back. Without a restore, find the object with
+the cloud's own console or CLI and delete it by hand.
 
 ### The 96 in-contract record-carried AWS types
 
@@ -290,7 +309,9 @@ ownership record and they are the thing that still works.
 keeps no second copy, so whether a restore exists is a property of the backend
 and of the durability you put under it. On `s3` the deleted objects have noncurrent
 versions, because the store refuses a bucket without versioning, and this is
-the whole recovery. It takes `s3:ListBucketVersions` and
+the whole recovery. On `gcs` it is the same: the store refuses a bucket
+without object versioning and a lifecycle rule that expires noncurrent
+versions only, so a deleted record is a noncurrent generation to restore. It takes `s3:ListBucketVersions` and
 `s3:DeleteObjectVersion`, which the estate's own role does not have
 ([IAM](https://intentius.io/choudoufu/docs/use/iam/#what-a-recovery-needs)). Check before
 doing anything else: restoring is strictly better than every option below it,

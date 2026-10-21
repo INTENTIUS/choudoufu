@@ -128,3 +128,23 @@ func TestUnclaimedProviderGetsNoAWSLegs(t *testing.T) {
 		t.Errorf("unclaimed provider with no marked type: legs %#v, want an empty, non-nil list (nil means the AWS default to discovery)", legs)
 	}
 }
+
+// TestEveryFamilyPassReachesItsRemovedUntaggableBlocks (GitHub issue
+// #2119): a removed block of an untaggable type is found by its record or
+// not at all, so every family's pass runs the record-store removal leg,
+// either through Request.Sweep (the tagging-index builder turns it on) or
+// through recordRemovalLegs. The label-list sweep is the one exemption, and
+// it holds only while no admitted Kubernetes kind lacks the label.
+func TestEveryFamilyPassReachesItsRemovedUntaggableBlocks(t *testing.T) {
+	for _, sub := range substrate.All {
+		switch sw := sub.Sweep(); {
+		case sw == substrate.SweepTaggingIndex:
+			if _, sweep, _ := sweepLegBuilders[sw](t.Context(), nil, sub, addrs.AbsProviderConfig{}); !sweep {
+				t.Errorf("%s: the tagging-index leg no longer turns Request.Sweep on, so nothing runs its record leg", sub.Name())
+			}
+		case sw == substrate.SweepLabelList:
+		case !recordRemovalLegs[sw]:
+			t.Errorf("%s: its %q pass runs no record leg, so a removed untaggable block is forgotten silently; add it to recordRemovalLegs", sub.Name(), sw)
+		}
+	}
+}

@@ -15,7 +15,8 @@ import (
 
 // TestAdmittedTypesAreTheIdentityTableMinusRecordBacked pins #809's
 // derivation by value: every DefaultTable row is in admittedTypesV0 exactly
-// when it is not RecordBacked, and nothing else is. The derivation makes
+// when it is not RecordBacked, every GoogleTable row is in it, and nothing
+// else is. The derivation makes
 // this true by construction today; the test is what notices a second source
 // being added beside it (a generated file, an init() that appends, a literal
 // someone pastes a type into).
@@ -35,9 +36,17 @@ func TestAdmittedTypesAreTheIdentityTableMinusRecordBacked(t *testing.T) {
 			t.Errorf("%s has a DefaultTable row but admittedTypesV0 does not hold it", typeName)
 		}
 	}
-	if got, want := len(admittedTypesV0), len(identity.DefaultTable)-recordBacked; got != want {
-		t.Errorf("admittedTypesV0 has %d types, want DefaultTable's %d minus %d record-backed = %d; "+
-			"something other than the identity table is adding to it", got, len(identity.DefaultTable), recordBacked, want)
+	for typeName := range identity.GoogleTable {
+		if _, inLint := admittedTypesV0[typeName]; !inLint {
+			t.Errorf("%s has a GoogleTable row but admittedTypesV0 does not hold it", typeName)
+		}
+		if _, both := identity.DefaultTable[typeName]; both {
+			t.Errorf("%s has a row in both DefaultTable and GoogleTable", typeName)
+		}
+	}
+	if got, want := len(admittedTypesV0), len(identity.DefaultTable)-recordBacked+len(identity.GoogleTable); got != want {
+		t.Errorf("admittedTypesV0 has %d types, want DefaultTable's %d minus %d record-backed plus GoogleTable's %d = %d; "+
+			"something other than the identity tables is adding to it", got, len(identity.DefaultTable), recordBacked, len(identity.GoogleTable), want)
 	}
 	if recordBacked == 0 {
 		t.Error("no DefaultTable row is RecordBacked, so the exclusion above was never exercised")

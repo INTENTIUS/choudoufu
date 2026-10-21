@@ -14,7 +14,8 @@
     "bar reads and can reach 100%; it needs a reason. Every estate on the",
     "emulator is in the second bar. The kubernetes lane runs on a kind cluster",
     "instead and has a bar of its own (lanes.kubernetes in live/gauntlet.json),",
-    "counted toward neither AWS bar. Keep the list sorted by name; `go run",
+    "counted toward neither AWS bar; the gcp lane runs on the floci-gcp",
+    "emulator and has lanes.gcp the same way. Keep the list sorted by name; `go run",
     "./tools/gauntlet render` rewrites this file canonically and",
     "TestManifestIsCanonical holds it."
   ],
@@ -141,6 +142,14 @@
       "lane": "terraform-popular",
       "set": "core",
       "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-k8s-infra-gcp-gcve",
+      "source": "kubernetes/k8s.io infra/gcp/terraform/k8s-infra-gcp-gcve (commit 4046258e7d, Apache-2.0), the Kubernetes project's own root for its VMware Engine CI project: five google_project_service over a for_each whose project comes from a data source, a custom-mode VPC, a subnetwork and two firewalls (one reading the subnetwork's range), terraform-google-modules simple_bucket (a bucket and its IAM member) and projects_iam in authoritative mode (five project IAM bindings keyed by its helper module's outputs) - 16 instances, one labelled, on hashicorp/google 8.6.0. The gcp lane's first published root (#1119): provider.tf replaced for the pin and the emulator, simple_bucket ~> 12.4 for google 8.x, and the five VMware Engine resources left out because floci-gcp does not serve them",
+      "url": "https://github.com/kubernetes/k8s.io.git",
+      "pin": "4046258e7d54fdc156e2f39ad8da51b57be88f55",
+      "lane": "gcp",
+      "set": "growing"
     },
     {
       "name": "corpus-k8s-metrics-server",
@@ -278,6 +287,12 @@
       "lane": "reference",
       "set": "growing",
       "substrate": "floci-eks"
+    },
+    {
+      "name": "reference-gcp",
+      "source": "hand-written reference shape kept in this repository: a VPC network, a subnetwork, a firewall, a Cloud Storage bucket, a service account, a Pub/Sub topic, a blank boot disk and a Compute instance on it, plus a two-instance count topic, on hashicorp/google 8.6.0; the gcp lane's first estate, run against the floci-gcp emulator (#1119)",
+      "lane": "gcp",
+      "set": "growing"
     },
     {
       "name": "reference-k8s",

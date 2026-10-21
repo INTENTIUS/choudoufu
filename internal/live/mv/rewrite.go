@@ -37,12 +37,16 @@ import (
 //
 // On the label surface the write is [mover.relabel]'s instead: the estate
 // label and the address annotation, judged by the same plan checks
-// (label.go).
+// (label.go). On a GCP resource it is [mover.relabelGoogle]'s: the estate
+// and the encoded address label (googlelabels.go).
 func (m *mover) rewrite(ctx context.Context, prior *states.ResourceInstanceObject) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	if relabels(m.res.Surface) {
 		return m.relabel(ctx, prior)
+	}
+	if relabelsGoogle(m.res.Surface) {
+		return m.relabelGoogle(ctx, prior)
 	}
 
 	// Marks are a projection's addition, not the provider's: the schema's
@@ -192,8 +196,12 @@ func (m *mover) planAndApply(ctx context.Context, prior *states.ResourceInstance
 // markerDestination is what the marker should read after this move, for
 // the partial-write message: the new address on the tag surface; on the
 // label surface the destination estate for a move, and the new address
-// annotation for a rename.
+// annotation for a rename; on a GCP resource the encoded address label,
+// which a move writes in the same call as the estate.
 func (m *mover) markerDestination() string {
+	if relabelsGoogle(m.res.Surface) {
+		return "tofu-address = " + m.res.NewMarker
+	}
 	if relabels(m.res.Surface) {
 		if m.req.FromEstate == "" {
 			return markers.AddressAnnotation + " = " + m.res.NewMarker
@@ -255,9 +263,12 @@ func (m *mover) checkPlan(priorVal cty.Value, resp providers.PlanResourceChangeR
 	// comparison it can make.
 	var extra []string
 	only := "A rename is a tags-only write"
-	if relabels(m.res.Surface) {
+	switch {
+	case relabels(m.res.Surface):
 		extra, only = changedOutsideLabels(m.schema.Block, priorVal, planned), "A move or a rename of a Kubernetes object writes only its tofu-estate label and its "+markers.AddressAnnotation+" annotation"
-	} else {
+	case relabelsGoogle(m.res.Surface):
+		extra, only = changedOutsideGoogleLabels(m.schema.Block, priorVal, planned), "A move or a rename of a GCP resource writes only its tofu-estate and tofu-address labels"
+	default:
 		extra = changedOutsideTags(m.schema.Block, priorVal, planned)
 	}
 	if len(extra) > 0 {

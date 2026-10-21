@@ -208,18 +208,62 @@ func registeredStages() []Stage {
 			Oracle: "Stock has no plan in this position: with its state file gone it needs one import block per object. The oracle is the estate's own cache-serving plan taken just before the deletion, which must be empty, and the declared configuration - every declared address must resolve to the existing object.",
 			Break:  "Delete one taggable object's marker before the plan; the object is then not found and the plan proposes creating it, which the stage must fail.",
 		},
+		{
+			// #2145 item 6: planned and not headline (option 1, 2026-10-21),
+			// because only reference-gcp runs it. Planned keeps every other
+			// estate out of it while reference-gcp's verdict is still
+			// recorded. It runs last, after strict, in a scratch estate of
+			// its own, so it can never decide a headline verdict (the ninth
+			// GCP run's failure of it, at its old place after day2_replace,
+			// took four headline stages down with it).
+			ID: "day2_endpoints", Order: 16, Title: "Endpoints with an unset optional identity field", Status: StatusPlanned, Headline: false,
+			Proves: "A network endpoint whose identity names an optional field the block leaves unset (#2145 item 6: a global or regional internet NEG endpoint with only ip_address or only fqdn) is created, replans empty with and without the state cache, is bound by its record, and is destroyed on removal exactly as stock destroys it. Run by reference-gcp only, last and in a scratch estate of its own (its own roots, record store and network), so it never touches the estate the headline stages measure; not part of the headline bars.",
+			Oracle: "Stock's own import of each endpoint on the oracle with the import id choudoufu renders, the unset field an empty segment (project/neg/ip//port), followed by stock's empty plan; and stock's create and removal of the same scratch blocks, compared by count.",
+			Break:  "Hand stock the import id with the empty segment collapsed, the rendering before item 6; the import must fail and the stage with it.",
+		},
 	}
 	for i := range stages {
-		note, ok := flociEKSNotes[stages[i].ID]
-		if !ok {
-			continue
+		for substrate, notes := range map[string]map[string]string{SubstrateFlociEKS: flociEKSNotes, SubstrateFlociGCP: flociGCPNotes} {
+			note, ok := notes[stages[i].ID]
+			if !ok {
+				continue
+			}
+			if stages[i].Substrates == nil {
+				stages[i].Substrates = map[string]string{}
+			}
+			stages[i].Substrates[substrate] = note
 		}
-		if stages[i].Substrates == nil {
-			stages[i].Substrates = map[string]string{}
-		}
-		stages[i].Substrates[SubstrateFlociEKS] = note
 	}
 	return stages
+}
+
+// flociGCPNotes is how each stage reads on SubstrateFlociGCP (#1119): a
+// gcp-lane estate on the lex00/floci-gcp emulator, pinned in
+// live/floci-gcp-image. Kept beside the registry for flociEKSNotes'
+// reason, and held complete the same way (TestEveryStageHasAFlociGCPNote):
+// a stage whose oracle is AWS-shaped is marked here rather than skipped.
+// No stage is n/a on this substrate. Two emulator capabilities bear on
+// several stages and are said once, on cold_deploy: labels coming back as
+// written (lex00/floci-gcp#6) and the sweep's Cloud Asset search
+// (lex00/floci-gcp#7). Both are served by the pinned image, so a stage
+// that fails on either is a finding to file on the fork.
+var flociGCPNotes = map[string]string{
+	"cold_deploy":      "Stock applies the unmodified configuration against a floci-gcp emulator the script started for this run, with every hashicorp/google endpoint the configuration reaches pointed at it; the emulator's objects, read with its REST API, are the baseline. A second emulator holds the stock oracle. Two emulator capabilities bear on the stages below: labels coming back exactly as written (lex00/floci-gcp#6) and the sweep's Cloud Asset search (lex00/floci-gcp#7). The pinned image serves both; a stage that fails on either says so in its own verdict, and that is a floci-gcp finding to file on the fork.",
+	"migrate":          "Each state entry of a type with a labels map is bound by a labels-only plan writing tofu-estate and the encoded tofu-address label (#1121); an entry of a type with no labels argument (network, subnetwork, firewall, service account) is skipped for that reason alone, as an untaggable AWS entry is, with its identity recorded in the record store. Every entry is stamped or skipped for having no labels argument, none fails, every identity is recorded, and the labels are read back with the REST API.",
+	"test_plan":        "Identities are the resource names under projects/<project>/, compared with what the emulator's REST API reports for the same objects.",
+	"test_apply":       "The count is the labelled types the estate declares (buckets, topics, disks, instances) filtered on tofu-estate=<estate> through the REST API. The declaration-carried skeleton carries no label and is never in it.",
+	"drift_reconverge": "The mutation is a REST PATCH against the emulator, never through the tool. A label the configuration declares is the field mutated, since hashicorp/google reads back only the label keys its configuration names.",
+	"day2_rename":      "The moved-block half; live-mv's GCP label rewrite (#2124) is not what this stage exercises. The block address is encoded in the tofu-address label, so the moved block plans one in-place change, that label rewritten, where stock plans zero churn. A bare rename without a moved block plans the same rewrite, since the block name is not part of the object's identity, so the Break control renames the object itself, which plans a destroy and a create.",
+	"day2_remove":      "The REST API confirms the object is gone. A labelled object leaving the configuration is found by its label and its record; an unlabelled one (a firewall whose network stays) by its record alone, and it is destroyed at the address stock destroys.",
+	"day2_count":       "The instance key is part of the encoded tofu-address label, so the instance that leaves the count is found at its own address, the one stock destroys; the REST API confirms the survivor is untouched.",
+	"day2_replace":     "A name is unique in its project, so the replacement create_before_destroy is used for is one whose name changes, as on kind. The old and the new object carry the same tofu-address label between the create and the destroy, and the record's deposed entry is what says which one goes. At -parallelism=1 the apply log shows the new object's create complete before the old object's destroy starts, the REST API confirms only the new object remains, and the next plan is empty. The Break control recreates the old object carrying the block's labels: the next plan must not be empty.",
+	"day2_crash":       "The stage interrupts an apply that creates two objects with the engine's own SIGTERM at -parallelism=1, between the first object's create committing and the second's being dispatched; the next plan must propose exactly the remainder, binding the object already created by its labels rather than creating it a second time. The oracle is stock's plan on the oracle emulator from the same position, reached by applying the first object alone. The create_before_destroy window (day2_replace) is not interrupted on this substrate yet.",
+	"day2_teardown":    "An empty estate is no labelled object carrying tofu-estate=<estate> through the REST API, and the declaration-carried skeleton gone (404). The destroy count is compared with stock's destroy of the same estate on the oracle emulator. An object a destroy leaves in place by stock's own rules (a google_project_service with disable_on_destroy unset stays ENABLED) is compared with what stock's destroy left on the oracle.",
+	"plan_approval":    "The out-of-band move is a REST PATCH on a value the configuration declares: a declared label or a firewall's source ranges. hashicorp/google's labels are non-authoritative, so a label the configuration does not name rides along in effective_labels and moves no plan, stock's or the tool's.",
+	"greenfield":       "Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with labels and server-set fields normalised out; one emulator hosts both, in sequence.",
+	"strict":           "As on floci; the toggles name a google type.",
+	"day2_endpoints":   "Run by reference-gcp only, last, in a scratch estate of its own, on scratch global and regional internet NEGs, which a NEG and its endpoints carry no label for, so the record alone claims them. The pinned image (641e6e8) serves global and regional internet NEGs, which lex00/floci-gcp#26 added; on an image without them the stage fails at stock's own create on the oracle emulator, naming #26.",
+	"no_local_state":   "The labelled objects are found by their labels. A markerless object is claimed only by its record (option A, #2152), so with the record store gone the plan refuses each one at a held name by name and stops; with the record store put back and the cache still gone the plan is empty. The request count is hashicorp/google's own, read from TF_LOG=debug's request blocks.",
 }
 
 // flociEKSNotes is how each stage reads on SubstrateFlociEKS (#1113): an
@@ -245,6 +289,7 @@ var flociEKSNotes = map[string]string{
 	"plan_approval":    "As on floci; the saved plan carries both legs, and the apply of it configures the kubernetes provider from the same cluster the plan read.",
 	"greenfield":       "Both legs are compared against stock's cold deploy: AWS objects as on floci, cluster objects as on kind. A greenfield plan starts with no cluster, so the kubernetes provider's sweep reads that leg as empty by construction, stock's order, and the apply configures the provider once the cluster exists.",
 	"strict":           "As on floci; the toggles apply to both legs alike.",
+	"day2_endpoints":   "Not run on this substrate; the stage is reference-gcp's (#2145 item 6).",
 	"no_local_state":   "Both legs lose their local record store and state cache together. The AWS leg's objects are found by their markers as on floci; the cluster leg's by their tofu-estate label, through a kubernetes provider configured from the cluster this plan reads live, so the plan also shows the provider block needs nothing local.",
 }
 

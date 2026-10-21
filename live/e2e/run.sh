@@ -2295,6 +2295,7 @@ else
   # mirrors. This step never having run before is exactly how a stale entry
   # like that survives: nothing checked the directory was still there.
   LINT_ENFORCED="local-exec:provisioner
+gcp-label-count:gcp-label-count
 remote-exec:provisioner
 null-resource:logical-resource
 terraform-data:logical-resource
@@ -2350,7 +2351,8 @@ policy-threshold:policy-threshold"
   # than merely unwise, and gating a clean verdict on deleting it serves no
   # purpose). backend-block and cloud-block are its two fixtures.
   LINT_WARNED="backend-block:state-backend
-cloud-block:state-backend"
+cloud-block:state-backend
+gcp-multi-project:gcp-multi-project"
 
   # Completeness: every subdirectory of the limits wing appears in exactly
   # one table. Without this a new fixture directory would be silently

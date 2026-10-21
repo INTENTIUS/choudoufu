@@ -137,8 +137,9 @@ func (r *liveRunner) BeforeApply(ctx context.Context) tfdiags.Diagnostics {
 // apply is indistinguishable from a store that passes, and a flag nobody is
 // reminded of is a flag nobody revisits.
 //
-// Both remote backends get one, with their own names and their own costs: the
-// bucket's three settings (#1339) and the cluster's four (#1393).
+// Every remote backend gets one, with its own names and its own costs: the
+// bucket's three settings (#1339), the cluster's four (#1393) and the GCS
+// bucket's three.
 func bucketWaiverWarnings(rs *configs.LiveRecordStore) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if rs == nil {
@@ -151,6 +152,12 @@ func bucketWaiverWarnings(rs *configs.LiveRecordStore) tfdiags.Diagnostics {
 				fmt.Sprintf("The record store cluster's %s assertion is waived", name),
 				fmt.Sprintf("record_store \"kubernetes\" names %q in allow_insecure, so %s. This warning repeats on every run for as long as the waiver is configured.",
 					name, staterecord.ClusterWaiverCost(staterecord.Setting(name))),
+			))
+		case "gcs":
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,
+				fmt.Sprintf("The record store bucket's %s assertion is waived", name),
+				fmt.Sprintf("record_store \"gcs\" names %q in allow_insecure for bucket %q, so %s. This warning repeats on every run for as long as the waiver is configured.",
+					name, rs.Bucket, staterecord.GCSWaiverCost(staterecord.Setting(name))),
 			))
 		default:
 			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning,

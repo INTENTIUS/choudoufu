@@ -305,6 +305,15 @@ type cloudScopeKey struct {
 	// itself a known (if odd) value to compare.
 	region      string
 	regionKnown bool
+
+	// project and zone are the resolved provider configuration's own
+	// static `project` and `zone` arguments, empty when it states none or
+	// states them in a way this package cannot read without applying.
+	// They answer a [CloudProject] or [CloudZone] component and play no
+	// part in collision checks: a resource's project already shows in its
+	// identity whenever the identity embeds one.
+	project string
+	zone    string
 }
 
 // Type returns the resource type name, e.g. "aws_route".

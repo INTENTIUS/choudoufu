@@ -223,7 +223,7 @@ type Substrate interface {
 // asked before it. TestTheCatchAllFamilyIsLast holds it (GitHub issue
 // #1742). The surface questions are asked of the provider's own family
 // ([SurfaceOf]), so for a claimed provider the order does not decide them.
-var All = []Substrate{Kubernetes, AWS}
+var All = []Substrate{Kubernetes, Google, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
 // "kubernetes"): the one whose [Substrate.ProviderTypes] lists it. It
@@ -249,7 +249,10 @@ func ForProvider(providerType string) (Substrate, bool) {
 // #1742: it used to compare the sweep kind to [SweepLabelList], which a
 // third family's own sweep could never answer). Only Kubernetes qualifies
 // today: its leg lists every kind the cluster serves and joins the result
-// against the estate's objects. AWS's own sweep ([SweepTaggingIndex]) is
+// against the estate's objects. GCP's Asset Inventory leg sees every
+// labelled asset type but plans no removal and cannot see an unlabelled
+// type, so it answers false and its deleted blocks are the record leg's
+// (GitHub issue #2134). AWS's own sweep ([SweepTaggingIndex]) is
 // the admission table read a different way, so a type with no row gets
 // nothing extra from it, and neither does an unregistered provider
 // ForProvider does not recognise at all.
@@ -263,6 +266,23 @@ func ForProvider(providerType string) (Substrate, bool) {
 func Sweeps(providerType string) bool {
 	s, ok := ForProvider(providerType)
 	return ok && s.SweepFindsUnadmitted()
+}
+
+// RecordsRemoveUnrowed reports whether providerType's family removes a
+// deleted block's objects from the estate's records alone, for a type with
+// no admission-table row as well as one with a row: the record-orphan leg
+// admits an unrowed type through the provider's identity schema on such a
+// pass. True for the GCP family, whose Asset Inventory leg plans no removal
+// of its own (GitHub issue #2134, item 1). [Sweeps] stays false for it,
+// because the deposed-record and label-list paths that read [Sweeps] need a
+// sweep that lists, and the Asset search does not list for removal.
+//
+// The identity package's no-orphan-recovery warning asks both: a type of
+// such a family is recovered from its record once its last block is
+// deleted, which is what the warning says nothing does.
+func RecordsRemoveUnrowed(providerType string) bool {
+	s, ok := ForProvider(providerType)
+	return ok && s.Sweep() == SweepAssetSearch
 }
 
 // TombstonesRead reports whether a record tombstone written for an object
@@ -462,6 +482,26 @@ type surfaceWording interface {
 func CreateCollidesOnKey(surface markers.Surface) bool {
 	s := For(surface)
 	return s != nil && s.CreateCollidesOnKey(surface)
+}
+
+// nameHeldWording is the optional half of a family whose own words for
+// GitHub issue #1546's refusal differ from the Kubernetes sentence the
+// projection carries: what keys the object, and which markers adopt it.
+type nameHeldWording interface {
+	NameHeldDetail(typeName, importID string, addr addrs.AbsResourceInstance, estate string) string
+}
+
+// NameHeldDetail is surface's family's sentence for an unlabelled object
+// holding the name a declared create would send, and false when the family
+// has none of its own. The first GCP gauntlet run printed the Kubernetes
+// sentence (API server, kind and namespace, one label) for a compute
+// instance.
+func NameHeldDetail(surface markers.Surface, typeName, importID string, addr addrs.AbsResourceInstance, estate string) (string, bool) {
+	w, ok := For(surface).(nameHeldWording)
+	if !ok {
+		return "", false
+	}
+	return w.NameHeldDetail(typeName, importID, addr, estate), true
 }
 
 // CarrierPhrase names where surface's marker map lives ("tags attribute",
@@ -766,6 +806,11 @@ type HoldEvidence struct {
 	Tags map[string]string
 	// Annotations are a Kubernetes object's metadata.annotations.
 	Annotations map[string]string
+	// Labels are a GCP resource's labels, and AssetType its Cloud Asset
+	// Inventory asset type (compute.googleapis.com/Instance): a GCP hold
+	// is recognised by a reserved label key on a given kind of asset.
+	Labels    map[string]string
+	AssetType string
 }
 
 // Hold is a family's answer for a held object.

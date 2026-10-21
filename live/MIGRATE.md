@@ -380,6 +380,27 @@ policy {
 leaves both untouched. [The ownership policy matrix](OWNERSHIP-POLICY.md) covers the rest of the
 matrix.
 
+## On GCP
+
+The three groups above hold, and the bulk path is the same command.
+`choudoufu live-import -approve` writes `tofu-estate`, the encoded
+`tofu-address` and, where a set needs one, `tofu-slot` into each labelled
+resource's own `labels` map through a labels-only plan and apply
+(`live/gcp/ADOPT.md`). A plan that would replace the resource or change
+anything else is refused, as is a resource labelled for another estate and
+an estate name over 63 characters, the longest label value GCP accepts.
+
+The network skeleton (networks, subnetworks, firewalls, routes, routers,
+service accounts, custom roles) has no labels map and no adoption path,
+and needs none: it binds by the `name`, `project` and location the
+configuration declares, the way `aws_route` binds through its parents.
+
+Two things differ from AWS. The fence is the project, so migrate one
+estate per project before granting it
+([`live/MARKERS.md`](MARKERS.md#granting-a-gcp-estate)). And `live-mv`
+refuses a GCP resource by name until its label rewrite lands; rename the
+block and plan instead, and the plan rewrites the address label in place.
+
 ## Getting back out
 
 Know this before you start. Keeping the door open costs nothing.

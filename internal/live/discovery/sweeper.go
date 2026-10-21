@@ -54,6 +54,27 @@ type SweepInput struct {
 	resourcesFound *int
 }
 
+// declaredScanner is a leg that also finds the declared needs-discovery
+// instances of some types, filing each hit as a claimant of the instance
+// or count block its marker names, which [bind] then binds. The
+// config-driven scan skips such a type ([legScansDeclared]). The GCP leg
+// is one (INTENTIUS/choudoufu#2134): hashicorp/google lists nothing, and
+// its objects are found by the label Cloud Asset Inventory indexes.
+type declaredScanner interface {
+	ScansDeclared(typeName string) bool
+}
+
+// legScansDeclared reports whether one of the pass's legs finds typeName's
+// declared instances itself.
+func legScansDeclared(req Request, typeName string) bool {
+	for _, leg := range sweepLegs(req) {
+		if ds, ok := leg.(declaredScanner); ok && ds.ScansDeclared(typeName) {
+			return true
+		}
+	}
+	return false
+}
+
 // sweepLegs is the pass's legs: [Request.Sweepers], or the one leg every
 // caller before that field existed ran when it is nil. An empty, non-nil
 // list is a caller saying no leg sweeps through this provider (GitHub

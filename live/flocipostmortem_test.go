@@ -177,14 +177,21 @@ func TestEveryScriptThatStartsFlociCanReadItBack(t *testing.T) {
 	// corpus-hongbomiao-storage were folded into corpus-hongbomiao-labelbox
 	// and their scripts deleted. 61 since corpus-iam-read-only-policy was
 	// deleted in the same audit.
-	const wantStarters = 61
+	//
+	// 63 since the gcp lane's second estate: the floci-gcp start moved from
+	// live/e2e/reference-gcp/gcp.sh (outside this glob, so reference-gcp was
+	// never counted) into the library live/e2e/lib/gcp.sh, whose gcp_floci_up
+	// every gcp-lane script calls. The two callers, reference-gcp/run.sh and
+	// corpus-k8s-infra-gcp-gcve/run.sh, are starters now.
+	const wantStarters = 63
 
 	var starters, blind []string
 	for _, rel := range flociSortedKeys(scripts) {
-		if rel == flociLibrary {
+		if rel == flociLibrary || rel == flociGCPLibrary {
 			// The library holds the one `docker run -d` since #1312 and
 			// defines the helper; it is not a script that starts an
-			// estate's emulator.
+			// estate's emulator. The gcp library wraps that helper in
+			// gcp_floci_up, and its callers are the starters.
 			continue
 		}
 		src := scripts[rel]
@@ -256,13 +263,22 @@ func TestFlociTeardownReadsBeforeItRemoves(t *testing.T) {
 // flociLibrary is live/e2e/lib/gauntlet.sh as flociScriptSources keys it.
 const flociLibrary = "e2e/lib/gauntlet.sh"
 
+// flociGCPLibrary is live/e2e/lib/gcp.sh, the floci-gcp substrate's helpers.
+// Its gcp_floci_up starts the emulator through gauntlet_floci_start; the
+// teardown belongs to the script that called it.
+const flociGCPLibrary = "e2e/lib/gcp.sh"
+
 // startsFloci says whether a code line starts a floci container: through
-// the library's gauntlet_floci_start (#1312), or with the bare
+// the library's gauntlet_floci_start (#1312) or the gcp library's
+// gcp_floci_up, which calls it, or with the bare
 // `docker run -d ... --name` that TestFlociStartGoesThroughTheLibrary
 // forbids outside the library. Both count, so a script that regresses to
 // the bare form is still a starter here and still has to read its corpse.
 func startsFloci(line string) bool {
 	if strings.Contains(line, "gauntlet_floci_start ") && !strings.Contains(line, "() {") {
+		return true
+	}
+	if strings.Contains(line, "gcp_floci_up ") && !strings.Contains(line, "() {") {
 		return true
 	}
 	return strings.Contains(line, "docker run") && strings.Contains(line, " -d") && strings.Contains(line, "--name")

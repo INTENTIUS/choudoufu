@@ -441,9 +441,60 @@ func componentFromValue(c Component, val cty.Value) (segment, attrName, rendered
 			return "", "", "", false, true, false
 		}
 		rendered = str.AsString()
-		return c.Literal + rendered, c.identityAttrFor(name), rendered, true, false, false
+		idSeg, ok := valueLongForm(c, name, rendered)
+		if !ok {
+			return "", "", "", false, true, false
+		}
+		return c.Literal + idSeg, c.identityAttrFor(name), longFormAttrValue(c, name, rendered), true, false, false
 	}
 	return "", "", "", false, false, false
+}
+
+// valueLongForm is [resolver.longFormValue]'s per-component rewrite for a
+// value already read off an object, so the import ID this file renders is
+// the one the provider builds, not the argument as stored. A stored value
+// is often not what was written: a Read can fill an argument with a self
+// link (hashicorp/google's region network endpoint group flattens region
+// through ConvertSelfLinkToV1), and ReplaceVars keeps only its last segment.
+// The seventh GCP run's day2_endpoints rendered that whole link into the
+// {{region}} slot, and the import failed. ok is false when the rewrite
+// leaves nothing, the same refusal the static path gives. The two
+// row-level rules ([LongFormIAMParent], [LongFormComputedName]) compose
+// across components and are left as the value reads.
+func valueLongForm(c Component, name, v string) (string, bool) {
+	switch c.LongForm {
+	case LongFormLastSegment:
+		short := forIDValue(name, v, true)
+		return short, short != ""
+	case LongFormTrimPrefix:
+		if len(c.Qualifiers) != 1 {
+			return "", false
+		}
+		short := strings.TrimPrefix(v, c.Qualifiers[0])
+		return short, short != ""
+	case LongFormEnsurePrefix:
+		if len(c.Qualifiers) != 1 || v == "" || v == c.Qualifiers[0] {
+			return "", false
+		}
+		if !strings.HasPrefix(v, c.Qualifiers[0]) {
+			return c.Qualifiers[0] + v, true
+		}
+		return v, true
+	}
+	return v, true
+}
+
+// longFormAttrValue is the identity attribute's value for a rewritten
+// component: the static path hands the shortened value on for the two
+// shortening rules and keeps ensure-prefix's value as written (the prefix
+// is the import ID's alone).
+func longFormAttrValue(c Component, name, v string) string {
+	switch c.LongForm {
+	case LongFormLastSegment, LongFormTrimPrefix:
+		short, _ := valueLongForm(c, name, v)
+		return short
+	}
+	return v
 }
 
 // SensitiveComponentsAttr names the first attribute t.Components would read
@@ -488,4 +539,54 @@ func SensitiveComponentsAttr(t TypeIdentity, schema providers.Schema) string {
 		}
 	}
 	return ""
+}
+
+// RewriteIdentityValues applies typeName's row rewrites ([valueLongForm])
+// to identity values read off a stored object, returning a copy. A google
+// Read can store an identity argument in a form its importer refuses: the
+// region network endpoint group flattens region to a self link, its
+// identity is set from that, and ParseImportId's
+// projects/(?P<project>[^/]+)/regions/(?P<region>[^/]+)/... rejects it.
+// Stock never imports by that identity; choudoufu does, so the value it
+// hands the importer is the one the provider's own id carries (the seventh
+// GCP run's day2_endpoints). A type with no row, or a value a rewrite would
+// empty, is left as read.
+func RewriteIdentityValues(typeName string, values map[string]string) map[string]string {
+	row, ok := LookupType(typeName)
+	if !ok || len(values) == 0 {
+		return values
+	}
+	var out map[string]string
+	for _, c := range row.Components {
+		if len(c.Attrs) == 0 {
+			continue
+		}
+		switch c.LongForm {
+		case LongFormLastSegment, LongFormTrimPrefix:
+		default:
+			continue
+		}
+		for _, arg := range c.Attrs {
+			name := c.identityAttrFor(arg)
+			v, has := values[name]
+			if !has {
+				continue
+			}
+			short, ok := valueLongForm(c, arg, v)
+			if !ok || short == v {
+				continue
+			}
+			if out == nil {
+				out = make(map[string]string, len(values))
+				for k, x := range values {
+					out[k] = x
+				}
+			}
+			out[name] = short
+		}
+	}
+	if out == nil {
+		return values
+	}
+	return out
 }

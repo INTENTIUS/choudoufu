@@ -1816,6 +1816,7 @@ func liveDiscoverOne(ctx context.Context, config *configs.Config, resolutions []
 	diags = diags.Append(legDiags)
 	req.Sweepers = legs
 	req.Sweep = sweep
+	req.RecordRemoval = known && recordRemovalLegs[sub.Sweep()]
 
 	// The Cloud Control fallback (issue #47): a type with no native provider
 	// list resource can still be enumerated when its mapped CFN type is
@@ -4673,6 +4674,88 @@ var sweepLegBuilders = map[substrate.Sweep]sweepLegBuilder{
 		leg, diags := p.labelListLeg(ctx, sub, addr)
 		return leg, false, diags
 	},
+	// The GCP leg (GitHub issue #1119): a Cloud Asset Inventory client
+	// built from the provider block's own credential arguments, searching
+	// each project the estate's google resources resolve to. The Asset
+	// search only reports what it finds and plans no removal, so the
+	// record leg destroys a deleted google block: through
+	// [recordRemovalLegs], not Request.Sweep (GitHub issue #2139).
+	substrate.SweepAssetSearch: func(ctx context.Context, p *projectionProviders, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, bool, tfdiags.Diagnostics) {
+		leg, diags := p.assetSearchLeg(ctx, sub, addr)
+		return leg, false, diags
+	},
+}
+
+// assetSearchLeg builds the GCP leg through the family's own
+// [substrate.Substrate.NewSweeper]. A client that cannot be built is the
+// leg's named warning and a leg with no searcher, which searches nothing
+// and still files the unlabelled types' gaps.
+func (p *projectionProviders) assetSearchLeg(ctx context.Context, sub substrate.Substrate, addr addrs.AbsProviderConfig) (discovery.Sweeper, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	p.mu.Lock()
+	val, ok := p.configVals[providerCacheKey(addr)]
+	p.mu.Unlock()
+	built, err := sub.NewSweeper(val, ok)
+	if err == nil && built == nil {
+		err = fmt.Errorf("provider family %s built no client", sub.Name())
+	}
+	var client substrate.AssetSearchSweeper
+	if err == nil {
+		var isAsset bool
+		if client, isAsset = built.(substrate.AssetSearchSweeper); !isAsset || client.Client == nil {
+			err = fmt.Errorf("provider family %s built a %s client that cannot search Cloud Asset Inventory", sub.Name(), built.SweepKind())
+		}
+	}
+	leg := discovery.GCPAssetSweep{Searcher: client.Client, Project: client.Project}
+	if err != nil {
+		// GitHub issue #2134, item 2: no client is a named warning and a leg
+		// that searches nothing, never no leg at all, so the unlabelled
+		// types the configuration declares are still filed as
+		// TYPE_NOT_TAGGABLE gaps below.
+		leg.Searcher = nil
+		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryGCPSweepIncomplete,
+			fmt.Sprintf("No Cloud Asset Inventory client could be built from provider configuration %s, so no labelled GCP resource owned by this estate is searched this run; a deleted block is still removed from its record: %s.", addr, err)))
+	}
+	if p.mgr != nil {
+		if schema, schemaDiags := p.mgr.GetProviderSchema(ctx, addr.Provider); !schemaDiags.HasErrors() {
+			leg.Labelled, leg.Unlabelled = googleLabelSplit(schema)
+		}
+	}
+	return leg, diags
+}
+
+// googleLabelSplit sorts every resource type of a hashicorp/google schema
+// by whether it carries the google-labels surface: the labelled types the
+// GCP leg finds by label, and the unlabelled ones it files as
+// TYPE_NOT_TAGGABLE when the configuration declares them (GitHub issue
+// #2119, D3; #2139, item 8).
+func googleLabelSplit(schema providers.ProviderSchema) (labelled, unlabelled map[string]bool) {
+	labelled, unlabelled = map[string]bool{}, map[string]bool{}
+	for name, rs := range schema.ResourceTypes {
+		if _, ok := markers.GoogleLabelSurface(rs.Block); ok {
+			labelled[name] = true
+		} else {
+			unlabelled[name] = true
+		}
+	}
+	return labelled, unlabelled
+}
+
+// recordRemovalLegs are the sweeps whose pass runs the record-store
+// removal leg without [discovery.Request.Sweep] (GitHub issue #2119). The
+// tagging-index sweep needs no entry: its builder turns Sweep on, which
+// runs every removal leg. The Resource Graph sweep lists only tagged
+// objects, so an untaggable azurerm object whose block was removed is
+// found by its record or not at all, as an untaggable AWS one is; the
+// leg is AWS's, run alone. The Asset Inventory sweep is GCP's equivalent:
+// it plans no removal of its own, so every deleted google block, labelled
+// or not, is destroyed from its record (GitHub issue #2139), a labelled
+// one only once this run's search saw its live labels. The label-list
+// sweep has no entry: every admitted Kubernetes kind carries the label
+// (live/readiness.json counts no untaggable one), so the label sweep
+// finds a removed block's object itself.
+var recordRemovalLegs = map[substrate.Sweep]bool{
+	substrate.SweepAssetSearch: true,
 }
 
 // liveSweepLegs is one provider configuration's sweep legs and its

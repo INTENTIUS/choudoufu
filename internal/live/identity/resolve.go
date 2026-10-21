@@ -251,6 +251,12 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 // provider configuration whose own address has Type "kubernetes". Reading
 // NonAWSProvider as "swept" made the warning silently wrong for that case;
 // asking the substrate by the resource's actual provider cannot be.
+//
+// A third way back exists on GCP ([substrate.RecordsRemoveUnrowed]): the
+// record-orphan leg admits an unrowed google type through its identity
+// schema, so a deleted block's objects are destroyed from their records.
+// The warning said otherwise for google_storage_bucket and
+// google_project_service on the first GCP gauntlet run.
 func (r *resolver) warnUnsweepableTypes() {
 	names := make([]string, 0, len(r.synth))
 	for typeName, entry := range r.synth {
@@ -260,7 +266,7 @@ func (r *resolver) warnUnsweepableTypes() {
 		if _, hasRow := LookupType(typeName); hasRow {
 			continue
 		}
-		if substrate.Sweeps(r.typeProviders[typeName]) {
+		if substrate.Sweeps(r.typeProviders[typeName]) || substrate.RecordsRemoveUnrowed(r.typeProviders[typeName]) {
 			continue
 		}
 		names = append(names, typeName)
@@ -1159,7 +1165,7 @@ func (r *resolver) recordFallback(addr addrs.AbsResourceInstance, resourceType s
 	if !r.recordStore {
 		return Resolution{}, false
 	}
-	if !RecordFallbackType(resourceType, r.schemas) {
+	if !RecordFallbackType(resourceType, r.typeProviders[resourceType], r.schemas) {
 		return Resolution{}, false
 	}
 	// GitHub issue #1675: the discriminator [internal/live/projection.WriteBack]
@@ -1409,6 +1415,19 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}
 		byAttr[name] = append(byAttr[name], got...)
 	}
+	// Each component's contribution is held as a segment until the loop
+	// is done, rather than appended straight to parts, because an IAM
+	// parent's long form rewrites its sibling components (#2144): the
+	// project a `projects/other/secrets/db-pass` names replaces the
+	// project component that precedes it. See [resolver.composeLongForms].
+	var segs []segment
+	emit := func(i int, identAttr, arg string, got []Part, prefix string) {
+		sg := segment{comp: i, attr: identAttr, arg: arg, parts: got, prefix: prefix, rng: rc.DeclRange}
+		if a, ok := attrs[arg]; ok {
+			sg.rng = a.Range
+		}
+		segs = append(segs, sg)
+	}
 
 	// failed tracks whether any real component below could not be resolved.
 	// The loop no longer returns on the first one (GitHub issue #221): every
@@ -1457,20 +1476,26 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 					fail(sibBefore, attr.Name)
 					continue
 				}
-				parts = append(parts, got...)
-				addTo(comp.identityAttrFor(attr.Name), got)
+				if got, ok = r.longFormValue(comp, addr, attr, got); !ok {
+					fail(sibBefore, "")
+					continue
+				}
+				emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, "")
 				continue
 			}
 			v, _ := r.cloudValueFor(comp.Cloud, cloudScope)
+			if comp.LongForm == LongFormLastSegment {
+				// ReplaceVarsForId trims the provider's own project,
+				// region or zone, and takes no last segment of it.
+				v = forIDValue(string(comp.Cloud), v, false)
+			}
 			got := []Part{{Literal: v}}
-			parts = append(parts, got...)
-			addTo(comp.identityAttrFor(""), got)
+			emit(i, comp.identityAttrFor(""), "", got, "")
 			continue
 		}
 		if len(comp.Attrs) == 0 {
 			got := []Part{{Literal: comp.Literal}}
-			parts = append(parts, got...)
-			addTo(comp.identityAttrFor(""), got)
+			emit(i, comp.identityAttrFor(""), "", got, "")
 			continue
 		}
 		attr, conflict := r.firstApplicablePresent(comp, attrs, scope, addr)
@@ -1512,9 +1537,14 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				// argument (an omitted event_bus_name is the "default"
 				// bus), so the identity is computable without it - see
 				// [Component.Default].
-				got := []Part{{Literal: comp.Default}}
-				parts = append(parts, got...)
-				addTo(comp.identityAttrFor(comp.Attrs[0]), got)
+				v := comp.Default
+				if comp.LongForm == LongFormLastSegment {
+					// A schema Default is what GetOkExists hands
+					// ReplaceVarsForId, so it is shortened the same way.
+					v = forIDValue(comp.Attrs[0], v, true)
+				}
+				got := []Part{{Literal: v}}
+				emit(i, comp.identityAttrFor(comp.Attrs[0]), comp.Attrs[0], got, "")
 				continue
 			}
 			if comp.ServerAssignedIfAbsent {
@@ -1668,8 +1698,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				fail(sibBefore, attr.Name)
 				continue
 			}
-			parts = append(parts, got...)
-			addTo(comp.identityAttrFor(attr.Name), got)
+			emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, "")
 			continue
 		}
 		diagMark := len(r.diags)
@@ -1730,16 +1759,38 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			fail(sibBefore, attr.Name)
 			continue
 		}
+		if got, ok = r.longFormValue(comp, addr, attr, got); !ok {
+			fail(sibBefore, "")
+			continue
+		}
 		// The identity-attribute formula gets the resolved value alone; a
 		// prefix Literal (see [Component.Literal] and [Component.OmitIfAbsent])
 		// is punctuation in the import-ID STRING, not part of the identity
-		// ATTRIBUTE's value, so it is added to parts only, after the formula
-		// has already captured the unprefixed value.
-		addTo(comp.identityAttrFor(attr.Name), got)
-		if comp.Literal != "" {
-			got = append([]Part{{Literal: comp.Literal}}, got...)
+		// ATTRIBUTE's value, so it is carried as the segment's prefix and
+		// added to parts only.
+		emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, ensuredPrefix(comp, got))
+	}
+	if !failed {
+		if group, ok := emptyAtLeastOneOf(entry.Components, segs); ok {
+			r.errorf(rc.DeclRange, "Identity argument not set",
+				"%s has no value for any of %s; the provider requires at least one of them, so its import identity (%s) cannot be built.",
+				addr.String(), orList(group), entry.ImportSyntax)
+			fail(len(r.pendingSiblingApply), "")
 		}
-		parts = append(parts, got...)
+	}
+	if !failed {
+		if composed, ok := r.composeLongForms(entry, segs, addr); ok {
+			segs = composed
+		} else {
+			fail(len(r.pendingSiblingApply), "")
+		}
+	}
+	for _, sg := range segs {
+		addTo(sg.attr, sg.parts)
+		if sg.prefix != "" {
+			parts = append(parts, Part{Literal: sg.prefix})
+		}
+		parts = append(parts, sg.parts...)
 	}
 	if failed {
 		// Issue #187's second half. Every component that failed did so for
@@ -1938,9 +1989,27 @@ func (r *resolver) missingCloudComponent(entry TypeIdentity, attrs hcl.Attribute
 //
 // [CloudAccountID] has no config-only source and is not answered here. See
 // [CloudContext] for where the account first becomes knowable.
+//
+// [CloudProject] and [CloudZone] are answered the same provider-block way,
+// from [cloudScopeKey.project] and [cloudScopeKey.zone], and
+// [CloudLocation] from the region or, failing that, the zone: the google
+// provider substitutes its own `project` and `zone` into an id format when
+// the resource names neither (tpgresource.GetProject, GetZone), which is
+// the defaulting the region answer above already follows. A provider block
+// that states neither leaves the component unanswered, and the instance
+// needs discovery exactly as an AWS account-embedded one does.
 func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bool) {
-	if which == CloudRegion && cs.regionKnown && cs.region != "" {
+	switch {
+	case which == CloudRegion && cs.regionKnown && cs.region != "":
 		return cs.region, true
+	case which == CloudProject && cs.project != "":
+		return cs.project, true
+	case which == CloudZone && cs.zone != "":
+		return cs.zone, true
+	case which == CloudLocation && cs.regionKnown && cs.region != "":
+		return cs.region, true
+	case which == CloudLocation && cs.zone != "":
+		return cs.zone, true
 	}
 	return r.cloud.value(which)
 }
@@ -3587,7 +3656,9 @@ func (r *resolver) identifier(addr addrs.AbsResourceInstance, attrName string, r
 func (r *resolver) resourceCloudScope(rc *configs.Resource, scope instScope) cloudScopeKey {
 	abs := providerscope.ResolveResource(r.curCfg, rc)
 	region, ok := r.effectiveRegion(rc, abs, scope)
-	return cloudScopeKey{base: abs.String(), region: region, regionKnown: ok}
+	project, _ := r.providerStaticAttr(abs, "project")
+	zone, _ := r.providerStaticAttr(abs, "zone")
+	return cloudScopeKey{base: abs.String(), region: region, regionKnown: ok, project: project, zone: zone}
 }
 
 // recordTypeProvider memoizes rc's own resolved provider's short type name
@@ -3710,6 +3781,16 @@ func (r *resolver) staticRegionAttr(rc *configs.Resource, scope instScope) (stri
 // (and #217's own safety direction) treats as "cannot distinguish these two
 // resources by region", not as a value of "no region".
 func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool) {
+	return r.providerStaticAttr(abs, "region")
+}
+
+// providerStaticAttr is one argument of the provider configuration abs
+// resolves to, read statically: the value when the block states it as
+// something this package can evaluate without applying, and false
+// otherwise. [resolver.providerRegionAttr] reads `region` through it, and
+// [resolver.resourceCloudScope] reads the google provider's `project` and
+// `zone` the same way.
+func (r *resolver) providerStaticAttr(abs addrs.AbsProviderConfig, name string) (string, bool) {
 	if r.rootCfg == nil || r.rootCfg.Module == nil {
 		return "", false
 	}
@@ -3742,12 +3823,12 @@ func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool
 	}
 
 	content, _, diags := pc.Config.PartialContent(&hcl.BodySchema{
-		Attributes: []hcl.AttributeSchema{{Name: "region"}},
+		Attributes: []hcl.AttributeSchema{{Name: name}},
 	})
 	if diags.HasErrors() {
 		return "", false
 	}
-	attr, ok := content.Attributes["region"]
+	attr, ok := content.Attributes[name]
 	if !ok || r.isSymbolic(attr.Expr, instScope{}) {
 		return "", false
 	}
@@ -3765,7 +3846,7 @@ func (r *resolver) providerRegionAttr(abs addrs.AbsProviderConfig) (string, bool
 
 	ident := configs.StaticIdentifier{
 		Module:    abs.Module,
-		Subject:   fmt.Sprintf("provider.%s.region", pc.Name),
+		Subject:   fmt.Sprintf("provider.%s.%s", pc.Name, name),
 		DeclRange: attr.Range,
 	}
 	val, evalDiags := r.evalPure(attr.Expr, instScope{}, ident)

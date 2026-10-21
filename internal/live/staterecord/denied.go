@@ -67,6 +67,12 @@ func IsAccessDenied(err error) bool {
 	if errors.As(err, &admission) {
 		return false
 	}
+	// The GCS store's Cloud KMS refusal, for the KMS reason above. It is
+	// checked by recognising the error and not only by type, because the
+	// sentinel write's error can reach here before the store wraps it.
+	if asGCSKMSError(err) != nil {
+		return false
+	}
 	if accessDenied(err) {
 		return true
 	}
@@ -79,6 +85,11 @@ func IsAccessDenied(err error) bool {
 	// write read as an outage and the run stopped. GitHub issue #1393
 	// measured that on kind before this line existed.
 	if k8serrors.IsForbidden(err) {
+		return true
+	}
+	// [GCSStore] surfaces a refusal as the JSON API's own 403, a
+	// *googleapi.Error, which carries neither of the shapes above.
+	if status, ok := gcsStatus(err); ok && status == http.StatusForbidden {
 		return true
 	}
 	return errors.Is(err, fs.ErrPermission)

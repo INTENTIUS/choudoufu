@@ -117,6 +117,15 @@ record_store "gcs" {
 `main.tf`:
 
 ```hcl
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "8.6.0"
+    }
+  }
+}
+
 provider "google" {
   project = "my-project"
   region  = "us-central1"
