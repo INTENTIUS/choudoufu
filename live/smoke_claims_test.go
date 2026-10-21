@@ -130,6 +130,22 @@ type smokeProof struct {
 	// only while that row's stage reads pass (proven_cell_ci_test.go). Note
 	// says what the stage asserts that the claim needs.
 	Stage string `json:"stage"`
+	// LastRun is the last result measured for a scenario proof, carried
+	// until a newer run replaces it, the way live/gauntlet.json carries a
+	// row's last_run. A release never resets it; a page that renders it
+	// says when it is older than the newest release.
+	LastRun *smokeLastRun `json:"last_run,omitempty"`
+}
+
+// smokeLastRun is a proof's carried result. Claim is the claim whose cell
+// listed the scenario at Commit, which a later merge of claims may have
+// changed; Version is the release tag Commit follows (git describe).
+type smokeLastRun struct {
+	Status  string `json:"status"`
+	Claim   int    `json:"claim"`
+	Commit  string `json:"commit"`
+	Date    string `json:"date"`
+	Version string `json:"version"`
 }
 
 // scenarios returns the proofs in the cell that are scenarios of its own.

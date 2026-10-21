@@ -162,10 +162,9 @@ clears. The two numbers on the board, core estates clear and all estates
 clear, are read from `live/gauntlet.json`, which only the runner writes.
 Both are the emulator's; the `kubernetes` lane (#1067) runs on a kind
 cluster and has a bar of its own in the same file, `lanes.kubernetes`,
-counted toward neither. The `azure` lane (#1120) is the same on floci-az,
-`lanes.azure`, with one estate built and not yet run. A stage that cannot
-run on that substrate reads `n/a` there, with its reason in
-`tools/gauntlet/stages.go`, and is neutral for clear.
+counted toward neither. A stage that cannot run on that substrate reads
+`n/a` there, with its reason in `tools/gauntlet/stages.go`, and is neutral
+for clear.
 
 ## What a measurement is worth
 
@@ -281,7 +280,7 @@ Rules are tests. The ones that hold this document to the tree:
 
 | Guard | What it holds |
 |---|---|
-| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 2441 rendered identities across 705 configuration directories, pinned by value; 674 of those directories are committed fixtures and 31 are the verification cohorts, rendered into a temp dir by `estate-gen -all` on every run. If your change moves a line, explain it, and `-update` alone cannot silence it |
+| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 2453 rendered identities across 714 configuration directories, pinned by value; 683 of those directories are committed fixtures and 31 are the verification cohorts, rendered into a temp dir by `estate-gen -all` on every run. If your change moves a line, explain it, and `-update` alone cannot silence it |
 | `tools/gauntlet`: `TestRenderedDocsAreCurrent`, `TestManifestIsCanonical`, `TestArtifactAgreesWithManifest` | the spec, the board data and the artifact are what the code says |
 | `tools/gauntlet`: `TestLegacyScriptsOnlyGoDown` | crossing scripts move onto the protocol and never back |
 | `live/derivation_guard_test.go`: `TestEveryTypeLiteralSurfaceIsRegistered`, `TestNoTypeNameIsAssembledFromLiterals` | every hand-wired provider type name carries a registered reason and count, and none is assembled at runtime to dodge the registry |
@@ -323,8 +322,6 @@ and the site leads with the claims everywhere else (#803).
 - A brief is a lead, not a fact: re-verify against the code before fixing.
 - Adding a platform (GCP, Azure): `live/ADDING-A-PLATFORM.md` has the
   contract AWS and Kubernetes both meet, the build order and the registries.
-  Azure (#1120) is built against it and unmeasured: `live/azure/` has its
-  pages, and every Azure claim cell reads `open`.
 - `gh` defaults to upstream in this clone; pass `-R INTENTIUS/choudoufu`.
 - Status and completion reports lead with `bash scripts/pickup.sh`'s board
   line (clear counts, stale-evidence count, queue depth), never with an

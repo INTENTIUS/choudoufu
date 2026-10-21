@@ -31,7 +31,11 @@ import (
 //
 //   - a scenario whose evidence includes a file with a YYYY-MM-DD "date"
 //     field (live/smoke/evidence/<name>.lastrun.json, written from the
-//     run's two logs);
+//     run's two logs), or whose last_run carries a proven result with a
+//     YYYY-MM-DD date. last_run is the last result measured, kept across
+//     releases the way live/gauntlet.json keeps a row's last_run, and a
+//     page that renders it says when it is older than the newest release
+//     (live/claims_last_run_test.go holds each one to git history);
 //   - steps of another claim's scenario (proven_by), whose own proof is
 //     dated; or
 //   - a gauntlet stage (stage: "<estate>:<stage id>") whose row in
@@ -135,9 +139,13 @@ func readEvidenceDate(path string) string {
 }
 
 // scenarioDatedRun returns the newest dated run among a scenario proof's
-// evidence files, or "".
+// evidence files and its carried last_run, or "". A last_run counts only
+// when it reads proven.
 func scenarioDatedRun(p smokeProof, date evidenceDateFunc) string {
 	newest := ""
+	if lr := p.LastRun; lr != nil && lr.Status == "proven" && provenCellEvidenceDate.MatchString(lr.Date) {
+		newest = lr.Date
+	}
 	for _, ev := range p.Evidence {
 		if d := date(ev); d > newest {
 			newest = d
@@ -158,7 +166,7 @@ func undatedProofs(f smokeClaimsFile, c smokeClaim, provider string, rows map[st
 		switch {
 		case p.Scenario != "":
 			if scenarioDatedRun(p, date) == "" {
-				out = append(out, fmt.Sprintf("%s has no evidence file with a YYYY-MM-DD date", filepath.Base(p.Scenario)))
+				out = append(out, fmt.Sprintf("%s has no evidence file with a YYYY-MM-DD date and no proven last_run", filepath.Base(p.Scenario)))
 			}
 		case p.Stage != "":
 			if problem, _ := stageCitationProblem(rows, p.Stage); problem != "" {
@@ -175,7 +183,7 @@ func undatedProofs(f smokeClaimsFile, c smokeClaim, provider string, rows map[st
 			if from == nil {
 				out = append(out, fmt.Sprintf("proven_by %d names %q, which is no scenario of claim %d on %s", p.ProvenBy, p.Command, p.ProvenBy, provider))
 			} else if scenarioDatedRun(*from, date) == "" {
-				out = append(out, fmt.Sprintf("proven_by %d: %s has no evidence file with a YYYY-MM-DD date", p.ProvenBy, filepath.Base(from.Scenario)))
+				out = append(out, fmt.Sprintf("proven_by %d: %s has no evidence file with a YYYY-MM-DD date and no proven last_run", p.ProvenBy, filepath.Base(from.Scenario)))
 			}
 		default:
 			out = append(out, "a proof with no scenario, stage or proven_by")
@@ -276,6 +284,11 @@ func TestDatedRunRuleCatches(t *testing.T) {
 	scen := func(name string, ev ...string) smokeProof {
 		return smokeProof{Scenario: "live/smoke/scenarios/" + name + ".sh", Command: "just smoke " + name, Evidence: ev}
 	}
+	carried := func(name, status, day string) smokeProof {
+		p := scen(name)
+		p.LastRun = &smokeLastRun{Status: status, Claim: 1, Commit: "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a", Date: day, Version: "v0.26.0"}
+		return p
+	}
 	file := func(status string, proofs ...smokeProof) smokeClaimsFile {
 		return smokeClaimsFile{ProviderOrder: []string{"aws"}, Claims: []smokeClaim{
 			{ID: 1, Providers: map[string]smokeClaimProviderCell{"aws": {Status: status, Proofs: proofs}}},
@@ -301,6 +314,10 @@ func TestDatedRunRuleCatches(t *testing.T) {
 		{"proven_by a dated scenario", file("proven", smokeProof{ProvenBy: 2, Command: "just smoke other"}), false},
 		{"proven_by an undated scenario", file("proven", smokeProof{ProvenBy: 3, Command: "just smoke bare"}), true},
 		{"unproven with every proof dated", file("unproven", scen("a", "dated.json")), true},
+		{"scenario carrying a proven last_run", file("proven", carried("a", "proven", "2026-10-11")), false},
+		{"last_run that did not read proven", file("proven", carried("a", "unproven", "2026-10-11")), true},
+		{"last_run with no date", file("proven", carried("a", "proven", "")), true},
+		{"unproven with a proven last_run", file("unproven", carried("a", "proven", "2026-10-11")), true},
 		{"unproven and undated", file("unproven", scen("a")), false},
 	} {
 		got := datedRunProblems(tc.f, rows, date)

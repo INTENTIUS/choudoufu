@@ -10,8 +10,9 @@
     "demos lists the scenarios that prove no claim (full, and the recommended secure configuration since #1817; import and greenfield were dropped);",
     "they carry no CLAIM header and belong to no cell. live/smoke_claims_test.go holds this file to the scenario directory and to the",
     "per-claim pages; the docs site and live/CLAIMS.md read this file directly.",
-    "status is one of: proven (every proof names a dated run: a scenario with an evidence file carrying a YYYY-MM-DD date, steps of such a scenario, or a gauntlet stage that reads pass), unproven (the proofs exist and at least one names no dated run; the note says which), restated (the promise holds in a weaker",
+    "status is one of: proven (every proof names a dated run: a scenario with an evidence file carrying a YYYY-MM-DD date or a last_run, steps of such a scenario, or a gauntlet stage that reads pass), unproven (the proofs exist and at least one names no dated run; the note says which), restated (the promise holds in a weaker",
     "form, said in note), n/a (the substrate has no such concept), open (no proof yet: a gap, not a shrug).",
+    "last_run on a scenario proof is the last result measured for it, carried until a newer run replaces it, as live/gauntlet.json carries a row's last_run: status, claim (the claim whose cell listed the scenario then), commit, date (YYYY-MM-DD) and version (the release tag that commit follows). A release never resets it. A run older than the newest release in CHANGELOG.md is stale, and every page that renders a cell says so and names the run's version or date; a fresh dated evidence file outranks it. The 34 last_run entries on 2026-10-19 are restored exactly from this file at 958bcf7f2d, the last commit before #2028 turned the cells unproven; then a cell read proven because claims-smoke CI ran its scenarios. live/claims_last_run_test.go holds each entry to that history, so none can be typed by hand.",
     "substrate lists the providers the promise applies to: every cell that is not n/a.",
     "retired lists numbers that are no longer claims of their own. Most were a second proof of an existing promise, filed as a claim; each",
     "now lives in the named claim's cell for that provider, its slug is still its scenario's name, and its number is never reused. #1817",
@@ -260,7 +261,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/no-silent-orphans.sh",
@@ -275,42 +276,77 @@
               "scenario": "live/smoke/scenarios/a-shadow-is-not-a-claimant.sh",
               "command": "just smoke a-shadow-is-not-a-claimant",
               "minutes": 3,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "last_run": {
+                "status": "proven",
+                "claim": 1,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/a-held-delete-is-not-gone.sh",
               "command": "just smoke a-held-delete-is-not-gone",
               "minutes": 3,
               "break_mode": "BREAK=1 sets recovery_window_in_days = 0, which the provider sends as ForceDeleteWithoutRecovery, and requires the opposite outcome - DescribeSecret answering ResourceNotFoundException after the destroy and the replan empty - because without that control the main arm's secret still being there after the destroy would read the same if choudoufu never sent the delete",
-              "note": "The AWS form of an accepted, unfinished delete is a scheduled one (#1599): Secrets Manager's DeleteSecret with a recovery window, like KMS's ScheduleKeyDeletion, answers success and leaves the resource in the account, tags included, until the window ends. hashicorp/aws 6.58.0 reads it as gone - findSecretByID returns NotFound once DeletedDate is set, findKeyByID once KeyState is PendingDeletion, and each delete waits on exactly that - so the half of this promise that holds on AWS is the second: the plan after the delete is empty, as stock's is, with no second destroy (which AWS would refuse for the whole window) and no refusal of the swept, still-marked object. The first half, an object the provider still reads as present after its own delete returned, needs an eventually consistent delete; the pinned emulator does not model that lag (lex00/floci#216), and most hashicorp/aws deletes wait it out. This proof was claim 25 on AWS, which read restated: it measures the second half of a held delete, the plan after it, and not the first."
+              "note": "The AWS form of an accepted, unfinished delete is a scheduled one (#1599): Secrets Manager's DeleteSecret with a recovery window, like KMS's ScheduleKeyDeletion, answers success and leaves the resource in the account, tags included, until the window ends. hashicorp/aws 6.58.0 reads it as gone - findSecretByID returns NotFound once DeletedDate is set, findKeyByID once KeyState is PendingDeletion, and each delete waits on exactly that - so the half of this promise that holds on AWS is the second: the plan after the delete is empty, as stock's is, with no second destroy (which AWS would refuse for the whole window) and no refusal of the swept, still-marked object. The first half, an object the provider still reads as present after its own delete returned, needs an eventually consistent delete; the pinned emulator does not model that lag (lex00/floci#216), and most hashicorp/aws deletes wait it out. This proof was claim 25 on AWS, which read restated: it measures the second half of a held delete, the plan after it, and not the first.",
+              "last_run": {
+                "status": "proven",
+                "claim": 1,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: a-shadow-is-not-a-claimant.sh, a-held-delete-is-not-gone.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "kubernetes": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/k8s-no-silent-orphans.sh",
               "command": "just smoke k8s-no-silent-orphans",
               "minutes": 3,
-              "break_mode": "BREAK=1 strips the label from the orphan and requires the replan to leave it alone; the ordinary run strips the orphan's address annotation first and requires it to be proposed all the same"
+              "break_mode": "BREAK=1 strips the label from the orphan and requires the replan to leave it alone; the ordinary run strips the orphan's address annotation first and requires it to be proposed all the same",
+              "last_run": {
+                "status": "proven",
+                "claim": 1,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/k8s-a-held-delete-is-not-gone.sh",
               "command": "just smoke k8s-a-held-delete-is-not-gone",
               "minutes": 3,
-              "break_mode": "BREAK=1 removes the finalizer before the destroying apply and requires the opposite outcome - the object gone in one apply and the replan empty - because without that control the scenario would read identically if choudoufu simply never deleted a ConfigMap"
+              "break_mode": "BREAK=1 removes the finalizer before the destroying apply and requires the opposite outcome - the object gone in one apply and the replan empty - because without that control the scenario would read identically if choudoufu simply never deleted a ConfigMap",
+              "last_run": {
+                "status": "proven",
+                "claim": 1,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/k8s-a-deleted-namespace-is-gone.sh",
               "command": "just smoke k8s-a-deleted-namespace-is-gone",
               "minutes": 5,
               "break_mode": "BREAK=1 runs the identical namespace delete and then asserts what a sweep that never saw it would plan, \"No changes.\", over the real plan; that assertion must fail, and the control passes only when the plan instead proposes the three creates, because without it the creates of step 4 would read the same if the plan proposed them whatever the cluster held",
-              "note": "A namespace deleted under a converged estate takes its objects with it, and the plan reads them as gone: nothing in it is listed or swept as an orphan, and the plan is the one stock's plan makes from the same position, measured on the same cluster rather than quoted. Step 7, a deleted record-store namespace, is claim 29's (#1765)."
+              "note": "A namespace deleted under a converged estate takes its objects with it, and the plan reads them as gone: nothing in it is listed or swept as an orphan, and the plan is the one stock's plan makes from the same position, measured on the same cluster rather than quoted. Step 7, a deleted record-store namespace, is claim 29's (#1765).",
+              "last_run": {
+                "status": "proven",
+                "claim": 1,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: k8s-no-silent-orphans.sh, k8s-a-held-delete-is-not-gone.sh, k8s-a-deleted-namespace-is-gone.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). The sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete. An object no natural key declares is joined a second way, by the block its address annotation names (#1640): bound when that block is declared, an orphan otherwise. The label is what makes an object this estate's, so an orphan whose annotation was stripped is still proposed for removal; two objects whose annotations claim one block that holds neither are refused as a collision rather than both destroyed (#1641)."
+          "note": "The sweep is one cluster-wide, label-selected list per kind rather than one account-wide call, and controller-made objects (owner references, or written only by the control plane) are excluded before anything reaches a delete. An object no natural key declares is joined a second way, by the block its address annotation names (#1640): bound when that block is declared, an orphan otherwise. The label is what makes an object this estate's, so an orphan whose annotation was stripped is still proposed for removal; two objects whose annotations claim one block that holds neither are refused as a collision rather than both destroyed (#1641)."
         },
         "azure": {
           "status": "unproven",
@@ -338,20 +374,34 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/no-self-managed-locks.sh",
               "command": "just smoke no-self-managed-locks",
               "minutes": 2,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "last_run": {
+                "status": "proven",
+                "claim": 2,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/two-writers-one-record.sh",
               "command": "just smoke two-writers-one-record",
               "minutes": 3,
               "needs_go": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the record store's PutObject carries no If-Match (go build -overlay, so it needs Go and cannot break a release binary) and passes only when both racing applies are caught reporting success over one record"
+              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the record store's PutObject carries no If-Match (go build -overlay, so it needs Go and cannot break a release binary) and passes only when both racing applies are caught reporting success over one record",
+              "last_run": {
+                "status": "proven",
+                "claim": 2,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/cas-holds-under-every-sse-flavour.sh",
@@ -366,7 +416,7 @@
               "note": "Real AWS and maintainer-run, not CI: an emulator does not reproduce the ETag semantics that are the subject. Run with SMOKE_REAL_AWS=1; it creates four buckets and a KMS key and removes them. Last run 2026-09-18, us-east-2, all four flavours."
             }
           ],
-          "note": "Unproven until a dated run: no-self-managed-locks.sh, two-writers-one-record.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "kubernetes": {
           "status": "proven",
@@ -397,28 +447,49 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/staleness-costs-reads.sh",
               "command": "just smoke staleness-costs-reads",
               "minutes": 3,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "last_run": {
+                "status": "proven",
+                "claim": 3,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/unchanged-is-free.sh",
               "command": "just smoke unchanged-is-free",
               "minutes": 3,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "last_run": {
+                "status": "proven",
+                "claim": 9,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/cache-serves-the-whole-estate.sh",
               "command": "just smoke cache-serves-the-whole-estate",
               "minutes": 2,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "last_run": {
+                "status": "proven",
+                "claim": 9,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: staleness-costs-reads.sh, unchanged-is-free.sh, cache-serves-the-whole-estate.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "kubernetes": {
           "status": "proven",
@@ -462,7 +533,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/a-killed-apply-hides-nothing.sh",
@@ -470,10 +541,17 @@
               "minutes": 4,
               "needs_go": true,
               "break_mode": "BREAK=1 strips the ownership markers off everything the killed apply created, leaving the same objects in the same account with no ownership on them; the re-run must then be unable to bind and must build a duplicate VPC, which is stock's behaviour, and a strip that left a marker behind fails the control rather than passing it. BREAK_EARLY_RECORD=1 rebuilds choudoufu with the mid-apply record write switched off (go build -overlay, needs Go, refuses a release binary), so no record is written until the walk is over; the killed run must then leave no record for the inline policy, the password or the effect, the next plan must propose generating the password again, and the re-run must leave two inline policies on the group (#1944)",
-              "note": "Scoped to what the dead apply MARKED. An object killed between its create call and the marker write that follows it is not named by the next plan, and for a tag_on_create=false type that window is the whole of the provider's create step: 15.0s for a hosted zone against the pinned emulator. The re-run then duplicates it and the orphan is removed by hand. Ten types read tag_on_create false in live/registry.json (#1084); for every other type the markers ride the create call and the window does not exist. Since #1944 a record-backed or record-carried instance's record is written the moment its apply step returns: the killed run here leaves records for a record-carried aws_iam_group_policy whose name the provider assigned, a random_password and a terraform_data with a provisioner, and the re-run keeps one inline policy, the same password and an effect that ran once. aws_iam_access_key, the issue's own example, is not used because the pinned emulator answers its GetAccessKeyLastUsed read empty. An instance still in flight at the kill has no record yet. Step 7 then deletes every local file - the cache, the lock file, the whole .terraform directory - and the next plan from a fresh init is still empty (claim 5's original proof, moved here by #1817)."
+              "note": "Scoped to what the dead apply MARKED. An object killed between its create call and the marker write that follows it is not named by the next plan, and for a tag_on_create=false type that window is the whole of the provider's create step: 15.0s for a hosted zone against the pinned emulator. The re-run then duplicates it and the orphan is removed by hand. Ten types read tag_on_create false in live/registry.json (#1084); for every other type the markers ride the create call and the window does not exist. Since #1944 a record-backed or record-carried instance's record is written the moment its apply step returns: the killed run here leaves records for a record-carried aws_iam_group_policy whose name the provider assigned, a random_password and a terraform_data with a provisioner, and the re-run keeps one inline policy, the same password and an effect that ran once. aws_iam_access_key, the issue's own example, is not used because the pinned emulator answers its GetAccessKeyLastUsed read empty. An instance still in flight at the kill has no record yet. Step 7 then deletes every local file - the cache, the lock file, the whole .terraform directory - and the next plan from a fresh init is still empty (claim 5's original proof, moved here by #1817).",
+              "last_run": {
+                "status": "proven",
+                "claim": 5,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: a-killed-apply-hides-nothing.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "kubernetes": {
           "status": "proven",
@@ -503,22 +581,36 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/roundtrip.sh",
               "command": "just smoke roundtrip",
               "minutes": 3,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "last_run": {
+                "status": "proven",
+                "claim": 6,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/stock-when-you-need-it.sh",
               "command": "just smoke stock-when-you-need-it",
               "minutes": 3,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "last_run": {
+                "status": "proven",
+                "claim": 8,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: roundtrip.sh, stock-when-you-need-it.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "kubernetes": {
           "status": "proven",
@@ -562,39 +654,67 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/carve-by-retag.sh",
               "command": "just smoke carve-by-retag",
               "minutes": 6,
               "needs_go": true,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "last_run": {
+                "status": "proven",
+                "claim": 7,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/count-is-a-fungible-set.sh",
               "command": "just smoke count-is-a-fungible-set",
               "minutes": 2,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "last_run": {
+                "status": "proven",
+                "claim": 7,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: carve-by-retag.sh, count-is-a-fungible-set.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "kubernetes": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/k8s-greenfield.sh",
               "command": "just smoke k8s-greenfield",
               "minutes": 2,
-              "break_mode": "BREAK=1 strips the label with kubectl and requires live-ls to drop the object from the listing and the replan to refuse it by name, proposing the create the block declares rather than relabelling an object this estate can no longer show it owns; BREAK_ANNOTATION=1 strips the address annotation from an object whose name is read at plan time and requires the replan to refuse that block by name, naming the object, rather than bind it or plan a create over it"
+              "break_mode": "BREAK=1 strips the label with kubectl and requires live-ls to drop the object from the listing and the replan to refuse it by name, proposing the create the block declares rather than relabelling an object this estate can no longer show it owns; BREAK_ANNOTATION=1 strips the address annotation from an object whose name is read at plan time and requires the replan to refuse that block by name, naming the object, rather than bind it or plan a create over it",
+              "last_run": {
+                "status": "proven",
+                "claim": 7,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/k8s-custom-resource.sh",
               "command": "just smoke k8s-custom-resource",
               "minutes": 5,
               "break_mode": "BREAK=1 writes spec.replicas = 0 under a CRD that bounds it at minimum 1, a rule only the server checks, and requires the replan refused by name with the server's message quoted and no plan produced; strips the tofu-estate label with kubectl and requires the replan to refuse the CronTab by name and the server's dry run to refuse the create it falls back to, leaving the label off until an operator writes it back; strips it again and removes the block, requiring the replan not to list the object; then deletes the custom resource and requires the replan to propose creating it; and it installs a MutatingAdmissionPolicy that rewrites spec.image on every update, then migrates the stock-made CronTab, requiring live-import to refuse the label write by name (\"would also change spec.image\"), count it as 1 failed, and leave the object's label and spec untouched; and it then migrates the same CronTab cleanly and cuts manifest_metadata_keys out of the estate's record - the record a build without the migrate-time seed writes - requiring the identical label deletion to plan \"No changes.\" with the label still on the object; and it runs step 14's two-ConfigMap migration under a 60-character estate name, a legal label value, requiring the ratification report to print with one line per ConfigMap and 2 of 2 eligible and the run to exit 0, where the 64-character name was refused once",
-              "note": "A custom resource is found again by the apiVersion, kind, namespace and name inside its manifest, carries tofu-estate, and is swept by it; a block whose CRD the cluster does not serve is refused by name; every planned create or update is sent with dryRun=All and the server's verdict printed above the plan; and live-import adopts a stock-made custom resource with one label merge patch, refusing one that would change anything beyond the labels map."
+              "note": "A custom resource is found again by the apiVersion, kind, namespace and name inside its manifest, carries tofu-estate, and is swept by it; a block whose CRD the cluster does not serve is refused by name; every planned create or update is sent with dryRun=All and the server's verdict printed above the plan; and live-import adopts a stock-made custom resource with one label merge patch, refusing one that would change anything beyond the labels map.",
+              "last_run": {
+                "status": "proven",
+                "claim": 7,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "proven_by": 13,
@@ -602,7 +722,7 @@
               "note": "A carve is one label write, tofu-estate=<new> on the object, through live-mv -from-estate or kubectl label; with the admission policy installed the caller must hold both estates, and claim 13's Kubernetes scenario (k8s-the-label-is-the-boundary) measures the refusal without the grant and the carve with it (#1081, item 5)."
             }
           ],
-          "note": "Unproven until a dated run: k8s-greenfield.sh, k8s-custom-resource.sh, claim 13's k8s-the-label-is-the-boundary.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). The ownership marker is one label, tofu-estate, because an address is often not a legal label value (#1016); the block address rides beside it in the annotation choudoufu.intentius.io/tofu-address (#1639, #1605's ruling). Any kubectl reads both. The sweep binds an object no natural key declares to the block its annotation names (#1640), so a block whose name is read at plan time applies and replans empty, and a create_before_destroy rename plans as the replace stock plans (#1541, #1641). A rename rewrites the annotation (a moved block plans it, live-mv writes it); a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 13 on Kubernetes). A count pool's fungible set, the AWS proof count-is-a-fungible-set, does not arise here: the API server keeps names unique per kind and namespace, so a count-expanded set carries distinct names and no slot is written."
+          "note": "The ownership marker is one label, tofu-estate, because an address is often not a legal label value (#1016); the block address rides beside it in the annotation choudoufu.intentius.io/tofu-address (#1639, #1605's ruling). Any kubectl reads both. The sweep binds an object no natural key declares to the block its annotation names (#1640), so a block whose name is read at plan time applies and replans empty, and a create_before_destroy rename plans as the replace stock plans (#1541, #1641). A rename rewrites the annotation (a moved block plans it, live-mv writes it); a move between estates is the one label write live-mv -from-estate makes under the caller's credential, judged by the admission policy (claim 13 on Kubernetes). A count pool's fungible set, the AWS proof count-is-a-fungible-set, does not arise here: the API server keeps names unique per kind and namespace, so a count-expanded set carries distinct names and no slot is written."
         },
         "azure": {
           "status": "unproven",
@@ -630,7 +750,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/the-tag-is-the-boundary.sh",
@@ -639,47 +759,89 @@
               "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
               "evidence": [
                 "live/smoke/evidence/the-tag-is-the-boundary.cloudtrail.json"
-              ]
+              ],
+              "last_run": {
+                "status": "proven",
+                "claim": 13,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/a-role-holds-an-address-pattern.sh",
               "command": "just smoke a-role-holds-an-address-pattern",
               "minutes": 3,
               "break_mode": "BREAK=1 rewrites the role's grant with the same actions and no condition on tofu-address, and passes only when the role's change on module.db lands",
-              "note": "One role, one StringLike on aws:ResourceTag/tofu-address (module.app.*) and no tofu-estate condition: in one estate it changes module.app and is refused on module.db, through choudoufu and through the plain AWS CLI (#1955)."
+              "note": "One role, one StringLike on aws:ResourceTag/tofu-address (module.app.*) and no tofu-estate condition: in one estate it changes module.app and is refused on module.db, through choudoufu and through the plain AWS CLI (#1955).",
+              "last_run": {
+                "status": "proven",
+                "claim": 13,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/the-boundary-holds-across-regions.sh",
               "command": "just smoke the-boundary-holds-across-regions",
               "minutes": 2,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "last_run": {
+                "status": "proven",
+                "claim": 13,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/the-boundary-holds-across-accounts.sh",
               "command": "just smoke the-boundary-holds-across-accounts",
               "minutes": 2,
-              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it"
+              "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "last_run": {
+                "status": "proven",
+                "claim": 13,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/two-estates-at-once.sh",
               "command": "just smoke two-estates-at-once",
               "minutes": 2,
-              "break_mode": "BREAK=1 gives both roots the same tofu-estate value while everything else - the account, the shared data-source read, the resource address - stays identical; the concurrent applies still finish, but the next plan must name both live roles rather than reading clean"
+              "break_mode": "BREAK=1 gives both roots the same tofu-estate value while everything else - the account, the shared data-source read, the resource address - stays identical; the concurrent applies still finish, but the next plan must name both live roles rather than reading clean",
+              "last_run": {
+                "status": "proven",
+                "claim": 13,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: the-tag-is-the-boundary.sh, a-role-holds-an-address-pattern.sh, the-boundary-holds-across-regions.sh, the-boundary-holds-across-accounts.sh, two-estates-at-once.sh have no evidence file with a date (no workflow has run a claim scenario since #2018). Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
+          "note": "Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
         },
         "kubernetes": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/k8s-the-label-is-the-boundary.sh",
               "command": "just smoke k8s-the-label-is-the-boundary",
               "minutes": 5,
-              "break_mode": "BREAK=1 removes the policy and requires the writes it refused - Bob's apply and plain kubectl on Alice's estate, and Alice's live-mv -from-estate into an estate she was never granted - to go through, while step 4's plan-side refusal of another estate's object must still hold with the policy gone"
+              "break_mode": "BREAK=1 removes the policy and requires the writes it refused - Bob's apply and plain kubectl on Alice's estate, and Alice's live-mv -from-estate into an estate she was never granted - to go through, while step 4's plan-side refusal of another estate's object must still hold with the policy gone",
+              "last_run": {
+                "status": "proven",
+                "claim": 13,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: k8s-the-label-is-the-boundary.sh has no evidence file with a date (no workflow has run a claim scenario since #2018). Write-only and cluster-wide: one ValidatingAdmissionPolicy on the estate label, installed by a cluster admin, fences create, update and delete and never get or list (#1066). An IAM condition on AWS also fences reads and can name an address, not only an estate. One estate across contexts, clusters or two estates applying to one cluster at once has not been measured. Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
+          "note": "Write-only and cluster-wide: one ValidatingAdmissionPolicy on the estate label, installed by a cluster admin, fences create, update and delete and never get or list (#1066). An IAM condition on AWS also fences reads and can name an address, not only an estate. One estate across contexts, clusters or two estates applying to one cluster at once has not been measured. Across both legs of one EKS estate (#1113): live/e2e/reference-eks/two-fences.sh is written and has NOT run, so it is no proof yet and this cell's status does not rest on it. It shows two AWS roles reaching both legs through their own credential only: IAM on the ownership tags fences the AWS leg, live/kubernetes/estate-boundary.yaml fences the cluster leg per user, a grant moved on one leg does not move the other, and a carve is one live-mv -from-estate per leg, each judged by its own fence. It needs floci's opt-in principal identity (lex00/floci#220), without which every role is system:masters on the cluster. It moves to live/smoke/scenarios/ and registers here after its first green run with its BREAK control caught."
         },
         "azure": {
           "status": "unproven",
@@ -707,7 +869,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/plan-cost-under-foreign-load.sh",
@@ -718,10 +880,17 @@
               "evidence": [
                 "live/gauntlet-scale.json"
               ],
-              "note": "FOREIGN_SCALE sizes the account around the estate: 1, the default, puts 79 foreign resources beside it in about five minutes; FOREIGN_SCALE=50 puts 3,705 there, the row in live/gauntlet-scale.json. OWNED_SCALE sizes the estate itself. This scenario took over from plan-cost-tracks-the-estate.sh, the same steps against eight hand-written log groups (#1817)."
+              "note": "FOREIGN_SCALE sizes the account around the estate: 1, the default, puts 79 foreign resources beside it in about five minutes; FOREIGN_SCALE=50 puts 3,705 there, the row in live/gauntlet-scale.json. OWNED_SCALE sizes the estate itself. This scenario took over from plan-cost-tracks-the-estate.sh, the same steps against eight hand-written log groups (#1817).",
+              "last_run": {
+                "status": "proven",
+                "claim": 14,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: plan-cost-under-foreign-load.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "kubernetes": {
           "status": "proven",
@@ -791,7 +960,7 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/apply-what-was-approved.sh",
@@ -799,30 +968,51 @@
               "minutes": 7,
               "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the saved-plan approval check compares no before-values (go build -overlay, so it needs Go and cannot break a release binary), skips steps 1-7, and passes only when the second of two saved plans on one SQS queue is caught reporting success with the cloud left on its value. BREAK_UNMOVED=1 leaves the world unmoved behind the approved plan and requires it to apply",
               "needs_go": true,
-              "note": "Steps 8-14 were two-saved-plans-one-attribute, claim 2's proof until it merged here: two saved plans change one echoed attribute of one SQS queue (visibility_timeout_seconds, which the scenario first proves the provider reads back from the cloud). The record holds no such value, so no conditional write referees; #878's before-values do. Applied one after the other: two plain applies are last-writer-wins on such an attribute, and two saved-plan applies that both re-read before either writes are not covered (#1504). The merged script has not run, and its minutes are an estimate."
+              "note": "Steps 8-14 were two-saved-plans-one-attribute, claim 2's proof until it merged here: two saved plans change one echoed attribute of one SQS queue (visibility_timeout_seconds, which the scenario first proves the provider reads back from the cloud). The record holds no such value, so no conditional write referees; #878's before-values do. Applied one after the other: two plain applies are last-writer-wins on such an attribute, and two saved-plan applies that both re-read before either writes are not covered (#1504). The merged script has not run, and its minutes are an estimate.",
+              "last_run": {
+                "status": "proven",
+                "claim": 15,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/the-server-gets-the-last-word.sh",
               "command": "just smoke the-server-gets-the-last-word",
               "minutes": 4,
               "break_mode": "BREAK=1 attaches the identical Deny with one action different - sqs:DeleteQueue, which the approved apply never calls - first proves it is in force by having the same role's delete-queue on a throwaway queue refused, and then requires the opposite outcome: the approved plan applying on the first try with no refusal in its output; without it the main arm would read the same if choudoufu failed every saved-plan apply after an IAM change",
-              "note": "The first part holds on AWS as it does on Kubernetes (#1599): a plan saved under a role that may do anything, then an explicit Deny on sqs:SetQueueAttributes attached before the apply, and the apply fails quoting AWS's own \"not authorized to perform: sqs:SetQueueAttributes\", the queue unchanged and still marked, and the same approved plan file applying unchanged once the Deny is lifted. The Deny stands in for a service control policy, which reaches the caller as the same AccessDenied; the pinned emulator has no Organizations service. The other two parts are unmeasured on AWS: the emulator enforces no AWS Organizations tag policy, the one AWS mechanism that can refuse or rewrite the tofu-estate tag on the way in (lex00/floci#217), and no service it emulates rewrites a declared field on write in a way stock reads as perpetual drift. #1192's marker-not-stored hook is substrate-neutral and would report the third part where the provider hands back the tags it stored. This proof was claim 26 on AWS, which read restated."
+              "note": "The first part holds on AWS as it does on Kubernetes (#1599): a plan saved under a role that may do anything, then an explicit Deny on sqs:SetQueueAttributes attached before the apply, and the apply fails quoting AWS's own \"not authorized to perform: sqs:SetQueueAttributes\", the queue unchanged and still marked, and the same approved plan file applying unchanged once the Deny is lifted. The Deny stands in for a service control policy, which reaches the caller as the same AccessDenied; the pinned emulator has no Organizations service. The other two parts are unmeasured on AWS: the emulator enforces no AWS Organizations tag policy, the one AWS mechanism that can refuse or rewrite the tofu-estate tag on the way in (lex00/floci#217), and no service it emulates rewrites a declared field on write in a way stock reads as perpetual drift. #1192's marker-not-stored hook is substrate-neutral and would report the third part where the provider hands back the tags it stored. This proof was claim 26 on AWS, which read restated.",
+              "last_run": {
+                "status": "proven",
+                "claim": 15,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: apply-what-was-approved.sh, the-server-gets-the-last-word.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "kubernetes": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/k8s-the-server-gets-the-last-word.sh",
               "command": "just smoke k8s-the-server-gets-the-last-word",
               "minutes": 4,
               "break_mode": "BREAK=1 installs the same stripping policy against a DECOY label instead of tofu-estate - identical kind, namespace and JSONPatch, one key different - and requires the opposite outcome: the decoy stripped so the policy is provably in the admission chain and provably mutating, the marker landed, no \"Ownership marker was not stored\" anywhere in the run, live-ls listing the object as this estate's, and the second apply not wedging on the name; without it the third part would read identically if choudoufu simply never wrote a label, and its two assertions about the marker diagnostic would read identically if that diagnostic fired whatever the server did",
-              "note": "Admission runs after the plan and the server decides what is stored: a fail-closed webhook's refusal is reported in the API server's own words with nothing changed, and the approved plan file applies unchanged once it lifts; a mutating policy that rewrites a declared field reads as stock's perpetual drift while the estate keeps its marker; and a policy that strips the marker on the way in is named by the run that made it."
+              "note": "Admission runs after the plan and the server decides what is stored: a fail-closed webhook's refusal is reported in the API server's own words with nothing changed, and the approved plan file applies unchanged once it lifts; a mutating policy that rewrites a declared field reads as stock's perpetual drift while the estate keeps its marker; and a policy that strips the marker on the way in is named by the run that made it.",
+              "last_run": {
+                "status": "proven",
+                "claim": 15,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: k8s-the-server-gets-the-last-word.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "azure": {
           "status": "open",
@@ -842,14 +1032,21 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/a-name-prefix-shares-no-keys.sh",
               "command": "just smoke a-name-prefix-shares-no-keys",
               "minutes": 1,
               "needs_go": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout with the namespace delimiter dropped (go build -overlay, so it needs Go and cannot break a release binary) and passes only when the wire shows the run fetching its neighbour's record"
+              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout with the namespace delimiter dropped (go build -overlay, so it needs Go and cannot break a release binary) and passes only when the wire shows the run fetching its neighbour's record",
+              "last_run": {
+                "status": "proven",
+                "claim": 28,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/one-bucket-many-estates.sh",
@@ -882,10 +1079,17 @@
               "command": "just smoke an-estate-reads-another-by-declaring-it",
               "minutes": 3,
               "break_mode": "BREAK=1 renders the consumer's role without --reads-outputs-of network and leaves its configuration declaring the read; the plan must then refuse with \"This estate may not read another estate's outputs\", naming estate network and the flag, and a plan that shows network's value fails the control",
-              "note": "On the pinned emulator with its IAM filter on. The emulator does not evaluate s3:prefix, s3:RequestObjectTag or s3:ExistingObjectTag, so the Allow statements run without their conditions and the tag Denies do not fire; the refusal here comes from the resource scope of the one statement --reads-outputs-of adds. Claim 28's one-bucket-many-estates proof measures the tag-conditioned half on real AWS. Only non-sensitive, wholly known root outputs are recorded, so only those cross."
+              "note": "On the pinned emulator with its IAM filter on. The emulator does not evaluate s3:prefix, s3:RequestObjectTag or s3:ExistingObjectTag, so the Allow statements run without their conditions and the tag Denies do not fire; the refusal here comes from the resource scope of the one statement --reads-outputs-of adds. Claim 28's one-bucket-many-estates proof measures the tag-conditioned half on real AWS. Only non-sensitive, wholly known root outputs are recorded, so only those cross.",
+              "last_run": {
+                "status": "proven",
+                "claim": 44,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: a-name-prefix-shares-no-keys.sh, an-estate-reads-another-by-declaring-it.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "kubernetes": {
           "status": "proven",
@@ -925,34 +1129,55 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/a-wrong-bucket-is-refused.sh",
               "command": "just smoke a-wrong-bucket-is-refused",
               "minutes": 2,
               "needs_go": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout with CheckBucketContract reporting no findings (go build -overlay, so it needs Go and cannot break a release binary), runs one arm against a bucket whose versioning is Suspended, and passes only when that arm's own check catches the apply going through; the scenario's own five arms are the corruptions, one per setting plus a lifecycle that expires nothing and one that expires records"
+              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout with CheckBucketContract reporting no findings (go build -overlay, so it needs Go and cannot break a release binary), runs one arm against a bucket whose versioning is Suspended, and passes only when that arm's own check catches the apply going through; the scenario's own five arms are the corruptions, one per setting plus a lifecycle that expires nothing and one that expires records",
+              "last_run": {
+                "status": "proven",
+                "claim": 29,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/a-waiver-names-what-it-waives.sh",
               "command": "just smoke a-waiver-names-what-it-waives",
               "minutes": 2,
               "needs_go": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the waiver warning is emitted on an estate's first run only (go build -overlay, so it needs Go and cannot break a release binary) and passes only when run two is caught proceeding in silence"
+              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the waiver warning is emitted on an estate's first run only (go build -overlay, so it needs Go and cannot break a release binary) and passes only when run two is caught proceeding in silence",
+              "last_run": {
+                "status": "proven",
+                "claim": 29,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             },
             {
               "scenario": "live/smoke/scenarios/a-bulk-read-is-complete-or-it-fails.sh",
               "command": "just smoke a-bulk-read-is-complete-or-it-fails",
               "minutes": 2,
               "needs_go": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the bulk read is the one that stood before issue #1355 - the fan-out swallows a failed GET and the map it builds leaves that key out (go build -overlay, so it needs Go and cannot break a release binary) - and passes only when the plan is caught proposing to create a resource that exists. BREAK_CROSSCHECK=1 is step 5's own control: it rebuilds choudoufu without the plan-time call to refuseListedButReadAsAbsent (go build -overlay again) and passes only when, with one record listed and answered 404, the plan is caught proposing to create that instance and apply -destroy is caught reporting 1 destroyed of two with exit 0 and the record still in the bucket, which is GitHub issue #1355's output"
+              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the bulk read is the one that stood before issue #1355 - the fan-out swallows a failed GET and the map it builds leaves that key out (go build -overlay, so it needs Go and cannot break a release binary) - and passes only when the plan is caught proposing to create a resource that exists. BREAK_CROSSCHECK=1 is step 5's own control: it rebuilds choudoufu without the plan-time call to refuseListedButReadAsAbsent (go build -overlay again) and passes only when, with one record listed and answered 404, the plan is caught proposing to create that instance and apply -destroy is caught reporting 1 destroyed of two with exit 0 and the record still in the bucket, which is GitHub issue #1355's output",
+              "last_run": {
+                "status": "proven",
+                "claim": 29,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: a-wrong-bucket-is-refused.sh, a-waiver-names-what-it-waives.sh, a-bulk-read-is-complete-or-it-fails.sh have no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "kubernetes": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/k8s-records-in-the-cluster.sh",
@@ -971,7 +1196,7 @@
               "note": "Step 7 of claim 1's Kubernetes scenario (#1765): the record store's namespace deleted under a converged estate is refused by name on the plan and on the apply, and nothing is written."
             }
           ],
-          "note": "Unproven until a dated run: claim 1's k8s-a-deleted-namespace-is-gone.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "azure": {
           "status": "unproven",
@@ -999,17 +1224,24 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/no-secret-survives-in-what-the-tool-keeps.sh",
               "command": "just smoke no-secret-survives-in-what-the-tool-keeps",
               "minutes": 3,
               "break_mode": "BREAK=1 applies the same estate under secrets = \"store\" and runs the identical scan over the identical set of files, which must then find the password (it finds it in the record and the cache); a scan that finds nothing there fails the run, because its zero under refuse would prove nothing",
-              "note": "The saved plan (-out) and a TF_LOG=debug file are read separately and do hold the value, as they do on stock. Under refuse the argument is proposed on every plan, rotated or not, and the scenario asserts both arms (#1503)."
+              "note": "The saved plan (-out) and a TF_LOG=debug file are read separately and do hold the value, as they do on stock. Under refuse the argument is proposed on every plan, rotated or not, and the scenario asserts both arms (#1503).",
+              "last_run": {
+                "status": "proven",
+                "claim": 40,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: no-secret-survives-in-what-the-tool-keeps.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "kubernetes": {
           "status": "proven",
@@ -1044,17 +1276,24 @@
       ],
       "providers": {
         "aws": {
-          "status": "unproven",
+          "status": "proven",
           "proofs": [
             {
               "scenario": "live/smoke/scenarios/an-ignored-tag-is-not-drift.sh",
               "command": "just smoke an-ignored-tag-is-not-drift",
               "minutes": 3,
               "break_mode": "BREAK=1 removes the estate's own ignore_tags declaration - the one piece of configuration the claim is about, not a choudoufu code path - and runs the identical out-of-band AWS CLI tag write; it passes only when the plan now proposes an update naming the tag, because choudoufu has no tag-diffing of its own to defeat with a build overlay: a resource's tags are planned entirely by the real hashicorp/aws provider process, the same one a stock run talks to",
-              "note": "A tag another account's automation or an AWS service adds out of band does not churn the plan once the estate tells its provider to ignore that key, the same knob stock gives every AWS user, and an edit to a tag the estate does declare still plans (#1624). This is the managed-resource half only: a tag added out of band to a record object choudoufu wrote is not a plan-time question, because S3Store.PutIfVersion replaces an object's whole tag set on every write and no code path diffs a record object's tags against a configured value. Established by reading the store's write path, not by a scenario step."
+              "note": "A tag another account's automation or an AWS service adds out of band does not churn the plan once the estate tells its provider to ignore that key, the same knob stock gives every AWS user, and an edit to a tag the estate does declare still plans (#1624). This is the managed-resource half only: a tag added out of band to a record object choudoufu wrote is not a plan-time question, because S3Store.PutIfVersion replaces an object's whole tag set on every write and no code path diffs a record object's tags against a configured value. Established by reading the store's write path, not by a scenario step.",
+              "last_run": {
+                "status": "proven",
+                "claim": 45,
+                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
+                "date": "2026-10-11",
+                "version": "v0.26.0"
+              }
             }
           ],
-          "note": "Unproven until a dated run: an-ignored-tag-is-not-drift.sh has no evidence file with a date (no workflow has run a claim scenario since #2018)."
+          "note": ""
         },
         "kubernetes": {
           "status": "proven",

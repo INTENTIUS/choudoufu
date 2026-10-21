@@ -39,6 +39,14 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.31.0 (Unreleased)
 
+- Changed: a claim cell keeps its last measured result across releases. A
+  scenario proof may carry `last_run` (status, claim, commit, date,
+  version), and `live/CLAIMS.md` and the site mark any run older than the
+  newest release stale instead of reading the cell unproven. 34 proofs
+  get back the result #2028 dropped, restored from `claims.json` at
+  958bcf7f2d (v0.26.0), so 18 cells read proven again, all stale;
+  `live/claims_last_run_test.go` holds each entry to git history.
+
 ## choudoufu v0.30.0 (2026-10-18)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.30.0.json`](live/history/v0.30.0.json).

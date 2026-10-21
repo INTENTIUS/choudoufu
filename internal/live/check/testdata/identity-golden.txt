@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=705 instances=2441
-# shape: class CONCRETE=1495
+# shape: dirs=714 instances=2453
+# shape: class CONCRETE=1507
 # shape: class NEEDS_DISCOVERY=781
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=674 fixture-instances=1737
+# shape: fixture-dirs=683 fixture-instances=1749
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=9db19c70869e3d1c397c31499999ba1064f0e473e54f13c9fa513deac6aae0ba
+# shape: body-sha256=0ffe43f10722d2363d5d6f0fe4e6029c9fdf729155ace028f11390ef8427c152
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -491,6 +491,18 @@ internal/live/identity/testdata/module-output-foreach	module.shard["green"].aws_
 internal/live/identity/testdata/module-output-in-call-arg	module.sg.aws_security_group_rule.a[0]	CONCRETE	sg-fixed_ingress_tcp_5432_5432_10.77.0.0/16	cidr_blocks=10.77.0.0/16,from_port=5432,protocol=tcp,security_group_id=sg-fixed,to_port=5432,type=ingress
 internal/live/identity/testdata/module-output-in-call-arg	module.vpc.aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/module-output-in-call-arg/vpc	aws_vpc.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/module-output-keyset	aws_iam_role_policy.counted[0]	CONCRETE	ops:counted	name=counted,role=ops
+internal/live/identity/testdata/module-output-keyset	aws_iam_role_policy.counted[1]	CONCRETE	dev:counted	name=counted,role=dev
+internal/live/identity/testdata/module-output-keyset	module.consumer["dev--read"].aws_iam_role_policy.this	CONCRETE	dev:consumer-read	name=consumer-read,role=dev
+internal/live/identity/testdata/module-output-keyset	module.consumer["dev--write"].aws_iam_role_policy.this	CONCRETE	dev:consumer-write	name=consumer-write,role=dev
+internal/live/identity/testdata/module-output-keyset	module.consumer["ops--read"].aws_iam_role_policy.this	CONCRETE	ops:consumer-read	name=consumer-read,role=ops
+internal/live/identity/testdata/module-output-keyset	module.consumer["ops--write"].aws_iam_role_policy.this	CONCRETE	ops:consumer-write	name=consumer-write,role=ops
+internal/live/identity/testdata/module-output-keyset	module.iam.aws_iam_role_policy.project_iam_authoritative["default--roles/admin"]	CONCRETE	k8s-infra-gcp-gcve:roles/admin	name=roles/admin,role=k8s-infra-gcp-gcve
+internal/live/identity/testdata/module-output-keyset	module.iam.aws_iam_role_policy.project_iam_authoritative["default--roles/viewer"]	CONCRETE	k8s-infra-gcp-gcve:roles/viewer	name=roles/viewer,role=k8s-infra-gcp-gcve
+internal/live/identity/testdata/module-output-keyset	module.iam_additive.aws_iam_role_policy.project_iam_additive["alpha--roles/viewer--user:a@example.com"]	CONCRETE	alpha:user:a@example.com	name=user:a@example.com,role=alpha
+internal/live/identity/testdata/module-output-keyset	module.iam_additive.aws_iam_role_policy.project_iam_additive["beta--roles/viewer--user:a@example.com"]	CONCRETE	beta:user:a@example.com	name=user:a@example.com,role=beta
+internal/live/identity/testdata/module-output-keyset-refused	module.live.aws_iam_role.r	CONCRETE	live	name=live
+internal/live/identity/testdata/module-output-keyset-refused/live	aws_iam_role.r	CONCRETE	live	name=live
 internal/live/identity/testdata/module-output-refused	module.shard["a"].aws_iam_role.this	CONCRETE	one	name=one
 internal/live/identity/testdata/module-output-refused	module.shard["b"].aws_iam_role.this	CONCRETE	two	name=two
 internal/live/identity/testdata/module-output-refused	module.single.aws_iam_role.this	CONCRETE	solo	name=solo
