@@ -100,9 +100,9 @@
 #                  and the object-by-object match must fail.
 #   BREAK_REMOVE   set to 1 to keep the internal firewall's block and assert
 #                  no destroy is proposed (day2_remove's own Break line).
-#   BREAK_COUNT    set to 1 to assert compute.googleapis.com was the service
-#                  disabled on the scale-down (day2_count's Break line); must
-#                  fail.
+#   BREAK_COUNT    set to 1 to assert the dropped service ended in the state
+#                  stock's destroy did NOT leave it in on the oracle
+#                  (day2_count's Break line); must fail.
 #   BREAK_APPROVAL set to 1 to apply the saved plan after the world moved and
 #                  expect success (plan_approval's Break line); must fail.
 #   BREAK_REPLACE  set to 1 to recreate the replaced bucket's old object,
@@ -414,6 +414,7 @@ exists_a() { ra GET "$1" >/dev/null 2>&1; }
 fw_path() { printf 'compute/v1/projects/%s/global/firewalls/%s' "$PROJECT" "$1"; }
 bucket_path() { printf 'storage/v1/b/%s' "$1"; }
 svc_a() { gcve_service_state "$EPA" "$PROJECT" "$1"; }
+svc_b() { gcve_service_state "$EPB" "$PROJECT" "$1"; }
 plan_a() { ( cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1 ); }
 apply_a() { ( cd "$ADOPTED" && "$TOFU" apply -auto-approve -input=false -no-color 2>&1 ); }
 both_roots() { # rewrite both roots from the day-2 state
@@ -646,12 +647,20 @@ C_PLAN="$(plan_a)" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down
 grep -qF "Plan: 0 to add, 0 to change, 1 to destroy." <<< "$C_PLAN" || { printf '%s\n' "$C_PLAN" | tail -20; fail "the scale-down plan is not exactly one destroy"; }
 grep -qF "google_project_service.project[\"$GONE\"] will be destroyed" <<< "$C_PLAN" || fail "the scale-down does not destroy google_project_service.project[\"$GONE\"], stock's choice"
 { APPLY_OUT="$(apply_a)" && grep -qF "0 added, 0 changed, 1 destroyed" <<< "$APPLY_OUT"; } || { printf '%s\n' "$APPLY_OUT" | tail -20; fail "the scale-down apply did not destroy exactly one object"; }
+# What a destroy does to the service is stock's call, not ours: at 8.6.0
+# disable_on_destroy is Optional with no default, and the k8s.io root leaves
+# it unset, so Delete drops the resource without disabling the service
+# (resource_google_project_service.go:334). The oracle's state after stock's
+# own scale-down is the expectation.
+GONE_A="$(svc_a "$GONE")"; GONE_B="$(svc_b "$GONE")"
+C_REPLAN="$(plan_a)" || fail "the replan after the scale-down failed"
 if [ "${BREAK_COUNT:-}" = "1" ]; then
-  [ "$(svc_a compute.googleapis.com)" = "ENABLED" ] || fail "BREAK_COUNT=1: compute.googleapis.com was disabled - the 'wrong instance' assertion would hold"
-  log "  BREAK_COUNT=1: caught - compute.googleapis.com is still ENABLED"
-  gauntlet_stage day2_count pass "BREAK_COUNT=1 control: asserting compute.googleapis.com was the service disabled correctly fails to hold; the real check is skipped"
+  [ "$GONE_A" != "$GONE_B" ] || fail "BREAK_COUNT=1: $GONE is $GONE_A on both emulators - the 'differs from stock' assertion would hold"
+  log "  BREAK_COUNT=1: caught - $GONE is $GONE_A on A and $GONE_B on stock's oracle"
+  gauntlet_stage day2_count pass "BREAK_COUNT=1 control: asserting $GONE ended in a different state from stock's oracle correctly fails to hold; the real check is skipped"
 else
-  [ "$(svc_a "$GONE")" != "ENABLED" ] || fail "$GONE is still ENABLED after the scale-down"
+  [ -n "$GONE_B" ] && [ "$GONE_A" = "$GONE_B" ] || fail "$GONE is ${GONE_A:-unread} after the scale-down; stock's own scale-down left it ${GONE_B:-unread} on the oracle"
+  grep -q "No changes." <<< "$C_REPLAN" || { printf '%s\n' "$C_REPLAN" | tail -20; fail "the replan after the scale-down is not empty: the record for $GONE outlived its destroy"; }
   for svc in cloudasset compute secretmanager vmwareengine; do
     [ "$(svc_a "$svc.googleapis.com")" = "ENABLED" ] || fail "$svc.googleapis.com is not ENABLED after the scale-down; only $GONE should have gone"
   done
@@ -666,7 +675,7 @@ else
   U_REPLAN="$(plan_a)" || fail "the replan after the scale-up failed"
   grep -q "No changes." <<< "$U_REPLAN" || { printf '%s\n' "$U_REPLAN" | tail -20; fail "the replan after the scale-up is not empty"; }
   [ "$(svc_a "$GONE")" = "ENABLED" ] || fail "$GONE is not ENABLED after the scale-up"
-  gauntlet_stage day2_count pass "dropping $GONE from google_project_service.project's for_each destroyed exactly that key (the service disabled, the other four still ENABLED, read with the REST API) - a service carries no label, so the key is found through the record and the configuration's identity; putting it back created exactly that key and the next plan is empty; stock's plans for the same two changes on the oracle emulator have the identical shape. BREAK_COUNT=1 asserts compute.googleapis.com was the one disabled and correctly fails"
+  gauntlet_stage day2_count pass "dropping $GONE from google_project_service.project's for_each destroyed exactly that key (the service left $GONE_A, as stock's own destroy left it on the oracle, since the root leaves disable_on_destroy unset; the other four still ENABLED, read with the REST API; the replan empty) - a service carries no label, so the key is found through the record and the configuration's identity; putting it back created exactly that key and the next plan is empty; stock's plans for the same two changes on the oracle emulator have the identical shape. BREAK_COUNT=1 asserts the dropped service differs from stock's and correctly fails"
 fi
 
 # ── 9b. day2_replace: a create_before_destroy rename ─────────────────────
