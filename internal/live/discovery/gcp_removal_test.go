@@ -153,6 +153,89 @@ func TestProviderSchemaForFillsNoIdentityOnAWS(t *testing.T) {
 	}
 }
 
+// TestRecordLegRemovesAKeyOnASingleProviderGoogleRoot is the first GCP
+// run's day2_count on corpus-k8s-infra-gcp-gcve: one key leaves a
+// google_project_service for_each and nothing proposed its destroy. The
+// command's single-provider pass leaves ScopeProvider at its zero value and
+// names its provider only as VouchProvider, so the record leg never knew it
+// was the GCP pass, and a google type with no ratified row (admitted by its
+// identity schema alone) was skipped as a stray key.
+func TestRecordLegRemovesAKeyOnASingleProviderGoogleRoot(t *testing.T) {
+	ctx := context.Background()
+	const estate = "gcve"
+	googleProv := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("google")}
+	// google_project_service at 8.6.0: no labels, no ratified row, and an
+	// identity schema of service and an optional project. The topic is
+	// there for the identity-schema rule's project corroboration.
+	schemas, diags := listclient.ListSchemas(ctx, schemaOnlyProvider{types: map[string]providers.Schema{
+		"google_pubsub_topic": {
+			Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
+				"id": {Type: cty.String, Computed: true}, "name": {Type: cty.String, Required: true},
+				"project": {Type: cty.String, Optional: true, Computed: true},
+			}},
+			IdentitySchema: &configschema.Object{Nesting: configschema.NestingSingle, Attributes: map[string]*configschema.Attribute{
+				"name":    {Type: cty.String, Required: true},
+				"project": {Type: cty.String, Optional: true},
+			}},
+			IdentitySchemaVersion: 1,
+		},
+		"google_project_service": {
+			Block: &configschema.Block{Attributes: map[string]*configschema.Attribute{
+				"id": {Type: cty.String, Computed: true}, "service": {Type: cty.String, Required: true},
+				"project": {Type: cty.String, Optional: true, Computed: true},
+			}},
+			IdentitySchema: &configschema.Object{Nesting: configschema.NestingSingle, Attributes: map[string]*configschema.Attribute{
+				"service": {Type: cty.String, Required: true},
+				"project": {Type: cty.String, Optional: true},
+			}},
+			IdentitySchemaVersion: 1,
+		},
+	}})
+	if diags.HasErrors() {
+		t.Fatalf("schemas: %s", diags.Err())
+	}
+	if _, has := identity.LookupType("google_project_service"); has {
+		t.Fatal("google_project_service has a ratified row now; this test needs a google type admitted by its identity schema alone")
+	}
+
+	raw, err := staterecord.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore: %s", err)
+	}
+	store := projection.NewRecordEnvelopeStore(raw, projection.RecordKeyPrefix(estate))
+	res := &Result{Estate: estate}
+	gone := mustAddr(t, `google_project_service.project["essentialcontacts.googleapis.com"]`)
+	for _, svc := range []string{"compute", "essentialcontacts"} {
+		addr := mustAddr(t, `google_project_service.project["`+svc+`.googleapis.com"]`)
+		id := "broadcom-451918/" + svc + ".googleapis.com"
+		if _, err := projection.SeedLocatedForInstance(ctx, store, addr, googleProv, projection.LocatedRecord{ImportID: id}); err != nil {
+			t.Fatalf("seeding %s: %s", addr, err)
+		}
+		if addr.String() != gone.String() {
+			res.Resolutions = append(res.Resolutions, identity.Resolution{Addr: addr, Class: identity.ClassConcrete, ImportID: id})
+		}
+	}
+
+	// What internal/command's single-provider pass sends: no ScopeProvider.
+	req := Request{Estate: estate, HintStore: raw, VouchProvider: googleProv, Sweep: true}
+	if !removedOnlyFromRecords(req) {
+		t.Fatal("a single-provider GCP pass does not read as one whose deleted blocks only records remove")
+	}
+	if d := recordOrphanReadSweep(ctx, req, schemas, res); d.HasErrors() {
+		t.Fatalf("record leg: %s", d.Err())
+	}
+	var got []string
+	for _, r := range res.Resolutions {
+		if r.Undeclared {
+			got = append(got, r.Addr.String()+" "+r.ImportID)
+		}
+	}
+	want := gone.String() + " broadcom-451918/essentialcontacts.googleapis.com"
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("the record leg proposed %v, want exactly the removal of %s", got, want)
+	}
+}
+
 // TestGCPHitTheRecordRemovesIsNotAlsoWithheld: once a removal leg
 // proposes a destroy, the Asset search's withheld report of that same
 // object is dropped. The match is by object (#2139 item 6): a second

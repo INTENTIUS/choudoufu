@@ -85,7 +85,7 @@ Break: Remove one instance from the expected count; the assertion on the summary
 
 On the floci-eks substrate: One state file covers both legs: an AWS entry is bound as on floci, a Kubernetes entry as on kind, its tofu-estate label read with kubectl inside the k3s container. The provider block reads the cluster's endpoint and credential from the estate's own resources, so this stage also measures the provider-configuration fixpoint (#1113): a cluster leg reported unreachable while the cluster exists is a failure, never a skip.
 
-On the floci-gcp substrate: Each state entry of a type with a labels map is bound by a labels-only plan writing tofu-estate and the encoded tofu-address label (#1121); an entry of a type with no labels argument (network, subnetwork, firewall, service account) is recorded, its identity recomputed from configuration. Zero skipped means every entry was stamped or recorded, and the labels are read back with the REST API.
+On the floci-gcp substrate: Each state entry of a type with a labels map is bound by a labels-only plan writing tofu-estate and the encoded tofu-address label (#1121); an entry of a type with no labels argument (network, subnetwork, firewall, service account) is skipped for that reason alone, as an untaggable AWS entry is, with its identity recorded in the record store. Every entry is stamped or skipped for having no labels argument, none fails, every identity is recorded, and the labels are read back with the REST API.
 
 On the kind substrate: The stock state file names each object by namespace and name, and a bound object carries the tofu-estate label the way a bound AWS resource carries its two tags; zero skipped means every entry was stamped or recorded.
 

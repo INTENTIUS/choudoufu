@@ -157,3 +157,38 @@ PY
 gcp_request_count() {
   grep -c -- '---\[ REQUEST \]---' "$1" 2>/dev/null || true
 }
+
+# gcp_migrate_counts: reads live-import -approve's output on stdin and
+# prints five fields: newly stamped, skipped, skipped for a reason other
+# than the missing marker surface, failed, and identities recorded ("?"
+# where the line is absent). This is the count AWS's estates assert
+# (reference-eks, corpus-eks-basic): a resource with no labels argument is
+# SKIPPED, because the marker write is what was skipped, and its identity
+# goes into the record store, which the "N identities recorded." line
+# counts. "newly recorded" is a different thing, the record-backed value of
+# a random_pet or a null_resource, and a google object never reaches it.
+gcp_migrate_counts() {
+  python3 -c '
+import re, sys
+s = sys.stdin.read()
+def n(pat):
+    m = re.search(pat, s)
+    return m.group(1) if m else "?"
+skipped_rows = []
+block = re.search(r"^SKIPPED \(\d+\)[^\n]*\n((?:  .*\n)*)", s, re.M)
+if block:
+    skipped_rows = [l for l in block.group(1).splitlines() if l.strip()]
+other = [l for l in skipped_rows if "has no tags argument in the provider" not in l]
+print(n(r"(\d+) resource\(s\) newly stamped"), n(r"(\d+) skipped\."), len(other),
+      n(r"(\d+) failed,"), n(r"(\d+) identit(?:y|ies) recorded\."))
+'
+}
+
+# gcp_failed_rows: live-import -approve's FAILED rows on stdin, one line
+# each with its spaces squeezed, at most three. A failed stamp is reported
+# in that group, never on an "Error:" line, so a gate that read only the
+# first Error: line printed "" for it (the first GCP run's reference-gcp
+# migrate).
+gcp_failed_rows() {
+  sed -n '/^FAILED (/,/^$/p' | grep -E '^  [a-z]' | head -3 | tr -s ' ' | sed 's/^ //' | paste -sd ';' -
+}

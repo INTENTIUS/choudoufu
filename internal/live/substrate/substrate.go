@@ -257,6 +257,23 @@ func Sweeps(providerType string) bool {
 	return ok && s.SweepFindsUnadmitted()
 }
 
+// RecordsRemoveUnrowed reports whether providerType's family removes a
+// deleted block's objects from the estate's records alone, for a type with
+// no admission-table row as well as one with a row: the record-orphan leg
+// admits an unrowed type through the provider's identity schema on such a
+// pass. True for the GCP family, whose Asset Inventory leg plans no removal
+// of its own (GitHub issue #2134, item 1). [Sweeps] stays false for it,
+// because the deposed-record and label-list paths that read [Sweeps] need a
+// sweep that lists, and the Asset search does not list for removal.
+//
+// The identity package's no-orphan-recovery warning asks both: a type of
+// such a family is recovered from its record once its last block is
+// deleted, which is what the warning says nothing does.
+func RecordsRemoveUnrowed(providerType string) bool {
+	s, ok := ForProvider(providerType)
+	return ok && s.Sweep() == SweepAssetSearch
+}
+
 // TombstonesRead reports whether a record tombstone written for an object
 // of providerType's family can ever be read: true unless the family is
 // known and its marker dies with the object ([Substrate.MarkerOutlivesObject]).
@@ -411,6 +428,26 @@ type surfaceWording interface {
 func CreateCollidesOnKey(surface markers.Surface) bool {
 	s := For(surface)
 	return s != nil && s.CreateCollidesOnKey(surface)
+}
+
+// nameHeldWording is the optional half of a family whose own words for
+// GitHub issue #1546's refusal differ from the Kubernetes sentence the
+// projection carries: what keys the object, and which markers adopt it.
+type nameHeldWording interface {
+	NameHeldDetail(typeName, importID string, addr addrs.AbsResourceInstance, estate string) string
+}
+
+// NameHeldDetail is surface's family's sentence for an unlabelled object
+// holding the name a declared create would send, and false when the family
+// has none of its own. The first GCP gauntlet run printed the Kubernetes
+// sentence (API server, kind and namespace, one label) for a compute
+// instance.
+func NameHeldDetail(surface markers.Surface, typeName, importID string, addr addrs.AbsResourceInstance, estate string) (string, bool) {
+	w, ok := For(surface).(nameHeldWording)
+	if !ok {
+		return "", false
+	}
+	return w.NameHeldDetail(typeName, importID, addr, estate), true
 }
 
 // CarrierPhrase names where surface's marker map lives ("tags attribute",

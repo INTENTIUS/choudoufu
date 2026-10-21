@@ -453,22 +453,17 @@ APPROVE_OUT="$(cd "$ADOPTED" && "$TOFU" live-import -state="$STOCK/terraform.tfs
 SUMMARY_LINE="$(grep -E 'resource\(s\) newly stamped' <<< "$APPROVE_OUT" | head -1 | sed 's/\.$//')"
 log "  approve: ${SUMMARY_LINE:-no summary line}"
 # The bucket is stamped through a labels-only plan (#1121's
-# google-labels-plan write); the fifteen with no labels argument are
-# recorded. Every one accounted for, none skipped.
-read -r M_STAMPED M_RECORDED M_FAILED M_SKIPPED < <(python3 - "$SUMMARY_LINE" <<'PY'
-import re, sys
-s = sys.argv[1]
-def n(label):
-    m = re.search(r"(\d+) " + label, s)
-    return m.group(1) if m else "?"
-print(n("newly stamped"), n("newly recorded"), n("failed"), n("skipped"))
-PY
-)
+# google-labels-plan write). The fifteen with no labels argument are
+# SKIPPED with their identities recorded, as AWS's untaggable resources are
+# (reference-eks): the skip is the marker write, and "16 identities
+# recorded" says every instance went into the record store. Only the
+# missing-labels reason may be skipped.
+read -r M_STAMPED M_SKIPPED M_SKIPPED_OTHER M_FAILED M_IDENTITIES < <(gcp_migrate_counts <<< "$APPROVE_OUT")
 LABELLED="$(count_a)"
-if [ "$M_STAMPED" = "1" ] && [ "$M_RECORDED" = "$((EXPECT_N - 1))" ] && [ "$M_FAILED" = "0" ] && [ "$M_SKIPPED" = "0" ] && [ "$LABELLED" = "1" ]; then
-  gauntlet_stage migrate pass "$EXPECT_N of $EXPECT_N bound, 0 skipped: the module's bucket stamped through a labels-only plan and carrying tofu-estate=$ESTATE read back with the REST API; the $((EXPECT_N - 1)) with no labels argument (five services, network, subnetwork, two firewalls, the bucket IAM member, five project IAM bindings) recorded"
+if [ "$M_STAMPED" = "1" ] && [ "$M_SKIPPED" = "$((EXPECT_N - 1))" ] && [ "$M_SKIPPED_OTHER" = "0" ] && [ "$M_FAILED" = "0" ] && [ "$M_IDENTITIES" = "$EXPECT_N" ] && [ "$LABELLED" = "1" ]; then
+  gauntlet_stage migrate pass "$EXPECT_N of $EXPECT_N bound: the module's bucket stamped through a labels-only plan and carrying tofu-estate=$ESTATE read back with the REST API; the $((EXPECT_N - 1)) with no labels argument (five services, network, subnetwork, two firewalls, the bucket IAM member, five project IAM bindings) skipped for that reason alone, and all $EXPECT_N identities recorded"
 else
-  gauntlet_stage migrate fail "live-import -approve did not bind $EXPECT_N of $EXPECT_N with 1 stamped, $((EXPECT_N - 1)) recorded, 0 failed and 0 skipped: ${SUMMARY_LINE:-it printed no summary line}; $LABELLED bucket(s) carry tofu-estate=$ESTATE on the emulator. First Error: line: \"$(gauntlet_first_error_line <<< "$APPROVE_OUT")\""
+  gauntlet_stage migrate fail "live-import -approve did not bind $EXPECT_N of $EXPECT_N with 1 stamped, $((EXPECT_N - 1)) skipped for having no labels argument, 0 failed and $EXPECT_N identities recorded: ${SUMMARY_LINE:-it printed no summary line} ($M_SKIPPED_OTHER skipped for another reason, $M_IDENTITIES identities recorded); $LABELLED bucket(s) carry tofu-estate=$ESTATE on the emulator. FAILED rows: \"$(gcp_failed_rows <<< "$APPROVE_OUT")\". First Error: line: \"$(gauntlet_first_error_line <<< "$APPROVE_OUT")\""
 fi
 
 # ── 3. test_plan: replan from nothing ────────────────────────────────────

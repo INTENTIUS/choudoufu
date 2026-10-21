@@ -863,9 +863,21 @@ func splitImportIDByComponents(entry identity.TypeIdentity, importID string) (ma
 // with a leg that plans no removal of its own, so the record leg is the
 // only place a deleted block of an admitted type is destroyed: GCP's Asset
 // Inventory search ([substrate.SweepAssetSearch], GitHub issue #2134).
+//
+// The family is the pass's own provider's. ScopeProvider names it only on
+// a multi-provider root: the single-provider path leaves it at its zero
+// value, which means "no scoping", and VouchProvider is the pass's own
+// configuration on both paths. Reading ScopeProvider alone answered false
+// for every single-provider GCP root, so the record leg never admitted a
+// google type with no ratified row (google_project_service,
+// google_storage_bucket): a removed for_each key of one was proposed by
+// nothing (corpus-k8s-infra-gcp-gcve's day2_count, first GCP run).
 func removedOnlyFromRecords(req Request) bool {
-	fam, ok := substrate.ForProvider(req.ScopeProvider.Provider.Type)
-	return ok && fam.Sweep() == substrate.SweepAssetSearch
+	pass := req.ScopeProvider
+	if pass.Provider.Type == "" {
+		pass = req.VouchProvider
+	}
+	return substrate.RecordsRemoveUnrowed(pass.Provider.Type)
 }
 
 // googleLabelled reports whether typeName carries the google family's

@@ -12,6 +12,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -97,10 +98,11 @@ func (google) Sweep() Sweep { return SweepAssetSearch }
 // SweepFindsUnadmitted is false. The Asset Inventory search does see every
 // labelled asset type, rowed or not, but it only reports what it finds: it
 // never plans a removal, and it cannot see a type with no labels map at
-// all. A deleted block is removed from its record (the record-orphan leg),
-// which is the admission table read another way, so the identity package's
-// no-orphan-recovery warning for an unrowed type stays on (GitHub issue
-// #2134, item 5).
+// all (GitHub issue #2134, item 5). A deleted block is removed from its
+// record instead, by the record-orphan leg, which on this family admits an
+// unrowed type through the provider's identity schema ([RecordsRemoveUnrowed]).
+// That is why the identity package's no-orphan-recovery warning is off for
+// google types even though this answers false.
 func (google) SweepFindsUnadmitted() bool { return false }
 
 // MarkerOutlivesObject is true: Asset Inventory is an index, and it lags a
@@ -124,6 +126,15 @@ func (google) SynthesizeIdentity(string, providers.Schema) (SynthesizedIdentity,
 // a type whose name the server assigns has no declared key to read one at.
 func (google) CreateCollidesOnKey(surface markers.Surface) bool {
 	return surface == markers.SurfaceGoogleLabels
+}
+
+// NameHeldDetail is #1546's refusal in GCP's terms: the name is held in the
+// type's project or location, and the marker is two labels, the estate and
+// the encoded address.
+func (google) NameHeldDetail(typeName, importID string, addr addrs.AbsResourceInstance, estate string) string {
+	return fmt.Sprintf(
+		"A live %s already exists at %q, the name %s declares, and carries no %s label, so this estate does not own it. Google Cloud refuses a create at a name already held in the same project or location with 409 alreadyExists, so the create this configuration declares would fail while that object holds the name; this plan stops here instead of proposing it. To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, or write the labels %s=%q and %s=%q onto it and re-run (choudoufu live-import -approve writes both for an object a stock state file records). To keep it out of this estate, point this resource at a name nobody is using.",
+		typeName, importID, addr, markers.TagEstate, markers.TagEstate, estate, markers.TagAddress, markers.GoogleAddressValue(addr))
 }
 
 // CreateOverwritesAtKey is false: a GCP create at a name already held is

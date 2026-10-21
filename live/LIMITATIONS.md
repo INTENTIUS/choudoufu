@@ -4231,7 +4231,7 @@ reserved for the limits wing's fixture directories, and
 
 #### Resource type has no orphan recovery
 
-**What.** The type is admitted by the provider's identity schema rather than by the generated admission table, so it plans and applies but the estate-wide sweep will not list it: deleting its last block leaves the live resource with no run proposing to remove it. Reported as a warning.
+**What.** The type is admitted by the provider's identity schema rather than by the generated admission table, so it plans and applies but the estate-wide sweep will not list it: deleting its last block leaves the live resource with no run proposing to remove it. Reported as a warning. Not raised for a google type: the GCP pass removes a deleted block's objects from their records.
 
 **Where.** The identity pass, raised by `internal/live/identity`.
 
