@@ -259,6 +259,11 @@ var refusals = []Refusal{
 		What:    "An owned-but-undeclared resource was found whose provider this run has no handle for, so its current state cannot be read. Reported as a warning: the sweep still knows the resource exists.",
 	},
 	{
+		Summary: SummaryUntaggableUnrecorded,
+		What:    "GitHub issue #2141: an apply created or updated a resource whose type has no marker surface (an untaggable AWS or Azure type, so the record is the only thing that remembers the estate owns it), and no identity record could be written for it - the record store cannot hold that type's identity in full, or the identity is an attribute the provider marks sensitive - and no earlier record holds one. Names the type and every such address. A warning: the resource exists, but if its block is later removed no plan will find it to destroy and it is left running outside every estate. Destroy it with tofu destroy -target before removing the block, or remove it by hand afterwards. Taggable types reaching the same branch are only logged, because their marker still decides ownership.",
+		Warning: true,
+	},
+	{
 		Summary: "No source for this instance's identity",
 		What:    "GitHub issue #388's plan-node seam ([NodeResolver], ruling 4/#365) found no record, no live marker, and no identity this run could derive from the instance's own evaluated configuration. Refused by default, because nothing here can tell a genuinely new instance apart from a real one this run simply cannot see yet; strict { no_source_create = \"create\" } selects stock's own behavior (plan a create) instead.",
 	},
