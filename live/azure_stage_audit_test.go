@@ -36,7 +36,7 @@ func TestAzureCorpusWriteRootKeepsItsDirectory(t *testing.T) {
 		"terraform.tfstate":                                `{"version":4}`,
 		"approved.tfplan":                                  "plan",
 	}
-	stale := map[string]string{"moved.tf": "# stale", "shards.tf": "# stale"}
+	stale := map[string]string{"moved.tf": "# stale", "shards.tf": "# stale", "replace.tf": "# stale", "crash.tf": "# stale"}
 	for _, files := range []map[string]string{kept, stale} {
 		for name, body := range files {
 			p := filepath.Join(dst, name)
@@ -71,7 +71,7 @@ AZAPI_REQUIRED_PROVIDER="$(gauntlet_azapi_required_provider)" AZURERM_REQUIRED_P
 	}
 	for name := range stale {
 		if _, err := os.Stat(filepath.Join(dst, name)); !os.IsNotExist(err) {
-			t.Errorf("write_root with MOVED and SHARDS unset left %s in place (%v), so the root declares a block the shape has not got", name, err)
+			t.Errorf("write_root with MOVED, SHARDS, REPLACE and CRASH unset left %s in place (%v), so the root declares a block the shape has not got", name, err)
 		}
 	}
 	if b, err := os.ReadFile(filepath.Join(dst, "main.tf")); err != nil || !strings.Contains(string(b), `provider "azapi"`) {
@@ -84,6 +84,33 @@ AZAPI_REQUIRED_PROVIDER="$(gauntlet_azapi_required_provider)" AZURERM_REQUIRED_P
 	}
 	if b, err := os.ReadFile(filepath.Join(dst, "shards.tf")); err != nil || !strings.Contains(string(b), "count     = 2") {
 		t.Errorf("SHARDS=2 wrote no two-instance count (%q, %v)", b, err)
+	}
+
+	// day2_replace's and day2_crash's pairs (#1120): generation b names the
+	// identity and the grant both by b, create_before_destroy on each; the
+	// crash pair's second resource depends on its first.
+	drive("REPLACE=b CRASH=both GRANT_GUID_A=aaaaaaaa-0000-4000-8000-000000000001 GRANT_GUID_B=bbbbbbbb-0000-4000-8000-000000000002 CRASH_GUID=cccccccc-0000-4000-8000-000000000003")
+	rep := readFile(t, filepath.Join(dst, "replace.tf"))
+	for _, want := range []string{`-rotating-b"`, `name      = "bbbbbbbb-0000-4000-8000-000000000002"`, "principalId      = azapi_resource.rotating.output.properties.principalId"} {
+		if !strings.Contains(rep, want) {
+			t.Errorf("REPLACE=b wrote a replace.tf without %q:\n%s", want, rep)
+		}
+	}
+	if n := strings.Count(rep, "create_before_destroy = true"); n != 2 {
+		t.Errorf("replace.tf has %d create_before_destroy blocks, want 2 (the identity and its grant)", n)
+	}
+	crash := readFile(t, filepath.Join(dst, "crash.tf"))
+	for _, want := range []string{`resource "azapi_resource" "crash_first"`, `name      = "cccccccc-0000-4000-8000-000000000003"`, "depends_on = [azapi_resource.crash_first]"} {
+		if !strings.Contains(crash, want) {
+			t.Errorf("CRASH=both wrote a crash.tf without %q:\n%s", want, crash)
+		}
+	}
+	drive("CRASH=first CRASH_GUID=cccccccc-0000-4000-8000-000000000003")
+	if crash := readFile(t, filepath.Join(dst, "crash.tf")); strings.Contains(crash, "crash_second") {
+		t.Errorf("CRASH=first, the oracle's position, still declares crash_second:\n%s", crash)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "replace.tf")); !os.IsNotExist(err) {
+		t.Errorf("a shape with REPLACE unset left replace.tf in place (%v)", err)
 	}
 }
 

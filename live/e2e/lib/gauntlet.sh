@@ -533,6 +533,13 @@ gauntlet_floci_az_up() {
   while IFS= read -r line; do
     envargs+=(-e "$line")
   done < <(floci_az_service_env "$port" "$oid"; floci_az_tls_env)
+  # GAUNTLET_FLOCI_AZ_ACCESS_LOG=1: Quarkus's HTTP access log on, one line
+  # per request on the container's console, which
+  # gauntlet_floci_az_requests_between counts (no_local_state's plan call
+  # counts). Off unless a caller asks, so no other run's log changes.
+  if [ "${GAUNTLET_FLOCI_AZ_ACCESS_LOG:-}" = "1" ]; then
+    envargs+=(-e QUARKUS_HTTP_ACCESS_LOG_ENABLED=true)
+  fi
   if [ -n "$FLOCI_AZ_TLS_CERT_FILE" ]; then
     envargs+=(-v "$FLOCI_AZ_TLS_CERT_FILE:$FLOCI_AZ_TLS_IN_CONTAINER/cert.pem:ro"
       -v "$FLOCI_AZ_TLS_KEY_FILE:$FLOCI_AZ_TLS_IN_CONTAINER/key.pem:ro")
@@ -781,6 +788,39 @@ for n in names:
         fh.write(body)
 print(len(names))
 PY
+}
+
+# gauntlet_floci_az_blob_delete <account> <container> <blob-name> deletes one
+# blob out of band, through the same endpoint: what an operator's
+# `az storage blob delete` does to a record.
+gauntlet_floci_az_blob_delete() {
+  local name
+  name="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe="/"))' "$3")" || return 1
+  curl -sS --fail-with-body --max-time 30 --cacert "$FLOCI_AZ_CA_FILE" -X DELETE \
+    -H "Authorization: Bearer floci-az" -H "x-ms-version: 2023-11-03" \
+    "${FLOCI_AZ_ENDPOINT}/$1/$2/${name}" >/dev/null
+}
+
+# gauntlet_floci_az_mark <token> sends one request whose line in floci-az's
+# access log carries gauntlet-mark=<token>, a boundary for
+# gauntlet_floci_az_requests_between.
+gauntlet_floci_az_mark() {
+  curl -fsS --max-time 5 "http://${FLOCI_AZ_HOST}/ready?gauntlet-mark=$1" >/dev/null 2>&1
+}
+
+# gauntlet_floci_az_requests_between <container> <start-token> <end-token>
+# prints how many requests floci-az's access log holds between the two marks,
+# the marks themselves left out: every ARM call, token request and blob call
+# the run in between sent, counted on the wire as live/smoke/k8sproxy.py
+# counts a cluster's. The container must have been started with
+# GAUNTLET_FLOCI_AZ_ACCESS_LOG=1. Returns 1 when either mark is not in the
+# log, which is how a log with no access lines shows.
+gauntlet_floci_az_requests_between() {
+  docker logs "$1" 2>&1 | awk -v s="gauntlet-mark=$2" -v e="gauntlet-mark=$3" '
+    index($0, s) { on = 1; n = 0; next }
+    on && index($0, e) { print n; found = 1; exit }
+    on && /"(GET|PUT|POST|PATCH|DELETE|HEAD|OPTIONS) / { n++ }
+    END { if (!found) exit 1 }'
 }
 
 # gauntlet_kind_down <name>: deletes the cluster gauntlet_kind_up made.
@@ -1497,6 +1537,25 @@ with open(sys.argv[1]) as fh:
     d = json.load(fh)
 for k in sorted((d.get('residue') or {}).get('attributes') or {}):
     print(k)
+PY
+}
+
+# gauntlet_record_identity <file> [deposed]: the import id a record envelope
+# names as its CURRENT object (identity.import_id), or with "deposed" the
+# import ids of the objects it holds under deposed keys, one per line. A
+# record also keeps every identity its address held and an apply destroyed
+# (its tombstone member), so grepping the file for an id says nothing about
+# which object the record names now; this reads the member that does.
+gauntlet_record_identity() {
+  python3 - "$1" "${2:-}" <<'PY'
+import json, sys
+with open(sys.argv[1]) as fh:
+    d = json.load(fh)
+if sys.argv[2] == "deposed":
+    for k in sorted((d.get('deposed') or {})):
+        print(((d['deposed'][k] or {}).get('identity') or {}).get('import_id', ''))
+else:
+    print((d.get('identity') or {}).get('import_id', ''))
 PY
 }
 
