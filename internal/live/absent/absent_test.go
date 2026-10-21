@@ -154,3 +154,35 @@ func TestMatchesKeepsMainsAnswerOffAzure(t *testing.T) {
 		}
 	}
 }
+
+// The Azure greenfield stage of live/e2e/reference-azure (2026-10-21): on
+// an empty subscription azapi_resource's ImportState answers the 404 with
+// RemoveResource, and terraform-plugin-framework reports that as "Missing
+// Resource Import State" for an import by ID. That is the absence of the
+// object, so a resolver-derived import must fall through to a create. The
+// same error from any other provider, or for an import by identity, is not.
+func TestMatchesAzapiRemovedOnImport(t *testing.T) {
+	const (
+		workerID = "/subscriptions/s/resourceGroups/refaz-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/refaz-worker"
+		detail   = "An unexpected error was encountered when importing the resource. This is always a problem with the provider. Please give the following information to the provider developer:\n\nResource ImportState method returned no State in response. If import is intentionally not supported, remove the Resource type ImportState method or return an error."
+	)
+	for name, tc := range map[string]struct {
+		summary, detail string
+		object          Object
+		want            bool
+	}{
+		"azapi by id":              {FrameworkMissingImportState, detail, Object{ID: workerID, Provider: "azapi"}, true},
+		"azapi by identity":        {FrameworkMissingImportState, detail, Object{Identity: map[string]string{"id": workerID}, Provider: "azapi"}, false},
+		"azurerm":                  {FrameworkMissingImportState, detail, Object{ID: workerID, Provider: "azurerm"}, false},
+		"kubernetes":               {FrameworkMissingImportState, detail, Object{ID: "ns/app", Provider: "kubernetes"}, false},
+		"aws":                      {FrameworkMissingImportState, detail, Object{ID: "i-0abc", Provider: "aws"}, false},
+		"no provider":              {FrameworkMissingImportState, detail, Object{ID: workerID}, false},
+		"azapi, other detail":      {FrameworkMissingImportState, "something else", Object{ID: workerID, Provider: "azapi"}, false},
+		"azapi, real failure":      {"Failed to retrieve resource", "unexpected status 403 (403 Forbidden)", Object{ID: workerID, Provider: "azapi"}, false},
+		"azapi, detail as summary": {"Error", detail, Object{ID: workerID, Provider: "azapi"}, false},
+	} {
+		if got := Matches(tc.summary, tc.detail, tc.object); got != tc.want {
+			t.Errorf("%s: Matches = %v, want %v", name, got, tc.want)
+		}
+	}
+}

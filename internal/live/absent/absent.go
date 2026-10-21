@@ -116,7 +116,43 @@ func Matches(summary, detail string, object Object) bool {
 			return true
 		}
 	}
-	return azureNotFound(summary, object) || azureNotFound(detail, object)
+	return azureNotFound(summary, object) || azureNotFound(detail, object) ||
+		azapiRemovedOnImport(summary, detail, object)
+}
+
+// FrameworkMissingImportState is the error summary terraform-plugin-framework's
+// fwserver (v1.17.0, internal/fwserver/server_importresourcestate.go:196-203)
+// attaches to an import by ID whose ImportState finished without error but
+// left the state exactly the schema's empty state, and
+// frameworkMissingImportStateDetail is the fixed sentence its detail carries.
+const (
+	FrameworkMissingImportState       = "Missing Resource Import State"
+	frameworkMissingImportStateDetail = "Resource ImportState method returned no State in response."
+)
+
+// azapiRemovedOnImport reports whether a diagnostic is azure/azapi saying
+// the object it was asked to import by ID does not exist.
+//
+// azapi_resource's ImportState answers a 404 with
+// response.State.RemoveResource and no diagnostic of its own (see the
+// Azure shapes' comment above). RemoveResource sets the state to the null
+// object, which is the framework's EmptyState, and for an import by ID the
+// framework then reports "Missing Resource Import State" in place of the
+// absence. The Azure greenfield stage of live/e2e/reference-azure is the
+// founding case (2026-10-21): the node resolver derived
+// azapi_resource.worker's ARM id from its configuration on an empty
+// subscription, the import failed this way, and the plan stopped instead of
+// proposing the create.
+//
+// Only azapi, and only an import by ID: the framework raises the same error
+// for any provider whose ImportState sets nothing, which for any other
+// provider is a defect, not an answer, and an import by identity never
+// reaches the check (the framework returns the null object instead, which
+// both callers already read as absent).
+func azapiRemovedOnImport(summary, detail string, object Object) bool {
+	return object.Provider == "azapi" && object.ID != "" &&
+		summary == FrameworkMissingImportState &&
+		strings.Contains(detail, frameworkMissingImportStateDetail)
 }
 
 // The Azure shapes (GitHub issue #1120, under #1122's ruling; narrowed by
@@ -165,13 +201,14 @@ func Matches(summary, detail string, object Object) bool {
 //     data disk importer's sentence names the virtual machine, whose
 //     subscription, group and name are all segments of the attachment's id.
 //
-// azure/azapi 2.13.0 adds nothing here: azapi_resource's ImportState
+// azure/azapi 2.13.0 adds no message shape: azapi_resource's ImportState
 // (internal/services/azapi_resource.go, the utils.ResponseErrorWasNotFound
 // branch after withApiVersionFallback) answers a 404 with
-// response.State.RemoveResource and no diagnostic, so a missing object is
-// a null import, and azapi_data_plane_resource's ImportState only parses
-// the id. Its non-404 failure, "Failed to retrieve resource", is a real
-// failure and stays one.
+// response.State.RemoveResource and no diagnostic. Imported by identity
+// that is a null import; imported by ID the framework turns it into "Missing
+// Resource Import State", which [azapiRemovedOnImport] reads. Its non-404
+// failure, "Failed to retrieve resource", is a real failure and stays one.
+// azapi_data_plane_resource's ImportState only parses the id.
 var (
 	azureSDK404      = regexp.MustCompile(`unexpected status 404 \(404 Not Found\) with error: (?:ResourceNotFound|ResourceGroupNotFound|ParentResourceNotFound): ([^\n]*)`)
 	azureAutorest404 = regexp.MustCompile(`StatusCode=404 -- Original Error: autorest/azure: Service returned an error\. Status=404 Code="(?:ResourceNotFound|ResourceGroupNotFound|ParentResourceNotFound)" Message="((?:[^"\\]|\\.)*)"`)
