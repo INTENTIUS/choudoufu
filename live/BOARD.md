@@ -14,7 +14,7 @@ Everything between the generated markers is rendered from
 inside them.
 
 <!-- board-gen:begin banner -->
-Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 2 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-21T04:42:06Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 2 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-21T14:43:37Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 46 estates measured so far, 46 recorded running on it.
 
@@ -118,14 +118,14 @@ P pass, **F** fail, - not run, n/a does not apply on this substrate, s stale (ca
 | <a id="corpus-xancloud-iac"></a>[corpus-xancloud-iac](e2e/corpus-xancloud-iac/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
 | <a id="reference-ec2-vpc"></a>[reference-ec2-vpc](e2e/reference-ec2-vpc/) | core | reference | yes, script changed | P | P | P | P | P | P | P | P | P | P | - | P | P | P | - | `f707182267` 2026-10-02 |
 | <a id="terralith-scale"></a>[terralith-scale](e2e/terralith-scale/) | core | reference | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `debf8ccd05` 2026-10-03 |
-| <a id="corpus-azapi-role-assignment"></a>[corpus-azapi-role-assignment](e2e/corpus-azapi-role-assignment/) | growing | azure | no | P | P | **F** | s | s | - | - | - | - | - | - | s | - | - | - | `8b1c1bea5f` 2026-10-21 |
+| <a id="corpus-azapi-role-assignment"></a>[corpus-azapi-role-assignment](e2e/corpus-azapi-role-assignment/) | growing | azure | no | P | P | P | P | P | P | P | P | - | - | P | P | P | - | - | `31639780dd` 2026-10-21 |
 | <a id="corpus-cloud-platform-components"></a>[corpus-cloud-platform-components](e2e/corpus-cloud-platform-components/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
 | <a id="corpus-govuk-cluster-access"></a>[corpus-govuk-cluster-access](e2e/corpus-govuk-cluster-access/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
 | <a id="corpus-govuk-cluster-services"></a>[corpus-govuk-cluster-services](e2e/corpus-govuk-cluster-services/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | - | `2f02038dd1` 2026-10-12 |
 | <a id="corpus-k8s-metrics-server"></a>[corpus-k8s-metrics-server](e2e/corpus-k8s-metrics-server/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
 | <a id="corpus-mastino-dns"></a>[corpus-mastino-dns](e2e/corpus-mastino-dns/) | growing | published-deployment | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
 | <a id="corpus-quickpizza"></a>[corpus-quickpizza](e2e/corpus-quickpizza/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
-| <a id="reference-azure"></a>[reference-azure](e2e/reference-azure/) | growing | azure | no | P | P | **F** | s | s | s | s | - | - | - | - | s | - | - | - | `8b1c1bea5f` 2026-10-21 |
+| <a id="reference-azure"></a>[reference-azure](e2e/reference-azure/) | growing | azure | no | P | P | P | P | P | P | P | P | - | - | P | P | P | - | - | `31639780dd` 2026-10-21 |
 | <a id="reference-eks"></a>[reference-eks](e2e/reference-eks/) | growing | reference | no, script changed | P | **F** | - | - | - | - | - | - | - | - | - | - | - | - | - | `2f02038dd1` 2026-10-12 |
 | <a id="reference-k8s"></a>[reference-k8s](e2e/reference-k8s/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
 | <a id="reference-k8s-cert-manager"></a>[reference-k8s-cert-manager](e2e/reference-k8s-cert-manager/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
@@ -146,7 +146,7 @@ P pass, **F** fail, - not run, n/a does not apply on this substrate, s stale (ca
 ## Run time
 
 <!-- board-gen:begin runtime -->
-46 of 46 estates have a recorded run duration, totaling 13h30m47.8s, but not from one sweep: 8h32m40.9s across 18 estate(s) at commit `2f02038dd1`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 4m5.7s across 2 estate(s) at commit `8b1c1bea5f`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.
+46 of 46 estates have a recorded run duration, totaling 13h36m1.3s, but not from one sweep: 8h32m40.9s across 18 estate(s) at commit `2f02038dd1`; 9m19.2s across 2 estate(s) at commit `31639780dd`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per stage |
 |---|---|---|
@@ -173,14 +173,14 @@ P pass, **F** fail, - not run, n/a does not apply on this substrate, s stale (ca
 | corpus-xancloud-iac | 5m6.8s | cold_deploy 45s, migrate 38s, test_plan 8s, test_apply 7s, drift_reconverge 17s, day2_rename 22s, day2_remove 26s, day2_count 45s, day2_replace 16s, plan_approval 31s, greenfield 51s |
 | reference-ec2-vpc | 5m57s | cold_deploy 1m49s, migrate 41s, test_plan 4s, test_apply 5s, drift_reconverge 11s, day2_rename 19s, day2_remove 13s, day2_count 39s, day2_replace 35s, day2_crash 46s, plan_approval 25s, greenfield 10s, strict - |
 | terralith-scale | 10m16.9s | cold_deploy 2m28s, migrate 56s, test_plan 12s, test_apply 18s, drift_reconverge 1m11s, day2_rename 31s, day2_remove 22s, day2_count 45s, day2_replace 35s, plan_approval 43s, greenfield 2m15s, strict - |
-| corpus-azapi-role-assignment | 1m38.4s | cold_deploy 1m33s, migrate 4s, test_plan 1s |
+| corpus-azapi-role-assignment | 3m3s | cold_deploy 1m43s, migrate 5s, test_plan 1s, test_apply 2s, drift_reconverge 5s, day2_rename 7s, day2_remove 5s, day2_count 14s, day2_replace -, day2_crash -, day2_teardown 3s, plan_approval 7s, greenfield 28s, strict 2s, no_local_state - |
 | corpus-cloud-platform-components | 17m17.8s | cold_deploy 2m15s, migrate 19s, test_plan 17s, test_apply 18s, drift_reconverge 31s, day2_rename 28s, day2_remove 41s, day2_count 1m42s, day2_replace 2m21s, day2_crash 4m6s, day2_teardown 29s, plan_approval 40s, greenfield 2m6s, strict 20s, no_local_state 43s |
 | corpus-govuk-cluster-access | 14m2.8s | cold_deploy 1m52s, migrate 15s, test_plan 13s, test_apply 18s, drift_reconverge 45s, day2_rename 35s, day2_remove 35s, day2_count 1m9s, day2_replace 58s, day2_crash 4m11s, day2_teardown 26s, plan_approval 35s, greenfield 1m10s, strict 19s, no_local_state 35s |
 | corpus-govuk-cluster-services | 13m21.9s | cold_deploy 2m11s, migrate 14s, test_plan 16s, test_apply 18s, drift_reconverge 40s, day2_rename 25s, day2_remove 37s, day2_count 1m14s, day2_replace 1m2s, day2_crash 4m24s, day2_teardown 25s, plan_approval 37s, greenfield 38s, strict 19s, no_local_state 1s |
 | corpus-k8s-metrics-server | 13m43.4s | cold_deploy 2m33s, migrate 11s, test_plan 13s, test_apply 14s, drift_reconverge 45s, day2_rename 23s, day2_remove 34s, day2_count 1m8s, day2_replace 58s, day2_crash 3m56s, day2_teardown 15s, plan_approval 34s, greenfield 1m11s, strict 13s, no_local_state 34s |
 | corpus-mastino-dns | 13m56.7s | cold_deploy 2m20s, migrate 54s, test_plan 9s, test_apply 21s, drift_reconverge 42s, day2_rename 41s, day2_remove 50s, day2_count 1m29s, day2_replace 1m3s, plan_approval 1m2s, greenfield 4m26s |
 | corpus-quickpizza | 17m2.2s | cold_deploy 4m3s, migrate 8s, test_plan 12s, test_apply 12s, drift_reconverge 25s, day2_rename 25s, day2_remove 36s, day2_count 1m15s, day2_replace 1m20s, day2_crash 4m7s, day2_teardown 39s, plan_approval 35s, greenfield 1m52s, strict 28s, no_local_state 38s |
-| reference-azure | 2m27.3s | cold_deploy 2m12s, migrate 14s, test_plan 1s |
+| reference-azure | 6m16.2s | cold_deploy 2m19s, migrate 14s, test_plan 2s, test_apply 2s, drift_reconverge 27s, day2_rename 7s, day2_remove 26s, day2_count 33s, day2_replace -, day2_crash -, day2_teardown 33s, plan_approval 9s, greenfield 50s, strict 34s, no_local_state - |
 | reference-eks | 1m12.3s | cold_deploy 50s, migrate 22s |
 | reference-k8s | 12m50.9s | cold_deploy 2m2s, migrate 9s, test_plan 13s, test_apply 17s, drift_reconverge 27s, day2_rename 23s, day2_remove 34s, day2_count 57s, day2_replace 57s, day2_crash 3m48s, day2_teardown 26s, plan_approval 35s, greenfield 1m10s, strict 18s, no_local_state 34s |
 | reference-k8s-cert-manager | 48m17.4s | cold_deploy 2m54s, migrate 1m4s, test_plan 33s, test_apply 53s, drift_reconverge 1m41s, day2_rename 1m42s, day2_remove 3m41s, day2_count 5m31s, day2_replace 5m4s, day2_crash 12m30s, day2_teardown 1m29s, plan_approval 3m48s, greenfield 4m37s, strict 56s, no_local_state 1m54s |
