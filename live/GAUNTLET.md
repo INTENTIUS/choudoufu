@@ -124,7 +124,7 @@ Oracle: Stock `plan` after the same mutation, with marker tags normalised out of
 
 Break: Mutate a second object as well; the single-object assertion must fail.
 
-On the floci-az substrate: The mutation is an ARM GET and a PUT of the body read back, made out of band with gauntlet_arm_set_tag, never through the tool. Not a PATCH: floci-az answers 405 to every PATCH on Microsoft.Network (lex00/floci-az#18).
+On the floci-az substrate: The mutation is an ARM GET and a PUT of the body read back, made out of band with gauntlet_arm_set_tag, never through the tool. Not a PATCH, which floci-az served on Microsoft.Network only from e1def56 (lex00/floci-az#18); real ARM accepts both.
 
 On the floci-eks substrate: The mutation is made on either leg out of band: through the emulator's API on the AWS side, or as a kubectl label or patch inside the k3s container, never through the tool.
 

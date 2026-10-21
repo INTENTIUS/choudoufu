@@ -298,10 +298,10 @@ shape.
 
 The Azure lane (#1120) runs on lex00/floci-az, a fork of floci-io/floci-az,
 pinned by digest in `live/floci-az-image` and started by `azure_up` in
-`live/smoke/lib.sh`. The pin is the fork's main at `dfa33ca`, a JVM image
+`live/smoke/lib.sh`. The pin is the fork's main at `e1def56`, a JVM image
 for linux/amd64 and linux/arm64. Everything below was read from that
 commit's source and docs, not measured. The gauntlet's two Azure estates
-ran on the previous pin, `30000b0`; no scenario has booted `dfa33ca` yet.
+ran on the previous pin, `30000b0`; no scenario has booted `e1def56` yet.
 
 **Endpoints.** One port, 4577 in the container, published on a host port
 `azure_up` picks. It serves the ARM management plane, the Entra token
@@ -391,14 +391,13 @@ a key vault or reads that suffix. The Tags API (`FLOCI_AZ_SERVICES_TAGS_ENABLED`
 is on by default.
 
 **What the pin serves**, against what the lane needs. lex00/floci-az#2
-lists the surfaces; #1 and #3 to #17 are closed at this pin, and #18 is
-open.
+lists the surfaces; #1 and #3 to #18 are closed at this pin.
 
-| Need | floci-az at dfa33ca |
+| Need | floci-az at e1def56 |
 |---|---|
 | Tags round-trip | Kept on every type #3 found dropping them, since 95f1bc9: storage accounts, key vaults, managed HSMs, web apps, API Management, Event Grid topics, Log Analytics workspaces and the two data collection types. Resource groups, network, VMs, AKS, ACR, Redis, SQL, the database servers and managed identities kept them already. Storage account and key vault `PATCH` answer 200, a `tags` object replacing the whole set. Tag names are matched case-insensitively on every ARM write since f954b82 (#15): the request gate folds two spellings of one name into one, keeping the spelling and value written last, so a `PATCH` that respells a name replaces it, as Azure does. Values stay case-sensitive. |
 | Generic resources | A store for every provider namespace no handler declares (27e040b): `PUT`, `GET`, `HEAD`, `PATCH`, `DELETE`, keyed by id case-insensitively, keeping `tags`, `managedBy` and the other envelope fields, listed in `/resources`. Tenant-scoped ids such as `/providers/Microsoft.Management/managementGroups/{name}` and `/providers/Microsoft.Subscription/aliases/{name}` are kept too since d0262c8 (#12), and a resource at a management group's scope needs the group. No server-set property such as `provisioningState` is added. |
-| Network `PATCH` | Not served. Every `Microsoft.Network` type outside DNS, private DNS and private endpoints answers `PUT`, `GET` and `DELETE`, and 405 to `PATCH` (`NetworkService.handleArm`). azurerm sends the `UpdateTags` `PATCH` on a tags change to `azurerm_public_ip_prefix`, to `azurerm_network_interface` when attached to a private endpoint, and to `azurerm_virtual_hub_security_partner_provider`. Filed as #18. The gauntlet's out-of-band tag is a `GET` and a `PUT` of the body read back (`gauntlet_arm_set_tag`, #1120), and so is the smoke scenarios' (`arm_set_tag`). |
+| Network `PATCH` | Served since e1def56 (#18): `UpdateTags`, a `tags` object replacing the whole set, on every generic `Microsoft.Network` type, as azurerm sends it on a tags change to `azurerm_public_ip_prefix`, to `azurerm_network_interface` when attached to a private endpoint, and to `azurerm_virtual_hub_security_partner_provider`. The gauntlet's out-of-band tag stays a `GET` and a `PUT` of the body read back (`gauntlet_arm_set_tag`, #1120), as does the smoke scenarios' (`arm_set_tag`); real ARM accepts both. |
 | Tags API | `{scope}/providers/Microsoft.Resources/tags/default` answers `GET`, `PUT`, `PATCH` (Merge, Replace, Delete) and `DELETE` at subscription, resource group and resource scope since 0c6ad31 (#13). The target keeps the tags in its own handler, so its reads and Resource Graph report them; a Merge replaces a name given in another spelling. The two azurerm types that tag after create, `azurerm_app_service_managed_certificate` and `azurerm_subscription`, need it. `Microsoft.Subscription/aliases` is kept by the generic store since #12, so an alias's create and its tag write can now both land; `Microsoft.Web/certificates` stays unmodelled, since `Microsoft.Web` belongs to the ARM handler, which names no certificates type. |
 | Resource Graph | `POST /providers/Microsoft.ResourceGraph/resources` over `Resources` and `ResourceContainers`, scoped by `subscriptions`, paged by `$skipToken` (df5927b). The KQL is a subset: `where`, `project`, `extend`, `take`, `top`, `order by`, `count`, `distinct`, `summarize`, `union` of a table or a parenthesized subquery, and `mv-expand`, with `=~`, a computed dynamic index (`tags[key]`) and nine scalar functions including `bag_keys` (5e48758, #11). choudoufu's sweep query (`internal/live/azsweep/client.go`) is in floci-az's own test, `KqlQueryTest.theEstateSweepQueryFindsMarkersInAnySpelling`, word for word, so a plan's sweep runs there. The gauntlet's `day2_remove` and `day2_count`, which only the sweep can pass for a type that takes tags, are expected to pass. |
 | Role assignments | Role definitions (14 built-ins with Azure's ids, and custom roles), role assignments with `condition` and `conditionVersion`, and the permissions path, at every scope (02ae4a5). With enforcement on, an ARM request whose token carries an `oid` is refused with 403 `AuthorizationFailed` unless an assignment at the target's scope or above allows the action (bb225ad). Data actions and ABAC conditions are stored and never evaluated, so the record store's read fence is not measurable here. |
@@ -410,11 +409,10 @@ open.
 | ARM template deployments | `Microsoft.Resources/deployments` at resource-group and subscription scope, run to completion inside the `PUT`, each resource through the emulator's own handlers, so RBAC and Policy apply to it (30000b0). Nested deployments are served since dfa33ca (#16), `inner` and `outer` scope, at the resource group and subscription they name. Both shipped templates (`live/azure/estate-boundary.json`, `live/azure/estate-grant.json`) assign through one; the scenarios still install them with direct ARM calls, and could now deploy them as written. |
 
 Code in choudoufu that needs one of these waits for the fork (emulator
-policy, `live/ADDING-A-PLATFORM.md`). One gap above is open on the fork:
-Network `PATCH` (#18). The sweep query's operators (#11), tenant-scoped
+policy, `live/ADDING-A-PLATFORM.md`). No gap above is open on the fork. Network `PATCH` (#18), the sweep query's operators (#11), tenant-scoped
 generic resources (#12), the Tags API (#13), `Indexed` on untaggable types
 (#14), case-insensitive tag names (#15), nested deployments (#16) and the
-Key Vault suffix (#17) are closed at `dfa33ca`.
+Key Vault suffix (#17) are closed at `e1def56`.
 
 ## Related
 
