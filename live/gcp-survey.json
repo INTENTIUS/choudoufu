@@ -7,17 +7,17 @@
   "version": "8.6.0",
   "counts": {
     "types": 1485,
-    "rowed": 1158,
+    "rowed": 1188,
     "server_assigned": 14,
     "markerless": 150,
     "schema_routed": 37,
-    "refused": 290,
+    "refused": 260,
     "google": {
       "types": 1370,
-      "rowed": 1061,
+      "rowed": 1094,
       "markerless": 141,
       "schema_routed": 37,
-      "refused": 272
+      "refused": 239
     }
   },
   "types": [
@@ -2158,12 +2158,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_bigquery_dataset"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/datasets/{{dataset_id}} role [condition_title]"
     },
     {
       "type": "google_bigquery_dataset_iam_member",
@@ -2172,12 +2171,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_bigquery_dataset"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/datasets/{{dataset_id}} role member [condition_title]"
     },
     {
       "type": "google_bigquery_dataset_iam_policy",
@@ -2186,12 +2184,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_bigquery_dataset"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/datasets/{{dataset_id}}"
     },
     {
       "type": "google_bigquery_job",
@@ -2406,12 +2403,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_bigtable_instance"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/instances/{{instance}} role [condition_title]"
     },
     {
       "type": "google_bigtable_instance_iam_member",
@@ -2420,12 +2416,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_bigtable_instance"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/instances/{{instance}} role member [condition_title]"
     },
     {
       "type": "google_bigtable_instance_iam_policy",
@@ -2434,12 +2429,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_bigtable_instance"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/instances/{{instance}}"
     },
     {
       "type": "google_bigtable_logical_view",
@@ -7687,12 +7681,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_dataproc_cluster"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/regions/{{region}}/clusters/{{cluster}} role [condition_title]"
     },
     {
       "type": "google_dataproc_cluster_iam_member",
@@ -7701,12 +7694,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_dataproc_cluster"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/regions/{{region}}/clusters/{{cluster}} role member [condition_title]"
     },
     {
       "type": "google_dataproc_cluster_iam_policy",
@@ -7715,12 +7707,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_dataproc_cluster"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/regions/{{region}}/clusters/{{cluster}}"
     },
     {
       "type": "google_dataproc_gdc_application_environment",
@@ -7776,12 +7767,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_dataproc_job"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/regions/{{region}}/jobs/{{job_id}} role [condition_title]"
     },
     {
       "type": "google_dataproc_job_iam_member",
@@ -7790,12 +7780,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_dataproc_job"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/regions/{{region}}/jobs/{{job_id}} role member [condition_title]"
     },
     {
       "type": "google_dataproc_job_iam_policy",
@@ -7804,12 +7793,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_dataproc_job"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/regions/{{region}}/jobs/{{job_id}}"
     },
     {
       "type": "google_dataproc_metastore_database_iam_binding",
@@ -7818,12 +7806,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_dataproc_metastore_database"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/locations/{{location}}/services/{{service_id}}/databases/{{database}} role [condition_title]"
     },
     {
       "type": "google_dataproc_metastore_database_iam_member",
@@ -7832,12 +7819,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_dataproc_metastore_database"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/locations/{{location}}/services/{{service_id}}/databases/{{database}} role member [condition_title]"
     },
     {
       "type": "google_dataproc_metastore_database_iam_policy",
@@ -7846,12 +7832,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_dataproc_metastore_database"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/locations/{{location}}/services/{{service_id}}/databases/{{database}}"
     },
     {
       "type": "google_dataproc_metastore_federation",
@@ -7958,12 +7943,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_dataproc_metastore_table"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/locations/{{location}}/services/{{service_id}}/databases/{{database_id}}/tables/{{table}} role [condition_title]"
     },
     {
       "type": "google_dataproc_metastore_table_iam_member",
@@ -7972,12 +7956,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_dataproc_metastore_table"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/locations/{{location}}/services/{{service_id}}/databases/{{database_id}}/tables/{{table}} role member [condition_title]"
     },
     {
       "type": "google_dataproc_metastore_table_iam_policy",
@@ -7986,12 +7969,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_dataproc_metastore_table"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/locations/{{location}}/services/{{service_id}}/databases/{{database_id}}/tables/{{table}}"
     },
     {
       "type": "google_dataproc_session_template",
@@ -10286,11 +10268,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_healthcare_dataset"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from datasetId.DatasetId()), which no row composes from configuration yet"
     },
     {
       "type": "google_healthcare_dataset_iam_member",
@@ -10300,11 +10281,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_healthcare_dataset"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from datasetId.DatasetId()), which no row composes from configuration yet"
     },
     {
       "type": "google_healthcare_dataset_iam_policy",
@@ -10314,11 +10294,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_healthcare_dataset"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from datasetId.DatasetId()), which no row composes from configuration yet"
     },
     {
       "type": "google_healthcare_dicom_store",
@@ -10340,11 +10319,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_healthcare_dicom_store"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from dicomStoreId.DicomStoreId()), which no row composes from configuration yet"
     },
     {
       "type": "google_healthcare_dicom_store_iam_member",
@@ -10354,11 +10332,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_healthcare_dicom_store"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from dicomStoreId.DicomStoreId()), which no row composes from configuration yet"
     },
     {
       "type": "google_healthcare_dicom_store_iam_policy",
@@ -10368,11 +10345,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_healthcare_dicom_store"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from dicomStoreId.DicomStoreId()), which no row composes from configuration yet"
     },
     {
       "type": "google_healthcare_fhir_store",
@@ -10394,11 +10370,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_healthcare_fhir_store"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from fhirStoreId.FhirStoreId()), which no row composes from configuration yet"
     },
     {
       "type": "google_healthcare_fhir_store_iam_member",
@@ -10408,11 +10383,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_healthcare_fhir_store"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from fhirStoreId.FhirStoreId()), which no row composes from configuration yet"
     },
     {
       "type": "google_healthcare_fhir_store_iam_policy",
@@ -10422,11 +10396,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_healthcare_fhir_store"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from fhirStoreId.FhirStoreId()), which no row composes from configuration yet"
     },
     {
       "type": "google_healthcare_hl7_v2_store",
@@ -10448,11 +10421,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_healthcare_hl7_v2_store"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from hl7V2StoreId.Hl7V2StoreId()), which no row composes from configuration yet"
     },
     {
       "type": "google_healthcare_hl7_v2_store_iam_member",
@@ -10462,11 +10434,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_healthcare_hl7_v2_store"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from hl7V2StoreId.Hl7V2StoreId()), which no row composes from configuration yet"
     },
     {
       "type": "google_healthcare_hl7_v2_store_iam_policy",
@@ -10476,11 +10447,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_healthcare_hl7_v2_store"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from hl7V2StoreId.Hl7V2StoreId()), which no row composes from configuration yet"
     },
     {
       "type": "google_healthcare_pipeline_job",
@@ -10988,12 +10958,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_iap_app_engine_service"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/iap_web/appengine-{{app_id}}/services/{{service}} role [condition_title]"
     },
     {
       "type": "google_iap_app_engine_service_iam_member",
@@ -11002,12 +10971,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_iap_app_engine_service"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/iap_web/appengine-{{app_id}}/services/{{service}} role member [condition_title]"
     },
     {
       "type": "google_iap_app_engine_service_iam_policy",
@@ -11016,12 +10984,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_iap_app_engine_service"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/iap_web/appengine-{{app_id}}/services/{{service}}"
     },
     {
       "type": "google_iap_app_engine_version_iam_binding",
@@ -11030,12 +10997,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_iap_app_engine_version"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/iap_web/appengine-{{app_id}}/services/{{service}}/versions/{{version_id}} role [condition_title]"
     },
     {
       "type": "google_iap_app_engine_version_iam_member",
@@ -11044,12 +11010,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_iap_app_engine_version"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/iap_web/appengine-{{app_id}}/services/{{service}}/versions/{{version_id}} role member [condition_title]"
     },
     {
       "type": "google_iap_app_engine_version_iam_policy",
@@ -11058,12 +11023,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_iap_app_engine_version"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/iap_web/appengine-{{app_id}}/services/{{service}}/versions/{{version_id}}"
     },
     {
       "type": "google_iap_location_web_iam_binding",
@@ -11482,12 +11446,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_iap_web_type_app_engine"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/iap_web/appengine-{{app_id}} role [condition_title]"
     },
     {
       "type": "google_iap_web_type_app_engine_iam_member",
@@ -11496,12 +11459,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_iap_web_type_app_engine"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/iap_web/appengine-{{app_id}} role member [condition_title]"
     },
     {
       "type": "google_iap_web_type_app_engine_iam_policy",
@@ -11510,12 +11472,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_iap_web_type_app_engine"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "projects/{{project}}/iap_web/appengine-{{app_id}}"
     },
     {
       "type": "google_iap_web_type_compute_iam_binding",
@@ -11728,11 +11689,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_kms_crypto_key"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from cryptoKeyId.CryptoKeyId()), which no row composes from configuration yet"
     },
     {
       "type": "google_kms_crypto_key_iam_member",
@@ -11742,11 +11702,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_kms_crypto_key"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from cryptoKeyId.CryptoKeyId()), which no row composes from configuration yet"
     },
     {
       "type": "google_kms_crypto_key_iam_policy",
@@ -11756,11 +11715,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_kms_crypto_key"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from cryptoKeyId.CryptoKeyId()), which no row composes from configuration yet"
     },
     {
       "type": "google_kms_crypto_key_version",
@@ -11859,11 +11817,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_kms_key_ring"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from keyRingId.KeyRingId()), which no row composes from configuration yet"
     },
     {
       "type": "google_kms_key_ring_iam_member",
@@ -11873,11 +11830,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_kms_key_ring"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from keyRingId.KeyRingId()), which no row composes from configuration yet"
     },
     {
       "type": "google_kms_key_ring_iam_policy",
@@ -11887,11 +11843,10 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "no_source": true,
       "parents": [
         "google_kms_key_ring"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "reason": "the IAM updater's GetResourceId rebuilds the parent through code of its own (u.resourceId is set from keyRingId.KeyRingId()), which no row composes from configuration yet"
     },
     {
       "type": "google_kms_key_ring_import_job",
@@ -15359,7 +15314,7 @@
       "parents": [
         "google_service_directory_namespace"
       ],
-      "reason": "the IAM parent id projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}} names {{project}}, which the schema does not require"
+      "reason": "the IAM updater's GetResourceId builds {{name}}, but the IdParseFunc parses projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}, which does not carry {{name}}; a row over the import string would not tell apart parents that differ only there"
     },
     {
       "type": "google_service_directory_namespace_iam_member",
@@ -15372,7 +15327,7 @@
       "parents": [
         "google_service_directory_namespace"
       ],
-      "reason": "the IAM parent id projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}} names {{project}}, which the schema does not require"
+      "reason": "the IAM updater's GetResourceId builds {{name}}, but the IdParseFunc parses projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}, which does not carry {{name}}; a row over the import string would not tell apart parents that differ only there"
     },
     {
       "type": "google_service_directory_namespace_iam_policy",
@@ -15385,7 +15340,7 @@
       "parents": [
         "google_service_directory_namespace"
       ],
-      "reason": "the IAM parent id projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}} names {{project}}, which the schema does not require"
+      "reason": "the IAM updater's GetResourceId builds {{name}}, but the IdParseFunc parses projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}, which does not carry {{name}}; a row over the import string would not tell apart parents that differ only there"
     },
     {
       "type": "google_service_directory_service",
@@ -15409,7 +15364,7 @@
       "parents": [
         "google_service_directory_service"
       ],
-      "reason": "the IAM parent id projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}/services/{{service_id}} names {{project}}, which the schema does not require"
+      "reason": "the IAM updater's GetResourceId builds {{name}}, but the IdParseFunc parses projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}/services/{{service_id}}, which does not carry {{name}}; a row over the import string would not tell apart parents that differ only there"
     },
     {
       "type": "google_service_directory_service_iam_member",
@@ -15422,7 +15377,7 @@
       "parents": [
         "google_service_directory_service"
       ],
-      "reason": "the IAM parent id projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}/services/{{service_id}} names {{project}}, which the schema does not require"
+      "reason": "the IAM updater's GetResourceId builds {{name}}, but the IdParseFunc parses projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}/services/{{service_id}}, which does not carry {{name}}; a row over the import string would not tell apart parents that differ only there"
     },
     {
       "type": "google_service_directory_service_iam_policy",
@@ -15435,7 +15390,7 @@
       "parents": [
         "google_service_directory_service"
       ],
-      "reason": "the IAM parent id projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}/services/{{service_id}} names {{project}}, which the schema does not require"
+      "reason": "the IAM updater's GetResourceId builds {{name}}, but the IdParseFunc parses projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}/services/{{service_id}}, which does not carry {{name}}; a row over the import string would not tell apart parents that differ only there"
     },
     {
       "type": "google_service_networking_connection",
@@ -15598,12 +15553,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_spanner_database"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "{{project}}/{{instance}}/{{database}} role [condition_title]"
     },
     {
       "type": "google_spanner_database_iam_member",
@@ -15612,12 +15566,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_spanner_database"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "{{project}}/{{instance}}/{{database}} role member [condition_title]"
     },
     {
       "type": "google_spanner_database_iam_policy",
@@ -15626,12 +15579,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_spanner_database"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "{{project}}/{{instance}}/{{database}}"
     },
     {
       "type": "google_spanner_instance",
@@ -15660,12 +15612,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_spanner_instance"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "{{project}}/{{instance}} role [condition_title]"
     },
     {
       "type": "google_spanner_instance_iam_member",
@@ -15674,12 +15625,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_spanner_instance"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "{{project}}/{{instance}} role member [condition_title]"
     },
     {
       "type": "google_spanner_instance_iam_policy",
@@ -15688,12 +15638,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "no_source": true,
+      "verdict": "rowed",
       "parents": [
         "google_spanner_instance"
       ],
-      "reason": "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read"
+      "template": "{{project}}/{{instance}}"
     },
     {
       "type": "google_spanner_instance_partition",
@@ -16515,11 +16464,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "rowed",
+      "verdict": "unrowed",
       "parents": [
         "google_vertex_ai_feature_online_store_featureview"
       ],
-      "template": "{{feature_online_store}}/featureViews/{{feature_view}} role [condition_title]"
+      "reason": "the IAM updater's GetResourceId builds projects/{{project}}/locations/{{region}}/featureOnlineStores/{{feature_online_store}}/featureViews/{{feature_view}}, but the IdParseFunc parses {{feature_online_store}}/featureViews/{{feature_view}}, which does not carry {{project}} and {{region}}; a row over the import string would not tell apart parents that differ only there"
     },
     {
       "type": "google_vertex_ai_feature_online_store_featureview_iam_member",
@@ -16527,11 +16476,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "rowed",
+      "verdict": "unrowed",
       "parents": [
         "google_vertex_ai_feature_online_store_featureview"
       ],
-      "template": "{{feature_online_store}}/featureViews/{{feature_view}} role member [condition_title]"
+      "reason": "the IAM updater's GetResourceId builds projects/{{project}}/locations/{{region}}/featureOnlineStores/{{feature_online_store}}/featureViews/{{feature_view}}, but the IdParseFunc parses {{feature_online_store}}/featureViews/{{feature_view}}, which does not carry {{project}} and {{region}}; a row over the import string would not tell apart parents that differ only there"
     },
     {
       "type": "google_vertex_ai_feature_online_store_featureview_iam_policy",
@@ -16539,11 +16488,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "rowed",
+      "verdict": "unrowed",
       "parents": [
         "google_vertex_ai_feature_online_store_featureview"
       ],
-      "template": "{{feature_online_store}}/featureViews/{{feature_view}}"
+      "reason": "the IAM updater's GetResourceId builds projects/{{project}}/locations/{{region}}/featureOnlineStores/{{feature_online_store}}/featureViews/{{feature_view}}, but the IdParseFunc parses {{feature_online_store}}/featureViews/{{feature_view}}, which does not carry {{project}} and {{region}}; a row over the import string would not tell apart parents that differ only there"
     },
     {
       "type": "google_vertex_ai_feature_online_store_iam_binding",

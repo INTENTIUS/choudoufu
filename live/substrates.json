@@ -109,8 +109,8 @@
         "definition": "a google or google-beta 8.6.0 type whose schema carries no settable labels map beside effective_labels (live/readiness.json google.types, every tier but marker-carried)",
         "count": 1165,
         "by_tier": {
-          "declaration-carried": 885,
-          "record-carried": 280
+          "declaration-carried": 915,
+          "record-carried": 250
         }
       },
       "fence": "Project-scoped, restated: an IAM condition cannot match a label, so one estate per project, granted by an ordinary project IAM binding. Resource Manager tag bindings, which a condition can match, are ruled later (#1121).",

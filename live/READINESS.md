@@ -88,11 +88,11 @@ the provider's own source at the pin.
 |---|---|---|---|
 | marker | marker-carried | 320 | The `tofu-address` label on the object is the identity; the sweep reads it back. |
 | client-named | declaration-carried | 311 | The configuration names it, under a project or location it also names or the provider supplies. |
-| parent-derived | declaration-carried | 558 | Composed over a containing resource the configuration also names; every IAM type is this shape. |
+| parent-derived | declaration-carried | 588 | Composed over a containing resource the configuration also names; every IAM type is this shape. |
 | project-derived | declaration-carried | 16 | Only project, region or zone names it: one per project or region. |
 | unique-name | - | 0 | Nothing in the google source states a name the API refuses to issue twice, so no type is here. |
 | server-minted | record-carried | 150 | The API mints the identity and the type has no labels; only a record holds it. |
-| unbindable | record-carried | 130 | No row and no identity-schema route; a record is the only copy. |
+| unbindable | record-carried | 100 | No row and no identity-schema route; a record is the only copy. |
 <!-- readiness-gen:end gcp-paths -->
 
 <!-- readiness-gen:begin gcp-types -->
@@ -101,10 +101,10 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
 |---|---|---|---|---|---|---|---|
 | marker-carried | 301 | 9 | 0 | 10 | 0 | 0 | 320 |
-| declaration-carried | 857 | 28 | 0 | 0 | 0 | 0 | 885 |
-| record-carried | 0 | 15 | 0 | 115 | 150 | 0 | 280 |
+| declaration-carried | 887 | 28 | 0 | 0 | 0 | 0 | 915 |
+| record-carried | 0 | 36 | 0 | 64 | 150 | 0 | 250 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Total | 1158 | 52 | 0 | 125 | 150 | 0 | 1485 |
+| Total | 1188 | 73 | 0 | 74 | 150 | 0 | 1485 |
 
 | Reason | Why the type is not in contract |
 |---|---|
@@ -297,9 +297,9 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_bigquery_datapolicyv2_data_policy_iam_policy` | declaration-carried | in-contract |  |
 | `google_bigquery_dataset` | marker-carried | in-contract |  |
 | `google_bigquery_dataset_access` | declaration-carried | pending-ratification | 1 |
-| `google_bigquery_dataset_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_bigquery_dataset_iam_member` | record-carried | needs-evidence | 3 |
-| `google_bigquery_dataset_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_bigquery_dataset_iam_binding` | declaration-carried | in-contract |  |
+| `google_bigquery_dataset_iam_member` | declaration-carried | in-contract |  |
+| `google_bigquery_dataset_iam_policy` | declaration-carried | in-contract |  |
 | `google_bigquery_job` | marker-carried | in-contract |  |
 | `google_bigquery_reservation` | marker-carried | in-contract |  |
 | `google_bigquery_reservation_assignment` | record-carried | pending-ratification | 4 |
@@ -317,9 +317,9 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_bigtable_authorized_view` | declaration-carried | in-contract |  |
 | `google_bigtable_gc_policy` | record-carried | needs-evidence | 3 |
 | `google_bigtable_instance` | marker-carried | in-contract |  |
-| `google_bigtable_instance_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_bigtable_instance_iam_member` | record-carried | needs-evidence | 3 |
-| `google_bigtable_instance_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_bigtable_instance_iam_binding` | declaration-carried | in-contract |  |
+| `google_bigtable_instance_iam_member` | declaration-carried | in-contract |  |
+| `google_bigtable_instance_iam_policy` | declaration-carried | in-contract |  |
 | `google_bigtable_logical_view` | declaration-carried | in-contract |  |
 | `google_bigtable_materialized_view` | declaration-carried | in-contract |  |
 | `google_bigtable_schema_bundle` | declaration-carried | in-contract |  |
@@ -772,19 +772,19 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_dataproc_autoscaling_policy_iam_policy` | declaration-carried | in-contract |  |
 | `google_dataproc_batch` | marker-carried | in-contract |  |
 | `google_dataproc_cluster` | marker-carried | needs-evidence | 3 |
-| `google_dataproc_cluster_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_dataproc_cluster_iam_member` | record-carried | needs-evidence | 3 |
-| `google_dataproc_cluster_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_dataproc_cluster_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataproc_cluster_iam_member` | declaration-carried | in-contract |  |
+| `google_dataproc_cluster_iam_policy` | declaration-carried | in-contract |  |
 | `google_dataproc_gdc_application_environment` | marker-carried | in-contract |  |
 | `google_dataproc_gdc_service_instance` | marker-carried | in-contract |  |
 | `google_dataproc_gdc_spark_application` | marker-carried | in-contract |  |
 | `google_dataproc_job` | marker-carried | needs-evidence | 3 |
-| `google_dataproc_job_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_dataproc_job_iam_member` | record-carried | needs-evidence | 3 |
-| `google_dataproc_job_iam_policy` | record-carried | needs-evidence | 3 |
-| `google_dataproc_metastore_database_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_dataproc_metastore_database_iam_member` | record-carried | needs-evidence | 3 |
-| `google_dataproc_metastore_database_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_dataproc_job_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataproc_job_iam_member` | declaration-carried | in-contract |  |
+| `google_dataproc_job_iam_policy` | declaration-carried | in-contract |  |
+| `google_dataproc_metastore_database_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataproc_metastore_database_iam_member` | declaration-carried | in-contract |  |
+| `google_dataproc_metastore_database_iam_policy` | declaration-carried | in-contract |  |
 | `google_dataproc_metastore_federation` | marker-carried | in-contract |  |
 | `google_dataproc_metastore_federation_iam_binding` | declaration-carried | in-contract |  |
 | `google_dataproc_metastore_federation_iam_member` | declaration-carried | in-contract |  |
@@ -793,9 +793,9 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_dataproc_metastore_service_iam_binding` | declaration-carried | in-contract |  |
 | `google_dataproc_metastore_service_iam_member` | declaration-carried | in-contract |  |
 | `google_dataproc_metastore_service_iam_policy` | declaration-carried | in-contract |  |
-| `google_dataproc_metastore_table_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_dataproc_metastore_table_iam_member` | record-carried | needs-evidence | 3 |
-| `google_dataproc_metastore_table_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_dataproc_metastore_table_iam_binding` | declaration-carried | in-contract |  |
+| `google_dataproc_metastore_table_iam_member` | declaration-carried | in-contract |  |
+| `google_dataproc_metastore_table_iam_policy` | declaration-carried | in-contract |  |
 | `google_dataproc_session_template` | marker-carried | pending-ratification | 1 |
 | `google_dataproc_workflow_template` | marker-carried | needs-evidence | 3 |
 | `google_datastream_connection_profile` | marker-carried | in-contract |  |
@@ -998,21 +998,21 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_healthcare_consent_store_iam_member` | declaration-carried | in-contract |  |
 | `google_healthcare_consent_store_iam_policy` | declaration-carried | in-contract |  |
 | `google_healthcare_dataset` | declaration-carried | in-contract |  |
-| `google_healthcare_dataset_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_healthcare_dataset_iam_member` | record-carried | needs-evidence | 3 |
-| `google_healthcare_dataset_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_healthcare_dataset_iam_binding` | record-carried | pending-ratification | 4 |
+| `google_healthcare_dataset_iam_member` | record-carried | pending-ratification | 4 |
+| `google_healthcare_dataset_iam_policy` | record-carried | pending-ratification | 4 |
 | `google_healthcare_dicom_store` | marker-carried | pending-ratification | 1 |
-| `google_healthcare_dicom_store_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_healthcare_dicom_store_iam_member` | record-carried | needs-evidence | 3 |
-| `google_healthcare_dicom_store_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_healthcare_dicom_store_iam_binding` | record-carried | pending-ratification | 4 |
+| `google_healthcare_dicom_store_iam_member` | record-carried | pending-ratification | 4 |
+| `google_healthcare_dicom_store_iam_policy` | record-carried | pending-ratification | 4 |
 | `google_healthcare_fhir_store` | marker-carried | pending-ratification | 1 |
-| `google_healthcare_fhir_store_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_healthcare_fhir_store_iam_member` | record-carried | needs-evidence | 3 |
-| `google_healthcare_fhir_store_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_healthcare_fhir_store_iam_binding` | record-carried | pending-ratification | 4 |
+| `google_healthcare_fhir_store_iam_member` | record-carried | pending-ratification | 4 |
+| `google_healthcare_fhir_store_iam_policy` | record-carried | pending-ratification | 4 |
 | `google_healthcare_hl7_v2_store` | marker-carried | pending-ratification | 1 |
-| `google_healthcare_hl7_v2_store_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_healthcare_hl7_v2_store_iam_member` | record-carried | needs-evidence | 3 |
-| `google_healthcare_hl7_v2_store_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_healthcare_hl7_v2_store_iam_binding` | record-carried | pending-ratification | 4 |
+| `google_healthcare_hl7_v2_store_iam_member` | record-carried | pending-ratification | 4 |
+| `google_healthcare_hl7_v2_store_iam_policy` | record-carried | pending-ratification | 4 |
 | `google_healthcare_pipeline_job` | marker-carried | in-contract |  |
 | `google_healthcare_workspace` | marker-carried | in-contract |  |
 | `google_hypercomputecluster_cluster` | marker-carried | in-contract |  |
@@ -1054,12 +1054,12 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_iap_agent_registry_mcp_server_iam_binding` | declaration-carried | in-contract |  |
 | `google_iap_agent_registry_mcp_server_iam_member` | declaration-carried | in-contract |  |
 | `google_iap_agent_registry_mcp_server_iam_policy` | declaration-carried | in-contract |  |
-| `google_iap_app_engine_service_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_iap_app_engine_service_iam_member` | record-carried | needs-evidence | 3 |
-| `google_iap_app_engine_service_iam_policy` | record-carried | needs-evidence | 3 |
-| `google_iap_app_engine_version_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_iap_app_engine_version_iam_member` | record-carried | needs-evidence | 3 |
-| `google_iap_app_engine_version_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_iap_app_engine_service_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_app_engine_service_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_app_engine_service_iam_policy` | declaration-carried | in-contract |  |
+| `google_iap_app_engine_version_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_app_engine_version_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_app_engine_version_iam_policy` | declaration-carried | in-contract |  |
 | `google_iap_location_web_iam_binding` | declaration-carried | in-contract |  |
 | `google_iap_location_web_iam_member` | declaration-carried | in-contract |  |
 | `google_iap_location_web_iam_policy` | declaration-carried | in-contract |  |
@@ -1092,9 +1092,9 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_iap_web_region_forwarding_rule_service_iam_binding` | declaration-carried | in-contract |  |
 | `google_iap_web_region_forwarding_rule_service_iam_member` | declaration-carried | in-contract |  |
 | `google_iap_web_region_forwarding_rule_service_iam_policy` | declaration-carried | in-contract |  |
-| `google_iap_web_type_app_engine_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_iap_web_type_app_engine_iam_member` | record-carried | needs-evidence | 3 |
-| `google_iap_web_type_app_engine_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_iap_web_type_app_engine_iam_binding` | declaration-carried | in-contract |  |
+| `google_iap_web_type_app_engine_iam_member` | declaration-carried | in-contract |  |
+| `google_iap_web_type_app_engine_iam_policy` | declaration-carried | in-contract |  |
 | `google_iap_web_type_compute_iam_binding` | declaration-carried | in-contract |  |
 | `google_iap_web_type_compute_iam_member` | declaration-carried | in-contract |  |
 | `google_iap_web_type_compute_iam_policy` | declaration-carried | in-contract |  |
@@ -1113,9 +1113,9 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_integrations_client` | declaration-carried | in-contract |  |
 | `google_kms_autokey_config` | declaration-carried | in-contract |  |
 | `google_kms_crypto_key` | marker-carried | pending-ratification | 1 |
-| `google_kms_crypto_key_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_kms_crypto_key_iam_member` | record-carried | needs-evidence | 3 |
-| `google_kms_crypto_key_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_kms_crypto_key_iam_binding` | record-carried | pending-ratification | 4 |
+| `google_kms_crypto_key_iam_member` | record-carried | pending-ratification | 4 |
+| `google_kms_crypto_key_iam_policy` | record-carried | pending-ratification | 4 |
 | `google_kms_crypto_key_version` | record-carried | pending-mechanism | 2 |
 | `google_kms_ekm_connection` | declaration-carried | in-contract |  |
 | `google_kms_ekm_connection_iam_binding` | declaration-carried | in-contract |  |
@@ -1124,9 +1124,9 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_kms_folder_kaj_policy_config` | declaration-carried | in-contract |  |
 | `google_kms_key_handle` | declaration-carried | in-contract |  |
 | `google_kms_key_ring` | declaration-carried | in-contract |  |
-| `google_kms_key_ring_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_kms_key_ring_iam_member` | record-carried | needs-evidence | 3 |
-| `google_kms_key_ring_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_kms_key_ring_iam_binding` | record-carried | pending-ratification | 4 |
+| `google_kms_key_ring_iam_member` | record-carried | pending-ratification | 4 |
+| `google_kms_key_ring_iam_policy` | record-carried | pending-ratification | 4 |
 | `google_kms_key_ring_import_job` | record-carried | pending-mechanism | 2 |
 | `google_kms_organization_kaj_policy_config` | declaration-carried | in-contract |  |
 | `google_kms_project_autokey_config` | declaration-carried | in-contract |  |
@@ -1464,14 +1464,14 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_sourcerepo_repository_iam_policy` | declaration-carried | in-contract |  |
 | `google_spanner_backup_schedule` | declaration-carried | in-contract |  |
 | `google_spanner_database` | declaration-carried | in-contract |  |
-| `google_spanner_database_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_spanner_database_iam_member` | record-carried | needs-evidence | 3 |
-| `google_spanner_database_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_spanner_database_iam_binding` | declaration-carried | in-contract |  |
+| `google_spanner_database_iam_member` | declaration-carried | in-contract |  |
+| `google_spanner_database_iam_policy` | declaration-carried | in-contract |  |
 | `google_spanner_instance` | marker-carried | in-contract |  |
 | `google_spanner_instance_config` | marker-carried | in-contract |  |
-| `google_spanner_instance_iam_binding` | record-carried | needs-evidence | 3 |
-| `google_spanner_instance_iam_member` | record-carried | needs-evidence | 3 |
-| `google_spanner_instance_iam_policy` | record-carried | needs-evidence | 3 |
+| `google_spanner_instance_iam_binding` | declaration-carried | in-contract |  |
+| `google_spanner_instance_iam_member` | declaration-carried | in-contract |  |
+| `google_spanner_instance_iam_policy` | declaration-carried | in-contract |  |
 | `google_spanner_instance_partition` | declaration-carried | in-contract |  |
 | `google_sql_database` | declaration-carried | in-contract |  |
 | `google_sql_database_instance` | declaration-carried | in-contract |  |
@@ -1543,9 +1543,9 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_vertex_ai_feature_group_iam_policy` | declaration-carried | in-contract |  |
 | `google_vertex_ai_feature_online_store` | marker-carried | in-contract |  |
 | `google_vertex_ai_feature_online_store_featureview` | marker-carried | in-contract |  |
-| `google_vertex_ai_feature_online_store_featureview_iam_binding` | declaration-carried | in-contract |  |
-| `google_vertex_ai_feature_online_store_featureview_iam_member` | declaration-carried | in-contract |  |
-| `google_vertex_ai_feature_online_store_featureview_iam_policy` | declaration-carried | in-contract |  |
+| `google_vertex_ai_feature_online_store_featureview_iam_binding` | record-carried | pending-ratification | 4 |
+| `google_vertex_ai_feature_online_store_featureview_iam_member` | record-carried | pending-ratification | 4 |
+| `google_vertex_ai_feature_online_store_featureview_iam_policy` | record-carried | pending-ratification | 4 |
 | `google_vertex_ai_feature_online_store_iam_binding` | declaration-carried | in-contract |  |
 | `google_vertex_ai_feature_online_store_iam_member` | declaration-carried | in-contract |  |
 | `google_vertex_ai_feature_online_store_iam_policy` | declaration-carried | in-contract |  |

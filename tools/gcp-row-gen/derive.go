@@ -317,7 +317,18 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc
 
 func decideIAM(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Decision {
 	if src.IAMParent == "" {
+		if src.IAMResourceIDUnread != "" {
+			return unrowed(false, "the IAM updater's GetResourceId rebuilds the parent through code of its own (%s), which no row composes from configuration yet", src.IAMResourceIDUnread)
+		}
 		return unrowed(true, "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read")
+	}
+	if missing := missingPlaceholders(src.IAMResourceID, src.IAMParent); len(missing) > 0 {
+		// The create's id reads an argument the import string does not
+		// carry. A row spelling the import string would give one identity
+		// to parents that differ only there, and stock's import of it
+		// fills that argument from the provider's defaults, if anything.
+		return unrowed(false, "the IAM updater's GetResourceId builds %s, but the IdParseFunc parses %s, which does not carry %s; a row over the import string would not tell apart parents that differ only there",
+			src.IAMResourceID, src.IAMParent, joinQuoted(missing))
 	}
 	if src.IAMGrammar == "" {
 		return unrowed(true, "the IAM framework states no import grammar for this kind")
@@ -585,6 +596,21 @@ func joinQuoted(names []string) string {
 		q[i] = "{{" + n + "}}"
 	}
 	return strings.Join(q, " and ")
+}
+
+// missingPlaceholders are the placeholders of a that b does not name.
+func missingPlaceholders(a, b string) []string {
+	have := map[string]bool{}
+	for _, n := range placeholders(b) {
+		have[n] = true
+	}
+	var out []string
+	for _, n := range placeholders(a) {
+		if !have[n] {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // compileAll reports whether every pattern compiles as Go's regexp, the

@@ -24519,15 +24519,15 @@
     "counts": {
       "types": 1485,
       "tiers": {
-        "declaration-carried": 885,
+        "declaration-carried": 915,
         "marker-carried": 320,
-        "record-carried": 280
+        "record-carried": 250
       },
       "statuses": {
-        "in-contract": 1158,
-        "needs-evidence": 125,
+        "in-contract": 1188,
+        "needs-evidence": 74,
         "pending-mechanism": 150,
-        "pending-ratification": 52
+        "pending-ratification": 73
       }
     },
     "types": [
@@ -26932,11 +26932,11 @@
       },
       {
         "type": "google_bigquery_dataset_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -26945,11 +26945,11 @@
       },
       {
         "type": "google_bigquery_dataset_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -26958,11 +26958,11 @@
       },
       {
         "type": "google_bigquery_dataset_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -27196,11 +27196,11 @@
       },
       {
         "type": "google_bigtable_instance_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -27209,11 +27209,11 @@
       },
       {
         "type": "google_bigtable_instance_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -27222,11 +27222,11 @@
       },
       {
         "type": "google_bigtable_instance_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33183,11 +33183,11 @@
       },
       {
         "type": "google_dataproc_cluster_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33196,11 +33196,11 @@
       },
       {
         "type": "google_dataproc_cluster_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33209,11 +33209,11 @@
       },
       {
         "type": "google_dataproc_cluster_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33278,11 +33278,11 @@
       },
       {
         "type": "google_dataproc_job_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33291,11 +33291,11 @@
       },
       {
         "type": "google_dataproc_job_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33304,11 +33304,11 @@
       },
       {
         "type": "google_dataproc_job_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33317,11 +33317,11 @@
       },
       {
         "type": "google_dataproc_metastore_database_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33330,11 +33330,11 @@
       },
       {
         "type": "google_dataproc_metastore_database_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33343,11 +33343,11 @@
       },
       {
         "type": "google_dataproc_metastore_database_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33462,11 +33462,11 @@
       },
       {
         "type": "google_dataproc_metastore_table_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33475,11 +33475,11 @@
       },
       {
         "type": "google_dataproc_metastore_table_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33488,11 +33488,11 @@
       },
       {
         "type": "google_dataproc_metastore_table_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -36190,7 +36190,7 @@
       {
         "type": "google_healthcare_dataset_iam_binding",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -36203,7 +36203,7 @@
       {
         "type": "google_healthcare_dataset_iam_member",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -36216,7 +36216,7 @@
       {
         "type": "google_healthcare_dataset_iam_policy",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -36244,7 +36244,7 @@
       {
         "type": "google_healthcare_dicom_store_iam_binding",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -36257,7 +36257,7 @@
       {
         "type": "google_healthcare_dicom_store_iam_member",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -36270,7 +36270,7 @@
       {
         "type": "google_healthcare_dicom_store_iam_policy",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -36298,7 +36298,7 @@
       {
         "type": "google_healthcare_fhir_store_iam_binding",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -36311,7 +36311,7 @@
       {
         "type": "google_healthcare_fhir_store_iam_member",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -36324,7 +36324,7 @@
       {
         "type": "google_healthcare_fhir_store_iam_policy",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -36352,7 +36352,7 @@
       {
         "type": "google_healthcare_hl7_v2_store_iam_binding",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -36365,7 +36365,7 @@
       {
         "type": "google_healthcare_hl7_v2_store_iam_member",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -36378,7 +36378,7 @@
       {
         "type": "google_healthcare_hl7_v2_store_iam_policy",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -36926,11 +36926,11 @@
       },
       {
         "type": "google_iap_app_engine_service_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -36939,11 +36939,11 @@
       },
       {
         "type": "google_iap_app_engine_service_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -36952,11 +36952,11 @@
       },
       {
         "type": "google_iap_app_engine_service_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -36965,11 +36965,11 @@
       },
       {
         "type": "google_iap_app_engine_version_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -36978,11 +36978,11 @@
       },
       {
         "type": "google_iap_app_engine_version_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -36991,11 +36991,11 @@
       },
       {
         "type": "google_iap_app_engine_version_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -37420,11 +37420,11 @@
       },
       {
         "type": "google_iap_web_type_app_engine_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -37433,11 +37433,11 @@
       },
       {
         "type": "google_iap_web_type_app_engine_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -37446,11 +37446,11 @@
       },
       {
         "type": "google_iap_web_type_app_engine_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -37699,7 +37699,7 @@
       {
         "type": "google_kms_crypto_key_iam_binding",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -37712,7 +37712,7 @@
       {
         "type": "google_kms_crypto_key_iam_member",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -37725,7 +37725,7 @@
       {
         "type": "google_kms_crypto_key_iam_policy",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -37842,7 +37842,7 @@
       {
         "type": "google_kms_key_ring_iam_binding",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -37855,7 +37855,7 @@
       {
         "type": "google_kms_key_ring_iam_member",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -37868,7 +37868,7 @@
       {
         "type": "google_kms_key_ring_iam_policy",
         "tier": "record-carried",
-        "status": "needs-evidence",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -42394,11 +42394,11 @@
       },
       {
         "type": "google_spanner_database_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -42407,11 +42407,11 @@
       },
       {
         "type": "google_spanner_database_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -42420,11 +42420,11 @@
       },
       {
         "type": "google_spanner_database_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -42461,11 +42461,11 @@
       },
       {
         "type": "google_spanner_instance_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -42474,11 +42474,11 @@
       },
       {
         "type": "google_spanner_instance_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -42487,11 +42487,11 @@
       },
       {
         "type": "google_spanner_instance_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -43439,11 +43439,11 @@
       },
       {
         "type": "google_vertex_ai_feature_online_store_featureview_iam_binding",
-        "tier": "declaration-carried",
-        "status": "in-contract",
+        "tier": "record-carried",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
-          "admitted": true,
+          "admitted": false,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -43452,11 +43452,11 @@
       },
       {
         "type": "google_vertex_ai_feature_online_store_featureview_iam_member",
-        "tier": "declaration-carried",
-        "status": "in-contract",
+        "tier": "record-carried",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
-          "admitted": true,
+          "admitted": false,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -43465,11 +43465,11 @@
       },
       {
         "type": "google_vertex_ai_feature_online_store_featureview_iam_policy",
-        "tier": "declaration-carried",
-        "status": "in-contract",
+        "tier": "record-carried",
+        "status": "pending-ratification",
         "facts": {
           "taggable": false,
-          "admitted": true,
+          "admitted": false,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,

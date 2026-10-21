@@ -9247,26 +9247,26 @@
       {
         "tier": "declaration-carried",
         "counts": [
-          857,
+          887,
           28,
           0,
           0,
           0,
           0
         ],
-        "total": 885
+        "total": 915
       },
       {
         "tier": "record-carried",
         "counts": [
           0,
-          15,
+          36,
           0,
-          115,
+          64,
           150,
           0
         ],
-        "total": 280
+        "total": 250
       },
       {
         "tier": "excluded by design",
@@ -9282,10 +9282,10 @@
       }
     ],
     "column_totals": [
-      1158,
-      52,
+      1188,
+      73,
       0,
-      125,
+      74,
       150,
       0
     ],
@@ -9306,7 +9306,7 @@
       {
         "path": "parent-derived",
         "tier": "declaration-carried",
-        "count": 558,
+        "count": 588,
         "means": "Composed over a containing resource the configuration also names; every IAM type is this shape."
       },
       {
@@ -9330,7 +9330,7 @@
       {
         "path": "unbindable",
         "tier": "record-carried",
-        "count": 130,
+        "count": 100,
         "means": "No row and no identity-schema route; a record is the only copy."
       }
     ],
@@ -10283,21 +10283,18 @@
       },
       {
         "type": "google_bigquery_dataset_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_bigquery_dataset_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_bigquery_dataset_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_bigquery_job",
@@ -10388,21 +10385,18 @@
       },
       {
         "type": "google_bigtable_instance_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_bigtable_instance_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_bigtable_instance_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_bigtable_logical_view",
@@ -12749,21 +12743,18 @@
       },
       {
         "type": "google_dataproc_cluster_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_cluster_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_cluster_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_gdc_application_environment",
@@ -12788,39 +12779,33 @@
       },
       {
         "type": "google_dataproc_job_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_job_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_job_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_metastore_database_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_metastore_database_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_metastore_database_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_metastore_federation",
@@ -12864,21 +12849,18 @@
       },
       {
         "type": "google_dataproc_metastore_table_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_metastore_table_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_metastore_table_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dataproc_session_template",
@@ -13942,20 +13924,20 @@
       {
         "type": "google_healthcare_dataset_iam_binding",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_healthcare_dataset_iam_member",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_healthcare_dataset_iam_policy",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_healthcare_dicom_store",
@@ -13966,20 +13948,20 @@
       {
         "type": "google_healthcare_dicom_store_iam_binding",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_healthcare_dicom_store_iam_member",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_healthcare_dicom_store_iam_policy",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_healthcare_fhir_store",
@@ -13990,20 +13972,20 @@
       {
         "type": "google_healthcare_fhir_store_iam_binding",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_healthcare_fhir_store_iam_member",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_healthcare_fhir_store_iam_policy",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_healthcare_hl7_v2_store",
@@ -14014,20 +13996,20 @@
       {
         "type": "google_healthcare_hl7_v2_store_iam_binding",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_healthcare_hl7_v2_store_iam_member",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_healthcare_hl7_v2_store_iam_policy",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_healthcare_pipeline_job",
@@ -14236,39 +14218,33 @@
       },
       {
         "type": "google_iap_app_engine_service_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_iap_app_engine_service_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_iap_app_engine_service_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_iap_app_engine_version_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_iap_app_engine_version_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_iap_app_engine_version_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_iap_location_web_iam_binding",
@@ -14432,21 +14408,18 @@
       },
       {
         "type": "google_iap_web_type_app_engine_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_iap_web_type_app_engine_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_iap_web_type_app_engine_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_iap_web_type_compute_iam_binding",
@@ -14544,20 +14517,20 @@
       {
         "type": "google_kms_crypto_key_iam_binding",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_kms_crypto_key_iam_member",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_kms_crypto_key_iam_policy",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_kms_crypto_key_version",
@@ -14603,20 +14576,20 @@
       {
         "type": "google_kms_key_ring_iam_binding",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_kms_key_ring_iam_member",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_kms_key_ring_iam_policy",
         "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_kms_key_ring_import_job",
@@ -16380,21 +16353,18 @@
       },
       {
         "type": "google_spanner_database_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_spanner_database_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_spanner_database_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_spanner_instance",
@@ -16408,21 +16378,18 @@
       },
       {
         "type": "google_spanner_instance_iam_binding",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_spanner_instance_iam_member",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_spanner_instance_iam_policy",
-        "tier": "record-carried",
-        "status": "needs-evidence",
-        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_spanner_instance_partition",
@@ -16800,18 +16767,21 @@
       },
       {
         "type": "google_vertex_ai_feature_online_store_featureview_iam_binding",
-        "tier": "declaration-carried",
-        "status": "in-contract"
+        "tier": "record-carried",
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_vertex_ai_feature_online_store_featureview_iam_member",
-        "tier": "declaration-carried",
-        "status": "in-contract"
+        "tier": "record-carried",
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_vertex_ai_feature_online_store_featureview_iam_policy",
-        "tier": "declaration-carried",
-        "status": "in-contract"
+        "tier": "record-carried",
+        "status": "pending-ratification",
+        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
       },
       {
         "type": "google_vertex_ai_feature_online_store_iam_binding",
