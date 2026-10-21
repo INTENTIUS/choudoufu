@@ -445,13 +445,13 @@
         },
         "day2_remove": {
           "pass": 0,
-          "fail": 0,
-          "not_run": 2
+          "fail": 1,
+          "not_run": 1
         },
         "day2_rename": {
-          "pass": 0,
+          "pass": 1,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "day2_replace": {
           "pass": 0,
@@ -464,9 +464,9 @@
           "not_run": 2
         },
         "drift_reconverge": {
-          "pass": 0,
-          "fail": 1,
-          "not_run": 1
+          "pass": 2,
+          "fail": 0,
+          "not_run": 0
         },
         "greenfield": {
           "pass": 0,
@@ -484,9 +484,9 @@
           "not_run": 2
         },
         "plan_approval": {
-          "pass": 0,
-          "fail": 0,
-          "not_run": 2
+          "pass": 1,
+          "fail": 1,
+          "not_run": 0
         },
         "strict": {
           "pass": 0,
@@ -494,13 +494,13 @@
           "not_run": 2
         },
         "test_apply": {
-          "pass": 1,
+          "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "test_plan": {
-          "pass": 1,
-          "fail": 1,
+          "pass": 2,
+          "fail": 0,
           "not_run": 0
         }
       }
@@ -1174,37 +1174,51 @@
         "day2_rename": "not_run",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
+        "drift_reconverge": "pass",
         "greenfield": "not_run",
         "migrate": "pass",
         "no_local_state": "not_run",
-        "plan_approval": "not_run",
+        "plan_approval": "fail",
         "strict": "not_run",
-        "test_apply": "not_run",
-        "test_plan": "fail"
+        "test_apply": "pass",
+        "test_plan": "pass"
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
-          "date": "2026-10-21T03:22:06Z",
-          "seconds": 73
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:04:05Z",
+          "seconds": 71
+        },
+        "drift_reconverge": {
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:04:05Z",
+          "seconds": 5
         },
         "migrate": {
-          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
-          "date": "2026-10-21T03:22:06Z",
-          "seconds": 6
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:04:05Z",
+          "seconds": 4
+        },
+        "plan_approval": {
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:04:05Z"
+        },
+        "test_apply": {
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:04:05Z",
+          "seconds": 2
         },
         "test_plan": {
-          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
-          "date": "2026-10-21T03:22:06Z",
-          "seconds": 2
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:04:05Z",
+          "seconds": 1
         }
       },
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
-        "date": "2026-10-21T03:22:06Z",
+        "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+        "date": "2026-10-21T04:04:05Z",
         "substrate_image": "ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8",
         "oracle": {
           "terraform": "1.15.8",
@@ -1214,14 +1228,20 @@
         "exit_code": 1,
         "detail": {
           "cold_deploy": "3 resources (an azapi resource group, an azurerm user-assigned identity, an azapi role assignment granting it AcrPull, read through data \"azurerm_role_definition\") from plain terraform on the published root plus its deltas (the lane's provider pins, the endpoint lock in both provider blocks) against floci-az ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8; a real terraform.tfstate with 3 managed instances, zero tofu-estate tags read back through ARM, the role assignment answering at its id; the identical root cold-deployed by stock on a second container as every later stage's oracle",
+          "drift_reconverge": "a tag added to the identity with an ARM GET and PUT; choudoufu proposed exactly azurerm_user_assigned_identity.uai (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle container for the same tamper; apply changed 1 and the tag is gone, read through ARM. BREAK=1 tampers the resource group too and the single-resource assertion correctly fails",
           "migrate": "2 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped; both taggable resources (the resource group and the identity) carry tofu-estate=corpus-azapi-role-assignment, read back through ARM, and the role assignment, which has no tags at any API version, is the 1 skipped and is held by its record",
-          "test_plan": "the plan with no state file is not empty or failed (Plan: 1 to import, 0 to add, 0 to change, 0 to destroy; first Error: line: \"\") or an id did not answer as itself (none); the plan warned \"Azure sweep unavailable\" (lex00/floci-az#11: the sweep's KQL is outside floci-az's subset), so the sweep was incomplete"
+          "plan_approval": "plan -out failed",
+          "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); resources carrying tofu-estate=corpus-azapi-role-assignment unchanged at 2, read through ARM",
+          "test_plan": "the plan with no state file is empty; all 3 ARM ids answer a GET with the same id, compared case-insensitively; the plan warned \"Azure sweep unavailable\" (lex00/floci-az#11: the sweep's KQL is outside floci-az's subset), so the sweep was incomplete"
         },
-        "duration_s": 85.9,
+        "duration_s": 83.7,
         "stage_seconds": {
-          "cold_deploy": 73,
-          "migrate": 6,
-          "test_plan": 2
+          "cold_deploy": 71,
+          "drift_reconverge": 5,
+          "migrate": 4,
+          "plan_approval": 0,
+          "test_apply": 2,
+          "test_plan": 1
         }
       }
     },
@@ -4222,50 +4242,66 @@
         "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
-        "day2_remove": "not_run",
-        "day2_rename": "not_run",
+        "day2_remove": "fail",
+        "day2_rename": "pass",
         "day2_replace": "not_run",
         "day2_teardown": "not_run",
-        "drift_reconverge": "fail",
+        "drift_reconverge": "pass",
         "greenfield": "not_run",
         "migrate": "pass",
         "no_local_state": "not_run",
-        "plan_approval": "not_run",
+        "plan_approval": "pass",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
       },
       "stage_runs": {
         "cold_deploy": {
-          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
-          "date": "2026-10-21T03:22:52Z",
-          "seconds": 113
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:05:51Z",
+          "seconds": 110
+        },
+        "day2_remove": {
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:05:51Z",
+          "seconds": 3
+        },
+        "day2_rename": {
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:05:51Z",
+          "seconds": 8
         },
         "drift_reconverge": {
-          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
-          "date": "2026-10-21T03:22:52Z"
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:05:51Z",
+          "seconds": 29
         },
         "migrate": {
-          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
-          "date": "2026-10-21T03:22:52Z",
-          "seconds": 16
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:05:51Z",
+          "seconds": 22
+        },
+        "plan_approval": {
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:05:51Z",
+          "seconds": 11
         },
         "test_apply": {
-          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
-          "date": "2026-10-21T03:22:52Z",
-          "seconds": 2
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:05:51Z",
+          "seconds": 4
         },
         "test_plan": {
-          "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
-          "date": "2026-10-21T03:22:52Z",
-          "seconds": 1
+          "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+          "date": "2026-10-21T04:05:51Z",
+          "seconds": 2
         }
       },
       "clear": false,
       "protocol": "gauntlet",
       "last_run": {
-        "commit": "9906fb0e962e9aa6b73a9cc7b4e9b5a3c7d0c21d",
-        "date": "2026-10-21T03:22:52Z",
+        "commit": "48eb5f62a9b5aca039ec7f9387b613843fb301ba",
+        "date": "2026-10-21T04:05:51Z",
         "substrate_image": "ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8",
         "oracle": {
           "terraform": "1.15.8",
@@ -4275,18 +4311,24 @@
         "exit_code": 1,
         "detail": {
           "cold_deploy": "11 resources (resource group, VNet, subnet, NSG, NSG rule, storage account, identity, public IP, two count identities, and one azapi_resource identity) from plain terraform against floci-az ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8, a real terraform.tfstate with 11 instances, zero tofu-estate tags read back through ARM; the identical shape cold-deployed by stock on a second container as every later stage's oracle",
-          "drift_reconverge": "could not tamper the VNet on A",
+          "day2_remove": "the plan does not destroy azurerm_public_ip.app",
+          "day2_rename": "a moved block renamed the identity's block app -> team: 0 add, 1 in-place change, 0 destroy, the change being the tofu-address tag, which reads azurerm_user_assigned_identity.team through ARM afterwards; stock with the same moved block planned zero churn on the oracle. BREAK=1 changes the identity's own name and the zero-churn assertion correctly fails",
+          "drift_reconverge": "a tag added to the VNet with an ARM GET and PUT; choudoufu proposed exactly azurerm_virtual_network.app (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle container for the same tamper; apply changed 1 and the tag is gone, read through ARM. BREAK=1 tampers a second resource and the single-resource assertion correctly fails",
           "migrate": "9 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 2 skipped; all 9 taggable resources carry tofu-estate=reference-azure, read back through ARM; the 2 skipped are the subnet and the NSG rule, which have no tags argument",
+          "plan_approval": "plan -out wrote one update (the identity gains tags reviewed=yes); the world then moved out of band (a stray tag on shard 0, an ARM PUT) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied; with the tag removed the identical file applied, 0 added, 1 changed, 0 destroyed; stock's own planfile applied on the oracle container in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails",
           "test_apply": "no-op apply (0 added, 0 changed, 0 destroyed); resources carrying tofu-estate=reference-azure unchanged at 9, read through ARM",
           "test_plan": "the plan with no state file is empty; all 11 ARM ids answer a GET with the same id, compared case-insensitively"
         },
-        "duration_s": 131.8,
+        "duration_s": 189.7,
         "stage_seconds": {
-          "cold_deploy": 113,
-          "drift_reconverge": 0,
-          "migrate": 16,
-          "test_apply": 2,
-          "test_plan": 1
+          "cold_deploy": 110,
+          "day2_remove": 3,
+          "day2_rename": 8,
+          "drift_reconverge": 29,
+          "migrate": 22,
+          "plan_approval": 11,
+          "test_apply": 4,
+          "test_plan": 2
         }
       }
     },
