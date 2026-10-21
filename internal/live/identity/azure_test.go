@@ -630,3 +630,54 @@ resource "azapi_resource" "x" {
 		t.Errorf("no default_name on the block's provider: %q, want the missing-name refusal", errs)
 	}
 }
+
+// GitHub issue #2142's Azure audit: a type the configuration states
+// through a variable's default, a local, or a sibling azapi_resource's own
+// type argument is known before apply, as stock knows it at plan, and
+// resolves; only one this configuration cannot state is refused
+// ([TestAzapiTypeMustBeKnown]).
+func TestAzapiTypeReadFromConfiguration(t *testing.T) {
+	const vnet = "/subscriptions/" + azureSub + "/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/n"
+	for name, body := range map[string]string{
+		"variable default": `
+variable "t" {
+  type    = string
+  default = "Microsoft.Network/virtualNetworks@2024-01-01"
+}
+resource "azapi_resource" "x" {
+  type      = var.t
+  parent_id = "/subscriptions/` + azureSub + `/resourceGroups/rg"
+  name      = "n"
+}`,
+		"local in a template": `
+locals {
+  v = "2024-01-01"
+}
+resource "azapi_resource" "x" {
+  type      = "Microsoft.Network/virtualNetworks@${local.v}"
+  parent_id = "/subscriptions/` + azureSub + `/resourceGroups/rg"
+  name      = "n"
+}`,
+		"a sibling's type argument": `
+resource "azapi_resource" "a" {
+  type      = "Microsoft.Network/virtualNetworks@2024-01-01"
+  parent_id = "/subscriptions/` + azureSub + `/resourceGroups/rg"
+  name      = "a"
+}
+resource "azapi_resource" "x" {
+  type      = azapi_resource.a.type
+  parent_id = "/subscriptions/` + azureSub + `/resourceGroups/rg"
+  name      = "n"
+}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			result, errs := resolveAzure(t, azureProviders+body)
+			if errs != "" {
+				t.Fatalf("refused: %s", errs)
+			}
+			if got := azureResolution(t, result, "azapi_resource.x"); got.Class != ClassConcrete || got.ImportID != vnet {
+				t.Errorf("azapi_resource.x = %s, want CONCRETE %s", got, vnet)
+			}
+		})
+	}
+}
