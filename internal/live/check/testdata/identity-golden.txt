@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=726 instances=2523
-# shape: class CONCRETE=1569
+# shape: dirs=727 instances=2524
+# shape: class CONCRETE=1570
 # shape: class NEEDS_DISCOVERY=789
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=695 fixture-instances=1819
+# shape: fixture-dirs=696 fixture-instances=1820
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=b3df4cb76383fd64c3e48834d1a0d9afaab151dbb65976d9ea3d111df9bed387
+# shape: body-sha256=c82d6bc8734729768b4e3135ef0f896f7e3da05040ffec60a960e5c2036100fb
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -1690,6 +1690,7 @@ internal/live/projection/testdata/record-parent-derived	null_resource.suffix	REC
 internal/live/projection/testdata/two-region	aws_cloudwatch_log_group.east	CONCRETE	/app/logs	name=/app/logs
 internal/live/projection/testdata/two-region	aws_cloudwatch_log_group.west	CONCRETE	/app/logs	name=/app/logs
 internal/live/projection/testdata/unrecorded-google-firewall	google_compute_firewall.ssh	CONCRETE	projects/broadcom-451918/global/firewalls/allow-ssh	name=allow-ssh,project=broadcom-451918
+internal/live/projection/testdata/unrecorded-google-firewall-moved	google_compute_firewall.ssh	CONCRETE	projects/broadcom-451918/global/firewalls/allow-ssh	name=allow-ssh,project=broadcom-451918
 internal/live/providerscope/testdata/aliased-parent	module.east.aws_s3_bucket.data	CONCRETE	east-bucket	bucket=east-bucket
 internal/live/providerscope/testdata/aliased-parent	module.west.aws_s3_bucket.data	CONCRETE	west-bucket	bucket=west-bucket
 internal/live/providerscope/testdata/aliased-parent/vpc	aws_s3_bucket.data	CONCRETE	east-bucket	bucket=east-bucket
