@@ -40,7 +40,8 @@ func (cred *adoAuth) Construct(ctx context.Context, config *Config) (azcore.Toke
 		config.ADOServiceConnectionId,
 		config.OIDCRequestToken,
 		&azidentity.AzurePipelinesCredentialOptions{
-			ClientOptions: clientOptions(httpclient.New(ctx), config.CloudConfig),
+			ClientOptions:            clientOptions(httpclient.New(ctx), config.CloudConfig),
+			DisableInstanceDiscovery: instanceDiscoveryOff(config),
 		},
 	)
 }
