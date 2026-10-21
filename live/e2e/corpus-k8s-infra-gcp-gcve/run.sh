@@ -20,19 +20,15 @@
 # k8s.io GCP roots call (nine of the eighteen), so how this estate fares is
 # how most of that corpus fares.
 #
-# THE WALL THIS ESTATE MEETS, kept rather than pruned. `choudoufu
-# live-check` on the root as this script writes it, offline, with the
-# modules installed, refuses it: "Module output not supported in static
-# context" at projects_iam/main.tf:33 and :52, the two for_each blocks that
-# read module.helper.set_authoritative and set_additive (live/LIMITATIONS.md
-# carries the rule). The helper's outputs are pure functions of the
-# module's inputs, so stock plans them; identity resolution evaluates
-# for_each statically and cannot. This is choudoufu's wall, not the
-# emulator's, and the corpus convention is to keep such a wall and let the
-# stage that meets it fail with its name (corpus-cncf-k8s-infra-aws-capa-ami
-# kept #301 the same way). Until it is fixed, migrate reads fail with the
-# refusal and the script stops there; the stages after it are written
-# against what the shape should do once the wall is gone.
+# THE WALL THIS ESTATE MET, now lifted. `choudoufu live-check` on the root
+# as this script writes it, offline with the modules installed, refused it:
+# "Module output not supported in static context" at projects_iam/main.tf:33
+# and :52, the two for_each blocks that read module.helper.set_authoritative
+# and set_additive. The helper's outputs are pure functions of the module's
+# inputs, so stock plans them; the key-set chase did not follow a module
+# output (#2142). #2143 fixed that, and on gcp-lane after merging it
+# live-check resolves all 16 instances with no refusal (2026-10-20). The
+# stages after migrate were written against the wall-free shape and now run.
 #
 # The deltas, each the kind every corpus crossing applies:
 #
