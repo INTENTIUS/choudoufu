@@ -313,6 +313,20 @@ On the floci-eks substrate: Not run on this substrate; the stage is reference-gc
 
 On the floci-gcp substrate: Run by reference-gcp only, last, in a scratch estate of its own, on scratch global and regional internet NEGs, which a NEG and its endpoints carry no label for, so the record alone claims them. The pinned image (641e6e8) serves global and regional internet NEGs, which lex00/floci-gcp#26 added; on an image without them the stage fails at stock's own create on the oracle emulator, naming #26.
 
+### 17. Records in a GCS bucket (`record_store_gcs`, planned, not part of the headline bars)
+
+Proves: record_store "gcs" works against a Cloud Storage endpoint: a migration writes every record to the bucket and nothing local, an apply adds a record, the replan and the plan with no state cache are empty on the bucket's records alone, two applies racing to create one record land exactly one and refuse the other with the store's write conflict (the create-only ifGenerationMatch=0 write), and removing every block destroys what the records claim. Run by reference-gcp only, last and in a scratch estate of its own; not part of the headline bars.
+
+Oracle: Stock's own state for the migration's source (stock creates the scratch shape first), the bucket's objects read with the JSON API behind the tool's back, and an empty plan with no local state; the race has no stock equivalent, and its oracle is the store's documented contract: one conditional create lands and the other answers 412.
+
+Break: Delete one unlabelled object's record from the bucket before the plan with no state cache; that plan must then not be empty, and the stage must fail.
+
+On the floci-az substrate: Not run on this substrate; the stage is reference-gcp's, on floci-gcp's Cloud Storage.
+
+On the floci-eks substrate: Not run on this substrate; the stage is reference-gcp's.
+
+On the floci-gcp substrate: Run by reference-gcp only, last, against emulator A's Cloud Storage through record_store "gcs"'s storage_custom_endpoint: the bucket is made with the REST API to the contract's four settings, the records are listed with the JSON API, and the race is two applies of one estate on one bucket. The pinned image (641e6e8) serves every call the store makes, read from its source; no open floci-gcp issue is on the stage's path. lex00/floci-gcp#32 (an object request in a missing bucket answers "Object not found" where GCS says the bucket does not exist) is off it, since the stage never deletes its bucket mid-run.
+
 ## The plan-fidelity contract
 
 What every stage above adds up to, stated as one promise: an equal plan, or
@@ -519,7 +533,7 @@ minimal fixture straight off the admission table, one resource block per
 type, required arguments only, and `live/cohort-acceptance.json` measures
 its round-trip identity against the emulator - the whole product claim for
 that type, at the cost of an apply and a replan rather than a full estate's
-16 stages on every future run. A type already in
+17 stages on every future run. A type already in
 `types_in_no_cohort` is still a cohort's job to pick up, seeding or
 extending one with `-types`, not an estate's.
 

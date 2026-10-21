@@ -222,3 +222,30 @@ func TestDay2EndpointsIsAKnownPlannedStage(t *testing.T) {
 		t.Errorf("day2_endpoints does not name lex00/floci-gcp#26 and #2145 item 6: %q / %q", note, s.Proves)
 	}
 }
+
+// record_store_gcs is registered planned and not headline, as
+// day2_endpoints is: reference-gcp's verdict line for it is a known stage
+// the runner records, and no bar or active-stage list moves. Its floci-gcp
+// note names the issue filed beside it. Red before the registration: the
+// parse reported it in Unknown.
+func TestRecordStoreGCSIsAKnownPlannedStage(t *testing.T) {
+	res, err := ParseProtocol(strings.NewReader("GAUNTLET protocol=1\nGAUNTLET stage=record_store_gcs verdict=fail detail=x\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Unknown) != 0 || res.Stages["record_store_gcs"] != VerdictFail {
+		t.Fatalf("record_store_gcs parsed as unknown %v, stages %v", res.Unknown, res.Stages)
+	}
+	s, ok := StageByID("record_store_gcs")
+	if !ok || s.Status != StatusPlanned || s.Headline {
+		t.Fatalf("record_store_gcs registered as %+v, want planned and not headline", s)
+	}
+	for _, a := range ActiveStages() {
+		if a.ID == "record_store_gcs" {
+			t.Error("record_store_gcs is active; every estate would be held to a stage only reference-gcp runs")
+		}
+	}
+	if note := s.Substrates[SubstrateFlociGCP]; !strings.Contains(note, "lex00/floci-gcp#32") {
+		t.Errorf("record_store_gcs's floci-gcp note does not name lex00/floci-gcp#32: %q", note)
+	}
+}

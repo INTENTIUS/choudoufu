@@ -222,6 +222,19 @@ func registeredStages() []Stage {
 			Oracle: "Stock's own import of each endpoint on the oracle with the import id choudoufu renders, the unset field an empty segment (project/neg/ip//port), followed by stock's empty plan; and stock's create and removal of the same scratch blocks, compared by count.",
 			Break:  "Hand stock the import id with the empty segment collapsed, the rendering before item 6; the import must fail and the stage with it.",
 		},
+		{
+			// Planned and not headline, for day2_endpoints' reasons: only
+			// reference-gcp runs it, last and in a scratch estate of its own,
+			// so a gap in the store or in the emulator's storage can never
+			// decide a headline verdict. Every other GCP stage keeps its
+			// records in record_store "local", so before this stage the
+			// lane's green runs never exercised the store the GCS contract
+			// page documents.
+			ID: "record_store_gcs", Order: 17, Title: "Records in a GCS bucket", Status: StatusPlanned, Headline: false,
+			Proves: "record_store \"gcs\" works against a Cloud Storage endpoint: a migration writes every record to the bucket and nothing local, an apply adds a record, the replan and the plan with no state cache are empty on the bucket's records alone, two applies racing to create one record land exactly one and refuse the other with the store's write conflict (the create-only ifGenerationMatch=0 write), and removing every block destroys what the records claim. Run by reference-gcp only, last and in a scratch estate of its own; not part of the headline bars.",
+			Oracle: "Stock's own state for the migration's source (stock creates the scratch shape first), the bucket's objects read with the JSON API behind the tool's back, and an empty plan with no local state; the race has no stock equivalent, and its oracle is the store's documented contract: one conditional create lands and the other answers 412.",
+			Break:  "Delete one unlabelled object's record from the bucket before the plan with no state cache; that plan must then not be empty, and the stage must fail.",
+		},
 	}
 	for i := range stages {
 		for substrate, notes := range map[string]map[string]string{SubstrateFlociEKS: flociEKSNotes, SubstrateFlociGCP: flociGCPNotes} {
@@ -283,6 +296,7 @@ var flociAzNotes = map[string]string{
 	"strict":           "As on floci; the toggles are substrate-neutral. The scratch estate's record store is the lane's own, a blob container.",
 	"no_local_state":   "Records live in the record store, record_store \"azurerm\" on floci-az blob storage, so the only local artifact is the state cache, and it is what is deleted; no local record directory exists to delete. Every taggable resource must then be found by its marker, read at its declared ARM id with the Resource Graph sweep (whose query floci-az serves since dfa33ca, lex00/floci-az#11) finding anything the configuration no longer declares, and every untaggable one through its record in the container, with nothing created, destroyed or replaced. The plan call counts are each estate's own reading, named in its verdict: requests floci-az served between two marks in its access log, or the providers' request lines under TF_LOG=DEBUG.",
 	"day2_endpoints":   "Not run on this substrate; the stage is reference-gcp's (#2145 item 6).",
+	"record_store_gcs": "Not run on this substrate; the stage is reference-gcp's, on floci-gcp's Cloud Storage.",
 }
 
 // flociGCPNotes is how each stage reads on SubstrateFlociGCP (#1119): a
@@ -311,6 +325,7 @@ var flociGCPNotes = map[string]string{
 	"greenfield":       "Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with labels and server-set fields normalised out; one emulator hosts both, in sequence.",
 	"strict":           "As on floci; the toggles name a google type.",
 	"day2_endpoints":   "Run by reference-gcp only, last, in a scratch estate of its own, on scratch global and regional internet NEGs, which a NEG and its endpoints carry no label for, so the record alone claims them. The pinned image (641e6e8) serves global and regional internet NEGs, which lex00/floci-gcp#26 added; on an image without them the stage fails at stock's own create on the oracle emulator, naming #26.",
+	"record_store_gcs": "Run by reference-gcp only, last, against emulator A's Cloud Storage through record_store \"gcs\"'s storage_custom_endpoint: the bucket is made with the REST API to the contract's four settings, the records are listed with the JSON API, and the race is two applies of one estate on one bucket. The pinned image (641e6e8) serves every call the store makes, read from its source; no open floci-gcp issue is on the stage's path. lex00/floci-gcp#32 (an object request in a missing bucket answers \"Object not found\" where GCS says the bucket does not exist) is off it, since the stage never deletes its bucket mid-run.",
 	"no_local_state":   "The labelled objects are found by their labels. A markerless object is claimed only by its record (option A, #2152), so with the record store gone the plan refuses each one at a held name by name and stops; with the record store put back and the cache still gone the plan is empty. The request count is hashicorp/google's own, read from TF_LOG=debug's request blocks.",
 }
 
@@ -338,6 +353,7 @@ var flociEKSNotes = map[string]string{
 	"greenfield":       "Both legs are compared against stock's cold deploy: AWS objects as on floci, cluster objects as on kind. A greenfield plan starts with no cluster, so the kubernetes provider's sweep reads that leg as empty by construction, stock's order, and the apply configures the provider once the cluster exists.",
 	"strict":           "As on floci; the toggles apply to both legs alike.",
 	"day2_endpoints":   "Not run on this substrate; the stage is reference-gcp's (#2145 item 6).",
+	"record_store_gcs": "Not run on this substrate; the stage is reference-gcp's.",
 	"no_local_state":   "Both legs lose their local record store and state cache together. The AWS leg's objects are found by their markers as on floci; the cluster leg's by their tofu-estate label, through a kubernetes provider configured from the cluster this plan reads live, so the plan also shows the provider block needs nothing local.",
 }
 

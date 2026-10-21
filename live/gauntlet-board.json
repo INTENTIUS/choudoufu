@@ -7,7 +7,7 @@
   "provider_banner": "Estates were last measured against different hashicorp/aws versions: 20 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 17 against `3.2.1` (current pin), 3 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
   "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 46 estates measured so far, 46 recorded running on it.",
-  "stage_count": 16,
+  "stage_count": 17,
   "stages": [
     {
       "id": "cold_deploy",
@@ -184,6 +184,17 @@
       "headline_cell": "no",
       "proves_first": "A network endpoint whose identity names an optional field the block leaves unset (#2145 item 6: a global or regional internet NEG endpoint with only ip_address or only fqdn) is created, replans empty with and without the state cache, is bound by its record, and is destroyed on removal exactly as stock destroys it.",
       "proves": "A network endpoint whose identity names an optional field the block leaves unset (#2145 item 6: a global or regional internet NEG endpoint with only ip_address or only fqdn) is created, replans empty with and without the state cache, is bound by its record, and is destroyed on removal exactly as stock destroys it. Run by reference-gcp only, last and in a scratch estate of its own (its own roots, record store and network), so it never touches the estate the headline stages measure; not part of the headline bars."
+    },
+    {
+      "id": "record_store_gcs",
+      "order": 17,
+      "title": "Records in a GCS bucket",
+      "status": "planned",
+      "headline": false,
+      "tier1_gated": false,
+      "headline_cell": "no",
+      "proves_first": "record_store \"gcs\" works against a Cloud Storage endpoint: a migration writes every record to the bucket and nothing local, an apply adds a record, the replan and the plan with no state cache are empty on the bucket's records alone, two applies racing to create one record land exactly one and refuse the other with the store's write conflict (the create-only ifGenerationMatch=0 write), and removing every block destroys what the records claim.",
+      "proves": "record_store \"gcs\" works against a Cloud Storage endpoint: a migration writes every record to the bucket and nothing local, an apply adds a record, the replan and the plan with no state cache are empty on the bucket's records alone, two applies racing to create one record land exactly one and refuse the other with the store's write conflict (the create-only ifGenerationMatch=0 write), and removing every block destroys what the records claim. Run by reference-gcp only, last and in a scratch estate of its own; not part of the headline bars."
     }
   ],
   "estates": [
@@ -325,6 +336,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -468,6 +484,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -610,6 +631,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -750,6 +776,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -893,6 +924,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1034,6 +1070,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -1177,6 +1218,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1318,6 +1364,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -1461,6 +1512,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1602,6 +1658,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -1745,6 +1806,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1886,6 +1952,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -2029,6 +2100,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2169,6 +2245,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -2312,6 +2393,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2453,6 +2539,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -2596,6 +2687,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2736,6 +2832,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -2879,6 +2980,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3021,6 +3127,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3162,6 +3273,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -3307,6 +3423,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3447,6 +3568,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -3593,6 +3719,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -3743,6 +3874,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3891,6 +4027,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -4041,6 +4182,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4156,6 +4302,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -4306,6 +4457,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4446,6 +4602,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -4596,6 +4757,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4740,6 +4906,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4861,6 +5032,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4974,6 +5150,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -5122,6 +5303,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5268,6 +5454,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -5416,6 +5607,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5562,6 +5758,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -5710,6 +5911,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5856,6 +6062,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -6004,6 +6215,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -6150,6 +6366,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -6298,6 +6519,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -6444,6 +6670,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -6592,6 +6823,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -6738,6 +6974,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]
@@ -6887,6 +7128,11 @@
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -7033,6 +7279,11 @@
         {
           "id": "day2_endpoints",
           "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
           "verdict": "not run"
         }
       ]

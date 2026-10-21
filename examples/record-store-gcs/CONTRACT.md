@@ -101,5 +101,10 @@ default.
 estate's identity, and `iam/example-prod.json` is its output for `prod`.
 `live/STORAGE.md` says what the grant fences and what it does not.
 
-Nothing on this page has been run against real GCS or an emulator yet. The
-store and its checks are tested against a fake of the JSON API.
+Nothing on this page has been run against real GCS. The store and its checks
+are tested against a fake of the JSON API, and reference-gcp's
+`record_store_gcs` gauntlet stage (planned, not headline) runs the store
+against floci-gcp's Cloud Storage: a bucket made to the four settings above, a
+migration, an apply, a plan with no state cache, two applies racing for one
+record, and the removal of every block. The stage exists; its verdict is on the
+board, and this page does not claim it passed.
