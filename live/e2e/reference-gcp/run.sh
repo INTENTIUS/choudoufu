@@ -185,6 +185,11 @@ EOF
 # resource_block writes the ten instances. $1 is the events topic's block
 # name (events, then stream after the rename); $2 is the shard count; $3 is
 # an extra label line for the events topic (plan_approval's reviewed).
+# SA_DISPLAY_LINE is empty unless test_plan found lex00/floci-gcp#24 (see
+# there): then both roots pin the service account's display_name to what
+# the emulator already holds, so the stages after test_plan measure
+# choudoufu and not that one non-converging emulator diff.
+SA_DISPLAY_LINE=""
 resource_block() {
   local topic="${1:-events}" shards="${2:-2}" extra="${3:-}"
   cat <<EOF
@@ -217,6 +222,7 @@ resource "google_compute_firewall" "ssh" {
 resource "google_service_account" "app" {
   project    = "$PROJECT"
   account_id = "refgcp-app"
+$SA_DISPLAY_LINE
 }
 
 resource "google_storage_bucket" "logs" {
@@ -405,11 +411,25 @@ done
 if grep -q "No changes." <<< "$PLAN_OUT" && [ "$IDS_OK" = "1" ]; then
   gauntlet_stage test_plan pass "the plan with no state file is empty; all 10 identities (resource names, projects/$PROJECT/...) confirmed present with the REST API"
 else
-  gauntlet_stage test_plan fail "the plan with no state file is not empty ($(gauntlet_plan_line <<< "$PLAN_OUT")) or an identity is missing (identities confirmed: $IDS_OK;${IDS_MISSING:- none missing})"
-  log "  adopting through choudoufu's own apply so the day-2 stages below run on a labelled estate"
-  ADOPT_OUT="$(apply_a)" || { printf '%s\n' "$ADOPT_OUT" | tail -20; fail "the adopting apply failed"; }
-  REPLAN="$(plan_a)" || fail "the replan after the adopting apply failed"
-  grep -q "No changes." <<< "$REPLAN" || { printf '%s\n' "$REPLAN" | tail -20; fail "the replan after the adopting apply is not empty; nothing below would measure day-2 behaviour"; }
+  if refgcp_display_name_only_diff <<< "$PLAN_OUT"; then
+    gauntlet_stage test_plan fail "the plan with no state file is not empty: its one change is google_service_account.app's display_name going to null, lex00/floci-gcp#24 (the emulator defaults displayName to the account id and its PATCH ignores updateMask, so no apply converges it); every identity confirmed present with the REST API${IDS_MISSING:+ except$IDS_MISSING}"
+    # #24 is the emulator's and no apply converges it, so the later stages
+    # run with display_name pinned in both roots to what the emulator holds.
+    # This verdict stays fail and names #24; each later verdict carries
+    # after_fail=test_plan.
+    log "  lex00/floci-gcp#24: pinning google_service_account.app's display_name in both roots so the stages below measure choudoufu"
+    SA_DISPLAY_LINE='  display_name = "refgcp-app"'
+    write_config "$ADOPTED" live "$EPA"
+    write_config "$ORACLE" stock "$EPB"
+    REPLAN="$(plan_a)" || { printf '%s\n' "$REPLAN" | tail -20; fail "the replan with display_name pinned failed"; }
+    grep -q "No changes." <<< "$REPLAN" || { printf '%s\n' "$REPLAN" | tail -20; fail "the replan with display_name pinned is not empty, so the diff was not only #24; nothing below would measure day-2 behaviour"; }
+  else
+    gauntlet_stage test_plan fail "the plan with no state file is not empty ($(gauntlet_plan_line <<< "$PLAN_OUT")) or an identity is missing (all present: $IDS_OK;${IDS_MISSING:- none missing})"
+    log "  adopting through choudoufu's own apply so the day-2 stages below run on a labelled estate"
+    ADOPT_OUT="$(apply_a)" || { printf '%s\n' "$ADOPT_OUT" | tail -20; fail "the adopting apply failed"; }
+    REPLAN="$(plan_a)" || fail "the replan after the adopting apply failed"
+    grep -q "No changes." <<< "$REPLAN" || { printf '%s\n' "$REPLAN" | tail -20; fail "the replan after the adopting apply is not empty; nothing below would measure day-2 behaviour"; }
+  fi
 fi
 [ "$(count_a)" = "6" ] || fail "$(count_a) object(s) carry tofu-estate=$ESTATE after adoption, want 6"
 
