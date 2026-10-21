@@ -45,7 +45,9 @@ var (
 // file. Nothing is recorded unless the file has exactly one Create, its
 // first create URL is a ReplaceVars template, and one id field it sends
 // names the collection's own resource, from an argument the id format does
-// not already name.
+// not already name. [Source.NameCollection] needs only the first two, a
+// collection path that ends in a literal segment, and an id format that is
+// one placeholder whole.
 func readCreateName(s *Source, text string) {
 	fns := createFuncRe.FindAllStringSubmatch(text, -1)
 	if len(fns) != 1 {
@@ -61,6 +63,9 @@ func readCreateName(s *Source, text string) {
 	resource := collectionResource(path)
 	if resource == "" {
 		return
+	}
+	if ph := placeholders(s.IDFormat); len(ph) == 1 && s.IDFormat == "{{"+ph[0]+"}}" && !strings.HasSuffix(path, "}}") {
+		s.NameCollection = path
 	}
 	param, arg := "", ""
 	for _, kv := range strings.Split(query, "&") {

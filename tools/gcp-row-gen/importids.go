@@ -193,6 +193,13 @@ func decideAsset(t string, sources map[string]Source, facts map[string]TypeFacts
 	for _, c := range cands {
 		if c.Template == path {
 			d.Verdict, d.Row.Import = AssetAsIs, c
+			if src.NameCollection != "" && path == src.IDFormat {
+				// An import form "{{name}}" matches the bare Asset name
+				// textually and says nothing of its shape. The Create's
+				// collection does, and the page must document a name
+				// that shape has ([decideCollection]).
+				return decideCollection(d, src, host, path, names)
+			}
 			return d
 		}
 	}

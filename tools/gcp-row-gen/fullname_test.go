@@ -207,3 +207,53 @@ func resourceVertexAITensorboardImport(d *schema.ResourceData, meta interface{})
 		t.Errorf("project id page: verdict %s, row %+v (%s); want the template as is", d.Verdict, d.Row, d.Reason)
 	}
 }
+
+// TestBareNameByCollection: dataproc_session_template's id format and its
+// import form are both "{{name}}", so its Magic Modules default Asset name
+// //dataproc.googleapis.com/{{name}} matched an import form textually and
+// was taken as is. The name is the one the API gives under the Create's
+// collection, and the row stands only where Google documents an Asset
+// name of that shape: none under sessionTemplates, a project number under
+// it, or a project ID under it.
+func TestBareNameByCollection(t *testing.T) {
+	text := `
+func resourceDataprocSessionTemplateCreate(d *schema.ResourceData, meta interface{}) error {
+	url, err := tpgresource.ReplaceVars(d, config, transport_tpg.BaseUrl(Product, config)+"projects/{{project}}/locations/{{location}}/sessionTemplates")
+	if err != nil {
+		return err
+	}
+
+	// Store the ID now
+	id, err := tpgresource.ReplaceVars(d, config, "{{name}}")
+	if err != nil {
+		return fmt.Errorf("Error constructing id: %s", err)
+	}
+	d.SetId(id)
+	return nil
+}
+`
+	src := resourceSource(text)
+	src.Generation, src.APIService, src.DocImportFormats = "mmv1", "dataproc.googleapis.com", []string{"{{name}}"}
+	if src.IDFormat != "{{name}}" || src.NameCollection != "projects/{{project}}/locations/{{location}}/sessionTemplates" {
+		t.Fatalf("id format %q, name collection %q", src.IDFormat, src.NameCollection)
+	}
+	facts := map[string]TypeFacts{ProviderGoogle: {Attrs: map[string]string{"name": "R", "project": "OC", "location": "R", "labels": "O"}}}
+	page := func(formats ...string) AssetNames {
+		return AssetNames{Types: map[string][]string{"dataproc.googleapis.com/Session": formats}}
+	}
+	other := page("//dataproc.googleapis.com/projects/{PROJECT_ID}/locations/{LOCATION}/sessions/{SESSION}")
+	d := decideAsset("google_dataproc_session_template", map[string]Source{ProviderGoogle: src}, facts, other)
+	if d.Verdict != AssetUnknown || d.Row.Host != "" || !strings.Contains(d.Reason, "no Asset name Google documents under dataproc.googleapis.com has that shape") {
+		t.Errorf("undocumented collection: verdict %s, row %+v (%s); want unknown", d.Verdict, d.Row, d.Reason)
+	}
+	numbered := page("//dataproc.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/sessionTemplates/{SESSION_TEMPLATE}")
+	d = decideAsset("google_dataproc_session_template", map[string]Source{ProviderGoogle: src}, facts, numbered)
+	if d.Verdict != AssetUnknown || !strings.Contains(d.Reason, "a project number is not the project ID") {
+		t.Errorf("project number page: verdict %s, row %+v (%s); want unknown for the project number", d.Verdict, d.Row, d.Reason)
+	}
+	documented := page("//dataproc.googleapis.com/projects/{PROJECT_ID}/locations/{LOCATION}/sessionTemplates/{SESSION_TEMPLATE}")
+	d = decideAsset("google_dataproc_session_template", map[string]Source{ProviderGoogle: src}, facts, documented)
+	if d.Verdict != AssetAsIs || d.Row.Asset != "{{name}}" || d.Row.Import.Template != "{{name}}" {
+		t.Errorf("project id page: verdict %s, row %+v (%s); want {{name}} as is", d.Verdict, d.Row, d.Reason)
+	}
+}

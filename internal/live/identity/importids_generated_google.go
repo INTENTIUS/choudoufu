@@ -11,8 +11,8 @@ package identity
 // google-beta 8.6.0 type whose import form the provider source at the pin
 // states, how a Cloud Asset Inventory hit's name becomes an import ID
 // (INTENTIUS/choudoufu#2139 item 7). Of 318 labelled types (297 served by
-// hashicorp/google), 301 take the Asset path as it is (283), 3 take it
-// rewritten into another accepted form (3), and 14 are unknown (11) and
+// hashicorp/google), 300 take the Asset path as it is (282), 3 take it
+// rewritten into another accepted form (3), and 15 are unknown (12) and
 // have no row: a hit of one is refused by name, never imported with a
 // guessed ID.
 //
@@ -103,7 +103,6 @@ var GoogleAssetImports = map[string]GoogleAssetImport{
 	"google_dataproc_gdc_spark_application":                        {Host: "dataprocgdc.googleapis.com", Asset: "projects/{{project}}/locations/{{location}}/serviceInstances/{{serviceinstance}}/sparkApplications/{{spark_application_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/serviceInstances/{{serviceinstance}}/sparkApplications/{{spark_application_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/serviceInstances/(?P<serviceinstance>[^/]+)/sparkApplications/(?P<spark_application_id>[^/]+)$"}},
 	"google_dataproc_metastore_federation":                         {Host: "metastore.googleapis.com", Asset: "projects/{{project}}/locations/{{location}}/federations/{{federation_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/federations/{{federation_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/federations/(?P<federation_id>[^/]+)$"}},
 	"google_dataproc_metastore_service":                            {Host: "metastore.googleapis.com", Asset: "projects/{{project}}/locations/{{location}}/services/{{service_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/services/{{service_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/services/(?P<service_id>[^/]+)$"}},
-	"google_dataproc_session_template":                             {Host: "dataproc.googleapis.com", Asset: "{{name}}", Import: GoogleImportFormat{Template: "{{name}}"}},
 	"google_dataproc_workflow_template":                            {Host: "dataproc.googleapis.com", Asset: "projects/{{project}}/regions/{{location}}/workflowTemplates/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/workflowTemplates/{{name}}"}},
 	"google_datastream_connection_profile":                         {Host: "datastream.googleapis.com", Asset: "projects/{{project}}/locations/{{location}}/connectionProfiles/{{connection_profile_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/connectionProfiles/{{connection_profile_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/connectionProfiles/(?P<connection_profile_id>[^/]+)$"}},
 	"google_datastream_private_connection":                         {Host: "datastream.googleapis.com", Asset: "projects/{{project}}/locations/{{location}}/privateConnections/{{private_connection_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/privateConnections/{{private_connection_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/privateConnections/(?P<private_connection_id>[^/]+)$"}},
@@ -340,6 +339,7 @@ var GoogleAssetUnknown = map[string]string{
 	"google_dataflow_job":                        "the importer is schema.ImportStatePassthrough and Create sets the id from no ReplaceVars template, so the import ID is the id alone. Google documents the Asset name as //dataflow.googleapis.com/projects/{PROJECT_ID}/locations/{LOCATION}/jobs/{JOB}, and only a real Asset response shows whether {JOB} is the value Create sets. The importer would also drop the name's other parts for the provider's defaults",
 	"google_dataproc_cluster":                    "the provider source states no import format for this type (its documented asset type is dataproc.googleapis.com/Cluster)",
 	"google_dataproc_job":                        "the provider source states no import format for this type (its documented asset type is dataproc.googleapis.com/Job)",
+	"google_dataproc_session_template":           "the import form \"{{name}}\" is the whole name the API gives it under projects/{{project}}/locations/{{location}}/sessionTemplates, and no Asset name Google documents under dataproc.googleapis.com has that shape",
 	"google_project":                             "the provider source states no import format for this type (its documented asset type is cloudresourcemanager.googleapis.com/Project)",
 	"google_recaptcha_enterprise_key":            "no import format carries exactly the parts of the documented Asset name //recaptchaenterprise.googleapis.com/projects/{PROJECT_NUMBER}/keys/{KEY}; a project number is not the project ID the provider's project argument holds",
 	"google_service_directory_namespace":         "the importer takes the whole import ID as name, and Google documents its Asset name as //servicedirectory.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/namespaces/{NAMESPACE}; a project number is not the project ID the provider's project argument holds",
