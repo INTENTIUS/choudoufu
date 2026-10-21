@@ -109,7 +109,7 @@
       "harness": {
         "name": "floci-az",
         "pin_file": "live/floci-az-image",
-        "pin": "ghcr.io/lex00/floci-az@sha256:b63ae3cd37a78a4313e63fe618872b0243ddc9159dc047b67d7ac3a74a7a50ae",
+        "pin": "ghcr.io/lex00/floci-az@sha256:c56ce3e2fb0da9a554cfb6794df912b371c27b1448c979ff2fd4d54cb8d47cd9",
         "notes": "the lex00/floci-az fork, pinned by digest; the azure lane's two estates run on it, and live/FLOCI.md lists what it serves."
       }
     },

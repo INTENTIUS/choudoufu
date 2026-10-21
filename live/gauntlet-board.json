@@ -3355,7 +3355,7 @@
       ],
       "runtime_total": "4m6.1s",
       "runtime_cells": "cold_deploy 1m44s, migrate 6s, test_plan 1s, test_apply 2s, drift_reconverge 6s, day2_rename 8s, day2_remove 8s, day2_count 25s, day2_replace 18s, day2_crash 18s, day2_teardown 3s, plan_approval 6s, greenfield 30s, strict 4s, no_local_state 7s",
-      "last_run_note": "Last run at commit `520d82018b` on 2026-10-21T17:22:10Z, exit code 0, against floci-az image `ghcr.io/lex00/floci-az@sha256:b63ae3cd37a78a4313e63fe618872b0243ddc9159dc047b67d7ac3a74a7a50ae`. Total run time 4m6.1s.",
+      "last_run_note": "Last run at commit `520d82018b` on 2026-10-21T17:22:10Z, exit code 0, against floci-az image `ghcr.io/lex00/floci-az@sha256:b63ae3cd37a78a4313e63fe618872b0243ddc9159dc047b67d7ac3a74a7a50ae`. **Stale**: the current pin is `ghcr.io/lex00/floci-az@sha256:c56ce3e2fb0da9a554cfb6794df912b371c27b1448c979ff2fd4d54cb8d47cd9`. Total run time 4m6.1s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "stage_rows": [
@@ -4350,7 +4350,7 @@
       ],
       "runtime_total": "11m27.2s",
       "runtime_cells": "cold_deploy 2m23s, migrate 18s, test_plan 2s, test_apply 3s, drift_reconverge 26s, day2_rename 8s, day2_remove 29s, day2_count 34s, day2_replace 1m57s, day2_crash 3m0s, day2_teardown 33s, plan_approval 8s, greenfield 48s, strict 33s, no_local_state 5s",
-      "last_run_note": "Last run at commit `520d82018b` on 2026-10-21T17:29:31Z, exit code 0, against floci-az image `ghcr.io/lex00/floci-az@sha256:b63ae3cd37a78a4313e63fe618872b0243ddc9159dc047b67d7ac3a74a7a50ae`. Total run time 11m27.2s.",
+      "last_run_note": "Last run at commit `520d82018b` on 2026-10-21T17:29:31Z, exit code 0, against floci-az image `ghcr.io/lex00/floci-az@sha256:b63ae3cd37a78a4313e63fe618872b0243ddc9159dc047b67d7ac3a74a7a50ae`. **Stale**: the current pin is `ghcr.io/lex00/floci-az@sha256:c56ce3e2fb0da9a554cfb6794df912b371c27b1448c979ff2fd4d54cb8d47cd9`. Total run time 11m27.2s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "stage_rows": [

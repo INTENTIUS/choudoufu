@@ -298,14 +298,15 @@ shape.
 
 The Azure lane (#1120) runs on lex00/floci-az, a fork of floci-io/floci-az,
 pinned by digest in `live/floci-az-image` and started by `azure_up` in
-`live/smoke/lib.sh`. The pin is the fork's main at `0bc398d`, a JVM image
+`live/smoke/lib.sh`. The pin is the fork's main at `7f079c2`, a JVM image
 for linux/amd64 and linux/arm64. Everything below was read from the fork's
 source and docs, not measured, except where a row says a run showed it.
-The gauntlet's two Azure estates ran on the previous pin, `e1def56`
-(2026-10-21); no scenario has booted `0bc398d` yet. It adds the Log
-Analytics workspace key actions (#19) and refuses unknown resource types
-and a Container Apps environment on a missing subnet (#20), none of which
-those estates use.
+The gauntlet's two Azure estates cleared every stage on `0bc398d`
+(2026-10-21); no scenario has booted `7f079c2` yet. It stores subnets
+declared inline in a VNet PUT as child subnets (#21), which reference-azure's
+VNet and subnet reach, and refuses a write naming a missing user-assigned
+identity (#22). It was published through the fork's fast path, which skips
+the fork's own test gate.
 
 **Endpoints.** One port, 4577 in the container, published on a host port
 `azure_up` picks. It serves the ARM management plane, the Entra token
@@ -397,7 +398,7 @@ is on by default.
 **What the pin serves**, against what the lane needs. lex00/floci-az#2
 lists the surfaces; #1 and #3 to #18 are closed at this pin.
 
-| Need | floci-az at 0bc398d |
+| Need | floci-az at 7f079c2 |
 |---|---|
 | Tags round-trip | Kept on every type #3 found dropping them, since 95f1bc9: storage accounts, key vaults, managed HSMs, web apps, API Management, Event Grid topics, Log Analytics workspaces and the two data collection types. Resource groups, network, VMs, AKS, ACR, Redis, SQL, the database servers and managed identities kept them already. Storage account and key vault `PATCH` answer 200, a `tags` object replacing the whole set. Tag names are matched case-insensitively on every ARM write since f954b82 (#15): the request gate folds two spellings of one name into one, keeping the spelling and value written last, so a `PATCH` that respells a name replaces it, as Azure does. Values stay case-sensitive. |
 | Generic resources | A store for every provider namespace no handler declares (27e040b): `PUT`, `GET`, `HEAD`, `PATCH`, `DELETE`, keyed by id case-insensitively, keeping `tags`, `managedBy` and the other envelope fields, listed in `/resources`. Tenant-scoped ids such as `/providers/Microsoft.Management/managementGroups/{name}` and `/providers/Microsoft.Subscription/aliases/{name}` are kept too since d0262c8 (#12), and a resource at a management group's scope needs the group. No server-set property such as `provisioningState` is added. |
@@ -418,7 +419,8 @@ generic resources (#12), the Tags API (#13), `Indexed` on untaggable types
 (#14), case-insensitive tag names (#15), nested deployments (#16) and the
 Key Vault suffix (#17) are closed at `e1def56`; the Log Analytics key
 actions (#19) and the unknown-type and missing-subnet checks (#20) at
-`0bc398d`.
+`0bc398d`; inline VNet subnets (#21) and the missing-identity check (#22)
+at `7f079c2`.
 
 ## Related
 
