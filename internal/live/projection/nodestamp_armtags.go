@@ -324,16 +324,21 @@ func (n *NodeResolver) azapiDefaultTags(addr addrs.AbsResourceInstance, block *c
 	if !azapiShaped(block) || !tags.IsNull() {
 		return tags, true, diags
 	}
-	// armTagTarget reached the top level only with a known type that
-	// parses, so this is the same type and version it checked.
-	armType, apiVersion, _ := armtypes.ParseAzapiType(config.GetAttr(azapiTypeName).AsString())
-	if applies, _ := armtypes.DefaultTagsApply(armType, apiVersion); !applies {
-		return tags, true, diags
-	}
-
 	notKnown := func(why string) (cty.Value, bool, tfdiags.Diagnostics) {
 		return cty.NilVal, false, diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryARMDefaultTagsUnknown, fmt.Sprintf(
 			"%s sets no tags of its own, so azapi sends its provider block's default_tags, and %s. A marker written alone would replace those default tags, so this run has written no ownership marker on it. Set the provider's default_tags from values known before the run (literals, locals, or variables given -var or a tfvars file), or set the resource's own tags argument. The next plan reads it as carrying none.", addr, why)))
+	}
+
+	// armTagTarget reached the top level only with a known type that
+	// parses, so this is the same type and version it checked. A marked
+	// type is refused rather than unmarked: no marker is written.
+	typ := config.GetAttr(azapiTypeName)
+	if typ.IsMarked() {
+		return notKnown("its type argument is sensitive, so this run cannot tell whether that type takes them")
+	}
+	armType, apiVersion, _ := armtypes.ParseAzapiType(typ.AsString())
+	if applies, _ := armtypes.DefaultTagsApply(armType, apiVersion); !applies {
+		return tags, true, diags
 	}
 	val, set, ok := identity.ProviderStaticArgument(context.TODO(), n.Config, addr, "default_tags")
 	switch {
@@ -345,6 +350,9 @@ func (n *NodeResolver) azapiDefaultTags(addr addrs.AbsResourceInstance, block *c
 	m, err := convert.Convert(val, cty.Map(cty.String))
 	if err != nil || m.IsNull() || !m.IsWhollyKnown() {
 		return notKnown("its default_tags is not a map of strings")
+	}
+	if m.ContainsMarked() {
+		return notKnown("its default_tags holds a sensitive value, which must not become a cloud tag")
 	}
 
 	elems := map[string]cty.Value{}

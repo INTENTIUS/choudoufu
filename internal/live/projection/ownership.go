@@ -704,7 +704,10 @@ func (b *builder) overwritesAtKey(addr addrs.AbsResourceInstance, typeName, impo
 // carrier. AddressMarker is false: no tofu-address can be written onto it.
 func (b *builder) overwritesUnrecordedAtKey(addr addrs.AbsResourceInstance, typeName, importID, asked string, obj cty.Value) {
 	own := b.opts.Ownership
-	armType, apiVersion, _ := armtypes.ParseAzapiType(obj.GetAttr(azapiTypeName).AsString())
+	armType, apiVersion := "(a sensitive type)", "(unknown)"
+	if typ := obj.GetAttr(azapiTypeName); !typ.IsMarked() {
+		armType, apiVersion, _ = armtypes.ParseAzapiType(typ.AsString())
+	}
 	var record string
 	if b.opts.RecordStore == nil {
 		record = "Its identity record is the only thing that could say this estate owns it, and this live block declares no record_store, so there is nowhere to keep one: add a record_store to the live block first."
