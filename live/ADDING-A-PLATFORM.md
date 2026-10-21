@@ -216,7 +216,9 @@ failures.
 Fixed: an undeclared object carrying the estate's marker shows up in a plan;
 a sweep failure is a refusal registered in `discovery/refusals.go`. Per
 platform: the call shape and the consistency lag. GCP's is Cloud Asset
-Inventory, and sweep equivalence waits on lex00/floci-gcp#7 (#1121). Azure's
+Inventory (#1121). The pinned floci-gcp image serves its search
+(lex00/floci-gcp#7, closed), and sweep equivalence is unmeasured until a
+gcp-lane run passes. Azure's
 is Resource Graph (#1120 item 3).
 
 ### 9. Record store

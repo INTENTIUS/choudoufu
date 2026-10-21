@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/intentius/choudoufu/internal/live/markers"
 )
 
 // The provider source is read as text. Nothing in it is compiled, imported
@@ -569,10 +571,11 @@ type schemaDump struct {
 }
 
 type jsonAttr struct {
-	Required   bool `json:"required"`
-	Optional   bool `json:"optional"`
-	Computed   bool `json:"computed"`
-	NestedType *struct {
+	Required    bool   `json:"required"`
+	Optional    bool   `json:"optional"`
+	Computed    bool   `json:"computed"`
+	Description string `json:"description"`
+	NestedType  *struct {
 		Attributes map[string]jsonAttr `json:"attributes"`
 	} `json:"nested_type"`
 }
@@ -629,6 +632,9 @@ func extractFacts(schemaFile string) (Facts, error) {
 					}
 					tf.Nested[name] = leaves
 				}
+			}
+			if l, ok := rs.Block.Attributes[markers.GoogleLabelsAttr]; ok && markers.GoogleLabelsPropagate(l.Description) {
+				tf.LabelsPropagate = true
 			}
 			for name, bt := range rs.Block.BlockTypes {
 				if tf.Blocks == nil {

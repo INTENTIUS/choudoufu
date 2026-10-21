@@ -245,7 +245,7 @@ var harnessByFamily = map[string]struct {
 	"google": {
 		Name:    "floci-gcp",
 		PinFile: "live/floci-gcp-image",
-		Notes:   "the lex00/floci-gcp fork's GHCR image pinned by digest; Resource Manager tags, Cloud Asset search and matchTag are still gaps on it (lex00/floci-gcp#4 to #8).",
+		Notes:   "the lex00/floci-gcp fork's GHCR image pinned by digest; the fork's issues for Resource Manager tags, Cloud Asset search, matchTag and IAM enforce mode (lex00/floci-gcp#4 to #9) are closed, and no gcp-lane run on it has passed yet.",
 	},
 }
 
@@ -330,7 +330,7 @@ func untaggableFor(family string, rf readinessFacts) UntaggableFacts {
 			"an admitted Kubernetes type whose schema carries no metadata.labels block (live/readiness.json kubernetes.types facts.label_surface=false)")
 	case "google":
 		return tallyUntaggable(rf.googleTypes, func(t readinessType) bool { return t.Tier != "marker-carried" },
-			"a google or google-beta 8.6.0 type whose schema carries no settable labels map beside effective_labels (live/readiness.json google.types, every tier but marker-carried)")
+			"a google or google-beta 8.6.0 type whose schema carries no settable labels map beside effective_labels, or one that only labels what the type creates, an instance template's (live/readiness.json google.types, every tier but marker-carried)")
 	}
 	return UntaggableFacts{Definition: "no definition recorded for family " + family, ByTier: map[string]int{}}
 }

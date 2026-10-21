@@ -116,6 +116,15 @@ func googlePropagationOnly(desc string) bool {
 	return googlePropagationOnlyPattern.MatchString(flattenDescription(desc))
 }
 
+// GoogleLabelsPropagate is [googlePropagationOnly] for a reader that has
+// a labels map's description and no schema block: tools/gcp-row-gen's
+// extract, which records the verdict in live/gcp-schema-facts.json so the
+// generated survey and READINESS agree with [GoogleLabelSurface] about an
+// instance template (GitHub issue #2145).
+func GoogleLabelsPropagate(desc string) bool {
+	return googlePropagationOnly(desc)
+}
+
 // GooglePropagatedLabels reports whether a resource type has a settable
 // labels map that GCP copies onto the resources it creates and never keeps
 // itself: an instance template's. A marker written there lands on every VM

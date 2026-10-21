@@ -9235,26 +9235,26 @@
       {
         "tier": "marker-carried",
         "counts": [
-          301,
+          299,
           9,
           0,
           10,
           0,
           0
         ],
-        "total": 320
+        "total": 318
       },
       {
         "tier": "declaration-carried",
         "counts": [
-          857,
+          859,
           28,
           0,
           0,
           0,
           0
         ],
-        "total": 885
+        "total": 887
       },
       {
         "tier": "record-carried",
@@ -9294,13 +9294,13 @@
       {
         "path": "marker",
         "tier": "marker-carried",
-        "count": 320,
+        "count": 318,
         "means": "The `tofu-address` label on the object is the identity; the sweep reads it back."
       },
       {
         "path": "client-named",
         "tier": "declaration-carried",
-        "count": 311,
+        "count": 313,
         "means": "The configuration names it, under a project or location it also names or the provider supplies."
       },
       {
@@ -11423,7 +11423,7 @@
       },
       {
         "type": "google_compute_instance_template",
-        "tier": "marker-carried",
+        "tier": "declaration-carried",
         "status": "in-contract"
       },
       {
@@ -11763,7 +11763,7 @@
       },
       {
         "type": "google_compute_region_instance_template",
-        "tier": "marker-carried",
+        "tier": "declaration-carried",
         "status": "in-contract"
       },
       {

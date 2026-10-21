@@ -38,12 +38,34 @@ to manufacture the fault. Only the maintainer runs them.
 
 ## Emulator gaps
 
-Each is filed on the fork and waited for, never routed around:
-Resource Manager tags (lex00/floci-gcp#4), Compute verify (#5), the labels
-round trip (#6), Cloud Asset search (#7) and `matchTag` (#8). Until #7
-lands the sweep's equivalence with real GCP is unmeasured.
+Each gap was filed on the fork rather than routed around: Resource Manager
+tags (lex00/floci-gcp#4), Compute verify (#5), the labels round trip (#6),
+Cloud Asset search (#7), `matchTag` (#8) and IAM enforce mode over Compute
+networking and instances (#9). All six are closed, and the image pinned in
+`live/floci-gcp-image` (`sha256:ed1a1781`, built from 842dd32) is the one
+that serves them.
+
+Serving a capability is not measuring it. No scenario or estate run on
+that image has passed yet, so the sweep's equivalence with real GCP, the
+labels round trip and the fence are still unmeasured here. A stage that
+fails on one of them says so in its own verdict, and that is a finding to
+file on the fork.
 
 ## The gauntlet lane
 
-None yet. A hand-written reference estate comes first, then published
-roots, as the kubernetes lane did.
+The `gcp` lane exists (#1119): `tools/gauntlet`'s `LaneGCP`, run on the
+floci-gcp substrate with its own bar at `lanes.gcp` in `live/gauntlet.json`,
+and counted toward neither AWS bar. `live/GAUNTLET.md` says how each stage
+reads on that substrate. Its estates are in `live/gauntlet/estates.json`:
+
+| Estate | Source |
+|---|---|
+| `reference-gcp` | hand-written reference shape kept in this repository |
+| `corpus-k8s-infra-gcp-gcve` | kubernetes/k8s.io's own published root |
+
+```
+go run ./tools/gauntlet run -lane gcp
+```
+
+Only the maintainer runs it. No gcp-lane run has passed: `live/gauntlet.json`
+records both estates as not run, with 0 of 2 clear.
