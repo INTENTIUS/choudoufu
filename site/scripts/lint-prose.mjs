@@ -133,7 +133,7 @@ if (hedges.length > 0) {
 // Cross-platform pointers. Each platform page states its own content, so a
 // sentence that only defers to another platform's page fails. It reads the
 // raw page source, since link text and targets matter here.
-const POINTER = /\b(as on \[?AWS\]?|same as AWS|as on Kubernetes)\b/gi;
+const POINTER = /\b(as on \[AWS\]|as on AWS|same as AWS|as on Kubernetes)(?!\w)/gi;
 const pointers = [];
 for (const file of docFiles(DOCS_ROOT)) {
   const src = readFileSync(file, "utf8");
