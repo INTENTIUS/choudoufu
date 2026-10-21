@@ -839,6 +839,9 @@ func discover(ctx context.Context, req Request, span trace.Span) (*Result, tfdia
 		dropGCPHitsTheRecordsRemove(res)
 		endLegs()
 	}
+	// What is left of the GCP leg's hits, once the records have said which
+	// of them they destroy.
+	diags = diags.Append(gcpOrphanWarning(req.Estate, res))
 
 	// Policy narrows the undeclared_tagged quadrant last, once every removal
 	// classifyOrphans and parentReadSweep would otherwise propose is
@@ -3782,6 +3785,11 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 	byAddr := make(map[string][]int)
 	for i := range res.Orphans {
 		o := &res.Orphans[i]
+		if o.LabelHash {
+			// A GCP hit: its label is a hash, never decoded, and the GCP
+			// leg has already classified it. See [OwnedResource.LabelHash].
+			continue
+		}
 		o.Addr, o.Addressable = UnescapeAddress(o.Normalized)
 		if o.Addressable {
 			byAddr[o.Addr.String()] = append(byAddr[o.Addr.String()], i)
@@ -3872,6 +3880,9 @@ func classifyOrphans(ctx context.Context, req Request, schemas listclient.Schema
 
 	for i := range res.Orphans {
 		o := &res.Orphans[i]
+		if o.LabelHash {
+			continue
+		}
 		block := orphanBlockKey(o)
 
 		switch {

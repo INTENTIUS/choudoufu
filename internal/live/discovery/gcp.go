@@ -140,7 +140,6 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 	for _, p := range projects {
 		cov[p] = g.Searcher
 	}
-	var orphans []string
 	fileOrphan := func(a gcpsweep.Asset, address, withheld string) {
 		display := a.AssetType + " " + a.Name
 		res.Orphans = append(res.Orphans, OwnedResource{
@@ -151,9 +150,9 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 			Tags:        a.Labels,
 			Resource:    cty.NilVal,
 			Swept:       true,
+			LabelHash:   true,
 			Withheld:    withheld,
 		})
-		orphans = append(orphans, fmt.Sprintf("%s (%s)", display, withheld))
 	}
 	// pending is the hits whose block part names a declared count block
 	// and whose instance part names none of its declared instances, held
@@ -246,12 +245,28 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 	if len(failed) > 0 {
 		diags = diags.Append(demand.unsearched(decl, res, "project "+strings.Join(failed, ", ")+" could not be searched"))
 	}
-	if len(orphans) > 0 {
-		sort.Strings(orphans)
-		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryGCPOrphanUnaddressed,
-			fmt.Sprintf("%d resource(s) carry estate %q's label and no address this configuration declares:\n  - %s", len(orphans), req.Estate, strings.Join(orphans, "\n  - "))))
-	}
 	return diags
+}
+
+// gcpOrphanWarning is the one warning naming every GCP hit still reported
+// and left alone. It is raised after the removal legs, so a hit whose
+// deleted block's record proposed its destroy ([dropGCPHitsTheRecordsRemove])
+// is not also called left alone (the fifth GCP run's day2_replace, where
+// the removed scratch bucket was both).
+func gcpOrphanWarning(estate string, res *Result) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	var orphans []string
+	for _, o := range res.Orphans {
+		if o.LabelHash && !o.Removal {
+			orphans = append(orphans, fmt.Sprintf("%s (%s)", o.DisplayName, o.Withheld))
+		}
+	}
+	if len(orphans) == 0 {
+		return diags
+	}
+	sort.Strings(orphans)
+	return diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryGCPOrphanUnaddressed,
+		fmt.Sprintf("%d resource(s) carry estate %q's label and no address this configuration declares:\n  - %s", len(orphans), estate, strings.Join(orphans, "\n  - "))))
 }
 
 // gcpDeclaredHit classifies a hit whose address label is a declared
