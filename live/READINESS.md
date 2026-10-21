@@ -87,11 +87,11 @@ the provider's own source at the pin.
 | How it comes back | Tier | Types | What it means |
 |---|---|---|---|
 | marker | marker-carried | 318 | The `tofu-address` label on the object is the identity; the sweep reads it back. |
-| client-named | declaration-carried | 326 | The configuration names it, under a project or location it also names or the provider supplies. |
-| parent-derived | declaration-carried | 590 | Composed over a containing resource the configuration also names; every IAM type is this shape. |
+| client-named | declaration-carried | 338 | The configuration names it, under a project or location it also names or the provider supplies. |
+| parent-derived | declaration-carried | 596 | Composed over a containing resource the configuration also names; every IAM type is this shape. |
 | project-derived | declaration-carried | 21 | Only project, region or zone names it: one per project or region. |
 | unique-name | - | 0 | Nothing in the google source states a name the API refuses to issue twice, so no type is here. |
-| server-minted | record-carried | 153 | The API mints the identity and the type has no labels; only a record holds it. |
+| server-minted | record-carried | 135 | The API mints the identity and the type has no labels; only a record holds it. |
 | unbindable | record-carried | 77 | No row and no identity-schema route; a record is the only copy. |
 <!-- readiness-gen:end gcp-paths -->
 
@@ -101,10 +101,10 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
 |---|---|---|---|---|---|---|---|
 | marker-carried | 301 | 13 | 0 | 4 | 0 | 0 | 318 |
-| declaration-carried | 909 | 28 | 0 | 0 | 0 | 0 | 937 |
-| record-carried | 0 | 49 | 0 | 28 | 153 | 0 | 230 |
+| declaration-carried | 927 | 28 | 0 | 0 | 0 | 0 | 955 |
+| record-carried | 0 | 49 | 0 | 28 | 135 | 0 | 212 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Total | 1210 | 90 | 0 | 32 | 153 | 0 | 1485 |
+| Total | 1228 | 90 | 0 | 32 | 135 | 0 | 1485 |
 
 | Reason | Why the type is not in contract |
 |---|---|
@@ -345,16 +345,16 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_certificate_manager_certificate_map_entry` | marker-carried | in-contract |  |
 | `google_certificate_manager_dns_authorization` | marker-carried | in-contract |  |
 | `google_certificate_manager_trust_config` | marker-carried | in-contract |  |
-| `google_ces_agent` | record-carried | pending-mechanism | 2 |
-| `google_ces_app` | record-carried | pending-mechanism | 2 |
+| `google_ces_agent` | declaration-carried | in-contract |  |
+| `google_ces_app` | declaration-carried | in-contract |  |
 | `google_ces_app_root_agent_association` | declaration-carried | pending-ratification | 1 |
-| `google_ces_app_version` | record-carried | pending-mechanism | 2 |
+| `google_ces_app_version` | declaration-carried | in-contract |  |
 | `google_ces_deployment` | record-carried | pending-mechanism | 2 |
 | `google_ces_evaluation` | declaration-carried | in-contract |  |
-| `google_ces_example` | record-carried | pending-mechanism | 2 |
-| `google_ces_guardrail` | record-carried | pending-mechanism | 2 |
+| `google_ces_example` | declaration-carried | in-contract |  |
+| `google_ces_guardrail` | declaration-carried | in-contract |  |
 | `google_ces_security_settings` | declaration-carried | in-contract |  |
-| `google_ces_tool` | record-carried | pending-mechanism | 2 |
+| `google_ces_tool` | declaration-carried | in-contract |  |
 | `google_ces_toolset` | declaration-carried | in-contract |  |
 | `google_chronicle_big_query_export` | declaration-carried | in-contract |  |
 | `google_chronicle_case_close_definition` | record-carried | pending-mechanism | 2 |
@@ -383,7 +383,7 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_chronicle_soar_network` | record-carried | pending-mechanism | 2 |
 | `google_chronicle_watchlist` | declaration-carried | in-contract |  |
 | `google_cloud_asset_folder_feed` | record-carried | pending-mechanism | 2 |
-| `google_cloud_asset_organization_feed` | record-carried | pending-mechanism | 2 |
+| `google_cloud_asset_organization_feed` | declaration-carried | in-contract |  |
 | `google_cloud_asset_project_feed` | record-carried | pending-mechanism | 2 |
 | `google_cloud_identity_group` | record-carried | pending-mechanism | 2 |
 | `google_cloud_identity_group_membership` | record-carried | pending-mechanism | 2 |
@@ -654,8 +654,8 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_compute_zone_vm_extension_policy` | declaration-carried | in-contract |  |
 | `google_config_deployment` | marker-carried | in-contract |  |
 | `google_contact_center_insights_analysis_rule` | record-carried | pending-mechanism | 2 |
-| `google_contact_center_insights_assessment_rule` | record-carried | pending-mechanism | 2 |
-| `google_contact_center_insights_auto_labeling_rule` | record-carried | pending-mechanism | 2 |
+| `google_contact_center_insights_assessment_rule` | declaration-carried | in-contract |  |
+| `google_contact_center_insights_auto_labeling_rule` | declaration-carried | in-contract |  |
 | `google_contact_center_insights_encryption_spec` | declaration-carried | in-contract |  |
 | `google_contact_center_insights_qa_question` | record-carried | pending-mechanism | 2 |
 | `google_contact_center_insights_qa_scorecard` | declaration-carried | in-contract |  |
@@ -699,11 +699,11 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_data_fusion_instance_iam_policy` | declaration-carried | in-contract |  |
 | `google_data_lineage_config` | declaration-carried | in-contract |  |
 | `google_data_loss_prevention_content_policy` | record-carried | pending-mechanism | 2 |
-| `google_data_loss_prevention_deidentify_template` | record-carried | pending-mechanism | 2 |
+| `google_data_loss_prevention_deidentify_template` | declaration-carried | in-contract |  |
 | `google_data_loss_prevention_discovery_config` | record-carried | pending-mechanism | 2 |
-| `google_data_loss_prevention_inspect_template` | record-carried | pending-mechanism | 2 |
-| `google_data_loss_prevention_job_trigger` | record-carried | pending-mechanism | 2 |
-| `google_data_loss_prevention_stored_info_type` | record-carried | pending-mechanism | 2 |
+| `google_data_loss_prevention_inspect_template` | declaration-carried | in-contract |  |
+| `google_data_loss_prevention_job_trigger` | declaration-carried | in-contract |  |
+| `google_data_loss_prevention_stored_info_type` | declaration-carried | in-contract |  |
 | `google_data_pipeline_pipeline` | declaration-carried | in-contract |  |
 | `google_database_migration_service_connection_profile` | marker-carried | in-contract |  |
 | `google_database_migration_service_migration_job` | marker-carried | in-contract |  |
@@ -827,10 +827,10 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_dialogflow_entity_type` | record-carried | pending-mechanism | 2 |
 | `google_dialogflow_environment` | declaration-carried | in-contract |  |
 | `google_dialogflow_fulfillment` | record-carried | pending-mechanism | 2 |
-| `google_dialogflow_generator` | record-carried | pending-mechanism | 2 |
+| `google_dialogflow_generator` | declaration-carried | in-contract |  |
 | `google_dialogflow_intent` | record-carried | pending-mechanism | 2 |
 | `google_dialogflow_sip_trunk` | record-carried | pending-mechanism | 2 |
-| `google_dialogflow_tool` | record-carried | pending-mechanism | 2 |
+| `google_dialogflow_tool` | declaration-carried | in-contract |  |
 | `google_dialogflow_version` | record-carried | pending-mechanism | 2 |
 | `google_discovery_engine_acl_config` | declaration-carried | in-contract |  |
 | `google_discovery_engine_assistant` | declaration-carried | in-contract |  |
@@ -1127,7 +1127,7 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_kms_key_ring_iam_binding` | record-carried | pending-ratification | 4 |
 | `google_kms_key_ring_iam_member` | record-carried | pending-ratification | 4 |
 | `google_kms_key_ring_iam_policy` | record-carried | pending-ratification | 4 |
-| `google_kms_key_ring_import_job` | record-carried | pending-mechanism | 2 |
+| `google_kms_key_ring_import_job` | declaration-carried | in-contract |  |
 | `google_kms_organization_kaj_policy_config` | declaration-carried | in-contract |  |
 | `google_kms_project_autokey_config` | declaration-carried | in-contract |  |
 | `google_kms_project_kaj_policy_config` | declaration-carried | in-contract |  |
@@ -1389,7 +1389,7 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_scc_management_organization_security_health_analytics_custom_module` | record-carried | pending-mechanism | 2 |
 | `google_scc_management_project_security_health_analytics_custom_module` | record-carried | pending-mechanism | 2 |
 | `google_scc_mute_config` | record-carried | pending-mechanism | 2 |
-| `google_scc_notification_config` | record-carried | pending-mechanism | 2 |
+| `google_scc_notification_config` | declaration-carried | in-contract |  |
 | `google_scc_notification_service_account` | record-carried | needs-evidence | 3 |
 | `google_scc_organization_custom_module` | record-carried | pending-mechanism | 2 |
 | `google_scc_organization_scc_big_query_export` | declaration-carried | in-contract |  |
@@ -1404,7 +1404,7 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_scc_v2_folder_notification_config` | declaration-carried | in-contract |  |
 | `google_scc_v2_folder_scc_big_query_export` | declaration-carried | in-contract |  |
 | `google_scc_v2_organization_mute_config` | declaration-carried | in-contract |  |
-| `google_scc_v2_organization_notification_config` | record-carried | pending-mechanism | 2 |
+| `google_scc_v2_organization_notification_config` | declaration-carried | in-contract |  |
 | `google_scc_v2_organization_scc_big_query_export` | declaration-carried | in-contract |  |
 | `google_scc_v2_organization_scc_big_query_exports` | declaration-carried | in-contract |  |
 | `google_scc_v2_organization_source` | record-carried | pending-mechanism | 2 |

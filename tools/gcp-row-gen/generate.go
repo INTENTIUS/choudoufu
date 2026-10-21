@@ -120,7 +120,7 @@ func Generate(ev Evidence, facts Facts, names AssetNames) (Output, error) {
 
 	var out Output
 	for _, t := range sortedKeys(byType) {
-		out.Decisions = append(out.Decisions, Decide(t, ev.Types[t], byType[t]))
+		out.Decisions = append(out.Decisions, DecideWith(t, ev.Types[t], byType[t], names))
 	}
 
 	out.Survey = Survey{

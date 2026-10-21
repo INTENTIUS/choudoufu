@@ -77,6 +77,51 @@ func TestGoogleOptionalPlaceholderRow(t *testing.T) {
 	}
 }
 
+// TestGoogleCreateNamedRow resolves the rows of types whose id embeds a
+// name the API returns, where the create sends that name's last segment as
+// the request's id field (#2145 item 3): an instance that sets the
+// argument is named from configuration, in each shape the generator
+// derives, and one that leaves it out needs the object to exist before it
+// has a name. A type whose API writes the project back as a number keeps
+// its markerless veto.
+func TestGoogleCreateNamedRow(t *testing.T) {
+	cfg := loadConfig(t, "testdata/gcp-create-named", nil)
+	result, _ := Resolve(context.Background(), cfg)
+
+	concrete := map[string]string{
+		"google_data_loss_prevention_inspect_template.pii":        "projects/estate-prod/locations/global/inspectTemplates/pii",
+		"google_ces_agent.triage":                                 "projects/estate-prod/locations/us/apps/support/agents/triage",
+		"google_dialogflow_generator.summary":                     "projects/estate-prod/locations/global/generators/summary",
+		"google_scc_v2_organization_notification_config.findings": "organizations/123456789/locations/global/notificationConfigs/findings",
+	}
+	for addr, id := range concrete {
+		got := resolutionAt(t, result, addr)
+		if got.Class != ClassConcrete || got.ImportID != id {
+			t.Errorf("%s = %s %q (%s), want CONCRETE %q", addr, got.Class, got.ImportID, got.Reason, id)
+		}
+	}
+	// The identity's name is what the provider keeps: the last segment
+	// where its flatten keeps that, the whole name where it keeps it all.
+	if v := resolutionAt(t, result, "google_data_loss_prevention_inspect_template.pii").IdentityValues; v["name"] != "pii" || v["parent"] != "projects/estate-prod/locations/global" {
+		t.Errorf("inspect template identity values = %v, want name=pii and the parent", v)
+	}
+	if v := resolutionAt(t, result, "google_dialogflow_generator.summary").IdentityValues; v["name"] != concrete["google_dialogflow_generator.summary"] {
+		t.Errorf("generator identity values = %v, want the whole name", v)
+	}
+
+	unnamed := resolutionAt(t, result, "google_data_loss_prevention_inspect_template.unnamed")
+	if unnamed.Class != ClassNeedsDiscovery || unnamed.Cause != DiscoveryNameOmitted || len(unnamed.CauseArgs) != 1 || unnamed.CauseArgs[0] != "template_id" {
+		t.Errorf("an inspect template with no template_id = %s %s %v, want NEEDS_DISCOVERY naming template_id", unnamed.Class, unnamed.Cause, unnamed.CauseArgs)
+	}
+	if !strings.Contains(unnamed.Reason, "google_data_loss_prevention_inspect_template.unnamed") {
+		t.Errorf("the reason does not name the instance: %q", unnamed.Reason)
+	}
+
+	if !IsMarkerless("google_scc_v2_project_notification_config") {
+		t.Error("google_scc_v2_project_notification_config left the markerless veto, but Google documents its name with a project number")
+	}
+}
+
 // TestGoogleLongFormComposed resolves the arguments hashicorp/google 8.6.0
 // rewrites before they become part of the id (#2144), and asserts the id
 // the provider itself builds: an IAM parent the updater parses with

@@ -27,11 +27,17 @@ var (
 	// the id made from that attribute's value.
 	importNameSetRe = regexp.MustCompile(`(?s)tpgresource\.ParseImportId\(\[\]string\{(.*?)\}, d, config\).*?d\.Set\("([a-z0-9_]+)", "([^"]+)"\).*?\bid, err := tpgresource\.ReplaceVars\(d, config, d\.Get\("([a-z0-9_]+)"\)\.\(string\)\)`)
 
+	// importIDSetRe is an importer that does nothing but set one
+	// attribute to the whole import ID: `if err := d.Set("name", d.Id());
+	// err != nil { return nil, err }`, then return.
+	importIDSetRe = regexp.MustCompile(`^\s*if err := d\.Set\("([a-z0-9_]+)", d\.Id\(\)\); err != nil \{\s*return nil, err\s*\}\s*return \[\]\*schema\.ResourceData\{d\}, nil\s*$`)
+
 	importPassthroughRe = regexp.MustCompile(`Importer: &schema\.ResourceImporter\{\s*State: schema\.ImportStatePassthrough,`)
 )
 
 // readImporterShapes records the importer shapes [Source.ImportWhole],
-// [Source.ImportNameSet] and [Source.ImportPassthrough] name.
+// [Source.ImportIDSet], [Source.ImportNameSet] and [Source.ImportPassthrough]
+// name.
 func readImporterShapes(s *Source, text string) {
 	s.ImportPassthrough = importPassthroughRe.MatchString(text)
 	m := importerFuncRe.FindStringSubmatch(text)
@@ -39,6 +45,9 @@ func readImporterShapes(s *Source, text string) {
 		return
 	}
 	body := m[1]
+	if w := importIDSetRe.FindStringSubmatch(body); w != nil {
+		s.ImportIDSet = w[1]
+	}
 	if w := importWholeRe.FindStringSubmatch(body); w != nil {
 		s.ImportWhole = w[1]
 	}
