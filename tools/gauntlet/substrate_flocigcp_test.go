@@ -195,3 +195,30 @@ func TestReferenceGCPIsTheGCPLanesEstate(t *testing.T) {
 		t.Errorf("reference-gcp's crossing script: %v", err)
 	}
 }
+
+// day2_endpoints (#2145 item 6) is registered planned and not headline, so
+// reference-gcp's verdict line for it is a known stage the runner records,
+// not one it drops as unknown, and no bar or active-stage list moves.
+// Red before the registration: the parse reported it in Unknown.
+func TestDay2EndpointsIsAKnownPlannedStage(t *testing.T) {
+	res, err := ParseProtocol(strings.NewReader("GAUNTLET protocol=1\nGAUNTLET stage=day2_endpoints verdict=fail detail=x\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Unknown) != 0 || res.Stages["day2_endpoints"] != VerdictFail {
+		t.Fatalf("day2_endpoints parsed as unknown %v, stages %v", res.Unknown, res.Stages)
+	}
+	s, ok := StageByID("day2_endpoints")
+	if !ok || s.Status != StatusPlanned || s.Headline {
+		t.Fatalf("day2_endpoints registered as %+v, want planned and not headline", s)
+	}
+	for _, a := range ActiveStages() {
+		if a.ID == "day2_endpoints" {
+			t.Error("day2_endpoints is active; every estate would be held to a stage only reference-gcp runs")
+		}
+	}
+	note := s.Substrates[SubstrateFlociGCP]
+	if !strings.Contains(note, "lex00/floci-gcp#26") || !strings.Contains(s.Proves, "#2145 item 6") {
+		t.Errorf("day2_endpoints does not name lex00/floci-gcp#26 and #2145 item 6: %q / %q", note, s.Proves)
+	}
+}

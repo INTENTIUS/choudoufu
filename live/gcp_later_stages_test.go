@@ -701,3 +701,244 @@ func TestGCPNoLocalStateRestoresTheRecordsAtTheStoreRoot(t *testing.T) {
 		})
 	}
 }
+
+// refgcpEndpointsStage is reference-gcp's day2_endpoints stage as run.sh
+// holds it, from its gauntlet_begin_stage to the line before the subshell
+// closes, and checks the stage runs in a subshell of its own.
+func refgcpEndpointsStage(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile("e2e/reference-gcp/run.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	i := strings.Index(s, "\ngauntlet_begin_stage day2_endpoints\n")
+	j := strings.Index(s, "\n); stage_done $? day2_endpoints reconverge\n")
+	if i < 0 || j < i {
+		t.Fatal("run.sh: no day2_endpoints stage closed by \"); stage_done $? day2_endpoints reconverge\"")
+	}
+	if open := strings.LastIndex(s[:i], "\n(\n"); open < 0 || strings.Contains(s[open:i], "); stage_done ") {
+		t.Fatal("run.sh: day2_endpoints does not open its own subshell, so a fail() in it ends the run")
+	}
+	return s[i:j]
+}
+
+// TestRefGCPRunShParses: bash -n over the whole script, so a stage added
+// to it cannot land with a syntax error the next emulator run finds first.
+func TestRefGCPRunShParses(t *testing.T) {
+	if out, err := exec.Command("bash", "-n", "e2e/reference-gcp/run.sh").CombinedOutput(); err != nil {
+		t.Fatalf("bash -n e2e/reference-gcp/run.sh: %v\n%s", err, out)
+	}
+}
+
+// day2_endpoints (#2145 item 6), stub-run offline. Every command the stage
+// sends to an emulator or to a binary is a stub over files in a temporary
+// directory: a NEG is a file per side, A's apply writes each endpoint's
+// record, stock's import succeeds only for an id with the empty segment
+// (the provider's importer regexes need five segments, one of them empty).
+// The pass case passes cleanly; each other case breaks one gate and that
+// gate's own verdict must read fail, with nothing left on either side.
+func TestRefGCPEndpointsStageGates(t *testing.T) {
+	stage := refgcpEndpointsStage(t)
+	run := func(t *testing.T, env ...string) string {
+		t.Helper()
+		w := t.TempDir()
+		body := gcpFail + `source e2e/reference-gcp/gcp.sh
+W="` + w + `"; WORK="$W"; ADOPTED="$W/a"; ORACLE="$W/b"; PROJECT=p; REGION=r
+mkdir -p "$ADOPTED/.terraform" "$ADOPTED/.tofu-records" "$ORACLE"
+echo '{"cache":1}' > "$ADOPTED/.terraform/choudoufu-cache.tfstate"
+log() { printf '%s\n' "$*"; }
+NEGS="refgcp-gneg-ip refgcp-gneg-fqdn refgcp-rneg-ip refgcp-rneg-fqdn"
+live() { [ -f "$W/$1.$(basename "$2")" ]; }
+want_ep() { case "$1" in
+  refgcp-gneg-ip) echo '{"ipAddress":"203.0.113.10","port":443}' ;;
+  refgcp-gneg-fqdn) echo '{"fqdn":"backend.example.com","port":443}' ;;
+  refgcp-rneg-ip) echo '{"ipAddress":"203.0.113.20","port":8080}' ;;
+  refgcp-rneg-fqdn) echo '{"fqdn":"db.example.com","port":5432}' ;;
+esac; }
+rest() {
+  local side="$1"; shift
+  case "$1" in
+    GET) live "$side" "$2" ;;
+    DELETE) rm -f "$W/$side.$(basename "$2")" ;;
+    POST) local n; n="$(basename "$(dirname "$2")")"; live "$side" "$n" || return 1
+      if [ "${BAD_EP:-}" = "$side" ] && [ "$n" = refgcp-rneg-ip ]; then
+        echo '{"items":[{"networkEndpoint":{"ipAddress":"203.0.113.20","port":8081}}]}'
+      else
+        echo '{"items":[{"networkEndpoint":'"$(want_ep "$n")"'}]}'
+      fi ;;
+  esac
+}
+ra() { rest A "$@"; }
+rb() { rest B "$@"; }
+exists_a() { live A "$1"; }
+apply_side() { # $1 side, $2 root
+  if [ -f "$2/day2_endpoints.tf" ]; then
+    if [ "$1" = B ] && [ -n "${B_MK_ERR:-}" ]; then printf '\nError: Error creating GlobalNetworkEndpointGroup: googleapi: Error 404: not found\n'; return 1; fi
+    for n in $NEGS; do : > "$W/$1.$n"; done
+    if [ "$1" = A ] && [ -z "${NO_RECORD:-}" ]; then
+      i=0
+      for pair in "google_compute_global_network_endpoint.ip p/refgcp-gneg-ip/203.0.113.10//443" \
+                  "google_compute_global_network_endpoint.fqdn p/refgcp-gneg-fqdn//backend.example.com/443" \
+                  "google_compute_region_network_endpoint.ip p/r/refgcp-rneg-ip/203.0.113.20//8080" \
+                  "google_compute_region_network_endpoint.fqdn ${RECORD_ID:-p/r/refgcp-rneg-fqdn//db.example.com/5432}"; do
+        i=$((i + 1)); set -- $pair
+        printf '{"format_version":2,"address":"%s","kind":"identity","identity":{"secondary_id":"%s"}}' "$1" "$2" > "$ADOPTED/.tofu-records/r$i"
+      done
+      set -- A
+    fi
+    local var="MK_N_$1"; printf '\nApply complete! Resources: %s added, 0 changed, 0 destroyed.\n' "${!var:-8}"
+  else
+    local leave="LEAVE_$1"
+    [ -n "${!leave:-}" ] || for n in $NEGS; do rm -f "$W/$1.$n"; done
+    local var="RM_N_$1"; printf '\nApply complete! Resources: 0 added, 0 changed, %s destroyed.\n' "${!var:-8}"
+  fi
+}
+apply_a() { apply_side A "$ADOPTED"; }
+plan_a() {
+  if [ ! -f "$ADOPTED/.terraform/choudoufu-cache.tfstate" ]; then printf '%s\n' "${NOSTATE_PLAN:-No changes.}"
+  elif [ -f "$ADOPTED/day2_endpoints.tf" ]; then printf '%s\n' "${A_PLAN:-No changes.}"
+  else printf '%s\n' "${LAST_PLAN:-No changes.}"; fi
+}
+stock_b() {
+  case "$1" in
+    apply) apply_side B "$ORACLE" ;;
+    plan) printf '%s\n' "${B_PLAN:-No changes.}" ;;
+    state) return 0 ;;
+    import) local id="${*: -1}"; echo "import $id" >> "$W/imports"
+      case "$id" in *//*) echo "Import successful!" ;; *) printf '\nError: Cannot import non-existent remote object\n'; return 1 ;; esac ;;
+  esac
+}
+CURRENT_STAGE=""
+( ` + stage + `
+)
+echo "rc=$?"
+echo "left: $(cd "$W" && ls A.* B.* 2>/dev/null | tr '\n' ' ')"
+[ -e "$ADOPTED/day2_endpoints.tf" ] && echo "SCRATCH LEFT ON A"
+[ -e "$ORACLE/day2_endpoints.tf" ] && echo "SCRATCH LEFT ON B"
+[ -f "$ADOPTED/.terraform/choudoufu-cache.tfstate" ] || echo "CACHE NOT RESTORED"
+[ -f "$W/imports" ] && cat "$W/imports"
+true`
+		out, _ := gcpBash(t, env, body)
+		return out
+	}
+
+	t.Run("pass", func(t *testing.T) {
+		out := run(t)
+		for _, want := range []string{"GAUNTLET stage=day2_endpoints verdict=pass", "rc=0", "left: \n",
+			"import p/refgcp-gneg-ip/203.0.113.10//443", "import p/refgcp-gneg-fqdn//backend.example.com/443",
+			"import p/r/refgcp-rneg-ip/203.0.113.20//8080", "import p/r/refgcp-rneg-fqdn//db.example.com/5432",
+			"destroyed 8 on A and 8 on B"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("the pass case lacks %q:\n%s", want, out)
+			}
+		}
+		for _, bad := range []string{"FAIL", "verdict=fail", "LEFT", "CACHE NOT RESTORED"} {
+			if strings.Contains(out, bad) {
+				t.Errorf("the pass case carries %q:\n%s", bad, out)
+			}
+		}
+	})
+
+	notEmpty := "Plan: 1 to add, 0 to change, 0 to destroy."
+	for name, c := range map[string]struct {
+		env  []string
+		want string
+	}{
+		"the emulator lacks the NEGs":     {[]string{"B_MK_ERR=1"}, "lex00/floci-gcp#26): Error: Error creating GlobalNetworkEndpointGroup"},
+		"stock creates another count":     {[]string{"MK_N_B=7"}, "stock's create on B did not add exactly the 8 scratch objects"},
+		"choudoufu creates another count": {[]string{"MK_N_A=7"}, "choudoufu's create on A did not add exactly the 8 scratch objects"},
+		"a wrong endpoint on A":           {[]string{"BAD_EP=A"}, `refgcp-rneg-ip on A holds endpoint(s) "203.0.113.20||8081", want exactly "203.0.113.20||8080"`},
+		"a wrong endpoint on B":           {[]string{"BAD_EP=B"}, `refgcp-rneg-ip on B holds endpoint(s) "203.0.113.20||8081"`},
+		"the next plan is not empty":      {[]string{"A_PLAN=" + notEmpty}, "the plan after the create is not empty (Plan: 1 to add"},
+		"no record":                       {[]string{"NO_RECORD=1"}, "no record under"},
+		"a record naming another id":      {[]string{"RECORD_ID=p/r/refgcp-rneg-fqdn/db.example.com/5432"}, "the record for google_compute_region_network_endpoint.fqdn disagrees"},
+		"the plan with no state file":     {[]string{"NOSTATE_PLAN=" + notEmpty}, "the plan with no state file is not empty (exit 0, Plan: 1 to add"},
+		"BREAK_ENDPOINTS":                 {[]string{"BREAK_ENDPOINTS=1"}, `with "p/refgcp-gneg-ip/203.0.113.10/443" failed (BREAK_ENDPOINTS=1: the empty segment collapsed`},
+		"stock's plan after the imports":  {[]string{"B_PLAN=" + notEmpty}, "stock's plan on B after importing the four endpoints by choudoufu's ids is not empty"},
+		"stock removes another count":     {[]string{"RM_N_B=7"}, "stock's removal on B destroyed 7 object(s), want the 8 it created"},
+		"choudoufu removes another count": {[]string{"RM_N_A=7"}, "destroyed 7 object(s) on A; stock destroyed 8 on B"},
+		"a NEG left on A":                 {[]string{"LEAVE_A=1"}, "refgcp-gneg-ip still exists on A after the scratch endpoints were removed"},
+		"a NEG left on B":                 {[]string{"LEAVE_B=1"}, "refgcp-gneg-ip still exists on B after stock removed the scratch endpoints"},
+		"the plan after the removal":      {[]string{"LAST_PLAN=" + notEmpty}, "the plan after the removal is not empty (Plan: 1 to add"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			out := run(t, c.env...)
+			if !regexp.MustCompile(`GAUNTLET stage=day2_endpoints verdict=fail .*` + regexp.QuoteMeta(c.want)).MatchString(out) {
+				t.Errorf("want a fail verdict carrying %q:\n%s", c.want, out)
+			}
+			if strings.Contains(out, "verdict=pass") || !strings.Contains(out, "rc=1") {
+				t.Errorf("the stage did not end failed:\n%s", out)
+			}
+			for _, bad := range []string{"SCRATCH LEFT", "CACHE NOT RESTORED"} {
+				if strings.Contains(out, bad) {
+					t.Errorf("the scrub left %q:\n%s", bad, out)
+				}
+			}
+			if !strings.Contains(out, "left: \n") {
+				t.Errorf("a NEG outlived the failed stage on A or B:\n%s", out)
+			}
+		})
+	}
+}
+
+// refgcp_endpoint_record reads the estate's record for a network endpoint
+// whichever shape it was written in: a one-string identity must equal the
+// empty-segment id exactly, and identity attrs must carry the declared
+// fields with the unset one absent or empty.
+func TestRefGCPEndpointRecordCheck(t *testing.T) {
+	const addr = "google_compute_global_network_endpoint.ip"
+	const id = "p/refgcp-gneg-ip/203.0.113.10//443"
+	for name, c := range map[string]struct {
+		identity string
+		ok       bool
+		want     string
+	}{
+		"secondary_id":            {`{"secondary_id":"` + id + `"}`, true, "secondary_id " + id},
+		"import_id":               {`{"import_id":"` + id + `"}`, true, "import_id " + id},
+		"attrs, fqdn absent":      {`{"attrs":{"ip_address":"203.0.113.10","port":"443","project":"p"}}`, true, `attrs {"ip_address"`},
+		"attrs, fqdn empty":       {`{"attrs":{"ip_address":"203.0.113.10","fqdn":"","port":"443"}}`, true, "attrs"},
+		"a collapsed id":          {`{"secondary_id":"p/refgcp-gneg-ip/203.0.113.10/443"}`, false, "disagrees: secondary_id="},
+		"attrs naming an fqdn":    {`{"attrs":{"ip_address":"203.0.113.10","fqdn":"x.example.com","port":"443"}}`, false, "attrs.fqdn="},
+		"attrs with another port": {`{"attrs":{"ip_address":"203.0.113.10","port":"80"}}`, false, "attrs.port="},
+		"no identity":             {`null`, false, "carries no identity"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(dir, "identity"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			rec := `{"format_version":2,"address":"` + addr + `","kind":"identity","identity":` + c.identity + `}`
+			for f, b := range map[string]string{"identity/a": rec, "identity/other": `{"address":"google_compute_global_network_endpoint.fqdn","identity":{"secondary_id":"zzz"}}`, "junk": "not json"} {
+				if err := os.WriteFile(filepath.Join(dir, f), []byte(b), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			out, code := gcpBash(t, nil, `source e2e/reference-gcp/gcp.sh; refgcp_endpoint_record "`+dir+`" `+addr+` "`+id+`" 203.0.113.10 "" 443`)
+			if (code == 0) != c.ok || !strings.Contains(out, c.want) {
+				t.Errorf("exit %d, output %q; want ok=%v and %q", code, out, c.ok, c.want)
+			}
+		})
+	}
+	out, code := gcpBash(t, nil, `source e2e/reference-gcp/gcp.sh; refgcp_endpoint_record "`+t.TempDir()+`" `+addr+` "`+id+`" 203.0.113.10 "" 443`)
+	if code == 0 || !strings.Contains(out, "no record under") {
+		t.Errorf("an empty store: exit %d, %q", code, out)
+	}
+}
+
+// refgcp_neg_endpoint_lines reads listNetworkEndpoints' real response
+// shape, one networkEndpoint per item, an unset field printed empty.
+func TestRefGCPNegEndpointLines(t *testing.T) {
+	const resp = `{"kind":"compute#networkEndpointGroupsListNetworkEndpoints","items":[
+ {"networkEndpoint":{"fqdn":"backend.example.com","port":443}},
+ {"networkEndpoint":{"ipAddress":"203.0.113.10","port":443}}]}`
+	cmd := exec.Command("bash", "-c", "source e2e/reference-gcp/gcp.sh; refgcp_neg_endpoint_lines")
+	cmd.Stdin = strings.NewReader(resp)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got, want := string(out), "203.0.113.10||443\n|backend.example.com|443\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

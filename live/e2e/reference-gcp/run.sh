@@ -74,6 +74,11 @@
 #                  carrying the estate's labels and the block's address
 #                  label, after day2_replace's apply; the next plan must not
 #                  be empty (day2_replace's Break line).
+#   BREAK_ENDPOINTS
+#                  set to 1 to hand stock's import on B each endpoint's id
+#                  with the empty segment collapsed (the rendering before
+#                  #2145 item 6); the import must fail, and the stage with
+#                  it (day2_endpoints' Break line).
 #   BREAK_CRASH    set to 1 to assert, after the same real interrupt, that
 #                  nothing is proposed (day2_crash's own Break line); must
 #                  fail, because a recovered run proposes the remainder.
@@ -691,6 +696,183 @@ rm -f "$ADOPTED/day2_replace.tf" "$ORACLE/day2_replace.tf"
 ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not remove the replace block from B"
 
 ); stage_done $? day2_replace reconverge
+
+(
+# ── 9c. day2_endpoints: network endpoints with one optional field unset ──
+#
+# #2145 item 6: an unset optional identity argument renders stock's empty
+# import-id segment. A global and a regional internet NEG pair, each
+# endpoint carrying only ip_address or only fqdn, in a scratch file in both
+# roots. Neither a NEG nor an endpoint carries a label, so the estate
+# claims all eight by record alone. The stock-equivalence proof is stock's
+# own import of each endpoint on B with the import id choudoufu renders,
+# the empty segment included, followed by stock's empty plan.
+gauntlet_begin_stage day2_endpoints
+log "=== 9c. day2_endpoints: global and regional NEG endpoints with ip_address or fqdn unset ==="
+EP_FILE="day2_endpoints.tf"
+# address|NEG REST path|expected import id|ip|fqdn|port
+EP_ROWS=(
+  "google_compute_global_network_endpoint.ip|compute/v1/projects/$PROJECT/global/networkEndpointGroups/refgcp-gneg-ip|$PROJECT/refgcp-gneg-ip/203.0.113.10//443|203.0.113.10||443"
+  "google_compute_global_network_endpoint.fqdn|compute/v1/projects/$PROJECT/global/networkEndpointGroups/refgcp-gneg-fqdn|$PROJECT/refgcp-gneg-fqdn//backend.example.com/443||backend.example.com|443"
+  "google_compute_region_network_endpoint.ip|compute/v1/projects/$PROJECT/regions/$REGION/networkEndpointGroups/refgcp-rneg-ip|$PROJECT/$REGION/refgcp-rneg-ip/203.0.113.20//8080|203.0.113.20||8080"
+  "google_compute_region_network_endpoint.fqdn|compute/v1/projects/$PROJECT/regions/$REGION/networkEndpointGroups/refgcp-rneg-fqdn|$PROJECT/$REGION/refgcp-rneg-fqdn//db.example.com/5432||db.example.com|5432"
+)
+endpoints_block() {
+  cat <<TF
+
+resource "google_compute_global_network_endpoint_group" "ip" {
+  project               = "$PROJECT"
+  name                  = "refgcp-gneg-ip"
+  network_endpoint_type = "INTERNET_IP_PORT"
+  default_port          = 443
+}
+
+resource "google_compute_global_network_endpoint" "ip" {
+  project                       = "$PROJECT"
+  global_network_endpoint_group = google_compute_global_network_endpoint_group.ip.name
+  ip_address                    = "203.0.113.10"
+  port                          = 443
+}
+
+resource "google_compute_global_network_endpoint_group" "fqdn" {
+  project               = "$PROJECT"
+  name                  = "refgcp-gneg-fqdn"
+  network_endpoint_type = "INTERNET_FQDN_PORT"
+  default_port          = 443
+}
+
+resource "google_compute_global_network_endpoint" "fqdn" {
+  project                       = "$PROJECT"
+  global_network_endpoint_group = google_compute_global_network_endpoint_group.fqdn.name
+  fqdn                          = "backend.example.com"
+  port                          = 443
+}
+
+resource "google_compute_region_network_endpoint_group" "ip" {
+  project               = "$PROJECT"
+  region                = "$REGION"
+  name                  = "refgcp-rneg-ip"
+  network               = google_compute_network.main.id
+  network_endpoint_type = "INTERNET_IP_PORT"
+}
+
+resource "google_compute_region_network_endpoint" "ip" {
+  project                       = "$PROJECT"
+  region                        = "$REGION"
+  region_network_endpoint_group = google_compute_region_network_endpoint_group.ip.name
+  ip_address                    = "203.0.113.20"
+  port                          = 8080
+}
+
+resource "google_compute_region_network_endpoint_group" "fqdn" {
+  project               = "$PROJECT"
+  region                = "$REGION"
+  name                  = "refgcp-rneg-fqdn"
+  network               = google_compute_network.main.id
+  network_endpoint_type = "INTERNET_FQDN_PORT"
+}
+
+resource "google_compute_region_network_endpoint" "fqdn" {
+  project                       = "$PROJECT"
+  region                        = "$REGION"
+  region_network_endpoint_group = google_compute_region_network_endpoint_group.fqdn.name
+  fqdn                          = "db.example.com"
+  port                          = 5432
+}
+TF
+}
+# The scratch file never outlives the stage. A failure before the measured
+# removal below takes it out of both roots and deletes the four NEGs with
+# the REST API on both emulators (an endpoint goes with its group), so no
+# later stage inherits them. The removal clears the trap once it passes.
+scrub_endpoints() {
+  rm -f "$ADOPTED/$EP_FILE" "$ORACLE/$EP_FILE"
+  local row neg
+  for row in "${EP_ROWS[@]}"; do
+    IFS='|' read -r _ neg _ <<< "$row"
+    exists_a "$neg" && { ra DELETE "$neg" >/dev/null 2>&1; log "  day2_endpoints: ${neg##*/} deleted from A with the REST API so no later stage inherits it"; }
+    rb GET "$neg" >/dev/null 2>&1 && { rb DELETE "$neg" >/dev/null 2>&1; log "  day2_endpoints: ${neg##*/} deleted from B with the REST API so no later stage inherits it"; }
+  done
+  return 0
+}
+trap scrub_endpoints EXIT
+endpoints_block > "$ORACLE/$EP_FILE" || fail "could not write the scratch endpoints to the oracle root"
+endpoints_block > "$ADOPTED/$EP_FILE" || fail "could not write the scratch endpoints to the adopted root"
+
+# Stock creates them on B first: a failure here is the emulator or stock,
+# never choudoufu (floci-gcp d29a091 serves only zonal GCE_VM_IP_PORT NEGs;
+# global and regional internet NEGs are lex00/floci-gcp#26).
+O_MK="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_MK" | tail -20; fail "stock could not create the four NEGs and their endpoints on B, so the emulator does not serve them (lex00/floci-gcp#26): $(gauntlet_first_error_line <<< "$O_MK")"; }
+grep -qF "Resources: 8 added, 0 changed, 0 destroyed" <<< "$O_MK" || { printf '%s\n' "$O_MK" | tail -10; fail "stock's create on B did not add exactly the 8 scratch objects: $(grep -E 'Resources:' <<< "$O_MK" | head -1)"; }
+X_MK="$(apply_a)" || { printf '%s\n' "$X_MK" | tail -20; fail "choudoufu could not create the scratch endpoints on A: $(gauntlet_first_error_line <<< "$X_MK")"; }
+grep -qF "Resources: 8 added, 0 changed, 0 destroyed" <<< "$X_MK" || { printf '%s\n' "$X_MK" | tail -20; fail "choudoufu's create on A did not add exactly the 8 scratch objects stock added on B: $(grep -E 'Resources:|No changes' <<< "$X_MK" | head -1)"; }
+
+# Each NEG holds exactly the one endpoint its block declares, on both
+# emulators, read with the REST API.
+for row in "${EP_ROWS[@]}"; do
+  IFS='|' read -r addr neg _ ip fqdn port <<< "$row"
+  want="$ip|$fqdn|$port"
+  got_a="$(ra POST "$neg/listNetworkEndpoints" '{}' | refgcp_neg_endpoint_lines)" || fail "could not list ${neg##*/}'s endpoints on A"
+  [ "$got_a" = "$want" ] || fail "${neg##*/} on A holds endpoint(s) \"$got_a\", want exactly \"$want\" ($addr)"
+  got_b="$(rb POST "$neg/listNetworkEndpoints" '{}' | refgcp_neg_endpoint_lines)" || fail "could not list ${neg##*/}'s endpoints on B"
+  [ "$got_b" = "$want" ] || fail "${neg##*/} on B holds endpoint(s) \"$got_b\", want exactly \"$want\" ($addr)"
+done
+
+E_PLAN="$(plan_a)" || { printf '%s\n' "$E_PLAN" | tail -20; fail "the plan after the create failed: $(gauntlet_first_error_line <<< "$E_PLAN")"; }
+grep -q "No changes." <<< "$E_PLAN" || { printf '%s\n' "$E_PLAN" | tail -20; fail "the plan after the create is not empty ($(gauntlet_plan_line <<< "$E_PLAN"))"; }
+
+# Each endpoint's record names the object by the id stock imports.
+EP_SEEN=""
+for row in "${EP_ROWS[@]}"; do
+  IFS='|' read -r addr _ id ip fqdn port <<< "$row"
+  R_SAYS="$(refgcp_endpoint_record "$ADOPTED/.tofu-records" "$addr" "$id" "$ip" "$fqdn" "$port")" || fail "$R_SAYS"
+  EP_SEEN="${EP_SEEN:+$EP_SEEN; }$addr: $R_SAYS"
+done
+
+# The plan with no state file: the cache set aside, so every scratch
+# object is bound through its record or its identity alone.
+EP_CACHE="$ADOPTED/.terraform/choudoufu-cache.tfstate"
+EP_KEEP="$WORK/day2_endpoints.cache.keep"
+cp "$EP_CACHE" "$EP_KEEP" 2>/dev/null || fail "there is no state cache at $EP_CACHE to set aside"
+rm -f "$EP_CACHE"
+N_PLAN="$(plan_a)"; N_RC=$?
+cp "$EP_KEEP" "$EP_CACHE" || fail "could not put the state cache back"
+{ [ "$N_RC" -eq 0 ] && grep -q "No changes." <<< "$N_PLAN"; } || { printf '%s\n' "$N_PLAN" | tail -20; fail "the plan with no state file is not empty (exit $N_RC, $(gauntlet_plan_line <<< "$N_PLAN")): $(gauntlet_first_error_line <<< "$N_PLAN")"; }
+
+# Stock's import of each endpoint on B with the id choudoufu renders.
+# BREAK_ENDPOINTS=1 hands stock the id with the empty segment collapsed,
+# the rendering before item 6, and the import must fail.
+EP_BROKEN=""; [ "${BREAK_ENDPOINTS:-}" = "1" ] && EP_BROKEN=1
+for row in "${EP_ROWS[@]}"; do
+  IFS='|' read -r addr _ id _ <<< "$row"
+  [ -n "$EP_BROKEN" ] && id="${id//\/\///}"
+  ( stock_b state rm "$addr" >/dev/null 2>&1 ) || fail "stock could not forget $addr on B before the import"
+  I_OUT="$(stock_b import -input=false -no-color "$addr" "$id" 2>&1)" || { printf '%s\n' "$I_OUT" | tail -10; fail "stock's import of $addr on B with \"$id\" failed${EP_BROKEN:+ (BREAK_ENDPOINTS=1: the empty segment collapsed, the rendering before #2145 item 6)}: $(gauntlet_first_error_line <<< "$I_OUT")"; }
+done
+[ -z "$EP_BROKEN" ] || fail "BREAK_ENDPOINTS=1: stock imported every endpoint on B by the id with the empty segment collapsed, so the empty segment is not what the import needs"
+I_PLAN="$(stock_b plan -input=false -no-color 2>&1)" || { printf '%s\n' "$I_PLAN" | tail -10; fail "stock's plan on B after the imports failed"; }
+grep -q "No changes." <<< "$I_PLAN" || { printf '%s\n' "$I_PLAN" | tail -20; fail "stock's plan on B after importing the four endpoints by choudoufu's ids is not empty ($(gauntlet_plan_line <<< "$I_PLAN")), so an id named another object"; }
+
+# The scratch file removed, as an operator removes a block: the same count
+# destroyed on each emulator, and nothing left on either.
+rm -f "$ADOPTED/$EP_FILE" "$ORACLE/$EP_FILE"
+O_RM="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_RM" | tail -10; fail "stock could not remove the scratch endpoints on B"; }
+O_N="$(grep -oE 'Resources: 0 added, 0 changed, [0-9]+ destroyed' <<< "$O_RM" | grep -oE '[0-9]+ destroyed' | grep -oE '[0-9]+')"
+X_RM="$(apply_a)" || { printf '%s\n' "$X_RM" | tail -20; fail "removing the scratch endpoints from A failed: $(gauntlet_first_error_line <<< "$X_RM")"; }
+X_N="$(grep -oE 'Resources: 0 added, 0 changed, [0-9]+ destroyed' <<< "$X_RM" | grep -oE '[0-9]+ destroyed' | grep -oE '[0-9]+')"
+[ "${O_N:-}" = "8" ] || fail "stock's removal on B destroyed ${O_N:-an unreported number of} object(s), want the 8 it created"
+[ "${X_N:-}" = "$O_N" ] || fail "removing the scratch endpoints destroyed ${X_N:-an unreported number of} object(s) on A; stock destroyed $O_N on B: $(grep -E 'Resources:|No changes' <<< "$X_RM" | head -1)"
+for row in "${EP_ROWS[@]}"; do
+  IFS='|' read -r _ neg _ <<< "$row"
+  exists_a "$neg" && fail "${neg##*/} still exists on A after the scratch endpoints were removed"
+  rb GET "$neg" >/dev/null 2>&1 && fail "${neg##*/} still exists on B after stock removed the scratch endpoints"
+done
+L_PLAN="$(plan_a)" || { printf '%s\n' "$L_PLAN" | tail -20; fail "the plan after the removal failed: $(gauntlet_first_error_line <<< "$L_PLAN")"; }
+grep -q "No changes." <<< "$L_PLAN" || { printf '%s\n' "$L_PLAN" | tail -20; fail "the plan after the removal is not empty ($(gauntlet_plan_line <<< "$L_PLAN"))"; }
+trap - EXIT
+gauntlet_stage day2_endpoints pass "a global and a regional internet NEG pair (INTERNET_IP_PORT with only ip_address, INTERNET_FQDN_PORT with only fqdn), 8 objects created by choudoufu on A as stock created them on B, each NEG holding exactly its declared endpoint (REST, both emulators); the next plan and the plan with no state file are empty, each endpoint bound by its record ($EP_SEEN). Stock imported each of the four endpoints on B by choudoufu's rendered id, the unset field an empty segment (e.g. $PROJECT/refgcp-gneg-ip/203.0.113.10//443), and planned empty after. Removing the scratch file destroyed $X_N on A and $O_N on B, no NEG left on either (REST), and the next plan is empty. BREAK_ENDPOINTS=1 collapses the empty segment and stock's import fails the stage"
+
+); stage_done $? day2_endpoints reconverge
 
 (
 # ── 10. day2_crash: an apply of two objects, killed after the first ─────
