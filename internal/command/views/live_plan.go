@@ -1317,9 +1317,17 @@ const liveSweepGapIntro = `Finding a resource whose block was deleted means list
 
 // liveSweepGapReasons is the one paragraph each standing gap gets,
 // written once for the group rather than once per type.
+//
+// TYPE_NOT_TAGGABLE's paragraph is GitHub issue #2119's D3 ruling, the same
+// on every platform: the record leg (internal/live/discovery's
+// recordorphan_read.go) plans a removed untaggable block's destroy while its
+// record survives, and a lost record leaves the resource unowned with no
+// per-run warning and live/RECOVERY.md's recovery. It used to tell the
+// reader to destroy before removing the block, which the record leg made
+// untrue.
 var liveSweepGapReasons = map[string]string{
 	"TYPE_NOT_LISTABLE": "The provider cannot list these types at all, so nothing of them can be enumerated and a resource of one of them whose block was deleted stays live and unplanned. Destroy it before removing its block, or delete it out of band.",
-	"TYPE_NOT_TAGGABLE": "These types carry no tags, so they can carry no ownership marker and there is nothing for a sweep to search on. A resource of one of them is found by an identity built from its own configuration, which means deleting its resource block deletes the only record of which resource it was. Destroy it before removing its block, or delete it out of band.",
+	"TYPE_NOT_TAGGABLE": "These types carry no tags, so they can carry no ownership marker and there is nothing for a sweep to search on. While the estate's record of such a resource survives, removing its block still plans the destroy: the record names the resource the block no longer does. With the record lost as well, no run can tell the resource was ever this estate's, so it is left running unowned, and no plan warns about it; live/RECOVERY.md, \"A removed block of an untaggable type, record lost\", says how to restore the record's previous version.",
 }
 
 const liveRenameIntro = `Each line below is a live resource this estate owns whose ownership marker names a for_each key the configuration no longer declares, beside the one declared instance of the same resource block that nothing claimed. They are probably the same resource under a new key. Nothing was renamed and the plan is unchanged by this: it still proposes creating the new key, and the live resource is still owned at an address nothing declares. Run the command if the pairing is right - rewriting that tag is the whole move.`

@@ -1,0 +1,191 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "One estate's grant on Azure (#1120, ruled on #1122): the RBAC half of the fence. An estate is a set of resource groups, and this assigns one principal a role at each of them, plus read access at the subscription for the plan's Resource Graph sweep. Apply it with az alone: az deployment sub create --location <region> --template-file live/azure/estate-grant.json --parameters estate=<estate> resourceGroups='[\"<rg-1>\",\"<rg-2>\"]' principalId=<object-id>. Handover is this deployment run for another principal and the old assignments removed; nothing on the resources changes. The Policy half is live/azure/estate-boundary.json. See live/MARKERS.md, \"Granting an Azure estate\".",
+    "role": "role=custom (the default) defines a role per estate whose assignable scopes are the estate's groups: Contributor's actions, minus deleting the resource group itself. A group delete removes every resource in it at once, tagged or not, and past any per-resource check (the opt-in delete lock in estate-boundary.json sees only indexed resources), so the estate's principal is not given it; it deletes the resources it declares one by one. role=Contributor uses the built-in role instead, which needs no role definition write but can delete the group and can be assigned anywhere.",
+    "notReached": "Azure RBAC cannot condition on a resource's tags, so this grant reaches everything in the estate's groups, tagged or not, and nothing outside them. That is wider than AWS's aws:ResourceTag grant inside the group and narrower outside it: untaggable child resources are covered by the group's role assignment where an IAM tag condition would match nothing. The sweep reader is subscription-wide read (*/read), so reads are not fenced by estate, the way a Kubernetes admission policy does not fence a get. The record store's read fence is the ABAC condition in live/azure/record-store-abac.condition, granted separately."
+  },
+  "parameters": {
+    "estate": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "metadata": {
+        "description": "The estate's name, exactly as its tofu-estate marker spells it."
+      }
+    },
+    "resourceGroups": {
+      "type": "array",
+      "minLength": 1,
+      "metadata": {
+        "description": "The names of the resource groups this estate owns, in this subscription. Each must already exist."
+      }
+    },
+    "principalId": {
+      "type": "string",
+      "metadata": {
+        "description": "The object id of the principal that plans and applies this estate."
+      }
+    },
+    "principalType": {
+      "type": "string",
+      "defaultValue": "ServicePrincipal",
+      "allowedValues": [
+        "ServicePrincipal",
+        "User",
+        "Group"
+      ]
+    },
+    "role": {
+      "type": "string",
+      "defaultValue": "custom",
+      "allowedValues": [
+        "custom",
+        "Contributor"
+      ]
+    }
+  },
+  "variables": {
+    "copy": [
+      {
+        "name": "groupScopes",
+        "count": "[length(parameters('resourceGroups'))]",
+        "input": "[format('{0}/resourceGroups/{1}', subscription().id, parameters('resourceGroups')[copyIndex('groupScopes')])]"
+      }
+    ],
+    "estateRoleName": "[guid(subscription().id, 'choudoufu-estate', parameters('estate'))]",
+    "contributorRoleName": "b24988ac-6180-42a0-ab88-20f7382dd24c",
+    "estateRoleId": "[if(equals(parameters('role'), 'Contributor'), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('contributorRoleName')), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('estateRoleName')))]",
+    "sweepRoleName": "[guid(subscription().id, 'choudoufu-estate-sweep-reader')]"
+  },
+  "resources": [
+    {
+      "condition": "[equals(parameters('role'), 'custom')]",
+      "type": "Microsoft.Authorization/roleDefinitions",
+      "apiVersion": "2022-04-01",
+      "name": "[variables('estateRoleName')]",
+      "properties": {
+        "roleName": "[format('choudoufu estate {0} ({1})', parameters('estate'), subscription().subscriptionId)]",
+        "description": "Manage the resources of one choudoufu estate, inside its resource groups. Contributor's actions without deleting the group.",
+        "type": "CustomRole",
+        "permissions": [
+          {
+            "actions": [
+              "*"
+            ],
+            "notActions": [
+              "Microsoft.Authorization/*/Delete",
+              "Microsoft.Authorization/*/Write",
+              "Microsoft.Authorization/elevateAccess/Action",
+              "Microsoft.Blueprint/blueprintAssignments/write",
+              "Microsoft.Blueprint/blueprintAssignments/delete",
+              "Microsoft.Resources/subscriptions/resourceGroups/delete"
+            ]
+          }
+        ],
+        "assignableScopes": "[variables('groupScopes')]"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleDefinitions",
+      "apiVersion": "2022-04-01",
+      "name": "[variables('sweepRoleName')]",
+      "properties": {
+        "roleName": "[format('choudoufu estate sweep reader ({0})', subscription().subscriptionId)]",
+        "description": "Read what a choudoufu plan's Resource Graph sweep lists: every resource in the subscription, through Resource Graph.",
+        "type": "CustomRole",
+        "permissions": [
+          {
+            "actions": [
+              "*/read",
+              "Microsoft.ResourceGraph/resources/read"
+            ],
+            "notActions": []
+          }
+        ],
+        "assignableScopes": [
+          "[subscription().id]"
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(subscription().id, parameters('principalId'), variables('sweepRoleName'))]",
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('sweepRoleName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('sweepRoleName'))]",
+        "principalId": "[parameters('principalId')]",
+        "principalType": "[parameters('principalType')]",
+        "description": "[format('choudoufu estate {0}: Resource Graph sweep', parameters('estate'))]"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[format('choudoufu-grant-{0}', uniqueString(parameters('resourceGroups')[copyIndex()], parameters('principalId')))]",
+      "resourceGroup": "[parameters('resourceGroups')[copyIndex()]]",
+      "copy": {
+        "name": "perGroup",
+        "count": "[length(parameters('resourceGroups'))]"
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('estateRoleName'))]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "parameters": {
+          "estate": {
+            "value": "[parameters('estate')]"
+          },
+          "principalId": {
+            "value": "[parameters('principalId')]"
+          },
+          "principalType": {
+            "value": "[parameters('principalType')]"
+          },
+          "roleDefinitionId": {
+            "value": "[variables('estateRoleId')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "estate": {
+              "type": "string"
+            },
+            "principalId": {
+              "type": "string"
+            },
+            "principalType": {
+              "type": "string"
+            },
+            "roleDefinitionId": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(resourceGroup().id, parameters('principalId'), parameters('roleDefinitionId'))]",
+              "properties": {
+                "roleDefinitionId": "[parameters('roleDefinitionId')]",
+                "principalId": "[parameters('principalId')]",
+                "principalType": "[parameters('principalType')]",
+                "description": "[format('choudoufu estate {0}', parameters('estate'))]"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

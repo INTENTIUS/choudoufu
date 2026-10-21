@@ -33,6 +33,10 @@ var guardedPackages = []string{
 	// statically; it takes strings off the config structs and evaluates no
 	// expression of its own, so it is held to zero.
 	"affected",
+	// The Azure epic's (#1120) azapi type-capability table: a committed
+	// text file and lookups over it. It reads no configuration value and
+	// no cloud object, so it is held to zero.
+	"armtypes",
 	// GitHub issue #1956's live-cone parses the root module's source text
 	// and evaluates only a module call's literal source, so it is held to
 	// zero.
@@ -51,6 +55,12 @@ var guardedPackages = []string{
 	// collapses to one digest over its elements. Same reasoning as
 	// "markerstrip" below.
 	"approval",
+	// GitHub issue #1120's Azure sweep client: reads the azurerm or azapi
+	// provider block's evaluated configuration the way gcpsweep does,
+	// testing every argument for a mark before reading it and unmarking
+	// only the arguments that are the credential. Its API answers are Go
+	// structs.
+	"azsweep",
 	"check",
 	"cloudcontrol",
 	// The verification cohorts' pinned rosters (issue #699): 31 cohort

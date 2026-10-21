@@ -84,7 +84,9 @@ import (
 // working configurations" this repository has been bitten by.
 //
 // So displacedFrom compares only where it can compare like with like, and
-// every case it cannot reach returns "not displaced" - today's silence:
+// every case it cannot reach returns "not displaced" - silence - and, since
+// GitHub issue #2137, "not proven" as well: [verdictUncompared], which
+// neither reports nor vouches:
 //
 //   - Not [identity.ClassConcrete]: nothing to compare. A needs-discovery
 //     address never reaches this code at all (it is bound through
@@ -101,7 +103,24 @@ import (
 //     IS that component's one value and cannot be a join of several. This is
 //     the branch that fires against a provider or emulator whose identity
 //     object carries only "id" - and the branch #244's own tests exercise.
-//   - Anything else: not displaced.
+//   - An ARM id on the listed side (GitHub issue #2136): compared whole,
+//     case-insensitively, with the address's own ARM id, before any of the
+//     above, the ambiguous case included. With no single ARM id on the
+//     address's side (no entry, an ambiguous one, or one without an ARM
+//     id) the answer is
+//     [verdictUncompared], which neither reports nor vouches: an Azure
+//     sighting never reaches the "nothing to compare" vouch.
+//   - Anything else: not displaced, and not proven either. Before #2137 this
+//     case answered [verdictOwnObject] and vouched. aws_ecs_service, whose
+//     identity row has three components, was measured doing what #2136
+//     found on Azure: a Tagging API claimant carries no identity object,
+//     the fallback declines a multi-component row, and the old service left
+//     at a renamed argument's old name vouched for the address, so the
+//     projection would have admitted whatever sat at the new name without
+//     reading its tags (unprovensighting_test.go). Unproven, the projection
+//     reads the object at the declared id and judges it by its own tags;
+//     the cost is that such a sighting no longer lets the state cache serve
+//     the address ([Result.VerifiedDeclared]).
 //   - The estate's own record names this very object as the one the address
 //     owns right now ([recordOwners]). The identities disagree because the
 //     address is about to be replaced, not because a second object holds it.
@@ -137,6 +156,11 @@ import (
 // identity-poor provider. Recount these numbers rather than quoting them if
 // the admission table has moved.
 //
+// The other side of the same count: the 148 multi-component types, and any
+// type whose claimant carries no identity object and has no one-component
+// row, reach no comparison at all. Since #2137 they answer
+// [verdictUncompared] and never vouch.
+//
 // The narrowing that matters most is not in this list: displacedFrom is only
 // ever asked about an object that already carries THIS estate's tofu-estate
 // marker AND a tofu-address the configuration declares. An object of a type
@@ -154,10 +178,10 @@ import (
 type addressVerdict int
 
 const (
-	// verdictOwnObject: nothing here contradicts this object being the
-	// instance the address names. Either the identities agree, or nothing
-	// comparable was available (see this file's doc comment). This is the
-	// answer that vouches.
+	// verdictOwnObject: a comparison ran and the identities agree, so this
+	// object is the instance the address names. This is the answer that
+	// vouches. Before GitHub issue #2137 it was also the answer when
+	// nothing comparable was available; that is [verdictUncompared] now.
 	verdictOwnObject addressVerdict = iota
 
 	// verdictDisplaced: the configuration computes an identity this object
@@ -173,26 +197,77 @@ const (
 	// object the projection reads at that address is the one the
 	// configuration names, which this sighting says nothing about.
 	verdictIdentityChanging
+
+	// verdictUncompared: no comparison could run, so the sighting is
+	// unproven. Neither reported nor vouched: the projection reads the
+	// object at the address's own id and judges it by its own tags.
+	//
+	// On Azure (GitHub issue #2136) the object was listed with an ARM id
+	// and the address its marker names has no ARM id of its own to compare
+	// it with (no single entry, a class with nothing comparable, or an
+	// import id that is not an ARM id). Every Azure sighting carries its
+	// ARM id, so on Azure the verdict is otherwise always the ARM id
+	// comparison.
+	//
+	// Everywhere else (GitHub issue #2137, maintainer ruling 2026-10-20)
+	// it is every case this file's doc comment lists as declining to
+	// compare: no single entry, a class with nothing comparable, or a
+	// concrete address whose identity values the claimant does not carry
+	// and whose type has no one-component row for the whole-import-id
+	// fallback. Those used to answer [verdictOwnObject] and vouch, which
+	// let a renamed object's old sighting admit whatever sat at the new id
+	// unread.
+	verdictUncompared
+
+	// verdictDeposed: the configuration computes an identity this object
+	// does not have, the record's current identity does not name it either,
+	// and the record names it as the address's DEPOSED object, exactly one
+	// deposed entry matching. That is what an apply interrupted between a
+	// create_before_destroy replace's create and its destroy leaves (#361):
+	// the new object at the identity the configuration computes, the old
+	// one still standing with the same marker, and the write-back holding
+	// it as deposed. It is neither reported nor vouched; the caller hands
+	// it to the projection as a [projection.DeposedBinding]
+	// ([declared.appendDeposedBinding]), which reads it once more and
+	// proposes its destroy, stock's own deposed-object destroy. Before
+	// #1120's reference-azure day2_crash it read as displaced, and the
+	// interrupted rename's old object was left standing for good on every
+	// leg that files such an object through this function.
+	verdictDeposed
 )
 
 // displacedFrom classifies one live object wearing a declared address's
 // marker, and returns the identity the configuration computes for that
 // address alongside, for the message.
 //
-// The asymmetry is deliberate: it answers [verdictDisplaced] only on
-// evidence, and answers [verdictOwnObject] for every kind of doubt. See this
-// file's doc comment for the six ways it declines to answer.
+// It answers [verdictDisplaced] only on evidence and [verdictOwnObject]
+// only on evidence; every kind of doubt is [verdictUncompared], which
+// neither reports nor vouches (GitHub issue #2137). See this file's doc
+// comment for the ways it declines to answer.
 func (d *declared) displacedFrom(ctx context.Context, typeName, escaped string, c claimant) (want string, verdict addressVerdict) {
 	entry := d.all[typeName][escaped]
+	if isARMID(c.importID) && (entry == nil || entry.ambiguous || !classTable[entry.res.Class].comparableIdentity || !isARMID(entry.res.ImportID)) {
+		// An Azure sighting: its ARM id is the whole comparison, and with
+		// no single ARM id on the address's side there is none. See
+		// [verdictUncompared]. Asked before the nil and ambiguous checks
+		// below (GitHub issue #2140, finding 5), so no Azure sighting
+		// reaches their vouching default.
+		return "", verdictUncompared
+	}
 	if entry == nil || entry.ambiguous {
-		return "", verdictOwnObject
+		return "", verdictUncompared
 	}
 	res := entry.res
 	if !classTable[res.Class].comparableIdentity {
-		return "", verdictOwnObject
+		return "", verdictUncompared
 	}
 
-	want, mismatched := configIdentityMismatch(typeName, res, c)
+	want, mismatched, compared := compareIdentity(typeName, res, c)
+	if !compared {
+		// GitHub issue #2137: nothing comparable on both sides. Unproven,
+		// not the address's own object.
+		return "", verdictUncompared
+	}
 	if !mismatched {
 		return "", verdictOwnObject
 	}
@@ -202,7 +277,46 @@ func (d *declared) displacedFrom(ctx context.Context, typeName, escaped string, 
 	if d.records.namesClaimant(ctx, res.Addr, c) {
 		return want, verdictIdentityChanging
 	}
+	if _, ok := d.deposedBindingFor(typeName, escaped, c); ok {
+		return want, verdictDeposed
+	}
 	return want, verdictDisplaced
+}
+
+// deposedBindingFor is the deposed binding [verdictDeposed] stands for: the
+// one deposed entry the estate's record holds for the address escaped names
+// that c is, by [deposedClaimantMatches]. Exactly one entry must match, as
+// [matchDeposedClaimant] requires; none, or more than one, is no binding.
+func (d *declared) deposedBindingFor(typeName, escaped string, c claimant) (projection.DeposedBinding, bool) {
+	entry := d.all[typeName][escaped]
+	if entry == nil || entry.ambiguous {
+		return projection.DeposedBinding{}, false
+	}
+	addr := entry.res.Addr
+	var found projection.DeposedBinding
+	matches := 0
+	for dk, rec := range d.deposed[addr.String()] {
+		if deposedClaimantMatches(typeName, rec, c) {
+			matches++
+			found = projection.NewDeposedBinding(addr, dk, rec)
+		}
+	}
+	return found, matches == 1
+}
+
+// appendDeposedBinding appends c's [declared.deposedBindingFor] binding to
+// bindings, once: two legs of one pass can list the same object.
+func (d *declared) appendDeposedBinding(bindings []projection.DeposedBinding, typeName, escaped string, c claimant) []projection.DeposedBinding {
+	db, ok := d.deposedBindingFor(typeName, escaped, c)
+	if !ok {
+		return bindings
+	}
+	for _, have := range bindings {
+		if have.Addr.String() == db.Addr.String() && have.DeposedKey == db.DeposedKey {
+			return bindings
+		}
+	}
+	return append(bindings, db)
 }
 
 // configIdentityMismatch is displacedFrom's comparison proper, split out so
@@ -211,8 +325,38 @@ func (d *declared) displacedFrom(ctx context.Context, typeName, escaped string, 
 // the one this live object carries", which is true of a displaced object and
 // equally true of an object a ForceNew replace is about to supersede.
 //
-// want is the identity the configuration computes, for the message.
+// want is the identity the configuration computes, for the message. It is
+// [compareIdentity] without the third answer, for callers that only ask
+// whether the two disagree.
 func configIdentityMismatch(typeName string, res identity.Resolution, c claimant) (want string, mismatched bool) {
+	want, mismatched, _ = compareIdentity(typeName, res, c)
+	return want, mismatched
+}
+
+// compareIdentity is [configIdentityMismatch] with the answer GitHub issue
+// #2137 needs: compared reports whether any comparison ran at all. When it
+// is false, mismatched is false too, and that false means "nothing to
+// compare", which [declared.displacedFrom] reads as unproven rather than
+// as agreement.
+func compareIdentity(typeName string, res identity.Resolution, c claimant) (want string, mismatched, compared bool) {
+	// GitHub issue #2136: an ARM id on both sides is an object's whole name,
+	// never a join, so it is compared whatever the type's table row says.
+	// No azurerm or azapi type has a DefaultTable row, and a Resource Graph
+	// claimant carries no identity object, so without this branch the
+	// comparison never ran on Azure: an object left at a renamed argument's
+	// old name read as the address's own object and vouched for it, and the
+	// projection then admitted whatever sat at the new name unread.
+	// Case-insensitive, as ARM compares ids and as Resource Graph returns
+	// them lowercased ([sameImportID]). It answers before the per-attribute
+	// path below because it is complete: two ARM ids that agree name one
+	// object, and a subset of identity attributes agreeing says less.
+	if isARMID(res.ImportID) && isARMID(c.importID) {
+		if sameImportID(res.ImportID, c.importID) {
+			return "", false, true
+		}
+		return res.ImportID, true, true
+	}
+
 	// The precise path: identity attributes both sides name. Sorted so that
 	// a resolution with two mismatching attributes always reports the same
 	// one - a Go map range here would make the diagnostic nondeterministic.
@@ -223,7 +367,6 @@ func configIdentityMismatch(typeName string, res identity.Resolution, c claimant
 		}
 		sort.Strings(names)
 
-		compared := false
 		var firstMismatch string
 		for _, name := range names {
 			wantVal := res.IdentityValues[name]
@@ -245,7 +388,7 @@ func configIdentityMismatch(typeName string, res identity.Resolution, c claimant
 			}
 		}
 		if compared {
-			return firstMismatch, firstMismatch != ""
+			return firstMismatch, firstMismatch != "", true
 		}
 	}
 
@@ -259,21 +402,43 @@ func configIdentityMismatch(typeName string, res identity.Resolution, c claimant
 	// (project, region or zone, name) must be one of its path segments, and
 	// the last segment must be one of them.
 	if c.resourcePath != "" && len(res.IdentityValues) > 0 {
-		return gcpPathMismatch(res, c.resourcePath)
+		want, mismatched := gcpPathMismatch(res, c.resourcePath)
+		return want, mismatched, true
 	}
 
 	// The fallback: the whole import ID, and only where it cannot be a join.
 	if res.ImportID == "" || c.importID == "" {
-		return "", false
+		return "", false, false
 	}
 	ti, ok := identity.LookupType(typeName)
 	if !ok || len(ti.Components) != 1 {
-		return "", false
+		return "", false, false
 	}
 	if c.importID == res.ImportID {
-		return "", false
+		return "", false, true
 	}
-	return res.ImportID, true
+	return res.ImportID, true, true
+}
+
+// isARMID reports whether id is an Azure Resource Manager id, the import id
+// every azurerm and azapi resolution carries ([ARMSubscription]).
+func isARMID(id string) bool {
+	_, ok := ARMSubscription(id)
+	return ok
+}
+
+// sameImportID reports whether two import ids name one object: equal
+// strings, or two ARM ids equal but for case (GitHub issue #2136). ARM ids,
+// resource group names and resource names are case-insensitive (the #1122
+// ruling), and Resource Graph returns ids in its index's casing, resource
+// group lowercased among them, so an exact comparison would read every Azure
+// object listed at its own id as another object. Every other import id is
+// compared exactly, as before: an AWS id is case-sensitive.
+func sameImportID(a, b string) bool {
+	if a == b {
+		return true
+	}
+	return isARMID(a) && isARMID(b) && strings.EqualFold(a, b)
 }
 
 // recordOwners answers, for one declared address, whether a live object is
@@ -373,7 +538,7 @@ func (r *recordOwners) namesClaimant(ctx context.Context, addr addrs.AbsResource
 	if rec == nil {
 		return false
 	}
-	return claimantMatchesRecord(*rec, c)
+	return claimantMatchesRecord(addr.Resource.Resource.Type, *rec, c)
 }
 
 // displacedProblem is the finding [declared.displacedFrom] produces.
@@ -401,16 +566,82 @@ func (r *recordOwners) namesClaimant(ctx context.Context, addr addrs.AbsResource
 // case where nothing is there at all. What the address itself is planned for
 // is the ordinary diff's answer and is left to the plan output beside this
 // warning.
-func displacedProblem(req Request, typeName, escaped, want string, c claimant) Problem {
+//
+// # Where the object sits (follow-up to GitHub issue #2136)
+//
+// "Bound to no address, not read" is true only of an object at an identity
+// nothing declares. An object at the identity the configuration computes
+// for ANOTHER declared instance - the renumbering this text names, where
+// the object marked r[2] now sits at r[1]'s identity, or AKS's copy of a
+// cluster's markers on a declared route table - is read there, by that
+// instance, and judged by its own markers. [declared.declaredAt] finds that
+// instance, and the text then says so instead.
+func displacedProblem(req Request, decl *declared, typeName, escaped, want string, c claimant) Problem {
+	var fate string
+	if readBy, ok := decl.declaredAt(typeName, c.importID); ok {
+		fate = fmt.Sprintf(
+			"This run does nothing to the object named here on %s's behalf: it is not bound to that address, and not changed or destroyed as its object. It sits at the identity this configuration computes for %s, so it is read there as %s's object and judged by its own markers, like any object at a declared identity: read the plan for %s for what is proposed for it, and the plan for %s for what %s itself is proposed for.",
+			escaped, readBy, readBy, readBy, escaped, escaped)
+	} else {
+		fate = fmt.Sprintf(
+			"This run does nothing to the object named here: it is bound to no address, it is not read, not changed and not destroyed, and it will stay in the account until a human says which resource is which. Read the plan for %s beside this warning for what that address itself is proposed for.",
+			escaped)
+	}
+	// The live object is named by its own type, the address by its own
+	// (GitHub issue #2138): the Resource Graph leg files an object under the
+	// type its marker names, and an AKS-copied cluster marker on a route
+	// table is not a cluster. TypeName stays the address's, which is what
+	// the problem is filed under.
+	liveType := typeName
+	if c.objectType != "" {
+		liveType = c.objectType
+	}
 	return Problem{
 		Kind:     ProblemDisplacedMarker,
 		TypeName: typeName,
 		Marker:   escaped,
 		LiveIDs:  liveIDs(c.importID),
 		Detail: fmt.Sprintf(
-			"A live %s with identity %q carries estate %q and the address %q, but the identity this configuration computes for %s is %q, and this estate's own record does not name this object as the one that address owns. This live object is therefore not the one the address is planned against: the plan for %s is computed from the identity the configuration names, which is either a different live resource or nothing yet. That is most often what a renumbering leaves behind - deleting a middle element of a count list moves every later instance's identity down one while the live resources keep the markers they were stamped with. This run does nothing to the object named here: it is bound to no address, it is not read, not changed and not destroyed, and it will stay in the account until a human says which resource is which. Read the plan for %s beside this warning for what that address itself is proposed for. Use choudoufu live-mv, or a moved block, to say that a resource moved; remove this resource's markers to disown it.",
-			typeName, c.displayID(), req.Estate, escaped, escaped, want, escaped, escaped),
+			"A live %s with identity %q carries estate %q and the address %q, but the identity this configuration computes for %s is %q, and this estate's own record does not name this object as the one that address owns. This live object is therefore not the one the address is planned against: the plan for %s is computed from the identity the configuration names, which is either a different live resource or nothing yet. That is most often what a renumbering leaves behind - deleting a middle element of a count list moves every later instance's identity down one while the live resources keep the markers they were stamped with. %s Use choudoufu live-mv, or a moved block, to say that a resource moved; remove this resource's markers to disown it.",
+			liveType, c.displayID(), req.Estate, escaped, escaped, want, escaped, fate),
 	}
+}
+
+// declaredAt is the declared instance whose configuration computes importID
+// as its identity, for [displacedProblem]: the instance that reads the
+// object at importID, whatever marker the object carries. An ARM id is
+// matched across every declared type, case-insensitively ([sameImportID]),
+// because an ARM id names one object whatever its type (and the Resource
+// Graph leg files an object under the type its marker names, not its own);
+// any other id only among typeName's instances, because a bucket's name and
+// a role's name can be one string. Ambiguous entries and classes with no
+// identity of their own are skipped. With several matches (a configuration
+// the duplicate-identity refusal stops anyway) the least address in string
+// order answers, so the message is the same on every run.
+func (d *declared) declaredAt(typeName, importID string) (addrs.AbsResourceInstance, bool) {
+	if d == nil || importID == "" {
+		return addrs.AbsResourceInstance{}, false
+	}
+	arm := isARMID(importID)
+	var best addrs.AbsResourceInstance
+	found := false
+	for t, byAddr := range d.all {
+		if !arm && t != typeName {
+			continue
+		}
+		for _, da := range byAddr {
+			if da == nil || da.ambiguous || !classTable[da.res.Class].comparableIdentity || da.res.ImportID == "" {
+				continue
+			}
+			if !sameImportID(da.res.ImportID, importID) {
+				continue
+			}
+			if !found || da.res.Addr.String() < best.String() {
+				best, found = da.res.Addr, true
+			}
+		}
+	}
+	return best, found
 }
 
 // gcpPathMismatch is [configIdentityMismatch] for a GCP Asset claimant:

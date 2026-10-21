@@ -160,6 +160,8 @@ func sweepFacts(kind substrate.Sweep) SweepFacts {
 		desc = "runs through the configured provider itself; no separate client is built from the provider block"
 	case substrate.SweepLabelList:
 		desc = "a cluster client built from the provider block's own connection arguments (Substrate.NewSweeper)"
+	case substrate.SweepResourceGraph:
+		desc = "one Azure Resource Graph query per subscription the estate's resources resolve to, matching the marker case-insensitively, through clients built from the azurerm and azapi provider blocks' own connection arguments (Substrate.NewSweeper; GitHub issue #1120)"
 	case substrate.SweepAssetSearch:
 		desc = "a Cloud Asset Inventory client built from the provider block's own credential arguments (Substrate.NewSweeper), one search per project the estate's resources name; the index lags creates and deletes"
 	}
@@ -222,7 +224,10 @@ func controllerHeldFacts(s substrate.Substrate) ControllerHeldFacts {
 var fenceByFamily = map[string]string{
 	"aws":        "IAM conditions on aws:ResourceTag, reads and writes, per principal (live/MARKERS.md).",
 	"kubernetes": "One ValidatingAdmissionPolicy, writes only, enforced per principal through the cluster's authorizer.",
-	"google":     "Project-scoped, restated: an IAM condition cannot match a label, so one estate per project, granted by an ordinary project IAM binding. Resource Manager tag bindings, which a condition can match, are ruled later (#1121).",
+	// GitHub issue #1122's ruling (2026-10-19): Azure RBAC cannot condition
+	// on tags, so the estate is a set of resource groups.
+	"azurerm": "Resource-group RBAC per principal (a custom role or Contributor on the estate's groups), plus Azure Policy on the tofu-estate tag: deny a write that lacks it or changes it. The RBAC alone governs deletes; a denyAction delete lock is opt-in (deleteLock, off by default). Template files an operator applies, never plan resources.",
+	"google":  "Project-scoped, restated: an IAM condition cannot match a label, so one estate per project, granted by an ordinary project IAM binding. Resource Manager tag bindings, which a condition can match, are ruled later (#1121).",
 }
 
 func fenceFor(family string) (string, error) {
@@ -253,6 +258,14 @@ var harnessByFamily = map[string]struct {
 		PinFile: "live/kind-node-image",
 		Notes:   "a kind cluster on the pinned node image; no per-service capability probe like floci's exists for it.",
 	},
+	// GitHub issue #1120: the lex00/floci-az fork, pinned by digest in
+	// live/floci-az-image. The azure lane's two estates run on it, and
+	// live/FLOCI.md's Azure section lists what it serves.
+	"azurerm": {
+		Name:    "floci-az",
+		PinFile: "live/floci-az-image",
+		Notes:   "the lex00/floci-az fork, pinned by digest; the azure lane's two estates run on it, and live/FLOCI.md lists what it serves.",
+	},
 	"google": {
 		Name:    "floci-gcp",
 		PinFile: "live/floci-gcp-image",
@@ -264,6 +277,9 @@ func harnessFor(root, family string) (HarnessFacts, error) {
 	h, ok := harnessByFamily[family]
 	if !ok {
 		return HarnessFacts{}, fmt.Errorf("harness: no entry for family %q in harnessByFamily", family)
+	}
+	if h.PinFile == "" {
+		return HarnessFacts{Name: h.Name, Notes: h.Notes}, nil
 	}
 	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(h.PinFile)))
 	if err != nil {
@@ -293,15 +309,25 @@ type readinessArtifact struct {
 	Kubernetes struct {
 		Types []readinessType `json:"types"`
 	} `json:"kubernetes"`
+	Azure struct {
+		Azurerm struct {
+			Types []readinessType `json:"types"`
+		} `json:"azurerm"`
+		Azapi struct {
+			Types []readinessType `json:"types"`
+		} `json:"azapi"`
+	} `json:"azure"`
 	Google struct {
 		Types []readinessType `json:"types"`
 	} `json:"google"`
 }
 
 type readinessFacts struct {
-	awsTypes    []readinessType
-	k8sTypes    []readinessType
-	googleTypes []readinessType
+	awsTypes     []readinessType
+	k8sTypes     []readinessType
+	azurermTypes []readinessType
+	azapiTypes   []readinessType
+	googleTypes  []readinessType
 }
 
 func loadReadinessFacts(root string) (readinessFacts, error) {
@@ -309,7 +335,8 @@ func loadReadinessFacts(root string) (readinessFacts, error) {
 	if err := decodeJSON(root, ReadinessJSONRel, &art); err != nil {
 		return readinessFacts{}, err
 	}
-	return readinessFacts{awsTypes: art.Types, k8sTypes: art.Kubernetes.Types, googleTypes: art.Google.Types}, nil
+	return readinessFacts{awsTypes: art.Types, k8sTypes: art.Kubernetes.Types,
+		azurermTypes: art.Azure.Azurerm.Types, azapiTypes: art.Azure.Azapi.Types, googleTypes: art.Google.Types}, nil
 }
 
 func decodeJSON(root, rel string, v any) error {
@@ -339,6 +366,17 @@ func untaggableFor(family string, rf readinessFacts) UntaggableFacts {
 	case "kubernetes":
 		return tallyUntaggable(rf.k8sTypes, func(t readinessType) bool { return !t.Facts.LabelSurface },
 			"an admitted Kubernetes type whose schema carries no metadata.labels block (live/readiness.json kubernetes.types facts.label_surface=false)")
+	case "azurerm":
+		// GitHub issue #2119: the azurerm resource types, which are what
+		// the AWS and Kubernetes rows count. azapi's ARM types are a
+		// different unit (one azapi_resource type declares all of them), so
+		// they are named in the definition rather than added in.
+		untagged := func(t readinessType) bool { return !t.Facts.Taggable }
+		azapi := tallyUntaggable(rf.azapiTypes, untagged, "")
+		return tallyUntaggable(rf.azurermTypes, untagged, fmt.Sprintf(
+			"an azurerm type whose schema carries no ARM tags map (live/readiness.json azure.azurerm.types facts.taggable=false); "+
+				"through azapi_resource, %d of %d ARM types take no tags at their latest API version (azure.azapi.types), all declaration-carried, not counted here",
+			azapi.Count, len(rf.azapiTypes)))
 	case "google":
 		return tallyUntaggable(rf.googleTypes, func(t readinessType) bool { return t.Tier != "marker-carried" },
 			"a google or google-beta 8.6.0 type whose schema carries no settable labels map beside effective_labels, or one that only labels what the type creates, an instance template's (live/readiness.json google.types, every tier but marker-carried)")

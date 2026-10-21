@@ -294,6 +294,134 @@ recorded `implemented` on that evidence and both return
 record-located harness's notes in `live/e2e/README.md` carry more of this
 shape.
 
+## Azure: floci-az
+
+The Azure lane (#1120) runs on lex00/floci-az, a fork of floci-io/floci-az,
+pinned by digest in `live/floci-az-image` and started by `azure_up` in
+`live/smoke/lib.sh`. The pin is the fork's main at `7f079c2`, a JVM image
+for linux/amd64 and linux/arm64. Everything below was read from the fork's
+source and docs, not measured, except where a row says a run showed it.
+The gauntlet's two Azure estates cleared every stage on `0bc398d`
+(2026-10-21); no scenario has booted `7f079c2` yet. It stores subnets
+declared inline in a VNet PUT as child subnets (#21), which reference-azure's
+VNet and subnet reach, and refuses a write naming a missing user-assigned
+identity (#22). It was published through the fork's fast path, which skips
+the fork's own test gate.
+
+**Endpoints.** One port, 4577 in the container, published on a host port
+`azure_up` picks. It serves the ARM management plane, the Entra token
+endpoints (`/{tenant}/oauth2/v2.0/token`), `/metadata/endpoints`, `/ready`,
+and blob storage both path-style (`/{account}/{container}/{blob}`) and
+host-style (`{account}.blob.<anything>`). The harness starts it with TLS on:
+floci-az then answers HTTP and HTTPS on the same port, and serves the CA it
+generated at `GET /_floci/tls-cert`.
+
+**Auth and aiming.** floci-az issues a token to any client id and secret,
+and accepts any bearer token on ARM. A client-credentials token's `oid` is
+a name-based UUID of the client id when the directory does not hold the
+client. `azure_provider_env` exports the variables. azurerm takes
+`ARM_METADATA_HOSTNAME` and builds everything from
+`https://<host>/metadata/endpoints`. The stock azurerm backend reads a
+different variable, `ARM_METADATA_HOST`. azapi has no metadata host: it
+takes `ARM_ENVIRONMENT=custom` plus `ARM_ACTIVE_DIRECTORY_AUTHORITY_HOST`,
+`ARM_RESOURCE_MANAGER_ENDPOINT` and `ARM_RESOURCE_MANAGER_AUDIENCE`, with
+instance discovery off. Both providers need TLS. On Linux the harness adds
+the CA to `SSL_CERT_FILE`. On macOS Go ignores that variable and trusts
+only the keychain, so the harness needs a certificate trusted there in
+advance (below).
+
+**The endpoint lock (#2133).** The provider blocks state the same thing:
+azurerm's `metadata_host`, azapi's `environment = "custom"` and
+`disable_instance_discovery`, the fake tenant, client and secret, and
+`use_cli`, `use_msi`, `use_oidc` and `use_aks_workload_identity` all false.
+An argument in the block beats the environment in both providers, so a real
+`ARM_*` in the operator's shell cannot win. `floci_az_provider_env`
+(`live/e2e/lib/floci-az.sh`) also stops exporting every other Azure
+credential variable and points `AZURE_CONFIG_DIR` at an empty directory, so
+no `az login` is found. `live/azure_endpoints_test.go` renders every block
+and the exported environment and fails on anything that is not floci-az.
+
+**TLS certificate and hosts.** With TLS on and no certificate given,
+floci-az generates a new CA every time a container starts. Given
+`FLOCI_AZ_TLS_CERT_PATH` and `FLOCI_AZ_TLS_KEY_PATH` (both PEM, both
+required), it serves that certificate as given, adds no SAN of its own, and
+answers `/_floci/tls-cert` with the certificate file itself
+(`TlsConfigSource` at 30000b0, unchanged at dfa33ca). `scripts/floci-az-mac-cert.sh` makes one
+such certificate, and `live/e2e/lib/floci-az.sh` mounts it read-only into
+every floci-az the smoke harness and the gauntlet start, estate and oracle
+alike, whenever it exists. It names exactly the hosts the harness and the
+providers dial:
+
+| SAN | Who dials it |
+|---|---|
+| `localhost` | ARM, `/metadata/endpoints`, the token endpoint: `AZURE_HOST`, `FLOCI_AZ_HOST`, every `ARM_*` endpoint |
+| `127.0.0.1`, `::1` | the published address, and a client that dials the address |
+| `*.blob.localhost` | the stock azurerm backend and `record_store "azurerm"`, `https://<account>.blob.localhost:<port>` under `FLOCI_AZ_STORAGE_SUFFIX=localhost:<port>` |
+| `*.dfs.localhost`, `*.file.localhost`, `*.queue.localhost`, `*.table.localhost` | azurerm reading a storage account's data plane, which it addresses as `<account>.<type>.<suffix>` |
+| `*.localhost` | nothing in the harness; floci-az's own certificate names it. macOS refuses a wildcard directly under one label, so there it covers nothing |
+
+Ports are not part of a SAN, so the one certificate serves every container
+on every port. `live/floci_az_tls_test.go` fails when the harness starts
+dialing a host the list lacks.
+
+**On a Mac.** Run `bash scripts/floci-az-mac-cert.sh` once. It writes
+`cert.pem` and `key.pem` to `~/.config/choudoufu/floci-az-tls/` (or
+`$FLOCI_AZ_TLS_DIR`), reuses them on later runs, and prints the one
+`security add-trusted-cert` command that trusts the certificate in your
+login keychain; run that yourself. The certificate is self-signed with
+`CA:true`, `serverAuth` and 825 days, and a critical name constraint keeps
+it to localhost and the loopback addresses, so even its key could not
+vouch for any other name. Before any provider runs, the harness checks
+with `security verify-cert` that the keychain trusts it, and stops by name
+when there is no certificate or it is not trusted, instead of failing
+later with x509. Linux needs none of this; with no certificate there the
+harness uses floci-az's own CA as before.
+
+**Settings the lane turns on.** Three surfaces are opt-in in the fork, and
+`live/smoke/docker-compose.yml` and the gauntlet's `gauntlet_floci_az_up`
+both set them, through `live/e2e/lib/floci-az.sh` (#2140):
+
+- `FLOCI_AZ_STORAGE_SUFFIX=localhost:<host port>` (c760e26), so
+  `/metadata/endpoints` and storage accounts' `primaryEndpoints` name the
+  emulator and the stock backend's blob calls stay on it.
+- `FLOCI_AZ_SERVICES_POLICY_EVALUATE=true` (1ecb105).
+- `FLOCI_AZ_SERVICES_RBAC_ENFORCE=true` (bb225ad), with the scenarios' own
+  client listed in `FLOCI_AZ_SERVICES_RBAC_ADMIN_PRINCIPALS`, so only a
+  second principal a fence claim signs in as is held to its assignments.
+
+`FLOCI_AZ_KEY_VAULT_SUFFIX` (c18af8a, #17) is left unset. It changes the
+`keyVaultDns` suffix `/metadata/endpoints` reports, which defaults to
+`vault.azure.net` as before, and no Azure-lane estate or scenario declares
+a key vault or reads that suffix. The Tags API (`FLOCI_AZ_SERVICES_TAGS_ENABLED`)
+is on by default.
+
+**What the pin serves**, against what the lane needs. lex00/floci-az#2
+lists the surfaces; #1 and #3 to #18 are closed at this pin.
+
+| Need | floci-az at 7f079c2 |
+|---|---|
+| Tags round-trip | Kept on every type #3 found dropping them, since 95f1bc9: storage accounts, key vaults, managed HSMs, web apps, API Management, Event Grid topics, Log Analytics workspaces and the two data collection types. Resource groups, network, VMs, AKS, ACR, Redis, SQL, the database servers and managed identities kept them already. Storage account and key vault `PATCH` answer 200, a `tags` object replacing the whole set. Tag names are matched case-insensitively on every ARM write since f954b82 (#15): the request gate folds two spellings of one name into one, keeping the spelling and value written last, so a `PATCH` that respells a name replaces it, as Azure does. Values stay case-sensitive. |
+| Generic resources | A store for every provider namespace no handler declares (27e040b): `PUT`, `GET`, `HEAD`, `PATCH`, `DELETE`, keyed by id case-insensitively, keeping `tags`, `managedBy` and the other envelope fields, listed in `/resources`. Tenant-scoped ids such as `/providers/Microsoft.Management/managementGroups/{name}` and `/providers/Microsoft.Subscription/aliases/{name}` are kept too since d0262c8 (#12), and a resource at a management group's scope needs the group. No server-set property such as `provisioningState` is added. |
+| Network `PATCH` | Served since e1def56 (#18): `UpdateTags`, a `tags` object replacing the whole set, on every generic `Microsoft.Network` type, as azurerm sends it on a tags change to `azurerm_public_ip_prefix`, to `azurerm_network_interface` when attached to a private endpoint, and to `azurerm_virtual_hub_security_partner_provider`. The gauntlet's out-of-band tag stays a `GET` and a `PUT` of the body read back (`gauntlet_arm_set_tag`, #1120), as does the smoke scenarios' (`arm_set_tag`); real ARM accepts both. |
+| Tags API | `{scope}/providers/Microsoft.Resources/tags/default` answers `GET`, `PUT`, `PATCH` (Merge, Replace, Delete) and `DELETE` at subscription, resource group and resource scope since 0c6ad31 (#13). The target keeps the tags in its own handler, so its reads and Resource Graph report them; a Merge replaces a name given in another spelling. The two azurerm types that tag after create, `azurerm_app_service_managed_certificate` and `azurerm_subscription`, need it. `Microsoft.Subscription/aliases` is kept by the generic store since #12, so an alias's create and its tag write can now both land; `Microsoft.Web/certificates` stays unmodelled, since `Microsoft.Web` belongs to the ARM handler, which names no certificates type. |
+| Resource Graph | `POST /providers/Microsoft.ResourceGraph/resources` over `Resources` and `ResourceContainers`, scoped by `subscriptions`, paged by `$skipToken` (df5927b). The KQL is a subset: `where`, `project`, `extend`, `take`, `top`, `order by`, `count`, `distinct`, `summarize`, `union` of a table or a parenthesized subquery, and `mv-expand`, with `=~`, a computed dynamic index (`tags[key]`) and nine scalar functions including `bag_keys` (5e48758, #11). choudoufu's sweep query (`internal/live/azsweep/client.go`) is in floci-az's own test, `KqlQueryTest.theEstateSweepQueryFindsMarkersInAnySpelling`, word for word, so a plan's sweep runs there. The gauntlet's `day2_remove` and `day2_count`, which only the sweep can pass for a type that takes tags, are expected to pass. |
+| Role assignments | Role definitions (14 built-ins with Azure's ids, and custom roles), role assignments with `condition` and `conditionVersion`, and the permissions path, at every scope (02ae4a5). With enforcement on, an ARM request whose token carries an `oid` is refused with 403 `AuthorizationFailed` unless an assignment at the target's scope or above allows the action (bb225ad). Data actions and ABAC conditions are stored and never evaluated, so the record store's read fence is not measurable here. |
+| Policy `deny` / `denyAction` | Evaluated under `evaluate: true` (1ecb105): `deny` on `PUT` and `PATCH`, `denyAction` with `delete` on `DELETE`, 403 `RequestDisallowedByPolicy`, exemptions and initiatives honoured. Fields `type`, `name`, `id`, `kind`, `location` and `tags` in any form; an alias, `count` or another function fails closed. Since f2da0ec (#14), `mode: Indexed` evaluates only the types that take tags and a location, as Azure does, so the marker guard lets an untagged subnet through; and a resource-group delete is refused when a `denyAction` delete rule matches a resource in it, unless `cascadeBehaviors.resourceGroup` is `allow`. |
+| Blob conditional writes | `If-None-Match: *` and `If-Match` are honoured on Put Blob and Delete Blob. A create over an existing blob answers 409 `BlobAlreadyExists`, as Azure does (b7464e6). ETags are quoted `"0x..."` hex, as Azure's are (8fc726b). |
+| Blob index tags | `x-ms-tags` on Put Blob, Get/Set Blob Tags and Find Blobs by Tags are served. |
+| Record store opening checks | Storage accounts keep their settable properties, `allowBlobPublicAccess` defaulting to false; `blobServices/default` keeps `isVersioningEnabled` and the rest; `managementPolicies/default` answers `PUT`, `GET` and `DELETE` (071516d). The settings are stored and read back only: the data plane makes no blob versions and runs no lifecycle rule. |
+| Stock backend reach | The storage suffix is configurable (c760e26). floci-az's generated certificate covers `*.blob.localhost`, `*.dfs.localhost`, `*.queue.localhost` and `*.table.localhost`; the operator's adds `*.file.localhost` (above). That `<account>.blob.localhost` resolves to loopback is up to the client's resolver. |
+| ARM template deployments | `Microsoft.Resources/deployments` at resource-group and subscription scope, run to completion inside the `PUT`, each resource through the emulator's own handlers, so RBAC and Policy apply to it (30000b0). Nested deployments are served since dfa33ca (#16), `inner` and `outer` scope, at the resource group and subscription they name. Both shipped templates (`live/azure/estate-boundary.json`, `live/azure/estate-grant.json`) assign through one; the scenarios still install them with direct ARM calls, and could now deploy them as written. |
+
+Code in choudoufu that needs one of these waits for the fork (emulator
+policy, `live/ADDING-A-PLATFORM.md`). No gap above is open on the fork. Network `PATCH` (#18), the sweep query's operators (#11), tenant-scoped
+generic resources (#12), the Tags API (#13), `Indexed` on untaggable types
+(#14), case-insensitive tag names (#15), nested deployments (#16) and the
+Key Vault suffix (#17) are closed at `e1def56`; the Log Analytics key
+actions (#19) and the unknown-type and missing-subnet checks (#20) at
+`0bc398d`; inline VNet subnets (#21) and the missing-identity check (#22)
+at `7f079c2`.
+
 ## Related
 
 - `live/floci-capabilities.json` — per-service and per-type implementation
@@ -306,6 +434,8 @@ shape.
   `0a30ae86d95b5e05b0350edc8fa5b0dbe078eeaf`, read with
   `git show 0a30ae86d9:live/floci-capabilities.json`.
 - `live/floci-image` — the pinned digest every harness and measurement uses.
+- `live/floci-az-image` — the Azure emulator's pinned digest, held by
+  `live/floci_az_pin_test.go`.
 - `live/e2e/README.md` — the harnesses, and per-fixture notes on what floci
   gets wrong for that fixture specifically.
 - `live/plan-budget.json` — the call-count ratchet, and its own statement of

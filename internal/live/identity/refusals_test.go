@@ -72,6 +72,11 @@ func TestRefusalsWithOwnDoc(t *testing.T) {
 		"Secret-generating resource refused":          `live/LIMITATIONS.md, "strict-secrets"`,
 		"Two resources with the same identity":        `live/LIMITATIONS.md, "duplicate-identity"`,
 		"for_each key cannot be recorded as a marker": `live/MARKERS.md, "Ownership semantics"`,
+		// GitHub issue #1122. The fuller treatment is the Azure grant
+		// itself: what the estate's resource groups are, what the role
+		// assignment and the Policy guard at them cover, and what they do
+		// not.
+		"Resource in a resource group this estate does not declare": `live/MARKERS.md, "Granting an Azure estate"`,
 	}
 
 	for _, r := range RefusalsWithOwnDoc() {

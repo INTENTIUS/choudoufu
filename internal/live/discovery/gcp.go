@@ -296,7 +296,7 @@ func gcpDeclaredHit(ctx context.Context, req Request, decl *declared, res *Resul
 	}
 	switch want, verdict := decl.displacedFrom(ctx, typeName, escaped, claim); verdict {
 	case verdictDisplaced:
-		diags = diags.Append(problemDiag(res, displacedProblem(req, typeName, escaped, want, claim)))
+		diags = diags.Append(problemDiag(res, displacedProblem(req, decl, typeName, escaped, want, claim)))
 	case verdictOwnObject:
 		if vouched, ok := decl.vouchAddr(typeName, escaped); ok {
 			res.VerifiedDeclared = append(res.VerifiedDeclared, vouched)

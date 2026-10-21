@@ -21,9 +21,9 @@ import (
 //
 // This pin holds each platform's copy to the same level-2 outline: every ##
 // heading in live/COMPATIBILITY.md must appear, in the same order, in
-// live/kubernetes/COMPATIBILITY.md and live/gcp/COMPATIBILITY.md, and vice
-// versa. A section that does not
-// apply to a substrate still gets the heading, with a line saying so - the
+// live/kubernetes/COMPATIBILITY.md, live/azure/COMPATIBILITY.md and
+// live/gcp/COMPATIBILITY.md, and vice versa. A section that does not apply
+// to a substrate still gets the heading, with a line saying so - the
 // heading disappearing silently is exactly what #1602 was filed over.
 var compatH2Pattern = regexp.MustCompile(`(?m)^## (.+)$`)
 
@@ -47,9 +47,10 @@ func TestCompatibilityDocsShareOutline(t *testing.T) {
 		t.Fatalf("COMPATIBILITY.md: no ## headings found; the heading pattern or the file moved")
 	}
 
-	// Every platform's copy joins the pin (live/ADDING-A-PLATFORM.md,
-	// requirement 15).
-	for _, platform := range []string{"kubernetes", "gcp"} {
+	// Every platform's copy (live/<platform>/COMPATIBILITY.md) is held to the
+	// root outline: Kubernetes under #1602, Azure under #1120's docs unit and
+	// GCP under #1119's (live/ADDING-A-PLATFORM.md, requirement 15).
+	for _, platform := range []string{"kubernetes", "azure", "gcp"} {
 		path := platform + "/COMPATIBILITY.md"
 		got := compatibilityHeadings(t, path)
 		if len(got) == 0 {

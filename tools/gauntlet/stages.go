@@ -61,7 +61,8 @@ type Stage struct {
 	Oracle     string `json:"oracle"`
 	Break      string `json:"break"`
 	// Substrates says how the stage reads on a substrate other than the
-	// floci emulator (#1067), keyed by substrate name (SubstrateKind). A
+	// floci emulator (#1067), keyed by substrate name (SubstrateKind,
+	// SubstrateFlociEKS, SubstrateFlociAz). A
 	// stage absent from the map applies there exactly as written. A note
 	// beginning "n/a: " means the stage cannot be run on that substrate:
 	// Rebuild (artifact.go) records it as VerdictNA for every estate on
@@ -247,7 +248,54 @@ func registeredStages() []Stage {
 			stages[i].Substrates[substrate] = note
 		}
 	}
+	for i := range stages {
+		note, ok := flociAzNotes[stages[i].ID]
+		if !ok {
+			continue
+		}
+		if stages[i].Substrates == nil {
+			stages[i].Substrates = map[string]string{}
+		}
+		stages[i].Substrates[SubstrateFlociAz] = note
+	}
 	return stages
+}
+
+// flociAzNotes is how each stage reads on SubstrateFlociAz (#1120,
+// live/ADDING-A-PLATFORM.md requirement 14): an azure-lane estate run
+// against lex00/floci-az. Kept beside the registry, as flociEKSNotes is, so
+// they read as one account of one substrate; TestEveryStageHasAFlociAzNote
+// holds that no stage is left without one.
+//
+// No stage is n/a here. Every stage's question has an Azure answer; where
+// floci-az cannot give it today (no stage assigns the fence's Policy
+// definitions, which gauntlet_floci_az_up has floci-az evaluate since #2140:
+// live/FLOCI.md, Azure) the note says so and the stage fails by name until
+// that changes, rather than reading a neutral n/a that would leave the
+// lane's bar clear over a gap. Written before any reference-azure run,
+// re-read against the fork at 30000b0, and again at dfa33ca, which serves
+// the sweep's query as sent (lex00/floci-az#11); the maintainer's next run
+// measures them. day2_replace, day2_crash, strict and no_local_state were
+// written for reference-azure after the 2026-10-21 run at 31639780dd
+// cleared every other stage, with the lane's records moved to
+// record_store "azurerm" (the maintainer's ruling that day); not yet run.
+var flociAzNotes = map[string]string{
+	"cold_deploy":      "Stock applies the unmodified configuration against floci-az, started from live/floci-az-image with the ARM_* environment aimed at it (gauntlet_floci_az_up in live/e2e/lib/gauntlet.sh); ARM reads of what it created are the baseline. floci-az keeps tags on storage accounts and answers their PATCH since 30000b0 (live/FLOCI.md, Azure); not yet run.",
+	"migrate":          "live-import writes tofu-estate and tofu-address as ARM tags: azurerm's tags argument, or azapi's top-level tags (body.tags when the configuration already puts tags there). Zero skipped means every state entry was tagged or recorded. An azurerm type on the identity-schema route takes its subscription from the provider block.",
+	"test_plan":        "Identities are ARM resource ids, compared by value with what an ARM GET of the same object returns, case-insensitively, because ARM ids are. The plan's sweep is one Resource Graph query per subscription, which floci-az runs as sent since dfa33ca (union, mv-expand and bag_keys, lex00/floci-az#11); at 30000b0 it answered 400 InvalidQuery, which the plan reported as the \"Azure sweep unavailable\" incomplete-sweep warning. That warning now means a new gap, and the verdict quotes it.",
+	"test_apply":       "The count is the estate's taggable resources whose tofu-estate tag names it, read with an ARM GET of each declared id, the tag key and value compared case-insensitively. Resource Graph would answer it in one query, which floci-az serves since dfa33ca; the count stays the per-id GETs, which need nothing of the sweep.",
+	"drift_reconverge": "The mutation is an ARM GET and a PUT of the body read back, made out of band with gauntlet_arm_set_tag, never through the tool. Not a PATCH, which floci-az served on Microsoft.Network only from e1def56 (lex00/floci-az#18); real ARM accepts both.",
+	"day2_rename":      "A rename rewrites the tofu-address tag; the ARM id does not change, so the moved block plans one in-place tag update and no replace, as stock's plans none.",
+	"day2_remove":      "ARM confirms the object is gone with a 404 on its id. A resource group's delete takes its children with it; the order the cloud accepts is the one the configuration's dependency graph gives. A removed block's object of a type that takes tags is found only by its marker through the Resource Graph sweep, which floci-az serves since dfa33ca (lex00/floci-az#11), so the plan is expected to propose its destroy there; an untaggable one is found through its record and needs no sweep. A plan that still warns \"Azure sweep unavailable\" fails the stage with the warning named, and the run goes on.",
+	"day2_count":       "Each instance is its own ARM id. The instance that leaves the count is found by its marker through the Resource Graph sweep, as a removed block's is, which floci-az serves since dfa33ca (lex00/floci-az#11), so the scale-down is expected to destroy exactly that instance there; the one that comes back is created at its id.",
+	"day2_replace":     "A name is unique within its parent, so a create_before_destroy replacement is one whose name changes, as on kind. The old object's record, in the record store, binds it to the block: for a type that takes tags its tofu-address confirms the record, and an untaggable one (an azapi role assignment) has the record alone. So the plan is stock's replace, create first; at -parallelism=1 each new object's create completes before its old object's deposed destroy starts, as stock's apply of the same rename shows on the oracle container; ARM answers 404 for the old id, the record names the new object, and the next plan is empty. The Break control recreates the old object carrying the block's marker: on the Resource Graph leg an object at an id the configuration no longer computes, which the record does not name, is reported as a displaced marker and never destroyed, so the plan must carry that warning or propose a change, never be silent.",
+	"day2_crash":       "Each interrupt is the engine's hook at -parallelism=1. An apply creating two resources is killed the instant the first create commits: a resource that takes tags carries both from its create PUT, and one that takes none (an azapi role assignment) is bound by the record its apply step wrote before the interrupt (#1944), so the next plan binds it at its declared id and proposes exactly the remainder, stock's plan from the same position on the oracle container. Where an estate also interrupts the create_before_destroy rename, as on kind, it is killed the instant the new object's create commits: both objects carry the block's tofu-address and the record holds the old one as deposed; the Resource Graph leg hands that deposed half to the projection (internal/live/discovery's verdictDeposed), so the next plan is stock's own deposed-object destroy, and one apply leaves stock's end state: the new object alone, the record's deposed entry cleared, an empty replan.",
+	"day2_teardown":    "An empty estate is no resource carrying its tofu-estate tag in any resource group it owned, read through ARM.",
+	"plan_approval":    "As on floci. Azure Policy, evaluated by ARM when the write arrives, is the server's own say over an approved plan. floci-az evaluates deny and denyAction since 30000b0 with FLOCI_AZ_SERVICES_POLICY_EVALUATE set, which gauntlet_floci_az_up sets as the smoke compose service does (#2140); the stage assigns no Policy definition, though (the fence's templates are an operator's to apply), so only the moved-world refusal is measured there.",
+	"greenfield":       "Compared against the ARM reads recorded from stock's cold deploy earlier in the same run, resource by resource, with the two marker tags normalised out; one floci-az container hosts both, in sequence.",
+	"strict":           "As on floci; the toggles are substrate-neutral. The scratch estate's record store is the lane's own, a blob container.",
+	"no_local_state":   "Records live in the record store, record_store \"azurerm\" on floci-az blob storage, so the only local artifact is the state cache, and it is what is deleted; no local record directory exists to delete. Every taggable resource must then be found by its marker, read at its declared ARM id with the Resource Graph sweep (whose query floci-az serves since dfa33ca, lex00/floci-az#11) finding anything the configuration no longer declares, and every untaggable one through its record in the container, with nothing created, destroyed or replaced. The plan call counts are each estate's own reading, named in its verdict: requests floci-az served between two marks in its access log, or the providers' request lines under TF_LOG=DEBUG.",
+	"day2_endpoints":   "Not run on this substrate; the stage is reference-gcp's (#2145 item 6).",
 }
 
 // flociGCPNotes is how each stage reads on SubstrateFlociGCP (#1119): a

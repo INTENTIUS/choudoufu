@@ -233,6 +233,31 @@
       "id": 47,
       "slug": "plan-cost-tracks-the-change",
       "reserved": true
+    },
+    {
+      "id": 48,
+      "slug": "a-derived-name-needs-no-record",
+      "reserved": true
+    },
+    {
+      "id": 49,
+      "slug": "a-parent-proves-no-child",
+      "reserved": true
+    },
+    {
+      "id": 50,
+      "slug": "a-removed-derived-block-is-destroyed",
+      "reserved": true
+    },
+    {
+      "id": 51,
+      "slug": "a-markerless-type-is-held-by-its-record",
+      "reserved": true
+    },
+    {
+      "id": 52,
+      "slug": "the-fence-gap-is-as-stated",
+      "reserved": true
     }
   ],
   "demos": [

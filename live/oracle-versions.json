@@ -68,6 +68,15 @@
     "content depends on the Helm library this release vendors, so the pin is",
     "part of what the estate's identities are.",
     "",
+    "azurerm_provider_version and azapi_provider_version (#1120, ruled on",
+    "#1122 2026-10-19: \"Pins for this lane: azurerm 5.10.0, azapi 2.13.0\")",
+    "are the azure lane's: the hashicorp/azurerm and azure/azapi releases the",
+    "reference-azure estate and the Azure smoke drafts require exactly, printed",
+    "by gauntlet_azurerm_required_provider and gauntlet_azapi_required_provider",
+    "and read by live/smoke/lib.sh's azure_terraform_block. They are also the",
+    "releases live/azurerm-ids.json and the armtypes tables were generated",
+    "from, so a bump here is a regeneration there.",
+    "",
     "google_provider_version (#1119, #1121) is the gcp lane's: the",
     "hashicorp/google release reference-gcp's hand-authored root and",
     "corpus-k8s-infra-gcp-gcve's corpus root require exactly, printed by",
@@ -80,5 +89,7 @@
   "aws_provider_version": "6.63.0",
   "kubernetes_provider_version": "3.2.1",
   "helm_provider_version": "3.1.1",
+  "azurerm_provider_version": "5.10.0",
+  "azapi_provider_version": "2.13.0",
   "google_provider_version": "8.6.0"
 }

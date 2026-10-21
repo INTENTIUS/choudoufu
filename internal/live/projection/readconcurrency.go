@@ -438,7 +438,9 @@ func (b *builder) startRecordFirstPrefetch(ctx context.Context, resolutions []id
 		if classFor(r.Class).ownRecordDoor {
 			continue
 		}
-		rec, _, _, identityFound, err := b.opts.RecordStore.GetIdentity(ctx, r.Addr)
+		// The same lookup [builder.materializeFromRecord] makes, moved
+		// aliases included, so the prefetched read is the one it asks for.
+		rec, _, _, identityFound, _, err := b.locatedIdentityWithAliases(ctx, r.Addr)
 		if err != nil || !identityFound {
 			continue
 		}
@@ -465,7 +467,7 @@ func runReadFetch(ctx context.Context, e *readFetch) {
 	}
 	e.obj, e.importStub, e.status, e.diags = importAndRead(
 		ctx, p.entry.provider, p.schema, e.want.addr.Resource.Resource.Type,
-		p.target, e.want.importID, e.want.values, p.attrsSeed, p.attrsSeedMarks,
+		p.providerAddr.Provider.Type, p.target, e.want.importID, e.want.values, p.attrsSeed, p.attrsSeedMarks,
 		p.manifestKeys,
 	)
 }

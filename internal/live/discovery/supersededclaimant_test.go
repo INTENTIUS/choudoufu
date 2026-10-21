@@ -481,7 +481,7 @@ func TestSupersededClaimant_compositeIdentityMatchesByComponent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := claimantMatchesRecord(rec, tt.c); got != tt.want {
+			if got := claimantMatchesRecord("aws_iam_group_policy_attachment", rec, tt.c); got != tt.want {
 				t.Errorf("claimantMatchesRecord = %v, want %v", got, tt.want)
 			}
 		})

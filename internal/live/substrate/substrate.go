@@ -223,7 +223,7 @@ type Substrate interface {
 // asked before it. TestTheCatchAllFamilyIsLast holds it (GitHub issue
 // #1742). The surface questions are asked of the provider's own family
 // ([SurfaceOf]), so for a claimed provider the order does not decide them.
-var All = []Substrate{Kubernetes, Google, AWS}
+var All = []Substrate{Kubernetes, Azure, Google, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
 // "kubernetes"): the one whose [Substrate.ProviderTypes] lists it. It
@@ -247,12 +247,14 @@ func ForProvider(providerType string) (Substrate, bool) {
 //
 // It is the family's [Substrate.SweepFindsUnadmitted] (GitHub issue
 // #1742: it used to compare the sweep kind to [SweepLabelList], which a
-// third family's own sweep could never answer). Only Kubernetes qualifies
-// today: its leg lists every kind the cluster serves and joins the result
-// against the estate's objects. GCP's Asset Inventory leg sees every
-// labelled asset type but plans no removal and cannot see an unlabelled
-// type, so it answers false and its deleted blocks are the record leg's
-// (GitHub issue #2134). AWS's own sweep ([SweepTaggingIndex]) is
+// third family's own sweep could never answer). Kubernetes qualifies: its
+// leg lists every kind the cluster serves and joins the result against the
+// estate's objects. Azure answers true from its Resource Graph sweep's
+// design ([azure.SweepFindsUnadmitted]); until that leg is built, the
+// plan's NO_SWEEP_LEG gap names the family instead. GCP's Asset Inventory
+// leg sees every labelled asset type but plans no removal and cannot see an
+// unlabelled type, so it answers false and its deleted blocks are the record
+// leg's (GitHub issue #2134). AWS's own sweep ([SweepTaggingIndex]) is
 // the admission table read a different way, so a type with no row gets
 // nothing extra from it, and neither does an unregistered provider
 // ForProvider does not recognise at all.
@@ -370,11 +372,25 @@ func SurfaceOf(providerType string, block *configschema.Block) (markers.Surface,
 		return s.SurfaceOf(block)
 	}
 	for _, s := range All {
+		if !askedByDefault(s) {
+			continue
+		}
 		if surface, ok := s.SurfaceOf(block); ok {
 			return surface, true
 		}
 	}
 	return "", false
+}
+
+// askedByDefault reports whether [SurfaceOf]'s compatible default asks
+// family s about a provider no family claims. Every family is, except
+// [Azure] (GitHub issue #1120): its surface is the AWS tags shape with
+// case-insensitive keys, which is a property of Azure Resource Manager and
+// not of an unclaimed provider's API, and asked ahead of AWS in [All] it
+// would take every such provider's tags map from the AWS answer the
+// default has always given it.
+func askedByDefault(s Substrate) bool {
+	return s != Azure
 }
 
 // MarkersOf reads the marker map off an object from wherever surface keeps
@@ -460,6 +476,12 @@ type surfaceWording interface {
 	// duplicate. See the package-level [CreateCollidesOnKey].
 	CreateCollidesOnKey(surface markers.Surface) bool
 
+	// CreateOverwritesAtKey reports whether, for a declared resource on
+	// surface, the resource's own create sent at an identity where an
+	// object already exists would update that object in place rather than
+	// fail. See the package-level [CreateOverwritesAtKey].
+	CreateOverwritesAtKey(surface markers.Surface) bool
+
 	// CarrierPhrase names where surface's marker map lives on an object,
 	// for a message telling an operator the provider returned no such map.
 	CarrierPhrase(surface markers.Surface) string
@@ -482,6 +504,24 @@ type surfaceWording interface {
 func CreateCollidesOnKey(surface markers.Surface) bool {
 	s := For(surface)
 	return s != nil && s.CreateCollidesOnKey(surface)
+}
+
+// CreateOverwritesAtKey reports whether, for a declared resource on
+// surface, a create sent at an identity where an object already exists
+// updates that object in place instead of failing: [CreateCollidesOnKey]'s
+// opposite case, and the dangerous one (GitHub issue #1120, ruled on #1122).
+// A server that refuses the duplicate stops the plan by itself; one that
+// accepts it hands the existing object, with whatever it holds, to the
+// configuration that "created" it, with no estate marker ever read. So the
+// projection refuses such a create by name before it is proposed (its
+// SummaryOverwriteAtKey), the declared_untagged quadrant's default refusal
+// made an error. False for the zero Surface.
+//
+// True for Azure's arm-tags surface only: an ARM create is a PUT, which is
+// create-or-update ([azure.CreateOverwritesAtKey]).
+func CreateOverwritesAtKey(surface markers.Surface) bool {
+	s := For(surface)
+	return s != nil && s.CreateOverwritesAtKey(surface)
 }
 
 // nameHeldWording is the optional half of a family whose own words for
@@ -806,6 +846,12 @@ type HoldEvidence struct {
 	Tags map[string]string
 	// Annotations are a Kubernetes object's metadata.annotations.
 	Annotations map[string]string
+	// ManagedBy is an Azure Resource Manager object's managedBy property:
+	// the id of the resource that manages it, empty when none does (#1122).
+	ManagedBy string
+	// ARMTags are an Azure Resource Manager object's tags, kept apart from
+	// Tags so that each family still reads only its own field.
+	ARMTags map[string]string
 	// Labels are a GCP resource's labels, and AssetType its Cloud Asset
 	// Inventory asset type (compute.googleapis.com/Instance): a GCP hold
 	// is recognised by a reserved label key on a given kind of asset.

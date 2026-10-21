@@ -3376,7 +3376,14 @@ const (
 	// 725 -> 726 (fixture-dirs 694 -> 695): #2145 item 6 (gcp/item6-empty-component): 6 rows added, 0 changed, 0 removed, all CONCRETE in the new fixture internal/live/identity/testdata/gcp-empty-segment (global network endpoints by ip, by fqdn and with fqdn = null, regional network endpoints by ip and by fqdn, a zonal network endpoint with no instance; each renders stock's empty segment for the unset argument); regenerated with -update.
 	// 726 -> 727 (fixture-dirs 695 -> 696): gcp/moved-unrecorded: 1 row added, 0 changed, 0 removed, CONCRETE, in the new fixture internal/live/projection/testdata/unrecorded-google-firewall-moved (google_compute_firewall.ssh at projects/broadcom-451918/global/firewalls/allow-ssh, the same value its unmoved sibling renders).
 	// 727 -> 728 (fixture-dirs 696 -> 697): merging main (#2155) into gcp-lane: main's unrecorded-k8s-moved fixture, a markerless stand-in type no table admits, adds no row, so instances and body-sha256 are unchanged.
-	identityGoldenPinDirs = 728
+	// 728 -> 731 (fixture-dirs 697 -> 700) merging the Azure lane (#1120),
+	// which added three fixtures that add no row: live/e2e/limits/arm-tag-limit,
+	// an azurerm_cosmosdb_account the schemaless sweep leaves unadmitted;
+	// live/e2e/limits/policy-overwrite-at-key, an azurerm_resource_group left
+	// the same way; and internal/live/lint/testdata/strict-markers-azurerm-aks
+	// (#2135), a `markers "record"` selection with no resource block.
+	// Instances and the cohort pins are unchanged by them.
+	identityGoldenPinDirs = 731
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

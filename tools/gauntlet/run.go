@@ -214,6 +214,8 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 	// change mid-run, and every kind-substrate estate this call touches is
 	// stamped with the one value (issue #1594).
 	kindImage := kindNodeImagePin(root)
+	// flociAzImage is the same for every floci-az estate (#1120).
+	flociAzImage := flociAzImagePin(root)
 	// The same for the gcp lane's emulator (#1119).
 	gcpImage := flociGCPImagePin(root)
 	var selected []Estate
@@ -335,6 +337,11 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 		case SubstrateKind:
 			r.LastRun.SubstrateImage = kindImage
 			r.LastRun.KubernetesProviderVersion = res.Resolved.Version(ProviderKubernetes)
+		case SubstrateFlociAz:
+			// floci-az (#1120) is not floci: its row records the floci-az
+			// image and no hashicorp/aws version. Neither LastRun field for
+			// a provider names azurerm, so none is recorded yet.
+			r.LastRun.SubstrateImage = flociAzImage
 		case SubstrateFlociGCP:
 			// A floci-gcp row (#1119) launches the GCP emulator and never
 			// floci, and resolves hashicorp/google and never hashicorp/aws.

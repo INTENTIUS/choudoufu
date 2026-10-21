@@ -302,3 +302,55 @@ func markersRecordTestSchema() providers.Schema {
 		"tags":       {Type: cty.Map(cty.String), Optional: true},
 	}}}
 }
+
+// TestStrictMarkersAzurermIdentitySchemaTypesAreRecordable is GitHub issue
+// #2135's lint half. Every azurerm identity schema requires
+// subscription_id, which no azurerm resource declares; until #2135 a record
+// could not hold it, so strict-markers-unrecordable refused the selection
+// for every one of them, the three AKS retags included. The record now
+// reads it from the provider block, as the identity route does, and the
+// rule is silent for them.
+//
+// GitHub issue #2138 widened it to an identity attribute the block does
+// not declare at all, where azurerm's identity test says where it is:
+// azurerm_dns_cname_record's dns_zone_name is zone_name and its
+// record_type the constant "CNAME", so it is silent for that type too. It
+// still refuses a type the family has no source for, and says why by name:
+// azurerm_private_dns_a_record's identity test finds record_type only inside
+// the object's own id. The schemas are the azurerm 5.10.0 shapes in the
+// parts the rule reads.
+func TestStrictMarkersAzurermIdentitySchemaTypesAreRecordable(t *testing.T) {
+	cfg := loadConfigDir(t, "testdata/strict-markers-azurerm-aks")
+	str := func(required bool) *configschema.Attribute {
+		return &configschema.Attribute{Type: cty.String, Required: required, Optional: !required}
+	}
+	schema := func(args []string, identityAttrs ...string) providers.Schema {
+		block := &configschema.Block{Attributes: map[string]*configschema.Attribute{
+			"id":   {Type: cty.String, Computed: true},
+			"tags": {Type: cty.Map(cty.String), Optional: true},
+		}}
+		for _, a := range args {
+			block.Attributes[a] = str(true)
+		}
+		ident := &configschema.Object{Nesting: configschema.NestingSingle, Attributes: map[string]*configschema.Attribute{}}
+		for _, a := range identityAttrs {
+			ident.Attributes[a] = &configschema.Attribute{Type: cty.String, Required: true}
+		}
+		return providers.Schema{Block: block, IdentitySchema: ident}
+	}
+	base := []string{"name", "resource_group_name", "location"}
+	schemas := map[string]providers.Schema{
+		"azurerm_route_table":          schema(base, "name", "resource_group_name", "subscription_id"),
+		"azurerm_public_ip":            schema(append(base, "allocation_method"), "name", "resource_group_name", "subscription_id"),
+		"azurerm_virtual_network":      schema(base, "name", "resource_group_name", "subscription_id"),
+		"azurerm_dns_cname_record":     schema([]string{"name", "resource_group_name", "zone_name", "ttl"}, "dns_zone_name", "name", "record_type", "resource_group_name", "subscription_id"),
+		"azurerm_private_dns_a_record": schema([]string{"name", "private_dns_zone_id", "ttl"}, "name", "private_dns_zone_name", "record_type", "resource_group_name", "subscription_id"),
+	}
+	issues := CheckWith(t.Context(), cfg, Context{Schemas: schemas})
+	if len(issues) != 1 || issues[0].Rule != RuleStrictMarkersUnrecordable || issues[0].Type != "azurerm_private_dns_a_record" {
+		t.Fatalf("want exactly one %s, for azurerm_private_dns_a_record, got: %v", RuleStrictMarkersUnrecordable, issues)
+	}
+	if want := "finds record_type inside id, the object's own id"; !strings.Contains(issues[0].Detail, want) {
+		t.Errorf("the refusal does not say why by name (%q): %s", want, issues[0].Detail)
+	}
+}

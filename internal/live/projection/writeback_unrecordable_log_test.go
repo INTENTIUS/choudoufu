@@ -121,15 +121,22 @@ func writeBackUnrecordableLog(t *testing.T, block *configschema.Block, val cty.V
 func TestWriteBack_unrecordableLogSeparatesDeliberateFromStructural(t *testing.T) {
 	// Deliberate: the whole identity a record would hold is "id", and the
 	// provider marks it sensitive.
+	//
+	// Both fixtures carry a settable tags map: since GitHub issue #2141 an
+	// untaggable type reaching this branch raises a warning instead of
+	// either line (writeback_unrecorded_test.go), and the lines are what
+	// this test is about.
 	deliberate := writeBackUnrecordableLog(t, &configschema.Block{Attributes: map[string]*configschema.Attribute{
-		"id": {Type: cty.String, Computed: true, Sensitive: true},
-	}}, cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("probe-1")}))
+		"id":   {Type: cty.String, Computed: true, Sensitive: true},
+		"tags": {Type: cty.Map(cty.String), Optional: true},
+	}}, cty.ObjectVal(map[string]cty.Value{"id": cty.StringVal("probe-1"), "tags": cty.NullVal(cty.Map(cty.String))}))
 
 	// Structural: no "id" at all, and no ratified row naming anything else,
 	// so there is no identity to hold in the first place.
 	structural := writeBackUnrecordableLog(t, &configschema.Block{Attributes: map[string]*configschema.Attribute{
-		"arn": {Type: cty.String, Computed: true},
-	}}, cty.ObjectVal(map[string]cty.Value{"arn": cty.StringVal("arn:aws:probe")}))
+		"arn":  {Type: cty.String, Computed: true},
+		"tags": {Type: cty.Map(cty.String), Optional: true},
+	}}, cty.ObjectVal(map[string]cty.Value{"arn": cty.StringVal("arn:aws:probe"), "tags": cty.NullVal(cty.Map(cty.String))}))
 
 	if deliberate == structural {
 		t.Fatalf("the deliberate refusal and the structural one still print the identical line:\n%s", deliberate)

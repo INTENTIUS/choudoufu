@@ -9,11 +9,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
+	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/check"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tracing"
@@ -176,7 +179,13 @@ func (c *LiveCheckCommand) liveCheck(ctx context.Context, dir string) check.Repo
 	schemaSpan.End()
 
 	analyzeCtx, analyzeSpan := tracing.Tracer().Start(ctx, "live-check.analyze")
-	report := check.Analyze(analyzeCtx, load.Config, check.Context{Schemas: schemas, ProviderManagedTypes: managedTypes})
+	report := check.Analyze(analyzeCtx, load.Config, check.Context{
+		Schemas:              schemas,
+		ProviderManagedTypes: managedTypes,
+		// As liveResolve does, so live-check and live-plan name the same
+		// azurerm and azapi resources (GitHub issue #2133, finding 4).
+		Cloud: identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv)},
+	})
 	analyzeSpan.End()
 	report.Load = load
 	span.SetAttributes(

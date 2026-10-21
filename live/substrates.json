@@ -63,6 +63,59 @@
       }
     },
     {
+      "family": "azurerm",
+      "identity": {
+        "carries_address": true,
+        "address_in_markers": true,
+        "description": "the block address is a key of the marker map itself, beside tofu-estate"
+      },
+      "surfaces": [
+        {
+          "surface": "arm-tags",
+          "marker_noun": "tag",
+          "carrier_phrase": "tags attribute",
+          "carrier_paths": [
+            "tags"
+          ],
+          "collides_on_key": false,
+          "writes": {
+            "create": "in-create",
+            "adopt": "tags-only-plan",
+            "post_create": "arm-tags-api"
+          },
+          "post_create_writer": "arm-tags-api"
+        }
+      ],
+      "sweep": {
+        "kind": "resource-graph",
+        "description": "one Azure Resource Graph query per subscription the estate's resources resolve to, matching the marker case-insensitively, through clients built from the azurerm and azapi provider blocks' own connection arguments (Substrate.NewSweeper; GitHub issue #1120)"
+      },
+      "controller_held": {
+        "recognized": true,
+        "mechanism": "the object's ARM managedBy property when it names an AKS managed cluster or a managed application (the lifecycle owners of a node or managed resource group; an attached disk's managedBy is its VM and is not a hold), or a tag AKS writes on its node resource group (aks-managed- prefix, case-insensitive; AKS FAQ)",
+        "keys": [
+          "managedBy",
+          "aks-managed-*"
+        ]
+      },
+      "untaggable": {
+        "definition": "an azurerm type whose schema carries no ARM tags map (live/readiness.json azure.azurerm.types facts.taggable=false); through azapi_resource, 2366 of 3397 ARM types take no tags at their latest API version (azure.azapi.types), all declaration-carried, not counted here",
+        "count": 719,
+        "by_tier": {
+          "declaration-carried": 492,
+          "record-carried": 227
+        },
+        "unrecorded": "parent-owned"
+      },
+      "fence": "Resource-group RBAC per principal (a custom role or Contributor on the estate's groups), plus Azure Policy on the tofu-estate tag: deny a write that lacks it or changes it. The RBAC alone governs deletes; a denyAction delete lock is opt-in (deleteLock, off by default). Template files an operator applies, never plan resources.",
+      "harness": {
+        "name": "floci-az",
+        "pin_file": "live/floci-az-image",
+        "pin": "ghcr.io/lex00/floci-az@sha256:c56ce3e2fb0da9a554cfb6794df912b371c27b1448c979ff2fd4d54cb8d47cd9",
+        "notes": "the lex00/floci-az fork, pinned by digest; the azure lane's two estates run on it, and live/FLOCI.md lists what it serves."
+      }
+    },
+    {
       "family": "google",
       "identity": {
         "carries_address": true,

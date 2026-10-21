@@ -9,11 +9,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/armtypes"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/policy"
@@ -67,6 +70,16 @@ type Ownership struct {
 	// Policy existed. Set, it governs both declared quadrants - see
 	// [builder.checkPolicy].
 	Policy *policy.Policy
+
+	// PendingDisplaced are discovery's displaced-marker warnings that wait
+	// on one declared instance's read, keyed by that instance's address
+	// (discovery's Result.PendingDisplacedWarnings, GitHub issue #2140,
+	// finding 4). Each is about an object at that instance's ARM id
+	// carrying this estate's marker for another address, which the read
+	// refuses under [SummaryOverwriteMarkedAtKey]. The build emits the
+	// warnings of every instance it did not refuse that way, so the object
+	// gets exactly one diagnostic whether or not its read ran.
+	PendingDisplaced map[string]tfdiags.Diagnostics
 }
 
 // verified reports whether the caller already established ownership of an
@@ -309,6 +322,27 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		return b.unrecordedMarkerless(addr, typeName, importID, schema, declared, recordFirst, atDeclaredKey)
 	}
 
+	// GitHub issue #1120's first Azure lane run. azapi_resource's schema has
+	// a tags argument for every ARM type, so the surface above is arm-tags
+	// for a role assignment too; but whether an object can carry a marker is
+	// a property of the ARM type and API version its type argument names,
+	// and the stamp writes none on a type that takes no tags
+	// ([azapiCarriesNoMarker], the stamp's own armTagTarget question). Such
+	// an object's empty tags say nothing about whose it is. Its record does:
+	// live-import -approve and an apply's write-back record its identity,
+	// the way an untaggable AWS or azurerm type's is recorded, so a record
+	// that bound it is the proof, as for a located instance above. Without
+	// this the record-first read reported the record stale (no tofu-address
+	// to confirm it), the instance fell back to its declared id, and the
+	// overwrite refusal below fired on an object this estate had just
+	// migrated. With no record the refusal stands, worded for the record
+	// path ([builder.overwritesAtKey]) rather than for tags nothing can
+	// write.
+	markerless := surface == markers.SurfaceARMTags && azapiCarriesNoMarker(schema.Block, obj)
+	if markerless && recordFirst {
+		return ownershipOK
+	}
+
 	tags, taggable := substrate.MarkersOf(surface, obj)
 	if !taggable {
 		if recordFirst {
@@ -354,6 +388,26 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 	estate := tags[markers.TagEstate]
 	tagged := estate != "" && own.Estate != "" && estate == own.Estate
 
+	// overwrites is GitHub issue #2135's widening of #1120's refusal
+	// (maintainer ruling, 2026-10-20): on a surface whose create at an
+	// occupied id updates the object there ([substrate.CreateOverwritesAtKey]:
+	// an ARM create is a PUT), a declared create may proceed only onto an
+	// empty id or onto an object carrying this exact block's marker. The two
+	// marked readings below - another estate's, and this estate's for
+	// another address - left this instance out of the prior state with a
+	// warning and a create standing, which on ARM is a PUT over the object
+	// they describe. AKS produces both without any choudoufu run writing
+	// them: it copies a cluster's tags over those of the existing route
+	// table, public IP or virtual network the cluster is given. AWS and
+	// Kubernetes keep the warnings, because their surfaces answer false.
+	overwrites := declared && own.Estate != "" && atDeclaredKey && substrate.CreateOverwritesAtKey(surface)
+
+	if estate != "" && own.Estate != "" && !tagged && overwrites {
+		raw, corrupt := markers.GatherAddress(tags)
+		b.overwritesMarkedAtKey(addr, typeName, importID, estate, raw, corrupt, own.Policy.Verb(true, false))
+		return ownershipUnowned
+	}
+
 	if estate != "" && own.Estate != "" && !tagged {
 		// GitHub issue #1166, ruled 2026-09-16. An object carrying another
 		// estate's tofu-estate is not untagged: it is tagged, for somebody
@@ -394,6 +448,14 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// is that object's identity, and a rename rewrites the annotation
 		// in place (#1639).
 		if detail, cause, ok := b.addressNames(addr, typeName, importID, tags); !ok {
+			if overwrites {
+				// The same marker #244 refuses with a warning, on a
+				// surface where the create that warning leaves standing
+				// is a PUT over this object (GitHub issue #2135).
+				raw, corrupt := markers.GatherAddress(tags)
+				b.overwritesMarkedAtKey(addr, typeName, importID, estate, raw, corrupt, "")
+				return ownershipUnowned
+			}
 			b.unownedAddress(addr, typeName, importID, estate, detail, cause)
 			return ownershipUnowned
 		}
@@ -482,6 +544,40 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// object above; "keep" and "report" are an operator's explicit
 		// choice of a softer refusal and keep their meaning.
 		b.conflictsOnKey(addr, typeName, importID, surface)
+		return ownershipUnowned
+	}
+
+	if declared && estate == "" && own.Estate != "" && atDeclaredKey && substrate.CreateOverwritesAtKey(surface) {
+		// GitHub issue #1120, ruled on #1122: the opposite server and the
+		// same refusal. Everything the #1546 branch above establishes holds
+		// here too - the object was positively read at the identity this
+		// block's own configuration computes and it carries no tofu-estate
+		// at all - but this surface's create does not fail at a held key,
+		// it updates the object there ([substrate.CreateOverwritesAtKey]:
+		// an ARM create is a PUT). The warning the default below raises
+		// would then sit beside a plan whose apply either takes the object
+		// over or, where the provider reads the id first, fails partway
+		// through ([overwriteProviderGuard] says which, per provider), so
+		// the run stops here instead, by name, before any create is
+		// proposed.
+		//
+		// Under every verb that reaches this line, not only the default:
+		// refuse, keep and report. adopt and converge never reach it.
+		// #1546's branch keeps "keep" and "report" as softer refusals
+		// because there the server refuses the create before anything is
+		// changed; here those two verbs leave the object out of the prior
+		// state exactly as refuse does and the plan proposes the create,
+		// whose only guard against the takeover is then a provider's own
+		// pre-read, which azurerm lets a features flag turn off and does
+		// not do for every type - "keep" would even have proposed it
+		// without a warning.
+		// The verbs that admit the object (adopt, converge) returned
+		// above, and they are the deliberate route: the object enters the
+		// prior state and the plan writes the marker onto it in the open.
+		// internal/live/lint's policy-overwrite-at-key refuses the two
+		// verbs before any plan for an estate this reaches; this is the
+		// projection's own guard, for a run that bypassed lint.
+		b.overwritesAtKey(addr, typeName, importID, verb, markerless, obj)
 		return ownershipUnowned
 	}
 
@@ -714,6 +810,242 @@ func (b *builder) conflictsOnKey(addr addrs.AbsResourceInstance, typeName, impor
 	})
 	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryNameHeld, detail))
 	b.omit(addr, ReasonUnowned, detail, noMarkerCause(typeName))
+}
+
+// SummaryOverwriteAtKey is the Error GitHub issue #1120's create-or-update
+// refusal carries.
+const SummaryOverwriteAtKey = "Unmarked live object at the declared id would be overwritten"
+
+// overwritesAtKey records #1120's refusal ([substrate.CreateOverwritesAtKey]):
+// the Unowned entry, the omission, and an Error, the shape
+// [builder.conflictsOnKey] records for the opposite server.
+//
+// verb is the declared_untagged verb this run resolved, which is refuse,
+// keep or report by the time this is called (adopt and converge admit the
+// object instead). A verb other than the default is named in the message,
+// because the operator asked for something in writing and is owed the
+// reason it did not apply.
+//
+// The message says what the resource's own provider would do at apply
+// ([overwriteProviderGuard]), because ARM's PUT is only half the story:
+// both providers the family covers read the id before that PUT in their
+// default configuration, so the refusal is usually earlier than an error
+// the apply would raise anyway, not the only thing between the plan and a
+// takeover (GitHub issue #2133, finding 5). It stays on both, for the
+// reasons that function gives.
+//
+// markerless is an azapi object whose ARM type takes no tags at its API
+// version ([azapiCarriesNoMarker]), read with no record binding it. No tag
+// can be on it and none can be written, so the message speaks of the record
+// that would be its only carrier, and sends the operator to the two routes
+// that write one (adopt, and live-import -approve), never to tagging it.
+func (b *builder) overwritesAtKey(addr addrs.AbsResourceInstance, typeName, importID string, verb policy.Verb, markerless bool, obj cty.Value) {
+	own := b.opts.Ownership
+	var asked string
+	if verb != "" && verb != policy.DefaultVerb[policy.DeclaredUntagged] {
+		asked = fmt.Sprintf(" policy { %s = %q } does not change this: that verb leaves the object out of this estate and lets the plan propose the create, which is the PUT above.", policy.DeclaredUntagged.Attribute(), verb)
+	}
+	if markerless {
+		b.overwritesUnrecordedAtKey(addr, typeName, importID, asked, obj)
+		return
+	}
+	detail := fmt.Sprintf(
+		"A live %s already exists at %q, the id %s declares, and carries no %s tag, so this estate does not own it. Creating this resource is a PUT to that id, and ARM answers a PUT to an id that already exists by updating the object there instead of failing. %s%s To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, or write the tags %s=%q and %s=%q onto it and re-run. To keep it out of this estate, point this resource at a name nobody is using. This is #1546's refusal for a server that overwrites instead of refusing (GitHub issue #1120).",
+		typeName, importID, addr, markers.TagEstate,
+		overwriteProviderGuard(b.providerType(addr, typeName)), asked,
+		markers.TagEstate, own.Estate,
+		markers.TagAddress, markers.EscapeAddress(addr.String()))
+	b.unownedList = append(b.unownedList, Unowned{
+		Addr:          addr,
+		TypeName:      typeName,
+		ImportID:      importID,
+		AddressMarker: true,
+		Detail:        detail,
+	})
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryOverwriteAtKey, detail))
+	b.omit(addr, ReasonUnowned, detail, noMarkerCause(typeName))
+}
+
+// overwritesUnrecordedAtKey is [builder.overwritesAtKey]'s message for a
+// markerless azapi object: the same Unowned entry, omission and Error under
+// [SummaryOverwriteAtKey], with the record, not a tag, as the missing
+// carrier. AddressMarker is false: no tofu-address can be written onto it.
+func (b *builder) overwritesUnrecordedAtKey(addr addrs.AbsResourceInstance, typeName, importID, asked string, obj cty.Value) {
+	own := b.opts.Ownership
+	armType, apiVersion := "(a sensitive type)", "(unknown)"
+	if typ := obj.GetAttr(azapiTypeName); !typ.IsMarked() {
+		armType, apiVersion, _ = armtypes.ParseAzapiType(typ.AsString())
+	}
+	var record string
+	if b.opts.RecordStore == nil {
+		record = "Its identity record is the only thing that could say this estate owns it, and this live block declares no record_store, so there is nowhere to keep one: add a record_store to the live block first."
+	} else {
+		record = fmt.Sprintf("Its identity record in this estate's record store is the only thing that could say this estate owns it, and there is none for %s.", addr)
+	}
+	detail := fmt.Sprintf(
+		"A live %s already exists at %q, the id %s declares. Its ARM type, %s at API version %s, takes no tags, so it cannot carry a %s marker and none is looked for. %s Creating this resource is a PUT to that id, and ARM answers a PUT to an id that already exists by updating the object there instead of failing. %s%s To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, and the apply records it; or, if a stock state file manages it, run choudoufu live-import -state=<that file> -estate=%s -approve, which writes its record. To keep it out of this estate, point this resource at a name nobody is using. This is #1546's refusal for a server that overwrites instead of refusing (GitHub issue #1120).",
+		typeName, importID, addr, armType, apiVersion, markers.TagEstate, record,
+		overwriteProviderGuard(b.providerType(addr, typeName)), asked,
+		own.Estate)
+	b.unownedList = append(b.unownedList, Unowned{
+		Addr:     addr,
+		TypeName: typeName,
+		ImportID: importID,
+		Detail:   detail,
+	})
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryOverwriteAtKey, detail))
+	b.omit(addr, ReasonUnowned, detail, fmt.Sprintf("the live %s at its declared id has no record in this estate's record store, and its ARM type carries no marker.", typeName))
+}
+
+// azapiCarriesNoMarker reports whether obj, an object of a block with
+// azapi_resource's shape, names in its type argument an ARM type that takes
+// no tags at that API version, or one this build does not know: the objects
+// the stamp writes no marker on ([armTagTarget]). False for any other block,
+// and for an object whose type cannot be read.
+func azapiCarriesNoMarker(block *configschema.Block, obj cty.Value) bool {
+	if !azapiShaped(block) || obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute(azapiTypeName) {
+		return false
+	}
+	typ := obj.GetAttr(azapiTypeName)
+	if typ.IsMarked() || typ.IsNull() || !typ.IsKnown() || typ.Type() != cty.String {
+		return false
+	}
+	return !substrate.AzapiTypeCarriesMarker(typ.AsString())
+}
+
+// SummaryOverwriteMarkedAtKey is the Error GitHub issue #2135's widening of
+// #1120's refusal carries: the object at the declared id is marked, but not
+// for this block.
+const SummaryOverwriteMarkedAtKey = "Live object marked for another owner at the declared id would be overwritten"
+
+// overwritesMarkedAtKey records GitHub issue #2135's refusal (maintainer
+// ruling, 2026-10-20): a declared resource on a surface whose create
+// overwrites ([substrate.CreateOverwritesAtKey]) was read at the id its own
+// configuration computes, and the object there carries an ownership marker
+// that is not this block's - another estate's tofu-estate, or this
+// estate's with a tofu-address naming another instance (or a malformed
+// one). Before the ruling those were #1166's and #244's warnings, each
+// beside a plan proposing the create, which on ARM is a PUT that writes this
+// block's markers over the object's.
+//
+// The Unowned entry, the omission and an Error, the shape
+// [builder.overwritesAtKey] records for an unmarked object. A separate
+// summary because the operator's question is different: an unmarked object
+// is somebody's that nobody claimed, and adopting it is one policy verb
+// away; a marked one is claimed, and the message has to say by whom and how
+// a claim nobody here wrote got there.
+//
+// verb is declared_untagged's verb for an object of another estate, named
+// when it is not the default, for [anotherEstateDetail]'s reason: the
+// operator asked for something in writing and is owed why it did not reach
+// this object. It is "" for this estate's own object, which no
+// declared_untagged verb reaches either way.
+func (b *builder) overwritesMarkedAtKey(addr addrs.AbsResourceInstance, typeName, importID, estate, rawAddress string, corrupt bool, verb policy.Verb) {
+	own := b.opts.Ownership
+	if b.refusedMarkedAtKey == nil {
+		b.refusedMarkedAtKey = map[string]bool{}
+	}
+	b.refusedMarkedAtKey[addr.String()] = true
+	escaped := markers.EscapeAddress(addr.String())
+
+	var found string
+	switch {
+	case corrupt:
+		found = fmt.Sprintf("%s=%q and %s continuation tags with a gap in them, so the address it names cannot be read", markers.TagEstate, estate, markers.TagAddress)
+	case rawAddress == "":
+		found = fmt.Sprintf("%s=%q and no %s", markers.TagEstate, estate, markers.TagAddress)
+	default:
+		found = fmt.Sprintf("%s=%q and %s=%q", markers.TagEstate, estate, markers.TagAddress, rawAddress)
+	}
+	var whose string
+	if estate == own.Estate {
+		whose = fmt.Sprintf("That is this estate's marker for another address than %s, so the object is claimed by a different instance of this estate, or by none.", addr)
+	} else {
+		whose = fmt.Sprintf("That is estate %q's marker, not this estate's (%q).", estate, own.Estate)
+	}
+	var asked string
+	if verb != "" && verb != policy.DefaultVerb[policy.DeclaredUntagged] {
+		asked = fmt.Sprintf(" policy { %s = %q } does not reach it: that quadrant is about objects carrying no estate marker at all, and this one is marked.", policy.DeclaredUntagged.Attribute(), verb)
+	}
+
+	var remedies string
+	if estate == own.Estate {
+		remedies = fmt.Sprintf(
+			"If AKS copied the tags, move this resource's ownership off its tags: strict { markers \"record\" { types = [%q] } } in the live block holds its identity in the estate's record store, and the copied tags then decide nothing; or keep it out of this estate, or in a resource group no cluster is given. If the resource really moved, say so with a moved block or with choudoufu live-mv. If the tags are simply wrong, write %s=%q onto the object by hand and re-run.",
+			typeName, markers.TagAddress, escaped)
+	} else {
+		remedies = fmt.Sprintf(
+			"If a cluster of estate %q copied its tags here, move this resource's ownership off its tags: strict { markers \"record\" { types = [%q] } } in the live block holds its identity in the estate's record store; or keep it out of this estate, or in a resource group no cluster is given. To take the object over deliberately, `live-mv -from-estate=%s` rewrites the marker to this estate one address at a time, and `live-import -approve` stamps this estate's markers over the resources a state file lists. Or point this resource at a name nobody is using.",
+			estate, typeName, estate)
+	}
+
+	detail := fmt.Sprintf(
+		"A live %s already exists at %q, the id %s declares, and it carries %s. %s%s Creating this resource is a PUT to that id, and ARM answers a PUT to an id that already exists by updating the object there instead of failing, so the create would write this block's markers over that object's. %s Markers this estate did not write usually come from one of two places: AKS copies a cluster's tags, the markers this estate stamped on the cluster among them, over the tags of the existing resources the cluster is given (its route table, public IP, virtual network and the rest) while the cluster exists, and removes them when it is deleted; and an Azure Policy assignment with a modify effect writes tag values onto the resources in its scope. %s This is #1120's overwrite refusal for an object that is marked, but not for this block (GitHub issue #2135).",
+		typeName, importID, addr, found, whose, asked,
+		overwriteProviderGuard(b.providerType(addr, typeName)),
+		remedies)
+	b.unownedList = append(b.unownedList, Unowned{
+		Addr:          addr,
+		TypeName:      typeName,
+		ImportID:      importID,
+		Estate:        estate,
+		AddressMarker: true,
+		Detail:        detail,
+	})
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryOverwriteMarkedAtKey, detail))
+	cause := fmt.Sprintf("the live %s at its identity carries another owner's marker and would be overwritten.", typeName)
+	b.omit(addr, ReasonUnowned, detail, cause)
+}
+
+// overwriteProviderGuard is the sentence [builder.overwritesAtKey] says
+// about what providerType, the resource's provider, does when its create
+// finds an object already at the id, and why this plan refuses anyway.
+// GitHub issue #2133, finding 5, answered from each provider's source at
+// the pinned version:
+//
+//   - hashicorp/azurerm 5.10.0 reads the id before the PUT and fails the
+//     create with tf.ImportAsExistsError ("a resource with the ID %q
+//     already exists - to be managed via Terraform this resource needs to
+//     be imported into the State", helpers/tf/errors.go:9-12), e.g.
+//     internal/services/resource/resource_group_resource.go:76-87. The read
+//     is skipped when the provider block's features block sets
+//     skip_import_check_on_create_and_allow_overwriting_existing_resources
+//     = true (internal/provider/features.go:26-31 and 544-546, default
+//     false), and a few create functions do no such read at all: 61 of the
+//     1,086 *_resource.go files under internal/services name neither the
+//     error nor the flag, among them
+//     containerapps/container_app_environment_certificate_resource.go:164-213,
+//     a taggable type whose create is a bare CreateOrUpdate. So under
+//     azurerm the refusal is usually earlier than an apply-time error and
+//     occasionally the only guard.
+//   - azure/azapi 2.13.0's azapi_resource, the one azapi type with a
+//     top-level tags map, reads the id before every create
+//     (internal/services/azapi_resource.go:873-893, CreateUpdate's
+//     isNewResource branch) and fails with "Resource already exists"
+//     (tf.ImportAsExistsError) when the read succeeds. Nothing turns it off:
+//     the branch is conditioned on isNewResource alone, with no provider
+//     feature and no ignore_* argument consulted, and only a not-found (or a
+//     403 at management-group scope) lets the create proceed. So under azapi
+//     the refusal is always earlier than the apply-time error, never the only
+//     guard.
+//
+// The refusal stays on both because it is a plan-time stop: an apply-time
+// "already exists" comes after the apply has created whatever was ordered
+// before this resource, and leaves the operator a half-applied estate to
+// reason about; the plan-time one leaves nothing applied, and its
+// remedies (adopt, or tag the object) are this estate's, where the
+// provider's says to import it into a state file this estate does not
+// keep.
+func overwriteProviderGuard(providerType string) string {
+	const first = "This plan stops here, before anything is applied, instead of proposing the create."
+	switch providerType {
+	case "azurerm":
+		return "hashicorp/azurerm reads the id before that PUT and fails the apply with \"a resource with the ID ... already exists\" for most of its types, but not when the provider block's features block sets skip_import_check_on_create_and_allow_overwriting_existing_resources = true, and not for the few types whose create does no such read, where the apply would take the object over. " + first + " It refuses before azurerm would, so that neither that setting nor the type decides whether the object is taken over, and so that the failure comes before any other resource in this apply has been created."
+	case "azapi":
+		return "azure/azapi reads the id before that PUT and fails the apply with \"Resource already exists\", with no setting that turns the read off. " + first + " It refuses before azapi would, so the failure comes before any other resource in this apply has been created, rather than partway through the apply."
+	default:
+		return "Nothing in this provider is known to read the id first, so the apply would take that object over with nothing to say it was ever this estate's. " + first
+	}
 }
 
 // anotherEstateDetail is the refusal an object carrying a DIFFERENT
@@ -995,4 +1327,28 @@ func (b *builder) unownedAddress(addr addrs.AbsResourceInstance, typeName, impor
 func adoptsOnCreate(typeName string) bool {
 	_, rest, ok := strings.Cut(typeName, "_")
 	return ok && strings.HasPrefix(rest, "default_")
+}
+
+// pendingDisplaced is [Ownership.PendingDisplaced]'s warnings for every
+// instance this build did not refuse under [SummaryOverwriteMarkedAtKey],
+// in address order: the object's one diagnostic when its read did not run
+// or did not refuse it (GitHub issue #2140, finding 4).
+func (b *builder) pendingDisplaced() tfdiags.Diagnostics {
+	own := b.opts.Ownership
+	if own == nil || len(own.PendingDisplaced) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(own.PendingDisplaced))
+	for k := range own.PendingDisplaced {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var diags tfdiags.Diagnostics
+	for _, k := range keys {
+		if b.refusedMarkedAtKey[k] {
+			continue
+		}
+		diags = diags.Append(own.PendingDisplaced[k])
+	}
+	return diags
 }

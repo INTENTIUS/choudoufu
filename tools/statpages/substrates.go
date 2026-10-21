@@ -127,6 +127,9 @@ func substratesSpans(root string) (map[string]string, error) {
 	row("Fence", func(i int) string { return d.Rows[i].Fence })
 	row("Harness", func(i int) string {
 		h := d.Rows[i].Harness
+		if h.PinFile == "" {
+			return fmt.Sprintf("%s, not yet pinned. %s", h.Name, h.Notes)
+		}
 		return fmt.Sprintf("%s, pinned in `%s` to `%s`. %s", h.Name, h.PinFile, h.Pin, h.Notes)
 	})
 	return map[string]string{"substrates": s.String()}, nil

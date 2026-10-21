@@ -217,6 +217,20 @@ type eligible struct {
 	// Kubernetes marker is one label and carries no address.
 	manifested bool
 
+	// armTagged says the marker is carried in an Azure Resource Manager tags
+	// map ([markers.SurfaceARMTags], GitHub issue #1120): the same tags-only
+	// write [approveOne] makes on AWS, with the marker keys read
+	// case-insensitively and written under the spelling the object already
+	// uses, because ARM tag keys are case-insensitive.
+	armTagged bool
+
+	// armInBody says the ARM marker goes in an azapi_resource's body.tags
+	// rather than its top-level tags argument, because that is where the
+	// object's own configuration keeps its tags and azapi then ignores the
+	// top-level argument ([projection.ARMTagPlacement], GitHub issue #1120
+	// unit 19). Set only when armTagged.
+	armInBody bool
+
 	// googleLabelled says the marker is carried in a hashicorp/google
 	// resource's top-level labels map ([markers.GoogleLabelSurface],
 	// GitHub issue #1119), so Approve writes it through
@@ -345,6 +359,18 @@ type Request struct {
 	// resolve to nothing, which [migrationSlots] already treats as "stay
 	// blocked". See that function's "gate 4" doc for the full argument.
 	Config *configs.Config
+
+	// Cloud is what the run's environment says about the cloud, the
+	// [identity.CloudContext] a live plan's identity resolution is given:
+	// today the ARM_SUBSCRIPTION_ID an azurerm or azapi provider block that
+	// names no subscription_id falls back to. GitHub issue #2135: the
+	// identity record Approve writes for an azurerm type holds that
+	// subscription, answered from Config's provider block and this through
+	// [identity.ProviderCloudValue], so the record names the object under
+	// the subscription a later plan's identity route would. The zero value
+	// leaves a provider block that sets subscription_id statically
+	// answered and every other one unrecorded.
+	Cloud identity.CloudContext
 
 	// State is the state to read, already parsed by the caller - through
 	// [github.com/intentius/choudoufu/internal/states/statefile] - and never
@@ -477,6 +503,12 @@ type Ratification struct {
 	// Approve, not Ratify, is where every write in this package happens.
 	recordStore *projection.RecordStore
 
+	// config and cloud are [Request.Config] and [Request.Cloud], carried
+	// through to Approve for the provider components of an identity record
+	// (GitHub issue #2135; see [Ratification.providerValues]).
+	config *configs.Config
+	cloud  identity.CloudContext
+
 	// rootOutputStore and rootOutputs are GitHub issue #349's migration
 	// half. A stock state file holds the value every root-level `output`
 	// block settled on at the last apply, and until this existed a migration
@@ -577,6 +609,8 @@ func ratify(ctx context.Context, req Request) (*Ratification, tfdiags.Diagnostic
 		residuable:      make(map[string]*residuable),
 		secrets:         req.Secrets,
 		recordStore:     req.RecordStore,
+		config:          req.Config,
+		cloud:           req.Cloud,
 		rootOutputStore: req.RootOutputStore,
 		rootOutputs:     req.State,
 		parallelism:     req.Parallelism,
@@ -716,12 +750,30 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	typeName := res.Addr.Resource.Type
 	entry := Entry{Addr: addr, TypeName: typeName}
 
-	if _, admitted := identity.LookupType(typeName); !admitted && !admittedByProviderSchema(ctx, req, res, typeName) && !locatedByProviderSchema(ctx, req, res, typeName) {
-		entry.Status = StatusUnadmittedType
-		entry.Detail = fmt.Sprintf(
-			"There is no identity knowledge for resource type %q, so this run cannot read or verify it. See live/LIMITATIONS.md, \"unadmitted-type\", for the admitted set.",
-			typeName)
-		return entry, carriers{}
+	providerAddr := impliedProviderAddr(req.Config, res)
+	recordedProvider := recordedProviderAddr(req.Config, typeName, res.ProviderConfig)
+	if _, admitted := identity.LookupType(typeName); !admitted {
+		// The two schema doors below both need the provider. A provider
+		// this run cannot reach is said by name, as MISSING, and never
+		// filed as an unadmitted type: until GitHub issue #1120's first
+		// Azure lane run it was, and every azapi_resource in a stock state
+		// file was reported "no identity knowledge for resource type
+		// azapi_resource" when what had failed was reaching
+		// registry.opentofu.org/hashicorp/azapi, a provider that does not
+		// exist (see [impliedProviderAddr]).
+		resp, err := providerSchemaFor(ctx, req, providerAddr)
+		if err != nil {
+			entry.Status = StatusMissing
+			entry.Detail = fmt.Sprintf("Provider %s could not be used, so this run cannot tell whether resource type %q is admitted, and could not verify this instance: %s.", providerAddr, typeName, err)
+			return entry, carriers{}
+		}
+		if !admittedByProviderSchema(resp, typeName) && !locatedByProviderSchema(resp, typeName) {
+			entry.Status = StatusUnadmittedType
+			entry.Detail = fmt.Sprintf(
+				"There is no identity knowledge for resource type %q, so this run cannot read or verify it. See live/LIMITATIONS.md, \"unadmitted-type\", for the admitted set.",
+				typeName)
+			return entry, carriers{}
+		}
 	}
 
 	if inst == nil || inst.Current == nil {
@@ -730,8 +782,6 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		return entry, carriers{}
 	}
 
-	providerAddr := impliedProviderAddr(req.Config, res)
-	recordedProvider := recordedProviderAddr(req.Config, typeName, res.ProviderConfig)
 	provider, err := req.Providers.ConfiguredProvider(ctx, providerAddr)
 	if err != nil {
 		entry.Status = StatusMissing
@@ -824,7 +874,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	// Each carrier is named here, so a surface this switch has not learned
 	// is one the completeness guard (internal/live/markers/seams_test.go)
 	// reports rather than one a migration silently leaves unmarked.
-	var labelled, manifested, googleLabelled bool
+	var labelled, manifested, armTagged, googleLabelled bool
 	// GitHub issue #1863: a field-granular Kubernetes type carries no
 	// surface - its marker is the field manager its writes are made under
 	// (#1191) - and is not untaggable for that: what a migration owes it is
@@ -839,6 +889,8 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	switch {
 	case fieldGranular:
 	case surface == markers.SurfaceTags:
+	case surface == markers.SurfaceARMTags:
+		armTagged = true
 	case surface == markers.SurfaceLabels:
 		labelled = !selected
 	case surface == markers.SurfaceManifest:
@@ -859,6 +911,26 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	}
 	priorVal, _ := prior.Value.UnmarkDeep()
 	entry.LiveID = liveIDFrom(typeName, priorVal)
+
+	// GitHub issue #1120 unit 19. The arm-tags surface is answered from the
+	// schema, and azapi_resource's schema has a tags argument for every ARM
+	// type; whether this object can carry a marker is a property of the ARM
+	// type and API version its type argument names. One that takes no tags
+	// is migrated the way an untaggable AWS type is (aws_route, the
+	// fixture's UNTAGGABLE row, and #364 unit A2's identity record): its
+	// identity goes into the record store and no marker is written. The
+	// stamp makes the same decision for a planned object (armTagTarget),
+	// so a migrated estate and a greenfield one agree.
+	var armInBody bool
+	if armTagged && !selected {
+		inBody, placed, why := projection.ARMTagPlacement(addr, schema.Block, priorVal)
+		if !placed {
+			untaggable, car := ratifyUntaggable(entry, provider, schema, typeName, inst, recordedProvider)
+			untaggable.Detail = why + " It is migrated as an untaggable type is: its identity is recorded in the estate's record store when one is configured."
+			return untaggable, car
+		}
+		armInBody = inBody
+	}
 
 	// GitHub issue #1109. A manifest-shape instance has no flat id
 	// attribute at all - its whole object is one dynamic argument - so
@@ -922,7 +994,7 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		// see [located]'s doc comment.
 		return entry, carriers{located: &located{sub}}
 	}
-	elig := &eligible{residuable: sub, labelled: labelled, manifested: manifested, googleLabelled: googleLabelled}
+	elig := &eligible{residuable: sub, labelled: labelled, manifested: manifested, armTagged: armTagged, armInBody: armInBody, googleLabelled: googleLabelled}
 	if fieldGranular {
 		// GitHub issue #1863: the write the state records and the manager
 		// it was made under, read from the state's own object, never from
@@ -1146,11 +1218,14 @@ func ratifyRecordBacked(entry Entry, typeName string, schema providers.Schema, i
 // required_providers entry for the type's implied local name when it has one
 // (configs.Module.ImpliedProviderForUnqualifiedType, the lookup stock makes
 // for a resource block with no provider argument), and the hashicorp
-// namespace only when it has none. GitHub issue #1120, found on the azure
-// branch: a provider outside the hashicorp namespace (azure/azapi) resolved
-// to a hashicorp address nobody publishes and "choudoufu init" never
-// installed. cfg nil (a caller with no configuration) keeps the hashicorp
-// default.
+// namespace only when it has none. GitHub issue #1120: azure/azapi is not
+// in the hashicorp namespace, so the bare implied address,
+// registry.opentofu.org/hashicorp/azapi, named a provider nobody publishes
+// and "choudoufu init" never installed; every azapi_resource in the Azure
+// lane's first stock state files failed to reach its provider and was
+// skipped. A configuration cannot have been initialised for an azapi
+// resource at all without such an entry, because init resolves the same
+// way. cfg nil (a caller with no configuration) keeps the hashicorp default.
 func impliedProviderAddr(cfg *configs.Config, res *states.Resource) addrs.AbsProviderConfig {
 	return configProviderAddr(cfg, res.Addr.Resource.Type, res.ProviderConfig.Alias)
 }
@@ -1184,11 +1259,11 @@ func configProviderAddr(cfg *configs.Config, typeName, alias string) addrs.AbsPr
 // address, and the record leg proposes a removed block's record only in the
 // pass whose address the record names. Recorded verbatim, every record this
 // migration seeded named an address no pass runs, so a removed untaggable
-// resource found only through its record was refused as
-// RECORDED_PROVIDER_ABSENT instead of destroyed. Normalised here, once,
-// rather than by an equivalence rule at each reader: OpenTofu treats the two
-// hosts as two providers everywhere else, and only the configuration can say
-// which one it means.
+// resource (the Azure estates' role assignment, found only through its
+// record) was refused as RECORDED_PROVIDER_ABSENT instead of destroyed.
+// Normalised here, once, rather than by an equivalence rule at each reader:
+// OpenTofu treats the two hosts as two providers everywhere else, and only
+// the configuration can say which one it means.
 //
 // A configuration that resolves the type to a different namespace or type
 // (a fork, or no required_providers entry for a non-hashicorp provider)
@@ -1203,6 +1278,21 @@ func recordedProviderAddr(cfg *configs.Config, typeName string, recorded addrs.A
 	return recorded
 }
 
+// providerSchemaFor is the provider schema the two schema admission doors
+// read, or the error that stood in the way of reaching the provider at all,
+// which ratifyOne reports by name rather than as an unadmitted type.
+func providerSchemaFor(ctx context.Context, req Request, providerAddr addrs.AbsProviderConfig) (providers.GetProviderSchemaResponse, error) {
+	provider, err := req.Providers.ConfiguredProvider(ctx, providerAddr)
+	if err != nil {
+		return providers.GetProviderSchemaResponse{}, err
+	}
+	resp := provider.GetProviderSchema(ctx)
+	if resp.Diagnostics.HasErrors() {
+		return resp, fmt.Errorf("the provider's schema could not be read: %w", resp.Diagnostics.Err())
+	}
+	return resp, nil
+}
+
 // admittedByProviderSchema is the schema-based admission fallback
 // internal/live/lint's admitted() already applies at plan/lint time
 // (identity.SynthesizeTypeIdentity): a type identity.DefaultTable does not
@@ -1215,9 +1305,9 @@ func recordedProviderAddr(cfg *configs.Config, typeName string, recorded addrs.A
 // example, none of which have a static table row because the runtime
 // schema fallback already covers them everywhere else in this fork.
 //
-// Fetching the provider or its schema failing here is not itself reported:
-// it just means the fallback does not apply, and the caller's ordinary "no
-// identity knowledge" refusal stands exactly as it did before this existed.
+// Fetching the provider or its schema is the caller's ([providerSchemaFor]),
+// and a failure there is reported as the provider failure it is, never as
+// "no identity knowledge" (GitHub issue #1120).
 //
 // The claim above - that this is the same admission lint applies - is a
 // claim about ONE function, [identity.SynthesizeTypeIdentity], and it was
@@ -1230,15 +1320,7 @@ func recordedProviderAddr(cfg *configs.Config, typeName string, recorded addrs.A
 // this comment asserts is held by construction rather than by two functions
 // being kept in step - which is what live/notimportable_routes_test.go
 // measures over the whole provider surface.
-func admittedByProviderSchema(ctx context.Context, req Request, res *states.Resource, typeName string) bool {
-	provider, err := req.Providers.ConfiguredProvider(ctx, impliedProviderAddr(req.Config, res))
-	if err != nil {
-		return false
-	}
-	resp := provider.GetProviderSchema(ctx)
-	if resp.Diagnostics.HasErrors() {
-		return false
-	}
+func admittedByProviderSchema(resp providers.GetProviderSchemaResponse, typeName string) bool {
 	_, ok := identity.SynthesizeTypeIdentity(typeName, resp.ResourceTypes, nil)
 	return ok
 }
@@ -1265,15 +1347,7 @@ func admittedByProviderSchema(ctx context.Context, req Request, res *states.Reso
 // conditions for it, so a migrated estate's next live-plan read the
 // instance as unclaimed and proposed creating a second one, having never
 // been given the chance to record the first.
-func locatedByProviderSchema(ctx context.Context, req Request, res *states.Resource, typeName string) bool {
-	provider, err := req.Providers.ConfiguredProvider(ctx, impliedProviderAddr(req.Config, res))
-	if err != nil {
-		return false
-	}
-	resp := provider.GetProviderSchema(ctx)
-	if resp.Diagnostics.HasErrors() {
-		return false
-	}
+func locatedByProviderSchema(resp providers.GetProviderSchemaResponse, typeName string) bool {
 	schema, ok := resp.ResourceTypes[typeName]
 	if !ok || schema.Block == nil {
 		return false
