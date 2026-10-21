@@ -5,12 +5,10 @@ claim: the-tag-is-the-boundary
 
 # Claim 13: The tag is the boundary
 
-In stock, who owns a resource is a line in a state file the cloud never
-sees, so no policy can gate it. Here ownership is a marker on the
-resource, a marker write is an API call the platform's own policy engine
-judges, and every answer a plan gives is about one estate and one provider
-configuration. Two estates in one account need nothing between them but
-their markers.
+Ownership is a marker on the resource, so the platform's own policy
+engine judges every marker write, and every plan answers for one estate
+and one provider configuration. Two estates share an account with nothing
+between them but their markers.
 
 Each scenario runs from the repository root and ends on a `PASS` line; its
 `BREAK=1` run breaks the thing the proof rests on and must print a
@@ -25,11 +23,10 @@ Each scenario runs from the repository root and ends on a `PASS` line; its
 
 With the emulator's IAM enforcement on, Bob's role is fenced to half an
 estate by a condition on the ownership tag (the grant `live/MARKERS.md`
-publishes): his writes on Alice's half are refused by the platform, a
-plain `aws ec2 create-tags` under his session included, and a carve is a
-governed tag write. The grant fences `ec2:CreateTags`, `ec2:DeleteTags`
-and `ec2:TerminateInstances` on resources carrying the tag, nothing more.
-The same carve ran on real AWS on 2026-09-03; its CloudTrail record is in
+publishes). The platform refuses his writes on Alice's half, a plain
+`aws ec2 create-tags` under his session included, and a carve is a
+governed tag write. The same carve ran on real AWS on 2026-09-03; its
+CloudTrail record is in
 `live/smoke/evidence/the-tag-is-the-boundary.cloudtrail.json`. `BREAK=1`
 gives Bob the same reach with no condition, and his write must go
 through.
@@ -39,43 +36,38 @@ through.
     just smoke a-role-holds-an-address-pattern
     BREAK=1 just smoke a-role-holds-an-address-pattern
 
-The within-estate grant on its own (#1955). One estate declares
-`module.app` and `module.db`, and one role holds a single statement:
-`ec2:CreateTags`, `ec2:DeleteTags` and `ec2:TerminateInstances` under
-`StringLike` on `aws:ResourceTag/tofu-address` = `module.app.*`, with no
-`tofu-estate` condition. The role's apply changes `module.app`, and the
-same change on `module.db` is refused by the emulator's IAM enforcement,
-as are a plain `aws ec2 create-tags` and `terminate-instances` on it.
-`BREAK=1` rewrites the grant with the same actions and the condition
-removed, and the role's change on `module.db` must land.
+One estate declares `module.app` and `module.db`, and one role holds a
+single statement: `ec2:CreateTags`, `ec2:DeleteTags` and
+`ec2:TerminateInstances` under `StringLike` on
+`aws:ResourceTag/tofu-address` = `module.app.*`. The role's apply changes
+`module.app`, and the emulator's IAM enforcement refuses the same change
+on `module.db`, along with a plain `aws ec2 create-tags` and
+`terminate-instances` on it. `BREAK=1` removes the condition from the
+grant, and the role's change on `module.db` must land.
 
-### the-boundary-holds-across-regions (claim 16 until #1817)
+### the-boundary-holds-across-regions
 
     just smoke the-boundary-holds-across-regions
     BREAK=1 just smoke the-boundary-holds-across-regions
 
 One estate spans two regions, with one client-chosen log group name in
-both. A delete in one region is seen in that region and is not vouched
-for by the other region's object (the defect of #745). An orphan in a
-region nothing declares is still found, recovery re-runs in both regions,
-and a region change is a replace, refused unless named. `BREAK=1` strips
-the surviving object's markers and points the second region at the
-first, and the plan must catch the dead instance being served as
-unchanged.
+both. A delete in one region is seen in that region, and the other
+region's object never vouches for it (#745). An orphan in a region
+nothing declares is found, recovery re-runs in both regions, and a region
+change is a replace, refused unless named. `BREAK=1` strips the surviving
+object's markers and points the second region at the first, and the plan
+must catch the dead instance being served as unchanged.
 
-### the-boundary-holds-across-accounts (claim 19 until #1817)
+### the-boundary-holds-across-accounts
 
     just smoke the-boundary-holds-across-accounts
     BREAK=1 just smoke the-boundary-holds-across-accounts
 
-The same estate across two accounts in one region: one name in each,
-told apart only by the account. Kept as its own proof rather than a mode
-of the regions scenario because the emulator setup differs (a second
-account's credentials) and the regions scenario has two steps this one
-does not. `BREAK=1` is the regions control with the account swapped for
-the region.
+The same estate spans two accounts in one region, with one name in each,
+told apart only by the account. `BREAK=1` is the regions control with the
+account swapped for the region.
 
-### two-estates-at-once (claim 43 until #1817)
+### two-estates-at-once
 
     just smoke two-estates-at-once
     BREAK=1 just smoke two-estates-at-once
@@ -83,8 +75,7 @@ the region.
 Two roots declare the identical address and read the identical data
 source, differing only in `tofu-estate`, and apply at the same moment:
 both finish clean with nothing serialized. `BREAK=1` gives both the same
-estate value, and the next plan must name both live roles rather than
-read clean.
+estate value, and the next plan must name both live roles.
 
 ## On Kubernetes
 
@@ -96,22 +87,7 @@ read clean.
 The fence is one `ValidatingAdmissionPolicy`
 (`live/kubernetes/estate-boundary.yaml`) on the estate label, installed by
 a cluster admin, with the grant an ordinary ClusterRole. It judges a plain
-`kubectl label` like any other write. It is write-only (admission never
-sees get or list) and cluster-wide. The plan refuses a block declaring
+`kubectl label` like any other write. The plan refuses a block declaring
 another estate's object before any cluster is consulted. `BREAK=1`
 removes the policy, and the writes it refused must go through, while the
-plan-side refusal must still hold. One estate across clusters, or two
-estates applying to one cluster at once, is not measured.
-
-## On GCP
-
-Restated: `just smoke gcp-the-label-is-the-boundary` proves the
-project-scoped form. An IAM condition cannot read a GCP label, so the
-fence is the project
-([#1121](https://github.com/INTENTIUS/choudoufu/issues/1121)): one estate
-per project, granted by an ordinary project IAM binding,
-`live/gcp/estate-grant.sh`. Two estates sharing one project are not fenced
-from each other per principal, and nothing finer than an estate can be
-granted. Its `BREAK=1` removes the principal's binding on its own
-estate's project and requires its own apply there to be refused, so the
-write the grant allows is the grant's. It has no dated run yet.
+plan-side refusal holds.

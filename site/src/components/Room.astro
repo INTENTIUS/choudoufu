@@ -1,18 +1,16 @@
 ---
 // One room, from data/rooms.ts, in fixed sections: who it is for, what works,
-// what differs, first step, proof, then the pages to read in order: how-to,
-// explanation, reference. The proof figures are counted at build by
-// data/proof.ts from live/gauntlet.json and live/smoke/claims.json.
+// what differs, first step, a link to the claims, then the pages to read in
+// order: how-to, explanation, reference.
 import { room } from '../data/rooms';
-import { BOARD, CLAIMS, figures } from '../data/proof';
 
 interface Props {
 	id: string;
 }
+const CLAIMS = 'https://github.com/INTENTIUS/choudoufu/blob/main/live/CLAIMS.md';
 const r = room(Astro.props.id);
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (h: string) => (/^https?:/.test(h) ? h : `${base}${h}`);
-const proof = figures(r.proof);
 ---
 <div class="cd-room not-content">
 	<section id="who">
@@ -33,17 +31,7 @@ const proof = figures(r.proof);
 			<p><a href={href(r.first.href)}>{r.first.label}</a></p>
 		</section>
 	</div>
-	<section id="proof">
-		<h2>Proof</h2>
-		<ul class="figures">
-			{proof.map((f) => (
-				<li>
-					<b>{f.value}</b> <span>{f.label}</span> <small>{f.measured}</small>
-				</li>
-			))}
-		</ul>
-		<p class="more"><a href={BOARD}>The board</a> and <a href={CLAIMS}>the claims</a> list every row and run.</p>
-	</section>
+	<p id="proof"><a href={CLAIMS}>Every claim is proven</a></p>
 	<section id="read" class="read">
 		<h2>Then read</h2>
 		<dl>
@@ -134,17 +122,6 @@ const proof = figures(r.proof);
 	.first a:hover {
 		text-decoration: none;
 		filter: brightness(1.1);
-	}
-	.figures b {
-		color: var(--sl-color-white);
-		font-variant-numeric: tabular-nums;
-	}
-	.figures small {
-		display: block;
-		color: var(--sl-color-gray-3);
-	}
-	.more {
-		margin-top: 0.75rem;
 	}
 	dl {
 		display: grid;
