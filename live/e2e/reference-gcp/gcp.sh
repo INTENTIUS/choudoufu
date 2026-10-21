@@ -103,3 +103,65 @@ if len(attrs) != 1 or not re.match(r"^\s+- display_name\s+= \".*\" -> null\s*$",
     sys.exit(1)
 '
 }
+
+# refgcp_neg_endpoint_lines: reads a networkEndpointGroups
+# listNetworkEndpoints response on stdin and prints one "ip|fqdn|port" line
+# per endpoint, sorted, an unset field empty. day2_endpoints reads each
+# scratch NEG with it, so the endpoint the emulator holds is compared field
+# by field with the one the block declared.
+refgcp_neg_endpoint_lines() {
+  python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+out = []
+for it in d.get("items", []):
+    e = it.get("networkEndpoint", it)
+    out.append("%s|%s|%s" % (e.get("ipAddress", ""), e.get("fqdn", ""), e.get("port", "")))
+print("\n".join(sorted(out)))
+'
+}
+
+# refgcp_endpoint_record <records dir> <address> <expected import id> <ip>
+# <fqdn> <port>: day2_endpoints' check that the estate's record for a
+# network endpoint names the object stock names. Exits 1, printing why,
+# when no record carries <address> or the record disagrees with the
+# expected import id (the empty segment where ip_address or fqdn is unset,
+# #2145 item 6). A one-string identity (import_id or secondary_id) must
+# equal <expected import id> exactly; identity attrs must carry <ip>,
+# <fqdn> and <port>, an unset one absent or empty. Prints what it compared,
+# for the verdict line.
+refgcp_endpoint_record() {
+  python3 - "$@" <<'PY'
+import json, os, sys
+root, addr, want, ip, fqdn, port = sys.argv[1:7]
+found = None
+for d, _, files in os.walk(root):
+    for f in files:
+        try:
+            env = json.load(open(os.path.join(d, f)))
+        except Exception:
+            continue
+        if isinstance(env, dict) and env.get("address") == addr:
+            found = env
+if found is None:
+    print(f"no record under {root} carries {addr}")
+    sys.exit(1)
+ident = found.get("identity") or {}
+strings = {k: ident[k] for k in ("import_id", "secondary_id") if ident.get(k)}
+attrs = ident.get("attrs") or {}
+if not strings and not attrs:
+    print(f"the record for {addr} carries no identity: {json.dumps(found.get('identity'))}")
+    sys.exit(1)
+bad = [f"{k}={v!r}, want {want!r}" for k, v in sorted(strings.items()) if v != want]
+for k, v in (("ip_address", ip), ("fqdn", fqdn), ("port", port)):
+    if attrs and str(attrs.get(k, "") or "") != v:
+        bad.append(f"attrs.{k}={attrs.get(k)!r}, want {v!r}")
+if bad:
+    print(f"the record for {addr} disagrees: " + "; ".join(bad))
+    sys.exit(1)
+parts = [f"{k} {v}" for k, v in sorted(strings.items())]
+if attrs:
+    parts.append("attrs " + json.dumps(attrs, sort_keys=True))
+print(", ".join(parts))
+PY
+}
