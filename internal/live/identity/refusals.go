@@ -110,6 +110,7 @@ var refusals = []Refusal{
 	{"Invalid for_each key", "The key clause of a for_each comprehension over another resource's keys did not evaluate to a known string, even though it never reads the comprehension's value variable.", ""},
 	{"Invalid for_each set", "A for_each set's element type is not a string.", ""},
 	{"Invalid for_each value", "A for_each value is neither a map nor a set of strings.", ""},
+	{"Long-form identity argument not composed yet", "A google identity argument the provider rewrites before it becomes part of the id - an IAM type's parent, parsed as a long or short name, or an argument of a type whose create keeps only its last path segment - is written as a long form (it carries a \"/\", the parent's id rather than its name) or is not known until apply. The rewrite is not composed yet (#2144), and substituting the value whole would build a wrong id, so the instance is refused by name. A short value resolves.", ""},
 	{"No configuration to resolve", "Resolution was handed an empty configuration. A caller error, not a configuration one.", ""},
 	{"No configuration to scan", "Signal collection was handed an empty configuration. A caller error, not a configuration one.", ""},
 	{"Non-static count expression", "A count expression evaluates to null, or to a value not knowable from configuration alone.", ""},

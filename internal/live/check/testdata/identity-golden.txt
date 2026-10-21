@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=717 instances=2467
-# shape: class CONCRETE=1515
-# shape: class NEEDS_DISCOVERY=787
+# shape: dirs=718 instances=2472
+# shape: class CONCRETE=1519
+# shape: class NEEDS_DISCOVERY=788
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=686 fixture-instances=1763
+# shape: fixture-dirs=687 fixture-instances=1768
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=5f8d51408a3dc414c48d1ba35f766ebf41bf93e8d9c23d3e0a766efab2ddd5fe
+# shape: body-sha256=c65dee361374c101919745444d3038d242b79e30b742d0a32520d242c78eb8f2
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -386,6 +386,11 @@ internal/live/identity/testdata/gcp-identity-rows	google_pubsub_topic.orphan	NEE
 internal/live/identity/testdata/gcp-identity-rows	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
 internal/live/identity/testdata/gcp-identity-rows	google_service_account.runner	CONCRETE	projects/estate-prod/serviceAccounts/ci-runner@estate-prod.iam.gserviceaccount.com	email=ci-runner@estate-prod.iam.gserviceaccount.com
 internal/live/identity/testdata/gcp-identity-rows	google_storage_bucket_iam_member.reader	CONCRETE	b/estate-artifacts roles/storage.objectViewer group:readers@example.com until 2027	bucket=estate-artifacts,condition_title=until 2027,member=group:readers@example.com,role=roles/storage.objectViewer
+internal/live/identity/testdata/gcp-long-form	google_compute_network_firewall_policy.p	CONCRETE	projects/estate-prod/global/firewallPolicies/pol	name=pol
+internal/live/identity/testdata/gcp-long-form	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
+internal/live/identity/testdata/gcp-long-form	google_secret_manager_secret.s	CONCRETE	projects/estate-prod/secrets/db-pass	secret_id=db-pass
+internal/live/identity/testdata/gcp-long-form	google_secret_manager_secret_iam_member.byname	CONCRETE	projects/estate-prod/secrets/db-pass roles/secretmanager.secretAccessor group:a@example.com	member=group:a@example.com,role=roles/secretmanager.secretAccessor,secret_id=db-pass
+internal/live/identity/testdata/gcp-long-form	google_securityposture_posture.org	CONCRETE	organizations/123/locations/global/postures/baseline	location=global,parent=organizations/123,posture_id=baseline
 internal/live/identity/testdata/gcp-optional-placeholder	google_bigquery_connection.lake	CONCRETE	projects/estate-prod/locations/EU/connections/lake	connection_id=lake,location=EU
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_a	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_b	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action

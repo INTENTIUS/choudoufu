@@ -399,6 +399,9 @@ func renderComponent(c identity.Component) string {
 	if c.IdentityAttr != "" {
 		f = append(f, fmt.Sprintf("IdentityAttr: %q", c.IdentityAttr))
 	}
+	if c.LongForm != "" {
+		f = append(f, fmt.Sprintf("LongForm: %q", string(c.LongForm)))
+	}
 	return "{" + strings.Join(f, ", ") + "}"
 }
 
