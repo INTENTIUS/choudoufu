@@ -101,8 +101,9 @@ Azure member. Seven admitted untaggable types make the naming argument
 optional and mint a GUID when it is left out (`azurerm_management_group`,
 `azurerm_role_definition` and five more); an instance that leaves it out
 is record-located through the record store every live block implies, the
-way an AWS `name_prefix` instance is. azapi refuses a block with no `name`
-itself. An unadmitted type whose create reads its id from the response
+way an AWS `name_prefix` instance is. An `azapi_resource` with no `name`
+is named by its provider block's `default_name`, read like its
+`subscription_id`; with none, azapi refuses the block itself (#2142). An unadmitted type whose create reads its id from the response
 (`azurerm_sentinel_threat_intelligence_indicator`) is refused as
 unadmitted.
 

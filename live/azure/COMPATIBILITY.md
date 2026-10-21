@@ -107,8 +107,11 @@ to last, is not read.
 Seven admitted untaggable azurerm types mint a GUID when their naming
 argument is left out: `azurerm_management_group`,
 `azurerm_role_definition` and five more. An instance that leaves it out is
-held by its record, the way an AWS `name_prefix` instance is. azapi refuses
-a block with no `name` itself.
+held by its record, the way an AWS `name_prefix` instance is. An
+`azapi_resource` with no `name` is named by its own provider block's
+`default_name` (azapi 2.13.0 `nameWithDefaultNaming`), read as that
+block's `subscription_id` is; with none, azapi refuses the block itself
+([#2142](https://github.com/INTENTIUS/choudoufu/issues/2142)).
 
 Every comparison of ids is case-insensitive, because ARM's is.
 
