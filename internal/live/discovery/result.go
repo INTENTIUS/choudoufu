@@ -16,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // Result is everything one discovery pass learned.
@@ -78,8 +79,10 @@ type Verdicts struct {
 	// VerifiedDeclared is issue #692's other half of the vouching set:
 	// declared instances whose identity came out of the configuration (so
 	// no Binding was ever created for them), but whose live object the
-	// estate sweep saw carrying exactly their marker, with no displacement
-	// verdict against it. Without this, the sweep's sighting of a
+	// estate sweep saw carrying exactly their marker, at an identity that
+	// compared equal to the configuration's ([verdictOwnObject]; a sighting
+	// no comparison could run on is unproven and vouches for nothing,
+	// GitHub issue #2137). Without this, the sweep's sighting of a
 	// client-named instance was discarded at the "already declared" branch
 	// (see displaced.go), and the state cache - forbidden from serving
 	// anything the sweep has not vouched for - could never serve the
@@ -254,6 +257,22 @@ type Report struct {
 	// problem also produced a diagnostic, at the severity given by
 	// [ProblemKind.Severity].
 	Problems []Problem
+
+	// PendingDisplaced are displaced markers whose diagnostic is the
+	// projection's to give or withhold (GitHub issue #2140, finding 4): an
+	// object the Resource Graph leg found at a declared instance's ARM id,
+	// carrying this estate's marker for another declared address. That
+	// instance's read refuses the object under the projection's "Live
+	// object marked for another owner at the declared id would be
+	// overwritten" (#2135), and the displaced warning beside it would
+	// describe the same object twice; but a read the projection skips (a
+	// cache-served instance under -refresh=false, vouched by its record
+	// envelope) refuses nothing, and then the warning is the one
+	// diagnostic left. Only the projection knows which, so these are not
+	// in Problems and produced no diagnostic here: [Result.PendingDisplacedWarnings]
+	// renders them for projection.Ownership.PendingDisplaced, which emits
+	// each one whose instance it did not refuse.
+	PendingDisplaced []PendingDisplaced
 
 	// Scans records what happened per resource type: how it was filtered,
 	// how wide the scan was, and what came back.
@@ -2022,4 +2041,29 @@ func (r *Result) UnaddressedAccount() map[string][]string {
 		return nil
 	}
 	return r.Unaddressed
+}
+
+// PendingDisplaced is one [Result.PendingDisplaced] entry.
+type PendingDisplaced struct {
+	// RefusedAt is the declared instance, by address, whose own read
+	// refuses the object when it reads it.
+	RefusedAt string
+
+	// Problem is the displaced marker the warning reports.
+	Problem Problem
+}
+
+// PendingDisplacedWarnings renders [Result.PendingDisplaced] as the
+// diagnostics discovery would have given, keyed by the address that
+// refuses each object, for projection.Ownership.PendingDisplaced. Nil for a
+// nil result or one with nothing pending.
+func (r *Result) PendingDisplacedWarnings() map[string]tfdiags.Diagnostics {
+	if r == nil || len(r.PendingDisplaced) == 0 {
+		return nil
+	}
+	out := make(map[string]tfdiags.Diagnostics, len(r.PendingDisplaced))
+	for _, p := range r.PendingDisplaced {
+		out[p.RefusedAt] = out[p.RefusedAt].Append(renderProblem(p.Problem))
+	}
+	return out
 }

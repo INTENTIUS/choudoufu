@@ -46,7 +46,11 @@ func withFamilyFirst(t *testing.T, f substrate.Substrate) {
 // claims the tags surface, the shape azurerm's types would arrive in.
 type silentFamily struct{ substrate.Substrate }
 
-func (silentFamily) Name() string                { return "silent" }
+func (silentFamily) Name() string { return "silent" }
+
+// ProviderTypes: placed first in substrate.All, the fake answers for the
+// aws provider type, and claims it itself rather than by embedding.
+func (silentFamily) ProviderTypes() []string     { return []string{"aws"} }
 func (silentFamily) Surfaces() []markers.Surface { return []markers.Surface{markers.SurfaceTags} }
 func (silentFamily) MarkerWriter() substrate.Write {
 	return substrate.WriteNeverNeeded
@@ -129,7 +133,11 @@ const bareSurface markers.Surface = "bare-labels-surface"
 // to nothing here and must not be written.
 type bareFamily struct{ substrate.Substrate }
 
-func (bareFamily) Name() string                  { return "bare" }
+func (bareFamily) Name() string { return "bare" }
+
+// ProviderTypes: placed first in substrate.All, the fake answers for the
+// aws provider type, and claims it itself rather than by embedding.
+func (bareFamily) ProviderTypes() []string       { return []string{"aws"} }
 func (bareFamily) Surfaces() []markers.Surface   { return []markers.Surface{bareSurface} }
 func (bareFamily) CarriesAddress() bool          { return false }
 func (bareFamily) AddressInMarkers() bool        { return false }

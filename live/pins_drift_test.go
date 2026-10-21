@@ -219,6 +219,11 @@ var (
 	// kubernetes_provider_version for their literals to be a copy of
 	// (#1252).
 	declaresHashicorpKubernetes = regexp.MustCompile(`hashicorp/kubernetes`)
+	// declaresAzureProvider widens it to the azure lane (#1120), whose
+	// azurerm and azapi pins live/oracle-versions.json carries and
+	// gauntlet_azurerm_required_provider / gauntlet_azapi_required_provider
+	// print.
+	declaresAzureProvider = regexp.MustCompile(`hashicorp/azurerm|azure/azapi`)
 )
 
 // gauntletCrossingScriptsThatDeclareAWS lists, relative to live/, every
@@ -554,7 +559,7 @@ func gauntletScriptsCheckedForVersionLiterals(t *testing.T) []string {
 		}
 		src := string(data)
 		registeredAndDeclaresAPin := speaksGauntletProtocol.MatchString(src) &&
-			(declaresHashicorpAWS.MatchString(src) || declaresHashicorpKubernetes.MatchString(src))
+			(declaresHashicorpAWS.MatchString(src) || declaresHashicorpKubernetes.MatchString(src) || declaresAzureProvider.MatchString(src))
 		if callsGauntletPinAWSProvider(src) || registeredAndDeclaresAPin {
 			matches = append(matches, rel)
 		}

@@ -81,6 +81,7 @@ import (
 // Measured on this list when it was written: every entry has a reader, and
 // the guard below is what keeps that true.
 var writtenArtifacts = []string{
+	"live/azurerm-ids.json",
 	"live/behaviors.json",
 	"live/composite-import-roster.json",
 	"live/credential-sweep.json",

@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/retry"
 	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -209,6 +210,19 @@ type WriteBackRequest struct {
 	// that walks the versions this run's plan read rather than the
 	// configuration.
 	Config *configs.Config
+
+	// Cloud is what the run's environment says about the cloud it is
+	// against, the same [identity.CloudContext] identity resolution was
+	// given: today the ARM_SUBSCRIPTION_ID an azurerm or azapi provider
+	// block that names no subscription_id falls back to. GitHub issue
+	// #2135: a record of an identity with a provider-configuration
+	// component ([identity.LocatedIdentityPlan.ProviderComponents]) is
+	// answered from Config's provider block and this, through
+	// [identity.ProviderCloudValue], so the record names the object under
+	// the subscription the identity route would. The zero value is
+	// legitimate: a provider block that sets subscription_id statically
+	// needs nothing from it.
+	Cloud identity.CloudContext
 
 	// RootOutputStore is where GitHub issue #349's remaining half persists:
 	// the value each root-level `output` block settled on, so the next
@@ -420,7 +434,7 @@ func writeBackObjects(ctx context.Context, req WriteBackRequest) (tfdiags.Diagno
 				// reads: a deposed object this apply's own plan destroyed
 				// is recorded as destroyed by this estate.
 				tombstoneDestroyedDeposed(env, ri, destroyedDeposedFor(env, deposedDestroyed[addr.String()], replaced[addr.String()]))
-				diffDeposedForWrite(env, ri, schema, typeName, res.ProviderConfig)
+				diffDeposedForWrite(env, ri, schema, typeName, res.ProviderConfig, req.providerValues(res.ProviderConfig))
 			}); err != nil {
 				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err, req.Backend, req.Retry))
 			}
@@ -455,7 +469,16 @@ func writeBackObjects(ctx context.Context, req WriteBackRequest) (tfdiags.Diagno
 // this run's plan resolved it through #1675's record-fallback door or let it
 // through #1637's exemption - the same three doors whose failure to record
 // [writeBackRecordEnvelopes] already treats as a run-stopping error.
-func recordCarried(req WriteBackRequest, selects bool, viaRecordFallback map[string]bool, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig) bool {
+//
+// Or, one door the type cannot answer: current, the object the apply step
+// left, is an azapi_resource whose ARM type takes no tags
+// ([azapiCarriesNoMarker]: a role assignment, a subnet). azapi_resource is
+// one type over every ARM type, and as a type it takes tags, so none of the
+// type-level questions above reaches such an object, and before this the
+// mid-apply write (#1944) skipped it: a run killed after creating one left
+// it with no record, and the next plan refused it as an overwrite of an
+// unrecorded object (corpus-azapi-role-assignment's day2_crash, #1120).
+func recordCarried(req WriteBackRequest, selects bool, viaRecordFallback map[string]bool, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, current *states.ResourceInstanceObjectSrc) bool {
 	if viaRecordFallback[addr.String()] {
 		return true
 	}
@@ -465,8 +488,18 @@ func recordCarried(req WriteBackRequest, selects bool, viaRecordFallback map[str
 		return false
 	}
 	typeSchemas := map[string]providers.Schema{typeName: *schemaPtr}
-	return identity.LocatedType(typeName, typeSchemas) ||
-		(selects && identity.SelectedLocatedType(typeName, typeSchemas))
+	if identity.LocatedType(typeName, typeSchemas) ||
+		(selects && identity.SelectedLocatedType(typeName, typeSchemas)) {
+		return true
+	}
+	if current == nil || !azapiShaped(schemaPtr.Block) {
+		return false
+	}
+	obj, err := current.Decode(schemaPtr.Block.ImpliedType())
+	if err != nil {
+		return false
+	}
+	return azapiCarriesNoMarker(schemaPtr.Block, obj.Value)
 }
 
 // destroyedDeposedFor is the deposed-destroy set one write tombstones
@@ -654,6 +687,19 @@ func verifyWholeDestroyLeftNoObjectRecord(ctx context.Context, req WriteBackRequ
 	return diags
 }
 
+// providerValues is the [identity.ProviderValue] a record written for an
+// instance applied through provider reads its provider components from
+// (GitHub issue #2135). Nil when there is no configuration to read the
+// provider block from, which records nothing for such an identity.
+func (req WriteBackRequest) providerValues(provider addrs.AbsProviderConfig) identity.ProviderValue {
+	if req.Config == nil {
+		return nil
+	}
+	return func(which identity.CloudValue) (string, bool) {
+		return identity.ProviderCloudValue(req.Config, provider, which, req.Cloud)
+	}
+}
+
 // stillCurrent reports whether addr has a current object in state.
 func stillCurrent(state *states.State, addr addrs.AbsResourceInstance) bool {
 	if state == nil {
@@ -695,7 +741,7 @@ func stillCurrent(state *states.State, addr addrs.AbsResourceInstance) bool {
 // the signal writeBackRecordEnvelopes's own "touched" gate needs, since
 // unlike identity/residue/taint, a deposed-only change can be the SOLE
 // reason an address needs a write this pass.
-func diffDeposedForWrite(env *recordEnvelope, ri *states.ResourceInstance, schema *providers.Schema, typeName string, providerAddr addrs.AbsProviderConfig) (changed bool) {
+func diffDeposedForWrite(env *recordEnvelope, ri *states.ResourceInstance, schema *providers.Schema, typeName string, providerAddr addrs.AbsProviderConfig, values identity.ProviderValue) (changed bool) {
 	if ri == nil {
 		return false
 	}
@@ -716,7 +762,7 @@ func diffDeposedForWrite(env *recordEnvelope, ri *states.ResourceInstance, schem
 		df := &deposedFields{Provider: providerString(providerAddr)}
 		if obj != nil && schema != nil && schema.Block != nil {
 			if decoded, err := obj.Decode(schema.Block.ImpliedType()); err == nil {
-				if rec, ok := LocatedRecordFrom(typeName, *schema, decoded.Value); ok {
+				if rec, ok := LocatedRecordFromIn(typeName, *schema, decoded.Value, values); ok {
 					df.Identity = identityPayloadFrom(rec)
 				}
 			}
@@ -774,7 +820,7 @@ func diffDeposedForWrite(env *recordEnvelope, ri *states.ResourceInstance, schem
 // direction" is [supersedeIdentity]'s own rule for exactly this kind of
 // doubt. What suppressing costs is a refusal the next plan makes anyway, on
 // that deposed object's own account.
-func deposedMayStillHold(ri *states.ResourceInstance, schema *providers.Schema, typeName string, p *identityPayload) bool {
+func deposedMayStillHold(ri *states.ResourceInstance, schema *providers.Schema, typeName string, p *identityPayload, values identity.ProviderValue) bool {
 	key := tombstoneKey(p)
 	if ri == nil || key == "" {
 		return false
@@ -790,7 +836,7 @@ func deposedMayStillHold(ri *states.ResourceInstance, schema *providers.Schema, 
 		if err != nil {
 			return true
 		}
-		rec, ok := LocatedRecordFrom(typeName, *schema, decoded.Value)
+		rec, ok := LocatedRecordFromIn(typeName, *schema, decoded.Value, values)
 		if !ok {
 			return true
 		}
@@ -1020,6 +1066,10 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 
 	seen := make(map[string]bool, len(req.EnvelopeVersions))
 
+	// written is every address whose identity this pass recorded, for
+	// [retireMovedRecords].
+	var written []writtenIdentity
+
 	// unrecordableLogged makes issue #671's skip visible once per TYPE per
 	// write-back: a silently absent record is indistinguishable from a
 	// forgotten one, and the read half (superseded-claimant recovery, the
@@ -1033,6 +1083,13 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 	// comment says must never happen. [identity.SensitiveIdentityAttr] is
 	// which of the two, asked once per instance that reaches the branch.
 	unrecordableLogged := map[string]bool{}
+
+	// unrecordedUnmarked is GitHub issue #2141's slice of that branch: the
+	// instances of a type with no marker surface that this pass could not
+	// record and no earlier record holds, by type. Raised as one warning
+	// per type once the loop is done ([unrecordedUnmarkedDiags]), so a
+	// for_each of fifty draws one warning naming fifty addresses.
+	unrecordedUnmarked := map[string][]unrecordedInstance{}
 
 	if req.FinalState != nil {
 		for _, entry := range req.FinalState.AllResourceInstanceObjectAddrs() {
@@ -1059,7 +1116,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 			// GitHub issue #1944: the mid-apply write is for an instance
 			// whose record is its only identity carrier. Every other
 			// instance's record is bookkeeping the final pass writes.
-			if req.Only != nil && !recordCarried(req, selection.Selects(addr.ConfigResource()), viaRecordFallback, addr, res.ProviderConfig) {
+			if req.Only != nil && !recordCarried(req, selection.Selects(addr.ConfigResource()), viaRecordFallback, addr, res.ProviderConfig, ri.Current) {
 				continue
 			}
 
@@ -1155,7 +1212,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 					// record-backed type) is this instance's real
 					// ownership carrier regardless.
 				default:
-					rec, recordable := LocatedRecordFrom(typeName, schema, obj.Value)
+					rec, recordable := LocatedRecordFromIn(typeName, schema, obj.Value, req.providerValues(res.ProviderConfig))
 					switch {
 					case recordable:
 						touched = true
@@ -1217,7 +1274,36 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 						// the 27 and the (empty) sensitive subset by value;
 						// a failure there naming an added type is what
 						// reopens this question.
-						if !unrecordableLogged[typeName] {
+						//
+						// GitHub issue #2141 corrects the premise for one
+						// slice of it. "Not this instance's only carrier"
+						// is decided by the automatic, selected and
+						// fallback doors, and a type with no marker surface
+						// at all (no tags, labels, ARM tags or manifest
+						// metadata to stamp: an untaggable AWS or Azure
+						// type) reaches here whenever none of them opened,
+						// so there is no marker to decide ownership and
+						// the record was the only memory this estate would
+						// have of it. #2140 proved that a present record
+						// is what plans the destroy when such a block is
+						// removed; an absent one leaves the object running
+						// unowned with nothing on screen. So for that
+						// slice the log line becomes a named warning
+						// ([SummaryUntaggableUnrecorded]) - unless an
+						// earlier record (an earlier apply's, or
+						// live-import's) already holds the identity, which
+						// this branch leaves alone and which still finds
+						// the object. Taggable types keep the log line.
+						// writeback_unrecorded_census_test.go pins which
+						// admitted types reach this from the type alone:
+						// 14 at hashicorp/aws 6.59.0, none at azurerm
+						// 5.10.0 or azapi 2.13.0 (2026-10-20).
+						if req.Only == nil && unmarkedUnrecorded(res.ProviderConfig.Provider.Type, schema) && !recordHoldsIdentity(ctx, req.Store, addr) {
+							unrecordedUnmarked[typeName] = append(unrecordedUnmarked[typeName], unrecordedInstance{
+								addr:   addr.String(),
+								secret: identity.SensitiveIdentityAttr(typeName, schema),
+							})
+						} else if !unrecordableLogged[typeName] {
 							unrecordableLogged[typeName] = true
 							if secret := identity.SensitiveIdentityAttr(typeName, schema); secret != "" {
 								log.Printf("[INFO] projection: no identity record is written for %s (e.g. %s) on purpose: the identity a record would hold is its %q attribute, which the provider marks sensitive, and the record store is not where this fork puts secret material. Ownership stays marker-carried and any existing record is left alone", typeName, addr, secret)
@@ -1427,7 +1513,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				case setIdentity == nil || !identitySuperseded(env, setIdentity):
 				case !wasReplaced:
 					log.Printf("[INFO] projection: %s now records a different object (%s) than it did before this apply, and this run's plan scheduled no replace for it - an import, a live-mv onto an address that already held a record, or a create with the old object deliberately forgotten. The object the record named before is NOT recorded as destroyed, so a live resource still wearing this address's marker is refused as a collision rather than reported as a superseded one", addr, tombstoneKey(setIdentity))
-				case deposedMayStillHold(ri, schemaPtr, typeName, env.Identity):
+				case deposedMayStillHold(ri, schemaPtr, typeName, env.Identity, req.providerValues(res.ProviderConfig)):
 					log.Printf("[INFO] projection: %s was replaced by this apply, but its final state still carries a deposed object that may be the object the record named before (%s) - a create_before_destroy replace whose destroy leg did not complete. That object is NOT recorded as destroyed, because it is alive and the next apply's job is to destroy it", addr, tombstoneKey(env.Identity))
 				default:
 					supersedeIdentity(env, setIdentity)
@@ -1497,16 +1583,20 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 				// facts holds and the switch above therefore records
 				// nothing.
 				tombstoneDestroyedDeposed(env, ri, destroyedDeposedFor(env, destroyedHere, wasReplaced))
-				diffDeposedForWrite(env, ri, schemaPtr, typeName, res.ProviderConfig)
+				diffDeposedForWrite(env, ri, schemaPtr, typeName, res.ProviderConfig, req.providerValues(res.ProviderConfig))
 				if fgRec != nil {
 					env.FieldGranular = fieldGranularMerged(env.FieldGranular, fgRec, fgEstateOwned)
 				}
 			})
 			if err != nil {
 				diags = diags.Append(writeBackConflictDiag(addr, "Writing", err, req.Backend, req.Retry))
+			} else if setIdentity != nil {
+				written = append(written, writtenIdentity{addr: addr, identity: setIdentity})
 			}
 		}
 	}
+	diags = diags.Append(unrecordedUnmarkedDiags(unrecordedUnmarked))
+	diags = diags.Append(retireMovedRecords(ctx, req, written))
 
 	for _, rv := range req.EnvelopeVersions {
 		if seen[rv.Addr.String()] || !req.covers(rv.Addr) {
@@ -1528,6 +1618,93 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 		}
 	}
 
+	return diags
+}
+
+// writtenIdentity is one address [writeBackRecordEnvelopes] recorded an
+// identity for, and the identity it recorded.
+type writtenIdentity struct {
+	addr     addrs.AbsResourceInstance
+	identity *identityPayload
+}
+
+// retireMovedRecords completes a `moved` block's rename in the record store.
+//
+// A bare HCL moved block never re-keys the store: the plan finds a record
+// still sitting under the moved-from address through
+// [builder.locatedIdentityWithAliases], and this pass has just written the
+// same identity under the new one. The old key is then a second record
+// naming one live object. It is inert while the moved block stays (every
+// reader asks by address, and the orphan-record leg translates through
+// [moved.Newest]), but once the operator deletes the moved block, as stock
+// lets them after one apply, nothing translates it any more: the old key
+// reads as a removed block's record and the next plan proposes destroying
+// the object the new address owns (corpus-azapi-role-assignment's
+// day2_rename, an untaggable azapi role assignment held only by its record).
+//
+// So for every address this pass recorded, each moved-from origin
+// ([moved.Aliases]) that the final state no longer holds, whose record names
+// the very identity just written, has its current-object facts (identity,
+// residue, provisioner taint, field-granular record) cleared, which deletes
+// the key unless it also carries deposed entries or tombstones, facts about
+// other objects that stay where they were written. An origin naming any
+// other identity is left alone: a moved block says the two addresses are one
+// instance, but two records disagreeing about which object that is is the
+// wrong-marker shape the safety rule exists to stop, and guessing would be
+// worse than leaving a stale key. An origin the plan read as its own
+// instance (in EnvelopeVersions) is the tombstone loop's, not this one's.
+//
+// Final pass only: [WriteInstance]'s mid-apply write records the new key and
+// leaves the old one for [WriteBack], which always follows.
+func retireMovedRecords(ctx context.Context, req WriteBackRequest, written []writtenIdentity) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if req.Only != nil || req.Config == nil || len(written) == 0 {
+		return diags
+	}
+	stmts := moved.Honoured(req.Config)
+	if len(stmts) == 0 {
+		return diags
+	}
+	readByPlan := make(map[string]bool, len(req.EnvelopeVersions))
+	for _, rv := range req.EnvelopeVersions {
+		readByPlan[rv.Addr.String()] = true
+	}
+	done := map[string]bool{}
+	for _, w := range written {
+		want := tombstoneKey(w.identity)
+		if want == "" {
+			continue
+		}
+		for _, origin := range moved.Aliases(stmts, w.addr) {
+			key := origin.String()
+			if done[key] || readByPlan[key] || origin.Equal(w.addr) {
+				continue
+			}
+			if req.FinalState != nil && req.FinalState.ResourceInstance(origin) != nil {
+				continue
+			}
+			env, version, exists, err := req.Store.getRawFresh(ctx, origin)
+			if err != nil {
+				// Nothing is lost: the new key holds the record, and the
+				// old one is inert while the moved block stays. The next
+				// apply tries again.
+				log.Printf("[WARN] projection: %s was recorded at its new address, but the record left at its moved-from address %s could not be read to retire it: %s", w.addr, origin, err)
+				continue
+			}
+			if !exists || env.Kind != recordKindIdentity || tombstoneKey(env.Identity) != want {
+				continue
+			}
+			done[key] = true
+			if _, err := req.Store.mergeEnvelope(ctx, origin, version, func(env *recordEnvelope) {
+				env.Identity = nil
+				env.Residue = nil
+				env.Provisioned = nil
+				env.FieldGranular = nil
+			}); err != nil {
+				diags = diags.Append(writeBackConflictDiag(origin, "Deleting", err, req.Backend, req.Retry))
+			}
+		}
+	}
 	return diags
 }
 

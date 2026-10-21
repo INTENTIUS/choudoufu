@@ -54,6 +54,37 @@ instance keys (`aws_subnet.this["a"]`, `aws_eip.this[2]`), all three of
 which are outside the AWS-allowed set. `tofu-address` values therefore go
 through the escaping rule below before being written as a tag.
 
+## Azure: the same tags, read case-insensitively
+
+An azurerm or azapi resource carries the keys above, in the `tags`
+argument both providers accept (ruled on
+[#1122](https://github.com/INTENTIUS/choudoufu/issues/1122)), with the same
+values and the same escaping. `markers.SurfaceARMTags` is the surface
+(`internal/live/markers/armtags.go`). On `azapi_resource` the stamp writes
+the top-level `tags`, or `body.tags` when the configuration already puts
+its tags in the body, since azapi refuses both at once; the read is always
+the top-level attribute.
+
+ARM tag keys are case-insensitive, so the keys are written lowercase and
+read with case folded. A configuration that sets `Tofu-Estate` itself is
+checked against the run as the marker; when its value is right the stamp
+keeps that spelling and adds no lowercase twin, which ARM would refuse.
+The sweep, `live-mv`, `live-import` and the marker release all match the
+keys the same way.
+
+The limits are ARM's and the provider's, and they are not uniform. ARM
+allows 50 tags, 512-character keys and 256-character values by default;
+some types allow fewer tags, 15 on a Cosmos DB or storage account and 10 on
+API Management. Lint's `arm-tag-limit` warns when the configuration's own
+tags plus the markers will not fit (`live/LIMITATIONS.md`,
+"arm-tag-limit").
+
+An azapi ARM type is stamped only where azapi's type data says it takes
+tags at the API version the block names. Two azurerm types,
+`azurerm_app_service_managed_certificate` and `azurerm_subscription`, are
+tagged after their create; "Granting an Azure estate" below has the
+consequence for the fence.
+
 ## Kubernetes: one label
 
 Everything above and below this section describes the AWS shape. On
@@ -1804,7 +1835,155 @@ resources.
 
 **This governs API calls, not tag survival.** A principal that cannot act on
 an estate's resources can still, with tagging permissions elsewhere, remove
-the markers that define it. That is the next section's subject.
+the markers that define it. That is the subject of "Protecting the markers"
+below.
+
+### Granting an Azure estate
+
+Azure RBAC cannot condition on a resource's tags, so the AWS grant above has
+no Azure equivalent. On Azure an estate is a set of resource groups (ruled
+on #1122), and the fence is two templates an operator applies with `az`
+alone. Neither is ever a resource in a plan.
+
+- [`live/azure/estate-grant.json`](azure/estate-grant.json) assigns one
+  principal a role at each of the estate's groups, and a read role at the
+  subscription for the plan's Resource Graph sweep
+  (`Microsoft.ResourceGraph/resources/read` and `*/read`). The default role
+  is a custom one per estate, assignable only at the estate's groups:
+  Contributor's actions without deleting the group itself. `role=Contributor`
+  uses the built-in role instead, which can delete the group and can be
+  assigned anywhere.
+- [`live/azure/estate-boundary.json`](azure/estate-boundary.json) defines a
+  Policy definition at the subscription and assigns it at each of the
+  estate's groups, never at the subscription. It denies a create or
+  update of a taggable resource whose `tags['tofu-estate']` names another
+  estate, or is missing on a type outside the template's
+  `taggedAfterCreate` parameter (below). It does not touch deletes: the
+  group's role assignment alone governs who may delete, as on AWS and
+  Kubernetes (ruled on #1122, 2026-10-20).
+- `deleteLock=true` on the same template adds an opt-in delete lock, a
+  second definition and assignment: `denyAction` on delete of a resource
+  tagged with the estate, with `cascadeBehaviors.resourceGroup = deny`.
+  It is off by default because Policy is not per principal, so the lock
+  also refuses the estate's own destroys and replaces (below).
+
+```
+az deployment sub create --location <region> \
+  --template-file live/azure/estate-grant.json \
+  --parameters estate=<estate> resourceGroups='["<rg-1>","<rg-2>"]' principalId=<object-id>
+az deployment sub create --location <region> \
+  --template-file live/azure/estate-boundary.json \
+  --parameters estate=<estate> resourceGroups='["<rg-1>","<rg-2>"]'
+```
+
+Both are ARM JSON rather than Bicep. `az deployment` takes ARM JSON with
+nothing else installed, where Bicep needs the Bicep CLI on the machine
+(az fetches it on first use, which an air-gapped runner cannot do), and
+`live/azure_fence_test.go` reads JSON with the standard library.
+
+Two azurerm types are created untagged and tagged by a second call
+(`internal/live/armtypes`, the after-create rows of
+`azurerm_tags_generated.json`, read off azurerm 5.10.0's Create functions):
+`azurerm_app_service_managed_certificate`, whose PUT refuses tags so azurerm
+PATCHes them after, and `azurerm_subscription`, whose alias PUT carries none
+and whose tags azurerm writes on the subscription. For these the stamp
+withholds the markers from the create and writes them once it returns,
+through ARM's Tags API (`PATCH {id}/providers/Microsoft.Resources/tags/default`,
+`operation: Merge`, the call `az tag update --operation Merge` makes), with
+the provider block's own credential; a failed write fails the apply naming
+the object and the `az` command that marks it.
+
+A deny on a missing `tofu-estate` would refuse the certificate's untagged create on every run,
+so `estate-boundary.json` takes a `taggedAfterCreate` parameter, an ARM type
+list the marker guard lets exist without `tofu-estate` (it still refuses one
+naming another estate). Its default is `["Microsoft.Web/certificates"]`, the
+resource-group ARM type of every after-create type, which
+`live/azure_fence_test.go` holds to the generated facts. The subscription is
+in no resource group, so no assignment reaches it.
+
+The default has a cost: an untagged `Microsoft.Web/certificates` resource from anyone with
+write on the group is not refused, and that ARM type is also
+`azurerm_app_service_certificate`, which tags in its create. Pass
+`taggedAfterCreate='[]'` to refuse every untagged create, and then either
+exempt each post-create resource on the marker-guard assignment
+(`az policy exemption create`) or accept that its create is denied.
+
+The estate's groups, as the plan sees them, are the `azurerm_resource_group`
+blocks and azapi `Microsoft.Resources/resourceGroups` blocks the
+configuration declares. The live block has no per-platform settings, so
+there is no other list. A declared azurerm or azapi resource whose
+`resource_group_name`, `resource_group_id` or `parent_id` names any other
+group gets the warning "Resource in a resource group this estate does not
+declare" (`internal/live/identity/azure_resourcegroup.go`), once per group.
+
+#### What the Azure grant cannot reach
+
+The gap AWS states per service is narrower here. A declaration-carried
+Azure type (an untaggable child such as a subnet or a route) is fenced by
+the group's role assignment like any tagged resource beside it, and loses
+only the Policy half, which never evaluates an untaggable type. What the
+grant misses is scope rather than tags: a type whose id lives at the
+subscription or the tenant, or under a scope the configuration names, is
+outside every group. [`live/READINESS.md`](READINESS.md)'s Azure section
+counts both, per tier.
+
+- The role assignment reaches
+  everything in the estate's groups, tagged or not, and nothing outside
+  them. An untaggable child resource (a subnet, a route, a blob
+  container) is still covered by the group's RBAC, where an AWS tag
+  condition matches nothing on an untaggable type.
+- The tag guard is Policy, so it is not per principal. It applies to
+  every caller at the group, the estate's own principal included. A
+  principal granted the group can still write anything the deny allows,
+  and delete anything its role allows. Handover between estates is
+  assigning the group to the other estate, because the deny refuses a
+  write that changes `tofu-estate` to another name.
+- With `deleteLock=true` the `denyAction` refuses the estate's own
+  deletes too, so a destroy or a replace (which deletes the old object)
+  takes a policy exemption on the delete-lock assignment, scoped to the
+  resource (or to the group for a whole-estate destroy), for the duration
+  of the change, deleted with `az policy exemption delete` after the apply:
+
+  ```
+  az policy exemption create --name <change> --exemption-category Waiver \
+    --policy-assignment /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Authorization/policyAssignments/choudoufu-estate-delete-guard \
+    --scope <resource-id> --expires-on <time>
+  ```
+
+  Redeploying with `deleteLock=false` leaves an assignment an earlier
+  deploy made, because the deployment is incremental; remove it with
+  `az policy assignment delete --name choudoufu-estate-delete-guard --resource-group <rg>`.
+- `mode: Indexed` evaluates only types that
+  support tags and location, so untaggable types, resource groups and
+  subscriptions are outside every definition. A type in
+  `taggedAfterCreate` may exist in the group without `tofu-estate` (see
+  above); the deny still refuses one naming another estate.
+- With the lock on, `denyAction` covers only the `delete` action
+  ([effect-deny-action](https://learn.microsoft.com/azure/governance/policy/concepts/effect-deny-action)). A subscription deletion is never blocked.
+  Deleting a parent removes its child and extension resources without the
+  guard seeing them. A resource-group delete is blocked only by an indexed
+  resource with `cascadeBehaviors` set to `deny`; non-indexed resources in
+  the group are deleted. Policy assignments, locks, deny assignments and
+  deployment stacks are exempt.
+- Policy conditions other than `match` and `notMatch` compare
+  with `InvariantCultureIgnoreCase`
+  ([policy rule, Conditions](https://learn.microsoft.com/azure/governance/policy/concepts/definition-structure-policy-rule)),
+  so the estate value is matched without regard to case. Tag names are
+  case-insensitive for ARM operations
+  ([tag-resources](https://learn.microsoft.com/azure/azure-resource-manager/management/tag-resources)).
+  The Policy page does not say whether a `tags['tofu-estate']` lookup
+  matches a `Tofu-Estate` key, so that rests on the ARM statement and is
+  unmeasured.
+- Reads are not fenced: the sweep reader is subscription-wide read. The
+  record store's read fence is separate: the ABAC condition in
+  [`live/azure/record-store-abac.condition`](azure/record-store-abac.condition).
+- floci-az evaluates `deny` and `denyAction` since `30000b0`, with tag names
+  matched in any case, but not yet run. Since `dfa33ca` its `mode: Indexed`
+  skips every type without tags and a location, as Azure does, and a
+  resource-group delete honours `cascadeBehaviors` (`live/FLOCI.md`,
+  "Azure: floci-az"). Until the templates are applied on
+  real Azure, every statement in this list is from Azure's documentation,
+  not measured.
 
 ## Protecting the markers
 

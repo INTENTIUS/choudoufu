@@ -50,6 +50,18 @@ var bareDigest = regexp.MustCompile(`sha256:[0-9a-f]{64}`)
 // flociMention is how a line attributes a digest to the emulator.
 var flociMention = regexp.MustCompile(`(?i)floci`)
 
+// flociForkName matches the other floci forks' names (#1120: lex00/floci-az;
+// lex00/floci-gcp is GCP's). A line that names floci only as part of one of
+// them attributes its digests to that fork, whose own pin and guard hold
+// them (floci_az_pin_test.go for floci-az), never to live/floci-image.
+var flociForkName = regexp.MustCompile(`(?i)floci-(az|gcp)`)
+
+// namesAWSFloci is whether a line still names floci once every fork's name
+// is taken out of it.
+func namesAWSFloci(line string) bool {
+	return flociMention.MatchString(flociForkName.ReplaceAllString(line, ""))
+}
+
 // flociDigestFindings reports every floci digest literal in one file that
 // is not the pin: a full ghcr.io/lex00/floci@sha256 reference anywhere, and
 // a bare sha256 digest on any line that names floci.
@@ -64,7 +76,7 @@ func flociDigestFindings(path, src, pin string) []string {
 					"to flociLiteralExceptions with why it legitimately differs.", path, n+1, m, pin))
 			}
 		}
-		if !flociMention.MatchString(line) {
+		if !namesAWSFloci(line) {
 			continue
 		}
 		for _, d := range bareDigest.FindAllString(line, -1) {
@@ -236,10 +248,19 @@ func TestFlociDigestFindingsIsRedOnABareDigest(t *testing.T) {
 		"| emulator | floci `sha256:a39185cc3971...`, the digest `live/floci-image` pinned at `60d0cdf63f` |",
 		"image: " + pin,
 		"kindest/node:v1.37.0@" + stale, // a digest on a line that never names floci
+		// #1120: the Azure fork's pin, and a bare digest on a line naming only
+		// that fork, belong to floci_az_pin_test.go's guard.
+		"ghcr.io/lex00/floci-az@" + stale,
+		"| emulator | floci-az `" + stale + "` |",
 	} {
 		if got := flociDigestFindings("x", ok, pin); len(got) != 0 {
 			t.Errorf("finding for %q: %v", ok, got)
 		}
+	}
+	// Taking the fork's name out must not take the line out: one that still
+	// names floci on its own is attributed to floci.
+	if got := flociDigestFindings("x", "floci and floci-az both measured `"+stale+"`", pin); len(got) != 1 {
+		t.Errorf("a line naming floci beside floci-az should still be one finding: %v", got)
 	}
 	if got := flociDigestFindings("x", "ghcr.io/lex00/floci@"+stale, pin); len(got) != 1 {
 		t.Errorf("a full stale reference should be exactly one finding, not also a bare one: %v", got)

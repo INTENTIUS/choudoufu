@@ -364,7 +364,7 @@ func (n *NodePlannableResourceInstance) managedResourceExecute(ctx context.Conte
 		// failure to answer) is not absence-shaped and stays fatal.
 		var importDiags tfdiags.Diagnostics
 		instanceRefreshState, importDiags = n.importState(ctx, evalCtx, addr, *resolvedImport, provider, providerSchema)
-		if importDiags.HasErrors() && resolverImportAbsentDiagnostics(importDiags) {
+		if importDiags.HasErrors() && resolverImportAbsentDiagnostics(importDiags, *resolvedImport, n.ResolvedProvider.ProviderConfig.Provider.Type) {
 			// Absent: this is no longer an import. Clear resolvedImport too
 			// (not just instanceRefreshState), since the later "if importing
 			// / else if resolvedImport != nil" block below - which sets
@@ -742,7 +742,13 @@ var resolverImportSyntheticAbsentSummaries = map[string]bool{
 // diags with no errors at all (only warnings, or empty) also reports
 // false, since the caller only consults this after confirming
 // HasErrors().
-func resolverImportAbsentDiagnostics(diags tfdiags.Diagnostics) bool {
+//
+// target is the import that was asked for and providerType the type name
+// of the provider it was asked of: an Azure 404 reads as absence only
+// from an Azure provider and only when it is about that object
+// ([absent.Object], GitHub issues #2133 and #2140).
+func resolverImportAbsentDiagnostics(diags tfdiags.Diagnostics, target providers.ImportTarget, providerType string) bool {
+	object := absent.Object{ID: target.ID, Identity: resolvedIdentityValues(target), Provider: providerType}
 	sawError := false
 	for _, d := range diags {
 		if d.Severity() != tfdiags.Error {
@@ -753,7 +759,7 @@ func resolverImportAbsentDiagnostics(diags tfdiags.Diagnostics) bool {
 		if resolverImportSyntheticAbsentSummaries[desc.Summary] {
 			continue
 		}
-		if !absent.Matches(desc.Summary, desc.Detail) {
+		if !absent.Matches(desc.Summary, desc.Detail, object) {
 			return false
 		}
 	}

@@ -157,11 +157,11 @@ func TestEngineVersionReadsThePin(t *testing.T) {
 func TestRebuildSetsArtifactUpstreamVersion(t *testing.T) {
 	m := &Manifest{Estates: []Estate{{Name: "a", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"}}}
 	a := &Artifact{}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "1.13.0-dev", "")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "1.13.0-dev", SubstratePins{})
 	if a.UpstreamVersion != "1.13.0-dev" {
 		t.Errorf("a.UpstreamVersion = %q after Rebuild, want the passed-in value", a.UpstreamVersion)
 	}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "1.13.0", "")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{}, "1.13.0", SubstratePins{})
 	if a.UpstreamVersion != "1.13.0" {
 		t.Errorf("a.UpstreamVersion = %q after a second Rebuild, want the refreshed value", a.UpstreamVersion)
 	}
@@ -180,7 +180,7 @@ func TestNextSurfacesEngineStaleEstates(t *testing.T) {
 	}}
 	build := func(base string) []string {
 		a := &Artifact{}
-		a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, base, "")
+		a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, base, SubstratePins{})
 		for _, e := range m.Estates {
 			r, _ := a.Result(e.Name)
 			for _, s := range active {
@@ -195,9 +195,9 @@ func TestNextSurfacesEngineStaleEstates(t *testing.T) {
 			}
 			a.SetResult(r)
 		}
-		a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, base, "")
+		a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, base, SubstratePins{})
 		var ids []string
-		for _, u := range NextUnits(a, "all", "") {
+		for _, u := range NextUnits(a, "all", SubstratePins{}) {
 			ids = append(ids, u.ID)
 			if u.Estate == "c-old-engine" && !strings.Contains(u.Detail, "1.12.0-dev") {
 				t.Errorf("the stale_pin unit should name the engine it was measured on; got %q", u.Detail)
@@ -222,23 +222,23 @@ func TestNextSurfacesEngineStaleEstates(t *testing.T) {
 func TestBoardEstateEngineNote(t *testing.T) {
 	a := &Artifact{UpstreamVersion: "1.13.0", Stages: Stages()}
 	r := EstateResult{Name: "x", Protocol: ProtocolGauntlet, Stages: map[string]string{}}
-	if note := boardEstate(r, a, ScriptStaleness{}, "").EngineNote; note != "" {
+	if note := boardEstate(r, a, ScriptStaleness{}, SubstratePins{}).EngineNote; note != "" {
 		t.Errorf("no last_run: note should be empty, got %q", note)
 	}
 	r.LastRun = &LastRun{Commit: "c", Date: "d", UpstreamVersion: "1.13.0"}
-	if note := boardEstate(r, a, ScriptStaleness{}, "").EngineNote; !strings.Contains(note, "`1.13.0`") || !strings.Contains(note, "matches the current base") {
+	if note := boardEstate(r, a, ScriptStaleness{}, SubstratePins{}).EngineNote; !strings.Contains(note, "`1.13.0`") || !strings.Contains(note, "matches the current base") {
 		t.Errorf("expected a matching-engine note; got %q", note)
 	}
 	r.LastRun.UpstreamVersion = "1.13.0-dev"
-	if note := boardEstate(r, a, ScriptStaleness{}, "").EngineNote; !strings.Contains(note, "**Stale**") || !strings.Contains(note, "`1.13.0-dev`") {
+	if note := boardEstate(r, a, ScriptStaleness{}, SubstratePins{}).EngineNote; !strings.Contains(note, "**Stale**") || !strings.Contains(note, "`1.13.0-dev`") {
 		t.Errorf("expected a stale-engine note naming both bases; got %q", note)
 	}
 	r.LastRun.UpstreamVersion = ""
-	if note := boardEstate(r, a, ScriptStaleness{}, "").EngineNote; !strings.Contains(note, "**Stale**") {
+	if note := boardEstate(r, a, ScriptStaleness{}, SubstratePins{}).EngineNote; !strings.Contains(note, "**Stale**") {
 		t.Errorf("an unrecorded base after the base moved must read stale; got %q", note)
 	}
 	a.UpstreamVersion = LegacyEngineBase
-	if note := boardEstate(r, a, ScriptStaleness{}, "").EngineNote; strings.Contains(note, "**Stale**") || !strings.Contains(note, "not recorded") {
+	if note := boardEstate(r, a, ScriptStaleness{}, SubstratePins{}).EngineNote; strings.Contains(note, "**Stale**") || !strings.Contains(note, "not recorded") {
 		t.Errorf("an unrecorded base while the base is %s must read unknown, not stale; got %q", LegacyEngineBase, note)
 	}
 }

@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -246,7 +248,7 @@ func (n *NodeResolver) WriteAppliedMarkers(ctx context.Context, addr addrs.AbsRe
 	}
 	if err == nil {
 		log.Printf("[DEBUG] live/projection: marked %s (%s) after its create: %s", addr, substrate.CreatedObject(surface, created), markers.TagsArgument(want))
-		return withMarkersAt(applied, want, substrate.CarrierPaths(surface)), diags
+		return mergeMarkersAt(applied, want, substrate.CarrierPaths(surface), writeFoldsKeys(write)), diags
 	}
 
 	// GitHub issue #1708: how the object is named, and the manual remedy
@@ -301,6 +303,21 @@ func (n *NodeResolver) markersWithheld(surface markers.Surface, addr addrs.AbsRe
 // present keep the marker's value, which is the value the write just
 // stored.
 func withMarkersAt(obj cty.Value, written map[string]string, carriers []cty.Path) cty.Value {
+	return mergeMarkersAt(obj, written, carriers, false)
+}
+
+// mergeMarkersAt is [withMarkersAt] told whether the write that landed
+// matches keys case-insensitively ([writeFoldsKeys]). With fold true a
+// written key the map already carries under another spelling replaces that
+// spelling's value and keeps the spelling, and every further spelling of it
+// is dropped, which is what the object holds once such a write has landed:
+// ARM's Tags API Merge updates a key in place under the spelling the object
+// already uses and never stores two keys that differ only by case. Without
+// that the stored map would carry both Tofu-Estate and tofu-estate, which
+// no Azure object can, and the next plan's stamp, which keeps the
+// configuration's own spelling and adds no second key, would propose
+// removing the lowercase one (GitHub issue #1120).
+func mergeMarkersAt(obj cty.Value, written map[string]string, carriers []cty.Path, fold bool) cty.Value {
 	if len(written) == 0 || obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || !obj.Type().IsObjectType() {
 		return obj
 	}
@@ -310,7 +327,7 @@ func withMarkersAt(obj cty.Value, written map[string]string, carriers []cty.Path
 		if len(path) == 0 || markedOnPath(pvm, path) {
 			continue
 		}
-		if next, ok := replaceAt(unmarked, path, func(v cty.Value) (cty.Value, bool) { return mergedMarkerMap(v, written) }); ok {
+		if next, ok := replaceAt(unmarked, path, func(v cty.Value) (cty.Value, bool) { return mergedMarkerMap(v, written, fold) }); ok {
 			unmarked = next
 			changed = true
 		}
@@ -322,8 +339,9 @@ func withMarkersAt(obj cty.Value, written map[string]string, carriers []cty.Path
 }
 
 // mergedMarkerMap is v, a map(string), with written merged in, or false
-// when v is not a known map(string) this can read.
-func mergedMarkerMap(v cty.Value, written map[string]string) (cty.Value, bool) {
+// when v is not a known map(string) this can read. fold is
+// [mergeMarkersAt]'s.
+func mergedMarkerMap(v cty.Value, written map[string]string, fold bool) (cty.Value, bool) {
 	if !v.Type().Equals(cty.Map(cty.String)) || !v.IsKnown() || v.IsMarked() {
 		return v, false
 	}
@@ -337,9 +355,34 @@ func mergedMarkerMap(v cty.Value, written map[string]string) (cty.Value, bool) {
 		}
 	}
 	for k, val := range written {
-		merged[k] = cty.StringVal(val)
+		key := k
+		if fold {
+			key = foldedSpelling(merged, k)
+		}
+		merged[key] = cty.StringVal(val)
 	}
 	return cty.MapVal(merged), true
+}
+
+// foldedSpelling is the key under which a case-insensitive write of key
+// lands in m: the lexically first spelling of key m already carries, with
+// every other spelling of it deleted from m, or key itself when m carries
+// none.
+func foldedSpelling(m map[string]cty.Value, key string) string {
+	var spellings []string
+	for k := range m {
+		if strings.EqualFold(k, key) {
+			spellings = append(spellings, k)
+		}
+	}
+	if len(spellings) == 0 {
+		return key
+	}
+	sort.Strings(spellings)
+	for _, k := range spellings[1:] {
+		delete(m, k)
+	}
+	return spellings[0]
 }
 
 // replaceAt returns v with the value at path replaced by f's answer, or

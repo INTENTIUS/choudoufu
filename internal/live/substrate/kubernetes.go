@@ -358,6 +358,12 @@ func (kubernetes) CreateCollidesOnKey(surface markers.Surface) bool {
 	return false
 }
 
+// CreateOverwritesAtKey is false on every surface: a create at a held key
+// is refused with 409 AlreadyExists ([kubernetes.CreateCollidesOnKey]),
+// and kubernetes_manifest's server-side apply is left to the server's own
+// dry run, as #1546 rules.
+func (kubernetes) CreateOverwritesAtKey(markers.Surface) bool { return false }
+
 // CarrierPhrase names the labels map on each shape.
 func (kubernetes) CarrierPhrase(surface markers.Surface) string {
 	switch surface {

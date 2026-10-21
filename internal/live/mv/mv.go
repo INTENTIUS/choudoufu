@@ -505,6 +505,11 @@ type mover struct {
 	providerAddr addrs.AbsProviderConfig
 	schema       providers.Schema
 
+	// armInBody says [mover.rewrite] writes the marker into an azapi
+	// body's tags rather than the top-level argument (GitHub issue #1120
+	// unit 19), which [mover.planAndApply] and [mover.checkPlan] honour.
+	armInBody bool
+
 	// googleSelf is what the GCP object being moved may be named as in an
 	// Asset Inventory result, and googleProject the project it reports,
 	// both read off the object by [mover.locateGoogleLabelled].
@@ -1059,7 +1064,7 @@ func (m *mover) sweep(ctx context.Context, ts listclient.TypeSchema, estate stri
 
 	var mine []listed
 	for _, r := range results {
-		tags, taggable := tagsFromListed(r.Resource)
+		tags, taggable := m.listedMarkerTags(r.Resource)
 		if !taggable {
 			continue
 		}
@@ -1268,7 +1273,18 @@ func (m *mover) locateByIdentity(ctx context.Context, resolution identity.Resolu
 		return m.locateGoogleLabelled(obj, resolution)
 	}
 
-	tags, taggable := tagsFromObject(m.schema, obj.Value)
+	if m.res.Surface == markers.SurfaceARMTags {
+		// GitHub issue #1120 unit 19: an azapi_resource's schema has tags
+		// for every ARM type, and whether this one can carry a marker is
+		// its ARM type and API version's answer, the one the stamp asked
+		// before it wrote anything (projection.ARMTagPlacement).
+		val, _ := obj.Value.UnmarkDeep()
+		if _, placed, why := projection.ARMTagPlacement(m.res.Anchor, m.schema.Block, val); !placed {
+			return nil, diags.Append(armUntaggableDiag(m.res.TypeName, why))
+		}
+	}
+
+	tags, taggable := m.markerTags(obj.Value)
 	if !taggable {
 		return nil, diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,

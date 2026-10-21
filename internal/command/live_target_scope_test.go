@@ -151,6 +151,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"livePlanDiagnostics":                 {notAPass, "converts diagnostics already in hand into the JSON document's wire format"},
 	"livePlanFilterDocument":              {notAPass, "narrows an already-built JSON document by -filter; reads no resource"},
 	"livePlanForeign":                     {notAPass, "projects the foreign report's rows into the JSON document"},
+	"liveRecordCloud":                     {notAPass, "reads ARM_SUBSCRIPTION_ID for the write-back's provider-configuration identity components (#2135); a fact about the run's environment, not about any resource"},
 }
 
 // TestEveryLiveOrchestratorCallIsClassifiedForTargeting is GitHub issue

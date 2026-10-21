@@ -146,7 +146,7 @@ func cmdNext(root string, args []string) error {
 	if err != nil {
 		return err
 	}
-	units := NextUnits(a, *set, kindNodeImagePin(root))
+	units := NextUnits(a, *set, substratePins(root))
 	wanted := ParseTypes(*types)
 	if len(wanted) > 0 {
 		idx, err := LoadTypeIndex(root)
@@ -278,6 +278,25 @@ func kindNodeImagePin(root string) string {
 	return strings.TrimSpace(string(b))
 }
 
+// flociAzImagePin reads live/floci-az-image (#1120), the floci-az
+// substrate's counterpart to kindNodeImagePin: the full image reference,
+// pinned by digest, a floci-az estate's container is started from. A
+// missing or unreadable file reads as the zero value, the same rule.
+func flociAzImagePin(root string) string {
+	b, err := os.ReadFile(filepath.Join(root, "live", "floci-az-image"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// substratePins reads every non-floci substrate pin from the checkout
+// (kindNodeImagePin, flociAzImagePin, flociGCPImagePin), the value every
+// freshness judgement takes beside floci's own emulator pin.
+func substratePins(root string) SubstratePins {
+	return SubstratePins{Kind: kindNodeImagePin(root), FlociAz: flociAzImagePin(root), FlociGCP: flociGCPImagePin(root)}
+}
+
 // flociGCPImagePin reads live/floci-gcp-image (#1119), the gcp lane's
 // counterpart to kindNodeImagePin: the lex00/floci-gcp digest a floci-gcp
 // row's script starts. A missing file reads as the zero value, as the
@@ -296,7 +315,7 @@ func flociGCPImagePin(root string) string {
 // can stamp one pin and forget another.
 func rebuildFromPins(a *Artifact, root string, m *Manifest, bi *BehaviorIndex) {
 	a.EmulatorGCP = flociGCPImagePin(root)
-	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), kindNodeImagePin(root))
+	a.Rebuild(m, bi, emulatorPin(root), oracleVersions(root), providerVersions(root), engineVersion(root), substratePins(root))
 }
 
 // loadAll loads manifest and artifact and rebuilds the derived parts,
@@ -1196,11 +1215,15 @@ func StaleFilesReport(root string) (stale, scriptOnly []string, err error) {
 	// into (#1700's lastRunNote). The temp dir has none, so a kind row that
 	// records its SubstrateImage would render differently here than in the
 	// committed tree and read as stale; carry the pin across.
-	if pin := kindNodeImagePin(root); pin != "" {
+	// The floci-az pin (#1120) is carried the same way, for the same reason.
+	for file, pin := range map[string]string{"kind-node-image": kindNodeImagePin(root), "floci-az-image": flociAzImagePin(root)} {
+		if pin == "" {
+			continue
+		}
 		if err := os.MkdirAll(filepath.Join(tmp, "live"), 0o755); err != nil {
 			return nil, nil, err
 		}
-		if err := os.WriteFile(filepath.Join(tmp, "live", "kind-node-image"), []byte(pin+"\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(tmp, "live", file), []byte(pin+"\n"), 0o644); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -1379,7 +1402,7 @@ func cmdCombineShards(root string, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	combined, err := CombineShards(root, base, shards, expect, *commit, *emulator, *kindImage)
+	combined, err := CombineShards(root, base, shards, expect, *commit, *emulator, SubstratePins{Kind: *kindImage, FlociAz: flociAzImagePin(root)})
 	if err != nil {
 		return err
 	}

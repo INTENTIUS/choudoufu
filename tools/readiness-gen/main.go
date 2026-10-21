@@ -70,6 +70,9 @@ func run() error {
 	fmt.Printf("%s: %d types, %d in-contract\n", OutputJSONRel, artifact.Counts.Types, artifact.Counts.Statuses["in-contract"])
 	fmt.Printf("%s: kubernetes: %d admitted, %d awaiting a tier ruling (issue #1600)\n",
 		OutputJSONRel, artifact.Kubernetes.Counts.Types, artifact.Kubernetes.Counts.Statuses[StatusAwaitingRuling])
+	fmt.Printf("%s: azurerm: %d types, tiers %v; azapi: %d ARM types, tiers %v (issue #2119)\n",
+		OutputJSONRel, artifact.Azure.Azurerm.Counts.Types, artifact.Azure.Azurerm.Counts.Tiers,
+		artifact.Azure.Azapi.Counts.Types, artifact.Azure.Azapi.Counts.Tiers)
 	fmt.Printf("%s: google: %d types, tiers %v\n",
 		OutputJSONRel, artifact.Google.Counts.Types, artifact.Google.Counts.Tiers)
 	return nil

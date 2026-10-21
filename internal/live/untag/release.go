@@ -205,6 +205,15 @@ func releaseOne(ctx context.Context, provider providers.Interface, cluster kubes
 			rewrite: withTags,
 			judge:   notATagsOnlyPlan,
 		}
+	case markers.SurfaceARMTags:
+		// GitHub issue #1120: the AWS tag release, with the key matched
+		// case-insensitively, because ARM tag keys are.
+		w = writer{
+			noun:    "tag",
+			rewrite: withTags,
+			judge:   notATagsOnlyPlan,
+			fold:    true,
+		}
 	case markers.SurfaceLabels:
 		w = writer{
 			noun:    "label",
@@ -278,7 +287,7 @@ func releaseOne(ctx context.Context, provider providers.Interface, cluster kubes
 		out.Detail = fmt.Sprintf("%s carries no readable %ss, so there is nothing to release. Nothing was changed.", t.TypeName, w.noun)
 		return out
 	}
-	got, present := current[key]
+	got, present := w.lookup(current, key)
 	if !present {
 		out.OK = true
 		out.Detail = fmt.Sprintf("Already carries no %q %s; nothing to release.", key, w.noun)
@@ -293,11 +302,22 @@ func releaseOne(ctx context.Context, provider providers.Interface, cluster kubes
 	}
 
 	desired := make(map[string]string, len(current))
-	for k, v := range current {
-		if k == key {
-			continue
+	if w.fold {
+		// The object's own spellings, every one of key's removed: the
+		// marker reader canonicalised the marker keys, and writing them
+		// back lowercase would rename tags this release does not touch.
+		raw, _ := markers.TagsOf(live)
+		for k, v := range raw {
+			desired[k] = v
 		}
-		desired[k] = v
+		markers.DeleteARMMarkerTag(desired, key)
+	} else {
+		for k, v := range current {
+			if k == key {
+				continue
+			}
+			desired[k] = v
+		}
 	}
 
 	desiredObj, err := w.rewrite(schema.Block, live, desired)
@@ -366,7 +386,7 @@ func releaseOne(ctx context.Context, provider providers.Interface, cluster kubes
 	}
 
 	after, _ := substrate.MarkersOf(surface, applyResp.NewState)
-	if _, stillPresent := after[key]; stillPresent {
+	if _, stillPresent := w.lookup(after, key); stillPresent {
 		out.Detail = fmt.Sprintf("The provider reported no error, but %q is still present on the object read back afterward. Some providers do not serve %ss back on a post-apply read; verify with the %s's own API before relying on this.", key, w.noun, w.system())
 		return out
 	}
@@ -389,6 +409,24 @@ type writer struct {
 	// place overrides what system names, where the noun alone would name
 	// the wrong one: a GCP label lives in the cloud, not a cluster.
 	place string
+	// fold is true for a marker map whose keys are case-insensitive, the
+	// ARM tags map (GitHub issue #1120).
+	fold bool
+}
+
+// lookup is m[key], compared case-insensitively when the map's keys are.
+func (w writer) lookup(m map[string]string, key string) (string, bool) {
+	if v, ok := m[key]; ok || !w.fold {
+		return v, ok
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	if spellings := markers.ARMTagKeySpellings(keys, key); len(spellings) > 0 {
+		return m[spellings[0]], true
+	}
+	return "", false
 }
 
 // system names what an operator verifies a write against.

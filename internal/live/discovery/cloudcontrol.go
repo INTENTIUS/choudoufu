@@ -508,11 +508,11 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 			// displaced.go.
 			switch want, verdict := decl.displacedFrom(ctx, bindType, escaped, c); verdict {
 			case verdictDisplaced:
-				diags = diags.Append(problemDiag(res, displacedProblem(req, bindType, escaped, want, c)))
+				diags = diags.Append(problemDiag(res, displacedProblem(req, decl, bindType, escaped, want, c)))
 			case verdictOwnObject:
 				// Issue #692: the sweep saw this declared instance's own
-				// marker on a live object and nothing contradicts it, so
-				// the sighting vouches for the instance instead of being
+				// marker on a live object whose identity compared equal
+				// to the configuration's (#2137), so the sighting vouches for the instance instead of being
 				// discarded - see Result.VerifiedDeclared.
 				if addr, ok := decl.vouchAddr(bindType, escaped); ok {
 					res.VerifiedDeclared = append(res.VerifiedDeclared, addr)
@@ -520,6 +520,12 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 			case verdictIdentityChanging:
 				// Issue #885: neither reported nor vouched. See
 				// [verdictIdentityChanging].
+			case verdictDeposed:
+				res.DeposedBindings = decl.appendDeposedBinding(res.DeposedBindings, bindType, escaped, c)
+			case verdictUncompared:
+				// GitHub issue #2137: no comparison could run, so the
+				// sighting is unproven and neither reported nor vouched.
+				// See [verdictUncompared].
 			}
 			continue
 		}

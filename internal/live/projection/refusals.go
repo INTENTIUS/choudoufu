@@ -110,6 +110,11 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1639's address annotation found a Kubernetes metadata.annotations value that is not yet known at plan time, so it could not add the choudoufu.intentius.io/tofu-address annotation and left the annotations exactly as evaluated. The tofu-estate label beside it is still written.",
 	},
 	{
+		Summary: SummaryARMBodyNotMergeable,
+		What:    "GitHub issue #1120's ARM branch of the node-path stamp found an azapi_resource body, or a body.tags, it cannot add the ownership markers into - a body that is marked or is not an object, or a tags entry that is not a string - so it left the configuration value as evaluated and wrote no marker.",
+		Warning: true,
+	},
+	{
 		Summary: "Cannot merge ownership markers into this labels value",
 		What:    "GitHub issue #1061's label branch of the node-path stamp (NodeResolver.stampedMetadata) found a Kubernetes metadata.labels value it does not know how to add the tofu-estate marker into - a non-map value, or a map holding a non-string element - so it left the resource's configuration value exactly as evaluated. The Kubernetes sibling of \"Cannot merge ownership markers into this tags value\".",
 	},
@@ -187,6 +192,10 @@ var refusals = []Refusal{
 		What:    "GitHub issue #388's node-path stamp found a resource's tags argument not yet known at plan time, so it could not merge the two ownership markers into it; the resource's configuration value is used unchanged.",
 	},
 	{
+		Summary: SummaryARMTagsBodyUnknown,
+		What:    "GitHub issue #1120: an azapi_resource whose body is not known at plan time and whose top-level tags argument is unset or not known, so the stamp cannot tell whether its tags go in body.tags or in the top-level tags argument. azapi refuses both and ignores the top-level argument when body carries tags, so the stamp refuses rather than guess. A known top-level tags argument settles it (GitHub issue #2142's Azure audit): azapi sends that, or refuses a body that also carries tags.",
+	},
+	{
 		Summary: "Could not write the discovery hint",
 		What:    "Guided discovery's plan-cost hint could not be written to the estate's record store, so the next run pays a full estate sweep instead of a narrowed one.",
 	},
@@ -224,11 +233,11 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: "Live resource marked for another address",
-		What:    "A live object at the identity a declared instance names carries this estate's marker under a different resource address, or under no address at all, so it is another instance's object (or a malformed marker) and is not projected.",
+		What:    "A live object at the identity a declared instance names carries this estate's marker under a different resource address, or under no address at all, so it is another instance's object (or a malformed marker) and is not projected. On a declared Azure resource read at the id its own block computes this is an error instead, under \"Live object marked for another owner at the declared id would be overwritten\", because the create it would leave standing is a PUT over that object (GitHub issue #2135).",
 	},
 	{
 		Summary: "Live resource outside this estate",
-		What:    "A live object bound by discovery carries an estate marker other than this run's, so it belongs to a different estate and is not projected.",
+		What:    "A live object bound by discovery carries an estate marker other than this run's, so it belongs to a different estate and is not projected. On a declared Azure resource read at the id its own block computes this is an error instead, under \"Live object marked for another owner at the declared id would be overwritten\", because the create it would leave standing is a PUT over that object (GitHub issue #2135).",
 	},
 	{
 		Summary: SummaryVerifiedNotImportable,
@@ -255,6 +264,11 @@ var refusals = []Refusal{
 		What:    "An owned-but-undeclared resource was found whose provider this run has no handle for, so its current state cannot be read. Reported as a warning: the sweep still knows the resource exists.",
 	},
 	{
+		Summary: SummaryUntaggableUnrecorded,
+		What:    "GitHub issue #2141: an apply created or updated a resource whose type has no marker surface (an untaggable AWS or Azure type, so the record is the only thing that remembers the estate owns it), and no identity record could be written for it - the record store cannot hold that type's identity in full, or the identity is an attribute the provider marks sensitive - and no earlier record holds one. Names the type and every such address. A warning: the resource exists, but if its block is later removed no plan will find it to destroy and it is left running outside every estate. Destroy it with tofu destroy -target before removing the block, or remove it by hand afterwards. Taggable types reaching the same branch are only logged, because their marker still decides ownership.",
+		Warning: true,
+	},
+	{
 		Summary: "No source for this instance's identity",
 		What:    "GitHub issue #388's plan-node seam ([NodeResolver], ruling 4/#365) found no record, no live marker, and no identity this run could derive from the instance's own evaluated configuration. Refused by default, because nothing here can tell a genuinely new instance apart from a real one this run simply cannot see yet; strict { no_source_create = \"create\" } selects stock's own behavior (plan a create) instead.",
 	},
@@ -268,7 +282,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryMarkerNotStored,
-		What:    "GitHub issue #1192: the object the provider returned after ApplyResourceChange does not carry a marker this run sent, so something between the write and the stored object discarded it - a Kubernetes admission policy or controller enforcing a label scheme, or an AWS Organizations tag policy. A create is reported as a warning, because the object was really added and the next plan reads it as a resource outside the estate and says so. An update that lost tofu-estate is an error, because its whole content was the marker, nothing it wrote lasted, and every later run would otherwise repeat it and report a change that did not happen. Permit tofu-estate wherever labels or tags are governed, or set markers = record for the type. No live read is issued: the value judged is the one the provider already returned.",
+		What:    "GitHub issue #1192: the object the provider returned after ApplyResourceChange does not carry a marker this run sent, so something between the write and the stored object discarded or rewrote it - a Kubernetes admission policy or controller enforcing a label scheme, an AWS Organizations tag policy, an Azure Policy assignment with a modify or append effect on tags, or AKS copying a cluster's tags over those of an existing resource it is given. A create is reported as a warning, because the object was really added and the next plan reads it as a resource outside the estate and says so. An update that lost tofu-estate is an error, because its whole content was the marker, nothing it wrote lasted, and every later run would otherwise repeat it and report a change that did not happen. Permit tofu-estate wherever labels or tags are governed, or set markers = record for the type. No live read is issued: the value judged is the one the provider already returned.",
 	},
 	{
 		Summary: SummaryMarkerNotWritten,
@@ -285,6 +299,16 @@ var refusals = []Refusal{
 	{
 		Summary: "Ownership marker is not a legal label value",
 		What:    "GitHub issue #1061: the estate name cannot be written as a Kubernetes label value - over 63 characters, or ending in a hyphen, both legal estate names - so the node-path stamp refuses to mark a Kubernetes resource with it rather than write a label the API server rejects. Rename the estate, or keep the resource out of a Kubernetes estate. See live/MARKERS.md, \"Kubernetes: one label\".",
+	},
+	{
+		Summary: SummaryARMTypeNotStamped,
+		What:    "GitHub issue #1120: an azapi_resource whose ARM type and API version are not known to take tags (the taggability table generated from azapi's type data says it does not, or does not know it), so the stamp writes no marker rather than one Azure would refuse.",
+		Warning: true,
+	},
+	{
+		Summary: SummaryARMDefaultTagsUnknown,
+		What:    "GitHub issue #2147: an azapi_resource that sets no tags of its own, of a type azapi gives its provider's default_tags, under a provider block whose default_tags this run cannot read before it starts (or that is not a map of strings). azapi sends the default tags only when the resource's tags is null, so a marker written alone would replace them; the stamp writes no marker instead.",
+		Warning: true,
 	},
 	{
 		Summary: "Parent-derived identity with no formula",
@@ -374,6 +398,14 @@ var refusals = []Refusal{
 	{
 		Summary: SummaryMovedRecordsAmbiguous,
 		What:    "A declared markerless instance with no record at its own address, under the 2026-10-20 ruling, is owned when exactly one address its honoured moved blocks lead from holds a record: a stock moved block does not re-key the record store, so after a rename the record sits at the old address. When more than one such address holds a record, nothing says which is this instance's, so the plan stops and names the instance and every recorded moved-from address rather than picking one or planning a create. Removing the stale records, or using live-mv, which moves a record to its new address, clears it.",
+	},
+	{
+		Summary: SummaryOverwriteAtKey,
+		What:    "GitHub issue #1120, ruled on #1122: a declared Azure resource (azurerm, or azapi_resource) was read at the ARM id its block declares, and it carries no tofu-estate tag. Under declared_untagged's default the plan would propose creating it, and an ARM create is a PUT, which updates an object already at that id instead of failing; the run stops instead, before anything is applied. Both providers read the id before their PUT and fail the apply when an object is there, azapi_resource always and azurerm for most types unless its features block sets skip_import_check_on_create_and_allow_overwriting_existing_resources, so the refusal is usually earlier than an apply-time error and, under azurerm with that flag or a type that skips the read, the only guard against a silent takeover (GitHub issue #2133); the message says which applies to the resource's provider. It holds under declared_untagged = \"refuse\" (the default), \"keep\" and \"report\": unlike #1546's refusal, keep and report do not soften it, since those verbs leave the same create standing, and lint's policy-overwrite-at-key refuses them before any plan. \"adopt\" and \"converge\" never reach it, because they admit the object first and the plan writes this estate's markers onto it. policy { declared_untagged = \"adopt\" } adopts the object, and writing the tofu-estate and tofu-address tags onto it does the same by hand. An azapi_resource whose ARM type takes no tags at its API version (Microsoft.Authorization/roleAssignments, for one) carries no marker and none is looked for: a record in the estate's record store binding it admits it, and without one the message names that record as the missing carrier and offers adopt and live-import -approve, which write it, never tags. An absent object never triggers this; an object carrying another estate's marker, or this estate's for another address, is refused under its own summary, \"Live object marked for another owner at the declared id would be overwritten\" (GitHub issue #2135); AWS and Kubernetes types are unaffected.",
+	},
+	{
+		Summary: SummaryOverwriteMarkedAtKey,
+		What:    "GitHub issue #2135, ruled 2026-10-20, widening #1120's refusal: a declared Azure resource (azurerm, or azapi_resource) was read at the ARM id its block declares, and it carries an ownership marker that is not this block's - another estate's tofu-estate, or this estate's with a tofu-address naming another instance or none that can be read. On AWS and Kubernetes those are the \"Live resource outside this estate\" and \"Live resource marked for another address\" warnings, beside a plan proposing the create; on Azure that create is a PUT that would write this block's markers over the object, so the run stops instead, under every policy verb, before anything is applied. The message names the marker found (estate and address) and the usual causes of a marker no choudoufu run wrote: AKS copying a cluster's tags over those of the existing route table, public IP or virtual network it is given, and an Azure Policy modify effect. Remedies: strict { markers \"record\" } for the type, which holds its identity in the record store so the copied tags decide nothing; keeping the resource out of the estate or out of the cluster's resource groups; a moved block or live-mv for a real move; live-mv -from-estate or live-import -approve to take another estate's object over deliberately. An object carrying this exact block's marker is admitted, and an absent object never triggers this.",
 	},
 	{
 		Summary: "Unsupported resource type for the provider",

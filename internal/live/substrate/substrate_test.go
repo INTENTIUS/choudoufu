@@ -223,6 +223,13 @@ func TestSurfaceOf(t *testing.T) {
 				if other == For(tc.surface) {
 					continue
 				}
+				if other == Azure && tc.surface == markers.SurfaceTags {
+					// GitHub issue #1742's reason the family is chosen by
+					// provider: an azurerm tags map is shaped exactly like
+					// an AWS one. TestAzureSurfaceIsChosenByProvider holds
+					// the dispatch.
+					continue
+				}
 				if _, ok := other.SurfaceOf(tc.block); ok {
 					t.Errorf("%s: %s also claims it", name, other.Name())
 				}

@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
@@ -260,6 +261,40 @@ func (ts TypeSchema) BuildConfig(vals map[string]cty.Value) (cty.Value, tfdiags.
 		return cty.NilVal, diags
 	}
 	return cty.ObjectVal(out), diags
+}
+
+// MissingRequired names, sorted, every attribute the list configuration
+// schema requires that config leaves null or unknown: the arguments a
+// configuration has to set before a provider is asked to list with it. A
+// null config is missing every required attribute. Nested blocks are not
+// asked about.
+func (ts TypeSchema) MissingRequired(config cty.Value) []string {
+	if ts.Config == nil {
+		return nil
+	}
+	var missing []string
+	for name, attr := range ts.Config.Attributes {
+		if !attr.Required {
+			continue
+		}
+		if config == cty.NilVal || config.IsNull() || !config.IsKnown() || !config.Type().IsObjectType() || !config.Type().HasAttribute(name) {
+			missing = append(missing, name)
+			continue
+		}
+		if v := config.GetAttr(name); v.IsNull() || !v.IsKnown() {
+			missing = append(missing, name)
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}
+
+func joinQuoted(names []string) string {
+	q := make([]string, len(names))
+	for i, n := range names {
+		q[i] = fmt.Sprintf("%q", n)
+	}
+	return strings.Join(q, ", ")
 }
 
 // EmptyConfig is the list configuration that sets nothing: every argument

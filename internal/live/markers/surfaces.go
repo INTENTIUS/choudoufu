@@ -39,6 +39,13 @@ const (
 	// manifest.metadata.labels.
 	SurfaceManifest Surface = "manifest"
 
+	// SurfaceARMTags is the Azure Resource Manager shape (GitHub issue
+	// #1120, ruled on #1122): the AWS marker keys in a settable top-level
+	// tags map, written lowercase and read case-insensitively, because ARM
+	// tag keys are case-insensitive. azapi_resource's body.tags is the same
+	// surface written at another path; see armtags.go.
+	SurfaceARMTags Surface = "arm-tags"
+
 	// SurfaceGoogleLabels is the hashicorp/google shape: tofu-estate alone,
 	// in a settable top-level labels map that the provider reconciles with
 	// default_labels into a computed effective_labels map (GitHub issue

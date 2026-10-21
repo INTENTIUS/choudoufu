@@ -25,6 +25,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/cone"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
@@ -1674,6 +1675,12 @@ func (r *liveRunner) WriteBack(ctx context.Context, finalState *states.State, sc
 		// state alone.
 		Config: r.liveConfig,
 
+		// GitHub issue #2135: a record of an azurerm identity holds its
+		// subscription_id, answered from Config's provider block or, for a
+		// block that names none, from this - the environment identity
+		// resolution was given (live_plan.go), read by the same function.
+		Cloud: liveRecordCloud(),
+
 		// Issue #349's half. The apply just settled these values, and this
 		// is the moment stock writes them into its state file.
 		RootOutputStore: r.rootOutputStore,
@@ -1711,8 +1718,17 @@ func (r *liveRunner) WriteInstance(ctx context.Context, state *states.State, add
 		ReplacedAddrs:       replaced,
 		DestroyedDeposed:    deposedDestroys,
 		Config:              r.liveConfig,
+		Cloud:               liveRecordCloud(),
 		Only:                &addr,
 	})
+}
+
+// liveRecordCloud is the [identity.CloudContext] a record write answers a
+// provider-configuration identity component from (GitHub issue #2135): the
+// one identity resolution is given in live_plan.go, so a record and the
+// identity route read ARM_SUBSCRIPTION_ID through the same function.
+func liveRecordCloud() identity.CloudContext {
+	return identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv)}
 }
 
 // AfterApply implements [backendLocal.LiveRun]: the untag verb's

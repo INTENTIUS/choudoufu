@@ -76,6 +76,12 @@ func IsAccessDenied(err error) bool {
 	if accessDenied(err) {
 		return true
 	}
+	// [AzureBlobStore] surfaces a refusal as azcore's *ResponseError with
+	// status 403, whatever its code: a missing data role, a SAS without the
+	// permission, or the ABAC read fence's condition (Azure epic, #1120).
+	if isAzureForbidden(err) {
+		return true
+	}
 	// [KubernetesStore] surfaces a refusal as the API server's own 403,
 	// which arrives as a *k8serrors.StatusError with reason Forbidden and
 	// carries none of the smithy shapes accessDenied looks for. Without this

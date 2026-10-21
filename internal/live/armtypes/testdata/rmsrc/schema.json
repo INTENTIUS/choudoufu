@@ -1,0 +1,18 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.opentofu.org/hashicorp/azurerm": {
+      "resource_schemas": {
+        "azurerm_widget_inline": {"block": {"attributes": {"name": {"type": "string"}, "tags": {"type": ["map", "string"], "optional": true}}}},
+        "azurerm_widget_after": {"block": {"attributes": {"name": {"type": "string"}, "tags": {"type": ["map", "string"], "optional": true}}}},
+        "azurerm_widget_restore": {"block": {"attributes": {"name": {"type": "string"}, "tags": {"type": ["map", "string"], "optional": true}}}},
+        "azurerm_widget_viaupdate": {"block": {"attributes": {"name": {"type": "string"}, "tags": {"type": ["map", "string"], "optional": true}}}},
+        "azurerm_widget_untraced": {"block": {"attributes": {"name": {"type": "string"}, "tags": {"type": ["map", "string"], "optional": true}}}},
+        "azurerm_gizmo": {"block": {"attributes": {"name": {"type": "string"}, "tags": {"type": ["map", "string"], "optional": true}}}},
+        "azurerm_widget_labels": {"block": {"attributes": {"name": {"type": "string"}, "tags": {"type": ["list", "string"], "optional": true}}}},
+        "azurerm_widget_unregistered": {"block": {"attributes": {"tags": {"type": ["map", "string"], "optional": true}}}},
+        "azurerm_widget_untagged": {"block": {"attributes": {"name": {"type": "string"}}}}
+      }
+    }
+  }
+}

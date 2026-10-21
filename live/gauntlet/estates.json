@@ -14,8 +14,9 @@
     "bar reads and can reach 100%; it needs a reason. Every estate on the",
     "emulator is in the second bar. The kubernetes lane runs on a kind cluster",
     "instead and has a bar of its own (lanes.kubernetes in live/gauntlet.json),",
-    "counted toward neither AWS bar; the gcp lane runs on the floci-gcp",
-    "emulator and has lanes.gcp the same way. Keep the list sorted by name; `go run",
+    "counted toward neither AWS bar; the azure lane does the same on floci-az",
+    "(lanes.azure), and the gcp lane on the floci-gcp emulator (lanes.gcp).",
+    "Keep the list sorted by name; `go run",
     "./tools/gauntlet render` rewrites this file canonically and",
     "TestManifestIsCanonical holds it."
   ],
@@ -37,6 +38,14 @@
       "lane": "terraform-popular",
       "set": "core",
       "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy"
+    },
+    {
+      "name": "corpus-azapi-role-assignment",
+      "source": "Azure/terraform-provider-azapi examples/Microsoft.Authorization_roleAssignments@2022-04-01 (tag v2.13.0), the azapi provider's own published role-assignment example: a resource group through azapi_resource, an azurerm_user_assigned_identity, the built-in AcrPull role read with data \"azurerm_role_definition\", and an azapi_resource role assignment granting it at the group's scope; the azure lane's first published estate, run against floci-az (#1120). Built and not yet run",
+      "url": "https://github.com/Azure/terraform-provider-azapi.git",
+      "pin": "v2.13.0",
+      "lane": "azure",
+      "set": "growing"
     },
     {
       "name": "corpus-cloud-platform-components",
@@ -273,6 +282,12 @@
       "lane": "opentofu-native",
       "set": "core",
       "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
+    },
+    {
+      "name": "reference-azure",
+      "source": "hand-written reference shape kept in this repository: a resource group, a VNet with a subnet, a network security group with one rule, a storage account, a user-assigned identity, a public IP and two count identities through hashicorp/azurerm, plus one azapi_resource identity; the azure lane's first estate, run against floci-az (#1120). Built and not yet run",
+      "lane": "azure",
+      "set": "growing"
     },
     {
       "name": "reference-ec2-vpc",

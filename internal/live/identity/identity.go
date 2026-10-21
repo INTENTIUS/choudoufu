@@ -306,6 +306,11 @@ type cloudScopeKey struct {
 	region      string
 	regionKnown bool
 
+	// provider is the resolved provider configuration base names, kept so
+	// a [CloudSubscriptionID] component can read that configuration's own
+	// subscription_id ([resolver.cloudValueFor]). Never compared.
+	provider addrs.AbsProviderConfig
+
 	// project and zone are the resolved provider configuration's own
 	// static `project` and `zone` arguments, empty when it states none or
 	// states them in a way this package cannot read without applying.

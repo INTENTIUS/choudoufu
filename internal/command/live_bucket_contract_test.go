@@ -43,6 +43,20 @@ func TestTheWaivableNamesAreTheAssertedSettings(t *testing.T) {
 		t.Errorf("record_store \"kubernetes\" accepts %v, want the asserted settings %v", configs.RecordStoreInsecureSettingsFor("kubernetes"), clusterAsserted)
 	}
 
+	// The same pin on the storage account contract (the Azure epic, #1120).
+	var azureAsserted []string
+	for _, s := range staterecord.AzureSettings {
+		azureAsserted = append(azureAsserted, string(s))
+	}
+	if !slices.Equal(azureAsserted, configs.RecordStoreInsecureSettingsFor("azurerm")) {
+		t.Errorf("record_store \"azurerm\" accepts %v, want the asserted settings %v", configs.RecordStoreInsecureSettingsFor("azurerm"), azureAsserted)
+	}
+	for _, name := range configs.RecordStoreAzureRMInsecureSettings {
+		if slices.Contains(configs.RecordStoreInsecureSettings, name) || slices.Contains(configs.RecordStoreClusterInsecureSettings, name) {
+			t.Errorf("%q names an assertion of the storage account and another store", name)
+		}
+	}
+
 	// The same pin on the GCS bucket contract.
 	var gcsAsserted []string
 	for _, s := range staterecord.GCSSettings {

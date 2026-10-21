@@ -281,6 +281,18 @@ var estateSpecs = []estateSpec{
 		Note:       `The "reference" lane's EKS estate (#1113), on the floci-eks substrate: no external source, a hand-written shape kept in this repository. run.sh declares no resource itself; it sources live/e2e/reference-eks/estate.sh, whose reference_eks_aws_resources() and reference_eks_cluster_resources() heredocs carry the whole estate, shared with live/live-cert/reference-eks.sh: the VPC, two subnets, internet gateway, route table and its two associations, four IAM roles and four policy attachments, the cluster, a managed node group, an access entry with a policy association and a pod identity association (the last three behind eks_access_api), and a kubernetes_namespace_v1, kubernetes_service_account_v1, kubernetes_config_map_v1 (app-config and a two-instance count set) and kubernetes_deployment_v1 on the cluster it creates. estate.sh also carries the day-2 stages' extra blocks, which live/e2e/reference-eks/stages.sh adds and removes again: day2_crash's kubernetes_secret_v1 and kubernetes_config_map_v1 pair, day2_replace's create_before_destroy kubernetes_config_map_v1, and the strict scratch estate's random_password, outside the estate itself. day2_crash's create_before_destroy rename window is live/e2e/lib/gauntlet.sh's gauntlet_kind_day2_crash_rename, whose kubernetes_config_map blocks are in the library and not scanned, as for the kind estates.`,
 	},
 	{
+		Name:       "corpus-azapi-role-assignment",
+		ConfigDirs: []string{".corpus/azapi/examples/Microsoft.Authorization_roleAssignments@2022-04-01"},
+		ScanScript: true,
+		Note:       `The "azure" lane's first published estate (#1120): Azure/terraform-provider-azapi's own examples/Microsoft.Authorization_roleAssignments@2022-04-01 root at v2.13.0, copied out of .corpus by live/e2e/corpus-azapi-role-assignment/run.sh's write_root() with three deltas (the lane's provider pins in required_providers, subscription_id in both provider blocks, a live block in live.tf). azapi_resource (a resource group and a role assignment) and azurerm_user_assigned_identity, with data "azurerm_role_definition" not counted. ScanScript adds day2_count's azapi_resource shard count, which the script writes into shards.tf; no new type.`,
+	},
+	{
+		Name:       "reference-azure",
+		ConfigDirs: nil,
+		ScanScript: true,
+		Note:       `The "azure" lane's first estate (#1120): no external source, a hand-written shape kept in this repository and crossed on floci-az. run.sh's resource_block() heredoc carries the whole estate: azurerm_resource_group, azurerm_virtual_network, azurerm_subnet, azurerm_network_security_group, azurerm_network_security_rule, azurerm_storage_account, azurerm_user_assigned_identity (one, plus a two-instance count set), azurerm_public_ip, and one azapi_resource of type Microsoft.ManagedIdentity/userAssignedIdentities - no module, no AWS provider. Its mi_block() heredoc adds day2_replace's and day2_crash's identities (azurerm_user_assigned_identity, no new type), and its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the estate itself.`,
+	},
+	{
 		Name:       "reference-gcp",
 		ConfigDirs: nil,
 		ScanScript: true,

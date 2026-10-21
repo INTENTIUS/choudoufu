@@ -530,11 +530,46 @@ func TestResolverImportAbsentDiagnostics(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			got := resolverImportAbsentDiagnostics(test.diags)
+			got := resolverImportAbsentDiagnostics(test.diags, providers.ImportTarget{}, "")
 			if got != test.want {
 				t.Errorf("resolverImportAbsentDiagnostics(...) = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+// GitHub issue #2140, finding 1: a resolver-supplied import whose error
+// says `"x" was not found` about one of its own segments stays fatal from
+// an AWS or Kubernetes provider, and is an absence only from azurerm or
+// azapi.
+func TestResolverImportAbsentDiagnosticsAzureShapesNeedAzure(t *testing.T) {
+	notFound := func(detail string) tfdiags.Diagnostics {
+		return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, "Error", detail))
+	}
+	const workerID = "/subscriptions/s/resourceGroups/refaz-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/refaz-worker"
+	missingImportState := tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Error, "Missing Resource Import State",
+		"An unexpected error was encountered when importing the resource. This is always a problem with the provider. Please give the following information to the provider developer:\n\nResource ImportState method returned no State in response. If import is intentionally not supported, remove the Resource type ImportState method or return an error."))
+	for name, tc := range map[string]struct {
+		diags    tfdiags.Diagnostics
+		id       string
+		provider string
+		want     bool
+	}{
+		"kubernetes namespace": {notFound(`namespace "team-a" was not found`), "team-a/app", "kubernetes", false},
+		"aws subnet":           {notFound(`subnet "subnet-0abc" was not found`), "subnet-0abc/rtb-0def", "aws", false},
+		"azurerm bot":          {notFound(`the Bot Channels Registration "bot" was not found in Resource Group "rg"`), "/subscriptions/s/resourceGroups/rg/providers/Microsoft.BotService/botServices/bot", "azurerm", true},
+
+		// live/e2e/reference-azure's greenfield stage (2026-10-21): azapi
+		// answers a 404 on import by ID with RemoveResource, which the
+		// plugin framework reports as "Missing Resource Import State". An
+		// absence from azapi; the same error from anyone else stays fatal.
+		"azapi missing import state":   {missingImportState, workerID, "azapi", true},
+		"azurerm missing import state": {missingImportState, workerID, "azurerm", false},
+		"aws missing import state":     {missingImportState, "i-0abc", "aws", false},
+	} {
+		if got := resolverImportAbsentDiagnostics(tc.diags, providers.ImportTarget{ID: tc.id}, tc.provider); got != tc.want {
+			t.Errorf("%s: resolverImportAbsentDiagnostics = %v, want %v", name, got, tc.want)
+		}
 	}
 }
 

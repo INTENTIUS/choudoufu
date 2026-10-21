@@ -131,18 +131,55 @@ func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 	// schema requires api_version and kind, constants no configuration
 	// carries. The identity-schema route is AWS's answer and claims every
 	// type, so it is last.
-	if synth, ok := substrate.SynthesizeIdentity(typeName, schema); ok && !synth.FromIdentitySchema {
+	synth, ok := substrate.SynthesizeIdentity(typeName, schema)
+	if ok && !synth.FromIdentitySchema {
 		return fromSynthesized(typeName, synth), ""
 	}
+	// What the family says about the identity-schema route it handed the
+	// type to (GitHub issue #1120 unit 13): which identity attributes its
+	// provider fills in from the provider configuration, and an ARM id
+	// template, where it has one. Both are empty for AWS and every family
+	// that says nothing, which leaves the route exactly as it was.
+	var family substrate.SynthesizedIdentity
+	if ok {
+		family = synth
+	}
+	full := schema
+	schema, cloudAttrs := withoutCloudIdentityAttrs(schema, family.CloudIdentityAttrs)
+	// The family's template exists and it will not offer it (GitHub issue
+	// #1120 unit 17): wherever this route does not admit the type itself,
+	// that is the refusal, naming the segment, because it is the reason
+	// the type is not admitted and the route's own wording ("no identity
+	// schema", "nothing supplies storage_account_name") would send a
+	// reader after the wrong thing.
+	withheld := func() string {
+		return fmt.Sprintf(" %s %s.", typeName, family.TemplateWithheld)
+	}
 	switch {
+	case schema.IdentitySchema == nil && family.TemplateWithheld != "":
+		return TypeIdentity{}, withheld()
 	case schema.IdentitySchema == nil:
 		return TypeIdentity{}, fmt.Sprintf(" The provider serves no resource identity schema for %s, so nothing but a table entry can say what identifies one.", typeName)
 	case schema.Block == nil:
 		return TypeIdentity{}, fmt.Sprintf(" The provider serves no configuration schema for %s, so nothing says which of its arguments an identity attribute is read from.", typeName)
 	}
 
-	d, admitted := derivableOne(schemas, typeName, schema, signal)
-	if !admitted || len(d.IdentityAttrs) == 0 {
+	d, admitted := schemaRouteDerives(schemas, typeName, schema, signal)
+	if !admitted && family.ARMTemplate != nil {
+		// The identity schema names something no argument supplies -
+		// azurerm_storage_container's storage_account_name, which the
+		// configuration states as the account's ARM id, storage_account_id
+		// - and the family's ARM id template is built from the arguments
+		// the type does have. azurerm imports by that id as readily as by
+		// its identity, so the template is the route's answer (#1120 unit
+		// 13), with the identity attributes it does supply by name kept.
+		ti, _ := armTemplateEntry(typeName, *family.ARMTemplate, full, cloudAttrs, AdmitSchema)
+		return ti, ""
+	}
+	if !admitted && family.TemplateWithheld != "" {
+		return TypeIdentity{}, withheld()
+	}
+	if !admitted {
 		candidates, _ := identityCandidates(schemas, typeName, schema)
 		required, _ := identityAttrs(schema.IdentitySchema)
 		switch {
@@ -175,10 +212,32 @@ func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 			typeName, orList(extra), pluralIs(len(extra)), orList(d.IdentityAttrs), namesVerb(len(d.IdentityAttrs)))
 	}
 
-	names := append([]string(nil), d.IdentityAttrs...)
+	if family.ARMTemplate != nil {
+		// GitHub issue #1120 unit 13: where the template supplies exactly
+		// the identity schema's attributes, the identity is that ARM id,
+		// and the identity object is still offered beside it.
+		if ti, agrees := armTemplateEntry(typeName, *family.ARMTemplate, full, cloudAttrs, d.Admits); agrees {
+			return ti, ""
+		}
+	}
+
+	argNames := append([]string(nil), d.IdentityAttrs...)
+	sort.Strings(argNames)
+	names := append([]string(nil), argNames...)
+	for name := range cloudAttrs {
+		names = append(names, name)
+	}
 	sort.Strings(names)
 	components := make([]Component, 0, len(names))
 	for _, name := range names {
+		if cloud, ok := cloudAttrs[name]; ok {
+			// The provider configuration's value (#1120 unit 13): the
+			// resolver answers it as it answers a region from the
+			// provider block, and refuses by name, as it does an AWS
+			// account it is not told, when the block does not state it.
+			components = append(components, Component{Cloud: cloud, IdentityAttr: name})
+			continue
+		}
 		if arg, ok := schema.Block.Attributes[name]; !ok || arg == nil {
 			// DerivableWith already required this, both in its strict path
 			// and in its cohort path; checked again because a synthesized
@@ -215,12 +274,13 @@ func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 	// guard downstream passes it through.
 	if len(names) == 1 {
 		return TypeIdentity{
-			Type:          typeName,
-			Components:    components,
-			ImportSyntax:  strings.ToUpper(names[0]),
-			IdentityAttrs: names,
-			Synthesized:   true,
-			Admits:        d.Admits,
+			Type:           typeName,
+			Components:     components,
+			ImportSyntax:   strings.ToUpper(names[0]),
+			IdentityAttrs:  argNames,
+			NonAWSProvider: family.NonAWSProvider,
+			Synthesized:    true,
+			Admits:         d.Admits,
 		}, ""
 	}
 
@@ -230,12 +290,53 @@ func synthesizeTypeIdentity(typeName string, schemas map[string]providers.Schema
 		// Deliberately not a joined grammar: there is none. The syntax
 		// string is documentation, and what it has to document here is that
 		// this type is imported by identity object.
-		ImportSyntax:       "identity{" + strings.Join(names, ", ") + "}",
-		IdentityAttrs:      names,
+		ImportSyntax: "identity{" + strings.Join(names, ", ") + "}",
+		// The arguments only: a cloud value (#1120 unit 13) is no
+		// attribute another resource can read back.
+		IdentityAttrs:      argNames,
 		IdentityObjectOnly: true,
+		NonAWSProvider:     family.NonAWSProvider,
 		Synthesized:        true,
 		Admits:             d.Admits,
 	}, ""
+}
+
+// schemaRouteDerives is the identity-schema route's own admission test,
+// the one [synthesizeTypeIdentity] decides the family's ARM template
+// fallback on (GitHub issue #1120 unit 13): the derivation rules admit the
+// type, through the schemas alone or this configuration's signal, and name
+// at least one identity attribute. schema is the type's schema after
+// [withoutCloudIdentityAttrs].
+func schemaRouteDerives(schemas map[string]providers.Schema, typeName string, schema providers.Schema, signal *ConfigSignal) (DerivableType, bool) {
+	d, ok := derivableOne(schemas, typeName, schema, signal)
+	if !ok || len(d.IdentityAttrs) == 0 {
+		return DerivableType{}, false
+	}
+	return d, true
+}
+
+// IdentitySchemaRouteAdmits reports whether the identity-schema route
+// admits typeName on the provider's schemas alone, with no configuration
+// to read, given the identity attributes the family's provider fills in
+// from its provider block (substrate.SynthesizedIdentity's
+// CloudIdentityAttrs). It is the question tools/azurerm-id-gen records as
+// each azurerm type's route in live/azurerm-ids.json (GitHub issue #1120
+// unit 17): a type it admits keeps that route, and one it refuses falls to
+// the ARM id template where the family has one. It answers false where
+// [synthesizeTypeIdentity] refuses an admitted type for an identity
+// attribute that is neither named nor context, since that refusal has no
+// fallback either.
+func IdentitySchemaRouteAdmits(schemas map[string]providers.Schema, typeName string, cloud map[string]string) bool {
+	schema, ok := schemas[typeName]
+	if !ok {
+		return false
+	}
+	schema, _ = withoutCloudIdentityAttrs(schema, cloud)
+	if schema.IdentitySchema == nil || schema.Block == nil {
+		return false
+	}
+	d, admitted := schemaRouteDerives(schemas, typeName, schema, nil)
+	return admitted && len(notContext(schemas, typeName, schema, d.Context)) == 0
 }
 
 // noSchemasRefusal is the reason [synthesizeTypeIdentity] gives when it was
@@ -502,11 +603,17 @@ func fromSynthesized(typeName string, synth substrate.SynthesizedIdentity) TypeI
 	components := make([]Component, 0, len(synth.Components))
 	for _, c := range synth.Components {
 		comp := Component{
-			Literal:      c.Literal,
-			Attrs:        c.Attrs,
-			Block:        c.Block,
-			Path:         c.Path,
-			OmitIfAbsent: c.OmitIfAbsent,
+			Literal:        c.Literal,
+			Attrs:          c.Attrs,
+			Block:          c.Block,
+			Path:           c.Path,
+			OmitIfAbsent:   c.OmitIfAbsent,
+			Cloud:          CloudValue(c.Cloud),
+			ARMTypeSegment: c.ARMTypeSegment,
+			// GitHub issue #2119: an Azure name the provider mints when it
+			// is omitted takes AWS's path for the same convention, the
+			// record rung through [resolver.recordFallback].
+			ServerAssignedIfAbsent: c.ServerAssignedIfAbsent,
 		}
 		if c.SameNameIdentity {
 			comp.IdentityAttr = SameNameIdentity
@@ -519,7 +626,105 @@ func fromSynthesized(typeName string, synth substrate.SynthesizedIdentity) TypeI
 		Components:     components,
 		ImportSyntax:   synth.ImportSyntax,
 		IdentityAttrs:  synth.IdentityAttrs,
+		ARMResourceID:  synth.ARMResourceID,
 		Synthesized:    true,
 		Admits:         AdmitSchema,
 	}
+}
+
+// withoutCloudIdentityAttrs is schema with every identity attribute the
+// family names in cloud removed, when the type's own configuration schema
+// has no argument by that name, and those attributes with the cloud value
+// each one is (GitHub issue #1120 unit 13). An attribute the type does
+// declare as an argument stays, and is read from the argument. A schema
+// with nothing to remove is returned unchanged, so a family that names
+// nothing (AWS, and every family but Azure) sees the route it always had.
+func withoutCloudIdentityAttrs(schema providers.Schema, cloud map[string]string) (providers.Schema, map[string]CloudValue) {
+	if len(cloud) == 0 || schema.IdentitySchema == nil {
+		return schema, nil
+	}
+	var out map[string]CloudValue
+	for name, value := range cloud {
+		if _, inIdentity := schema.IdentitySchema.Attributes[name]; !inIdentity {
+			continue
+		}
+		if schema.Block != nil {
+			if _, isArg := schema.Block.Attributes[name]; isArg {
+				continue
+			}
+		}
+		if out == nil {
+			out = map[string]CloudValue{}
+		}
+		out[name] = CloudValue(value)
+	}
+	if len(out) == 0 {
+		return schema, nil
+	}
+	reduced := *schema.IdentitySchema
+	reduced.Attributes = make(map[string]*configschema.Attribute, len(schema.IdentitySchema.Attributes))
+	for name, attr := range schema.IdentitySchema.Attributes {
+		if _, drop := out[name]; !drop {
+			reduced.Attributes[name] = attr
+		}
+	}
+	schema.IdentitySchema = &reduced
+	return schema, out
+}
+
+// armTemplateEntry is a family's ARM id template as the identity-schema
+// route's entry (GitHub issue #1120 unit 13): the template's components,
+// each that supplies an identity attribute by name marked as supplying it,
+// so the resolution carries the identity object's values beside the ARM
+// id. A component reading an argument the identity schema names supplies
+// that attribute; a cloud component supplies the identity attribute that
+// cloud value answers; a parent's ARM id and the literal text supply
+// none. full is the type's schema before [withoutCloudIdentityAttrs].
+//
+// agrees reports that the template supplies every attribute the identity
+// schema requires for import, each exactly once, and nothing else: the ARM
+// id and the identity object then name one object, and the entry is both.
+func armTemplateEntry(typeName string, tmpl substrate.SynthesizedIdentity, full providers.Schema, cloudAttrs map[string]CloudValue, admits Admission) (ti TypeIdentity, agrees bool) {
+	ti = fromSynthesized(typeName, tmpl)
+	ti.Admits = admits
+	required, _ := identityAttrs(full.IdentitySchema)
+	want := make(map[string]bool, len(required))
+	for _, name := range required {
+		want[name] = true
+	}
+	supplied := map[string]int{}
+	agrees = true
+	for i, c := range ti.Components {
+		var name string
+		switch {
+		case c.Cloud != CloudNone:
+			for attr, cloud := range cloudAttrs {
+				if cloud == c.Cloud {
+					name = attr
+				}
+			}
+		case len(c.Attrs) == 1 && want[c.Attrs[0]]:
+			name = c.Attrs[0]
+		case len(c.Attrs) > 0:
+			// A parent's ARM id, or an argument the identity schema does
+			// not name: part of the id, and of no identity attribute.
+			agrees = false
+		}
+		if name == "" {
+			continue
+		}
+		ti.Components[i].IdentityAttr = name
+		supplied[name]++
+	}
+	for name := range want {
+		if supplied[name] != 1 {
+			agrees = false
+		}
+	}
+	for name := range supplied {
+		if !want[name] {
+			agrees = false
+		}
+	}
+	return ti, agrees
 }

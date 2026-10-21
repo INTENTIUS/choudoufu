@@ -150,6 +150,7 @@ var lintRuleTargetScope = map[Rule]struct {
 	RuleReceiptLeaf:     {ruleScoped, "narrowed on the REFERRING block; a reference is the dependency edge targeting follows, so targeting the referrer keeps the receipt too"},
 	RuleReceiptValue:    {ruleScoped, "the receipt block's own declaration, for a receipt this run will not write"},
 	RuleReceiptSecret:   {ruleScoped, "same block, same run"},
+	RuleARMTagLimit:     {ruleScoped, "a create this run will not make cannot overflow; TestARMTagLimitHonoursTheTargetScope pins it, outside the shared fixture"},
 	RuleGCPLabelCount:   {ruleScoped, "a create this run will not make cannot overflow; TestGCPLabelCountHonoursTheTargetScope pins it, outside the shared fixture"},
 	RuleGCPEstateLabel:  {ruleScoped, "the node stamp refuses per instance, and a block this run leaves out is never stamped; TestGCPEstateLabelHonoursTheTargetScope pins it, outside the shared fixture"},
 
@@ -166,6 +167,7 @@ var lintRuleTargetScope = map[Rule]struct {
 	RulePolicyVerb:                {ruleWholeConfig, "the live block's ownership policy"},
 	RulePolicyScope:               {ruleWholeConfig, "same block"},
 	RulePolicyThreshold:           {ruleWholeConfig, "same block"},
+	RulePolicyOverwriteAtKey:      {ruleWholeConfig, "same block; the resource it names is evidence the estate has an overwriting family, and the verb governs every declared object whatever this run targets"},
 	RuleRetry:                     {ruleWholeConfig, "the live block's retry setting"},
 	RuleStrictMarkerRepair:        {ruleWholeConfig, "the live block's strict settings"},
 	RuleStrictSecrets:             {ruleWholeConfig, "same block"},
@@ -190,18 +192,19 @@ func scopedRuleSet() []Rule {
 }
 
 // scopedRules are the members of [scopedRuleSet] this fixture actually
-// trips. Four of the fourteen are absent. Two ride the identical
+// trips. Five of the fifteen are absent. Two ride the identical
 // `continue` in checkManagedResources that RuleProvisioner,
 // RuleLogicalResource, RuleUnadmittedType, RuleCountIndex and
 // RuleIgnoreChanges are pinned on here: RuleMarkerlessType (whose #1203
 // twin, check.NodeStampUnmarkedApply, is pinned by
 // TestNodeStampUnmarkedApplyHonoursTheTargetScope over the same question)
-// and RuleGenerateName (Kubernetes only). The other two, RuleGCPLabelCount
-// and RuleGCPEstateLabel, have fixtures of their own
-// (TestGCPLabelCountHonoursTheTargetScope,
+// and RuleGenerateName (Kubernetes only). The other three, RuleARMTagLimit,
+// RuleGCPLabelCount and RuleGCPEstateLabel, have fixtures of their own
+// (TestARMTagLimitHonoursTheTargetScope,
+// TestGCPLabelCountHonoursTheTargetScope,
 // TestGCPEstateLabelHonoursTheTargetScope). Stated rather than silently
 // omitted, and [TestEveryScopedRuleIsInTheFixture] holds the set to
-// exactly those four.
+// exactly those five.
 var scopedRules = []Rule{
 	RuleProvisioner,
 	RuleLogicalResource,
@@ -379,7 +382,13 @@ func TestEveryScopedRuleIsInTheFixture(t *testing.T) {
 		}
 	}
 	//
-	// gcp-label-count and gcp-estate-label are the other two. Without
+	// arm-tag-limit is the third. Without provider schemas every azurerm
+	// type is also refused as unadmitted-type, so an azurerm pair in the
+	// shared fixture would move unadmitted-type's own counts;
+	// TestARMTagLimitHonoursTheTargetScope runs the narrowing on a fixture
+	// of its own.
+	//
+	// gcp-label-count and gcp-estate-label are the fourth and fifth. Without
 	// provider schemas every google type is also refused as
 	// unadmitted-type, so a google pair in the shared fixture would move
 	// unadmitted-type's own counts; TestGCPLabelCountHonoursTheTargetScope
@@ -387,14 +396,14 @@ func TestEveryScopedRuleIsInTheFixture(t *testing.T) {
 	// on fixtures of their own (gcp-estate-label also needs a live block
 	// the shared fixture does not have).
 	for rule := range uncovered {
-		if rule != RuleMarkerlessType && rule != RuleGenerateName && rule != RuleGCPLabelCount && rule != RuleGCPEstateLabel {
+		if rule != RuleMarkerlessType && rule != RuleGenerateName && rule != RuleARMTagLimit && rule != RuleGCPLabelCount && rule != RuleGCPEstateLabel {
 			t.Errorf("%s is classified scoped and this fixture does not exercise it. Add a _targeted/_excluded pair to %s, "+
-				"or say here why it cannot be one - the four standing exceptions are markerless-type, generate-name, gcp-label-count and gcp-estate-label.",
+				"or say here why it cannot be one - the five standing exceptions are markerless-type, generate-name, arm-tag-limit, gcp-label-count and gcp-estate-label.",
 				rule, lintTargetScopeFixture)
 		}
 	}
-	if len(uncovered) != 4 {
-		t.Errorf("want exactly the four documented uncovered scoped rules, got %d: %v", len(uncovered), uncovered)
+	if len(uncovered) != 5 {
+		t.Errorf("want exactly the five documented uncovered scoped rules, got %d: %v", len(uncovered), uncovered)
 	}
 }
 

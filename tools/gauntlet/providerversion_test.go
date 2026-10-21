@@ -48,11 +48,11 @@ func TestProviderVersionsMissingPinIsZeroValue(t *testing.T) {
 func TestRebuildSetsArtifactProviders(t *testing.T) {
 	m := &Manifest{Estates: []Estate{{Name: "a", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"}}}
 	a := &Artifact{}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{AWS: "6.63.0", Kubernetes: "3.2.1"}, "", "")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{AWS: "6.63.0", Kubernetes: "3.2.1"}, "", SubstratePins{})
 	if a.Providers != (ProviderVersions{AWS: "6.63.0", Kubernetes: "3.2.1"}) {
 		t.Errorf("a.Providers = %+v after Rebuild, want the passed-in value", a.Providers)
 	}
-	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{AWS: "6.64.0", Kubernetes: "3.2.1"}, "", "")
+	a.Rebuild(m, nil, "img", OracleVersions{}, ProviderVersions{AWS: "6.64.0", Kubernetes: "3.2.1"}, "", SubstratePins{})
 	if a.Providers != (ProviderVersions{AWS: "6.64.0", Kubernetes: "3.2.1"}) {
 		t.Errorf("a.Providers = %+v after a second Rebuild, want the refreshed value (not carried forward)", a.Providers)
 	}
@@ -108,7 +108,7 @@ func TestNextSurfacesStaleProviderPinEstates(t *testing.T) {
 		{Name: "c-stale-provider", Source: "s", Lane: "reference", Set: SetCore, Reason: "r"},
 	}}
 	a := &Artifact{}
-	a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, "", "")
+	a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, "", SubstratePins{})
 
 	allPass := map[string]string{}
 	for _, s := range active {
@@ -131,9 +131,9 @@ func TestNextSurfacesStaleProviderPinEstates(t *testing.T) {
 	}
 	setLastRun("c-fresh", "pin", "6.63.0")
 	setLastRun("c-stale-provider", "pin", "6.58.0")
-	a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, "", "")
+	a.Rebuild(m, nil, "pin", OracleVersions{}, ProviderVersions{AWS: "6.63.0"}, "", SubstratePins{})
 
-	units := NextUnits(a, "all", "")
+	units := NextUnits(a, "all", SubstratePins{})
 	var ids []string
 	for _, u := range units {
 		ids = append(ids, u.ID)
@@ -162,17 +162,17 @@ func TestBoardEstateProviderNote(t *testing.T) {
 	a := &Artifact{Providers: ProviderVersions{AWS: "6.63.0"}, Stages: Stages()}
 	r := EstateResult{Name: "x", Protocol: ProtocolGauntlet, Stages: map[string]string{}}
 
-	if note := boardEstate(r, a, ScriptStaleness{}, "").ProviderNote; note != "" {
+	if note := boardEstate(r, a, ScriptStaleness{}, SubstratePins{}).ProviderNote; note != "" {
 		t.Errorf("no LastRun at all: note should be empty, got %q", note)
 	}
 
 	r.LastRun = &LastRun{Commit: "c", Date: "d", AWSProviderVersion: "6.63.0"}
-	if note := boardEstate(r, a, ScriptStaleness{}, "").ProviderNote; !strings.Contains(note, "matches the current pin") {
+	if note := boardEstate(r, a, ScriptStaleness{}, SubstratePins{}).ProviderNote; !strings.Contains(note, "matches the current pin") {
 		t.Errorf("expected a matching-provider note; got %q", note)
 	}
 
 	r.LastRun.AWSProviderVersion = "6.58.0"
-	note := boardEstate(r, a, ScriptStaleness{}, "").ProviderNote
+	note := boardEstate(r, a, ScriptStaleness{}, SubstratePins{}).ProviderNote
 	if !strings.Contains(note, "6.58.0") || !strings.Contains(note, "**Stale**") || !strings.Contains(note, "6.63.0") {
 		t.Errorf("expected a stale-provider note naming both versions; got %q", note)
 	}
