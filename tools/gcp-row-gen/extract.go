@@ -49,6 +49,8 @@ var (
 	iamDefaultRe  = regexp.MustCompile(`tpgresource\.Get(Project|Region|Zone|Location)\(d, config\)`)
 	iamExpectedRe = regexp.MustCompile(`expected '([^']+)'`)
 
+	setIDVarRe = regexp.MustCompile(`d\.SetId\((\w+)\)`)
+
 	sprintfRe = regexp.MustCompile(`(\w+) := fmt\.Sprintf\("([^"]+)", ([\w, ]+)\)`)
 	diffGetRe = regexp.MustCompile(`(\w+) := diff\.Get\("([a-z0-9_]+)"\)\.\(string\)`)
 )
@@ -235,6 +237,7 @@ func resourceSource(text string) Source {
 		}
 		s.ImportIDFormat = m[2]
 	}
+	s.IDFromResponse = idFromResponse(text)
 	for _, name := range placeholders(s.IDFormat) {
 		if v, ok := schemaDefault(text, name); ok {
 			if s.Defaults == nil {
@@ -250,6 +253,25 @@ func resourceSource(text string) Source {
 		}
 	}
 	return s
+}
+
+// idFromResponse is the response field a d.SetId call's argument was read
+// out of, or "": `val, ok := gr["gcpResourcename"].(string)` (or `val :=
+// ...`) and then `d.SetId(val)`. A variable named id is skipped: a
+// flatten function's own `id, ok := item["id"]` shadows nothing the
+// resource's id is set from.
+func idFromResponse(text string) string {
+	for _, m := range setIDVarRe.FindAllStringSubmatch(text, -1) {
+		v := m[1]
+		if v == "id" {
+			continue
+		}
+		bound := regexp.MustCompile(`\b` + regexp.QuoteMeta(v) + `(?:, ok)? :?= \w+\["([^"]+)"\]\.\(string\)`).FindStringSubmatch(text)
+		if bound != nil {
+			return bound[1]
+		}
+	}
+	return ""
 }
 
 // schemaDefault reads the string Default the file's schema map declares for

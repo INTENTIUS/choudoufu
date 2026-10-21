@@ -61,6 +61,12 @@ type Source struct {
 	// ImportFormats are the importer's ParseImportId regexes, in order.
 	ImportFormats []string `json:"import_formats,omitempty"`
 
+	// IDFromResponse names the field of an API response the file passes
+	// to d.SetId: `if val, ok := gr["gcpResourcename"].(string); ok {
+	// d.SetId(val)`. A file that does this names the created object the
+	// way the API answers, whatever template its importer rebuilds.
+	IDFromResponse string `json:"id_from_response,omitempty"`
+
 	// Defaults are the schema Default values the file declares for the
 	// arguments its id format names, keyed by argument.
 	Defaults map[string]string `json:"defaults,omitempty"`

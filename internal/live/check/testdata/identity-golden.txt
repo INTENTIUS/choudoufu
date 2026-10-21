@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=707 instances=2454
-# shape: class CONCRETE=1502
+# shape: dirs=708 instances=2455
+# shape: class CONCRETE=1503
 # shape: class NEEDS_DISCOVERY=787
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=676 fixture-instances=1750
+# shape: fixture-dirs=677 fixture-instances=1751
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=9efc1a50246964e583304a268381e25abdcfba008e14851b15c1991a5fdca2ab
+# shape: body-sha256=db11616aae7aeffbe9741dad7bd6942760692950590619fbc9e89bc0574dad64
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -386,6 +386,7 @@ internal/live/identity/testdata/gcp-identity-rows	google_pubsub_topic.orphan	NEE
 internal/live/identity/testdata/gcp-identity-rows	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
 internal/live/identity/testdata/gcp-identity-rows	google_service_account.runner	CONCRETE	projects/estate-prod/serviceAccounts/ci-runner@estate-prod.iam.gserviceaccount.com	email=ci-runner@estate-prod.iam.gserviceaccount.com
 internal/live/identity/testdata/gcp-identity-rows	google_storage_bucket_iam_member.reader	CONCRETE	b/estate-artifacts roles/storage.objectViewer group:readers@example.com until 2027	bucket=estate-artifacts,condition_title=until 2027,member=group:readers@example.com,role=roles/storage.objectViewer
+internal/live/identity/testdata/gcp-optional-placeholder	google_bigquery_connection.lake	CONCRETE	projects/estate-prod/locations/EU/connections/lake	connection_id=lake,location=EU
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_a	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_b	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.this["go-offline-to-celebrate-new-year"]	CONCRETE	shared-group/go-offline-to-celebrate-new-year	autoscaling_group_name=shared-group,scheduled_action_name=go-offline-to-celebrate-new-year

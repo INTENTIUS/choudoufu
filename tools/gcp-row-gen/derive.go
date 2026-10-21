@@ -140,6 +140,16 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc
 	if src.IDFormat == "" {
 		return unrowed(true, "the provider source sets this type's id some other way than an id format template")
 	}
+	if src.IDFromResponse != "" {
+		// The id format found is the importer's; what a create leaves as
+		// the id is whatever the API answered.
+		reason := fmt.Sprintf("the provider's create sets the id from the API response's %q, which only the API knows; the template %s is its importer's.", src.IDFromResponse, src.IDFormat)
+		if !d.Labels {
+			d.Verdict, d.Reason = VerdictMarkerless, reason
+			return d
+		}
+		return unrowed(false, "%s", reason)
+	}
 
 	// A computed placeholder the provider's own CustomizeDiff derives from
 	// configuration is expanded in place, and every piece of the expansion
@@ -219,12 +229,17 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc
 			comp.Attrs = []string{name}
 			comp.ServerAssignedIfAbsent = true
 		case "O":
-			def, ok := src.Defaults[name]
-			if !ok {
-				return unrowed(false, "the id format names the optional {{%s}}, and the source declares no default for it", name)
-			}
+			// An optional argument the schema does not mark computed is
+			// never filled in by the API: ReplaceVars reads it from
+			// configuration or renders it empty. Written, it is known
+			// before apply exactly as a required one is. Unwritten and
+			// with no declared default, the component has no value and
+			// resolution refuses that one instance by name, the way it
+			// refuses a required argument left out; the type keeps its row.
 			comp.Attrs = []string{name}
-			comp.Default = def
+			if def, ok := src.Defaults[name]; ok {
+				comp.Default = def
+			}
 		case "C":
 			serverAssigned = append(serverAssigned, name)
 			continue
