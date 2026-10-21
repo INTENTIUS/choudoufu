@@ -498,6 +498,10 @@ func newBuilder(ctx context.Context, cfg *configs.Config, provs Providers, opts 
 }
 
 type builder struct {
+	// googleDefaultsWarned names the provider configurations
+	// [builder.warnGoogleDefaultsUnread] has already warned about.
+	googleDefaultsWarned map[string]bool
+
 	cfg       *configs.Config
 	opts      Options
 	providers *providerCache
@@ -834,10 +838,14 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 	// exactly as it always has, still destined for the ordinary
 	// undeclared-instance destroy.
 	for _, r := range undeclaredConcrete {
-		if r.ImportID != "" && b.materializedIdentity[r.Addr.Resource.Resource.Type+"\x00"+r.ImportID] {
+		if (r.ImportID != "" && b.materializedIdentity[r.Addr.Resource.Resource.Type+"\x00"+r.ImportID]) || b.identityValuesClaimed(r) {
+			named := r.ImportID
+			if named == "" {
+				named = fmt.Sprint(r.IdentityValues)
+			}
 			b.omit(r.Addr, ReasonSuperseded, fmt.Sprintf(
 				"%s is not in the configuration, but the live object it names (import identity %q) is the SAME object a currently-declared instance of the same type already claimed earlier in this plan. It was relocated - by a `moved` block, or by ordinary parent-derived re-discovery of a renamed parent - rather than removed, and the declared instance is what will keep managing it. Nothing is proposed for this address.",
-				r.Addr, r.ImportID,
+				r.Addr, named,
 			), "the same live object is already claimed by a currently-declared instance elsewhere in this plan, so this old address is superseded rather than orphaned.")
 			continue
 		}
@@ -1191,6 +1199,14 @@ func (b *builder) applyRecordFirst(ctx context.Context, resolutions []identity.R
 // ([retireMovedRecords]).
 func (b *builder) materializeFromRecord(ctx context.Context, r identity.Resolution) bool {
 	rec, version, keyExists, identityFound, viaAlias, err := b.locatedIdentityWithAliases(ctx, r.Addr)
+	// Several recorded moved-from addresses: nothing here says which is this
+	// instance's. The declared-identity path refuses it by name, every
+	// candidate listed (main's [SummaryMovedRecordsAmbiguous], merged with
+	// this door's alias lookup), so the record-first door steps aside.
+	var ambiguous *movedAliasesAmbiguousError
+	if errors.As(err, &ambiguous) {
+		return false
+	}
 	if err != nil {
 		detail := fmt.Sprintf("Reading the record for %s failed: %s.", r.Addr, err)
 		b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot read a persisted record", detail))
@@ -1340,6 +1356,50 @@ type wanted struct {
 	declaredKey bool
 }
 
+// identityValuesClaimed is [builder.materializedIdentity]'s question for an
+// undeclared resolution that carries no import ID, only identity values
+// (a google record imported by its identity, INTENTIUS/choudoufu#2145 item
+// 4): has an instance of the same type already materialized in this plan
+// whose object holds every one of those values? Such an orphan is the same
+// live object claimed twice, and destroying it would take the object out
+// from under the declared instance that keeps it.
+func (b *builder) identityValuesClaimed(r identity.Resolution) bool {
+	if r.ImportID != "" || len(r.IdentityValues) == 0 {
+		return false
+	}
+	typeName := r.Addr.Resource.Resource.Type
+	for _, addr := range b.materialized {
+		if addr.Resource.Resource.Type != typeName || addr.Equal(r.Addr) {
+			continue
+		}
+		obj, ok := b.live[addr.String()]
+		if !ok || obj.IsNull() || !obj.IsKnown() || !obj.Type().IsObjectType() {
+			continue
+		}
+		match := true
+		for name, want := range r.IdentityValues {
+			if !obj.Type().HasAttribute(name) {
+				match = false
+				break
+			}
+			v := obj.GetAttr(name)
+			if v.IsNull() || !v.IsKnown() {
+				match = false
+				break
+			}
+			got, err := convert.Convert(v, cty.String)
+			if err != nil || got.IsNull() || got.IsMarked() || got.AsString() != want {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
 // importTarget picks the form this instance's import is asked in.
 //
 // There are three sources and they rank in this order:
@@ -1419,6 +1479,9 @@ func identityFromValues(w wanted, schema providers.Schema) (cty.Value, bool) {
 	if len(w.values) == 0 {
 		return cty.NilVal, false
 	}
+	// The importer's form of each value, not the stored one: a recorded
+	// google region may be the self link its Read wrote.
+	w.values = identity.RewriteIdentityValues(w.addr.Resource.Resource.Type, w.values)
 	body := schema.IdentitySchema
 
 	vals := make(map[string]cty.Value, len(body.Attributes))
@@ -2270,6 +2333,20 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		}
 		attrsSeed[metadataSeedKey] = cty.ObjectVal(meta)
 	}
+	googleDefaultsUnread := false
+	if _, labelled := markers.GoogleLabelSurface(schema.Block); labelled {
+		// GitHub issue #1119: what the read side needs to rebuild
+		// terraform_labels, which the provider's read empties on a prior
+		// re-derived from configuration. See mirrorGoogleMarkerLabels.
+		if defaults, ok := b.googleLabelDefaults(ctx, providerAddr); ok {
+			if attrsSeed == nil {
+				attrsSeed = make(map[string]cty.Value, 1)
+			}
+			attrsSeed[googleLabelDefaultsKey] = defaults
+		} else {
+			googleDefaultsUnread = true
+		}
+	}
 	if b.opts.Ownership != nil && markers.ManifestSurface(schema.Block) {
 		// GitHub issue #1079: a manifest-surface seed carries the
 		// estate's label the way the stamped configuration will, or the
@@ -2341,16 +2418,17 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 	timeoutsBlock := configuredTimeoutsBlock(ctx, seedEval, modPath, rc, schema)
 
 	return readPrep{
-		rc:             rc,
-		modPath:        modPath,
-		providerAddr:   providerAddr,
-		entry:          entry,
-		schema:         schema,
-		target:         importTarget(w, schema),
-		attrsSeed:      attrsSeed,
-		attrsSeedMarks: attrsSeedMarks,
-		timeouts:       timeoutsMeta(timeoutsBlock, rc, schema),
-		timeoutsBlock:  timeoutsBlockSeed(timeoutsBlock, schema),
+		googleDefaultsUnread: googleDefaultsUnread,
+		rc:                   rc,
+		modPath:              modPath,
+		providerAddr:         providerAddr,
+		entry:                entry,
+		schema:               schema,
+		target:               importTarget(w, schema),
+		attrsSeed:            attrsSeed,
+		attrsSeedMarks:       attrsSeedMarks,
+		timeouts:             timeoutsMeta(timeoutsBlock, rc, schema),
+		timeoutsBlock:        timeoutsBlockSeed(timeoutsBlock, schema),
 		// GitHub issue #1211: the record of what this instance's
 		// configuration last declared at metadata.labels and
 		// metadata.annotations, plus the safety rail's hook and the two
@@ -2386,6 +2464,9 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	rc := f.prep.rc
 	modPath := f.prep.modPath
 	providerAddr := f.prep.providerAddr
+	if f.prep.googleDefaultsUnread {
+		b.warnGoogleDefaultsUnread(providerAddr)
+	}
 	entry := f.prep.entry
 	schema := f.prep.schema
 	attrsSeed := f.prep.attrsSeed
@@ -4275,6 +4356,10 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	removed, removedDiags := manifestRemovalKeys(ctx, newVal, manifestKeys)
 	diags = diags.Append(removedDiags)
 	newVal = mirrorManifestComputedFields(newVal, schema.Block, removed)
+	// GitHub issue #1119: the GCP labels map keeps only the keys the prior
+	// names, so the markers the object carries are put back into it. See
+	// mirrorGoogleMarkerLabels.
+	newVal = mirrorGoogleMarkerLabels(newVal, schema.Block, attrsSeed[googleLabelDefaultsKey])
 
 	// Sensitivity declared by the schema has to be carried on the value,
 	// because that is where the plan renderer looks for it.

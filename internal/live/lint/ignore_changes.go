@@ -163,6 +163,10 @@ func checkIgnoreChanges(resource *configs.Resource, addr string, path addrs.Modu
 		// because ARM tag keys are: tags["Tofu-Estate"] ignores the same
 		// tag as tags["tofu-estate"].
 		checkIgnoreChangesTagsWith(resource, addr, path, isARMMarkerTag, issues)
+	case markers.SurfaceGoogleLabels:
+		checkIgnoreChangesGoogleLabels(resource, addr, path,
+			markers.GoogleLabelPath(markers.TagEstate),
+			markers.GoogleLabelPath(markers.TagAddress), issues)
 	default:
 		checkIgnoreChangesTags(resource, addr, path, issues)
 	}
@@ -544,4 +548,79 @@ func pathString(p cty.Path) string {
 		}
 	}
 	return b.String()
+}
+
+// checkIgnoreChangesGoogleLabels is the GCP counterpart of
+// [checkIgnoreChangesTags] (GitHub issue #1119): the same refusal for a
+// hashicorp/google resource, whose markers live in its top-level labels
+// map. An entry is refused when its path is a prefix of either marker's
+// path, estatePath (labels["tofu-estate"]) or addressPath
+// (labels["tofu-address"]): ignoring the whole labels map discards the
+// marker write as surely as naming the key does.
+func checkIgnoreChangesGoogleLabels(resource *configs.Resource, addr string, path addrs.Module, estatePath, addressPath cty.Path, issues *[]Issue) {
+	managed := resource.Managed
+
+	if managed.IgnoreAllChanges {
+		*issues = append(*issues, Issue{
+			Rule:      RuleIgnoreChanges,
+			Construct: fmt.Sprintf("lifecycle { ignore_changes = all } on %s", addr),
+			Module:    path,
+			Detail: fmt.Sprintf(
+				"%s ignores every change, which includes the %s and %s labels this mode writes to record ownership. "+
+					"An existing resource would keep whatever markers it has, or none: the update that writes them is "+
+					"planned and then discarded, so adopting a resource this configuration does not yet own can never "+
+					"succeed, and a marker that drifts can never be repaired. "+
+					"Narrow ignore_changes to the arguments you actually mean, leaving labels out of it.",
+				addr, markers.TagEstate, markers.TagAddress,
+			),
+			Subject: resource.DeclRange,
+		})
+		return
+	}
+
+	for _, traversal := range managed.IgnoreChanges {
+		travPath, ok := traversalToCtyPath(traversal)
+		if !ok {
+			continue
+		}
+		var covered string
+		var coveredPath cty.Path
+		for key, markerPath := range map[string]cty.Path{markers.TagEstate: estatePath, markers.TagAddress: addressPath} {
+			if pathHasPrefix(markerPath, travPath) {
+				covered, coveredPath = key, markerPath
+				break
+			}
+		}
+		if covered == "" {
+			continue
+		}
+
+		construct := fmt.Sprintf("lifecycle { ignore_changes = [%s] } on %s", pathString(travPath), addr)
+		detail := fmt.Sprintf(
+			"%s ignores changes to its whole labels argument, and the %s and %s labels this mode writes to record ownership live there. "+
+				"An existing resource would keep whatever markers it has, or none: the update that writes them is planned "+
+				"and then discarded, so adopting a resource this configuration does not yet own can never succeed, and a "+
+				"marker that drifts can never be repaired. "+
+				"Ignore the individual label keys something outside this configuration writes - ignore_changes = [labels[\"owner\"]] - "+
+				"rather than the whole argument.",
+			addr, markers.TagEstate, markers.TagAddress,
+		)
+		if len(travPath) == len(coveredPath) {
+			detail = fmt.Sprintf(
+				"%s ignores changes to the %q label, which is one of the ownership markers this mode writes. "+
+					"The update that writes it is planned and then discarded, so an existing resource can never be "+
+					"adopted and a marker that drifts can never be repaired. Ownership markers are not an argument a "+
+					"configuration manages; remove this entry.",
+				addr, covered,
+			)
+		}
+
+		*issues = append(*issues, Issue{
+			Rule:      RuleIgnoreChanges,
+			Construct: construct,
+			Module:    path,
+			Detail:    detail,
+			Subject:   traversalRange(traversal, resource.DeclRange),
+		})
+	}
 }

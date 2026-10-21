@@ -14,12 +14,17 @@
 #   bash live/smoke/smoke.sh roundtrip
 #   bash live/smoke/smoke.sh full
 #   bash live/smoke/smoke.sh k8s-greenfield   (a kind cluster, no emulator)
+#   bash live/smoke/smoke.sh gcp-greenfield   (floci-gcp, no kind cluster)
 #
 # Knobs (all optional):
 #   CHOUDOUFU_VERSION=v0.8.0   run a pinned release instead of source
 #   CHOUDOUFU_BIN=/path        run an explicit binary
 #   FLOCI_IMAGE=...            override the pinned emulator image
 #   FLOCI_PORT=4650            host port for the emulator
+#   FLOCI_GCP_IMAGE=...        override the pinned GCP emulator image
+#   FLOCI_GCP_PORT=4688        host port for the GCP emulator
+#   FLOCI_GCP_IMAGE=...        override the pinned GCP emulator image
+#   FLOCI_GCP_PORT=4688        host port for the GCP emulator
 #   SMOKE_LOG_DIR=/path        where the side logs go - docker compose's own
 #                              output, kind's. ci-run.sh sets it to the
 #                              scenario log's directory so the CI artifact
@@ -232,7 +237,7 @@ cleanup() {
   # exits 124 as before (#1457). `builtin exit` below: the shadowing exit
   # above would write to a work directory this trap has just removed.
   [ -d "$SMOKE_WORKROOT/stalled" ] || smoke_verdict
-  azure_down; stack_down; cluster_down
+  azure_down; stack_down; cluster_down; gcp_down
   if [ -d "$SMOKE_WORKROOT/stalled" ]; then rm -rf "$SMOKE_WORKROOT"; builtin exit 124; fi
   rm -rf "$SMOKE_WORKROOT"
   [ -z "$VERDICT_RC" ] || builtin exit "$VERDICT_RC"

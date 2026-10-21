@@ -85,10 +85,9 @@ export default defineConfig({
 			editLink: {
 				baseUrl: 'https://github.com/INTENTIUS/choudoufu/edit/main/site/',
 			},
-			// The groups from #2092: Start here, AWS, Kubernetes, How it works, Use,
-			// Reference, and Azure (#1120) after Kubernetes. A group joins this
-			// list when its first page is written. Every group but Start here
-			// starts collapsed.
+			// The groups from #2092: Start here, AWS, Kubernetes, GCP, How it works, Use,
+			// Reference. A group joins this list when its first page is written.
+			// Every group but Start here starts collapsed.
 			sidebar: [
 				// The room pages under /for/ (src/pages/for/[id].astro), in the order of
 				// src/data/rooms.ts: what you run today, where it runs, then the roles.
@@ -103,8 +102,7 @@ export default defineConfig({
 						{ label: 'Starting new', link: '/for/new/' },
 						{ label: 'On AWS', link: '/for/aws/' },
 						{ label: 'On Kubernetes', link: '/for/kubernetes/' },
-						{ label: 'On Azure', link: '/for/azure/' },
-						{ label: 'Security and IAM', link: '/for/security/' },
+						{ label: 'Security and access', link: '/for/security/' },
 						{ label: 'Evaluating', link: '/for/evaluate/' },
 						{ label: 'With a coding agent', link: '/for/agents/' },
 						{ label: 'Contributing', link: '/for/contribute/' },
@@ -135,15 +133,15 @@ export default defineConfig({
 					],
 				},
 				{
-					label: 'Azure',
+					label: 'GCP',
 					collapsed: true,
 					items: [
-						{ label: 'Overview', slug: 'azure' },
-						{ label: 'Adopt', slug: 'azure/adopt' },
-						{ label: 'Gate', slug: 'azure/gate' },
-						{ label: 'Operate', slug: 'azure/operate' },
-						{ label: 'Compatibility', slug: 'azure/compatibility' },
-						{ label: 'Proof', slug: 'azure/proof' },
+						{ label: 'Overview', slug: 'gcp' },
+						{ label: 'Adopt', slug: 'gcp/adopt' },
+						{ label: 'Gate', slug: 'gcp/gate' },
+						{ label: 'Operate', slug: 'gcp/operate' },
+						{ label: 'Compatibility', slug: 'gcp/compatibility' },
+						{ label: 'Proof', slug: 'gcp/proof' },
 					],
 				},
 				{

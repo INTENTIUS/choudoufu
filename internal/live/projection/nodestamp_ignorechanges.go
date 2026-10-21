@@ -89,6 +89,14 @@ func (n *NodeResolver) AdjustIgnoreChanges(_ context.Context, addr addrs.AbsReso
 			markers.ManifestAnnotationPath(markers.AddressAnnotation),
 		}
 	}
+	if _, labelled := markers.GoogleLabelSurface(schema.Block); labelled {
+		// The GCP shape (GitHub issue #1119): the tag branch's two
+		// markers, at labels["tofu-estate"] and labels["tofu-address"].
+		return []cty.Path{
+			markers.GoogleLabelPath(markers.TagEstate),
+			markers.GoogleLabelPath(markers.TagAddress),
+		}
+	}
 	if _, taggable := markers.TagSurface(schema.Block); !taggable {
 		return nil
 	}

@@ -5,16 +5,10 @@ claim: a-name-prefix-shares-no-keys
 
 # Claim 28: An estate reaches only its own records, and what it declares
 
-Every estate's records can share one store. What keeps an estate to its
-own is the store's layout and the platform's access control: a key
-prefix and IAM on a bucket, a namespace and RBAC on a cluster. Each proof
-below takes one of those away and shows another estate's records become
-reachable.
-
-The one exception is declared on both sides. It was claim 44, "Reading
-another estate is declared", until it merged here: an estate may read
-another's recorded root outputs only when its configuration names that
-estate and its access grants that one read.
+Every estate's records can share one store, and each estate reaches only
+its own: a key prefix and IAM keep it there on a bucket, a namespace and
+RBAC on a cluster. An estate reads another's recorded root outputs when
+its configuration names that estate and its access grants that one read.
 
 Each scenario runs from the repository root and ends on a `PASS` line; its
 `BREAK=1` run breaks the thing the proof rests on and must print a
@@ -28,60 +22,52 @@ Each scenario runs from the repository root and ends on a `PASS` line; its
     BREAK=1 just smoke a-name-prefix-shares-no-keys
 
 Two estates whose names prefix one another (`smoke-prod`,
-`smoke-prod-eu`) share a bucket; the trailing slash on the prefix is all
-that keeps one listing out of the other, since an object tag cannot
-condition a LIST. `BREAK=1` rebuilds choudoufu without the slash (Go
-needed), and the wire must show one estate fetching the other's record.
+`smoke-prod-eu`) share a bucket, and the trailing slash on the key prefix
+keeps each listing to its own estate. `BREAK=1` rebuilds choudoufu without
+the slash (needs Go), and the wire must show one estate fetching the
+other's record.
 
-### one-bucket-many-estates (claims 34, 35 and 36 until #1817)
+### one-bucket-many-estates
 
     SMOKE_REAL_AWS=1 just smoke one-bucket-many-estates
     SMOKE_REAL_AWS=1 BREAK=1 just smoke one-bucket-many-estates
     SMOKE_REAL_AWS=1 BREAK_FIRST_WRITE=1 just smoke one-bucket-many-estates
     SMOKE_REAL_AWS=1 BREAK_UNTAGGED=1 just smoke one-bucket-many-estates
 
-Two new estates' first writes go through the published policy, whose
-create condition is `s3:RequestObjectTag`, because `s3:ExistingObjectTag`
-reads tags an object that does not exist yet does not have. Every object
-either estate writes carries `tofu-estate`, and a record also
-`tofu-address` (a dot in an instance key escaped as `@d`). Reading a
-neighbour's records takes two mistakes: a mis-scoped prefix is still
-stopped by the object-tag Deny, and a relabel is stopped by its own Deny
-(#1381). Updates and deletes under `If-Match` work as the role, and a
-record retagged as another estate's, under the estate's own prefix, is
-refused to it by name rather than planned as gone.
+Real AWS, maintainer-run with `SMOKE_REAL_AWS=1`. Two new estates' first
+writes go through the published policy, whose create condition is
+`s3:RequestObjectTag`. Every object either estate writes carries
+`tofu-estate`, and a record also `tofu-address` (a dot in an instance key
+escaped as `@d`). A mis-scoped prefix is stopped by the object-tag Deny,
+and a relabel by its own Deny (#1381). Updates and deletes under
+`If-Match` work as the role, and a record retagged as another estate's,
+under the estate's own prefix, is refused to it by name.
 
 `BREAK=1` widens the prefix and removes one Deny at a time, and each time
 the neighbour's record must read back. `BREAK_FIRST_WRITE=1` swaps the
 create condition to `s3:ExistingObjectTag`, and a new estate's first
 create must be denied. `BREAK_UNTAGGED=1` builds a binary that sends no
-tags (Go needed), and its first write must be denied. These were three
-scenarios, a-new-estate-writes-its-first-record, this one and
-objects-carry-the-estate-tag, each standing up its own bucket and roles;
-one paid run now covers all three and fails as a unit.
+tags (needs Go), and its first write must be denied.
 
-### a-read-only-role-can-plan (claim 38 until #1817)
+### a-read-only-role-can-plan
 
     SMOKE_REAL_AWS=1 just smoke a-read-only-role-can-plan
     SMOKE_REAL_AWS=1 BREAK=1 just smoke a-read-only-role-can-plan
 
-A role with the read-only rendering of the policy plans an established
-estate and writes nothing; a store with no sentinel is still refused by
-name. `BREAK=1` restores the pre-#1416 sentinel write, and the role must
-then be unable to plan at all.
+Real AWS, maintainer-run with `SMOKE_REAL_AWS=1`. A role with the
+read-only rendering of the policy plans an established estate and writes
+nothing, and a store with no sentinel is refused by name. `BREAK=1`
+restores the pre-#1416 sentinel write, and the role must then be unable
+to plan at all.
 
-The real-AWS proofs are maintainer-run: the pinned emulator does not
-evaluate `s3:ExistingObjectTag` or `s3:RequestObjectTag`.
+### an-estate-reads-another-by-declaring-it
 
-### an-estate-reads-another-by-declaring-it (claim 44 until it merged here)
+    just smoke an-estate-reads-another-by-declaring-it
+    BREAK=1 just smoke an-estate-reads-another-by-declaring-it
 
 Every estate records its root output values under `tofu-outputs/<estate>/`
-in the record store, for its own next plan. Issue #1371 lets another estate
-in the same bucket read them, narrowly: for a value no live resource holds,
-such as a name the producer chose. A value that mirrors a live attribute is
-still read with a data source on the live resource (`live/OUTPUTS.md`).
-
-Both sides say so. The consumer's configuration declares the read:
+in the record store (#1371). The consumer's configuration declares the
+read:
 
 ```hcl
 data "terraform_estate_outputs" "network" {
@@ -94,25 +80,11 @@ and its role is rendered with `render-policy.sh app <bucket>
 --reads-outputs-of network`, which adds one statement,
 `ReadDeclaredDependenciesOutputs`, a GetObject on `tofu-outputs/network/*`.
 
-```text
-Clone https://github.com/INTENTIUS/choudoufu. Confirm Docker is running
-(docker info), and the AWS CLI and jq are installed. If Go is not
-installed, export CHOUDOUFU_VERSION=<latest tag from
-https://github.com/INTENTIUS/choudoufu/releases>. From the repo root run:
-
-  just smoke an-estate-reads-another-by-declaring-it
-
-Explain each step's verdict line to me as it prints. Then run
-BREAK=1 just smoke an-estate-reads-another-by-declaring-it and report the
-"caught" line: the consumer's role loses the grant, and the plan must
-refuse naming estate network.
-```
-
 1. `one bucket, two roles`. A bucket that meets the bucket contract, and
    two emulator roles from the published renderer: `network`, and `app`
-   with `--reads-outputs-of network`. The emulator's IAM filter is on.
+   with `--reads-outputs-of network`.
 2. `the producer applies and records its output`. `network` applies as its
-   own role. Its one root output is one object under
+   own role, and its one root output is one object under
    `tofu-outputs/network/`.
 3. `the consumer plans with the value`. `app` plans as its own role, in its
    own directory. `terraform_data.service` is planned with
@@ -120,31 +92,16 @@ refuse naming estate network.
    carries the warning `Values from another estate are as of its last
    apply` with the time the record was written.
 4. `the producer is destroyed, and its values go with it`. `network` runs
-   `apply -destroy`. Nothing is left under `tofu-outputs/network/`, and the
-   consumer's same plan now stops with `Another estate has not recorded
-   this output`, naming estate network and the output. Before #1371's
-   second change the object stayed and the consumer went on planning with a
-   destroyed estate's last value; the scenario run against that binary
-   fails at this step. A `-target` or `-exclude` destroy keeps the records,
-   since the estate is still there.
+   `apply -destroy`, nothing is left under `tofu-outputs/network/`, and the
+   consumer's same plan stops with
+   `Another estate has not recorded this output`, naming estate network
+   and the output.
 
-Under `BREAK=1` the consumer's role is rendered without
-`--reads-outputs-of network` and its configuration still declares the read.
-The plan must fail with `This estate may not read another estate's
-outputs`, naming estate network and the `--reads-outputs-of network` flag,
-and must not show network's value. That the refusal is a named one and not
-an evaluation against nothing is the point: the reader treats every failure
-as a diagnostic, where the estate's reader of its own outputs logs and
-skips.
-
-What this proof does not say. The emulator does not evaluate `s3:prefix`,
-`s3:RequestObjectTag` or `s3:ExistingObjectTag`, so the scenario removes the
-conditions from the Allow statements, grants the list on `*` (the emulator
-does not match a virtual-hosted ListObjectsV2 against the bucket's ARN), and
-the tag Denies never fire. The refusal here comes from the resource scope of
-the one statement the flag adds. The tag-conditioned half, that the grant
-opens network's outputs and nothing else of network, is
-one-bucket-many-estates above, on real AWS.
+`BREAK=1` renders the consumer's role without `--reads-outputs-of network`
+while its configuration still declares the read. The plan must fail with
+`This estate may not read another estate's outputs`, naming estate network
+and the `--reads-outputs-of network` flag, and must not show network's
+value.
 
 ## On Kubernetes
 
@@ -156,31 +113,23 @@ one-bucket-many-estates above, on real AWS.
 The scenario is [claim 29's](a-wrong-bucket-is-refused.md#on-kubernetes).
 Step 2: a Kubernetes-only estate writes its first record as a Secret with
 no AWS credentials anywhere. Step 4: a role scoped to one records
-namespace cannot read another estate's records, while a role with list
-and get on a shared namespace reads all of them, which is why the
-namespace is per estate. Step 5: record Secrets carry `tofu-estate`, so
-the estate-boundary policy fences writes to them with no new policy.
-Step 9: an identity with get and list plans and writes nothing. `BREAK=1`
+namespace reads only that estate's records. Step 5: record Secrets carry
+`tofu-estate`, so the estate-boundary policy fences writes to them. Step
+9: an identity with get and list plans and writes nothing. `BREAK=1`
 widens the plan role and removes the policy, and the other estate's
-records must become readable and writable. Two estates whose key
-prefixes prefix one another are not measured here.
+records must become readable and writable.
 
-### k8s-an-estate-reads-another-by-declaring-it (claim 44 until it merged here)
+### k8s-an-estate-reads-another-by-declaring-it
 
     just smoke k8s-an-estate-reads-another-by-declaring-it
     BREAK=1 just smoke k8s-an-estate-reads-another-by-declaring-it
 
-Needs `kind` and `kubectl`. On Kubernetes the declaration is the reader's
-`record_store` block: `reads_outputs_of "network" {}` opens network's
-records namespace through a store that can only get. With nothing
-declared, the read is refused before it is sent, under an identity RBAC
-would have let through. Declared, and with a Role granting one `get` on
-network's output Secret, the consumer plans with the value, says how old
-it is, and changes nothing of network's; after network's destroy deletes
-that output, the consumer is told so by name. `BREAK=1` declares the read
-and withholds the Role, and the plan must refuse, naming the estate, its
-namespace and the Role to grant.
-
-## On Azure
-
-Open. Nothing has run on Azure yet. Each blob carries `tofu-estate` as a blob index tag, and `live/azure/record-store-abac.condition` is the read fence on it; floci-az serves role assignments since 30000b0 and stores their ABAC conditions, but evaluates no condition and no data action, so the fence is unmeasured.
+Needs `kind` and `kubectl`. The declaration is the reader's `record_store`
+block: `reads_outputs_of "network" {}` reads network's records namespace
+through a store that can only get. With nothing declared, the read is
+refused before it is sent. Declared, and with a Role granting one `get` on
+network's output Secret, the consumer plans with the value, says when it
+was recorded, and changes nothing of network's; after network's destroy
+deletes that output, the consumer is told so by name. `BREAK=1` declares
+the read and withholds the Role, and the plan must refuse, naming the
+estate, its namespace and the Role to grant.

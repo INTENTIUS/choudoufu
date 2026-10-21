@@ -225,11 +225,25 @@ func (b *builder) locatedIdentityWithAliases(ctx context.Context, addr addrs.Abs
 	case 1:
 		return found, "", false, true, true, nil
 	default:
-		return LocatedRecord{}, "", false, false, false, fmt.Errorf(
-			"more than one address a moved block says %s used to have carries a located record (the most recently checked is %s); this package will not guess which prior record is this instance's",
-			addr, last,
-		)
+		return LocatedRecord{}, "", false, false, false, &movedAliasesAmbiguousError{addr: addr, last: last}
 	}
+}
+
+// movedAliasesAmbiguousError is [builder.locatedIdentityWithAliases]'s
+// refusal when more than one address a moved block leads from holds a
+// record. [builder.materializeFromRecord] recognises it and leaves the
+// instance to the declared-identity path, where [builder.checkOwnership]
+// names every recorded origin ([SummaryMovedRecordsAmbiguous]); the located
+// door reports it as it always has.
+type movedAliasesAmbiguousError struct {
+	addr, last addrs.AbsResourceInstance
+}
+
+func (e *movedAliasesAmbiguousError) Error() string {
+	return fmt.Sprintf(
+		"more than one address a moved block says %s used to have carries a located record (the most recently checked is %s); this package will not guess which prior record is this instance's",
+		e.addr, e.last,
+	)
 }
 
 // LocatedRecordFrom derives the [LocatedRecord] one applied object of
@@ -342,6 +356,10 @@ func LocatedRecordFromIn(resourceType string, schema providers.Schema, obj cty.V
 				for name, v := range identity.LocatedIdentityOptional(obj, plan.OptionalComponents) {
 					rec.Components[name] = v
 				}
+				// Recorded in the importer's form: a google Read can fill
+				// an identity argument with a self link its importer
+				// refuses ([identity.RewriteIdentityValues]).
+				rec.Components = identity.RewriteIdentityValues(resourceType, rec.Components)
 			}
 		case plan.Composed():
 			// The provider serves no identity object for this type, so

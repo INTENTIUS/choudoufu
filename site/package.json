@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && node scripts/check-rooms.mjs",
+    "build": "astro build && node scripts/check-rooms.mjs && node scripts/check-links.mjs",
     "preview": "astro preview",
     "lint:prose": "node scripts/lint-prose.mjs"
   },

@@ -1,9 +1,10 @@
 # Adopt
 
-Everything on this page is built and none of it has been run against an
-emulator or a real subscription. Each claim's Azure cell reads `open` in
-[`live/CLAIMS.md`](../CLAIMS.md), and the
-[proof page](PROOF.md) says what would close each one.
+Both Azure estates, `reference-azure` and `corpus-azapi-role-assignment`,
+clear all 15 gauntlet stages on floci-az `7f079c2` (2026-10-21, azure
+`fbbc1c3bea`), with their records in `record_store "azurerm"` on floci-az
+blob storage. The migrate stage is this page's `live-import` path, run
+against each estate's stock state.
 
 ## Today
 
@@ -81,7 +82,7 @@ naming the object and the `az tag update` line that marks it.
 ## From a stock state file
 
 ```
-choudoufu live-import -approve
+choudoufu live-import -state=stock.tfstate -approve
 ```
 
 The bulk path is the AWS one ([#1073](https://github.com/INTENTIUS/choudoufu/issues/1073)).

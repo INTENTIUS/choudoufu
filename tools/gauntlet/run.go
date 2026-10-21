@@ -216,6 +216,8 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 	kindImage := kindNodeImagePin(root)
 	// flociAzImage is the same for every floci-az estate (#1120).
 	flociAzImage := flociAzImagePin(root)
+	// The same for the gcp lane's emulator (#1119).
+	gcpImage := flociGCPImagePin(root)
 	var selected []Estate
 	if len(opts.Names) > 0 {
 		for _, n := range opts.Names {
@@ -340,6 +342,11 @@ func RunEstates(root string, m *Manifest, a *Artifact, opts RunOptions, commit, 
 			// image and no hashicorp/aws version. Neither LastRun field for
 			// a provider names azurerm, so none is recorded yet.
 			r.LastRun.SubstrateImage = flociAzImage
+		case SubstrateFlociGCP:
+			// A floci-gcp row (#1119) launches the GCP emulator and never
+			// floci, and resolves hashicorp/google and never hashicorp/aws.
+			r.LastRun.SubstrateImage = gcpImage
+			r.LastRun.GoogleProviderVersion = res.Resolved.Version(ProviderGoogle)
 		default:
 			r.LastRun.Emulator = emulator
 			r.LastRun.AWSProviderVersion = res.Resolved.Version(ProviderAWS)

@@ -165,10 +165,13 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("kind cluster instead - a real API server, not an emulator - and has a bar")
 	w("of its own, `lanes.%s` in `%s`, counted toward neither bar", LaneKubernetes, ArtifactPath)
 	w("above. The `%s` lane (#1120) runs against floci-az, an Azure emulator,", LaneAzure)
-	w("with a bar of its own the same way, `lanes.%s`. A stage whose oracle is", LaneAzure)
-	w("AWS-shaped says under its entry below how it reads on the kind or floci-az")
-	w("substrate, or that it does not apply there, in which case the estate's")
-	w("cell reads `n/a` and is neutral for clear; nothing is skipped silently.")
+	w("with a bar of its own the same way, `lanes.%s`, and the `%s` lane", LaneAzure, LaneGCP)
+	w("(#1119) is the same arrangement on the floci-gcp emulator, pinned in")
+	w("`live/floci-gcp-image`, with its bar at `lanes.%s`. A stage whose", LaneGCP)
+	w("oracle is AWS-shaped says under its entry below how it reads on each")
+	w("of those substrates, or that it does not apply there, in which case the")
+	w("estate's cell reads `n/a` and is neutral for clear; nothing is skipped")
+	w("silently.")
 	w("")
 	w("An AWS-lane estate whose configuration also manages the cluster its own")
 	w("`aws_eks_cluster` creates declares `\"substrate\": \"%s\"` in the manifest", SubstrateFlociEKS)
@@ -292,7 +295,7 @@ func renderSpec(m *Manifest, a *Artifact, tt TypeIndexTotals) string {
 	w("")
 	w("`set` is `core` or `growing`; `reason` is required for core; `script` defaults")
 	w("to `live/e2e/<name>/run.sh`; `url` and `pin` are required except for the")
-	w("`reference` lane and a `%s`-lane or `%s`-lane estate kept in this", LaneKubernetes, LaneAzure)
+	w("`reference` lane and a `%s`-, `%s`- or `%s`-lane estate kept in this", LaneKubernetes, LaneAzure, LaneGCP)
 	w("repository.")
 	w("")
 	w("Lanes: %s.", strings.Join(KnownLanes, ", "))
@@ -907,6 +910,14 @@ func providerBanner(a *Artifact) string {
 			return "", false
 		}
 		return r.LastRun.KubernetesProviderVersion, true
+	}); l != "" {
+		lines = append(lines, l)
+	}
+	if l := providerLaneBanner(a, "hashicorp/google", a.Providers.Google, func(r EstateResult) (string, bool) {
+		if !UsesGoogleProvider(r.Substrate) || r.LastRun == nil || r.LastRun.GoogleProviderVersion == "" {
+			return "", false
+		}
+		return r.LastRun.GoogleProviderVersion, true
 	}); l != "" {
 		lines = append(lines, l)
 	}

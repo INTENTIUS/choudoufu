@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=714 instances=2453
-# shape: class CONCRETE=1507
-# shape: class NEEDS_DISCOVERY=781
+# shape: dirs=731 instances=2524
+# shape: class CONCRETE=1570
+# shape: class NEEDS_DISCOVERY=789
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=683 fixture-instances=1749
+# shape: fixture-dirs=700 fixture-instances=1820
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=0ffe43f10722d2363d5d6f0fe4e6029c9fdf729155ace028f11390ef8427c152
+# shape: body-sha256=c82d6bc8734729768b4e3135ef0f896f7e3da05040ffec60a960e5c2036100fb
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -117,6 +117,9 @@ internal/live/discovery/testdata/estate-names/child	aws_vpc.child	NEEDS_DISCOVER
 internal/live/discovery/testdata/estate-names/child	module.grandchild.aws_vpc.grandchild	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/estate-names/child/grandchild	aws_vpc.grandchild	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/foreach-legacy-key	aws_subnet.this["at@sign"]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/gcp-count-slots	google_vertex_ai_index_endpoint.keys[0]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/gcp-count-slots	google_vertex_ai_index_endpoint.keys[1]	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/gcp-count-slots	google_vertex_ai_index_endpoint.site	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read	aws_iam_policy.team_0002_policy	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read-count	aws_iam_policy.team_policy[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read-count	aws_iam_policy.team_policy[1]	NEEDS_DISCOVERY		
@@ -374,6 +377,71 @@ internal/live/identity/testdata/formula-transform	aws_security_group.this[0]	NEE
 internal/live/identity/testdata/formula-transform	aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/formula-transform	module.cluster.aws_ecs_cluster.this[0]	CONCRETE	ex-fargate	name=ex-fargate
 internal/live/identity/testdata/formula-transform	module.svc.aws_ecs_service.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/gcp-create-named	google_ces_agent.triage	CONCRETE	projects/estate-prod/locations/us/apps/support/agents/triage	app=support,location=us,name=triage
+internal/live/identity/testdata/gcp-create-named	google_data_loss_prevention_inspect_template.pii	CONCRETE	projects/estate-prod/locations/global/inspectTemplates/pii	name=pii,parent=projects/estate-prod/locations/global
+internal/live/identity/testdata/gcp-create-named	google_data_loss_prevention_inspect_template.unnamed	NEEDS_DISCOVERY		
+internal/live/identity/testdata/gcp-create-named	google_dialogflow_generator.summary	CONCRETE	projects/estate-prod/locations/global/generators/summary	name=projects/estate-prod/locations/global/generators/summary
+internal/live/identity/testdata/gcp-create-named	google_scc_v2_organization_notification_config.findings	CONCRETE	organizations/123456789/locations/global/notificationConfigs/findings	name=organizations/123456789/locations/global/notificationConfigs/findings
+internal/live/identity/testdata/gcp-empty-segment	google_compute_global_network_endpoint.by_fqdn	CONCRETE	estate-prod/neg//api.example.com/443	fqdn=api.example.com,global_network_endpoint_group=neg,port=443
+internal/live/identity/testdata/gcp-empty-segment	google_compute_global_network_endpoint.by_ip	CONCRETE	estate-prod/neg/10.0.0.1//80	global_network_endpoint_group=neg,ip_address=10.0.0.1,port=80
+internal/live/identity/testdata/gcp-empty-segment	google_compute_global_network_endpoint.null_fqdn	CONCRETE	estate-prod/neg/10.0.0.9//80	global_network_endpoint_group=neg,ip_address=10.0.0.9,port=80
+internal/live/identity/testdata/gcp-empty-segment	google_compute_network_endpoint.no_instance	CONCRETE	estate-prod/europe-west1-b/zneg//10.0.0.3/80	ip_address=10.0.0.3,network_endpoint_group=zneg,port=80
+internal/live/identity/testdata/gcp-empty-segment	google_compute_region_network_endpoint.by_fqdn	CONCRETE	estate-prod/europe-west1/rneg//db.example.com/5432	fqdn=db.example.com,port=5432,region_network_endpoint_group=rneg
+internal/live/identity/testdata/gcp-empty-segment	google_compute_region_network_endpoint.by_ip	CONCRETE	estate-prod/europe-west1/rneg/10.0.0.2//8080	ip_address=10.0.0.2,port=8080,region_network_endpoint_group=rneg
+internal/live/identity/testdata/gcp-handwritten	google_app_engine_application.app	CONCRETE	estate-prod	
+internal/live/identity/testdata/gcp-handwritten	google_cloudfunctions_function.fn	CONCRETE	projects/estate-prod/locations/europe-west1/functions/fn	name=fn
+internal/live/identity/testdata/gcp-handwritten	google_compute_shared_vpc_host_project.host	CONCRETE	host-prj	project=host-prj
+internal/live/identity/testdata/gcp-handwritten	google_compute_shared_vpc_service_project.svc	CONCRETE	host-prj/svc-prj	host_project=host-prj,service_project=svc-prj
+internal/live/identity/testdata/gcp-handwritten	google_container_cluster.defaulted	CONCRETE	projects/estate-prod/locations/europe-west1/clusters/gke-default	name=gke-default
+internal/live/identity/testdata/gcp-handwritten	google_container_cluster.regional	CONCRETE	projects/estate-prod/locations/us-east1/clusters/gke	location=us-east1,name=gke
+internal/live/identity/testdata/gcp-handwritten	google_dataproc_workflow_template.wt	CONCRETE	projects/estate-prod/locations/europe-west1/workflowTemplates/wt	location=europe-west1,name=wt
+internal/live/identity/testdata/gcp-handwritten	google_gke_hub_feature_membership.fm	CONCRETE	projects/estate-prod/locations/global/features/configmanagement/membershipId/m1	feature=configmanagement,location=global,membership=m1
+internal/live/identity/testdata/gcp-handwritten	google_logging_folder_sink.long	CONCRETE	folders/123/sinks/f	folder=123,name=f
+internal/live/identity/testdata/gcp-handwritten	google_logging_folder_sink.short	CONCRETE	folders/456/sinks/g	folder=456,name=g
+internal/live/identity/testdata/gcp-handwritten	google_logging_project_exclusion.noisy	CONCRETE	projects/estate-prod/exclusions/noisy	name=noisy
+internal/live/identity/testdata/gcp-handwritten	google_logging_project_sink.audit	CONCRETE	projects/estate-prod/sinks/audit	name=audit
+internal/live/identity/testdata/gcp-handwritten	google_organization_policy.org	CONCRETE	1234/constraints/compute.skipDefaultNetworkCreation	constraint=constraints/compute.skipDefaultNetworkCreation,org_id=1234
+internal/live/identity/testdata/gcp-handwritten	google_project_organization_policy.serial	CONCRETE	estate-prod:compute.disableSerialPortAccess	constraint=compute.disableSerialPortAccess,project=estate-prod
+internal/live/identity/testdata/gcp-iam-parse	google_bigquery_dataset_iam_member.ds	CONCRETE	projects/estate-prod/datasets/analytics roles/bigquery.dataViewer group:a@example.com	dataset_id=analytics,member=group:a@example.com,role=roles/bigquery.dataViewer
+internal/live/identity/testdata/gcp-iam-parse	google_billing_account_iam_member.ba	CONCRETE	012345-6789AB-CDEF01 roles/billing.viewer group:a@example.com	billing_account_id=012345-6789AB-CDEF01,member=group:a@example.com,role=roles/billing.viewer
+internal/live/identity/testdata/gcp-iam-parse	google_dataproc_cluster_iam_member.cl	CONCRETE	projects/estate-prod/regions/europe-west1/clusters/batch roles/dataproc.viewer group:a@example.com	cluster=batch,member=group:a@example.com,role=roles/dataproc.viewer
+internal/live/identity/testdata/gcp-iam-parse	google_dataproc_metastore_database_iam_member.long	CONCRETE	projects/other/locations/us-east1/services/meta/databases/sales roles/metastore.user group:a@example.com	database=sales,location=us-east1,member=group:a@example.com,project=other,role=roles/metastore.user,service_id=meta
+internal/live/identity/testdata/gcp-iam-parse	google_dataproc_metastore_database_iam_member.short	CONCRETE	projects/estate-prod/locations/europe-west1/services/meta/databases/sales roles/metastore.user group:a@example.com	database=sales,member=group:a@example.com,role=roles/metastore.user,service_id=meta
+internal/live/identity/testdata/gcp-iam-parse	google_folder_iam_member.long	CONCRETE	folders/456 roles/viewer group:a@example.com	folder=folders/456,member=group:a@example.com,role=roles/viewer
+internal/live/identity/testdata/gcp-iam-parse	google_folder_iam_member.short	CONCRETE	folders/123 roles/viewer group:a@example.com	folder=123,member=group:a@example.com,role=roles/viewer
+internal/live/identity/testdata/gcp-iam-parse	google_iap_app_engine_service_iam_member.svc	CONCRETE	projects/estate-prod/iap_web/appengine-estate-prod/services/default roles/iap.httpsResourceAccessor group:a@example.com	app_id=estate-prod,member=group:a@example.com,role=roles/iap.httpsResourceAccessor,service=default
+internal/live/identity/testdata/gcp-iam-parse	google_spanner_database_iam_member.db	CONCRETE	estate-prod/core/ledger roles/spanner.databaseReader group:a@example.com	database=ledger,instance=core,member=group:a@example.com,role=roles/spanner.databaseReader
+internal/live/identity/testdata/gcp-iam-parse	google_spanner_instance_iam_member.inst	CONCRETE	estate-data/core roles/spanner.viewer group:a@example.com	instance=core,member=group:a@example.com,project=estate-data,role=roles/spanner.viewer
+internal/live/identity/testdata/gcp-identity-rows	google_compute_disk.data	CONCRETE	projects/estate-data/zones/europe-west1-c/disks/data	name=data,project=estate-data,zone=europe-west1-c
+internal/live/identity/testdata/gcp-identity-rows	google_compute_network.vpc	CONCRETE	projects/estate-prod/global/networks/estate-vpc	name=estate-vpc
+internal/live/identity/testdata/gcp-identity-rows	google_compute_subnetwork.app	CONCRETE	projects/estate-prod/regions/europe-west1/subnetworks/app	name=app
+internal/live/identity/testdata/gcp-identity-rows	google_project_iam_member.runner_logs	CONCRETE	estate-prod roles/logging.logWriter serviceAccount:ci-runner@estate-prod.iam.gserviceaccount.com	member=serviceAccount:ci-runner@estate-prod.iam.gserviceaccount.com,project=estate-prod,role=roles/logging.logWriter
+internal/live/identity/testdata/gcp-identity-rows	google_pubsub_topic.events	CONCRETE	projects/estate-prod/topics/events	name=events
+internal/live/identity/testdata/gcp-identity-rows	google_pubsub_topic.orphan	NEEDS_DISCOVERY		
+internal/live/identity/testdata/gcp-identity-rows	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
+internal/live/identity/testdata/gcp-identity-rows	google_service_account.runner	CONCRETE	projects/estate-prod/serviceAccounts/ci-runner@estate-prod.iam.gserviceaccount.com	email=ci-runner@estate-prod.iam.gserviceaccount.com
+internal/live/identity/testdata/gcp-identity-rows	google_storage_bucket_iam_member.reader	CONCRETE	b/estate-artifacts roles/storage.objectViewer group:readers@example.com until 2027	bucket=estate-artifacts,condition_title=until 2027,member=group:readers@example.com,role=roles/storage.objectViewer
+internal/live/identity/testdata/gcp-location-rule	google_artifact_registry_repository.defaulted	CONCRETE	projects/estate-prod/locations/europe-west1/repositories/images	repository_id=images
+internal/live/identity/testdata/gcp-location-rule	google_artifact_registry_repository.multi	CONCRETE	projects/estate-prod/locations/us/repositories/mirror	location=us,repository_id=mirror
+internal/live/identity/testdata/gcp-location-rule	google_artifact_registry_rule.keep	CONCRETE	projects/estate-prod/locations/europe-west1/repositories/images/rules/keep	location=europe-west1,repository_id=images,rule_id=keep
+internal/live/identity/testdata/gcp-location-rule	google_compute_snapshot_settings.settings	CONCRETE	projects/estate-prod/global/snapshotSettings/	
+internal/live/identity/testdata/gcp-long-form	google_cloud_run_v2_service_iam_member.location_agrees	CONCRETE	projects/estate-prod/locations/europe-west1/services/api roles/run.invoker group:a@example.com	location=europe-west1,member=group:a@example.com,name=api,role=roles/run.invoker
+internal/live/identity/testdata/gcp-long-form	google_cloud_run_v2_service_iam_member.location_short	CONCRETE	projects/estate-prod/locations/us-east1/services/api roles/run.invoker group:a@example.com	location=us-east1,member=group:a@example.com,name=api,role=roles/run.invoker
+internal/live/identity/testdata/gcp-long-form	google_compute_network_firewall_policy.p	CONCRETE	projects/estate-prod/global/firewallPolicies/pol	name=pol
+internal/live/identity/testdata/gcp-long-form	google_compute_network_firewall_policy_rule.r	CONCRETE	projects/estate-prod/global/firewallPolicies/pol/rules/1000	firewall_policy=pol,priority=1000
+internal/live/identity/testdata/gcp-long-form	google_compute_region_network_firewall_policy.rp	CONCRETE	projects/estate-prod/regions/europe-west1/firewallPolicies/rpol	name=rpol,region=europe-west1
+internal/live/identity/testdata/gcp-long-form	google_compute_region_network_firewall_policy_rule.rr	CONCRETE	projects/estate-prod/regions/europe-west1/firewallPolicies/rpol/1000	firewall_policy=rpol,priority=1000,project=estate-prod,region=europe-west1
+internal/live/identity/testdata/gcp-long-form	google_pubsub_subscription.orders	CONCRETE	projects/estate-prod/subscriptions/orders	name=orders
+internal/live/identity/testdata/gcp-long-form	google_pubsub_subscription_iam_member.byid	CONCRETE	projects/estate-prod/subscriptions/orders roles/pubsub.subscriber group:b@example.com	member=group:b@example.com,role=roles/pubsub.subscriber,subscription=orders
+internal/live/identity/testdata/gcp-long-form	google_pubsub_subscription_iam_member.other_project	CONCRETE	projects/other/subscriptions/orders roles/pubsub.subscriber group:a@example.com	member=group:a@example.com,project=other,role=roles/pubsub.subscriber,subscription=orders
+internal/live/identity/testdata/gcp-long-form	google_pubsub_subscription_iam_member.short	CONCRETE	projects/estate-prod/subscriptions/orders roles/pubsub.subscriber group:a@example.com	member=group:a@example.com,role=roles/pubsub.subscriber,subscription=orders
+internal/live/identity/testdata/gcp-long-form	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
+internal/live/identity/testdata/gcp-long-form	google_secret_manager_secret.s	CONCRETE	projects/estate-prod/secrets/db-pass	secret_id=db-pass
+internal/live/identity/testdata/gcp-long-form	google_secret_manager_secret_iam_member.byid	CONCRETE	projects/estate-prod/secrets/db-pass roles/secretmanager.secretAccessor group:a@example.com	member=group:a@example.com,role=roles/secretmanager.secretAccessor,secret_id=db-pass
+internal/live/identity/testdata/gcp-long-form	google_secret_manager_secret_iam_member.byname	CONCRETE	projects/estate-prod/secrets/db-pass roles/secretmanager.secretAccessor group:b@example.com	member=group:b@example.com,role=roles/secretmanager.secretAccessor,secret_id=db-pass
+internal/live/identity/testdata/gcp-long-form	google_secret_manager_secret_iam_member.literal_long	CONCRETE	projects/other/secrets/db-pass roles/secretmanager.secretAccessor group:a@example.com	member=group:a@example.com,project=other,role=roles/secretmanager.secretAccessor,secret_id=db-pass
+internal/live/identity/testdata/gcp-long-form	google_securityposture_posture.org	CONCRETE	organizations/123/locations/global/postures/baseline	location=global,parent=organizations/123,posture_id=baseline
+internal/live/identity/testdata/gcp-optional-placeholder	google_bigquery_connection.lake	CONCRETE	projects/estate-prod/locations/EU/connections/lake	connection_id=lake,location=EU
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_a	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.duplicate_b	CONCRETE	other-group/same-action	autoscaling_group_name=other-group,scheduled_action_name=same-action
 internal/live/identity/testdata/identity-object-distinct	aws_autoscaling_schedule.this["go-offline-to-celebrate-new-year"]	CONCRETE	shared-group/go-offline-to-celebrate-new-year	autoscaling_group_name=shared-group,scheduled_action_name=go-offline-to-celebrate-new-year
@@ -602,6 +670,7 @@ internal/live/identity/testdata/record-backed-parent-attr	null_resource.gate	REC
 internal/live/identity/testdata/record-backed-parent-attr	random_pet.suffix	RECORD_BACKED		
 internal/live/identity/testdata/record-backed-parent-attr	terraform_data.seed	RECORD_BACKED		
 internal/live/identity/testdata/record-backed-parent-attr-unknown	random_pet.suffix	RECORD_BACKED		
+internal/live/identity/testdata/record-fallback-google-labelled	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
 internal/live/identity/testdata/record-fallback-sibling-apply	aws_acm_certificate.this	NEEDS_DISCOVERY		
 internal/live/identity/testdata/record-fallback-sibling-apply	aws_s3_bucket.logs	NEEDS_DISCOVERY		
 internal/live/identity/testdata/record-fallback-untaggable	aws_autoscaling_group.named	CONCRETE	web-static	name=web-static
@@ -1620,6 +1689,8 @@ internal/live/projection/testdata/record-parent-derived	aws_cloudwatch_log_group
 internal/live/projection/testdata/record-parent-derived	null_resource.suffix	RECORD_BACKED		
 internal/live/projection/testdata/two-region	aws_cloudwatch_log_group.east	CONCRETE	/app/logs	name=/app/logs
 internal/live/projection/testdata/two-region	aws_cloudwatch_log_group.west	CONCRETE	/app/logs	name=/app/logs
+internal/live/projection/testdata/unrecorded-google-firewall	google_compute_firewall.ssh	CONCRETE	projects/broadcom-451918/global/firewalls/allow-ssh	name=allow-ssh,project=broadcom-451918
+internal/live/projection/testdata/unrecorded-google-firewall-moved	google_compute_firewall.ssh	CONCRETE	projects/broadcom-451918/global/firewalls/allow-ssh	name=allow-ssh,project=broadcom-451918
 internal/live/providerscope/testdata/aliased-parent	module.east.aws_s3_bucket.data	CONCRETE	east-bucket	bucket=east-bucket
 internal/live/providerscope/testdata/aliased-parent	module.west.aws_s3_bucket.data	CONCRETE	west-bucket	bucket=west-bucket
 internal/live/providerscope/testdata/aliased-parent/vpc	aws_s3_bucket.data	CONCRETE	east-bucket	bucket=east-bucket

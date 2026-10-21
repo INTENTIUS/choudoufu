@@ -411,3 +411,43 @@ func TestK8sConflict_recordFirstKeyThroughBuild(t *testing.T) {
 		})
 	}
 }
+
+// TestGoogleConflict_speaksGoogleNotKubernetes is the first GCP gauntlet
+// run's test_plan refusal on reference-gcp's refgcp-vm: the #1546 refusal
+// fired correctly on an unlabelled compute instance at its declared name and
+// explained it as a Kubernetes API server keying the object by kind,
+// namespace and name, with one label to write. A google object is keyed by
+// its name in the project or location, and its marker is two labels.
+func TestGoogleConflict_speaksGoogleNotKubernetes(t *testing.T) {
+	b := k8sOwnershipBuilder(&Ownership{Estate: k8sOwnershipEstate})
+	addr := googleBucketAddr(addrs.NoKey)
+	m := cty.Map(cty.String)
+	live := googleObject(cty.NullVal(m), cty.NullVal(m), cty.NullVal(m))
+
+	if got := b.checkOwnership(addr, "google_storage_bucket", "logs", googleBucketSchema(), live, true, false, false); got != ownershipUnowned {
+		t.Fatalf("checkOwnership = %d, want ownershipUnowned (%d)", got, ownershipUnowned)
+	}
+	errs := errorDiagsWith(b.diags, conflictSummary)
+	if len(errs) != 1 {
+		t.Fatalf("want exactly one Error %q, got:\n%s", conflictSummary, renderDiags(b.diags))
+	}
+	detail := errs[0].Description().Detail
+	for _, want := range []string{
+		`"logs"`,
+		addr.String(),
+		"carries no " + markers.TagEstate + " label",
+		"409 alreadyExists",
+		`policy { declared_untagged = "adopt" }`,
+		markers.TagEstate + `="` + k8sOwnershipEstate + `"`,
+		markers.TagAddress + `="` + markers.GoogleAddressValue(addr) + `"`,
+	} {
+		if !strings.Contains(detail, want) {
+			t.Errorf("the refusal does not say %q:\n%s", want, detail)
+		}
+	}
+	for _, wrong := range []string{"API server", "namespace", "kind"} {
+		if strings.Contains(detail, wrong) {
+			t.Errorf("the google refusal says %q, which is Kubernetes wording:\n%s", wrong, detail)
+		}
+	}
+}

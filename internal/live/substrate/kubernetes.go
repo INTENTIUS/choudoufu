@@ -102,6 +102,14 @@ func (kubernetes) SweepFindsUnadmitted() bool { return true }
 // #1883).
 func (kubernetes) MarkerOutlivesObject() bool { return false }
 
+// Unrecorded is [UnrecordedCreates]. The markerless Kubernetes types that
+// matter (kubernetes_labels, kubernetes_annotations,
+// kubernetes_config_map_v1_data, kubernetes_env, kubernetes_node_taint)
+// patch an object someone else made and are judged by field manager, never
+// by this answer (internal/live/projection's fieldGranularOwned). Any other
+// markerless type with no record plans its create.
+func (kubernetes) Unrecorded(string) Unrecorded { return UnrecordedCreates }
+
 // NewSweeper is the cluster client the provider block's own connection
 // arguments build ([KubernetesSweepAttrs] mirrors hashicorp/kubernetes'
 // precedence).

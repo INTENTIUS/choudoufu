@@ -158,20 +158,13 @@ func nextUnitsAgainst(headline []Stage, a *Artifact, set string, pins SubstrateP
 	for _, r := range staleClear {
 		var reasons []string
 		if IsSubstrateStale(r, a.Emulator, pins) {
-			switch r.Substrate {
-			case SubstrateKind:
+			if pin, ok := substrateImagePin(r.Substrate, pins); ok {
 				img := "unrecorded"
 				if r.LastRun != nil && r.LastRun.SubstrateImage != "" {
 					img = r.LastRun.SubstrateImage
 				}
-				reasons = append(reasons, fmt.Sprintf("last verified against kind node image %s; the current pin is %s", img, pins.Kind))
-			case SubstrateFlociAz:
-				img := "unrecorded"
-				if r.LastRun != nil && r.LastRun.SubstrateImage != "" {
-					img = r.LastRun.SubstrateImage
-				}
-				reasons = append(reasons, fmt.Sprintf("last verified against floci-az image %s; the current pin is %s", img, orNone(pins.FlociAz)))
-			default:
+				reasons = append(reasons, fmt.Sprintf("last verified against %s %s; the current pin is %s", substrateImageNoun(r.Substrate), img, orNone(pin)))
+			} else {
 				emu := "unrecorded"
 				if r.LastRun != nil && r.LastRun.Emulator != "" {
 					emu = r.LastRun.Emulator

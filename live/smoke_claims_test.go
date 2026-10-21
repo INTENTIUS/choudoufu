@@ -46,7 +46,7 @@ const (
 )
 
 // smokeProviderNames is how a page heads a provider's section: "## On AWS".
-var smokeProviderNames = map[string]string{"aws": "AWS", "kubernetes": "Kubernetes", "azure": "Azure"}
+var smokeProviderNames = map[string]string{"aws": "AWS", "kubernetes": "Kubernetes", "azure": "Azure", "gcp": "GCP"}
 
 type smokeClaimsFile struct {
 	Themes        map[string]string `json:"themes"`
@@ -71,6 +71,10 @@ type smokeClaimsFile struct {
 // statement nested inside the survivor's, its proofs moved into the
 // survivor's cells, and its page became a stub pointing at the survivor's
 // page. It names no provider, because every cell moved.
+//
+// Reserved is a number held back with no claim behind it: a promise with
+// no proof left the list, and its number is never reused. It names nothing
+// else, and its page is a stub.
 type smokeRetired struct {
 	ID         int    `json:"id"`
 	Slug       string `json:"slug"`
@@ -79,6 +83,7 @@ type smokeRetired struct {
 	Demo       bool   `json:"demo"`
 	CoveredBy  string `json:"covered_by"`
 	MergedInto int    `json:"merged_into"`
+	Reserved   bool   `json:"reserved"`
 }
 
 // target is the live claim a retired number's URL lands on.
@@ -209,9 +214,10 @@ func smokeDemoNames(f smokeClaimsFile) map[string]bool {
 	return out
 }
 
-// unproven is a cell whose proofs exist and at least one of them names no
-// dated run and no passing gauntlet stage (proven_cell_ci_test.go).
-var smokeClaimStatuses = map[string]bool{"proven": true, "restated": true, "unproven": true, "n/a": true, "open": true}
+// A cell is proven, every proof in it on a dated run
+// (proven_cell_ci_test.go), or n/a where the substrate has no such concept.
+// A promise with no proof is a GitHub issue, never a cell.
+var smokeClaimStatuses = map[string]bool{"proven": true, "n/a": true}
 
 // scenarioHeader is the second line of every claim scenario:
 // "# CLAIM 13 (aws) - The tag is the boundary: ... ~4 min." The number, the
@@ -312,6 +318,15 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 			}
 			if !demos[r.Slug] {
 				t.Errorf("retired claim %d says it became a demo, and %s lists no demo %s.sh", r.ID, smokeClaimsPath, r.Slug)
+			}
+			continue
+		}
+		if r.Reserved {
+			if r.Claim != 0 || r.Provider != "" || r.CoveredBy != "" || r.MergedInto != 0 {
+				t.Errorf("retired claim %d is reserved and also names a claim, provider, covered_by or merged_into; a reserved number names nothing", r.ID)
+			}
+			if _, err := os.Stat(filepath.Join(smokeScenariosDir, r.Slug+".sh")); err == nil {
+				t.Errorf("retired claim %d is reserved and %s/%s.sh is still a scenario; a script with no claim lives under live/smoke/drafts/", r.ID, smokeScenariosDir, r.Slug)
 			}
 			continue
 		}
@@ -821,11 +836,8 @@ func TestSmokeClaimsRealServiceSaysSo(t *testing.T) {
 // means what #1112 ruled. proven is a proof that runs on that provider and
 // catches its BREAK control, so a proven cell carries at least one proof: a
 // scenario of its own, steps of another claim's scenario on the same
-// provider (proven_by), or a gauntlet stage. restated holds in a weaker form
-// the note states. unproven carries proofs and at least one of them names
-// no dated run (proven_cell_ci_test.go holds which). n/a is a substrate
-// with no such concept, and open is a missing proof, so neither carries
-// one. The row's substrate is the providers the promise
+// provider (proven_by), or a gauntlet stage. n/a is a substrate with no
+// such concept and carries none. The row's substrate is the providers the promise
 // applies to: every cell that is not n/a.
 func TestSmokeClaimsProviderCells(t *testing.T) {
 	f := readSmokeClaims(t)
@@ -846,18 +858,18 @@ func TestSmokeClaimsProviderCells(t *testing.T) {
 				continue
 			}
 			if !smokeClaimStatuses[cell.Status] {
-				t.Errorf("claim %d, %s: status %q is not one of proven/restated/n/a/open", c.ID, p, cell.Status)
+				t.Errorf("claim %d, %s: status %q is not proven or n/a; a promise with no proof is a GitHub issue", c.ID, p, cell.Status)
 			}
 			if cell.Status != "n/a" {
 				applies = append(applies, p)
 			}
 			scenarios += len(cell.scenarios())
-			proves := cell.Status == "proven" || cell.Status == "restated" || cell.Status == "unproven"
+			proves := cell.Status == "proven"
 			if len(cell.Proofs) > 0 && !proves {
-				t.Errorf("claim %d, %s: the cell carries %d proof(s) and reads %q; a cell with proofs reads proven, restated or unproven", c.ID, p, len(cell.Proofs), cell.Status)
+				t.Errorf("claim %d, %s: the cell carries %d proof(s) and reads %q; a cell with proofs reads proven", c.ID, p, len(cell.Proofs), cell.Status)
 			}
 			if proves && len(cell.Proofs) == 0 {
-				t.Errorf("claim %d, %s: %s with no proof; name it, or the cell reads open", c.ID, p, cell.Status)
+				t.Errorf("claim %d, %s: proven with no proof; name it, or drop the claim and file an issue", c.ID, p)
 			}
 			if cell.Status != "proven" && strings.TrimSpace(cell.Note) == "" {
 				t.Errorf("claim %d, %s: status %q with no note; say what is true instead", c.ID, p, cell.Status)
@@ -1003,6 +1015,9 @@ func TestSmokeClaimsPages(t *testing.T) {
 		if !strings.Contains(string(raw), "\nretired: "+fmt.Sprint(r.ID)+"\n") {
 			t.Errorf("%s/%s.md does not carry front matter `retired: %d`", siteClaimsPages, r.Slug, r.ID)
 		}
+		if r.Reserved {
+			continue
+		}
 		if r.Demo {
 			if want := "just smoke " + r.Slug; !strings.Contains(string(raw), want) {
 				t.Errorf("%s/%s.md: retired claim %d is a demo now and its page never gives `%s`", siteClaimsPages, r.Slug, r.ID, want)
@@ -1071,7 +1086,7 @@ func TestSmokeClaimsSiteRedirects(t *testing.T) {
 		t.Fatalf("%s lists no claims; this test is checking nothing", smokeClaimsPath)
 	}
 	for _, r := range f.Retired {
-		if r.Demo {
+		if r.Demo || r.Reserved {
 			expect(r.Slug, r.Slug)
 			continue
 		}
@@ -1114,85 +1129,6 @@ func TestSmokeClaimTitlesAreShortPromises(t *testing.T) {
 		if words > smokeTitleMaxWords || runes > smokeTitleMaxRunes {
 			t.Errorf("claim %d's title is %d words and %d characters; a title is a promise of at most %d words and %d characters, and the steps belong on live/smoke/claims/%s.md: %q",
 				c.ID, words, runes, smokeTitleMaxWords, smokeTitleMaxRunes, c.Slug, c.Title)
-		}
-	}
-}
-
-// TestSmokeDraftsNameAnOpenCell: a draft under live/smoke/drafts/ is a
-// written proof that has never run (smoke/drafts/README.md), and the cell it
-// is for reads open with a note that names it. Nothing held the two
-// together before the Azure drafts (#1120): a draft whose header named the
-// wrong claim, or whose cell was promoted to unproven while the script stayed
-// a draft, read the same as a correct one. Each draft's second line is a
-// "# CLAIM N (provider) - <title>. ~M min." header stating its claim's title
-// exactly, as a scenario's is; the cell for (N, provider) reads open; and its
-// note names live/smoke/drafts/<name>.sh. The other direction too: an open
-// cell's note that names a draft names one on disk.
-//
-// Proving it red: set claim 47's kubernetes cell to "unproven", or change the
-// path its note names; each fails a different check below.
-func TestSmokeDraftsNameAnOpenCell(t *testing.T) {
-	f := readSmokeClaims(t)
-	byID := map[int]smokeClaim{}
-	for _, c := range f.Claims {
-		byID[c.ID] = c
-	}
-	drafts, err := filepath.Glob(filepath.Join(smokeDraftsDir, "*.sh"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(drafts) == 0 {
-		t.Fatalf("no draft under %s; this test is checking nothing", smokeDraftsDir)
-	}
-	onDisk := map[string]bool{}
-	for _, path := range drafts {
-		name := filepath.Base(path)
-		rel := "live/" + filepath.ToSlash(path)
-		onDisk[rel] = true
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		lines := strings.SplitN(string(raw), "\n", 3)
-		if len(lines) < 2 {
-			t.Errorf("draft %s has no header line", name)
-			continue
-		}
-		m := scenarioHeaderTitle.FindStringSubmatch(lines[1])
-		if m == nil {
-			t.Errorf("draft %s line 2 is not a \"# CLAIM N (provider) - <title>. ~M min.\" header: %q", name, lines[1])
-			continue
-		}
-		var id int
-		fmt.Sscan(m[1], &id)
-		c, ok := byID[id]
-		if !ok {
-			t.Errorf("draft %s names claim %d, which is not a live claim", name, id)
-			continue
-		}
-		if m[3] != c.Title {
-			t.Errorf("draft %s states %q and claim %d's title is %q", name, m[3], id, c.Title)
-		}
-		cell, ok := c.Providers[m[2]]
-		if !ok {
-			t.Errorf("draft %s names provider %q, which claim %d has no cell for", name, m[2], id)
-			continue
-		}
-		if cell.Status != "open" {
-			t.Errorf("draft %s is the proof of claim %d (%s), and that cell reads %q; a proof that has never run leaves its cell open until it is promoted to %s", name, id, m[2], cell.Status, smokeScenariosDir)
-		}
-		if !strings.Contains(cell.Note, rel) {
-			t.Errorf("claim %d (%s) has a draft, %s, and its note does not name it", id, m[2], rel)
-		}
-	}
-	draftPath := regexp.MustCompile(`live/smoke/drafts/[A-Za-z0-9._-]+\.sh`)
-	for _, c := range f.Claims {
-		for p, cell := range c.Providers {
-			for _, named := range draftPath.FindAllString(cell.Note, -1) {
-				if !onDisk[named] {
-					t.Errorf("claim %d (%s): the note names %s, which is not on disk", c.ID, p, named)
-				}
-			}
 		}
 	}
 }

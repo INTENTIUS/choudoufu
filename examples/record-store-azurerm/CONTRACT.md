@@ -5,6 +5,11 @@ choudoufu asserts three settings about the storage account behind
 [bucket's three](../record-store-bucket/CONTRACT.md), for the same reasons,
 read from where Azure keeps them.
 
+Both Azure estates, `reference-azure` and `corpus-azapi-role-assignment`,
+clear all 15 gauntlet stages on floci-az `7f079c2` (2026-10-21, azure
+`fbbc1c3bea`), with their records in `record_store "azurerm"` on floci-az
+blob storage. Their accounts pass all three assertions.
+
 | Setting | What is asserted | What it protects against |
 |---|---|---|
 | `blob_versioning` | `isVersioningEnabled` is true on the account's blob service | A record can be the only copy of what it says. A record-backed resource carries no marker and cannot be imported under a live block, so without versions an overwrite or a delete is final |
@@ -127,8 +132,9 @@ What it does not cover:
 - A `key_prefix` override moves the records prefix, and the list clause has
   to name the new one.
 
-The template is written from Azure's ABAC documentation and has not been
-measured; the maintainer measures it on floci-az.
+The template is written from Azure's ABAC documentation. floci-az stores a
+role assignment's ABAC condition and evaluates none, so the estates' runs
+exercise the store and not this fence.
 
 ## A correct account, stated without a project
 

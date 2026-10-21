@@ -3,9 +3,9 @@
   "generated_by": "go run ./tools/estate-types",
   "method": "static config parsing: internal/live/check.Load (the module-graph loader tools/corpus-fetch and tools/corpus-gen already use) reads each estate's .corpus configuration directory/directories - see spec.go for the directory list and the run.sh line each was traced against - and every instance's managed-resource type is collected across the whole resolved module tree, local and registry alike. A handful of estates whose crossing script writes its own root wiring with a heredoc (rather than deploying a .corpus directory verbatim) add a text scan of that script for literal resource blocks - see estateSpec.ScanScript. No gauntlet run, no docker, no cloud calls: every estate's types come from its committed or fetched configuration, not from a live plan or state file.",
   "totals": {
-    "estates": 46,
-    "distinct_types": 220,
-    "types_in_no_cohort": 142
+    "estates": 48,
+    "distinct_types": 233,
+    "types_in_no_cohort": 155
   },
   "estates": [
     {
@@ -171,11 +171,13 @@
       "name": "corpus-azapi-role-assignment",
       "types": [
         "azapi_resource",
-        "azurerm_user_assigned_identity"
+        "azurerm_user_assigned_identity",
+        "random_password"
       ],
-      "count": 2,
+      "count": 3,
       "sources": [
-        "config"
+        "config",
+        "script"
       ],
       "config_dirs": [
         ".corpus/azapi/examples/Microsoft.Authorization_roleAssignments@2022-04-01"
@@ -546,6 +548,22 @@
       ],
       "config_dirs": [
         ".corpus/iam/examples/iam-policy"
+      ],
+      "unresolved_modules": 0
+    },
+    {
+      "name": "corpus-k8s-infra-gcp-gcve",
+      "types": [
+        "google_compute_firewall",
+        "google_compute_network",
+        "google_compute_subnetwork",
+        "google_project_service",
+        "google_storage_bucket",
+        "random_password"
+      ],
+      "count": 6,
+      "sources": [
+        "script"
       ],
       "unresolved_modules": 0
     },
@@ -1013,9 +1031,10 @@
         "azurerm_storage_account",
         "azurerm_subnet",
         "azurerm_user_assigned_identity",
-        "azurerm_virtual_network"
+        "azurerm_virtual_network",
+        "random_password"
       ],
-      "count": 9,
+      "count": 10,
       "sources": [
         "script"
       ],
@@ -1060,6 +1079,29 @@
         "random_password"
       ],
       "count": 18,
+      "sources": [
+        "script"
+      ],
+      "unresolved_modules": 0
+    },
+    {
+      "name": "reference-gcp",
+      "types": [
+        "google_compute_disk",
+        "google_compute_firewall",
+        "google_compute_global_network_endpoint",
+        "google_compute_global_network_endpoint_group",
+        "google_compute_instance",
+        "google_compute_network",
+        "google_compute_region_network_endpoint",
+        "google_compute_region_network_endpoint_group",
+        "google_compute_subnetwork",
+        "google_pubsub_topic",
+        "google_service_account",
+        "google_storage_bucket",
+        "random_password"
+      ],
+      "count": 13,
       "sources": [
         "script"
       ],

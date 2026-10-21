@@ -404,13 +404,13 @@ type LiveStrictMarkers struct {
 }
 
 // LiveRecordStore is the "record_store" block nested inside a live block. Its
-// label picks the backend ("local", "s3", "kubernetes" or "azurerm"), the same
+// label picks the backend ("local", "s3", "kubernetes", "azurerm" or "gcs"), the same
 // labeled-block-names-the-implementation shape a stock "backend" block uses,
 // per issue #73's "phrased in familiar backend-like terms" ruling. See
 // [Live.RecordStore].
 type LiveRecordStore struct {
-	// Type is the block's label: "local", "s3", "kubernetes" or "azurerm".
-	// Validated against exactly those four spellings in decodeRecordStoreBlock;
+	// Type is the block's label: "local", "s3", "kubernetes", "azurerm" or
+	// "gcs". Validated against exactly those five spellings in decodeRecordStoreBlock;
 	// nothing else reaches this field. "ssm" is refused there by name
 	// (GitHub issue #1346).
 	Type      string
@@ -425,7 +425,7 @@ type LiveRecordStore struct {
 	PathSet   bool
 	PathRange hcl.Range
 
-	// Bucket is the "s3" backend's bucket name. Required for that backend;
+	// Bucket is the "s3" or "gcs" backend's bucket name. Required for both;
 	// unused by the local one.
 	Bucket      string
 	BucketSet   bool
@@ -517,6 +517,10 @@ type LiveRecordStore struct {
 	// internal/live/projection through internal/live/kubesweep's own loader,
 	// which is the one copy of that precedence this fork keeps.
 	Kubernetes LiveRecordStoreKubernetes
+
+	// GCS is the "gcs" backend's connection arguments, named and read the
+	// way stock's gcs backend names and reads them.
+	GCS LiveRecordStoreGCS
 
 	// ReadsOutputsOf is the "kubernetes" backend's declared cross-estate
 	// output reads: one `reads_outputs_of "<estate>"` block per other estate
@@ -732,6 +736,29 @@ var RecordStoreAzureRMSettings = func() []string {
 	}
 	return names
 }()
+
+// LiveRecordStoreGCS is the "gcs" record store's connection and encryption
+// arguments. Every name here is the stock gcs backend's own
+// (internal/backend/remote-state/gcs), and internal/live/projection builds
+// the client from them in stock's order: an access token, then credentials,
+// then the GOOGLE_* environment variables, then Application Default
+// Credentials, with impersonation over whichever applies. Stock's package is
+// not changed for this and cannot be imported from projection (it reaches
+// internal/backend/local, which imports projection), so projection keeps its
+// own copy of that order and a test there holds it to stock's schema.
+//
+// Empty means unset, and an unset argument takes the environment variable
+// stock's schema reads for it.
+type LiveRecordStoreGCS struct {
+	Credentials                        string
+	AccessToken                        string
+	ImpersonateServiceAccount          string
+	ImpersonateServiceAccountDelegates []string
+	EncryptionKey                      string
+	KMSEncryptionKey                   string
+	StorageCustomEndpoint              string
+	UniverseDomain                     string
+}
 
 // LiveRecordStoreOutputRead is one `reads_outputs_of "<estate>"` block
 // nested in a record_store "kubernetes" block:
@@ -1035,6 +1062,20 @@ var recordStoreBlockSchema = &hcl.BodySchema{
 		{Name: "use_msi"},
 		{Name: "use_oidc"},
 		{Name: "use_aks_workload_identity"},
+
+		// The "gcs" backend's arguments, spelled the way stock's gcs backend
+		// spells them. See [RecordStoreGCSSettings]. "prefix" is stock's
+		// too, and is in the schema only to be refused by name: see
+		// decodeRecordStoreGCS.
+		{Name: "prefix"},
+		{Name: "credentials"},
+		{Name: "access_token"},
+		{Name: "impersonate_service_account"},
+		{Name: "impersonate_service_account_delegates"},
+		{Name: "encryption_key"},
+		{Name: "kms_encryption_key"},
+		{Name: "storage_custom_endpoint"},
+		{Name: "universe_domain"},
 	},
 	Blocks: []hcl.BlockHeaderSchema{
 		{Type: "exec"},
@@ -1098,6 +1139,22 @@ var RecordStoreKubernetesSettings = []string{
 	"client_certificate", "client_key", "cluster_ca_certificate",
 }
 
+// RecordStoreGCSSettings is every argument that belongs to the "gcs" backend
+// alone, each the stock gcs backend's argument of the same name. "bucket" is
+// not here because "s3" takes it too, and "prefix" is not here because no
+// record store takes it: every store says "key_prefix".
+var RecordStoreGCSSettings = []string{
+	"credentials", "access_token", "impersonate_service_account",
+	"impersonate_service_account_delegates", "encryption_key",
+	"kms_encryption_key", "storage_custom_endpoint", "universe_domain",
+}
+
+// RecordStoreGCSInsecureSettings is every name the "gcs" backend's
+// "allow_insecure" argument accepts: the five things the GCS bucket contract
+// asserts. Pinned to [internal/live/staterecord.GCSSettings] by the same test
+// as the other two lists.
+var RecordStoreGCSInsecureSettings = []string{"object_versioning", "noncurrent_lifecycle", "public_access_prevention", "uniform_bucket_level_access", "list_isolation"}
+
 // RecordStoreInsecureSettings is every name the "s3" backend's
 // "allow_insecure" argument accepts: the three settings the bucket contract
 // asserts (GitHub issue #1339). internal/live/projection pins this list to
@@ -1131,6 +1188,8 @@ func RecordStoreInsecureSettingsFor(storeType string) []string {
 		return RecordStoreClusterInsecureSettings
 	case "azurerm":
 		return RecordStoreAzureRMInsecureSettings
+	case "gcs":
+		return RecordStoreGCSInsecureSettings
 	}
 	return nil
 }
@@ -1643,7 +1702,7 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 
 	label := block.Labels[0]
 	switch label {
-	case "local", "s3", "kubernetes", "azurerm":
+	case "local", "s3", "kubernetes", "azurerm", "gcs":
 		rs.Type = label
 		rs.TypeRange = block.LabelRanges[0]
 	case "ssm":
@@ -1669,7 +1728,7 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 		return rs, hcl.Diagnostics{&hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Invalid record_store backend",
-			Detail:   fmt.Sprintf("record_store %q names a backend this fork does not know. Valid backends are \"local\" (the solo/dev default), \"s3\" (a bucket, for anything more than one operator shares), \"kubernetes\" (Secrets in a cluster namespace, for an estate that runs on Kubernetes and wants no AWS account) and \"azurerm\" (blobs in an Azure Storage container).", label),
+			Detail:   fmt.Sprintf("record_store %q names a backend this fork does not know. Valid backends are \"local\" (the solo/dev default), \"s3\" (a bucket, for anything more than one operator shares), \"kubernetes\" (Secrets in a cluster namespace, for an estate that runs on Kubernetes and wants no AWS account), \"azurerm\" (blobs in an Azure Storage container) and \"gcs\" (a Google Cloud Storage bucket).", label),
 			Subject:  block.LabelRanges[0].Ptr(),
 		}}
 	}
@@ -1711,7 +1770,7 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 				diags = append(diags, &hcl.Diagnostic{
 					Severity: hcl.DiagError,
 					Summary:  "Empty record_store bucket",
-					Detail:   "The \"bucket\" argument was set to an empty string. The s3 record store backend needs a real bucket name.",
+					Detail:   fmt.Sprintf("The \"bucket\" argument was set to an empty string. The %s record store backend needs a real bucket name.", rs.Type),
 					Subject:  attr.Expr.Range().Ptr(),
 				})
 			} else {
@@ -1725,6 +1784,14 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 			Severity: hcl.DiagError,
 			Summary:  "Missing record_store bucket",
 			Detail:   "record_store \"s3\" requires a \"bucket\" argument naming the S3 bucket to store records in, the same way a stock \"s3\" backend block does.",
+			Subject:  block.DefRange.Ptr(),
+		})
+	}
+	if rs.Type == "gcs" && !rs.BucketSet && content.Attributes["bucket"] == nil {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Missing record_store bucket",
+			Detail:   "record_store \"gcs\" requires a \"bucket\" argument naming the Google Cloud Storage bucket to store records in, the same way a stock \"gcs\" backend block does.",
 			Subject:  block.DefRange.Ptr(),
 		})
 	}
@@ -1863,6 +1930,7 @@ func decodeRecordStoreBlock(block *hcl.Block, estate string) (*LiveRecordStore, 
 
 	diags = append(diags, decodeRecordStoreKubernetes(rs, content)...)
 	diags = append(diags, decodeRecordStoreAzureRM(rs, content, block)...)
+	diags = append(diags, decodeRecordStoreGCS(rs, content)...)
 
 	return rs, diags
 }
@@ -2214,11 +2282,110 @@ func decodeRecordStoreAzureRM(rs *LiveRecordStore, content *hcl.BodyContent, blo
 	return diags
 }
 
+// decodeRecordStoreGCS decodes the "gcs" backend's own arguments, and refuses
+// each of them on a backend that has no use for one.
+//
+// "prefix" is refused on every store, by name. It is stock gcs's argument for
+// where state goes in the bucket, and an operator moving a backend block over
+// will write it; every record store calls that "key_prefix", and a second
+// name for one thing on one store is a second set of rules to keep in step.
+func decodeRecordStoreGCS(rs *LiveRecordStore, content *hcl.BodyContent) hcl.Diagnostics {
+	var diags hcl.Diagnostics
+
+	if attr, exists := content.Attributes["prefix"]; exists {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Unsupported record_store argument \"prefix\"",
+			Detail:   fmt.Sprintf("record_store %q does not take \"prefix\". Stock's gcs backend uses that name for where state goes in the bucket; every record store calls it \"key_prefix\", with the same rules. Rename the argument to \"key_prefix\".", rs.Type),
+			Subject:  attr.NameRange.Ptr(),
+		})
+	}
+
+	if rs.Type != "gcs" {
+		for _, name := range RecordStoreGCSSettings {
+			attr, exists := content.Attributes[name]
+			if !exists {
+				continue
+			}
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Invalid argument for the %s record store", rs.Type),
+				Detail:   fmt.Sprintf("The %q argument is one of stock's gcs backend arguments and has no meaning for record_store %q. Remove it, or declare record_store \"gcs\".", name, rs.Type),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+		}
+		return diags
+	}
+
+	if attr, exists := content.Attributes["path"]; exists {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid argument for the gcs record store",
+			Detail:   "The \"path\" argument names a local directory and has no meaning for record_store \"gcs\", whose records are objects in a bucket. Use \"key_prefix\" to say where in the bucket they go.",
+			Subject:  attr.Expr.Range().Ptr(),
+		})
+	}
+
+	for _, f := range []struct {
+		name string
+		val  *string
+	}{
+		{"credentials", &rs.GCS.Credentials},
+		{"access_token", &rs.GCS.AccessToken},
+		{"impersonate_service_account", &rs.GCS.ImpersonateServiceAccount},
+		{"encryption_key", &rs.GCS.EncryptionKey},
+		{"kms_encryption_key", &rs.GCS.KMSEncryptionKey},
+		{"storage_custom_endpoint", &rs.GCS.StorageCustomEndpoint},
+		{"universe_domain", &rs.GCS.UniverseDomain},
+	} {
+		attr, exists := content.Attributes[f.name]
+		if !exists {
+			continue
+		}
+		val, valDiags := decodeLiteralString(attr, f.name)
+		diags = append(diags, valDiags...)
+		if valDiags.HasErrors() {
+			continue
+		}
+		if val == "" {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Empty record_store %s", f.name),
+				Detail:   fmt.Sprintf("The %q argument was set to an empty string. Give it a value, or omit the argument entirely.", f.name),
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+			continue
+		}
+		*f.val = val
+	}
+
+	if attr, exists := content.Attributes["impersonate_service_account_delegates"]; exists {
+		vals, valDiags := decodeLiteralStringList(attr, "impersonate_service_account_delegates")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			rs.GCS.ImpersonateServiceAccountDelegates = vals
+		}
+	}
+
+	if rs.GCS.EncryptionKey != "" && rs.GCS.KMSEncryptionKey != "" {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Conflicting record_store encryption keys",
+			Detail:   "record_store \"gcs\" takes a customer-supplied \"encryption_key\" or a Cloud KMS \"kms_encryption_key\", not both, as stock's gcs backend does.",
+			Subject:  content.Attributes["kms_encryption_key"].Expr.Range().Ptr(),
+		})
+	}
+
+	return diags
+}
+
 // recordStoreOutputReadElsewhere is the refusal detail for a
 // reads_outputs_of block on a store that is not "kubernetes": where that
 // store declares the same read instead.
 func recordStoreOutputReadElsewhere(storeType, other string) string {
 	switch storeType {
+	case "gcs":
+		return fmt.Sprintf("A \"reads_outputs_of\" block declares where another estate's records namespace is in a Kubernetes cluster, and has no meaning for record_store \"gcs\": every estate sharing the bucket reads through the same store, and the read of estate %q's outputs is a grant on that estate's tofu-outputs/ prefix in the bucket's IAM policy instead. Remove the block.", other)
 	case "s3":
 		return fmt.Sprintf("A \"reads_outputs_of\" block declares where another estate's records namespace is in a Kubernetes cluster, and has no meaning for record_store \"s3\": every estate sharing the bucket reads through the same store, and the read of estate %q's outputs is declared in this estate's bucket policy instead (examples/record-store-bucket/iam/render-policy.sh <this estate> <bucket> --reads-outputs-of %s). Remove the block.", other, other)
 	case "azurerm":

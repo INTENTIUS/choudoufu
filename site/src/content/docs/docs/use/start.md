@@ -9,17 +9,13 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-Use this page for an empty estate where choudoufu creates every resource.
-
-:::caution
-If AWS already holds these resources, [migrate the estate](../migrate/)
-first. Applying against unmarked resources creates duplicates.
-:::
+This page starts an empty estate. For one whose resources already exist, [migrate](../migrate/) instead.
 
 ## Install
 
 Every [release](https://github.com/INTENTIUS/choudoufu/releases) carries
-binaries for macOS, Linux and Windows on amd64 and arm64, with `SHA256SUMS`.
+binaries for macOS, Linux and Windows on amd64 and arm64. Download and unpack
+the one for your machine:
 
 ```
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -28,71 +24,89 @@ gh release download -R INTENTIUS/choudoufu --pattern "*_${os}_${arch}.tar.gz"
 tar xzf choudoufu_*_"${os}"_"${arch}".tar.gz
 ```
 
-Or build from a checkout with `go build ./cmd/choudoufu`. Until a
-configuration opts in, the binary behaves as stock OpenTofu.
+## On AWS
 
-## Turn markers on
-
-Create `estate.chdf.hcl` beside your configuration and remove any `backend` or
-`cloud` block.
+Two files, and no `backend` block. `estate.chdf.hcl`:
 
 ```hcl
 estate = "my-estate"
+
+record_store "s3" {
+  bucket = "my-records-bucket"
+  region = "us-east-2"
+}
 ```
 
-Every resource is tagged with the estate name. Your `.tf` files stay
-unchanged. Delete the file to revert.
-
-Records go to a local `.tofu-records` directory. Add it to `.gitignore` before
-the first run, because it holds generated secrets. A team can share records in
-a bucket with `record_store "s3"` once [the bucket exists](../setup/).
-
-A `live` block inside `terraform` takes the same content. Stock Terraform
-rejects that block, so prefer the sidecar file.
-
-## A first configuration
+`main.tf`:
 
 ```hcl
-# AWS assigns the ID, so ownership comes back only from a tag.
+provider "aws" {
+  region = "us-east-2"
+}
+
 resource "aws_vpc" "main" {
   cidr_block = "10.99.0.0/16"
 }
-
-# The bucket name is already the identity.
-resource "aws_s3_bucket" "data" {
-  bucket = "my-estate-data"
-}
 ```
 
-## Apply
+The bucket comes from [Set up a record store bucket](../bucket/). For records on
+your machine, leave out `record_store` and gitignore `.tofu-records/`.
+
+Apply with `choudoufu init` and `choudoufu apply`. The plan adds the two tags:
 
 ```
-choudoufu init
-choudoufu apply
-```
-
-The diff shows the markers on each resource.
-
-```
-  # aws_vpc.main will be created
-  + resource "aws_vpc" "main" {
-      + cidr_block = "10.99.0.0/16"
       + tags       = {
           + "tofu-address" = "aws_vpc.main"
           + "tofu-estate"  = "my-estate"
         }
-    }
 ```
 
-[`live/MARKERS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md)
-specifies the two tags.
+## On Kubernetes
+
+`estate.chdf.hcl`:
+
+```hcl
+estate = "my-estate"
+
+record_store "kubernetes" {}
+```
+
+`main.tf`:
+
+```hcl
+provider "kubernetes" {
+  config_path = "~/.kube/config"
+}
+
+resource "kubernetes_config_map_v1" "app" {
+  metadata {
+    name      = "app-config"
+    namespace = "default"
+  }
+  data = {
+    greeting = "hello"
+  }
+}
+```
+
+Records go to the `tofu-records-my-estate` namespace
+([`examples/record-store-cluster`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-cluster/README.md)).
+Apply the same way. The plan adds the label and the address annotation:
+
+```
+          + annotations = {
+              + "choudoufu.intentius.io/tofu-address" = "kubernetes_config_map_v1.app"
+            }
+          + labels      = {
+              + "tofu-estate" = "my-estate"
+            }
+```
 
 ## Check that the markers carry it
 
-Run `choudoufu plan` again. It reads the tags and reports no changes.
+Run `choudoufu plan` again. It reads the markers and reports no changes.
 
 ## Next
 
 - [What you set up by hand](../setup/)
 - [Day-2 operations](../day2/)
-- [Compatibility](../../../aws/compatibility/)

@@ -146,18 +146,33 @@ var enforcedLimits = map[string]Rule{
 	// "policy-overwrite-at-key"; unadmitted-type rides beside it for
 	// arm-tag-limit's reason.
 	"policy-overwrite-at-key": RulePolicyOverwriteAtKey,
+	// GitHub issue #1121's fence ruling: two google provider blocks naming
+	// two projects. A warning, like state-backend. The fixture declares no
+	// google resource, since without schemas every google type is
+	// unadmitted-type. See live/LIMITATIONS.md, "gcp-multi-project".
+	"gcp-multi-project": RuleGCPMultiProject,
+	// A google_storage_bucket with 63 labels: two markers make 65. See
+	// live/LIMITATIONS.md, "gcp-label-count", and limitsCompanionRules for
+	// the one other rule allowed beside it.
+	"gcp-label-count": RuleGCPLabelCount,
+	// A 64-character estate name over one google_storage_bucket: one past
+	// GCP's 63-character label value. See live/LIMITATIONS.md,
+	// "gcp-estate-label", and limitsCompanionRules.
+	"gcp-estate-label": RuleGCPEstateLabel,
 }
 
 // limitsCompanionRules is the one exception to TestLimitsEnforced's "that
 // rule and nothing else": a fixture whose rule is about a resource no
 // schemaless lint run admits. CheckContext has no provider schemas, and no
-// azurerm type has a row in the admission table, so every azurerm resource
-// is also refused as unadmitted-type. An Azure fixture must declare an
-// azurerm resource to show its rule at all. The fixture's own rule must
-// still fire; only the named companion may fire beside it.
+// azurerm or google type has a row in the admission table, so every such
+// resource is also refused as unadmitted-type. An Azure or GCP fixture must
+// declare one to show its rule at all. The fixture's own rule must still
+// fire; only the named companion may fire beside it.
 var limitsCompanionRules = map[string]Rule{
 	"arm-tag-limit":           RuleUnadmittedType,
 	"policy-overwrite-at-key": RuleUnadmittedType,
+	"gcp-label-count":         RuleUnadmittedType,
+	"gcp-estate-label":        RuleUnadmittedType,
 }
 
 // notYetEnforcedLimits is every live/e2e/limits directory whose

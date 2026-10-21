@@ -8,8 +8,8 @@
 # grows with the estate, and its changes are the full plan's changes.
 #
 # DRAFT: written for GitHub issue #2077 and never run
-# (live/smoke/drafts/README.md). Claim 47's kubernetes cell stays open
-# until both arms run green and this is promoted to scenarios/.
+# (live/smoke/drafts/README.md). Number 47 is reserved for it until both
+# arms run green and this is promoted to scenarios/.
 #
 # What it does not claim (live/PLAN-CONE.md): the marker sweep stays
 # estate-wide, because it is the orphan check and the cone's sweep guard.

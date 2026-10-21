@@ -108,6 +108,17 @@ func buildRow(root string, s substrate.Substrate, rf readinessFacts) (Row, error
 	row.ControllerHeld = controllerHeldFacts(s)
 
 	row.Untaggable = untaggableFor(family, rf)
+	// The family's default: asked with no type name, which no family
+	// holds a per-type fact about.
+	row.Untaggable.Unrecorded = string(s.Unrecorded(""))
+	if pt, ok := s.(interface {
+		UnrecordedCounts() map[substrate.Unrecorded]int
+	}); ok {
+		row.Untaggable.UnrecordedByType = map[string]int{}
+		for a, n := range pt.UnrecordedCounts() {
+			row.Untaggable.UnrecordedByType[string(a)] = n
+		}
+	}
 
 	fence, err := fenceFor(family)
 	if err != nil {
@@ -151,6 +162,8 @@ func sweepFacts(kind substrate.Sweep) SweepFacts {
 		desc = "a cluster client built from the provider block's own connection arguments (Substrate.NewSweeper)"
 	case substrate.SweepResourceGraph:
 		desc = "one Azure Resource Graph query per subscription the estate's resources resolve to, matching the marker case-insensitively, through clients built from the azurerm and azapi provider blocks' own connection arguments (Substrate.NewSweeper; GitHub issue #1120)"
+	case substrate.SweepAssetSearch:
+		desc = "a Cloud Asset Inventory client built from the provider block's own credential arguments (Substrate.NewSweeper), one search per project the estate's resources name; the index lags creates and deletes"
 	}
 	return SweepFacts{Kind: string(kind), Description: desc}
 }
@@ -214,6 +227,7 @@ var fenceByFamily = map[string]string{
 	// GitHub issue #1122's ruling (2026-10-19): Azure RBAC cannot condition
 	// on tags, so the estate is a set of resource groups.
 	"azurerm": "Resource-group RBAC per principal (a custom role or Contributor on the estate's groups), plus Azure Policy on the tofu-estate tag: deny a write that lacks it or changes it. The RBAC alone governs deletes; a denyAction delete lock is opt-in (deleteLock, off by default). Template files an operator applies, never plan resources.",
+	"google":  "Project-scoped, restated: an IAM condition cannot match a label, so one estate per project, granted by an ordinary project IAM binding. Resource Manager tag bindings, which a condition can match, are ruled later (#1121).",
 }
 
 func fenceFor(family string) (string, error) {
@@ -251,6 +265,11 @@ var harnessByFamily = map[string]struct {
 		Name:    "floci-az",
 		PinFile: "live/floci-az-image",
 		Notes:   "the lex00/floci-az fork, pinned by digest; the azure lane's two estates run on it, and live/FLOCI.md lists what it serves.",
+	},
+	"google": {
+		Name:    "floci-gcp",
+		PinFile: "live/floci-gcp-image",
+		Notes:   "the lex00/floci-gcp fork's GHCR image pinned by digest; the fork's issues for Resource Manager tags, Cloud Asset search, matchTag and IAM enforce mode (lex00/floci-gcp#4 to #9) and the Compute confidentialInstanceConfig gap (#23) are closed, and no gcp-lane run on it has passed yet.",
 	},
 }
 
@@ -298,6 +317,9 @@ type readinessArtifact struct {
 			Types []readinessType `json:"types"`
 		} `json:"azapi"`
 	} `json:"azure"`
+	Google struct {
+		Types []readinessType `json:"types"`
+	} `json:"google"`
 }
 
 type readinessFacts struct {
@@ -305,6 +327,7 @@ type readinessFacts struct {
 	k8sTypes     []readinessType
 	azurermTypes []readinessType
 	azapiTypes   []readinessType
+	googleTypes  []readinessType
 }
 
 func loadReadinessFacts(root string) (readinessFacts, error) {
@@ -313,7 +336,7 @@ func loadReadinessFacts(root string) (readinessFacts, error) {
 		return readinessFacts{}, err
 	}
 	return readinessFacts{awsTypes: art.Types, k8sTypes: art.Kubernetes.Types,
-		azurermTypes: art.Azure.Azurerm.Types, azapiTypes: art.Azure.Azapi.Types}, nil
+		azurermTypes: art.Azure.Azurerm.Types, azapiTypes: art.Azure.Azapi.Types, googleTypes: art.Google.Types}, nil
 }
 
 func decodeJSON(root, rel string, v any) error {
@@ -354,6 +377,9 @@ func untaggableFor(family string, rf readinessFacts) UntaggableFacts {
 			"an azurerm type whose schema carries no ARM tags map (live/readiness.json azure.azurerm.types facts.taggable=false); "+
 				"through azapi_resource, %d of %d ARM types take no tags at their latest API version (azure.azapi.types), all declaration-carried, not counted here",
 			azapi.Count, len(rf.azapiTypes)))
+	case "google":
+		return tallyUntaggable(rf.googleTypes, func(t readinessType) bool { return t.Tier != "marker-carried" },
+			"a google or google-beta 8.6.0 type whose schema carries no settable labels map beside effective_labels, or one that only labels what the type creates, an instance template's (live/readiness.json google.types, every tier but marker-carried)")
 	}
 	return UntaggableFacts{Definition: "no definition recorded for family " + family, ByTier: map[string]int{}}
 }

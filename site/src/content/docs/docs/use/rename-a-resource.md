@@ -13,31 +13,17 @@ Rename the block, then rewrite the marker.
 choudoufu live-mv aws_vpc.old aws_vpc.new
 ```
 
-This rewrites the live resource's `tofu-address` tag, which replaces `moved`
-blocks. The new address must be in your configuration unless you pass
-`-allow-missing-config`. `-dry-run` previews the write.
+This rewrites the `tofu-address` tag. `-dry-run` previews the write.
 
 ## Move a resource to another estate
 
-Move the block into the other estate, then run `live-mv` there with
-`-from-estate` naming the source.
+Declare the block in the destination estate and run `live-mv` there:
 
 ```
 choudoufu live-mv -from-estate=monolith aws_iam_role.team aws_iam_role.team
 ```
 
-This rewrites one resource's `tofu-estate` tag. The destination must declare
-the address, and no resource there may already carry it. An untaggable type
-follows its parent.
-
 ## On Kubernetes
 
-The address is an annotation beside the `tofu-estate` label. `live-mv` or the
-next apply rewrites it. A move between estates passes the cluster's admission
-policy like a `kubectl label`, so you need rights in both.
-
-## On Azure
-
-As on AWS: `live-mv` rewrites the `tofu-address` tag, keys matched
-case-insensitively. A move between estates is refused by the estate's Azure
-Policy until its assignments are moved ([Gate](/choudoufu/azure/gate/)).
+`live-mv` or the next apply rewrites the address annotation. A move between
+estates needs rights in both.

@@ -125,9 +125,9 @@ var smokeNetworkPatch = regexp.MustCompile(`\barm\s+PATCH\b[^\n]*NET_API`)
 // would have failed before it measured anything. The scenarios' tag edit is
 // arm_set_tag, a GET and a PUT of the body read back.
 func TestAzureSmokeSendsNoNetworkPatch(t *testing.T) {
-	paths, err := filepath.Glob("smoke/scenarios/az-*.sh")
+	paths, err := filepath.Glob("smoke/drafts/az-*.sh")
 	if err != nil || len(paths) == 0 {
-		t.Fatalf("no Azure scenarios found under live/smoke/scenarios (%v)", err)
+		t.Fatalf("no Azure scripts found under live/smoke/drafts (%v)", err)
 	}
 	for _, p := range paths {
 		for i, ln := range strings.Split(readFile(t, p), "\n") {
@@ -136,7 +136,7 @@ func TestAzureSmokeSendsNoNetworkPatch(t *testing.T) {
 			}
 		}
 	}
-	if !strings.Contains(readFile(t, "smoke/scenarios/az-identity-is-a-tag.sh"), `arm_set_tag "${VNET_ID}?api-version=${NET_API}" tofu-estate -`) {
+	if !strings.Contains(readFile(t, "smoke/drafts/az-identity-is-a-tag.sh"), `arm_set_tag "${VNET_ID}?api-version=${NET_API}" tofu-estate -`) {
 		t.Error("az-identity-is-a-tag.sh's BREAK control no longer strips the VNet's tag through arm_set_tag; this test would be guarding nothing")
 	}
 }

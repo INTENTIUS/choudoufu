@@ -17,20 +17,20 @@ prompt: >-
 |---|---|
 | `plan`, `apply` | Plan and apply against markers |
 | `plan -adoption-only` | Each instance's live match and adopt command |
-| `live-check DIR` | What would be refused, offline |
+| `live-check DIR` | Checks a configuration, offline |
 | `live-import` | Bulk migration from a state file |
 | `live-mv <old> <new>` | Rewrites a marker |
 | `live-plan` | The live plan; [`-filter`](https://github.com/INTENTIUS/choudoufu/blob/main/live/REPORT-FILTER.md) narrows it |
 | `live-history <address>` | A record's versions, newest first |
+| `live-ls -estate=<name>` | Lists an estate |
 | `live-bucket -bucket <name>` | Checks a bucket |
+| `live-cluster` | Checks a cluster record store |
 | `live-cone`, `plan -cone` | [The plan cone](https://github.com/INTENTIUS/choudoufu/blob/main/live/PLAN-CONE.md) |
-| `force-unlock` | Refused: there is no lock |
 
 ## The live configuration
 
-Write it in `estate.chdf.hcl` at the root or in a `live` block inside
-`terraform`. Pick one. Stock tooling ignores the sidecar file. A `backend` or
-`cloud` block beside it is an error.
+Write it in `estate.chdf.hcl` at the root, or in a `live` block inside
+`terraform`.
 
 ```hcl
 estate = "prod-networking"
@@ -40,40 +40,34 @@ record_store "s3" {
 }
 ```
 
-`estate` is the `tofu-estate` marker value, a literal string. `reads =
-"selective"` (default) lets a `-refresh=false` run serve unchanged instances
-from the cache; `"full"` reads everything.
+`estate` is the `tofu-estate` marker value. `reads = "full"` reads every
+instance live; the default `"selective"` serves unchanged instances from the
+cache under `-refresh=false`.
 
 ## Blocks
 
-`record_store` takes the label `"local"`, `"s3"`, `"kubernetes"` or `"azurerm"`.
+`record_store` takes the label `"local"`, `"s3"` or `"kubernetes"`.
 
 | Argument | Store | Meaning |
 |---|---|---|
 | `path` | `local` | Records directory |
 | `bucket`, `region`, `bucket_owner` | `s3` | The bucket, its region and owning account |
-| `key_prefix` | `s3`, `kubernetes`, `azurerm` | Replaces `tofu-records/<estate>/` |
+| `key_prefix` | `s3`, `kubernetes` | Replaces `tofu-records/<estate>/` |
 | `namespace` | `kubernetes` | Defaults to `tofu-records-<estate>` |
 | `host`, `config_path`, `exec` and the rest | `kubernetes` | As in stock's `kubernetes` backend |
 | `control_plane` | `kubernetes` | `"eks"`, `"gke"` or `"aks"`, to check encryption at rest |
-| `storage_account_name`, `container_name`, `resource_group_name` | `azurerm` | The container and the account's group, all required |
-| `subscription_id`, `use_azuread_auth` and the rest | `azurerm` | As in stock's `azurerm` backend |
-| `allow_insecure` | `s3`, `kubernetes`, `azurerm` | Checks this estate waives, by name |
+| `allow_insecure` | `s3`, `kubernetes` | Checks this estate waives, by name |
 
-`policy` sets a verb for each declared or undeclared, tagged or untagged case,
-such as `undeclared_tagged`. It also takes `tag_key`, `tag_value` and a delete
-`threshold`. See
-[`live/OWNERSHIP-POLICY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/OWNERSHIP-POLICY.md).
+`policy` sets a verb per case, such as `undeclared_tagged`
+([`live/OWNERSHIP-POLICY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/OWNERSHIP-POLICY.md)).
 
-`strict` holds toggles that default to stock behaviour: `marker_repair`,
-`secrets`, `no_source_create` and `provider_change`. See
-[`live/STRICT.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STRICT.md).
+`strict` holds `marker_repair`, `secrets`, `no_source_create` and
+`provider_change`
+([`live/STRICT.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STRICT.md)).
 
 ## Specifications
 
 [Markers](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md),
 [refusals](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md),
 [IAM permissions](https://github.com/INTENTIUS/choudoufu/blob/main/live/IAM-REFERENCE.md),
-[receipts](https://github.com/INTENTIUS/choudoufu/blob/main/live/RECEIPTS.md),
-[outputs](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md),
-[end-to-end harness](https://github.com/INTENTIUS/choudoufu/blob/main/live/e2e/README.md).
+[outputs](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md).

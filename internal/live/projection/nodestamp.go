@@ -154,7 +154,10 @@ func (n *NodeResolver) adjustConfigValue(_ context.Context, addr addrs.AbsResour
 	// it by name ([NodeResolver.stampSurface]).
 	surface, ok := substrate.SurfaceOf(n.providerType(addr), schema.Block)
 	if !ok {
-		return config, diags
+		// GitHub issue #1119: an instance template's labels are copied
+		// onto every VM made from it, so a marker written there by hand
+		// is refused, never stamped. See nodestamp_googlelabels.go.
+		return config, diags.Append(propagatedMarkerDiag(addr, config, schema))
 	}
 
 	if n.recordSelected(addr, schema) {
@@ -256,6 +259,27 @@ func (n *NodeResolver) stampSurface(surface markers.Surface, addr addrs.AbsResou
 			return config, diags
 		}
 		configElems[markers.ManifestSurfaceAttr] = newManifest
+		return cty.ObjectVal(configElems), diags
+
+	case markers.SurfaceGoogleLabels:
+		// The GCP shape (GitHub issue #1119): the tag branch's markers in
+		// the top-level labels map, the address encoded. See
+		// nodestamp_googlelabels.go.
+		newLabels, labelDiags := n.stampedGoogleLabels(addr, config.GetAttr(markers.GoogleLabelsAttr))
+		diags = diags.Append(labelDiags)
+		if labelDiags.HasErrors() {
+			return config, diags
+		}
+		if withhold, wdiags := n.withholdsAtCreate(addr, surface, creating); withhold || wdiags.HasErrors() {
+			diags = diags.Append(wdiags)
+			if wdiags.HasErrors() {
+				return config, diags
+			}
+			// GitHub issue #1653: see the SurfaceLabels arm above.
+			log.Printf("[DEBUG] live/projection: %s: markers withheld from the create call; written after the create", addr)
+			return config, diags
+		}
+		configElems[markers.GoogleLabelsAttr] = newLabels
 		return cty.ObjectVal(configElems), diags
 
 	case markers.SurfaceTags:
@@ -374,7 +398,7 @@ func (n *NodeResolver) stampedTagMap(addr addrs.AbsResourceInstance, tagsVal cty
 		}
 	}
 
-	diags = diags.Append(n.stampMarkerElems(addr, elems, address, fold))
+	diags = diags.Append(n.stampMarkerElems(addr, elems, address, address, fold))
 	if diags.HasErrors() {
 		return tagsVal.WithMarks(tagsMarks), diags
 	}
@@ -382,9 +406,18 @@ func (n *NodeResolver) stampedTagMap(addr addrs.AbsResourceInstance, tagsVal cty
 	return cty.MapVal(elems).WithMarks(tagsMarks), diags
 }
 
+// mergeMarkers is [NodeResolver.stampMarkerElems] with exact keys, for the
+// GCP labels map (nodestamp_googlelabels.go), whose address value is
+// encoded while [NodeResolver.Slots] stays keyed by the escaped address.
+func (n *NodeResolver) mergeMarkers(addr addrs.AbsResourceInstance, elems map[string]cty.Value, address, slotKey string) tfdiags.Diagnostics {
+	return n.stampMarkerElems(addr, elems, address, slotKey, false)
+}
+
 // stampMarkerElems checks and then adds this instance's tofu-estate,
-// tofu-address and (where the sweep assigned one) tofu-slot to elems, the
-// marker map the configuration declared, in place. It is the body
+// tofu-address (address, escaped on AWS and ARM and encoded on GCP) and
+// (where the sweep assigned one to slotKey, the escaped address
+// [NodeResolver.Slots] is keyed by) tofu-slot to elems, the marker map the
+// configuration declared, in place. It is the body
 // [NodeResolver.stampedTags] has always had, shared with the ARM arms
 // (GitHub issue #1120) through fold: with fold true, a key the
 // configuration spells differently (Tofu-Estate) is the same marker, is
@@ -392,7 +425,7 @@ func (n *NodeResolver) stampedTagMap(addr addrs.AbsResourceInstance, tagsVal cty
 // spelling, and is written under that spelling, so the map ends with
 // exactly one key per marker. ARM refuses two keys that differ only by
 // case, and keeps the spelling a write used.
-func (n *NodeResolver) stampMarkerElems(addr addrs.AbsResourceInstance, elems map[string]cty.Value, address string, fold bool) tfdiags.Diagnostics {
+func (n *NodeResolver) stampMarkerElems(addr addrs.AbsResourceInstance, elems map[string]cty.Value, address, slotKey string, fold bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	// GitHub issue #451: before overwriting whatever this instance's
@@ -464,7 +497,7 @@ func (n *NodeResolver) stampMarkerElems(addr addrs.AbsResourceInstance, elems ma
 	}
 	write(markers.TagEstate, n.Estate)
 	write(markers.TagAddress, address)
-	if slot, ok := n.Slots[address]; ok {
+	if slot, ok := n.Slots[slotKey]; ok {
 		write(markers.TagSlot, slot)
 	}
 

@@ -140,9 +140,13 @@ afterwards.
 
 Fixed: read from the schema or generated evidence, never a type-name list;
 `SynthesizeIdentity` is the family's answer for a type with no row. Per
-platform: the source. GCP's open question is Magic Modules rows versus a
-`name`/`project`/location rule (#1119 item 1, #1121 measurement 5), not yet
-ruled. Azure's is ruled (#1122) and built: azurerm binds by an ARM id template generated
+platform: the source. GCP's is ruled: rows from the provider's own source
+at the pin, which `tools/gcp-row-gen` reads (the generated
+terraform-provider-google source at the tag, not Magic Modules, because it
+also covers the handwritten and IAM types) into
+`internal/live/identity/table_generated_google.go`, with the project,
+region and zone an id format embeds taken from the provider block. Azure's
+is ruled (#1122) and built: azurerm binds by an ARM id template generated
 from its own id parsers (`live/azurerm-ids.json`), filled from `name`,
 `resource_group_name` and the parents, with the subscription from the
 provider block; azapi binds by `type` + `parent_id` + `name`, the manifest
@@ -190,12 +194,13 @@ case-insensitively.
 
 | | AWS | Kubernetes | Azure |
 |---|---|---|---|
-| Answer | the declaration-carried tier, counted in `live/SUBSTRATES.md` and classified by survey path in `live/RECOVERY.md` (client-named, parent-derived, account-derived, unique-name) | no untaggable whole-object types; the field-granular types (#1191) carry the server-side-apply field manager `choudoufu:<estate>` as their marker (`kubesweep/fieldgranular.go`) | declaration-carried for an untaggable type whose id the block supplies (489 azurerm types; 2,366 azapi ARM types at their latest version), counted in `live/READINESS.md`'s Azure section; a removed block is found through its record (`substrate/azure_record.go`) |
+| Answer | the declaration-carried tier, counted in `live/SUBSTRATES.md`, and split by how each type comes back in `live/READINESS.md`'s generated table (`tools/readiness-gen/paths.go`) | no untaggable whole-object types; the field-granular types (#1191) carry the server-side-apply field manager `choudoufu:<estate>` as their marker (`kubesweep/fieldgranular.go`) | declaration-carried for an untaggable type whose id the block supplies (489 azurerm types; 2,366 azapi ARM types at their latest version), counted in `live/READINESS.md`'s Azure section; a removed block is found through its record (`substrate/azure_record.go`) |
 | Veto | `identity.MarkerlessTypes` (`identity/markerless_generated.go`) refuses untaggable types whose identity is server-minted | none needed | none: no admitted Azure type has a server-minted id outright |
 | Fence gap | stated per service in `live/MARKERS.md`, "What this grant cannot reach" | none for whole objects | stated in `live/MARKERS.md`, "What the Azure grant cannot reach": the group's RBAC covers untaggable children, Policy does not; types outside any group are counted per tier in `live/READINESS.md` |
 
 The rule for a new platform, in order: look first for a carrier the stock
-provider already writes; classify the rest by survey path; veto the
+provider already writes; tier the rest from the facts that re-derive them,
+and give the platform a table in `tools/readiness-gen/paths.go`; veto the
 server-minted ones; state the fence gap. This tier is large on both new
 platforms: GCP's network skeleton has no labels (#1119 item 3). On Azure,
 719 of azurerm 5.10.0's 1,106 types have no ARM tags map (387 have one),
@@ -231,10 +236,11 @@ failures.
 Fixed: an undeclared object carrying the estate's marker shows up in a plan;
 a sweep failure is a refusal registered in `discovery/refusals.go`. Per
 platform: the call shape and the consistency lag. GCP's is Cloud Asset
-Inventory, and sweep equivalence waits on lex00/floci-gcp#7 (#1121). Azure's
-is Resource Graph, one query per subscription. floci-az serves Resource
-Graph since 30000b0, and the sweep query's `union`, `mv-expand` and
-`bag_keys` since dfa33ca (`live/FLOCI.md`).
+Inventory (#1121). The pinned floci-gcp image serves its search
+(lex00/floci-gcp#7, closed), and sweep equivalence is unmeasured until a
+gcp-lane run passes. Azure's is Resource Graph, one query per
+subscription. floci-az serves Resource Graph since 30000b0, and the sweep
+query's `union`, `mv-expand` and `bag_keys` since dfa33ca (`live/FLOCI.md`).
 
 ### 9. Record store
 
@@ -361,7 +367,6 @@ Things one platform meets and the other does not, as the tree says today:
   `live/floci-capabilities.json` (`live/SUBSTRATES.md`).
 - AWS's sweep cannot find a type with no row; Kubernetes's can.
 - Kubernetes has no slots or continuation markers, by ruling.
-- Claim 47 (`plan-cost-tracks-the-change`) reads `open` on Kubernetes.
 
 And where Azure stands against both, from the `azure` branch:
 

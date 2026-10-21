@@ -252,6 +252,12 @@ func resolveWith(ctx context.Context, cfg *configs.Config, rctx Context) (*Resul
 // provider configuration whose own address has Type "kubernetes". Reading
 // NonAWSProvider as "swept" made the warning silently wrong for that case;
 // asking the substrate by the resource's actual provider cannot be.
+//
+// A third way back exists on GCP ([substrate.RecordsRemoveUnrowed]): the
+// record-orphan leg admits an unrowed google type through its identity
+// schema, so a deleted block's objects are destroyed from their records.
+// The warning said otherwise for google_storage_bucket and
+// google_project_service on the first GCP gauntlet run.
 func (r *resolver) warnUnsweepableTypes() {
 	names := make([]string, 0, len(r.synth))
 	for typeName, entry := range r.synth {
@@ -261,7 +267,7 @@ func (r *resolver) warnUnsweepableTypes() {
 		if _, hasRow := LookupType(typeName); hasRow {
 			continue
 		}
-		if substrate.Sweeps(r.typeProviders[typeName]) {
+		if substrate.Sweeps(r.typeProviders[typeName]) || substrate.RecordsRemoveUnrowed(r.typeProviders[typeName]) {
 			continue
 		}
 		names = append(names, typeName)
@@ -1177,7 +1183,7 @@ func (r *resolver) recordFallback(addr addrs.AbsResourceInstance, resourceType s
 	if !r.recordStore {
 		return Resolution{}, false
 	}
-	if !RecordFallbackType(resourceType, r.schemas) {
+	if !RecordFallbackType(resourceType, r.typeProviders[resourceType], r.schemas) {
 		return Resolution{}, false
 	}
 	// GitHub issue #1675: the discriminator [internal/live/projection.WriteBack]
@@ -1438,6 +1444,19 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		}
 		byAttr[name] = append(byAttr[name], got...)
 	}
+	// Each component's contribution is held as a segment until the loop
+	// is done, rather than appended straight to parts, because an IAM
+	// parent's long form rewrites its sibling components (#2144): the
+	// project a `projects/other/secrets/db-pass` names replaces the
+	// project component that precedes it. See [resolver.composeLongForms].
+	var segs []segment
+	emit := func(i int, identAttr, arg string, got []Part, prefix string) {
+		sg := segment{comp: i, attr: identAttr, arg: arg, parts: got, prefix: prefix, rng: rc.DeclRange}
+		if a, ok := attrs[arg]; ok {
+			sg.rng = a.Range
+		}
+		segs = append(segs, sg)
+	}
 
 	// failed tracks whether any real component below could not be resolved.
 	// The loop no longer returns on the first one (GitHub issue #221): every
@@ -1468,14 +1487,13 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			sibArgs = append(sibArgs, argName)
 		}
 	}
-	// prevStart and curStart bound the parts the previous component
-	// contributed, which is what an [Component.ARMTypeSegment] component
-	// rewrites: azapi drops a tenant-root parent_id, or the whole parent_id
-	// for a subscription (see [armTypeSegment]).
-	prevStart, curStart := 0, 0
+	// An [Component.ARMTypeSegment] component rewrites the import-ID text
+	// the component before it contributed: azapi drops a tenant-root
+	// parent_id, or the whole parent_id for a subscription (see
+	// [armTypeSegment]). The segment it rewrites is the last one emitted,
+	// when that is the previous component's.
 	armID := false
 	for i, comp := range entry.Components {
-		prevStart, curStart = curStart, len(parts)
 		sibBefore := len(r.pendingSiblingApply)
 		if comp.Cloud != CloudNone {
 			// A cloud-bearing component may also carry the argument the
@@ -1493,20 +1511,26 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 					fail(sibBefore, attr.Name)
 					continue
 				}
-				parts = append(parts, got...)
-				addTo(comp.identityAttrFor(attr.Name), got)
+				if got, ok = r.longFormValue(comp, addr, attr, got); !ok {
+					fail(sibBefore, "")
+					continue
+				}
+				emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, "")
 				continue
 			}
 			v, _ := r.cloudValueFor(comp.Cloud, cloudScope)
+			if comp.LongForm == LongFormLastSegment {
+				// ReplaceVarsForId trims the provider's own project,
+				// region or zone, and takes no last segment of it.
+				v = forIDValue(string(comp.Cloud), v, false)
+			}
 			got := []Part{{Literal: v}}
-			parts = append(parts, got...)
-			addTo(comp.identityAttrFor(""), got)
+			emit(i, comp.identityAttrFor(""), "", got, "")
 			continue
 		}
 		if len(comp.Attrs) == 0 {
 			got := []Part{{Literal: comp.Literal}}
-			parts = append(parts, got...)
-			addTo(comp.identityAttrFor(""), got)
+			emit(i, comp.identityAttrFor(""), "", got, "")
 			continue
 		}
 		attr, conflict := r.firstApplicablePresent(comp, attrs, scope, addr)
@@ -1537,15 +1561,13 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			if armDefaultParent != "" && i+1 < len(entry.Components) && entry.Components[i+1].ARMTypeSegment {
 				// The parent azapi gives a resource group whose parent_id
 				// is omitted ([resolver.armParentDefault]).
-				parts = append(parts, Part{Literal: armDefaultParent})
+				emit(i, "", "", []Part{{Literal: armDefaultParent}}, "")
 				continue
 			}
 			if name, ok := r.armDefaultName(entry, i, cloudScope); ok {
 				// The name azapi gives an azapi_resource that omits it
 				// ([resolver.armDefaultName]).
-				got := []Part{{Literal: name}}
-				addTo(comp.identityAttrFor(comp.Attrs[0]), got)
-				parts = append(parts, got...)
+				emit(i, comp.identityAttrFor(comp.Attrs[0]), comp.Attrs[0], []Part{{Literal: name}}, "")
 				continue
 			}
 			if comp.OmitIfAbsent {
@@ -1562,9 +1584,14 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				// argument (an omitted event_bus_name is the "default"
 				// bus), so the identity is computable without it - see
 				// [Component.Default].
-				got := []Part{{Literal: comp.Default}}
-				parts = append(parts, got...)
-				addTo(comp.identityAttrFor(comp.Attrs[0]), got)
+				v := comp.Default
+				if comp.LongForm == LongFormLastSegment {
+					// A schema Default is what GetOkExists hands
+					// ReplaceVarsForId, so it is shortened the same way.
+					v = forIDValue(comp.Attrs[0], v, true)
+				}
+				got := []Part{{Literal: v}}
+				emit(i, comp.identityAttrFor(comp.Attrs[0]), comp.Attrs[0], got, "")
 				continue
 			}
 			if comp.ServerAssignedIfAbsent {
@@ -1718,8 +1745,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				fail(sibBefore, attr.Name)
 				continue
 			}
-			parts = append(parts, got...)
-			addTo(comp.identityAttrFor(attr.Name), got)
+			emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, "")
 			continue
 		}
 		diagMark := len(r.diags)
@@ -1784,12 +1810,25 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			// GitHub issue #1120: azapi_resource's type contributes the text
 			// azapi joins parent_id and name with, not its own value. See
 			// [Component.ARMTypeSegment] and [armTypeSegment].
-			seg, ok := r.armTypeSegmentParts(got, parts[prevStart:curStart], attr, addr)
+			prevIdx := -1
+			var parentParts []Part
+			if n := len(segs); n > 0 && segs[n-1].comp == i-1 {
+				prevIdx = n - 1
+				if p := segs[prevIdx].prefix; p != "" {
+					parentParts = append(parentParts, Part{Literal: p})
+				}
+				parentParts = append(parentParts, segs[prevIdx].parts...)
+			}
+			seg, ok := r.armTypeSegmentParts(got, parentParts, attr, addr)
 			if !ok {
 				fail(sibBefore, "")
 				continue
 			}
-			parts = append(parts[:prevStart], seg...)
+			if prevIdx >= 0 {
+				segs[prevIdx].idParts = append([]Part{}, seg...)
+			} else {
+				emit(i, "", "", seg, "")
+			}
 			// The type as written, API version and all, is azapi's
 			// identity attribute "type" (#1120 unit 13): an import by
 			// identity object {id, type} reads the object at the block's
@@ -1798,20 +1837,47 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			// where a bare id is read at the newest version azapi knows
 			// (parse.ResourceIDWithApiVersionInfo, internal/services/parse/resource.go
 			// lines 213-231).
-			addTo("type", got)
+			emit(i, "type", attr.Name, got, "")
+			segs[len(segs)-1].idParts = []Part{}
 			armID = true
+			continue
+		}
+		if got, ok = r.longFormValue(comp, addr, attr, got); !ok {
+			fail(sibBefore, "")
 			continue
 		}
 		// The identity-attribute formula gets the resolved value alone; a
 		// prefix Literal (see [Component.Literal] and [Component.OmitIfAbsent])
 		// is punctuation in the import-ID STRING, not part of the identity
-		// ATTRIBUTE's value, so it is added to parts only, after the formula
-		// has already captured the unprefixed value.
-		addTo(comp.identityAttrFor(attr.Name), got)
-		if comp.Literal != "" {
-			got = append([]Part{{Literal: comp.Literal}}, got...)
+		// ATTRIBUTE's value, so it is carried as the segment's prefix and
+		// added to parts only.
+		emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, ensuredPrefix(comp, got))
+	}
+	if !failed {
+		if group, ok := emptyAtLeastOneOf(entry.Components, segs); ok {
+			r.errorf(rc.DeclRange, "Identity argument not set",
+				"%s has no value for any of %s; the provider requires at least one of them, so its import identity (%s) cannot be built.",
+				addr.String(), orList(group), entry.ImportSyntax)
+			fail(len(r.pendingSiblingApply), "")
 		}
-		parts = append(parts, got...)
+	}
+	if !failed {
+		if composed, ok := r.composeLongForms(entry, segs, addr); ok {
+			segs = composed
+		} else {
+			fail(len(r.pendingSiblingApply), "")
+		}
+	}
+	for _, sg := range segs {
+		addTo(sg.attr, sg.parts)
+		if sg.idParts != nil {
+			parts = append(parts, sg.idParts...)
+			continue
+		}
+		if sg.prefix != "" {
+			parts = append(parts, Part{Literal: sg.prefix})
+		}
+		parts = append(parts, sg.parts...)
 	}
 	if failed {
 		// Issue #187's second half. Every component that failed did so for
@@ -2046,9 +2112,27 @@ func (r *resolver) missingCloudComponent(entry TypeIdentity, attrs hcl.Attribute
 // identity that cannot be named reaches no ownership read, which is what
 // silenced the overwrite refusal for an estate configured by
 // ARM_SUBSCRIPTION_ID alone.
+//
+// [CloudProject] and [CloudZone] are answered the same provider-block way,
+// from [cloudScopeKey.project] and [cloudScopeKey.zone], and
+// [CloudLocation] from the region or, failing that, the zone: the google
+// provider substitutes its own `project` and `zone` into an id format when
+// the resource names neither (tpgresource.GetProject, GetZone), which is
+// the defaulting the region answer above already follows. A provider block
+// that states neither leaves the component unanswered, and the instance
+// needs discovery exactly as an AWS account-embedded one does.
 func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bool) {
-	if which == CloudRegion && cs.regionKnown && cs.region != "" {
+	switch {
+	case which == CloudRegion && cs.regionKnown && cs.region != "":
 		return cs.region, true
+	case which == CloudProject && cs.project != "":
+		return cs.project, true
+	case which == CloudZone && cs.zone != "":
+		return cs.zone, true
+	case which == CloudLocation && cs.regionKnown && cs.region != "":
+		return cs.region, true
+	case which == CloudLocation && cs.zone != "":
+		return cs.zone, true
 	}
 	if which == CloudSubscriptionID {
 		if sub, ok := r.providerStaticAttr(cs.provider, "subscription_id"); ok && sub != "" {
@@ -3738,7 +3822,9 @@ func (r *resolver) identifier(addr addrs.AbsResourceInstance, attrName string, r
 func (r *resolver) resourceCloudScope(rc *configs.Resource, scope instScope) cloudScopeKey {
 	abs := providerscope.ResolveResource(r.curCfg, rc)
 	region, ok := r.effectiveRegion(rc, abs, scope)
-	return cloudScopeKey{base: abs.String(), region: region, regionKnown: ok, provider: abs}
+	project, _ := r.providerStaticAttr(abs, "project")
+	zone, _ := r.providerStaticAttr(abs, "zone")
+	return cloudScopeKey{base: abs.String(), region: region, regionKnown: ok, provider: abs, project: project, zone: zone}
 }
 
 // recordTypeProvider memoizes rc's own resolved provider's short type name

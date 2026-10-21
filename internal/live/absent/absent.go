@@ -62,8 +62,17 @@ var Signals = []string{
 //     first type admitted through the object-metadata rule to reach a
 //     greenfield plan). Matched as a shape, because "not found" on its own
 //     is ordinary English a genuine failure could carry.
+//   - `googleapi: Error 404` and `googleapi: got HTTP response code 404`
+//     are the two renderings of google.golang.org/api's googleapi.Error for
+//     a 404 (googleapi.go, Error.Error, at v0.293.0), which a
+//     hashicorp/google importer that reads the object before returning
+//     surfaces untranslated (GitHub issue #1119). Most of that provider's
+//     importers only parse the id, and a missing object then reads back
+//     null, which needs no text at all. Matched on the status code, since
+//     the message after it is the API's own and varies by service.
 var Patterns = []*regexp.Regexp{
 	regexp.MustCompile(`\b[a-z][a-z0-9.-]*(?:/[a-z0-9.-]+)? "[^"]+" not found\b`),
+	regexp.MustCompile(`\bgoogleapi: (?:Error|got HTTP response code) 404\b`),
 }
 
 // Object names the object an import asked the provider for: the import

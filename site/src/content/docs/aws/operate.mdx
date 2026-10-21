@@ -9,27 +9,25 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 <PlatformSwitch />
 
-Day two is stock OpenTofu with tag writes in place of state moves ([Day-2 operations](/choudoufu/docs/use/day2/)).
-
 ## Rename
 
-A `moved` block or `choudoufu live-mv <old> <new>` rewrites the `tofu-address` tag ([Rename a resource](/choudoufu/docs/use/rename-a-resource/)).
+`choudoufu live-mv <old> <new>` or a `moved` block rewrites the `tofu-address` tag ([Rename](/choudoufu/docs/use/rename-a-resource/)).
 
 ## Remove
 
-Deleting the block destroys the object. The [ownership policy](https://github.com/INTENTIUS/choudoufu/blob/main/live/OWNERSHIP-POLICY.md) releases it instead. Its `threshold` caps deletes per run ([Remove a resource](/choudoufu/docs/use/remove-a-resource/)).
+Delete the block to destroy the object. The [ownership policy](https://github.com/INTENTIUS/choudoufu/blob/main/live/OWNERSHIP-POLICY.md) releases it instead ([Remove](/choudoufu/docs/use/remove-a-resource/)).
 
 ## Scale
 
-Pool members carry a `tofu-slot` tag, so scaling touches the instances stock would.
+Pool members carry a `tofu-slot` tag.
 
 ## Plan, review, apply
 
-`apply FILE` applies a saved plan only if it still matches the live system. Otherwise it exits 3 with `The approved plan no longer matches the live system`.
+`apply FILE` applies a saved plan that still matches the live system, and exits 3 otherwise.
 
 ## From CI
 
-Pull requests run `live-check` and `live-plan`. Approvals gate `live-apply` and `live-adopt`. A cron runs `live-discover` ([CI how-to](/choudoufu/docs/use/cicd/)).
+See the [CI how-to](/choudoufu/docs/use/cicd/).
 
 ## Two runs at once
 

@@ -14,7 +14,6 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -138,7 +137,7 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 		// about an identity the provider will never accept back.
 		return false
 	}
-	if _, ok := MarkerlessTypes[resourceType]; !ok {
+	if !IsMarkerless(resourceType) {
 		return false
 	}
 	if _, ok := LookupType(resourceType); ok {
@@ -235,7 +234,8 @@ func RecordableIdentitySchema(resourceType string, schema providers.Schema) bool
 // instances resolve from configuration alone.
 //
 // live/survey-full.json's taggable signal is a looser measurement than
-// [markers.Taggable] (the schema check this function actually applies), so
+// [markers.Taggable] (the tags-surface check this function applies to an
+// AWS type, through [substrate.SurfaceOf]), so
 // a candidate list built from the survey alone overstates the reach: of
 // the four other ratified rows whose identity argument follows the
 // name/name_prefix or server-assigned-if-absent convention and whose
@@ -256,7 +256,18 @@ func RecordableIdentitySchema(resourceType string, schema providers.Schema) bool
 // runs ahead of an instance's own component resolution, only after that
 // resolution has already concluded it needs discovery, so a configuration
 // that states `name` literally never reaches this predicate at all.
-func RecordFallbackType(resourceType string, schemas map[string]providers.Schema) bool {
+//
+// Whether the type has somewhere to carry a marker is its provider
+// family's question ([substrate.SurfaceOf], GitHub issue #1742), asked of
+// providerType, the provider the type's resources are declared under ("" asks
+// every family). It used to be [markers.Taggable], the AWS tags-map
+// predicate, which answers false for every hashicorp/google type: a
+// server-named google type with a labels map (google_active_directory_domain,
+// google_recaptcha_enterprise_key) then took this route and was recorded as
+// if it carried no marker, when its labels carry tofu-estate and
+// tofu-address and the GCP sweep binds it by that label (INTENTIUS/choudoufu#2134,
+// item 6).
+func RecordFallbackType(resourceType, providerType string, schemas map[string]providers.Schema) bool {
 	if NotImportable(resourceType) {
 		return false
 	}
@@ -279,7 +290,7 @@ func RecordFallbackType(resourceType string, schemas map[string]providers.Schema
 	if !ok || schema.Block == nil {
 		return false
 	}
-	if markers.Taggable(schema.Block) {
+	if _, carries := substrate.SurfaceOf(providerType, schema.Block); carries {
 		// Has somewhere to carry a marker. The instance in front of
 		// [resolver.recordFallback] reached it because ITS OWN
 		// configuration could not fold an identity component - not because

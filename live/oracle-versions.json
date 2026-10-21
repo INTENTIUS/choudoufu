@@ -75,7 +75,14 @@
     "by gauntlet_azurerm_required_provider and gauntlet_azapi_required_provider",
     "and read by live/smoke/lib.sh's azure_terraform_block. They are also the",
     "releases live/azurerm-ids.json and the armtypes tables were generated",
-    "from, so a bump here is a regeneration there."
+    "from, so a bump here is a regeneration there.",
+    "",
+    "google_provider_version (#1119, #1121) is the gcp lane's: the",
+    "hashicorp/google release reference-gcp's hand-authored root and",
+    "corpus-k8s-infra-gcp-gcve's corpus root require exactly, printed by",
+    "gauntlet_required_provider, and the release GCP smoke",
+    "scenarios pin (live/smoke/lib.sh's gcp_required_provider). The ruling",
+    "pins google and google-beta at 8.6.0, stock and unmodified."
   ],
   "terraform_version": "1.16.1",
   "tofu_version": "1.13.0",
@@ -83,5 +90,6 @@
   "kubernetes_provider_version": "3.2.1",
   "helm_provider_version": "3.1.1",
   "azurerm_provider_version": "5.10.0",
-  "azapi_provider_version": "2.13.0"
+  "azapi_provider_version": "2.13.0",
+  "google_provider_version": "8.6.0"
 }

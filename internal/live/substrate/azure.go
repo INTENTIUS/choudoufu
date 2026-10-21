@@ -126,6 +126,16 @@ func (azure) SweepFindsUnadmitted() bool { return true }
 // measurement on floci-az.
 func (azure) MarkerOutlivesObject() bool { return true }
 
+// Unrecorded is [UnrecordedParentOwned], the answer every family gave
+// before the 2026-10-20 ruling, so the Azure lane's measured behaviour is
+// unchanged by the merge that brought the ruling to it. The markerless
+// types the lane exercises are role assignments and associations whose
+// ARM ids are built from a tagged parent's id plus declared arguments
+// (live/READINESS.md, Azure), the shape [aws]'s answer covers; whether a
+// colliding ARM PUT at such an id calls for [UnrecordedNameHeld] instead
+// is a ruling still to make for this family.
+func (azure) Unrecorded(string) Unrecorded { return UnrecordedParentOwned }
+
 // NewSweeper is the Resource Graph client the provider block's own
 // connection arguments build ([AzureSweepAttrs], with the provider's
 // environment fallbacks applied by azsweep.New), so the sweep calls as the

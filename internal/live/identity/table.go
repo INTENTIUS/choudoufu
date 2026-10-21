@@ -392,7 +392,28 @@ type Component struct {
 	// as often when it names a live alias's version - stands and still
 	// refuses through the ordinary path, because "not known until apply"
 	// is a true statement about it and "absent" is not.
+	//
+	// A google row uses it with no Literal, between two standalone "/"
+	// separator components, and then the omission is an EMPTY segment
+	// rather than a missing one: stock's ReplaceVars renders an unset
+	// optional argument as "", so a google_compute_global_network_endpoint
+	// with only ip_address set has the id "p/neg/10.0.0.1//80". The
+	// generator emits that only where the argument is optional with no
+	// schema default AND every import format the provider's importer
+	// accepts captures it with `[^/]*`, so the empty segment parses back
+	// (#2145 item 6); see tools/gcp-row-gen's emptySegment.
 	OmitIfAbsent bool
+
+	// AtLeastOneOf names the arguments the provider's schema requires at
+	// least one of (its AtLeastOneOf), when this component is one of them
+	// and is [Component.OmitIfAbsent]. An instance that leaves every one of
+	// them unset is refused with "Identity argument not set" naming all of
+	// them, as a required argument left out is, rather than rendered with
+	// every segment empty: the provider's own validation rejects that
+	// configuration. Only components of the same entry are consulted.
+	// Empty everywhere except the google network endpoint rows (#2145 item
+	// 6), so no other row changes behavior.
+	AtLeastOneOf []string
 
 	// Default is the literal value this component contributes when none of
 	// Attrs is set in the configuration, for the arguments whose omission
@@ -603,6 +624,93 @@ type Component struct {
 	// segments the type has, so a type only a parent's live value supplies
 	// is refused rather than rendered later.
 	ARMTypeSegment bool
+
+	// LongForm names a rewrite the provider applies to this argument's
+	// value before it becomes part of the id (#2144). Empty, the ordinary
+	// case, means the value is substituted as written, which is what the
+	// provider does too.
+	//
+	// Set, resolution composes the provider's own rewrite: see
+	// [LongFormRule] for each kind. A value only an apply can know is
+	// refused by name, since the rewrite reads the value's text and a
+	// formula cannot carry it. Written by tools/gcp-row-gen from the
+	// pinned provider source.
+	LongForm LongFormRule
+
+	// Qualifiers are the regexes the provider matches a [LongFormIAMParent]
+	// or [LongFormComputedName] value against, in the provider's order and
+	// spelled as its source spells them. For [LongFormTrimPrefix] it is the
+	// one literal prefix trimmed, for [LongFormEnsurePrefix] the one added. Empty on a LongForm component,
+	// the generator could not read the list, and a value that needs one
+	// refuses the instance by name.
+	Qualifiers []string
+}
+
+// LongFormRule is the provider-side rewrite a [Component.LongForm] argument
+// goes through.
+type LongFormRule string
+
+const (
+	// LongFormIAMParent is an IAM type's parent argument, which the
+	// updater producer parses with tpgresource.GetImportIdQualifiers over
+	// [Component.Qualifiers]: the first regex that matches anywhere in the
+	// value wins, each named group it captures replaces the component of
+	// the same name, and the parent is rebuilt from the row's template.
+	// So `projects/other/secrets/db-pass` names project "other", and a
+	// short `db-pass` keeps the project the row already resolved. No
+	// regex matching is the updater's own error, refused by name.
+	LongFormIAMParent LongFormRule = "iam-parent"
+
+	// LongFormLastSegment is an argument of a type whose create builds
+	// its id with tpgresource.ReplaceVarsForId. That keeps the last path
+	// segment of an ordinary argument (GetResourceNameFromSelfLink),
+	// trims a leading "projects/" off {{project}}, and reads {{region}}
+	// and {{zone}} through GetRegion and GetZone, which take the last
+	// segment of the resource's own value, before trimming "regions/" or
+	// "zones/". The provider's own project, region or zone is trimmed
+	// only.
+	LongFormLastSegment LongFormRule = "last-segment"
+
+	// LongFormComputedName is a hand-written IAM updater's parent
+	// argument passed through a helper such as pubsub's
+	// GetComputedSubscriptionName: a value matching the sole entry of
+	// [Component.Qualifiers] is the whole parent as written, and any
+	// other value is placed into the parent template the row spells
+	// (projects/{{project}}/subscriptions/{{subscription}}).
+	LongFormComputedName LongFormRule = "computed-name"
+
+	// LongFormTrimPrefix is an argument a hand-written create trims the
+	// sole entry of [Component.Qualifiers] off before it becomes part of
+	// the id: resourcemanager.ParseFolderId turns "folders/123" and "123"
+	// alike into "123" (#2145 item 1).
+	LongFormTrimPrefix LongFormRule = "trim-prefix"
+
+	// LongFormEnsurePrefix is an argument a hand-written IAM updater
+	// passes through a helper that adds the sole entry of
+	// [Component.Qualifiers] to a value that lacks it before the value
+	// becomes the parent id: resourcemanager.CanonicalFolderId turns "123"
+	// and "folders/123" alike into "folders/123". The prefix is part of
+	// the import ID only; the identity attribute keeps the value as
+	// written, as the provider's state does.
+	LongFormEnsurePrefix LongFormRule = "ensure-prefix"
+)
+
+// describe is what the provider does to such a value, as a sentence for
+// a refusal.
+func (l LongFormRule) describe() string {
+	switch l {
+	case LongFormIAMParent:
+		return "The provider's IAM updater parses this argument as a long or a short name (tpgresource.GetImportIdQualifiers) and rebuilds the canonical parent from it"
+	case LongFormLastSegment:
+		return "The provider's create keeps only the last path segment of this argument's value (tpgresource.ReplaceVarsForId)"
+	case LongFormComputedName:
+		return "The provider's IAM updater keeps this argument whole when it is already a full resource name and places it into the parent template otherwise"
+	case LongFormTrimPrefix:
+		return "The provider's create trims a fixed prefix off this argument's value"
+	case LongFormEnsurePrefix:
+		return "The provider's IAM updater adds a fixed prefix to this argument's value when the value lacks it"
+	}
+	return "The provider rewrites this argument's value before it becomes part of the id"
 }
 
 // PerElementShrinkCaveat records what a per-element identity does NOT
@@ -688,7 +796,8 @@ type ContentMatchBinding struct {
 // The set is deliberately tiny and closed. It covers the two substitutions
 // the AWS provider's account-embedded import identities need - an SQS queue
 // URL (https://sqs.REGION.amazonaws.com/ACCOUNT/NAME) and an SNS topic ARN
-// (arn:aws:sns:REGION:ACCOUNT:NAME) - and nothing else. A third kind is a
+// (arn:aws:sns:REGION:ACCOUNT:NAME) - and the two more hashicorp/google's
+// id formats need beside the region, its project and its zone (#1119). A third kind is a
 // decision to make deliberately, not a slot to fill: the partition ("aws",
 // "aws-cn", "aws-us-gov") is written as a literal in the templates below
 // because every one of those identities is partition-specific in more places
@@ -720,6 +829,25 @@ const (
 	// sentence an operator reads. The spelling is tools/azurerm-id-gen's,
 	// so live/azurerm-ids.json's components carry it unchanged.
 	CloudSubscriptionID CloudValue = "subscription-id"
+
+	// CloudProject is the Google Cloud project a resource is created in
+	// when it does not name one itself: the google provider's own
+	// `project` argument. hashicorp/google's ReplaceVars substitutes it
+	// into every id format carrying {{project}} the same way, through
+	// tpgresource.GetProject, so a row built from that id format carries
+	// the same fallback. See [resolver.cloudValueFor] for where a run
+	// reads it.
+	CloudProject CloudValue = "project"
+
+	// CloudZone is the google provider's own `zone` argument, the fallback
+	// tpgresource.GetZone gives an id format carrying {{zone}}.
+	CloudZone CloudValue = "zone"
+
+	// CloudLocation is what tpgresource.GetLocation falls back to on a
+	// type with no region or zone argument of its own: the google
+	// provider's `region`, or its `zone` when it states no region. The
+	// hashicorp/google IAM types read their parent's location this way.
+	CloudLocation CloudValue = "location"
 )
 
 // describe renders a cloud value for an operator-facing sentence.
@@ -731,6 +859,12 @@ func (c CloudValue) describe() string {
 		return "region"
 	case CloudSubscriptionID:
 		return "Azure subscription ID (the provider block's subscription_id, or ARM_SUBSCRIPTION_ID when the block sets none)"
+	case CloudProject:
+		return "Google Cloud project"
+	case CloudZone:
+		return "zone"
+	case CloudLocation:
+		return "location"
 	default:
 		return string(c)
 	}
@@ -810,10 +944,37 @@ func inAttr(identityAttr string, c Component) Component {
 }
 
 // LookupType returns the identity knowledge for a resource type, and
-// whether the type is in the table at all.
+// whether the type is in the table at all: [DefaultTable], or for a
+// hashicorp/google or google-beta type, [GoogleTable].
 func LookupType(typeName string) (TypeIdentity, bool) {
-	e, ok := DefaultTable[typeName]
+	if e, ok := DefaultTable[typeName]; ok {
+		return e, true
+	}
+	e, ok := GoogleTable[typeName]
 	return e, ok
+}
+
+// IsMarkerless reports whether a derived rule refuses typeName because its
+// provider mints the identity and it has nowhere to carry a marker:
+// [MarkerlessTypes] for AWS, [GoogleMarkerlessTypes] for hashicorp/google.
+// The two are generated by different tools from different evidence and
+// read the same way.
+func IsMarkerless(typeName string) bool {
+	if _, ok := MarkerlessTypes[typeName]; ok {
+		return true
+	}
+	_, ok := GoogleMarkerlessTypes[typeName]
+	return ok
+}
+
+// MarkerlessReasonFor is the ruling that put typeName in the markerless
+// veto, worded for the provider it belongs to: [GoogleMarkerlessReason] for
+// a [GoogleMarkerlessTypes] member, [MarkerlessReason] otherwise.
+func MarkerlessReasonFor(typeName string) string {
+	if _, ok := GoogleMarkerlessTypes[typeName]; ok {
+		return GoogleMarkerlessReason
+	}
+	return MarkerlessReason
 }
 
 // identityAttrFor is the identity attribute one component supplies for one
@@ -879,7 +1040,10 @@ func (t TypeIdentity) ComposesIdentity(required []string) bool {
 	return true
 }
 
-// AdmittedTypes lists every resource type the v0 table covers, sorted.
+// AdmittedTypes lists every resource type the v0 table covers, sorted. It
+// is [DefaultTable]'s roster and leaves [GoogleTable] out: its callers
+// enumerate what an AWS or Kubernetes sweep asks for, and nothing sweeps a
+// Google Cloud project yet (#1119).
 func AdmittedTypes() []string {
 	out := make([]string, 0, len(DefaultTable))
 	for t := range DefaultTable {

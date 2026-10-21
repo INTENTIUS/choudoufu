@@ -11,5 +11,6 @@ that you can clone and run.
 | [`examples/record-store-bucket`](record-store-bucket/README.md) | A correct record store bucket, and the IAM policy for an estate's role |
 | [`examples/record-store-cluster`](record-store-cluster/README.md) | Records namespace and Roles for an estate kept in a cluster |
 | [`examples/record-store-azurerm`](record-store-azurerm/CONTRACT.md) | What an Azure storage account must have to hold records, and the read fence for one estate |
+| [`examples/record-store-gcs`](record-store-gcs/CONTRACT.md) | What a record store GCS bucket must have, one per estate, and the IAM grant for an estate's identity |
 | [`examples/cross-estate-dependency`](cross-estate-dependency/) | Two estates, one reading a value off the other's live resource |
 | [`examples/live-mv-workbench`](live-mv-workbench/) | A notebook that splits a configuration by retagging, against the local emulator |

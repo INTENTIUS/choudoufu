@@ -9,21 +9,16 @@ prompt: >-
 
 | Piece | Who creates it |
 |---|---|
-| Credentials and an access policy | You, before the first plan |
+| Credentials and an access policy | You |
 | `estate.chdf.hcl` | You, one line |
-| A local record store | The first run |
-| A shared record store, a bucket or a namespace | You, before the first plan |
-| Markers on resources choudoufu creates | The apply |
-| Markers on resources that already exist | You, by [migrating](../migrate/) |
+| A shared record store, a bucket or a namespace | You |
+| Markers on new resources | The apply |
+| Markers on existing resources | You, by [migrating](../migrate/) |
 
-## Credentials and region
+## Credentials
 
-Credentials come from the usual SDK chain. A live plan reads widely, so set
-`AWS_PROFILE` on purpose. A missing region or credential fails with
-`Error: Provider unavailable for marker discovery`.
-
-Pin `required_providers` to the `provider_version` in `live/survey.json` for a
-quiet first plan. Other versions print a warning.
+On AWS, set `AWS_PROFILE` and a region. On Kubernetes, the provider reads your
+kubeconfig or `KUBE_CONFIG_PATH`.
 
 ## The estate declaration
 
@@ -32,36 +27,18 @@ quiet first plan. Other versions print a warning.
 estate = "my-estate"
 ```
 
-`init` refuses two mistakes.
-
-| Mistake | What prints |
-|---|---|
-| A `backend` or `cloud` block beside it | `Error: Both a backend and a live configuration are present` |
-| Both the sidecar and a `live` block | `Error: Both a live sidecar file and a live block are present` |
-
 ## The record store
 
 | Store | What must exist first |
 |---|---|
-| `local` | Nothing. Gitignore `.tofu-records/`, because records hold secrets |
-| `s3` | The bucket, with versioning, a lifecycle rule that expires noncurrent versions, and public-access block |
-| `kubernetes` | The namespace, and a role bound to Secrets in it |
-| `azurerm` | The storage account and container, with versioning, a lifecycle rule that deletes previous versions, and public access off |
+| `local` | Nothing. Gitignore `.tofu-records/` |
+| `s3` | The bucket ([set it up](../bucket/)) |
+| `kubernetes` | The namespace, and a role bound to Secrets in it ([`examples/record-store-cluster`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-cluster/README.md)) |
 
-Create the bucket or namespace outside the estate that uses it. The plan opens
-the store first, so a store the estate declares fails with `NoSuchBucket`.
-
-[Set up a record store bucket](../bucket/) has the commands. A Kubernetes
-namespace defaults to `tofu-records-<estate>`.
+Create the store outside the estate that uses it.
 
 ## Permissions
 
-A read-only role can run a plan once a writing role has opened the store. A
-store no run has opened is refused by name.
-
-A role scoped to fewer services prints an `Incomplete sweep` warning per type
-it cannot list.
-
-Adoption needs the service's tagging action, such as `ec2:CreateTags`.
-[`live/IAM-REFERENCE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/IAM-REFERENCE.md)
-lists the actions per stage, store and service.
+On AWS, adoption needs the service's tagging action, such as `ec2:CreateTags`
+([`live/IAM-REFERENCE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/IAM-REFERENCE.md)).
+On Kubernetes, each writer needs `use` on its estate ([the gate](../../../kubernetes/gate/)).

@@ -267,6 +267,13 @@ var estateSpecs = []estateSpec{
 		Note:       `kubernetes/k8s.io's metrics-server installation (#1880): live/e2e/corpus-k8s-metrics-server/run.sh's write_root() copies ONE file, infra/aws/terraform/kops-infra-ci/metrics-server.tf, out of .corpus and writes its own providers.tf, so the rest of kops-infra-ci (VPC, EKS, IAM, ECR, S3, the aws providers) is never part of the estate and ConfigDirs, which would load the whole directory, is nil. ScanFiles reads that one file: nine hashicorp/kubernetes resources on the non-_v1 type names, kubernetes_api_service among them. ScanScript adds the stage additions the script declares itself: day2_count's kubernetes_config_map_v1, day2_crash's kubernetes_secret_v1 and kubernetes_config_map_v1 pair, and the strict scratch estate's random_password.`,
 	},
 	{
+		Name:       "corpus-k8s-infra-gcp-gcve",
+		ConfigDirs: nil,
+		ScanScript: true,
+		ScanFiles:  []string{".corpus/k8s-io/infra/gcp/terraform/k8s-infra-gcp-gcve/main.tf"},
+		Note:       `The gcp lane's first published root (#1119): kubernetes/k8s.io's infra/gcp/terraform/k8s-infra-gcp-gcve at 4046258e7d. ConfigDirs is nil on purpose: live/e2e/corpus-k8s-infra-gcp-gcve/run.sh's shape_root() copies main.tf, variables.tf, buckets.tf and iam.tf, replaces provider.tf, and takes only the four Compute resources out of vmware-engine.tf, leaving its five google_vmwareengine_* resources out, so loading the directory would count types the estate never applies; and corpus-fetch installs no modules for the gcp roots, which no corpus glob reaches. ScanFiles reads main.tf (google_project_service). ScanScript reads the script's network_expected() heredoc, the four Compute blocks it holds the corpus text to (google_compute_network, google_compute_subnetwork, google_compute_firewall), day2_replace's and day2_crash's scratch google_storage_bucket blocks, and the strict scratch estate's random_password. The two registry modules' types (simple_bucket's google_storage_bucket and google_storage_bucket_iam_member, projects_iam's google_project_iam_binding) are applied but not counted here: no module is installed for this root.`,
+	},
+	{
 		Name:       "reference-eks",
 		ConfigDirs: nil,
 		ScanScript: true,
@@ -284,6 +291,12 @@ var estateSpecs = []estateSpec{
 		ConfigDirs: nil,
 		ScanScript: true,
 		Note:       `The "azure" lane's first estate (#1120): no external source, a hand-written shape kept in this repository and crossed on floci-az. run.sh's resource_block() heredoc carries the whole estate: azurerm_resource_group, azurerm_virtual_network, azurerm_subnet, azurerm_network_security_group, azurerm_network_security_rule, azurerm_storage_account, azurerm_user_assigned_identity (one, plus a two-instance count set), azurerm_public_ip, and one azapi_resource of type Microsoft.ManagedIdentity/userAssignedIdentities - no module, no AWS provider. Its mi_block() heredoc adds day2_replace's and day2_crash's identities (azurerm_user_assigned_identity, no new type), and its strict_block() heredoc (the strict-stage scratch estate) adds random_password, outside the estate itself.`,
+	},
+	{
+		Name:       "reference-gcp",
+		ConfigDirs: nil,
+		ScanScript: true,
+		Note:       `The "gcp" lane's first estate (#1119): no external source, a hand-written shape kept in this repository and crossed on floci-gcp. run.sh's heredocs carry the whole estate: the skeleton (google_compute_network, google_compute_subnetwork, google_compute_firewall, google_service_account) and the labelled types (google_storage_bucket, google_pubsub_topic including a count set, google_compute_disk, google_compute_instance), on hashicorp/google 8.6.0 with no module and no AWS provider. The day-2 stages add google_pubsub_topic blocks (crash_first, crash_second, cbd) and the strict scratch estate's random_password, outside the estate itself.`,
 	},
 	{
 		Name:       "reference-k8s",

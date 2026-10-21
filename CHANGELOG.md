@@ -39,6 +39,13 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.31.0 (Unreleased)
 
+- Changed: claims hold only the promise and its proof. A cell is `proven`
+  or `n/a`; `unproven`, `open`, `restated` and the stale marking are gone,
+  and each proof shows the date and commit it last ran. Claim 47 left the
+  list, its number reserved. Removed caveats are GitHub issues. A Go test
+  (`TestClaimWordingIsProofOnly`) fails on hedging words in the claims, the
+  table and the site's proof pages and figures. The home page's figures
+  read "Proven" with a count and a last run.
 - Changed: a claim cell keeps its last measured result across releases. A
   scenario proof may carry `last_run` (status, claim, commit, date,
   version), and `live/CLAIMS.md` and the site mark any run older than the
@@ -97,6 +104,8 @@ BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.29.1.json li
   and the dry run, instead of refusing the move as a mutating webhook
   rewrite. After five tries it refuses with "Live object kept changing"
   (#2050, #2082).
+
+- `live-cone` and `plan -cone=BASE` read a root in a repository subdirectory from the same subdirectory at `BASE`, at any depth and through a symlinked working directory, so several estates in one repository each plan only their own cone; before #2081 every such root read an empty base and fell back to a full plan naming the terraform block. A local module called through `./` or `../` resolves against the root's subdirectory. A root whose directory did not exist at `BASE`, or held no configuration there, now plans in full with the guard `root-new-at-base` saying so, instead of a guard naming whichever block tripped first (#2062).
 
 ## choudoufu v0.29.1 (2026-10-17)
 

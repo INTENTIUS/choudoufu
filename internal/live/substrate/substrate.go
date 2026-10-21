@@ -165,6 +165,17 @@ type Substrate interface {
 	// #1883; live/MARKERS.md's record table).
 	MarkerOutlivesObject() bool
 
+	// Unrecorded is what a declared instance of typeName, one of this
+	// family's markerless types (no surface at all), means when a record
+	// store is in play, it holds no record for the instance, and an object
+	// is live at the identity its configuration computes ([Unrecorded], the
+	// maintainer's ruling of 2026-10-20). It is per type because whether a
+	// create at a held identity collides is: enabling a google project
+	// service that is already enabled succeeds, creating a firewall whose
+	// name is taken does not. A family answers from its own facts about the
+	// type, never from a list in a caller.
+	Unrecorded(typeName string) Unrecorded
+
 	// NewSweeper builds the family's estate-sweep client from its provider
 	// block's evaluated configuration (ok false when the run holds none):
 	// nil with no error for a family whose sweep runs through the
@@ -212,7 +223,7 @@ type Substrate interface {
 // asked before it. TestTheCatchAllFamilyIsLast holds it (GitHub issue
 // #1742). The surface questions are asked of the provider's own family
 // ([SurfaceOf]), so for a claimed provider the order does not decide them.
-var All = []Substrate{Kubernetes, Azure, AWS}
+var All = []Substrate{Kubernetes, Azure, Google, AWS}
 
 // ForProvider is the family a provider type name belongs to ("aws",
 // "kubernetes"): the one whose [Substrate.ProviderTypes] lists it. It
@@ -240,7 +251,10 @@ func ForProvider(providerType string) (Substrate, bool) {
 // leg lists every kind the cluster serves and joins the result against the
 // estate's objects. Azure answers true from its Resource Graph sweep's
 // design ([azure.SweepFindsUnadmitted]); until that leg is built, the
-// plan's NO_SWEEP_LEG gap names the family instead. AWS's own sweep ([SweepTaggingIndex]) is
+// plan's NO_SWEEP_LEG gap names the family instead. GCP's Asset Inventory
+// leg sees every labelled asset type but plans no removal and cannot see an
+// unlabelled type, so it answers false and its deleted blocks are the record
+// leg's (GitHub issue #2134). AWS's own sweep ([SweepTaggingIndex]) is
 // the admission table read a different way, so a type with no row gets
 // nothing extra from it, and neither does an unregistered provider
 // ForProvider does not recognise at all.
@@ -256,6 +270,23 @@ func Sweeps(providerType string) bool {
 	return ok && s.SweepFindsUnadmitted()
 }
 
+// RecordsRemoveUnrowed reports whether providerType's family removes a
+// deleted block's objects from the estate's records alone, for a type with
+// no admission-table row as well as one with a row: the record-orphan leg
+// admits an unrowed type through the provider's identity schema on such a
+// pass. True for the GCP family, whose Asset Inventory leg plans no removal
+// of its own (GitHub issue #2134, item 1). [Sweeps] stays false for it,
+// because the deposed-record and label-list paths that read [Sweeps] need a
+// sweep that lists, and the Asset search does not list for removal.
+//
+// The identity package's no-orphan-recovery warning asks both: a type of
+// such a family is recovered from its record once its last block is
+// deleted, which is what the warning says nothing does.
+func RecordsRemoveUnrowed(providerType string) bool {
+	s, ok := ForProvider(providerType)
+	return ok && s.Sweep() == SweepAssetSearch
+}
+
 // TombstonesRead reports whether a record tombstone written for an object
 // of providerType's family can ever be read: true unless the family is
 // known and its marker dies with the object ([Substrate.MarkerOutlivesObject]).
@@ -264,6 +295,49 @@ func Sweeps(providerType string) bool {
 func TombstonesRead(providerType string) bool {
 	s, ok := ForProvider(providerType)
 	return !ok || s.MarkerOutlivesObject()
+}
+
+// Unrecorded is a family's answer for a declared instance of a markerless
+// type that has no record in the estate's record store while an object is
+// live at the identity its configuration computes.
+//
+// The ruling (maintainer, 2026-10-20, "option A"): such an object is not
+// owned. Nothing on it says whose it is, and the record is the only place
+// this estate could have written that it made the object. Somebody else may
+// have, and a destroy that left the object in place (a google service with
+// disable_on_destroy unset) leaves exactly the same shape behind. What
+// follows depends on whether the create the configuration declares would
+// collide with the object, which is the family's to say.
+type Unrecorded string
+
+const (
+	// UnrecordedCreates: not owned, and the plan proposes the create. The
+	// default for a family that claims nothing, and right wherever a create
+	// at a held identity is idempotent or cannot conflict.
+	UnrecordedCreates Unrecorded = "creates"
+
+	// UnrecordedNameHeld: not owned, and the create would be refused while
+	// the object holds the identity, so the plan stops with the name-held
+	// refusal instead of proposing it.
+	UnrecordedNameHeld Unrecorded = "name-held"
+
+	// UnrecordedParentOwned: admitted as before. The family's markerless
+	// types are attachments and associations identified by a composite of
+	// tagged parents, so their ownership is their parents' ownership and a
+	// refusal would only ever be a false accusation (internal/live/
+	// projection's checkOwnership doc comment, live/MARKERS.md).
+	UnrecordedParentOwned Unrecorded = "parent-owned"
+)
+
+// UnrecordedFor is [Substrate.Unrecorded] for providerType's family, and
+// [UnrecordedCreates] for a provider no family claims: nothing vouches that
+// its markerless objects are anybody's, and nothing says a create there
+// collides.
+func UnrecordedFor(providerType, typeName string) Unrecorded {
+	if s, ok := ForProvider(providerType); ok {
+		return s.Unrecorded(typeName)
+	}
+	return UnrecordedCreates
 }
 
 // For is the family a surface belongs to, or nil for the zero Surface.
@@ -448,6 +522,26 @@ func CreateCollidesOnKey(surface markers.Surface) bool {
 func CreateOverwritesAtKey(surface markers.Surface) bool {
 	s := For(surface)
 	return s != nil && s.CreateOverwritesAtKey(surface)
+}
+
+// nameHeldWording is the optional half of a family whose own words for
+// GitHub issue #1546's refusal differ from the Kubernetes sentence the
+// projection carries: what keys the object, and which markers adopt it.
+type nameHeldWording interface {
+	NameHeldDetail(typeName, importID string, addr addrs.AbsResourceInstance, estate string) string
+}
+
+// NameHeldDetail is surface's family's sentence for an unlabelled object
+// holding the name a declared create would send, and false when the family
+// has none of its own. The first GCP gauntlet run printed the Kubernetes
+// sentence (API server, kind and namespace, one label) for a compute
+// instance.
+func NameHeldDetail(surface markers.Surface, typeName, importID string, addr addrs.AbsResourceInstance, estate string) (string, bool) {
+	w, ok := For(surface).(nameHeldWording)
+	if !ok {
+		return "", false
+	}
+	return w.NameHeldDetail(typeName, importID, addr, estate), true
 }
 
 // CarrierPhrase names where surface's marker map lives ("tags attribute",
@@ -758,6 +852,11 @@ type HoldEvidence struct {
 	// ARMTags are an Azure Resource Manager object's tags, kept apart from
 	// Tags so that each family still reads only its own field.
 	ARMTags map[string]string
+	// Labels are a GCP resource's labels, and AssetType its Cloud Asset
+	// Inventory asset type (compute.googleapis.com/Instance): a GCP hold
+	// is recognised by a reserved label key on a given kind of asset.
+	Labels    map[string]string
+	AssetType string
 }
 
 // Hold is a family's answer for a held object.

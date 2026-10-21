@@ -2297,6 +2297,8 @@ else
   # mirrors. This step never having run before is exactly how a stale entry
   # like that survives: nothing checked the directory was still there.
   LINT_ENFORCED="local-exec:provisioner
+gcp-label-count:gcp-label-count
+gcp-estate-label:gcp-estate-label
 remote-exec:provisioner
 null-resource:logical-resource
 terraform-data:logical-resource
@@ -2359,7 +2361,8 @@ strict-secrets-ssm:strict-secrets-ssm"
   # warning rule; see LINT_AZURE below for how its plan ends.
   LINT_WARNED="backend-block:state-backend
 cloud-block:state-backend
-arm-tag-limit:arm-tag-limit"
+arm-tag-limit:arm-tag-limit
+gcp-multi-project:gcp-multi-project"
 
   # The Azure fixtures (GitHub issue #1120, #2133 finding 9). They declare
   # hashicorp/azurerm with a pinned version, so each is init'ed first: with

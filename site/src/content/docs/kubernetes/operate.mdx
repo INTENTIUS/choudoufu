@@ -11,7 +11,7 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 ## Rename
 
-`live-mv <old> <new>` or the next apply rewrites the address annotation. `live-mv -from-estate` moves an object between estates.
+`live-mv <old> <new>` rewrites the address annotation.
 
 ### Records
 
@@ -19,11 +19,11 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 record_store "kubernetes" {}
 ```
 
-Each record is a Secret in `tofu-records-<estate>`, a namespace you create. `choudoufu live-cluster` checks the setup and names each fix.
+Each record is a Secret in `tofu-records-<estate>`.
 
 ## Remove
 
-An undeclared object with your label is proposed for deletion. Owner-referenced, control-plane and Helm release objects are excluded.
+An undeclared object with your label is proposed for deletion. Objects a controller or a Helm release made stay.
 
 ## Scale
 
@@ -31,12 +31,12 @@ Each instance's name is in its key.
 
 ## Plan, review, apply
 
-As on [AWS](/choudoufu/aws/operate/).
+`apply FILE` applies a saved plan that still matches the live system, and exits 3 otherwise.
 
 ## From CI
 
-As on [AWS](/choudoufu/aws/operate/).
+See the [CI how-to](/choudoufu/docs/use/cicd/).
 
 ## Two runs at once
 
-Server-side apply returns a 409 naming the other manager ([OPERATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/OPERATE.md)).
+Server-side apply names the other manager ([OPERATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/OPERATE.md)).
