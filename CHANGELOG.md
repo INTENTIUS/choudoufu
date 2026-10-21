@@ -98,6 +98,8 @@ BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.29.1.json li
   rewrite. After five tries it refuses with "Live object kept changing"
   (#2050, #2082).
 
+- `live-cone` and `plan -cone=BASE` read a root in a repository subdirectory from the same subdirectory at `BASE`, at any depth and through a symlinked working directory, so several estates in one repository each plan only their own cone; before #2081 every such root read an empty base and fell back to a full plan naming the terraform block. A local module called through `./` or `../` resolves against the root's subdirectory. A root whose directory did not exist at `BASE`, or held no configuration there, now plans in full with the guard `root-new-at-base` saying so, instead of a guard naming whichever block tripped first (#2062).
+
 ## choudoufu v0.29.1 (2026-10-17)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.29.1.json`](live/history/v0.29.1.json).
