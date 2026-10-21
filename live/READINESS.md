@@ -20,7 +20,7 @@ around the generated markers, never inside them.
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
 | Total | 1119 | 492 | 4 | 19 | 62 | 3 | 1699 |
 
-`live/readiness.json` last committed at commit `8eaaab25fe` on 2026-10-20T21:17:37-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
+`live/readiness.json` last committed at commit `2e30879f75` on 2026-10-20T21:36:51-06:00. Regenerate with `go run ./tools/readiness-gen` and re-render with `go run ./tools/readiness-gen -render` before trusting this against a newer commit.
 <!-- readiness-gen:end tiers -->
 
 ## How each type comes back
@@ -87,12 +87,12 @@ the provider's own source at the pin.
 | How it comes back | Tier | Types | What it means |
 |---|---|---|---|
 | marker | marker-carried | 318 | The `tofu-address` label on the object is the identity; the sweep reads it back. |
-| client-named | declaration-carried | 338 | The configuration names it, under a project or location it also names or the provider supplies. |
-| parent-derived | declaration-carried | 596 | Composed over a containing resource the configuration also names; every IAM type is this shape. |
-| project-derived | declaration-carried | 21 | Only project, region or zone names it: one per project or region. |
+| client-named | declaration-carried | 337 | The configuration names it, under a project or location it also names or the provider supplies. |
+| parent-derived | declaration-carried | 597 | Composed over a containing resource the configuration also names; every IAM type is this shape. |
+| project-derived | declaration-carried | 24 | Only project, region or zone names it: one per project or region. |
 | unique-name | - | 0 | Nothing in the google source states a name the API refuses to issue twice, so no type is here. |
 | server-minted | record-carried | 135 | The API mints the identity and the type has no labels; only a record holds it. |
-| unbindable | record-carried | 77 | No row and no identity-schema route; a record is the only copy. |
+| unbindable | record-carried | 74 | No row and no identity-schema route; a record is the only copy. |
 <!-- readiness-gen:end gcp-paths -->
 
 <!-- readiness-gen:begin gcp-types -->
@@ -100,11 +100,11 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 
 | Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
 |---|---|---|---|---|---|---|---|
-| marker-carried | 301 | 13 | 0 | 4 | 0 | 0 | 318 |
-| declaration-carried | 927 | 28 | 0 | 0 | 0 | 0 | 955 |
-| record-carried | 0 | 49 | 0 | 28 | 135 | 0 | 212 |
+| marker-carried | 302 | 12 | 0 | 4 | 0 | 0 | 318 |
+| declaration-carried | 931 | 27 | 0 | 0 | 0 | 0 | 958 |
+| record-carried | 0 | 43 | 0 | 31 | 135 | 0 | 209 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Total | 1228 | 90 | 0 | 32 | 135 | 0 | 1485 |
+| Total | 1233 | 82 | 0 | 35 | 135 | 0 | 1485 |
 
 | Reason | Why the type is not in contract |
 |---|---|
@@ -219,20 +219,20 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_apphub_service` | declaration-carried | in-contract |  |
 | `google_apphub_service_project_attachment` | declaration-carried | in-contract |  |
 | `google_apphub_workload` | declaration-carried | in-contract |  |
-| `google_artifact_registry_project_config` | record-carried | pending-ratification | 4 |
-| `google_artifact_registry_repository` | marker-carried | pending-ratification | 1 |
+| `google_artifact_registry_project_config` | declaration-carried | in-contract |  |
+| `google_artifact_registry_repository` | marker-carried | in-contract |  |
 | `google_artifact_registry_repository_iam_binding` | declaration-carried | in-contract |  |
 | `google_artifact_registry_repository_iam_member` | declaration-carried | in-contract |  |
 | `google_artifact_registry_repository_iam_policy` | declaration-carried | in-contract |  |
-| `google_artifact_registry_rule` | declaration-carried | pending-ratification | 1 |
-| `google_artifact_registry_vpcsc_config` | record-carried | pending-ratification | 4 |
+| `google_artifact_registry_rule` | declaration-carried | in-contract |  |
+| `google_artifact_registry_vpcsc_config` | declaration-carried | in-contract |  |
 | `google_assured_workloads_workload` | marker-carried | in-contract |  |
 | `google_backup_dr_backup_plan` | declaration-carried | in-contract |  |
 | `google_backup_dr_backup_plan_association` | declaration-carried | in-contract |  |
 | `google_backup_dr_backup_vault` | marker-carried | in-contract |  |
 | `google_backup_dr_management_server` | declaration-carried | in-contract |  |
 | `google_backup_dr_restore_workload` | record-carried | pending-mechanism | 2 |
-| `google_backup_dr_service_config` | record-carried | pending-ratification | 4 |
+| `google_backup_dr_service_config` | record-carried | needs-evidence | 3 |
 | `google_beyondcorp_security_gateway` | declaration-carried | in-contract |  |
 | `google_beyondcorp_security_gateway_application` | declaration-carried | in-contract |  |
 | `google_beyondcorp_security_gateway_application_iam_binding` | declaration-carried | in-contract |  |
@@ -629,7 +629,7 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_compute_snapshot_iam_binding` | declaration-carried | in-contract |  |
 | `google_compute_snapshot_iam_member` | declaration-carried | in-contract |  |
 | `google_compute_snapshot_iam_policy` | declaration-carried | in-contract |  |
-| `google_compute_snapshot_settings` | record-carried | pending-ratification | 4 |
+| `google_compute_snapshot_settings` | declaration-carried | in-contract |  |
 | `google_compute_ssl_certificate` | declaration-carried | in-contract |  |
 | `google_compute_ssl_policy` | declaration-carried | in-contract |  |
 | `google_compute_storage_pool` | marker-carried | in-contract |  |
@@ -823,7 +823,7 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_dialogflow_cx_tool_version` | record-carried | pending-mechanism | 2 |
 | `google_dialogflow_cx_version` | record-carried | pending-mechanism | 2 |
 | `google_dialogflow_cx_webhook` | record-carried | pending-mechanism | 2 |
-| `google_dialogflow_encryption_spec` | record-carried | pending-ratification | 4 |
+| `google_dialogflow_encryption_spec` | record-carried | needs-evidence | 3 |
 | `google_dialogflow_entity_type` | record-carried | pending-mechanism | 2 |
 | `google_dialogflow_environment` | declaration-carried | in-contract |  |
 | `google_dialogflow_fulfillment` | record-carried | pending-mechanism | 2 |
@@ -1590,7 +1590,7 @@ hashicorp/google and hashicorp/google-beta 8.6.0: 1485 resource types.
 | `google_workbench_instance_iam_member` | declaration-carried | in-contract |  |
 | `google_workbench_instance_iam_policy` | declaration-carried | in-contract |  |
 | `google_workflows_workflow` | marker-carried | needs-evidence | 3 |
-| `google_workload_identity_service_agent` | record-carried | pending-ratification | 4 |
+| `google_workload_identity_service_agent` | record-carried | needs-evidence | 3 |
 | `google_workstations_workstation` | marker-carried | in-contract |  |
 | `google_workstations_workstation_cluster` | marker-carried | in-contract |  |
 | `google_workstations_workstation_config` | marker-carried | in-contract |  |

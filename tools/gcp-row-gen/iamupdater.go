@@ -7,6 +7,7 @@ package main
 
 import (
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -338,4 +339,44 @@ func handParseTemplate(body, helpers string) string {
 		return ""
 	}
 	return tmpl
+}
+
+var (
+	parseQualifiersRe = regexp.MustCompile(`GetImportIdQualifiers\(\[\]string\{((?:"(?:[^"\\]|\\.)*"(?:, )?)*)\}, d, config, d\.Id\(\)\)`)
+	valuesAssignRe    = regexp.MustCompile(`\bvalues\["(\w+)"\] = `)
+)
+
+// parseUnsetKeys are the values-map keys a generated IdParseFunc's updater
+// struct reads that nothing in the function sets: no named group of any of
+// its GetImportIdQualifiers regexes captures them (the provider defaults
+// GetImportIdQualifiers adds are named groups of the first regex too), and
+// no `values["key"] = ` assigns them. Such a key is "" after every import,
+// so the parent the import rebuilds is not the one the create used (#2145
+// item 7). Nil when the function is not that shape.
+func parseUnsetKeys(body string) []string {
+	m := parseQualifiersRe.FindStringSubmatch(body)
+	if m == nil {
+		return nil
+	}
+	read := iamReadKeys(body)
+	if read == nil {
+		return nil
+	}
+	set := map[string]bool{}
+	for _, re := range unquoteAll(m[1]) {
+		for _, g := range groupNameRe.FindAllStringSubmatch(re, -1) {
+			set[g[1]] = true
+		}
+	}
+	for _, a := range valuesAssignRe.FindAllStringSubmatch(body, -1) {
+		set[a[1]] = true
+	}
+	var out []string
+	for k := range read {
+		if !set[k] {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
 }

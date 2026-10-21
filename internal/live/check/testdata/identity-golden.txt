@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=722 instances=2509
-# shape: class CONCRETE=1555
+# shape: dirs=723 instances=2513
+# shape: class CONCRETE=1559
 # shape: class NEEDS_DISCOVERY=789
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=691 fixture-instances=1805
+# shape: fixture-dirs=692 fixture-instances=1809
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=55d738948d14328a8d8301bbe558385ff6a77e8b993589d91dd8728f0f469130
+# shape: body-sha256=d645199878366bdc62d43f72b5f51638bee51551080d4fd80a19e2335667d831
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -412,6 +412,10 @@ internal/live/identity/testdata/gcp-identity-rows	google_pubsub_topic.orphan	NEE
 internal/live/identity/testdata/gcp-identity-rows	google_recaptcha_enterprise_key.site	NEEDS_DISCOVERY		
 internal/live/identity/testdata/gcp-identity-rows	google_service_account.runner	CONCRETE	projects/estate-prod/serviceAccounts/ci-runner@estate-prod.iam.gserviceaccount.com	email=ci-runner@estate-prod.iam.gserviceaccount.com
 internal/live/identity/testdata/gcp-identity-rows	google_storage_bucket_iam_member.reader	CONCRETE	b/estate-artifacts roles/storage.objectViewer group:readers@example.com until 2027	bucket=estate-artifacts,condition_title=until 2027,member=group:readers@example.com,role=roles/storage.objectViewer
+internal/live/identity/testdata/gcp-location-rule	google_artifact_registry_repository.defaulted	CONCRETE	projects/estate-prod/locations/europe-west1/repositories/images	repository_id=images
+internal/live/identity/testdata/gcp-location-rule	google_artifact_registry_repository.multi	CONCRETE	projects/estate-prod/locations/us/repositories/mirror	location=us,repository_id=mirror
+internal/live/identity/testdata/gcp-location-rule	google_artifact_registry_rule.keep	CONCRETE	projects/estate-prod/locations/europe-west1/repositories/images/rules/keep	location=europe-west1,repository_id=images,rule_id=keep
+internal/live/identity/testdata/gcp-location-rule	google_compute_snapshot_settings.settings	CONCRETE	projects/estate-prod/global/snapshotSettings/	
 internal/live/identity/testdata/gcp-long-form	google_cloud_run_v2_service_iam_member.location_agrees	CONCRETE	projects/estate-prod/locations/europe-west1/services/api roles/run.invoker group:a@example.com	location=europe-west1,member=group:a@example.com,name=api,role=roles/run.invoker
 internal/live/identity/testdata/gcp-long-form	google_cloud_run_v2_service_iam_member.location_short	CONCRETE	projects/estate-prod/locations/us-east1/services/api roles/run.invoker group:a@example.com	location=us-east1,member=group:a@example.com,name=api,role=roles/run.invoker
 internal/live/identity/testdata/gcp-long-form	google_compute_network_firewall_policy.p	CONCRETE	projects/estate-prod/global/firewallPolicies/pol	name=pol

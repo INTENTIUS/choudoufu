@@ -77,6 +77,37 @@ func TestGoogleOptionalPlaceholderRow(t *testing.T) {
 	}
 }
 
+// TestGoogleLocationRuleRows resolves the rows tools/gcp-row-gen derives
+// from how a generated Create sets an optional, computed {{location}}
+// (#2145 item 7): an encoder's tpgresource.GetRegion default stands in
+// for an unwritten location, a Create that sets nothing refuses the
+// instance that leaves it out, and a placeholder the schema lacks renders
+// as the empty segment ReplaceVars writes.
+func TestGoogleLocationRuleRows(t *testing.T) {
+	cfg := loadConfig(t, "testdata/gcp-location-rule", nil)
+	result, diags := Resolve(context.Background(), cfg)
+
+	concrete := map[string]string{
+		"google_artifact_registry_repository.defaulted": "projects/estate-prod/locations/europe-west1/repositories/images",
+		"google_artifact_registry_repository.multi":     "projects/estate-prod/locations/us/repositories/mirror",
+		"google_artifact_registry_rule.keep":            "projects/estate-prod/locations/europe-west1/repositories/images/rules/keep",
+		"google_compute_snapshot_settings.settings":     "projects/estate-prod/global/snapshotSettings/",
+	}
+	for addr, id := range concrete {
+		got := resolutionAt(t, result, addr)
+		if got.Class != ClassConcrete || got.ImportID != id {
+			t.Errorf("%s = %s %q (%s), want CONCRETE %q", addr, got.Class, got.ImportID, got.Reason, id)
+		}
+	}
+
+	if len(diags) != 1 {
+		t.Fatalf("got %d diagnostics, want the one refusal: %v", len(diags), diags.Err())
+	}
+	if d := diags[0].Description(); !strings.Contains(d.Detail, "google_artifact_registry_rule.nowhere") || !strings.Contains(d.Detail, `"location"`) {
+		t.Errorf("the refusal does not name the rule and its missing location: %s", d.Detail)
+	}
+}
+
 // TestGoogleCreateNamedRow resolves the rows of types whose id embeds a
 // name the API returns, where the create sends that name's last segment as
 // the request's id field (#2145 item 3): an instance that sets the
