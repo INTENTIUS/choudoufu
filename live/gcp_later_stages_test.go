@@ -113,6 +113,36 @@ func TestGCPExitStatusCountsARecordedFail(t *testing.T) {
 	}
 }
 
+// A stage after the first failure ran on an estate that failure may have
+// left broken, so its verdict says which stage failed first; the failing
+// stage and the stages before it carry nothing.
+func TestGCPStageAfterAFailSaysSo(t *testing.T) {
+	out, _ := gcpBash(t, nil, `W="$(mktemp -d)"; gcp_fail_flag "$W/failed"; gauntlet_begin
+gauntlet_stage day2_remove pass removed
+( gauntlet_stage day2_count fail "the scale-up plan is not exactly one add"; true ); gcp_stage_done $? day2_count
+gauntlet_stage day2_replace pass replaced
+( gauntlet_stage day2_crash fail "not the remainder"; true ); gcp_stage_done $? day2_crash
+gauntlet_stage strict pass
+gauntlet_end`)
+	for _, c := range []struct{ stage, want string }{
+		{"day2_remove", "detail=removed\n"},
+		{"day2_count", "detail=the scale-up plan is not exactly one add\n"},
+		{"day2_replace", "detail=replaced after_fail=day2_count\n"},
+		{"day2_crash", "detail=not the remainder after_fail=day2_count\n"},
+		{"strict", "detail=after_fail=day2_count\n"},
+	} {
+		line := ""
+		for _, l := range strings.SplitAfter(out, "\n") {
+			if strings.HasPrefix(l, "GAUNTLET stage="+c.stage+" ") {
+				line = l
+			}
+		}
+		if !strings.HasSuffix(line, c.want) {
+			t.Errorf("%s: verdict line %q, want it to end %q", c.stage, line, c.want)
+		}
+	}
+}
+
 // greenfield names what its apply did not create. The apply lines are
 // terraform's own -no-color format, a for_each key's quotes and a module
 // path included.

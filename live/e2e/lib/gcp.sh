@@ -226,18 +226,28 @@ gcp_stage_done() {
   return 0
 }
 
-# gcp_fail_flag <file>: from here on, every fail verdict also touches
-# <file>, so gcp_exit_status can end the run non-zero when any stage
-# failed, whether its fail() exited a subshell or the stage recorded fail
-# and went on.
+# gcp_fail_flag <file>: from here on, the first fail verdict writes its
+# stage to <file>, so gcp_exit_status can end the run non-zero when any
+# stage failed, whether its fail() exited a subshell or the stage recorded
+# fail and went on. Every verdict of a later stage carries
+# "after_fail=<stage>" in its detail: it ran on an estate a failed stage
+# may have left broken, so a pass there is not a clean pass.
 gcp_fail_flag() {
   GCP_FAIL_FLAG="$1"
   eval "$(declare -f gauntlet_stage | sed '1s/^gauntlet_stage /_gcp_gauntlet_stage /')"
   gauntlet_stage() {
-    if [ "${2:-}" = "fail" ] && [ -n "${GCP_FAIL_FLAG:-}" ]; then
-      : > "$GCP_FAIL_FLAG"
+    local first=""
+    if [ -n "${GCP_FAIL_FLAG:-}" ] && [ -s "$GCP_FAIL_FLAG" ]; then
+      first="$(cat "$GCP_FAIL_FLAG")"
     fi
-    _gcp_gauntlet_stage "$@"
+    if [ "${2:-}" = "fail" ] && [ -n "${GCP_FAIL_FLAG:-}" ] && [ -z "$first" ]; then
+      printf '%s' "$1" > "$GCP_FAIL_FLAG"
+    fi
+    if [ -n "$first" ] && [ "$first" != "$1" ]; then
+      _gcp_gauntlet_stage "$@" "after_fail=$first"
+    else
+      _gcp_gauntlet_stage "$@"
+    fi
   }
 }
 
