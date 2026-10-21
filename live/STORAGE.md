@@ -452,9 +452,15 @@ the script does not render.
 
 ### What has not been measured
 
-Nothing in this section has run against real GCS or an emulator. The store
-and its checks are tested against a fake of the JSON API
-(`internal/live/staterecord/gcs_test.go`). These are ahead of measurement:
+Nothing in this section has run against real GCS. The store and its checks
+are tested against a fake of the JSON API
+(`internal/live/staterecord/gcs_test.go`), and reference-gcp's
+`record_store_gcs` gauntlet stage runs the store against floci-gcp's Cloud
+Storage, an emulator and not GCS. On the emulator it reaches part of the
+first item below (a create-only write's `412` when two applies race) and the
+fourth (the sentinel listing); floci-gcp does not answer a missing bucket the
+way GCS does (lex00/floci-gcp#32), so the second cannot be measured there.
+These are ahead of measurement against GCS:
 
 - that GCS answers a stale `ifGenerationMatch` on a write and a delete with
   `412`, and an update of a deleted object with `412` or `404`;
