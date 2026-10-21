@@ -26,7 +26,8 @@ Promoting a draft after its first green run, both arms:
 The Azure (`az-*.sh`, #1120) and GCP (`gcp-*.sh`, #1119) scripts live here
 too. Since cells read only `proven` or `n/a`, they wait here for their first
 dated run against floci-az or floci-gcp, and claims 48 to 52 (#2119's D1 to
-D5) are reserved numbers until then. A promotion adds a `## On Azure` or
+D5) are reserved numbers until then. #2178 (GCP) and #2180 (Azure) hold
+the claim text that comes back with each first run. A promotion adds a `## On Azure` or
 `## On GCP` section in step 3, and the `az-` or `gcp-` prefix plays the
 part `k8s-` does in step 4.
 

@@ -1,7 +1,10 @@
 # Operate
 
-Built, and not yet run on an emulator or a subscription. Where a sentence
-below says what a run does, it is read from the code.
+Both Azure estates, `reference-azure` and `corpus-azapi-role-assignment`,
+clear all 15 gauntlet stages on floci-az `7f079c2` (2026-10-21, azure
+`fbbc1c3bea`), with their records in `record_store "azurerm"` on floci-az
+blob storage. The rename, remove, count, replace, crash and teardown stages
+are the operations this page describes.
 
 ## Rename
 

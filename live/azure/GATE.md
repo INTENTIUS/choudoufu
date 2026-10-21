@@ -7,12 +7,14 @@ resource's tags, so the Azure fence is drawn around resource groups instead
 (ruled on [#1122](https://github.com/INTENTIUS/choudoufu/issues/1122)).
 This page says what that fence holds and what it does not.
 
-None of it is measured, so every statement here comes from Azure's
-documentation. floci-az serves role assignments with enforcement and
-evaluates Policy `deny` and `denyAction` since `30000b0`, not yet run, with
-`mode: Indexed` and `cascadeBehaviors` read as Azure reads them since
-`dfa33ca`. It still approximates: ABAC conditions and data actions are
-never evaluated ([`live/FLOCI.md`](../FLOCI.md#azure-floci-az)).
+The statements here come from Azure's documentation. Both Azure estates,
+`reference-azure` and `corpus-azapi-role-assignment`, clear all 15 gauntlet
+stages on floci-az `7f079c2` (2026-10-21, azure `fbbc1c3bea`), with their
+records in `record_store "azurerm"` on floci-az blob storage. floci-az
+serves role assignments with enforcement and evaluates Policy `deny` and
+`denyAction` since `30000b0`, with `mode: Indexed` and `cascadeBehaviors`
+read as Azure reads them since `dfa33ca`; it evaluates no ABAC condition and
+no data action ([`live/FLOCI.md`](../FLOCI.md#azure-floci-az)).
 
 ## An estate is a set of resource groups
 
@@ -70,7 +72,7 @@ left in a group the receiving estate does not declare gets the warning
 above. So splitting off a group means removing the old estate's
 assignments there, retagging its resources with `live-mv -from-estate`,
 and deploying both templates for the new estate at that group. That
-sequence is read from the templates and has not been run.
+sequence is read from the templates.
 
 ## What it does not fence
 
