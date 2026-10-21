@@ -39,7 +39,6 @@
   "discourse/punchy-fragments": 9,
   "repetition/near-duplicate": 4,
   "anaphora/repeated-opening": 2,
-  "tricolon/comma-series": 1,
-  "claude/colon-reveal": 2
+  "tricolon/comma-series": 1
  }
 }

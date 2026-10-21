@@ -9,18 +9,18 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 <PlatformSwitch />
 
-RBAC has no conditions, so an admission policy checks the label. An admin installs it once:
+An admin installs the admission policy once:
 
 ```
 kubectl apply -f live/kubernetes/estate-boundary.yaml
 ```
 
-A write passes when the caller holds `use` on `estates.choudoufu.intentius.io/<estate>` for the `tofu-estate` label before and after.
+A write passes when the caller holds `use` on `estates.choudoufu.intentius.io/<estate>`.
 
 ## What that buys
 
-A grant is a ClusterRole and binding ([estate-grant.yaml](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/estate-grant.yaml)). Handing over moves the binding. The policy binds the credential, so `kubectl` meets it too.
+A grant is a ClusterRole and binding ([estate-grant.yaml](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/estate-grant.yaml)). Handing over moves the binding. `kubectl` meets the same policy.
 
-## What it cannot reach
+## Guarding the marker
 
-Reads and subresources such as `scale` pass the policy unchecked. So does any `cluster-admin` ([GATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/GATE.md)).
+Keep `cluster-admin` to the admins who install the policy ([GATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/kubernetes/GATE.md)).

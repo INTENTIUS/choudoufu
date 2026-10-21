@@ -7,10 +7,8 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-See also [Rename a resource](../rename-a-resource/),
-[Remove a resource](../remove-a-resource/),
-[receipts](https://github.com/INTENTIUS/choudoufu/blob/main/live/RECEIPTS.md)
-and [concurrent runs](https://github.com/INTENTIUS/choudoufu/blob/main/live/CONCURRENCY.md).
+See also [Rename a resource](../rename-a-resource/) and
+[Remove a resource](../remove-a-resource/).
 
 ## Sharing values between estates
 
@@ -30,23 +28,14 @@ data "aws_vpc" "network" {
 }
 ```
 
-On Kubernetes the namespace and name already identify the object, so a stock
-data source such as `kubernetes_config_map_v1` reads it by those. Apply the
-producer first. `terraform_remote_state` returns a snapshot from the
-day the producer migrated.
+On Kubernetes, a stock data source reads the object by namespace and name.
 
 For a value no resource holds, `data "terraform_estate_outputs"` returns the
-producer's outputs as of its last apply. Sensitive outputs stay private. A
-bucket consumer's policy needs `--reads-outputs-of <producer>`; a Kubernetes
-consumer names the producer in a `reads_outputs_of` block.
-[`live/OUTPUTS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md)
-and
-[`examples/cross-estate-dependency`](https://github.com/INTENTIUS/choudoufu/tree/main/examples/cross-estate-dependency)
-show it in use.
+producer's outputs as of its last apply
+([`live/OUTPUTS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md)).
 
 ## Plan, review, apply
 
-`apply FILE` treats a `plan -out=FILE` as an approval. It plans again and
-compares each written value. On a match it applies. On a mismatch it prints
-`The approved plan no longer matches the live system` and exits 3, ready for
-[CI](../cicd/) to route back to review.
+`apply FILE` plans again and applies when every written value matches the saved
+plan. Otherwise it prints `The approved plan no longer matches the live system`
+and exits 3.

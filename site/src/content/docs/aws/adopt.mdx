@@ -11,22 +11,18 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 A resource is yours once it carries the tags `tofu-estate` and `tofu-address`.
 
-:::caution
-An unmarked resource reads as absent, so the first plan proposes a duplicate. Check `Adoptable` and `Unowned` in `choudoufu plan` before applying.
-:::
-
 ## The bulk path
 
 ```
 choudoufu live-import -approve
 ```
 
-It stamps every state entry that matches its live object and lists what it skipped. Keep the state file until the next plan is empty.
+Run it before the first apply. It tags every state entry that matches its live object. Keep the state file until the next plan is empty.
 
 ## What binds on its own
 
-Tagged resources bind on the first plan. Named resources, such as a bucket, bind by name. A crash between create and tag write shows as `[POSSIBLE DUPLICATE]` with the command that adopts it ([MIGRATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/MIGRATE.md)).
+Tagged and named resources bind on the first plan.
 
 ## Leaving
 
-Copy the cache to `terraform.tfstate` and remove the `live` block. [Migrate](/choudoufu/docs/use/migrate/) has the full path.
+Copy the cache to `terraform.tfstate` and remove the `live` block ([Migrate](/choudoufu/docs/use/migrate/)).

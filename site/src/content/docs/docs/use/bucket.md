@@ -8,9 +8,8 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-On AWS, create one bucket for all your estates. On Kubernetes the records
-can live in the cluster instead, as Secrets in one namespace per estate
-([operate on Kubernetes](../../../kubernetes/operate/#records)).
+One bucket serves all your AWS estates. On Kubernetes, records can live in the
+cluster instead ([operate on Kubernetes](../../../kubernetes/operate/#records)).
 
 ```
 cd examples/record-store-bucket
@@ -19,16 +18,10 @@ just up
 just verify
 ```
 
-`just up` uses CloudFormation. `just verify` runs
-`choudoufu live-bucket -bucket <name>`, which checks any bucket for three
-settings:
-
-- versioning on, so a deleted record can be restored
-- a lifecycle rule that expires noncurrent versions only
-- the public-access block fully on, since records hold secrets
-
-`allow_insecure = ["lifecycle"]` waives a check by name, and every run reports
-it. Pass `RECORD_KMS_KEY_ARN` to `just up` for your own KMS key.
+`just up` creates the bucket with CloudFormation. `just verify` runs
+`choudoufu live-bucket -bucket <name>` to check its versioning and access
+settings. Pass `RECORD_KMS_KEY_ARN`
+to `just up` for your own KMS key.
 
 ## The estate role's policy
 
@@ -36,15 +29,10 @@ it. Pass `RECORD_KMS_KEY_ARN` to `just up` for your own KMS key.
 examples/record-store-bucket/iam/render-policy.sh prod <bucket> --account 111122223333
 ```
 
-The role reaches only its estate's objects. `--account` pins the bucket owner.
-Add `--read-only` for a plan job or a reviewer.
+The role reaches only its estate's objects. Add `--read-only` for a plan job.
 
 ## What a recovery needs
 
 Grant `s3:ListBucketVersions`, `s3:DeleteObjectVersion` and
-`s3:GetObjectVersion` to the person who recovers.
-
-[`live/STORAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STORAGE.md)
-and the
-[example's README](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-bucket/README.md)
-have details.
+`s3:GetObjectVersion` to the person who recovers
+([`live/STORAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STORAGE.md)).
