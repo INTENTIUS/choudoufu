@@ -72,6 +72,13 @@ func TestAzureRecordComponentsRebuildTheARMID(t *testing.T) {
 	if claimantMatchesRecord("", rec, old) {
 		t.Error("a record matched with no type to rebuild its ARM id from")
 	}
+	// reference-azure's day2_crash renames azurerm_user_assigned_identity,
+	// whose record has the same three components.
+	mi := "/subscriptions/" + rgSub1 + "/resourceGroups/refaz-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/refaz-crash-a"
+	miRec := projection.DeposedRecord{Components: map[string]string{"name": "refaz-crash-a", "resource_group_name": "refaz-rg", "subscription_id": rgSub1}}
+	if !deposedClaimantMatches("azurerm_user_assigned_identity", miRec, claimant{importID: strings.ToLower(mi)}) {
+		t.Error("an azurerm_user_assigned_identity deposed record does not name the identity Resource Graph lists at its ARM id")
+	}
 	// A hole in the components is no rebuild, so no match.
 	holed := projection.LocatedRecord{Components: map[string]string{"name": renameOldRT, "resource_group_name": "Kept"}}
 	if claimantMatchesRecord("azurerm_route_table", holed, old) {
