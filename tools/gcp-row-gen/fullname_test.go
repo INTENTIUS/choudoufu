@@ -150,3 +150,60 @@ func TestItem5Types(t *testing.T) {
 		}
 	}
 }
+
+// TestImportIDThenNameSet: vertex_ai_tensorboard's importer builds the id
+// from a template and then sets name to that id. It is the same rule as
+// [TestReadImporterShapes]'s, and its Asset name, which is that name
+// whole, is decided by the template rather than by its last import form
+// "^(?P<name>[^/]+)$", whose {{name}} is a short name that rejects every
+// full name an Asset hit carries.
+func TestImportIDThenNameSet(t *testing.T) {
+	text := `
+func resourceVertexAITensorboardImport(d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	config := meta.(*transport_tpg.Config)
+	if err := tpgresource.ParseImportId([]string{
+		"^projects/(?P<project>[^/]+)/locations/(?P<region>[^/]+)/tensorboards/(?P<name>[^/]+)$",
+		"^(?P<project>[^/]+)/(?P<region>[^/]+)/(?P<name>[^/]+)$",
+		"^(?P<region>[^/]+)/(?P<name>[^/]+)$",
+		"^(?P<name>[^/]+)$",
+	}, d, config); err != nil {
+		return nil, err
+	}
+
+	// Replace import id for the resource id
+	id, err := tpgresource.ReplaceVars(d, config, "projects/{{project}}/locations/{{region}}/tensorboards/{{name}}")
+	if err != nil {
+		return nil, fmt.Errorf("Error constructing id: %s", err)
+	}
+	d.SetId(id)
+
+	if err := d.Set("name", id); err != nil {
+		return nil, fmt.Errorf("Error setting name for import: %s", err)
+	}
+
+	return []*schema.ResourceData{d}, nil
+}
+`
+	tmpl := "projects/{{project}}/locations/{{region}}/tensorboards/{{name}}"
+	src := Source{Kind: "resource", Generation: "mmv1", IDFormat: "{{name}}", APIService: "aiplatform.googleapis.com"}
+	readImporterShapes(&src, text)
+	if src.ImportNameSet == nil || src.ImportNameSet.Attr != "name" || src.ImportNameSet.Template != tmpl || len(src.ImportNameSet.Regexes) != 4 {
+		t.Fatalf("import name set %+v", src.ImportNameSet)
+	}
+	src.ImportFormats = src.ImportNameSet.Regexes
+	src.ImportIDFormat = tmpl
+	facts := map[string]TypeFacts{ProviderGoogle: {Attrs: map[string]string{"name": "C", "project": "OC", "region": "OC", "labels": "O"}}}
+	page := func(projectVar string) AssetNames {
+		return AssetNames{Types: map[string][]string{
+			"aiplatform.googleapis.com/Tensorboard": {"//aiplatform.googleapis.com/projects/{" + projectVar + "}/locations/{LOCATION}/tensorboards/{TENSORBOARD}"},
+		}}
+	}
+	d := decideAsset("google_vertex_ai_tensorboard", map[string]Source{ProviderGoogle: src}, facts, page("PROJECT_NUMBER"))
+	if d.Verdict != AssetUnknown || !strings.Contains(d.Reason, "a project number is not the project ID") || d.Row.Host != "" {
+		t.Errorf("project number page: verdict %s, row %+v (%s); want unknown for the project number", d.Verdict, d.Row, d.Reason)
+	}
+	d = decideAsset("google_vertex_ai_tensorboard", map[string]Source{ProviderGoogle: src}, facts, page("PROJECT_ID"))
+	if d.Verdict != AssetAsIs || d.Row.Asset != tmpl || d.Row.Import.Template != tmpl {
+		t.Errorf("project id page: verdict %s, row %+v (%s); want the template as is", d.Verdict, d.Row, d.Reason)
+	}
+}

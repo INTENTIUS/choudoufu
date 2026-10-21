@@ -177,6 +177,19 @@ func decideAsset(t string, sources map[string]Source, facts map[string]TypeFacts
 		tfs = append(tfs, facts[p])
 	}
 	cands := importCandidates(src, tfs)
+	if ns := src.ImportNameSet; ns != nil && path == "{{"+ns.Attr+"}}" {
+		// The attribute the Asset name is made of holds the template the
+		// importer expands into it, so an import form spelled
+		// "{{name}}" is the short name its regex captures, not this
+		// value: vertex_ai_tensorboard's "^(?P<name>[^/]+)$" rejects
+		// every full name its Asset hit carries.
+		if fd, ok := decideFullName(d, src, host, path, names); ok {
+			if fd.Verdict == AssetUnknown {
+				fd.Row = identity.GoogleAssetImport{}
+			}
+			return fd
+		}
+	}
 	for _, c := range cands {
 		if c.Template == path {
 			d.Verdict, d.Row.Import = AssetAsIs, c

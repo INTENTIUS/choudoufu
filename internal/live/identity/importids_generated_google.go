@@ -11,8 +11,8 @@ package identity
 // google-beta 8.6.0 type whose import form the provider source at the pin
 // states, how a Cloud Asset Inventory hit's name becomes an import ID
 // (INTENTIUS/choudoufu#2139 item 7). Of 318 labelled types (297 served by
-// hashicorp/google), 302 take the Asset path as it is (284), 3 take it
-// rewritten into another accepted form (3), and 13 are unknown (10) and
+// hashicorp/google), 301 take the Asset path as it is (283), 3 take it
+// rewritten into another accepted form (3), and 14 are unknown (11) and
 // have no row: a hit of one is refused by name, never imported with a
 // guessed ID.
 //
@@ -320,7 +320,6 @@ var GoogleAssetImports = map[string]GoogleAssetImport{
 	"google_vertex_ai_index_endpoint":                              {Host: "aiplatform.googleapis.com", Asset: "projects/{{project}}/locations/{{region}}/indexEndpoints/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{region}}/indexEndpoints/{{name}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<region>[^/]+)/indexEndpoints/(?P<name>[^/]+)$"}},
 	"google_vertex_ai_persistent_resource":                         {Host: "aiplatform.googleapis.com", Asset: "projects/{{project}}/locations/{{location}}/persistentResources/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/persistentResources/{{name}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/persistentResources/(?P<name>[^/]+)$"}},
 	"google_vertex_ai_reasoning_engine":                            {Host: "aiplatform.googleapis.com", Asset: "projects/{{project}}/locations/{{region}}/reasoningEngines/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{region}}/reasoningEngines/{{name}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<region>[^/]+)/reasoningEngines/(?P<name>[^/]+)$"}},
-	"google_vertex_ai_tensorboard":                                 {Host: "aiplatform.googleapis.com", Asset: "{{name}}", Import: GoogleImportFormat{Template: "{{name}}", Regex: "^(?P<name>[^/]+)$"}},
 	"google_vertex_ai_tensorboard_experiment":                      {Host: "aiplatform.googleapis.com", Asset: "projects/{{project}}/locations/{{location}}/tensorboards/{{tensorboard}}/experiments/{{tensorboard_experiment_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/tensorboards/{{tensorboard}}/experiments/{{tensorboard_experiment_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/tensorboards/(?P<tensorboard>[^/]+)/experiments/(?P<tensorboard_experiment_id>[^/]+)$"}},
 	"google_vertex_ai_tensorboard_run":                             {Host: "aiplatform.googleapis.com", Asset: "projects/{{project}}/locations/{{location}}/tensorboards/{{tensorboard}}/experiments/{{experiment}}/runs/{{tensorboard_run_id}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/tensorboards/{{tensorboard}}/experiments/{{experiment}}/runs/{{tensorboard_run_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/tensorboards/(?P<tensorboard>[^/]+)/experiments/(?P<experiment>[^/]+)/runs/(?P<tensorboard_run_id>[^/]+)$"}},
 	"google_workbench_instance":                                    {Host: "notebooks.googleapis.com", Asset: "projects/{{project}}/locations/{{location}}/instances/{{name}}", Import: GoogleImportFormat{Template: "projects/{{project}}/locations/{{location}}/instances/{{name}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/instances/(?P<name>[^/]+)$"}},
@@ -345,6 +344,7 @@ var GoogleAssetUnknown = map[string]string{
 	"google_recaptcha_enterprise_key":            "no import format carries exactly the parts of the documented Asset name //recaptchaenterprise.googleapis.com/projects/{PROJECT_NUMBER}/keys/{KEY}; a project number is not the project ID the provider's project argument holds",
 	"google_service_directory_namespace":         "the importer takes the whole import ID as name, and Google documents its Asset name as //servicedirectory.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/namespaces/{NAMESPACE}; a project number is not the project ID the provider's project argument holds",
 	"google_vertex_ai_dataset":                   "the provider source states no import format for this type",
+	"google_vertex_ai_tensorboard":               "the importer sets name to \"projects/{{project}}/locations/{{region}}/tensorboards/{{name}}\", and Google documents its Asset name as //aiplatform.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/tensorboards/{TENSORBOARD}; a project number is not the project ID the provider's project argument holds",
 	"google_workflows_workflow":                  "the provider source states no import format for this type",
 }
 
