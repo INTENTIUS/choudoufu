@@ -42,7 +42,7 @@ gcp_floci_up() {
 # assumed (compute and iam_credentials are assumed), with one difference:
 # Cloud Asset is under /cloudasset. floci-gcp mounts it there because
 # /v1/projects belongs to IAM (docs/services/cloud-asset.md and
-# CloudAssetController at the pinned 4bb6a04), and only rewrites a bare
+# CloudAssetController at the pinned d29a091), and only rewrites a bare
 # /v1/ path for a cloudasset.* host name, which 127.0.0.1 is not. The
 # sweep (internal/live/gcpsweep's serviceRoot) keeps the prefix and drops
 # the trailing v1, so it calls /cloudasset/v1/projects/<p>:searchAllResources.

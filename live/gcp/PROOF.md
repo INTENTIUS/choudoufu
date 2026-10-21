@@ -41,11 +41,14 @@ to manufacture the fault. Only the maintainer runs them.
 Each gap was filed on the fork rather than routed around: Resource Manager
 tags (lex00/floci-gcp#4), Compute verify (#5), the labels round trip (#6),
 Cloud Asset search (#7), `matchTag` (#8) and IAM enforce mode over Compute
-networking and instances (#9). All six are closed, as is #23 (Compute
+networking and instances (#9). All six are closed, as are #23 (Compute
 instances now return `confidentialInstanceConfig`, without which stock
-hashicorp/google planned a replacement of every instance on every plan).
-The image pinned in `live/floci-gcp-image` (`sha256:f337bcc8`, built from
-4bb6a04) is the one that serves them.
+hashicorp/google planned a replacement of every instance on every plan)
+and #24 (a service account PATCH now honours updateMask and displayName
+no longer defaults to the accountId, without which stock planned
+`display_name -> null` on every plan). The image pinned in
+`live/floci-gcp-image` (`sha256:4e9b7bff`, built from d29a091) is the one
+that serves them.
 
 Serving a capability is not measuring it. No scenario or estate run on
 that image has passed yet, so the sweep's equivalence with real GCP, the

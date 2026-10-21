@@ -123,7 +123,7 @@
       "harness": {
         "name": "floci-gcp",
         "pin_file": "live/floci-gcp-image",
-        "pin": "ghcr.io/lex00/floci-gcp@sha256:f337bcc8ed769fa9dabf17167363c5ba48bde785a8abbd26860683c57817fd23",
+        "pin": "ghcr.io/lex00/floci-gcp@sha256:4e9b7bff6a59f4b87d6130cbfff62e2335d5b00cc5f2e2726b750115320cf376",
         "notes": "the lex00/floci-gcp fork's GHCR image pinned by digest; the fork's issues for Resource Manager tags, Cloud Asset search, matchTag and IAM enforce mode (lex00/floci-gcp#4 to #9) and the Compute confidentialInstanceConfig gap (#23) are closed, and no gcp-lane run on it has passed yet."
       }
     },

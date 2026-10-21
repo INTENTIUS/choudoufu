@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec",
-  "emulator_gcp": "ghcr.io/lex00/floci-gcp@sha256:f337bcc8ed769fa9dabf17167363c5ba48bde785a8abbd26860683c57817fd23",
+  "emulator_gcp": "ghcr.io/lex00/floci-gcp@sha256:4e9b7bff6a59f4b87d6130cbfff62e2335d5b00cc5f2e2726b750115320cf376",
   "oracle": {
     "terraform": "1.16.1",
     "tofu": "1.13.0"
