@@ -269,7 +269,7 @@ On the floci-gcp substrate: The labelled objects are found by their labels. A ma
 
 ### 16. Endpoints with an unset optional identity field (`day2_endpoints`, planned, not part of the headline bars)
 
-Proves: A network endpoint whose identity names an optional field the block leaves unset (#2145 item 6: a global or regional internet NEG endpoint with only ip_address or only fqdn) is created, replans empty with and without the state cache, is bound by its record, and is destroyed on removal exactly as stock destroys it. Run by reference-gcp only; not part of the headline bars.
+Proves: A network endpoint whose identity names an optional field the block leaves unset (#2145 item 6: a global or regional internet NEG endpoint with only ip_address or only fqdn) is created, replans empty with and without the state cache, is bound by its record, and is destroyed on removal exactly as stock destroys it. Run by reference-gcp only, last and in a scratch estate of its own (its own roots, record store and network), so it never touches the estate the headline stages measure; not part of the headline bars.
 
 Oracle: Stock's own import of each endpoint on the oracle with the import id choudoufu renders, the unset field an empty segment (project/neg/ip//port), followed by stock's empty plan; and stock's create and removal of the same scratch blocks, compared by count.
 
@@ -277,7 +277,7 @@ Break: Hand stock the import id with the empty segment collapsed, the rendering 
 
 On the floci-eks substrate: Not run on this substrate; the stage is reference-gcp's (#2145 item 6).
 
-On the floci-gcp substrate: Run by reference-gcp only, on scratch global and regional internet NEGs, which a NEG and its endpoints carry no label for, so the record alone claims them. The pinned image (ea6da33) serves global and regional internet NEGs, which lex00/floci-gcp#26 added; on an image without them the stage fails at stock's own create on the oracle emulator, naming #26.
+On the floci-gcp substrate: Run by reference-gcp only, last, in a scratch estate of its own, on scratch global and regional internet NEGs, which a NEG and its endpoints carry no label for, so the record alone claims them. The pinned image (ea6da33) serves global and regional internet NEGs, which lex00/floci-gcp#26 added; on an image without them the stage fails at stock's own create on the oracle emulator, naming #26.
 
 ## The plan-fidelity contract
 
