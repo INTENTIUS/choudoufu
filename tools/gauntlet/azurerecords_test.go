@@ -258,3 +258,71 @@ func (p *putContract) Account(context.Context) (armstorage.Account, error) { ret
 func (p *putContract) Container(context.Context) (armstorage.BlobContainer, error) {
 	return armstorage.BlobContainer{}, nil
 }
+
+// TestKeepLogCopiesAndPrintsThePanic: gauntlet_keep_log keeps a stage's
+// TF_LOG file past the run's $WORK and prints a provider panic into the
+// run's output, which run seven lost (#1120).
+func TestKeepLogCopiesAndPrintsThePanic(t *testing.T) {
+	root := t.TempDir()
+	lib := filepath.Join(testRoot(t), "live", "e2e", "lib", "gauntlet.sh")
+	logf := filepath.Join(t.TempDir(), "nls.base.log")
+	body := "2026-10-21T10:52:28 [DEBUG] something\n2026-10-21T10:52:28 [ERROR] provider.terraform-provider-azurerm_v5.10.0_x5: panic: runtime error: invalid memory address or nil pointer dereference\n2026-10-21T10:52:28 [ERROR] provider: network.SubnetListResource.List(...)\n"
+	if err := os.WriteFile(logf, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runBash(fmt.Sprintf("set -uo pipefail\nsource %q\nROOT=%q\ngauntlet_keep_log reference-azure nls.cache-serving %q\ngauntlet_keep_log reference-azure nls.missing %q", lib, root, logf, filepath.Join(root, "absent.log")))
+	if err != nil {
+		t.Fatalf("bash: %v\n%s", err, out)
+	}
+	wantIn(t, string(out), "kept the nls.cache-serving log at live/gauntlet/logs/reference-azure.nls.cache-serving.log",
+		"provider panic in the nls.cache-serving log", "SubnetListResource.List", "no nls.missing log")
+	kept, err := os.ReadFile(filepath.Join(root, "live", "gauntlet", "logs", "reference-azure.nls.cache-serving.log"))
+	if err != nil || string(kept) != body {
+		t.Errorf("the log was not kept byte for byte: %v", err)
+	}
+}
+
+// TestReferenceAzureRunIsolatedGoesOn drives reference-azure's own
+// run_isolated: a stage that fails records its verdict and the script goes
+// on to the next stage, a stage that ends with no verdict is given one, and
+// the recover function runs after a failure (run seven stopped at
+// no_local_state and never ran strict).
+func TestReferenceAzureRunIsolatedGoesOn(t *testing.T) {
+	fn := verdictScriptFunc(t, "reference-azure", "run_isolated", `run_isolated strict stage_strict`)
+	for _, site := range []string{
+		"run_isolated day2_replace stage_day2_replace recover_day2_replace",
+		"run_isolated day2_crash stage_day2_crash recover_day2_crash",
+		"run_isolated no_local_state stage_no_local_state",
+	} {
+		verdictScriptFunc(t, "reference-azure", "", site)
+	}
+	lib := filepath.Join(testRoot(t), "live", "e2e", "lib", "gauntlet.sh")
+	script := fmt.Sprintf(`set -uo pipefail
+source %q
+WORK=%q
+log() { printf '%%s\n' "$*"; }
+CURRENT_STAGE=""
+fail() { printf 'FAIL: %%s\n' "$*" >&2; if [ -n "$CURRENT_STAGE" ]; then gauntlet_stage "$CURRENT_STAGE" fail "$*"; fi; exit 1; }
+%s
+s1() { gauntlet_begin_stage s1; fail "boom"; echo "not reached"; }
+s2() { gauntlet_begin_stage s2; exit 3; }
+s3() { gauntlet_begin_stage s3; gauntlet_stage s3 pass "fine"; }
+fix() { echo "recovered"; }
+run_isolated s1 s1 fix
+run_isolated s2 s2
+run_isolated s3 s3 fix
+echo "after"
+`, lib, t.TempDir(), fn)
+	out, err := runBash(script)
+	if err != nil {
+		t.Fatalf("bash: %v\n%s", err, out)
+	}
+	got := string(out)
+	wantIn(t, got, "GAUNTLET stage=s1 verdict=fail", "boom", "recovered",
+		"GAUNTLET stage=s2 verdict=fail", "ended (exit 3) without reporting a verdict",
+		"GAUNTLET stage=s3 verdict=pass", "after")
+	wantNotIn(t, "a failed stage's body went on past fail", got, "not reached")
+	if strings.Count(got, "recovered") != 1 {
+		t.Errorf("the recover function ran %d times, want once (after s1 only):\n%s", strings.Count(got, "recovered"), got)
+	}
+}

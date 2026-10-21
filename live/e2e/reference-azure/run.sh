@@ -37,9 +37,15 @@
 # pin is now dfa33ca, which runs the query as sent, so both are expected to
 # pass; a plan that still warns fails them naming the warning. Gaps are the
 # emulator's to close (emulator policy, live/ADDING-A-PLATFORM.md).
-# day2_replace, day2_crash, strict and no_local_state are written for this
-# substrate since the 2026-10-21 run at 31639780dd cleared every other
-# stage, and have not been run: the maintainer's next run measures them.
+# day2_replace, day2_crash, strict and no_local_state were written for this
+# substrate after the 2026-10-21 run at 31639780dd cleared every other
+# stage. Run seven (4b34e44e3e) passed day2_replace and day2_crash and
+# failed no_local_state: its -refresh=false plan's cache-vouch listing sent
+# azurerm_subnet's list an unset virtual_network_id, and azurerm 5.10.0
+# panicked, killing the plugin for every import after it. listclient now
+# refuses such a list before the provider sees it. The four stages run
+# isolated (run_isolated), so one stage's fail() no longer ends the run, and
+# no_local_state keeps its TF_LOG files on failure (gauntlet_keep_log).
 #
 # Records live in the record store and the state file is a cache (the
 # maintainer's ruling, 2026-10-21). The record store is object storage on
@@ -672,6 +678,53 @@ CBD='  lifecycle {
     create_before_destroy = true
   }'
 
+# run_isolated <stage> <function> [recover]: the four stages written after
+# the 2026-10-21 run each run in a subshell, as corpus-azapi-role-assignment
+# runs its own, so a fail() inside one records that stage's verdict and ends
+# the subshell rather than the run, and every stage after it is still
+# measured (run seven stopped at no_local_state and never ran strict). The
+# subshell inherits no EXIT trap, so it cannot tear the containers down. A
+# body that ends without any verdict line is given one. [recover] then puts
+# the shape the later stages expect back. The stage clock is restarted
+# after, since the subshell's own advance of it is lost with the subshell.
+run_isolated() {
+  local id="$1" body="$2" recover="${3:-}" out="$WORK/stage-$1.out" rc
+  ( "$body" ) | tee "$out"; rc=${PIPESTATUS[0]}
+  if ! grep -q "^GAUNTLET stage=$id verdict=" "$out"; then
+    gauntlet_stage "$id" fail "the stage ended (exit $rc) without reporting a verdict; its log is above"
+  fi
+  if [ "$rc" -ne 0 ] && [ -n "$recover" ]; then
+    log "  $id stopped early (exit $rc); putting the shape back for the stages below"
+    "$recover"
+  fi
+  CURRENT_STAGE=""
+  _GAUNTLET_LAST_T=$(date +%s)
+}
+# arm_gone <id...>: deletes each identity through ARM if it still answers;
+# a failure is logged, never fatal, for the recover functions below.
+arm_gone() {
+  local id
+  for id in "$@"; do
+    exists_a "$id" "$MI_API" || continue
+    on_a gauntlet_arm DELETE "$id?api-version=$MI_API" >/dev/null 2>&1 || log "  (could not delete $id through ARM)"
+  done
+}
+# reapply_both: both roots applied as they now stand; failures are logged.
+reapply_both() {
+  ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  (stock could not put B back)"
+  ( tofu_a "$ADOPTED" apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  (choudoufu could not put A back)"
+}
+recover_day2_replace() {
+  rm -f "$ORACLE/day2_replace.tf" "$ADOPTED/day2_replace.tf"
+  reapply_both
+  arm_gone "$(mi_id refaz-cfg-a)" "$(mi_id refaz-cfg-b)"
+}
+recover_day2_crash() {
+  rm -f "$ADOPTED/day2_crash_rename.tf" "$ADOPTED/day2_crash.tf" "$ORACLE/day2_crash.tf"
+  reapply_both
+  arm_gone "$(mi_id refaz-crash-a)" "$(mi_id refaz-crash-b)" "$(mi_id refaz-crash-first)" "$(mi_id refaz-crash-second)"
+}
+
 # ── 9. day2_replace: a create_before_destroy identity whose name changes ──
 #
 # The shape tools/gauntlet/stages.go's flociAzNotes names, as on kind
@@ -683,6 +736,7 @@ CBD='  lifecycle {
 # create first. Stock applies the same rename on B for real: the apply
 # order is the oracle, and only an apply has one. The block lives in a file
 # of its own and is removed from both roots at the end.
+stage_day2_replace() {
 gauntlet_begin_stage day2_replace
 log "=== 9. day2_replace: azurerm_user_assigned_identity.hashed renamed refaz-cfg-a -> refaz-cfg-b under create_before_destroy ==="
 R_BLOCK="azurerm_user_assigned_identity.hashed"
@@ -751,6 +805,8 @@ if [ "${BREAK_REPLACE:-}" = "1" ]; then
 else
   gauntlet_stage day2_replace pass "a create_before_destroy identity whose name changes (refaz-cfg-a -> refaz-cfg-b) plans as stock's replace: '$R_BLOCK must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, because refaz-cfg-a's record binds it to the block and its tofu-address confirms the record. At -parallelism=1 the apply log shows refaz-cfg-b's creation complete (line $R_CREATED) before refaz-cfg-a's deposed destroy starts (line $R_DESTROYING), the order stock's own apply of the same rename shows on the oracle container; ARM answers 404 for refaz-cfg-a and refaz-cfg-b carries the block's tofu-address, and the next plan is empty. The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates refaz-cfg-a carrying the block's marker and the next plan correctly is not silent"
 fi
+}
+run_isolated day2_replace stage_day2_replace recover_day2_replace
 
 # ── 10. day2_crash: SIGTERM inside a rename, and between two creates ─────
 #
@@ -774,6 +830,7 @@ fi
 # killed after the first, and the next plan must propose exactly the
 # remainder, binding the first at its declared id. Stock on B, walked into
 # the same position by applying the first alone, is the oracle.
+stage_day2_crash() {
 gauntlet_begin_stage day2_crash
 log "=== 10. day2_crash: SIGTERM inside a create_before_destroy rename, then between two creates ==="
 X_BLOCK="azurerm_user_assigned_identity.crash_rename"
@@ -928,7 +985,8 @@ else
     gauntlet_stage day2_crash pass "$CRASH_RENAME_DETAIL Then an apply creating two identities was interrupted by a real SIGTERM (exit $P_RC), delivered by the engine itself inside the -parallelism=1 graph walker the instant azurerm_user_assigned_identity.crash_first's create committed; crash_second depends on crash_first, so the walker cannot have reached it - ARM answers for refaz-crash-first, carrying tofu-estate=$ESTATE from its create, and 404 for refaz-crash-second. The interrupted apply wrote exactly one record (envelopes $P_BEFORE -> $P_AFTER in $REC_ACCOUNT/adopted), crash_first's. The next plan proposed exactly the remainder ($C_LINE, crash_second created) and nothing for crash_first, which it bound at its declared ARM id - matching stock's own plan from the same position on the oracle container, reached by applying crash_first alone; the recovery apply added exactly one identity, both answer through ARM, the plan after it is empty, and the estate's own marked count is unchanged at $AFTER_N. The pair is removed from both roots afterwards. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips tofu-estate off refaz-crash-first and the same recovery check correctly fails"
   fi
 fi
-gauntlet_end_stage
+}
+run_isolated day2_crash stage_day2_crash recover_day2_crash
 
 # ── 11. day2_teardown: destroy everything, nothing left marked ───────────
 gauntlet_begin_stage day2_teardown
@@ -975,6 +1033,7 @@ fi
 # (azurerm logs each one as "[DEBUG] AzureRM Request:"); azapi's and the
 # record store's own requests are not in that count. Run on the greenfield
 # root, before its teardown, as the kind lane runs it.
+stage_no_local_state() {
 gauntlet_begin_stage no_local_state
 log "=== 15. no_local_state: the cache-serving plan, then no state cache, records only in the container ==="
 nls_calls() { local n; n="$(grep -cE '\[DEBUG\] [A-Za-z]+ Request: ' "$1" 2>/dev/null)"; echo "${n:-0}"; }
@@ -986,7 +1045,8 @@ grep -qF "Apply complete! Resources: 0 added, 0 changed, 0 destroyed" <<< "$NLS_
 [ ! -e "$GREEN/.tofu-records" ] || fail "the greenfield root holds a local .tofu-records directory, so its records are not only in the record store"
 NLS_BASE="$( (export TF_LOG=DEBUG TF_LOG_PATH="$WORK/nls.base.log"; tofu_a "$GREEN" plan -refresh=false -input=false -no-color) 2>&1)"; NLS_BASE_RC=$?
 [ "$NLS_BASE_RC" -eq 0 ] && grep -q "No changes." <<< "$NLS_BASE" \
-  || { printf '%s\n' "$NLS_BASE" | tail -20; fail "the cache-serving plan (exit $NLS_BASE_RC) is not empty, so it is no baseline"; }
+  || { printf '%s\n' "$NLS_BASE" | tail -20; gauntlet_keep_log "$ESTATE" nls.cache-serving "$WORK/nls.base.log"
+       fail "the cache-serving plan (exit $NLS_BASE_RC) is not empty, so it is no baseline"; }
 NLS_BASE_CALLS="$(nls_calls "$WORK/nls.base.log")"
 rm -f "$NLS_CACHE"
 [ ! -e "$NLS_CACHE" ] || fail "the state cache survived deletion"
@@ -1012,6 +1072,7 @@ if [ "${BREAK_NO_LOCAL_STATE:-}" = "1" ]; then
   fi
 elif [ -n "$NLS_BAD" ]; then
   printf '%s\n' "$NLS_PLAN" | grep -E '^Plan:|will be|must be|^Error|^Warning' | head -20
+  gauntlet_keep_log "$ESTATE" nls.no-local-state "$WORK/nls.log"
   gauntlet_stage no_local_state fail "with the state cache deleted and the records only in $REC_ACCOUNT/green: $NLS_BAD"
 else
   NLS_UPD="$(grep -E '^[[:space:]]*# \S+ will be updated in-place' <<< "$NLS_PLAN" | sed -E 's/^[[:space:]#]*//; s/ will be .*$//' | sort -u | tr '\n' ' ' | sed 's/ $//')"
@@ -1019,7 +1080,8 @@ else
   [ "$NLS_BASE_CALLS" -gt 0 ] && NLS_RATIO="$(awk -v a="$NLS_CALLS" -v b="$NLS_BASE_CALLS" 'BEGIN { printf "%.2fx", a / b }')"
   gauntlet_stage no_local_state pass "with the state cache deleted - a fresh clone with only the account left, the records being blobs in $REC_ACCOUNT/green and no local record directory existing at all - the plan ($(plan_line "$NLS_PLAN")) created, destroyed and replaced nothing: the nine resources that take tags found by their markers, the subnet and the NSG rule through their records in the container. In-place updates: ${NLS_UPD:-none}. The empty plan before the deletion was served from a cache a no-op apply wrote. plan_calls_no_local_state=$NLS_CALLS plan_calls_cache_serving=$NLS_BASE_CALLS ratio=$NLS_RATIO (both plan -refresh=false, azurerm requests counted from TF_LOG=DEBUG); stock in this position has no plan at all, only one import block per resource. BREAK_NO_LOCAL_STATE=1 strips the VNet's markers and the check correctly fails"
 fi
-gauntlet_end_stage
+}
+run_isolated no_local_state stage_no_local_state
 ( tofu_a "$GREEN" apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || log "  (the greenfield estate's destroy failed; the container is removed on exit)"
 
 # ── 14. strict: every toggle on, one refusal ─────────────────────────────
@@ -1031,6 +1093,7 @@ gauntlet_end_stage
 # scratch estate never declares) are on and reach nothing. The toggles are
 # substrate-neutral; the scratch estate's records go to the record store's
 # strict container, the store the lane uses.
+stage_strict() {
 gauntlet_begin_stage strict
 log "=== 14. strict: every strict toggle on ==="
 STRICT="$WORK/strict"
@@ -1080,6 +1143,7 @@ else
   grep -qF 'strict { secrets = "refuse" }' <<< "$(tr -s ' \n' '  ' <<< "$STRICT_ON")" || { printf '%s\n' "$STRICT_ON"; fail "the refusal does not cite strict { secrets = \"refuse\" }"; }
   gauntlet_stage strict pass "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming azurerm_user_assigned_identity) against a scratch estate carrying random_password.db, its record store the lane's $REC_ACCOUNT/strict container: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
 fi
-gauntlet_end_stage
+}
+run_isolated strict stage_strict
 
 gauntlet_end
