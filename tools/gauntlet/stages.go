@@ -208,6 +208,17 @@ func registeredStages() []Stage {
 			Oracle: "Stock has no plan in this position: with its state file gone it needs one import block per object. The oracle is the estate's own cache-serving plan taken just before the deletion, which must be empty, and the declared configuration - every declared address must resolve to the existing object.",
 			Break:  "Delete one taggable object's marker before the plan; the object is then not found and the plan proposes creating it, which the stage must fail.",
 		},
+		{
+			// #2145 item 6: planned and not headline (option 1, 2026-10-21),
+			// because only reference-gcp runs it and the pinned floci-gcp
+			// image serves no global or regional internet NEG
+			// (lex00/floci-gcp#26). Planned keeps every other estate out of
+			// it while reference-gcp's verdict is still recorded.
+			ID: "day2_endpoints", Order: 16, Title: "Endpoints with an unset optional identity field", Status: StatusPlanned, Headline: false,
+			Proves: "A network endpoint whose identity names an optional field the block leaves unset (#2145 item 6: a global or regional internet NEG endpoint with only ip_address or only fqdn) is created, replans empty with and without the state cache, is bound by its record, and is destroyed on removal exactly as stock destroys it. Run by reference-gcp only; not part of the headline bars.",
+			Oracle: "Stock's own import of each endpoint on the oracle with the import id choudoufu renders, the unset field an empty segment (project/neg/ip//port), followed by stock's empty plan; and stock's create and removal of the same scratch blocks, compared by count.",
+			Break:  "Hand stock the import id with the empty segment collapsed, the rendering before item 6; the import must fail and the stage with it.",
+		},
 	}
 	for i := range stages {
 		for substrate, notes := range map[string]map[string]string{SubstrateFlociEKS: flociEKSNotes, SubstrateFlociGCP: flociGCPNotes} {
@@ -249,6 +260,7 @@ var flociGCPNotes = map[string]string{
 	"plan_approval":    "The out-of-band move is a REST PATCH on a value the configuration declares: a declared label or a firewall's source ranges. hashicorp/google's labels are non-authoritative, so a label the configuration does not name rides along in effective_labels and moves no plan, stock's or the tool's.",
 	"greenfield":       "Compared against the inventory recorded from stock's cold deploy earlier in the same run, object by object, with labels and server-set fields normalised out; one emulator hosts both, in sequence.",
 	"strict":           "As on floci; the toggles name a google type.",
+	"day2_endpoints":   "Run by reference-gcp only, on scratch global and regional internet NEGs, which a NEG and its endpoints carry no label for, so the record alone claims them. The pinned image serves only zonal GCE_VM_IP_PORT NEGs; global and regional internet NEGs are lex00/floci-gcp#26, and until an image serves them the stage fails at stock's own create on the oracle emulator, naming #26.",
 	"no_local_state":   "The labelled objects are found by their labels. A markerless object is claimed only by its record (option A, #2152), so with the record store gone the plan refuses each one at a held name by name and stops; with the record store put back and the cache still gone the plan is empty. The request count is hashicorp/google's own, read from TF_LOG=debug's request blocks.",
 }
 
@@ -275,6 +287,7 @@ var flociEKSNotes = map[string]string{
 	"plan_approval":    "As on floci; the saved plan carries both legs, and the apply of it configures the kubernetes provider from the same cluster the plan read.",
 	"greenfield":       "Both legs are compared against stock's cold deploy: AWS objects as on floci, cluster objects as on kind. A greenfield plan starts with no cluster, so the kubernetes provider's sweep reads that leg as empty by construction, stock's order, and the apply configures the provider once the cluster exists.",
 	"strict":           "As on floci; the toggles apply to both legs alike.",
+	"day2_endpoints":   "Not run on this substrate; the stage is reference-gcp's (#2145 item 6).",
 	"no_local_state":   "Both legs lose their local record store and state cache together. The AWS leg's objects are found by their markers as on floci; the cluster leg's by their tofu-estate label, through a kubernetes provider configured from the cluster this plan reads live, so the plan also shows the provider block needs nothing local.",
 }
 

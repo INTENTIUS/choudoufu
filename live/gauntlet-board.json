@@ -7,7 +7,7 @@
   "provider_banner": "Estates were last measured against different hashicorp/aws versions: 20 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 17 against `3.2.1` (current pin), 3 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
   "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 46 estates measured so far, 46 recorded running on it.",
-  "stage_count": 15,
+  "stage_count": 16,
   "stages": [
     {
       "id": "cold_deploy",
@@ -173,6 +173,17 @@
       "headline_cell": "no",
       "proves_first": "After the estate is applied and its plan is empty, deleting BOTH the local record store and the state cache - a fresh clone or a new machine, with only the account left - still yields a plan that finds every declared object by its own marker or a stamped parent: nothing created, destroyed or replaced.",
       "proves": "After the estate is applied and its plan is empty, deleting BOTH the local record store and the state cache - a fresh clone or a new machine, with only the account left - still yields a plan that finds every declared object by its own marker or a stamped parent: nothing created, destroyed or replaced. The verdict line reports that plan's API call count beside the same estate's cache-serving plan, because the ratio between them is the claim. Tested and shown per estate; not part of the headline bars."
+    },
+    {
+      "id": "day2_endpoints",
+      "order": 16,
+      "title": "Endpoints with an unset optional identity field",
+      "status": "planned",
+      "headline": false,
+      "tier1_gated": false,
+      "headline_cell": "no",
+      "proves_first": "A network endpoint whose identity names an optional field the block leaves unset (#2145 item 6: a global or regional internet NEG endpoint with only ip_address or only fqdn) is created, replans empty with and without the state cache, is bound by its record, and is destroyed on removal exactly as stock destroys it.",
+      "proves": "A network endpoint whose identity names an optional field the block leaves unset (#2145 item 6: a global or regional internet NEG endpoint with only ip_address or only fqdn) is created, replans empty with and without the state cache, is bound by its record, and is destroyed on removal exactly as stock destroys it. Run by reference-gcp only; not part of the headline bars."
     }
   ],
   "estates": [
@@ -309,6 +320,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -447,6 +463,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -584,6 +605,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -719,6 +745,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -857,6 +888,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -993,6 +1029,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -1131,6 +1172,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1267,6 +1313,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -1405,6 +1456,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1541,6 +1597,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -1679,6 +1740,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -1815,6 +1881,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -1953,6 +2024,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2088,6 +2164,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -2226,6 +2307,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2362,6 +2448,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -2500,6 +2591,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2635,6 +2731,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -2773,6 +2874,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -2910,6 +3016,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3046,6 +3157,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -3186,6 +3302,11 @@
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
           "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3321,6 +3442,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -3466,6 +3592,11 @@
           "verdict": "pass",
           "duration": "43s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=117 plan_calls_cache_serving=117 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips verticalpodautoscaler monitoring/thanos-compactor's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3610,6 +3741,11 @@
           "verdict": "pass",
           "duration": "35s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=124 plan_calls_cache_serving=124 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips clusterrole/ithctester's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3754,6 +3890,11 @@
           "verdict": "not run",
           "duration": "1s",
           "detail": "the published root keeps 17 random_* values that live only in the local record store, so a plan with that store deleted regenerates them and rewrites the dex-client Secrets built from them; a lost record_store \"local\" is not survivable for this root by construction, and the stage waits for a cluster record store"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -3896,6 +4037,11 @@
           "verdict": "pass",
           "duration": "12s",
           "detail": "after the greenfield apply's empty plan, deleting both the record store and the state cache made the plan refuse, by name, exactly the four markerless objects holding a declared name (the network, the subnetwork, both firewalls), with no record left to claim them (option A, #2152), and nothing else: the bucket was found by its labels. With the record store put back and the cache still deleted the plan was empty (No changes. Your infrastructure matches the configuration.): the records alone claim the declaration-carried instances. hashicorp/google sent 27 request(s) for that plan against 27 for the cache-serving plan (counted from TF_LOG=debug's request blocks). BREAK_NO_LOCAL_STATE=1 strips the bucket's label and the refusal check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4040,6 +4186,11 @@
           "verdict": "pass",
           "duration": "34s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 2 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=84 plan_calls_cache_serving=84 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips service kube-system/metrics-server's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4175,6 +4326,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -4320,6 +4476,11 @@
           "verdict": "pass",
           "duration": "38s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 18 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=117 plan_calls_cache_serving=117 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips configmap quickpizza/alloy-config's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4435,6 +4596,11 @@
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
           "verdict": "not run"
         }
       ]
@@ -4578,6 +4744,11 @@
           "verdict": "pass",
           "duration": "2s",
           "detail": "after the greenfield apply's empty plan, deleting both the record store and the state cache made the plan refuse, by name, exactly the four markerless objects holding a declared name (the network, the subnetwork, the firewall, the service account), with no record left to claim them (option A, #2152), and nothing else: the six labelled objects were found by their labels. With the record store put back and the cache still deleted the plan was empty (No changes. Your infrastructure matches the configuration.): the records alone claim the declaration-carried instances. hashicorp/google sent 12 request(s) for that plan against 12 for the cache-serving plan (counted from TF_LOG=debug's request blocks). BREAK_NO_LOCAL_STATE=1 strips the bucket's label and the refusal check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4720,6 +4891,11 @@
           "verdict": "pass",
           "duration": "34s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 1 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=80 plan_calls_cache_serving=80 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips configmap refk8s/app-config's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -4862,6 +5038,11 @@
           "verdict": "pass",
           "duration": "1m54s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=194 plan_calls_cache_serving=194 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips certificate cert-manager/example-com's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5004,6 +5185,11 @@
           "verdict": "pass",
           "duration": "2m47s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=197 plan_calls_cache_serving=197 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips networkpolicy argocd/rel-argocd-server's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5146,6 +5332,11 @@
           "verdict": "pass",
           "duration": "1m22s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 1 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=150 plan_calls_cache_serving=147 ratio=1.02x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips clusterrole/rel-cloudnative-pg's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5288,6 +5479,11 @@
           "verdict": "pass",
           "duration": "1m9s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=185 plan_calls_cache_serving=185 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips secretstore external-secrets/rel-external-secrets's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5430,6 +5626,11 @@
           "verdict": "pass",
           "duration": "47s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=106 plan_calls_cache_serving=106 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips rolebinding ingress-nginx/rel-ingress-nginx's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5572,6 +5773,11 @@
           "verdict": "pass",
           "duration": "1m27s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=155 plan_calls_cache_serving=155 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips service keda/keda-operator's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5714,6 +5920,11 @@
           "verdict": "pass",
           "duration": "2m20s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 4 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=260 plan_calls_cache_serving=248 ratio=1.05x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips rolebinding kyverno/rel-kyverno:reports-controller's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5856,6 +6067,11 @@
           "verdict": "pass",
           "duration": "1m49s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=191 plan_calls_cache_serving=191 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips role metallb-system/rel-frr-k8s-controller's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -5998,6 +6214,11 @@
           "verdict": "pass",
           "duration": "4m29s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=347 plan_calls_cache_serving=347 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips servicemonitor monitoring/rel-kube-prometheus-stack-prometheus's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -6140,6 +6361,11 @@
           "verdict": "pass",
           "duration": "47s",
           "detail": "app's records live in the cluster, so the only local state is the state cache; with it deleted - a fresh clone - the plan found every declared object by its label and namespace and name: nothing created, destroyed or replaced, 0 in-place update(s). The unchanged plan before the deletion was served from the cache (written by a no-op apply, since a plan never persists it): 9 instance(s) answered by a cache hit (#1864's vouch), 81 requests against reads = \"full\"'s 104 with 0 hits, both plans empty. plan_calls_no_local_state=104 plan_calls_cache_serving=81 ratio=1.28x (all plan -refresh=false, Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. BREAK_NO_LOCAL_STATE=1 strips the web Service's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -6282,6 +6508,11 @@
           "verdict": "pass",
           "duration": "45s",
           "detail": "with both estates' local record stores and state caches deleted - a fresh clone with only the cluster left - neither plan created, destroyed or replaced anything: platform's objects found by their tofu-estate label, app's six field-granular instances by the fields choudoufu:shared-app owns on objects it does not own. plan_calls_no_local_state=21 plan_calls_cache_serving=21 ratio=1.00x (both estates' plans summed, the provider's HTTP requests counted from TF_LOG=DEBUG); stock in this position has no plan at all. BREAK_NO_LOCAL_STATE=1 strips settings' label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -6425,6 +6656,11 @@
           "verdict": "pass",
           "duration": "2s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 7 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=116 plan_calls_cache_serving=116 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips hpa refk8swl/web's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     },
@@ -6567,6 +6803,11 @@
           "verdict": "pass",
           "duration": "1m13s",
           "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 0 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=122 plan_calls_cache_serving=122 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips clusterrolebinding/argo-rollouts's label and the check correctly fails"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
         }
       ]
     }

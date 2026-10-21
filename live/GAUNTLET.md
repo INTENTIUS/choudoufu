@@ -267,6 +267,18 @@ On the floci-eks substrate: Both legs lose their local record store and state ca
 
 On the floci-gcp substrate: The labelled objects are found by their labels. A markerless object is claimed only by its record (option A, #2152), so with the record store gone the plan refuses each one at a held name by name and stops; with the record store put back and the cache still gone the plan is empty. The request count is hashicorp/google's own, read from TF_LOG=debug's request blocks.
 
+### 16. Endpoints with an unset optional identity field (`day2_endpoints`, planned, not part of the headline bars)
+
+Proves: A network endpoint whose identity names an optional field the block leaves unset (#2145 item 6: a global or regional internet NEG endpoint with only ip_address or only fqdn) is created, replans empty with and without the state cache, is bound by its record, and is destroyed on removal exactly as stock destroys it. Run by reference-gcp only; not part of the headline bars.
+
+Oracle: Stock's own import of each endpoint on the oracle with the import id choudoufu renders, the unset field an empty segment (project/neg/ip//port), followed by stock's empty plan; and stock's create and removal of the same scratch blocks, compared by count.
+
+Break: Hand stock the import id with the empty segment collapsed, the rendering before item 6; the import must fail and the stage with it.
+
+On the floci-eks substrate: Not run on this substrate; the stage is reference-gcp's (#2145 item 6).
+
+On the floci-gcp substrate: Run by reference-gcp only, on scratch global and regional internet NEGs, which a NEG and its endpoints carry no label for, so the record alone claims them. The pinned image serves only zonal GCE_VM_IP_PORT NEGs; global and regional internet NEGs are lex00/floci-gcp#26, and until an image serves them the stage fails at stock's own create on the oracle emulator, naming #26.
+
 ## The plan-fidelity contract
 
 What every stage above adds up to, stated as one promise: an equal plan, or
@@ -473,7 +485,7 @@ minimal fixture straight off the admission table, one resource block per
 type, required arguments only, and `live/cohort-acceptance.json` measures
 its round-trip identity against the emulator - the whole product claim for
 that type, at the cost of an apply and a replan rather than a full estate's
-15 stages on every future run. A type already in
+16 stages on every future run. A type already in
 `types_in_no_cohort` is still a cohort's job to pick up, seeding or
 extending one with `-types`, not an estate's.
 
