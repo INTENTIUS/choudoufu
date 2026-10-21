@@ -18,6 +18,7 @@ markers, never inside them.
 | Sweep | tagging-index: runs through the configured provider itself; no separate client is built from the provider block | label-list: a cluster client built from the provider block's own connection arguments (Substrate.NewSweeper) |
 | Controller-held | the resource's own tags carry one of the fixed controller tag keys (markers.ControllerTagKeys: ACK, Crossplane) | the object's Helm release annotation (kubesweep.HelmReleaseNameAnnotation), read off the object itself rather than off the label marker map |
 | Untaggable types | 852 (declaration-carried: 379; excluded by design: 2; record-carried: 471) | 0 |
+| Untaggable, no record, object live | admitted: owned through its tagged parents | not owned: the plan proposes the create |
 | Fence | IAM conditions on aws:ResourceTag, reads and writes, per principal (live/MARKERS.md). | One ValidatingAdmissionPolicy, writes only, enforced per principal through the cluster's authorizer. |
 | Harness | floci, pinned in `live/floci-image` to `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`. GHCR image pinned by digest; live/floci-capabilities.json probes per-AWS-service coverage against it. | kind, pinned in `live/kind-node-image` to `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. a kind cluster on the pinned node image; no per-service capability probe like floci's exists for it. |
 <!-- substrates-gen:end substrates -->

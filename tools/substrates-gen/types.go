@@ -111,6 +111,12 @@ type UntaggableFacts struct {
 	Definition string         `json:"definition"`
 	Count      int            `json:"count"`
 	ByTier     map[string]int `json:"by_tier"`
+
+	// Unrecorded is the family's default [substrate.Substrate.Unrecorded]
+	// answer: what a declared untaggable instance with no record means when
+	// an object is live at its configured identity (the 2026-10-20 ruling).
+	// A family may answer differently for a type it knows more about.
+	Unrecorded string `json:"unrecorded"`
 }
 
 // HarnessFacts is the emulator this family's estates run against: its name,

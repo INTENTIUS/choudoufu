@@ -108,6 +108,9 @@ func buildRow(root string, s substrate.Substrate, rf readinessFacts) (Row, error
 	row.ControllerHeld = controllerHeldFacts(s)
 
 	row.Untaggable = untaggableFor(family, rf)
+	// The family's default: asked with no type name, which no family
+	// holds a per-type fact about.
+	row.Untaggable.Unrecorded = string(s.Unrecorded(""))
 
 	fence, err := fenceFor(family)
 	if err != nil {
