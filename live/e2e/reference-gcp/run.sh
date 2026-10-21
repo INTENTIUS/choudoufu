@@ -92,6 +92,15 @@
 #                  strip one declared object's tofu-estate label before
 #                  no_local_state's plan with no local state; that plan must
 #                  then propose something, so the check fails.
+#   BREAK_GCS_STORE
+#                  set to 1 to delete the network's record from the gcs
+#                  record bucket before record_store_gcs's plan with no state
+#                  cache; that plan must then not be empty, so the check
+#                  fails (record_store_gcs's Break line).
+#   GS_RACE_SECONDS
+#                  how long record_store_gcs's time_sleep.race takes to
+#                  create (default 8), the window both racing applies must
+#                  plan inside.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -1141,6 +1150,216 @@ trap - EXIT
 gauntlet_stage day2_endpoints pass "a global and a regional internet NEG pair (INTERNET_IP_PORT with only ip_address, INTERNET_FQDN_PORT with only fqdn), in a scratch estate of their own run after strict, 8 objects created by choudoufu on A as stock created them on B, each NEG holding exactly its declared endpoint (REST, both emulators); the next plan and the plan with no state file are empty, each endpoint bound by its record ($EP_SEEN). Stock imported each of the four endpoints on B by choudoufu's rendered id, the unset field an empty segment (e.g. $PROJECT/refgcp-gneg-ip/203.0.113.10//443), and planned empty after. Removing the scratch file destroyed $X_N on A and $O_N on B, no NEG left on either (REST), and the next plan is empty. BREAK_ENDPOINTS=1 collapses the empty segment and stock's import fails the stage"
 
 ); stage_done $? day2_endpoints
+
+(
+# ── 15. record_store_gcs: the gcs record store on floci-gcp's storage ────
+#
+# Every stage above keeps its records in record_store "local", so the lane's
+# green runs never exercised record_store "gcs", the store
+# examples/record-store-gcs/CONTRACT.md documents. This stage does, against
+# emulator A's Cloud Storage: a bucket made to the contract with the REST
+# API, then a scratch estate of its own ($ESTATE-gcs) whose live block
+# declares record_store "gcs" with storage_custom_endpoint pointed at the
+# emulator. Planned and not headline, run last and in its own roots like
+# day2_endpoints, so a store or emulator gap can never take a headline
+# verdict down.
+#
+# What it drives through the store (internal/live/staterecord/gcs.go):
+# live-import's record writes (multipart uploads under ifGenerationMatch=0),
+# reads (JSON media GETs, the generation from x-goog-generation), listings
+# by prefix, the contract read (buckets.get) and the sentinel listing
+# (matchGlob), an apply's new record, a plan with no state cache that the
+# bucket's records alone make empty, two applies racing for one record
+# (each create-only, so one must be refused with the store's write
+# conflict), and the removal of every block. No open floci-gcp issue sits
+# on this path at the pinned image: lex00/floci-gcp#32 (an object request
+# in a missing bucket says "Object not found") is filed beside it and
+# concerns a bucket deleted mid-run, which this stage never does.
+gauntlet_begin_stage record_store_gcs
+log "=== 15. record_store_gcs: record_store \"gcs\" against emulator A's storage, in a scratch estate of its own ==="
+GS_ESTATE="$ESTATE-gcs"
+GS_BUCKET="${PROJECT}-refgcp-records"
+GS_STOCK="$WORK/gcs-stock"; GS_A="$WORK/gcs-a"; GS_A2="$WORK/gcs-a2"
+GS_RACE_SECONDS="${GS_RACE_SECONDS:-8}"
+GS_NET="compute/v1/projects/$PROJECT/global/networks/refgcp-gcs-net"
+GS_FW="compute/v1/projects/$PROJECT/global/firewalls/refgcp-gcs-fw"
+GS_TOPIC="$(topic_path refgcp-gcs-topic)"
+GS_TOKEN="$(gcp_harness_token)" || fail "no harness token for the gcs record store's access_token"
+gs_versions_live() {
+  cat <<TF
+terraform {
+  required_providers {
+$GOOGLE_REQUIRED_PROVIDER
+    time = {
+      source  = "hashicorp/time"
+      version = ">= 0.9"
+    }
+  }
+  live {
+    estate = "$GS_ESTATE"
+    record_store "gcs" {
+      bucket                  = "$GS_BUCKET"
+      storage_custom_endpoint = "$EPA/storage/v1/"
+      access_token            = "$GS_TOKEN"
+    }
+  }
+}
+
+TF
+  gcp_provider_block "$EPA" "$PROJECT" "$REGION" "$ZONE"
+}
+gs_shape() {
+  cat <<TF
+
+resource "google_compute_network" "main" {
+  project                 = "$PROJECT"
+  name                    = "refgcp-gcs-net"
+  auto_create_subnetworks = false
+}
+
+resource "google_pubsub_topic" "events" {
+  project = "$PROJECT"
+  name    = "refgcp-gcs-topic"
+  labels = {
+    tier = "records"
+  }
+}
+TF
+}
+gs_firewall() {
+  cat <<TF
+
+resource "google_compute_firewall" "ssh" {
+  project       = "$PROJECT"
+  name          = "refgcp-gcs-fw"
+  network       = google_compute_network.main.name
+  source_ranges = ["10.20.0.0/16"]
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+}
+TF
+}
+gs_race() {
+  cat <<TF
+
+resource "time_sleep" "race" {
+  create_duration = "${GS_RACE_SECONDS}s"
+}
+TF
+}
+gs_plan() { ( cd "$1" && "$TOFU" plan -input=false -no-color 2>&1 ); }
+gs_apply() { ( cd "$1" && "$TOFU" apply -auto-approve -input=false -no-color 2>&1 ); }
+gs_records() { refgcp_gcs_records "$EPA" "$GS_BUCKET" "tofu-records/$GS_ESTATE/"; }
+# Nothing of the scratch estate outlives the stage: on any exit the three
+# objects go with the REST API (the firewall before its network) and the
+# bucket with every version in it. The headline estate's roots and records
+# are never touched.
+scrub_gcs() {
+  local obj
+  for obj in "$GS_FW" "$GS_TOPIC" "$GS_NET"; do
+    exists_a "$obj" && { ra DELETE "$obj" >/dev/null 2>&1; log "  record_store_gcs: ${obj##*/} deleted from A with the REST API"; }
+  done
+  refgcp_gcs_scrub "$EPA" "$GS_BUCKET" || log "  record_store_gcs: the record bucket $GS_BUCKET could not be deleted; the emulator goes with the run"
+  return 0
+}
+trap scrub_gcs EXIT
+
+# The bucket, made to the contract and read back. A failure here is the
+# emulator's storage, never choudoufu.
+refgcp_gcs_make_bucket "$EPA" "$PROJECT" "$GS_BUCKET" || fail "floci-gcp did not create the record bucket $GS_BUCKET (storage.buckets.insert with versioning, a noncurrent Delete rule, public access prevention and uniform access): a floci-gcp storage gap, not choudoufu"
+GS_BAD="$(ra GET "storage/v1/b/$GS_BUCKET" | refgcp_gcs_bucket_problems)"
+[ -z "$GS_BAD" ] || fail "the record bucket did not read back with the contract's four settings ($GS_BAD): a floci-gcp storage gap, and choudoufu would refuse the bucket"
+
+# Stock stands the scratch shape up on A, so the migration has a state file.
+mkdir -p "$GS_STOCK" "$GS_A" "$GS_A2"
+{ versions_block stock "$EPA" && gs_shape; } > "$GS_STOCK/main.tf" || fail "could not write the gcs scratch estate's stock root"
+( cd "$GS_STOCK" && gauntlet_locked_init terraform init -input=false -no-color >/dev/null 2>&1 ) || fail "stock init failed in the gcs scratch estate"
+GS_OUT="$(cd "$GS_STOCK" && terraform apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$GS_OUT" | tail -20; fail "stock could not create the gcs scratch shape on A: $(gauntlet_first_error_line <<< "$GS_OUT")"; }
+grep -qF "Resources: 2 added, 0 changed, 0 destroyed" <<< "$GS_OUT" || fail "stock's create of the gcs scratch shape did not add exactly the network and the topic: $(grep -E 'Resources:' <<< "$GS_OUT" | head -1)"
+
+# migrate: live-import from stock's state, every record written to the bucket.
+gs_versions_live > "$GS_A/versions.tf" || fail "could not write the gcs scratch estate's live block"
+gs_shape > "$GS_A/main.tf" || fail "could not write the gcs scratch estate's shape"
+( cd "$GS_A" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "choudoufu init failed in the gcs scratch estate"
+GS_OUT="$(cd "$GS_A" && "$TOFU" live-import -state="$GS_STOCK/terraform.tfstate" -estate="$GS_ESTATE" -approve -no-color 2>&1)" || { printf '%s\n' "$GS_OUT" | tail -20; fail "live-import -approve into the gcs record store failed: $(gauntlet_first_error_line <<< "$GS_OUT")"; }
+read -r GS_STAMPED GS_SKIPPED GS_OTHER GS_FAILED GS_IDS < <(gcp_migrate_counts <<< "$GS_OUT")
+[ "$GS_STAMPED/$GS_SKIPPED/$GS_OTHER/$GS_FAILED/$GS_IDS" = "1/1/0/0/2" ] || fail "live-import -approve did not stamp the topic, skip the network for having no labels argument and record both identities: $GS_STAMPED stamped, $GS_SKIPPED skipped ($GS_OTHER for another reason), $GS_FAILED failed, $GS_IDS identities recorded. First Error: line: \"$(gauntlet_first_error_line <<< "$GS_OUT")\""
+GS_NET_KEY="$(refgcp_record_key "$GS_ESTATE" google_compute_network.main)"
+GS_LIST="$(gs_records)" || fail "could not list the record bucket $GS_BUCKET with the REST API"
+grep -qxF "$GS_NET_KEY $GS_ESTATE" <<< "$GS_LIST" || fail "after the migration the bucket holds no record for google_compute_network.main at $GS_NET_KEY carrying tofu-estate=$GS_ESTATE; under tofu-records/$GS_ESTATE/ it lists: $(tr '\n' ';' <<< "$GS_LIST")"
+[ ! -e "$GS_A/.tofu-records" ] || fail "a local .tofu-records appeared beside record_store \"gcs\""
+GS_N_MIGRATED="$(grep -c . <<< "$GS_LIST")"
+
+GS_OUT="$(gs_plan "$GS_A")" || { printf '%s\n' "$GS_OUT" | tail -20; fail "the plan after the migration failed: $(gauntlet_first_error_line <<< "$GS_OUT")"; }
+grep -q "No changes." <<< "$GS_OUT" || { printf '%s\n' "$GS_OUT" | tail -20; fail "the plan after the migration is not empty ($(gauntlet_plan_line <<< "$GS_OUT"))"; }
+
+# apply: a new markerless object, its record created under ifGenerationMatch=0.
+gs_firewall > "$GS_A/firewall.tf" || fail "could not write the firewall block"
+GS_OUT="$(gs_apply "$GS_A")" || { printf '%s\n' "$GS_OUT" | tail -20; fail "the apply adding the firewall failed: $(gauntlet_first_error_line <<< "$GS_OUT")"; }
+grep -qF "Apply complete! Resources: 1 added, 0 changed, 0 destroyed" <<< "$GS_OUT" || fail "the apply adding the firewall did not add exactly one object: $(grep -E 'Resources:|No changes' <<< "$GS_OUT" | head -1)"
+GS_FW_KEY="$(refgcp_record_key "$GS_ESTATE" google_compute_firewall.ssh)"
+GS_LIST="$(gs_records)" || fail "could not list the record bucket after the apply"
+grep -qxF "$GS_FW_KEY $GS_ESTATE" <<< "$GS_LIST" || fail "the apply wrote no record for google_compute_firewall.ssh at $GS_FW_KEY carrying tofu-estate=$GS_ESTATE"
+GS_OUT="$(gs_plan "$GS_A")" || { printf '%s\n' "$GS_OUT" | tail -20; fail "the replan after the apply failed: $(gauntlet_first_error_line <<< "$GS_OUT")"; }
+grep -q "No changes." <<< "$GS_OUT" || { printf '%s\n' "$GS_OUT" | tail -20; fail "the replan after the apply is not empty ($(gauntlet_plan_line <<< "$GS_OUT"))"; }
+
+# The plan with no state cache: nothing local is left, so the network and
+# the firewall, which carry no label, are claimed by their records in the
+# bucket or not at all (option A, #2152). BREAK_GCS_STORE=1 deletes the
+# network's record first, and the plan must then not be empty.
+rm -f "$GS_A/.terraform/choudoufu-cache.tfstate"
+[ ! -e "$GS_A/.tofu-records" ] || fail "a local .tofu-records appeared beside record_store \"gcs\""
+if [ "${BREAK_GCS_STORE:-}" = "1" ]; then
+  refgcp_gcs_delete "$EPA" "$GS_BUCKET" "$GS_NET_KEY" || fail "BREAK_GCS_STORE=1: could not delete the network's record from the bucket"
+fi
+GS_OUT="$(gs_plan "$GS_A")"; GS_RC=$?
+if [ "${BREAK_GCS_STORE:-}" = "1" ]; then
+  { [ "$GS_RC" -eq 0 ] && grep -q "No changes." <<< "$GS_OUT"; } \
+    && fail "BREAK_GCS_STORE=1: with the network's record deleted from the bucket the plan with no state cache is still empty, so the bucket's records are not what made it empty"
+  gauntlet_stage record_store_gcs pass "BREAK_GCS_STORE=1 control: with google_compute_network.main's record deleted from the bucket, the plan with no state cache is no longer empty (exit $GS_RC, $(gauntlet_first_error_line <<< "$GS_OUT")), so the check correctly fails; the race and the removal are skipped"
+  exit 0
+fi
+{ [ "$GS_RC" -eq 0 ] && grep -q "No changes." <<< "$GS_OUT"; } || { printf '%s\n' "$GS_OUT" | tail -20; fail "the plan with no state cache is not empty (exit $GS_RC, $(gauntlet_plan_line <<< "$GS_OUT")): $(gauntlet_first_error_line <<< "$GS_OUT")"; }
+
+# The race: a second root of the same estate on the same bucket, and both
+# applies started together, each creating time_sleep.race. Neither record
+# exists when either plans, so each write goes out under
+# ifGenerationMatch=0 after a ${GS_RACE_SECONDS}s create; the second must be
+# refused with the store's write conflict, and both roots then plan empty
+# on the one record that landed.
+cp "$GS_A/versions.tf" "$GS_A/main.tf" "$GS_A/firewall.tf" "$GS_A2/" || fail "could not copy the scratch root for the race"
+( cd "$GS_A2" && "$TOFU" init -input=false -no-color >/dev/null 2>&1 ) || fail "choudoufu init failed in the race's second root"
+gs_race > "$GS_A/race.tf" && gs_race > "$GS_A2/race.tf" || fail "could not write the race block"
+( gs_apply "$GS_A" > "$WORK/gcs-race-1.out"; echo $? > "$WORK/gcs-race-1.rc" ) &
+( gs_apply "$GS_A2" > "$WORK/gcs-race-2.out"; echo $? > "$WORK/gcs-race-2.rc" ) &
+wait
+GS_RACE="$(refgcp_gcs_race_verdict "$WORK/gcs-race-1" "$WORK/gcs-race-2")" || { tail -20 "$WORK/gcs-race-1.out" "$WORK/gcs-race-2.out" 2>/dev/null; fail "the race for time_sleep.race's record: $GS_RACE"; }
+read -r GS_WIN GS_LOSE <<< "$GS_RACE"
+GS_RACE_KEY="$(refgcp_record_key "$GS_ESTATE" time_sleep.race)"
+GS_LIST="$(gs_records)" || fail "could not list the record bucket after the race"
+grep -qxF "$GS_RACE_KEY $GS_ESTATE" <<< "$GS_LIST" || fail "after the race the bucket holds no record for time_sleep.race at $GS_RACE_KEY"
+for root in "$GS_A" "$GS_A2"; do
+  GS_OUT="$(gs_plan "$root")" || { printf '%s\n' "$GS_OUT" | tail -20; fail "the plan in ${root##*/} after the race failed: $(gauntlet_first_error_line <<< "$GS_OUT")"; }
+  grep -q "No changes." <<< "$GS_OUT" || { printf '%s\n' "$GS_OUT" | tail -20; fail "the plan in ${root##*/} after the race is not empty ($(gauntlet_plan_line <<< "$GS_OUT")), so the record that landed does not settle both roots"; }
+done
+
+# Removal: every block leaves the scratch root, as an operator removes them.
+rm -f "$GS_A/main.tf" "$GS_A/firewall.tf" "$GS_A/race.tf"
+GS_OUT="$(gs_apply "$GS_A")" || { printf '%s\n' "$GS_OUT" | tail -20; fail "removing the scratch blocks failed: $(gauntlet_first_error_line <<< "$GS_OUT")"; }
+grep -qF "Resources: 0 added, 0 changed, 4 destroyed" <<< "$GS_OUT" || fail "removing the scratch blocks did not destroy exactly the network, the topic, the firewall and time_sleep.race: $(grep -E 'Resources:|No changes' <<< "$GS_OUT" | head -1)"
+for obj in "$GS_FW" "$GS_TOPIC" "$GS_NET"; do
+  exists_a "$obj" && fail "${obj##*/} still exists on A after its block was removed"
+done
+GS_OUT="$(gs_plan "$GS_A")" || { printf '%s\n' "$GS_OUT" | tail -20; fail "the plan after the removal failed: $(gauntlet_first_error_line <<< "$GS_OUT")"; }
+grep -q "No changes." <<< "$GS_OUT" || { printf '%s\n' "$GS_OUT" | tail -20; fail "the plan after the removal is not empty ($(gauntlet_plan_line <<< "$GS_OUT"))"; }
+GS_LEFT="$(gs_records | grep -c .)"
+trap - EXIT
+scrub_gcs
+gauntlet_stage record_store_gcs pass "record_store \"gcs\" against floci-gcp's Cloud Storage on A, in a scratch estate of its own run after day2_endpoints: a bucket made to the contract (versioning, a noncurrent Delete rule, public access prevention enforced, uniform access) read back with all four; live-import -approve from stock's state stamped the topic, skipped the network for having no labels argument and wrote $GS_N_MIGRATED record object(s) carrying tofu-estate=$GS_ESTATE, the network's at $GS_NET_KEY, with no local .tofu-records; the plan after it was empty; an apply added the firewall and its record; the replan and the plan with no state cache were empty, the records in the bucket alone claiming the unlabelled network and firewall; two applies of one time_sleep.race started together, apply $GS_WIN landed and apply $GS_LOSE was refused with \"Record store write conflict\", nothing overwritten, and both roots planned empty after; removing every block destroyed 4 objects, none left on A (REST) and the next plan empty, $GS_LEFT record object(s) left under the estate's prefix. No open floci-gcp issue on this path (lex00/floci-gcp#32, filed beside it, is a missing bucket's 404). BREAK_GCS_STORE=1 deletes the network's record before the plan with no state cache and the stage correctly fails"
+
+); stage_done $? record_store_gcs
 
 gauntlet_end
 log "reference-gcp: done"
