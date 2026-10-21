@@ -190,6 +190,12 @@ func decideAsset(t string, sources map[string]Source, facts map[string]TypeFacts
 			return d
 		}
 	}
+	if fd, ok := decideFullName(d, src, host, path, names); ok {
+		if fd.Verdict == AssetUnknown {
+			fd.Row = identity.GoogleAssetImport{}
+		}
+		return fd
+	}
 	d.Row = identity.GoogleAssetImport{}
 	if len(cands) == 0 {
 		d.Reason = "the provider source states no import format for this type"

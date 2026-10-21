@@ -281,6 +281,7 @@ func resourceSource(text string) Source {
 		}
 		s.ImportIDFormat = m[2]
 	}
+	readImporterShapes(&s, text)
 	s.IDFromResponse = idFromResponse(text)
 	for _, name := range placeholders(s.IDFormat) {
 		if v, ok := schemaDefault(text, name); ok {

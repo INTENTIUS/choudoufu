@@ -158,6 +158,31 @@ type Source struct {
 	// IdentityImport is how the type's importer reads an identity object
 	// (identityimport.go). Nil when the type declares no identity schema.
 	IdentityImport *IdentityImport `json:"identity_import,omitempty"`
+
+	// ImportWhole, ImportNameSet and ImportPassthrough are importer shapes
+	// the generated importRe does not read (fullname.go, #2145 item 5).
+	// ImportWhole is the attribute a custom importer's sole ParseImportId
+	// regex, `(?P<name>.+)`, fills with the whole import ID.
+	ImportWhole string `json:"import_whole,omitempty"`
+
+	// ImportNameSet is set when the importer, after ParseImportId, sets an
+	// attribute to a template and gives the instance that attribute's
+	// value as its id: `d.Set("name", "projects/{{project}}/...")` then
+	// `id, err := tpgresource.ReplaceVars(d, config, d.Get("name").(string))`.
+	ImportNameSet *ImportNameSet `json:"import_name_set,omitempty"`
+
+	// ImportPassthrough is set when the importer is
+	// schema.ImportStatePassthrough, which sets the import ID as the id and
+	// nothing else.
+	ImportPassthrough bool `json:"import_passthrough,omitempty"`
+}
+
+// ImportNameSet is one importer's `d.Set(Attr, Template)` after
+// ParseImportId over Regexes.
+type ImportNameSet struct {
+	Attr     string   `json:"attr"`
+	Template string   `json:"template"`
+	Regexes  []string `json:"regexes"`
 }
 
 // Facts is live/gcp-schema-facts.json: the parts of each provider's schema

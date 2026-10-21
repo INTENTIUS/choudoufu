@@ -335,6 +335,10 @@ func decideDocumented(d AssetDecision, src Source, names AssetNames) AssetDecisi
 		}
 	}
 	d.Reason = fmt.Sprintf("no import format carries exactly the parts of the documented Asset name %s", strings.Join(names.Types[m.AssetType], " or "))
+	if r, ok := passthroughReason(src, names.Types[m.AssetType]); ok {
+		d.Reason = r
+		return d
+	}
 	for _, p := range paths {
 		if strings.Contains(p, "{"+docsProjectNumber+"}") {
 			d.Reason += "; a project number is not the project ID the provider's project argument holds"
