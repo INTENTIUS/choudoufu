@@ -324,3 +324,118 @@ Plan: 1 to add, 1 to change, 1 to destroy.
 		t.Errorf("gcp_churn_count on an empty plan = %q, want 0", out)
 	}
 }
+
+// gcveReplaceRemoval is day2_replace's scratch-block removal, cut out of
+// the gcve script verbatim: scrub_replace, the trap that runs it, and the
+// measured removal up to the stage's pass verdict.
+func gcveReplaceRemoval(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile("e2e/corpus-k8s-infra-gcp-gcve/run.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(raw)
+	cut := func(from, to string) string {
+		i := strings.Index(src, from)
+		if i < 0 {
+			t.Fatalf("the gcve script has no %q", from)
+		}
+		j := strings.Index(src[i:], to)
+		if j < 0 {
+			t.Fatalf("the gcve script has no %q after %q", to, from)
+		}
+		return src[i : i+j+len(to)]
+	}
+	return cut("scrub_replace() {", "\ntrap scrub_replace EXIT\n") +
+		cut("# The scratch block removed, as an operator removes one", "\ngauntlet_stage day2_replace pass ") + `"done"` + "\n"
+}
+
+// The fifth GCP run: removing day2_replace's scratch block failed on A
+// with "Malformed ownership marker", the old cleanup threw the output away
+// and left gcve-cbd-b live, and day2_crash, day2_teardown, greenfield and
+// no_local_state each failed on that one bucket. The removal now shows
+// choudoufu's error, requires the one destroy stock makes on B, requires
+// neither scratch bucket on either emulator, and on any failure deletes
+// both scratch buckets so no later stage inherits them.
+func TestGCVEReplaceRemovalMatchesStockAndNeverLeaks(t *testing.T) {
+	removal := gcveReplaceRemoval(t)
+	const destroyed = "\nApply complete! Resources: 0 added, 0 changed, 1 destroyed.\n"
+	// The run's own output for the removal apply on A.
+	const malformed = `
+Warning: GCP resource carries this estate's label and no declared address
+
+1 resource(s) carry estate "corpus-k8s-infra-gcp-gcve"'s label and no address
+this configuration declares:
+  - storage.googleapis.com/Bucket //storage.googleapis.com/broadcom-451918-gcve-cbd-b (Its tofu-address label "gogeyxybcrnndkm3tyds4ju4pr-gogeyxybcrnndkm3tyds4ju4pr" encodes no address this configuration declares, and a GCP address label is matched, never decoded, so nothing here says which block made it. It is reported and left alone; the estate's record for that block, when there is one, is what proposes its removal.)
+
+Error: Malformed ownership marker
+
+A live storage.googleapis.com/Bucket carries estate
+"corpus-k8s-infra-gcp-gcve" and the tofu-address value "", which no declared
+instance matches and which the escaping rule in live/MARKERS.md cannot turn
+back into an address. Nothing is proposed for it: give it a marker that
+round-trips, or remove it. Live resources:
+//storage.googleapis.com/broadcom-451918-gcve-cbd-b.
+`
+	run := func(xOut string, xRC int, aLeft, bLeft string) (string, int) {
+		t.Helper()
+		w := t.TempDir()
+		body := gcpFail + `CURRENT_STAGE=day2_replace
+W="` + w + `"; ADOPTED="$W/a"; ORACLE="$W/b"; mkdir -p "$ADOPTED" "$ORACLE"
+: > "$ADOPTED/day2_replace.tf"; : > "$ORACLE/day2_replace.tf"
+CBD_A=broadcom-451918-gcve-cbd-a; CBD_B=broadcom-451918-gcve-cbd-b
+log() { printf '%s\n' "$*"; }
+bucket_path() { printf 'storage/v1/b/%s' "$1"; }
+live() { [ -f "$W/$1.$(basename "$2")" ]; }
+for b in $A_LEFT; do : > "$W/A.$b"; done
+for b in $B_LEFT; do : > "$W/B.$b"; done
+exists_a() { live A "$1"; }
+ra() { [ "$1" = DELETE ] && rm -f "$W/A.$(basename "$2")"; }
+rb() { case "$1" in GET) live B "$2" ;; DELETE) rm -f "$W/B.$(basename "$2")" ;; esac; }
+stock_b() { printf '%s' "$O_OUT"; for b in broadcom-451918-gcve-cbd-a broadcom-451918-gcve-cbd-b; do rm -f "$W/B.$b"; done; }
+apply_a() { printf '%s' "$X_OUT"; return "$X_RC"; }
+( ` + removal + ` )
+echo "rc=$?"
+echo "left on A: $(cd "$W" && ls A.* 2>/dev/null | tr '\n' ' ')"
+echo "left on B: $(cd "$W" && ls B.* 2>/dev/null | tr '\n' ' ')"
+[ -e "$ADOPTED/day2_replace.tf" ] && echo "the scratch block is still in the adopted root"
+true`
+		return gcpBash(t, []string{"O_OUT=" + destroyed, "X_OUT=" + xOut, fmt.Sprintf("X_RC=%d", xRC), "A_LEFT=" + aLeft, "B_LEFT=" + bLeft}, body)
+	}
+
+	// The run's sequence: choudoufu's removal refused, cbd-b still on A.
+	out, _ := run(malformed, 1, "broadcom-451918-gcve-cbd-b", "broadcom-451918-gcve-cbd-b")
+	for _, want := range []string{
+		"FAIL: removing the scratch block from A failed: Error: Malformed ownership marker",
+		"rc=1",
+		"broadcom-451918-gcve-cbd-b deleted from A with the REST API",
+		"left on A: \n",
+		"left on B: \n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the run's refusal: output lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "done") || strings.Contains(out, "still in the adopted root") {
+		t.Errorf("the run's refusal passed, or left the block in the root:\n%s", out)
+	}
+
+	// A removal that proposes nothing (the hit only warned about) leaks the
+	// bucket as surely, and fails.
+	out, _ = run("\nNo changes. Your infrastructure matches the configuration.\n", 0, "broadcom-451918-gcve-cbd-b", "broadcom-451918-gcve-cbd-b")
+	if !strings.Contains(out, "did not destroy exactly the one bucket stock destroyed on B") || !strings.Contains(out, "left on A: \n") {
+		t.Errorf("a removal destroying nothing: want the fail and the scrub:\n%s", out)
+	}
+
+	// A destroy counted while the bucket stays readable is not a removal.
+	out, _ = run(destroyed, 0, "broadcom-451918-gcve-cbd-b", "broadcom-451918-gcve-cbd-b")
+	if !strings.Contains(out, "broadcom-451918-gcve-cbd-b still exists on A after the scratch block was removed") {
+		t.Errorf("a removal leaving cbd-b live on A: want the fail:\n%s", out)
+	}
+
+	// What stock does on B, choudoufu does on A: one destroy, nothing left.
+	out, _ = run(destroyed, 0, "", "broadcom-451918-gcve-cbd-b")
+	if !strings.Contains(out, "done") || !strings.Contains(out, "rc=0") || strings.Contains(out, "FAIL") || strings.Contains(out, "REST API") {
+		t.Errorf("a removal matching stock's oracle did not pass cleanly:\n%s", out)
+	}
+}

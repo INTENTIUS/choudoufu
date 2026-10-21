@@ -734,6 +734,22 @@ gauntlet_begin_stage day2_replace
 log "=== 9b. day2_replace: a bucket renamed under create_before_destroy ==="
 add_replace() { replace_block "$1" > "$ADOPTED/day2_replace.tf"; replace_block "$1" > "$ORACLE/day2_replace.tf"; }
 CBD_A="$PROJECT-gcve-cbd-a"; CBD_B="$PROJECT-gcve-cbd-b"
+# The scratch block never outlives the stage. A stage that fails before its
+# own measured removal below takes the block out of both roots and deletes
+# both scratch buckets with the REST API on both emulators, so no later
+# stage inherits them (the fifth GCP run: a failed removal left cbd-b
+# behind and every later stage failed on it). The measured removal clears
+# the trap once it has passed.
+scrub_replace() {
+  rm -f "$ADOPTED/day2_replace.tf" "$ORACLE/day2_replace.tf"
+  local b
+  for b in "$CBD_A" "$CBD_B"; do
+    exists_a "$(bucket_path "$b")" && { ra DELETE "$(bucket_path "$b")" >/dev/null 2>&1; log "  day2_replace: $b deleted from A with the REST API so no later stage inherits it"; }
+    rb GET "$(bucket_path "$b")" >/dev/null 2>&1 && { rb DELETE "$(bucket_path "$b")" >/dev/null 2>&1; log "  day2_replace: $b deleted from B with the REST API so no later stage inherits it"; }
+  done
+  return 0
+}
+trap scrub_replace EXIT
 add_replace a
 ( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "stock could not create $CBD_A on B"
 { X_OUT="$(apply_a)" && grep -qF "1 added, 0 changed, 0 destroyed" <<< "$X_OUT"; } || { printf '%s\n' "$X_OUT" | tail -20; fail "choudoufu could not create $CBD_A"; }
@@ -757,15 +773,28 @@ if [ "${BREAK_REPLACE:-}" = "1" ]; then
   grep -q "No changes." <<< "$B_PLAN" && fail "BREAK_REPLACE=1: with the old bucket back, carrying the block's labels, the next plan is empty - the empty-replan assertion is not load-bearing"
   log "  BREAK_REPLACE=1: caught - $(grep -E '^Plan:|^Error|^Warning' <<< "$B_PLAN" | head -1)"
   ra DELETE "$(bucket_path "$CBD_A")" >/dev/null 2>&1 || true
-  gauntlet_stage day2_replace pass "BREAK_REPLACE=1 control: the old bucket recreated with the block's labels after the replace makes the next plan non-empty ($(grep -E '^Plan:|^Error|^Warning' <<< "$B_PLAN" | head -1)), so the empty-replan assertion correctly fails to hold"
+  REPLACE_VERDICT="BREAK_REPLACE=1 control: the old bucket recreated with the block's labels after the replace makes the next plan non-empty ($(grep -E '^Plan:|^Error|^Warning' <<< "$B_PLAN" | head -1)), so the empty-replan assertion correctly fails to hold"
 else
   X_REPLAN="$(plan_a)" || fail "the replan after the replace failed"
   grep -q "No changes." <<< "$X_REPLAN" || { printf '%s\n' "$X_REPLAN" | tail -20; fail "the replan after the replace is not empty"; }
-  gauntlet_stage day2_replace pass "a create_before_destroy rename of a scratch google_storage_bucket.cbd ($CBD_A -> $CBD_B) planned stock's replace (must be replaced, create first); at -parallelism=1 the apply log shows the new bucket's create complete (line $CREATED_AT) before the deposed object's destroy starts (line $DESTROY_AT); only $CBD_B remains, read with the REST API, and the next plan is empty. Stock's replace of the same block on the oracle emulator leaves the same single bucket. BREAK_REPLACE=1 recreates the old bucket with the block's labels and the next plan correctly stops being empty"
+  REPLACE_VERDICT="a create_before_destroy rename of a scratch google_storage_bucket.cbd ($CBD_A -> $CBD_B) planned stock's replace (must be replaced, create first); at -parallelism=1 the apply log shows the new bucket's create complete (line $CREATED_AT) before the deposed object's destroy starts (line $DESTROY_AT); only $CBD_B remains, read with the REST API, and the next plan is empty. Stock's replace of the same block on the oracle emulator leaves the same single bucket. BREAK_REPLACE=1 recreates the old bucket with the block's labels and the next plan correctly stops being empty"
 fi
+# The scratch block removed, as an operator removes one: stock destroys
+# $CBD_B from its state on B, and choudoufu must destroy it on A from the
+# block's record, vouched by the bucket's own labels (a GCP address label is
+# a hash and is never decoded). Both destroy exactly one bucket and leave
+# neither scratch bucket behind.
 rm -f "$ADOPTED/day2_replace.tf" "$ORACLE/day2_replace.tf"
-( apply_a >/dev/null ) || fail "could not remove the replace block from A"
-( stock_b apply -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "could not remove the replace block from B"
+O_RM="$(stock_b apply -auto-approve -input=false -no-color 2>&1)" || { printf '%s\n' "$O_RM" | tail -10; fail "stock could not remove the scratch block on B"; }
+grep -qF "Resources: 0 added, 0 changed, 1 destroyed" <<< "$O_RM" || { printf '%s\n' "$O_RM" | tail -10; fail "stock's removal of the scratch block on B did not destroy exactly one bucket"; }
+X_RM="$(apply_a)" || { printf '%s\n' "$X_RM" | tail -20; fail "removing the scratch block from A failed: $(gauntlet_first_error_line <<< "$X_RM")"; }
+grep -qF "Resources: 0 added, 0 changed, 1 destroyed" <<< "$X_RM" || { printf '%s\n' "$X_RM" | tail -20; fail "removing the scratch block from A did not destroy exactly the one bucket stock destroyed on B: $(grep -E 'Resources:|No changes' <<< "$X_RM" | head -1)"; }
+for b in "$CBD_A" "$CBD_B"; do
+  exists_a "$(bucket_path "$b")" && fail "$b still exists on A after the scratch block was removed"
+  rb GET "$(bucket_path "$b")" >/dev/null 2>&1 && fail "$b still exists on B after stock removed the scratch block"
+done
+trap - EXIT
+gauntlet_stage day2_replace pass "$REPLACE_VERDICT. Removing the scratch block then destroyed exactly one bucket on each emulator, choudoufu from the block's record and stock from its state, and neither $CBD_A nor $CBD_B is left on A or B (REST)"
 
 ); stage_done $? day2_replace reconverge
 

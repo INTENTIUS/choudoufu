@@ -724,6 +724,14 @@ type OwnedResource struct {
 	// "the block is gone", and only the sweep can see the second one.
 	Swept bool
 
+	// LabelHash is true for a hit the GCP leg filed ([GCPAssetSweep]):
+	// Marker is a google tofu-address label, a one-way hash that is
+	// matched and never decoded, and Withheld already says why nothing
+	// was bound to it. [classifyOrphans] decodes markers by the escaping
+	// rule in live/MARKERS.md, so it leaves such an orphan alone; the
+	// record leg is what proposes its destroy ([liveLabelVouches]).
+	LabelHash bool
+
 	// Removal is true when this resource enters the prior state as an
 	// instance with no configuration, so that the plan engine proposes
 	// destroying it the way it destroys any resource whose block was
