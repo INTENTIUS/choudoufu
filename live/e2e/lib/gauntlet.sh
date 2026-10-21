@@ -823,6 +823,28 @@ gauntlet_floci_az_requests_between() {
     END { if (!found) exit 1 }'
 }
 
+# gauntlet_keep_log <estate> <label> <file>: keeps a log a stage wrote under
+# its own $WORK, which the EXIT trap deletes, by copying it next to the
+# runner's capture as live/gauntlet/logs/<estate>.<label>.log (gitignored),
+# and prints any provider panic in it into the run's own output, so a
+# failed stage's TF_LOG survives the run (#1120: run seven's azurerm panic
+# was in a TF_LOG file that went with $WORK). Never fails the caller.
+gauntlet_keep_log() {
+  local estate="$1" label="$2" file="$3" dir="$ROOT/live/gauntlet/logs" dest
+  [ -s "$file" ] || { printf '  (no %s log at %s to keep)\n' "$label" "$file"; return 0; }
+  dest="$dir/$estate.$label.log"
+  if mkdir -p "$dir" 2>/dev/null && cp "$file" "$dest" 2>/dev/null; then
+    printf '  kept the %s log at %s\n' "$label" "${dest#"$ROOT"/}"
+  else
+    printf '  (could not copy the %s log to %s)\n' "$label" "$dest"
+  fi
+  if grep -q 'panic: ' "$file"; then
+    printf '  provider panic in the %s log:\n' "$label"
+    grep -A 24 -m 1 'panic: ' "$file" | sed 's/^/    /' | cut -c1-400
+  fi
+  return 0
+}
+
 # gauntlet_kind_down <name>: deletes the cluster gauntlet_kind_up made.
 # Idempotent and quiet, so a trap can call it for a cluster that never
 # came up.
