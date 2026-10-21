@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "emulator": "ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec",
+  "emulator": "ghcr.io/lex00/floci@sha256:980a67e2efdf2fca291f6fd216a099eede760cf2d14e2bc35ceca753fb7737cf",
   "oracle": {
     "terraform": "1.16.1",
     "tofu": "1.13.0"

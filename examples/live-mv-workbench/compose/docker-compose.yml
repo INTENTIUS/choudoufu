@@ -14,7 +14,7 @@
 # Started by the justfile: `just up`. The demo is at http://localhost:2718.
 services:
   floci:
-    image: ${FLOCI_IMAGE:-ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec}
+    image: ${FLOCI_IMAGE:-ghcr.io/lex00/floci@sha256:980a67e2efdf2fca291f6fd216a099eede760cf2d14e2bc35ceca753fb7737cf}
     ports:
       - "127.0.0.1:4650:4566"
     networks:
