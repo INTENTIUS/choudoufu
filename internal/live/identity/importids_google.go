@@ -213,3 +213,42 @@ func GoogleCompositeImportID(typeName string, components map[string]string) (str
 	}
 	return "", false
 }
+
+// GoogleIdentityImport says which identity attributes a record of one
+// composite-identity google type must carry for the type's importer to
+// take them as an identity object ([GoogleIdentityImports]).
+type GoogleIdentityImport struct {
+	// Via names the importer code that reads the identity, as
+	// tools/gcp-row-gen read it at the pin: "parse_import_id",
+	// "importer" or "iam_parent".
+	Via string
+
+	// Required are the attributes the importer cannot do without, plus
+	// every attribute the identity schema requires for import.
+	Required []string
+
+	// Defaulted are the attributes the importer fills from the provider
+	// configuration when the identity leaves them unset.
+	Defaulted []string
+}
+
+// GoogleIdentityImportValues returns a record's identity Components as the
+// identity values to import a google type by, when the type's importer
+// takes an identity ([GoogleIdentityImports]) and the record carries every
+// attribute it requires. ok is false otherwise; the caller refuses by name.
+func GoogleIdentityImportValues(typeName string, components map[string]string) (map[string]string, bool) {
+	row, ok := GoogleIdentityImports[typeName]
+	if !ok {
+		return nil, false
+	}
+	for _, name := range row.Required {
+		if components[name] == "" {
+			return nil, false
+		}
+	}
+	out := make(map[string]string, len(components))
+	for k, v := range components {
+		out[k] = v
+	}
+	return out, true
+}

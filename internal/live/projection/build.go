@@ -832,10 +832,14 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 	// exactly as it always has, still destined for the ordinary
 	// undeclared-instance destroy.
 	for _, r := range undeclaredConcrete {
-		if r.ImportID != "" && b.materializedIdentity[r.Addr.Resource.Resource.Type+"\x00"+r.ImportID] {
+		if (r.ImportID != "" && b.materializedIdentity[r.Addr.Resource.Resource.Type+"\x00"+r.ImportID]) || b.identityValuesClaimed(r) {
+			named := r.ImportID
+			if named == "" {
+				named = fmt.Sprint(r.IdentityValues)
+			}
 			b.omit(r.Addr, ReasonSuperseded, fmt.Sprintf(
 				"%s is not in the configuration, but the live object it names (import identity %q) is the SAME object a currently-declared instance of the same type already claimed earlier in this plan. It was relocated - by a `moved` block, or by ordinary parent-derived re-discovery of a renamed parent - rather than removed, and the declared instance is what will keep managing it. Nothing is proposed for this address.",
-				r.Addr, r.ImportID,
+				r.Addr, named,
 			), "the same live object is already claimed by a currently-declared instance elsewhere in this plan, so this old address is superseded rather than orphaned.")
 			continue
 		}
@@ -1322,6 +1326,50 @@ type wanted struct {
 	// #1546's refusal asks exactly that and nothing else of it - see
 	// [builder.checkOwnershipAt].
 	declaredKey bool
+}
+
+// identityValuesClaimed is [builder.materializedIdentity]'s question for an
+// undeclared resolution that carries no import ID, only identity values
+// (a google record imported by its identity, INTENTIUS/choudoufu#2145 item
+// 4): has an instance of the same type already materialized in this plan
+// whose object holds every one of those values? Such an orphan is the same
+// live object claimed twice, and destroying it would take the object out
+// from under the declared instance that keeps it.
+func (b *builder) identityValuesClaimed(r identity.Resolution) bool {
+	if r.ImportID != "" || len(r.IdentityValues) == 0 {
+		return false
+	}
+	typeName := r.Addr.Resource.Resource.Type
+	for _, addr := range b.materialized {
+		if addr.Resource.Resource.Type != typeName || addr.Equal(r.Addr) {
+			continue
+		}
+		obj, ok := b.live[addr.String()]
+		if !ok || obj.IsNull() || !obj.IsKnown() || !obj.Type().IsObjectType() {
+			continue
+		}
+		match := true
+		for name, want := range r.IdentityValues {
+			if !obj.Type().HasAttribute(name) {
+				match = false
+				break
+			}
+			v := obj.GetAttr(name)
+			if v.IsNull() || !v.IsKnown() {
+				match = false
+				break
+			}
+			got, err := convert.Convert(v, cty.String)
+			if err != nil || got.IsNull() || got.IsMarked() || got.AsString() != want {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
 }
 
 // importTarget picks the form this instance's import is asked in.

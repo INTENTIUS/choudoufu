@@ -757,7 +757,8 @@ var generatedTypeLiteralFiles = []string{
 	"internal/live/identity/discoverablefallback_generated.go",
 	"internal/live/identity/docimportid_generated.go",
 	"internal/live/identity/idnotwhole_generated.go",
-	"internal/live/identity/importids_generated_google.go", // tools/gcp-row-gen
+	"internal/live/identity/importids_generated_google.go",       // tools/gcp-row-gen
+	"internal/live/identity/identityimports_generated_google.go", // tools/gcp-row-gen
 	"internal/live/identity/markerless_generated.go",
 	"internal/live/identity/notimportable_generated.go",
 	"internal/live/identity/table_generated.go",

@@ -87,11 +87,16 @@ type Output struct {
 	Composites   []CompositeDecision
 	ImportCounts ImportIDCounts
 	ImportIDs    []byte
+
+	// IdentityImports is which importers take an identity object
+	// (identityimport.go), rendered as IdentityImportsRaw.
+	IdentityImports    []IdentityImportDecision
+	IdentityImportsRaw []byte
 }
 
 // Files maps each output to its repository-relative path.
 func (o Output) Files() map[string][]byte {
-	return map[string][]byte{TableGoRel: o.Table, SurveyJSONRel: o.SurveyRaw, ImportIDsGoRel: o.ImportIDs}
+	return map[string][]byte{TableGoRel: o.Table, SurveyJSONRel: o.SurveyRaw, ImportIDsGoRel: o.ImportIDs, IdentityImportsGoRel: o.IdentityImportsRaw}
 }
 
 // Generate is the whole derivation from the three evidence artifacts.
@@ -196,6 +201,11 @@ func Generate(ev Evidence, facts Facts, names AssetNames) (Output, error) {
 		return Output{}, err
 	}
 	out.ImportIDs = importIDs
+
+	out.IdentityImports = deriveIdentityImports(ev, byType)
+	if out.IdentityImportsRaw, err = renderIdentityImports(out.IdentityImports); err != nil {
+		return Output{}, err
+	}
 	return out, nil
 }
 

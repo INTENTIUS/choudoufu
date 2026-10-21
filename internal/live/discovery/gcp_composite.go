@@ -21,7 +21,10 @@ func googleUncomposable(typeName string) (why string, google bool) {
 	if !strings.HasPrefix(typeName, "google_") {
 		return "", false
 	}
-	if _, rowed := identity.LookupType(typeName); rowed {
+	if entry, rowed := identity.LookupType(typeName); rowed {
+		if len(entry.Components) == 0 {
+			return "Its identity-table row composes no import ID (the provider mints the identity)", true
+		}
 		return "Its identity-table row has a part the record does not carry", true
 	}
 	if reason, ok := identity.GoogleCompositeRefused[typeName]; ok {
@@ -31,6 +34,26 @@ func googleUncomposable(typeName string) (why string, google bool) {
 		return "The record does not carry every part of any import form the provider states for the type", true
 	}
 	return "The type has no identity-table row and no import form tools/gcp-row-gen recorded for it", true
+}
+
+// googleIdentityImportWhy says why the record could not be imported by its
+// identity instead (INTENTIUS/choudoufu#2145 item 4): the type's importer
+// at the pin takes no identity, or the record lacks an attribute it needs.
+func googleIdentityImportWhy(typeName string, components map[string]string) string {
+	if reason, ok := identity.GoogleIdentityImportRefused[typeName]; ok {
+		return "its importer takes no identity object at hashicorp/google 8.6.0 (" + reason + ")"
+	}
+	row, ok := identity.GoogleIdentityImports[typeName]
+	if !ok {
+		return "tools/gcp-row-gen recorded nothing about whether its importer takes an identity object"
+	}
+	var missing []string
+	for _, name := range row.Required {
+		if components[name] == "" {
+			missing = append(missing, name)
+		}
+	}
+	return "its importer takes an identity object only with " + strings.Join(missing, ", ") + ", which the record does not carry"
 }
 
 // componentNames lists a record's component attribute names, sorted.
