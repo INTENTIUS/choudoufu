@@ -429,9 +429,9 @@
       "carried": 0,
       "stages": {
         "cold_deploy": {
-          "pass": 0,
+          "pass": 2,
           "fail": 0,
-          "not_run": 2
+          "not_run": 0
         },
         "day2_count": {
           "pass": 0,
@@ -475,8 +475,8 @@
         },
         "migrate": {
           "pass": 0,
-          "fail": 0,
-          "not_run": 2
+          "fail": 2,
+          "not_run": 0
         },
         "no_local_state": {
           "pass": 0,
@@ -500,8 +500,8 @@
         },
         "test_plan": {
           "pass": 0,
-          "fail": 0,
-          "not_run": 2
+          "fail": 2,
+          "not_run": 0
         }
       }
     },
@@ -1167,7 +1167,7 @@
       "substrate": "floci-az",
       "script": "live/e2e/corpus-azapi-role-assignment/run.sh",
       "stages": {
-        "cold_deploy": "not_run",
+        "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
@@ -1176,15 +1176,54 @@
         "day2_teardown": "not_run",
         "drift_reconverge": "not_run",
         "greenfield": "not_run",
-        "migrate": "not_run",
+        "migrate": "fail",
         "no_local_state": "not_run",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "not_run",
-        "test_plan": "not_run"
+        "test_plan": "fail"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
+          "date": "2026-10-21T01:22:12Z",
+          "seconds": 85
+        },
+        "migrate": {
+          "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
+          "date": "2026-10-21T01:22:12Z",
+          "seconds": 8
+        },
+        "test_plan": {
+          "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
+          "date": "2026-10-21T01:22:12Z",
+          "seconds": 3
+        }
       },
       "clear": false,
-      "protocol": "legacy"
+      "protocol": "gauntlet",
+      "last_run": {
+        "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
+        "date": "2026-10-21T01:22:12Z",
+        "substrate_image": "ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8",
+        "oracle": {
+          "terraform": "1.15.8",
+          "tofu": "1.12.5"
+        },
+        "upstream_version": "1.13.0",
+        "exit_code": 1,
+        "detail": {
+          "cold_deploy": "3 resources (an azapi resource group, an azurerm user-assigned identity, an azapi role assignment granting it AcrPull, read through data \"azurerm_role_definition\") from plain terraform on the published root plus its deltas (the lane's provider pins, the endpoint lock in both provider blocks) against floci-az ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8; a real terraform.tfstate with 3 managed instances, zero tofu-estate tags read back through ARM, the role assignment answering at its id; the identical root cold-deployed by stock on a second container as every later stage's oracle",
+          "migrate": "live-import -approve: 1 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 2 skipped; 1 of 2 taggable resources carry tofu-estate=corpus-azapi-role-assignment through ARM; role assignment record: none; first Error: line: \"\"",
+          "test_plan": "the plan with no state file is not empty or failed (; first Error: line: \"Error: Unmarked live object at the declared id would be overwritten\") or an id did not answer as itself (none); the plan warned \"Azure sweep unavailable\" (lex00/floci-az#11: the sweep's KQL is outside floci-az's subset), so the sweep was incomplete"
+        },
+        "duration_s": 96.9,
+        "stage_seconds": {
+          "cold_deploy": 85,
+          "migrate": 8,
+          "test_plan": 3
+        }
+      }
     },
     {
       "name": "corpus-cloud-platform-components",
@@ -4180,7 +4219,7 @@
       "substrate": "floci-az",
       "script": "live/e2e/reference-azure/run.sh",
       "stages": {
-        "cold_deploy": "not_run",
+        "cold_deploy": "pass",
         "day2_count": "not_run",
         "day2_crash": "not_run",
         "day2_remove": "not_run",
@@ -4189,15 +4228,54 @@
         "day2_teardown": "not_run",
         "drift_reconverge": "not_run",
         "greenfield": "not_run",
-        "migrate": "not_run",
+        "migrate": "fail",
         "no_local_state": "not_run",
         "plan_approval": "not_run",
         "strict": "not_run",
         "test_apply": "not_run",
-        "test_plan": "not_run"
+        "test_plan": "fail"
+      },
+      "stage_runs": {
+        "cold_deploy": {
+          "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
+          "date": "2026-10-21T01:23:02Z",
+          "seconds": 125
+        },
+        "migrate": {
+          "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
+          "date": "2026-10-21T01:23:02Z",
+          "seconds": 20
+        },
+        "test_plan": {
+          "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
+          "date": "2026-10-21T01:23:02Z",
+          "seconds": 1
+        }
       },
       "clear": false,
-      "protocol": "legacy"
+      "protocol": "gauntlet",
+      "last_run": {
+        "commit": "bd277596123f10cfb0a6747a0c341408bb76caeb",
+        "date": "2026-10-21T01:23:02Z",
+        "substrate_image": "ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8",
+        "oracle": {
+          "terraform": "1.15.8",
+          "tofu": "1.12.5"
+        },
+        "upstream_version": "1.13.0",
+        "exit_code": 1,
+        "detail": {
+          "cold_deploy": "11 resources (resource group, VNet, subnet, NSG, NSG rule, storage account, identity, public IP, two count identities, and one azapi_resource identity) from plain terraform against floci-az ghcr.io/lex00/floci-az@sha256:d078bb4fce53cc456cf56a40357a6a7e95f49db821946ba7b035f296e9bef1b8, a real terraform.tfstate with 11 instances, zero tofu-estate tags read back through ARM; the identical shape cold-deployed by stock on a second container as every later stage's oracle",
+          "migrate": "live-import -approve: 8 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 3 skipped; 8 of 9 taggable resources carry tofu-estate=reference-azure through ARM; first Error: line: \"\"",
+          "test_plan": "the plan with no state file is not empty or failed (; first Error: line: \"Error: Unmarked live object at the declared id would be overwritten\") or an id did not answer as itself (none)"
+        },
+        "duration_s": 147.4,
+        "stage_seconds": {
+          "cold_deploy": 125,
+          "migrate": 20,
+          "test_plan": 1
+        }
+      }
     },
     {
       "name": "reference-ec2-vpc",
