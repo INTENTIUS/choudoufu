@@ -140,17 +140,18 @@ type ratifiedUniqueName struct {
 // ratifiedComponent mirrors [identity.Component] under the same contract as
 // [ratifiedRow].
 type ratifiedComponent struct {
-	Literal                string              `json:"literal,omitempty"`
-	Attrs                  *[]string           `json:"attrs,omitempty"`
-	Path                   *[]string           `json:"path,omitempty"`
-	Block                  string              `json:"block,omitempty"`
-	OmitIfAbsent           bool                `json:"omit_if_absent,omitempty"`
-	Default                string              `json:"default,omitempty"`
-	ServerAssignedIfAbsent bool                `json:"server_assigned_if_absent,omitempty"`
-	Cloud                  identity.CloudValue `json:"cloud,omitempty"`
-	IdentityAttr           string              `json:"identity_attr,omitempty"`
-	SoleElement            bool                `json:"sole_element,omitempty"`
-	PerElement             bool                `json:"per_element,omitempty"`
+	Literal                string                `json:"literal,omitempty"`
+	Attrs                  *[]string             `json:"attrs,omitempty"`
+	Path                   *[]string             `json:"path,omitempty"`
+	Block                  string                `json:"block,omitempty"`
+	OmitIfAbsent           bool                  `json:"omit_if_absent,omitempty"`
+	Default                string                `json:"default,omitempty"`
+	ServerAssignedIfAbsent bool                  `json:"server_assigned_if_absent,omitempty"`
+	Cloud                  identity.CloudValue   `json:"cloud,omitempty"`
+	IdentityAttr           string                `json:"identity_attr,omitempty"`
+	SoleElement            bool                  `json:"sole_element,omitempty"`
+	PerElement             bool                  `json:"per_element,omitempty"`
+	LongForm               identity.LongFormRule `json:"long_form,omitempty"`
 }
 
 // toRatified converts one live row to its stored form.
@@ -186,6 +187,7 @@ func toRatified(e identity.TypeIdentity) ratifiedRow {
 				IdentityAttr:           c.IdentityAttr,
 				SoleElement:            c.SoleElement,
 				PerElement:             c.PerElement,
+				LongForm:               c.LongForm,
 			})
 		}
 		r.Components = &comps
@@ -228,6 +230,7 @@ func fromRatified(r ratifiedRow) identity.TypeIdentity {
 				IdentityAttr:           c.IdentityAttr,
 				SoleElement:            c.SoleElement,
 				PerElement:             c.PerElement,
+				LongForm:               c.LongForm,
 			})
 		}
 		e.Components = comps

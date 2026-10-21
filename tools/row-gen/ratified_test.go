@@ -152,6 +152,7 @@ func TestRatifiedRoundTripsEveryField(t *testing.T) {
 				IdentityAttr:           "*",
 				SoleElement:            true,
 				PerElement:             true,
+				LongForm:               identity.LongFormIAMParent,
 			},
 			{Attrs: []string{}}, // empty, non-nil
 		},
