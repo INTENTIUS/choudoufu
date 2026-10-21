@@ -1908,6 +1908,22 @@ gauntlet_plan_line() {
   { grep -m1 -E '^(Plan:|No changes)' || true; } | sed 's/\.$//'
 }
 
+# gauntlet_azure_sweep_note - for an Azure lane plan's output on stdin, the
+# clause a removal verdict appends when the plan warned "Azure sweep
+# unavailable"; empty when it did not. A removed block's resource of a type
+# that takes tags is found only by the Resource Graph sweep (the record leg
+# skips it, internal/live/discovery/recordorphan_read.go), and floci-az's KQL
+# subset refuses the sweep's query (lex00/floci-az#11), so on floci-az a
+# day2_remove or a scale-down of such a type plans no destroy. The clause
+# names that gap, so the verdict says which side has to move (#1120's stage
+# audit); a verdict without it failed for some other reason.
+gauntlet_azure_sweep_note() {
+  if grep -qF "Azure sweep unavailable" ; then
+    printf '%s' '; the plan warned "Azure sweep unavailable": floci-az refuses the Resource Graph sweep'"'"'s query (lex00/floci-az#11), and only the sweep finds a removed resource of a type that takes tags'
+  fi
+  return 0
+}
+
 # gauntlet_replan_actions_verdict <context> < <plan output>
 #
 # The verdict for a greenfield replan that did not print "No changes.".

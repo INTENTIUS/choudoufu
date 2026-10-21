@@ -124,7 +124,7 @@ Oracle: Stock `plan` after the same mutation, with marker tags normalised out of
 
 Break: Mutate a second object as well; the single-object assertion must fail.
 
-On the floci-az substrate: The mutation is an ARM PUT or PATCH made out of band with gauntlet_arm, never through the tool.
+On the floci-az substrate: The mutation is an ARM GET and a PUT of the body read back, made out of band with gauntlet_arm_set_tag, never through the tool. Not a PATCH: floci-az answers 405 to every PATCH on Microsoft.Network (lex00/floci-az#18).
 
 On the floci-eks substrate: The mutation is made on either leg out of band: through the emulator's API on the AWS side, or as a kubectl label or patch inside the k3s container, never through the tool.
 
@@ -152,7 +152,7 @@ Oracle: Stock with the same block removed plans the same destroys in a working o
 
 Break: Keep the block; no destroy may be proposed.
 
-On the floci-az substrate: ARM confirms the object is gone with a 404 on its id. A resource group's delete takes its children with it; the order the cloud accepts is the one the configuration's dependency graph gives.
+On the floci-az substrate: ARM confirms the object is gone with a 404 on its id. A resource group's delete takes its children with it; the order the cloud accepts is the one the configuration's dependency graph gives. A removed block's object of a type that takes tags is found only by its marker through the Resource Graph sweep, which floci-az's KQL subset refuses (lex00/floci-az#11), so there the plan proposes no destroy and the stage fails naming that gap; an untaggable one is found through its record and needs no sweep.
 
 On the floci-eks substrate: The removed block's object is confirmed gone on its own leg: through the emulator's API for AWS, with kubectl in the k3s container for Kubernetes. Objects EKS itself writes (CoreDNS, kube-proxy, add-on Deployments) carry no tofu-estate label and are never proposed; one the configuration declares, such as aws-auth, is the operator's, as it is in stock.
 
@@ -166,7 +166,7 @@ Oracle: Stock's plan for the same count change, normalised.
 
 Break: Expect a different instance to be destroyed; the assertion must fail.
 
-On the floci-az substrate: Each instance is its own ARM id, so the instance that leaves the count is found at its id and destroyed, and the one that comes back is created there.
+On the floci-az substrate: Each instance is its own ARM id. The instance that leaves the count is found by its marker through the Resource Graph sweep, as a removed block's is, so on floci-az, whose KQL subset refuses the sweep's query (lex00/floci-az#11), the scale-down plans no destroy and the stage fails naming that gap; the one that comes back is created at its id.
 
 On the floci-eks substrate: Read on the leg the counted block lives on, as that leg's own substrate reads it.
 
