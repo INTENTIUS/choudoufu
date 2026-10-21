@@ -102,6 +102,7 @@ export default defineConfig({
 						{ label: 'Starting new', link: '/for/new/' },
 						{ label: 'On AWS', link: '/for/aws/' },
 						{ label: 'On Kubernetes', link: '/for/kubernetes/' },
+						{ label: 'On GCP', link: '/for/gcp/' },
 						{ label: 'Security and access', link: '/for/security/' },
 						{ label: 'Evaluating', link: '/for/evaluate/' },
 						{ label: 'With a coding agent', link: '/for/agents/' },

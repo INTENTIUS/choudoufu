@@ -4,7 +4,7 @@
 // that does not resolve.
 
 export type Link = { label: string; href: string };
-export type Platform = 'aws' | 'kubernetes';
+export type Platform = 'aws' | 'kubernetes' | 'gcp';
 
 export type Room = {
 	id: string;
@@ -49,12 +49,14 @@ export const FROM: { id: string; label: string; blurb: string; room: string; car
 export const PLATFORMS: { id: Platform; label: string; room: string; hub: string }[] = [
 	{ id: 'aws', label: 'AWS', room: 'aws', hub: '/aws/' },
 	{ id: 'kubernetes', label: 'Kubernetes', room: 'kubernetes', hub: '/kubernetes/' },
+	{ id: 'gcp', label: 'GCP', room: 'gcp', hub: '/gcp/' },
 ];
 
 /** Where records live. */
 export const STORES: { id: string; label: string; line: string; href: string }[] = [
 	{ id: 's3', label: 'S3 bucket', line: 'Records in your bucket', href: '/docs/use/bucket/' },
 	{ id: 'kubernetes', label: "Cluster's Secrets", line: 'Records as Secrets in your namespace', href: '/kubernetes/operate/' },
+	{ id: 'gcs', label: 'GCS bucket', line: 'Your GCS bucket holds the records', href: '/gcp/operate/' },
 	{ id: 'local', label: 'Local', line: 'Records as local files', href: '/how-it-works/values/' },
 ];
 
@@ -164,6 +166,21 @@ export const ROOMS: Room[] = [
 		reference: [{ label: 'Compatibility', href: '/kubernetes/compatibility/' }, { label: 'Proof', href: '/kubernetes/proof/' }],
 	},
 	{
+		id: 'gcp',
+		title: 'On GCP',
+		lede: 'You run on Google Cloud.',
+		works: [
+			'The create call writes the tofu-estate and tofu-address labels',
+			'Project IAM bindings hand each project to its runner',
+			'live-import adopts a stock state file through a labels-only plan',
+		],
+		differs: ['The project is the fence, so give each estate its own.'],
+		first: { label: 'The GCP hub', href: '/gcp/' },
+		howto: [{ label: 'Adopt', href: '/gcp/adopt/' }, { label: 'Operate', href: '/gcp/operate/' }],
+		explain: [{ label: 'Gate', href: '/gcp/gate/' }, { label: 'Identity', href: '/how-it-works/identity/' }],
+		reference: [{ label: 'Compatibility', href: '/gcp/compatibility/' }, { label: 'Proof', href: '/gcp/proof/' }],
+	},
+	{
 		id: 'security',
 		title: 'Security and access',
 		lede: 'You decide who may change what.',
@@ -174,7 +191,7 @@ export const ROOMS: Room[] = [
 		],
 		differs: ['Guard the record store as you guard a state file.'],
 		first: { label: 'Who may change what', href: '/how-it-works/identity/' },
-		howto: [{ label: 'Gate on AWS', href: '/aws/gate/' }, { label: 'Gate on Kubernetes', href: '/kubernetes/gate/' }, { label: 'Create the bucket', href: '/docs/use/bucket/' }],
+		howto: [{ label: 'Gate on AWS', href: '/aws/gate/' }, { label: 'Gate on Kubernetes', href: '/kubernetes/gate/' }, { label: 'GCP project bindings', href: '/gcp/gate/' }, { label: 'Create the bucket', href: '/docs/use/bucket/' }],
 		explain: [whatItIs],
 		reference: [
 			{ label: 'IAM reference', href: repo('live/IAM-REFERENCE.md') },

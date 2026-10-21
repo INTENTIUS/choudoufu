@@ -9,11 +9,11 @@ On AWS that is two resource tags. The apply writes the marker and the next
 plan reads it back live. The state file becomes a cache you may lose. The
 policy engine you already run decides who may read or change what.
 
-AWS is proven. Kubernetes is proven on a smaller lane: one label on the
-object and one admission policy reading it
-([#1016](https://github.com/INTENTIUS/choudoufu/issues/1016) is the ruling,
-[the Kubernetes hub](https://intentius.io/choudoufu/kubernetes/) the state).
-These are the only two platforms.
+It runs on three platforms:
+
+- [AWS](https://intentius.io/choudoufu/aws/): two tags, scoped by IAM tag conditions.
+- [Kubernetes](https://intentius.io/choudoufu/kubernetes/): one label, fenced by one admission policy.
+- [GCP](https://intentius.io/choudoufu/gcp/): two labels, one project per estate.
 
 Three things persist between runs. A tag on the resource says which real
 resource an address refers to. Values with no home in AWS go in a
