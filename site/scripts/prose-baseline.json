@@ -18,6 +18,22 @@
   "discourse/punchy-fragments": 1,
   "anaphora/repeated-opening": 1
  },
+ "site/src/content/docs/azure/adopt.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/azure/compatibility.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/azure/gate.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/azure/operate.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/azure/proof.mdx": {
+  "discourse/punchy-fragments": 1,
+  "anaphora/repeated-opening": 1
+ },
  "site/src/content/docs/gcp/adopt.mdx": {
   "discourse/punchy-fragments": 1
  },
@@ -51,7 +67,7 @@
   "anaphora/repeated-opening": 1
  },
  "site/src/data/rooms.ts": {
-  "discourse/punchy-fragments": 9,
+  "discourse/punchy-fragments": 10,
   "discourse/staccato-register": 1,
   "repetition/near-duplicate": 3,
   "anaphora/repeated-opening": 2,
