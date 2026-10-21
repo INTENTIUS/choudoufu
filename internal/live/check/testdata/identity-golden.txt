@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=721 instances=2504
-# shape: class CONCRETE=1551
-# shape: class NEEDS_DISCOVERY=788
+# shape: dirs=722 instances=2509
+# shape: class CONCRETE=1555
+# shape: class NEEDS_DISCOVERY=789
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=690 fixture-instances=1800
+# shape: fixture-dirs=691 fixture-instances=1805
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=8e233fdda1bf72998a9e30f9d6b5e55427c70a435cb68badaa78903924a4c372
+# shape: body-sha256=55d738948d14328a8d8301bbe558385ff6a77e8b993589d91dd8728f0f469130
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -377,6 +377,11 @@ internal/live/identity/testdata/formula-transform	aws_security_group.this[0]	NEE
 internal/live/identity/testdata/formula-transform	aws_vpc.this[0]	NEEDS_DISCOVERY		
 internal/live/identity/testdata/formula-transform	module.cluster.aws_ecs_cluster.this[0]	CONCRETE	ex-fargate	name=ex-fargate
 internal/live/identity/testdata/formula-transform	module.svc.aws_ecs_service.this[0]	NEEDS_DISCOVERY		
+internal/live/identity/testdata/gcp-create-named	google_ces_agent.triage	CONCRETE	projects/estate-prod/locations/us/apps/support/agents/triage	app=support,location=us,name=triage
+internal/live/identity/testdata/gcp-create-named	google_data_loss_prevention_inspect_template.pii	CONCRETE	projects/estate-prod/locations/global/inspectTemplates/pii	name=pii,parent=projects/estate-prod/locations/global
+internal/live/identity/testdata/gcp-create-named	google_data_loss_prevention_inspect_template.unnamed	NEEDS_DISCOVERY		
+internal/live/identity/testdata/gcp-create-named	google_dialogflow_generator.summary	CONCRETE	projects/estate-prod/locations/global/generators/summary	name=projects/estate-prod/locations/global/generators/summary
+internal/live/identity/testdata/gcp-create-named	google_scc_v2_organization_notification_config.findings	CONCRETE	organizations/123456789/locations/global/notificationConfigs/findings	name=organizations/123456789/locations/global/notificationConfigs/findings
 internal/live/identity/testdata/gcp-handwritten	google_app_engine_application.app	CONCRETE	estate-prod	
 internal/live/identity/testdata/gcp-handwritten	google_cloudfunctions_function.fn	CONCRETE	projects/estate-prod/locations/europe-west1/functions/fn	name=fn
 internal/live/identity/testdata/gcp-handwritten	google_compute_shared_vpc_host_project.host	CONCRETE	host-prj	project=host-prj

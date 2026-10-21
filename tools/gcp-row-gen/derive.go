@@ -59,6 +59,10 @@ type Decision struct {
 	// Scoped is true when every configuration-supplied component is
 	// project, region or zone: one per project or region.
 	Scoped bool
+	// CreateNamed is the argument a rowed type's create sends as the new
+	// object's id, when that is what names an object whose id embeds a
+	// value the API returns (createname.go, #2145 item 3).
+	CreateNamed string
 }
 
 // cloudPlaceholders are the three variables ReplaceVars never reads from the
@@ -99,8 +103,16 @@ func LabelSurface(tfs []TypeFacts) bool {
 }
 
 // Decide derives one type's verdict from what each provider's source says
-// and what each provider's schema serves.
+// and what each provider's schema serves, with no Asset names page: a
+// name the API writes back is then never taken as configuration's
+// ([apiSpellsProjectID]).
 func Decide(typeName string, sources map[string]Source, facts map[string]TypeFacts) Decision {
+	return DecideWith(typeName, sources, facts, AssetNames{})
+}
+
+// DecideWith is [Decide] reading Google's Asset names page, names, for how
+// a service spells the project in the names it writes back.
+func DecideWith(typeName string, sources map[string]Source, facts map[string]TypeFacts, names AssetNames) Decision {
 	d := Decision{Type: typeName}
 	var tfs []TypeFacts
 	for _, p := range sortedKeys(facts) {
@@ -132,7 +144,7 @@ func Decide(typeName string, sources map[string]Source, facts map[string]TypeFac
 
 	switch src.Kind {
 	case "resource":
-		return decideResource(d, src, tfs, unrowed)
+		return decideResource(d, src, tfs, names, unrowed)
 	case "iam_member", "iam_binding", "iam_policy", "iam_audit_config":
 		return decideIAM(d, src, tfs, unrowed)
 	}
@@ -141,7 +153,7 @@ func Decide(typeName string, sources map[string]Source, facts map[string]TypeFac
 
 type unrowedFunc func(noSource bool, format string, args ...any) Decision
 
-func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Decision {
+func decideResource(d Decision, src Source, tfs []TypeFacts, names AssetNames, unrowed unrowedFunc) Decision {
 	if src.IDFormat == "" {
 		return decideHandwritten(d, src, tfs, unrowed)
 	}
@@ -187,6 +199,12 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc
 	intoAttr := func(tok token) string {
 		if identitySchema == nil || identitySchema[tok.into] {
 			return tok.into
+		}
+		if tok.name != "" {
+			// The identity schema has no attribute for the whole
+			// expansion; a piece that is an argument still supplies its
+			// own.
+			return idAttr(tok.name)
 		}
 		return ""
 	}
@@ -298,8 +316,15 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc
 	}
 
 	if len(serverAssigned) > 0 {
+		named, why := createNamed(d, src, tfs, serverAssigned, names, unrowed)
+		if why == "" && named.Verdict == VerdictRowed {
+			return named
+		}
 		d.Reason = fmt.Sprintf("the provider's id format %s embeds %s, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it.",
 			tmpl, joinQuoted(serverAssigned))
+		if why != "" {
+			d.Reason += " " + why + "."
+		}
 		if !d.Labels {
 			d.Verdict = VerdictMarkerless
 			return d

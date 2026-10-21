@@ -7,17 +7,17 @@
   "version": "8.6.0",
   "counts": {
     "types": 1485,
-    "rowed": 1210,
-    "server_assigned": 14,
-    "markerless": 153,
+    "rowed": 1228,
+    "server_assigned": 12,
+    "markerless": 135,
     "schema_routed": 37,
-    "refused": 238,
+    "refused": 220,
     "google": {
       "types": 1370,
-      "rowed": 1116,
-      "markerless": 144,
+      "rowed": 1134,
+      "markerless": 126,
       "schema_routed": 37,
-      "refused": 217
+      "refused": 199
     }
   },
   "types": [
@@ -999,9 +999,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "server-assigned",
-      "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/apiHubInstances/{{api_hub_instance_id}}"
     },
     {
       "type": "google_apihub_curation",
@@ -1959,7 +1958,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{capacity_commitment_id}} as capacityCommitmentId, which names the object, but the API writes the name back, and Google documents it as //bigqueryreservation.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/capacityCommitments/{CAPACITY_COMMITMENT}; a project number is not the project ID the provider's project argument holds."
     },
     {
       "type": "google_bigquery_connection",
@@ -2738,9 +2737,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "projects/{{project}}/locations/{{location}}/apps/{{app}}/agents/{{name}}",
-      "reason": "the provider's id format projects/{{project}}/locations/{{location}}/apps/{{app}}/agents/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "parents": [
+        "app"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/apps/{{app}}/agents/{{agent_id}}"
     },
     {
       "type": "google_ces_app",
@@ -2749,9 +2750,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "projects/{{project}}/locations/{{location}}/apps/{{name}}",
-      "reason": "the provider's id format projects/{{project}}/locations/{{location}}/apps/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/apps/{{app_id}}"
     },
     {
       "type": "google_ces_app_root_agent_association",
@@ -2772,9 +2772,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "projects/{{project}}/locations/{{location}}/apps/{{app}}/versions/{{name}}",
-      "reason": "the provider's id format projects/{{project}}/locations/{{location}}/apps/{{app}}/versions/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "parents": [
+        "app"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/apps/{{app}}/versions/{{app_version_id}}"
     },
     {
       "type": "google_ces_deployment",
@@ -2806,9 +2808,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "projects/{{project}}/locations/{{location}}/apps/{{app}}/examples/{{name}}",
-      "reason": "the provider's id format projects/{{project}}/locations/{{location}}/apps/{{app}}/examples/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "parents": [
+        "app"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/apps/{{app}}/examples/{{example_id}}"
     },
     {
       "type": "google_ces_guardrail",
@@ -2817,9 +2821,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "projects/{{project}}/locations/{{location}}/apps/{{app}}/guardrails/{{name}}",
-      "reason": "the provider's id format projects/{{project}}/locations/{{location}}/apps/{{app}}/guardrails/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "parents": [
+        "app"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/apps/{{app}}/guardrails/{{guardrail_id}}"
     },
     {
       "type": "google_ces_security_settings",
@@ -2837,9 +2843,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "projects/{{project}}/locations/{{location}}/apps/{{app}}/tools/{{name}}",
-      "reason": "the provider's id format projects/{{project}}/locations/{{location}}/apps/{{app}}/tools/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "parents": [
+        "app"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/apps/{{app}}/tools/{{tool_id}}"
     },
     {
       "type": "google_ces_toolset",
@@ -3168,7 +3176,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{feed_id}} as feedId, which names the object, but the provider's id format folders/{{folder_id}}/feeds/{{feed_id}} embeds {{folder_id}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
     },
     {
       "type": "google_cloud_asset_organization_feed",
@@ -3177,9 +3185,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "organizations/{{org_id}}/feeds/{{feed_id}}"
     },
     {
       "type": "google_cloud_asset_project_feed",
@@ -3190,7 +3197,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{feed_id}} as feedId, which names the object, but the API writes the name back, and Google documents it as //cloudasset.googleapis.com/projects/{PROJECT_NUMBER}/feeds/{FEED_ID}; a project number is not the project ID the provider's project argument holds."
     },
     {
       "type": "google_cloud_identity_group",
@@ -6275,9 +6282,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "projects/{{project}}/locations/{{location}}/assessmentRules/{{name}}",
-      "reason": "the provider's id format projects/{{project}}/locations/{{location}}/assessmentRules/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/assessmentRules/{{assessment_rule_id}}"
     },
     {
       "type": "google_contact_center_insights_auto_labeling_rule",
@@ -6286,9 +6292,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "projects/{{project}}/locations/{{location}}/autoLabelingRules/{{name}}",
-      "reason": "the provider's id format projects/{{project}}/locations/{{location}}/autoLabelingRules/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/autoLabelingRules/{{auto_labeling_rule_id}}"
     },
     {
       "type": "google_contact_center_insights_encryption_spec",
@@ -6510,7 +6515,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{entry_id}} as entryId, which names the object, but the API writes the name back, and Google documents no name under datacatalog.googleapis.com that shows whether it spells the project as an ID or a number."
     },
     {
       "type": "google_data_catalog_entry_group",
@@ -6521,7 +6526,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{entry_group_id}} as entryGroupId, which names the object, but the API writes the name back, and Google documents no name under datacatalog.googleapis.com that shows whether it spells the project as an ID or a number."
     },
     {
       "type": "google_data_catalog_entry_group_iam_binding",
@@ -6632,7 +6637,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{tag_template_id}} as tagTemplateId, which names the object, but the API writes the name back, and Google documents no name under datacatalog.googleapis.com that shows whether it spells the project as an ID or a number."
     },
     {
       "type": "google_data_catalog_tag_template_iam_binding",
@@ -6800,9 +6805,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "{{parent}}/deidentifyTemplates/{{name}}",
-      "reason": "the provider's id format {{parent}}/deidentifyTemplates/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "{{parent}}/deidentifyTemplates/{{template_id}}"
     },
     {
       "type": "google_data_loss_prevention_discovery_config",
@@ -6822,9 +6826,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "{{parent}}/inspectTemplates/{{name}}",
-      "reason": "the provider's id format {{parent}}/inspectTemplates/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "{{parent}}/inspectTemplates/{{template_id}}"
     },
     {
       "type": "google_data_loss_prevention_job_trigger",
@@ -6833,9 +6836,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "{{parent}}/jobTriggers/{{name}}",
-      "reason": "the provider's id format {{parent}}/jobTriggers/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "{{parent}}/jobTriggers/{{trigger_id}}"
     },
     {
       "type": "google_data_loss_prevention_stored_info_type",
@@ -6844,9 +6846,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "{{parent}}/storedInfoTypes/{{name}}",
-      "reason": "the provider's id format {{parent}}/storedInfoTypes/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "{{parent}}/storedInfoTypes/{{stored_info_type_id}}"
     },
     {
       "type": "google_data_pipeline_pipeline",
@@ -8308,9 +8309,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/generators/{{generator_id}}"
     },
     {
       "type": "google_dialogflow_intent",
@@ -8341,9 +8341,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/tools/{{tool_id}}"
     },
     {
       "type": "google_dialogflow_version",
@@ -9420,7 +9419,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{document_id}} as documentId, which names the object, but the API writes the name back, and Google documents firestore.googleapis.com's names with a project number (//firestore.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/backups/{BACKUP}), which is not the project ID the provider's project argument holds."
     },
     {
       "type": "google_firestore_field",
@@ -11846,9 +11845,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "parents": [
+        "key_ring"
+      ],
+      "template": "{{key_ring}}/importJobs/{{import_job_id}}"
     },
     {
       "type": "google_kms_organization_kaj_policy_config",
@@ -12403,7 +12404,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{service_id}} as serviceId, which names the object, but the API writes the name back, and Google documents monitoring.googleapis.com's names with a project number (//monitoring.googleapis.com/projects/{PROJECT_NUMBER}/alertPolicies/{POLICY_NUMBER}), which is not the project ID the provider's project argument holds."
     },
     {
       "type": "google_monitoring_dashboard",
@@ -12480,7 +12481,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{slo_id}} as serviceLevelObjectiveId, which names the object, but the API writes the name back, and Google documents monitoring.googleapis.com's names with a project number (//monitoring.googleapis.com/projects/{PROJECT_NUMBER}/alertPolicies/{POLICY_NUMBER}), which is not the project ID the provider's project argument holds."
     },
     {
       "type": "google_monitoring_snooze",
@@ -13762,7 +13763,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{patch_deployment_id}} as patchDeploymentId, which names the object, but the importer is not read as taking the whole name as {{name}}."
     },
     {
       "type": "google_os_config_v2_policy_orchestrator",
@@ -14641,7 +14642,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{mute_config_id}} as muteConfigId, which names the object, but the API writes the name back, and Google documents securitycenter.googleapis.com's names with a project number (//securitycenter.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/bigQueryExports/{BIQ_QUERY_EXPORT_NAME}), which is not the project ID the provider's project argument holds."
     },
     {
       "type": "google_scc_notification_config",
@@ -14650,9 +14651,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "organizations/{{organization}}/notificationConfigs/{{config_id}}"
     },
     {
       "type": "google_scc_notification_service_account",
@@ -14706,7 +14706,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{config_id}} as configId, which names the object, but the API writes the name back, and Google documents securitycenter.googleapis.com's names with a project number (//securitycenter.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/bigQueryExports/{BIQ_QUERY_EXPORT_NAME}), which is not the project ID the provider's project argument holds."
     },
     {
       "type": "google_scc_project_scc_big_query_export",
@@ -14815,9 +14815,8 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "markerless",
-      "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "organizations/{{organization}}/locations/{{location}}/notificationConfigs/{{config_id}}"
     },
     {
       "type": "google_scc_v2_organization_scc_big_query_export",
@@ -14908,7 +14907,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{config_id}} as configId, which names the object, but the API writes the name back, and Google documents it as //securitycenter.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/notificationConfigs/{NOTIFICATION_CONFIG_NAME}; a project number is not the project ID the provider's project argument holds."
     },
     {
       "type": "google_scc_v2_project_scc_big_query_export",
@@ -15266,7 +15265,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{endpoint_id}} as endpointId, which names the object, but the API writes the name back, and Google documents servicedirectory.googleapis.com's names with a project number (//servicedirectory.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/namespaces/{NAMESPACE}), which is not the project ID the provider's project argument holds."
     },
     {
       "type": "google_service_directory_namespace",
@@ -15277,7 +15276,7 @@
       "labels": true,
       "verdict": "server-assigned",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{namespace_id}} as namespaceId, which names the object, but the API writes the name back, and Google documents it as //servicedirectory.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/namespaces/{NAMESPACE}; a project number is not the project ID the provider's project argument holds."
     },
     {
       "type": "google_service_directory_namespace_iam_binding",
@@ -15327,7 +15326,7 @@
       "labels": false,
       "verdict": "markerless",
       "template": "{{name}}",
-      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "reason": "the provider's id format {{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it. The create sends {{service_id}} as serviceId, which names the object, but the API writes the name back, and Google documents servicedirectory.googleapis.com's names with a project number (//servicedirectory.googleapis.com/projects/{PROJECT_NUMBER}/locations/{LOCATION}/namespaces/{NAMESPACE}), which is not the project ID the provider's project argument holds."
     },
     {
       "type": "google_service_directory_service_iam_binding",
@@ -16341,9 +16340,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "server-assigned",
-      "template": "projects/{{project}}/locations/{{region}}/evaluationMetrics/{{name}}",
-      "reason": "the provider's id format projects/{{project}}/locations/{{region}}/evaluationMetrics/{{name}} embeds {{name}}, which the API assigns at create time (the schema marks it computed only); no argument reconstructs it."
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{region}}/evaluationMetrics/{{evaluation_metric_id}}"
     },
     {
       "type": "google_vertex_ai_feature_group",

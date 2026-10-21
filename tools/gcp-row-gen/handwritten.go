@@ -58,7 +58,7 @@ func decideHandwritten(d Decision, src Source, tfs []TypeFacts, unrowed unrowedF
 		return unrowed(false, "the provider's create sets the id %s (%s), but its importer is not read (%s)", src.CreateID, at, src.ImporterUnread)
 	}
 	src.IDFormat, src.ImportIDFormat = src.CreateID, src.CreateID
-	return decideResource(d, src, tfs, unrowed)
+	return decideResource(d, src, tfs, AssetNames{}, unrowed)
 }
 
 // importerReadsBack reports whether an importer of the type's own code

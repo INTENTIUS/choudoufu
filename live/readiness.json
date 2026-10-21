@@ -24519,14 +24519,14 @@
     "counts": {
       "types": 1485,
       "tiers": {
-        "declaration-carried": 937,
+        "declaration-carried": 955,
         "marker-carried": 318,
-        "record-carried": 230
+        "record-carried": 212
       },
       "statuses": {
-        "in-contract": 1210,
+        "in-contract": 1228,
         "needs-evidence": 32,
-        "pending-mechanism": 153,
+        "pending-mechanism": 135,
         "pending-ratification": 90
       }
     },
@@ -27567,12 +27567,12 @@
       },
       {
         "type": "google_ces_agent",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -27580,12 +27580,12 @@
       },
       {
         "type": "google_ces_app",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -27607,12 +27607,12 @@
       },
       {
         "type": "google_ces_app_version",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -27646,12 +27646,12 @@
       },
       {
         "type": "google_ces_example",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -27659,12 +27659,12 @@
       },
       {
         "type": "google_ces_guardrail",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -27685,12 +27685,12 @@
       },
       {
         "type": "google_ces_tool",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -28062,12 +28062,12 @@
       },
       {
         "type": "google_cloud_asset_organization_feed",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -31623,12 +31623,12 @@
       },
       {
         "type": "google_contact_center_insights_assessment_rule",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -31636,12 +31636,12 @@
       },
       {
         "type": "google_contact_center_insights_auto_labeling_rule",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -32209,12 +32209,12 @@
       },
       {
         "type": "google_data_loss_prevention_deidentify_template",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -32235,12 +32235,12 @@
       },
       {
         "type": "google_data_loss_prevention_inspect_template",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -32248,12 +32248,12 @@
       },
       {
         "type": "google_data_loss_prevention_job_trigger",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -32261,12 +32261,12 @@
       },
       {
         "type": "google_data_loss_prevention_stored_info_type",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -33913,12 +33913,12 @@
       },
       {
         "type": "google_dialogflow_generator",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -33952,12 +33952,12 @@
       },
       {
         "type": "google_dialogflow_tool",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -37878,12 +37878,12 @@
       },
       {
         "type": "google_kms_key_ring_import_job",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -41413,12 +41413,12 @@
       },
       {
         "type": "google_scc_notification_config",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false
@@ -41608,12 +41608,12 @@
       },
       {
         "type": "google_scc_v2_organization_notification_config",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
-          "markerless": true,
+          "admitted": true,
+          "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "rejected": false

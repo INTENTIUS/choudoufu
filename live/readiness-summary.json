@@ -9247,14 +9247,14 @@
       {
         "tier": "declaration-carried",
         "counts": [
-          909,
+          927,
           28,
           0,
           0,
           0,
           0
         ],
-        "total": 937
+        "total": 955
       },
       {
         "tier": "record-carried",
@@ -9263,10 +9263,10 @@
           49,
           0,
           28,
-          153,
+          135,
           0
         ],
-        "total": 230
+        "total": 212
       },
       {
         "tier": "excluded by design",
@@ -9282,11 +9282,11 @@
       }
     ],
     "column_totals": [
-      1210,
+      1228,
       90,
       0,
       32,
-      153,
+      135,
       0
     ],
     "total": 1485,
@@ -9300,13 +9300,13 @@
       {
         "path": "client-named",
         "tier": "declaration-carried",
-        "count": 326,
+        "count": 338,
         "means": "The configuration names it, under a project or location it also names or the provider supplies."
       },
       {
         "path": "parent-derived",
         "tier": "declaration-carried",
-        "count": 590,
+        "count": 596,
         "means": "Composed over a containing resource the configuration also names; every IAM type is this shape."
       },
       {
@@ -9324,7 +9324,7 @@
       {
         "path": "server-minted",
         "tier": "record-carried",
-        "count": 153,
+        "count": 135,
         "means": "The API mints the identity and the type has no labels; only a record holds it."
       },
       {
@@ -10526,15 +10526,13 @@
       },
       {
         "type": "google_ces_agent",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_ces_app",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_ces_app_root_agent_association",
@@ -10544,9 +10542,8 @@
       },
       {
         "type": "google_ces_app_version",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_ces_deployment",
@@ -10561,15 +10558,13 @@
       },
       {
         "type": "google_ces_example",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_ces_guardrail",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_ces_security_settings",
@@ -10578,9 +10573,8 @@
       },
       {
         "type": "google_ces_tool",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_ces_toolset",
@@ -10740,9 +10734,8 @@
       },
       {
         "type": "google_cloud_asset_organization_feed",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_cloud_asset_project_feed",
@@ -12121,15 +12114,13 @@
       },
       {
         "type": "google_contact_center_insights_assessment_rule",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_contact_center_insights_auto_labeling_rule",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_contact_center_insights_encryption_spec",
@@ -12360,9 +12351,8 @@
       },
       {
         "type": "google_data_loss_prevention_deidentify_template",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_data_loss_prevention_discovery_config",
@@ -12372,21 +12362,18 @@
       },
       {
         "type": "google_data_loss_prevention_inspect_template",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_data_loss_prevention_job_trigger",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_data_loss_prevention_stored_info_type",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_data_pipeline_pipeline",
@@ -13030,9 +13017,8 @@
       },
       {
         "type": "google_dialogflow_generator",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dialogflow_intent",
@@ -13048,9 +13034,8 @@
       },
       {
         "type": "google_dialogflow_tool",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_dialogflow_version",
@@ -14582,9 +14567,8 @@
       },
       {
         "type": "google_kms_key_ring_import_job",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_kms_organization_kaj_policy_config",
@@ -15931,9 +15915,8 @@
       },
       {
         "type": "google_scc_notification_config",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_scc_notification_service_account",
@@ -16012,9 +15995,8 @@
       },
       {
         "type": "google_scc_v2_organization_notification_config",
-        "tier": "record-carried",
-        "status": "pending-mechanism",
-        "reason": "the API mints its identity and it has no labels, so nothing on the object or in configuration finds it again: it is held by its record under a record store (the located-record route, as on AWS), and vetoed as markerless where no record can hold its identity."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_scc_v2_organization_scc_big_query_export",

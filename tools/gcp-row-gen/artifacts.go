@@ -201,6 +201,10 @@ type Source struct {
 	// regex, `(?P<name>.+)`, fills with the whole import ID.
 	ImportWhole string `json:"import_whole,omitempty"`
 
+	// ImportIDSet is the attribute an importer that does nothing else
+	// sets to the whole import ID: `d.Set("name", d.Id())` (#2145 item 3).
+	ImportIDSet string `json:"import_id_set,omitempty"`
+
 	// ImportNameSet is set when the importer, after ParseImportId, sets an
 	// attribute to a template and gives the instance that attribute's
 	// value as its id: `d.Set("name", "projects/{{project}}/...")` then
@@ -211,6 +215,23 @@ type Source struct {
 	// schema.ImportStatePassthrough, which sets the import ID as the id and
 	// nothing else.
 	ImportPassthrough bool `json:"import_passthrough,omitempty"`
+
+	// CreateCollection, CreateNameParam and CreateNameArg are read off a
+	// generated Create that sends the new object's id itself
+	// (createname.go, #2145 item 3): the create URL's path after the base
+	// URL and any API version, "projects/{{project}}/locations/{{location}}/generators";
+	// the id field naming that collection's resource, "generatorId", sent
+	// as a query parameter or by the encoder in the request body; and the
+	// argument it is sent from, "generator_id".
+	CreateCollection string `json:"create_collection,omitempty"`
+	CreateNameParam  string `json:"create_name_param,omitempty"`
+	CreateNameArg    string `json:"create_name_arg,omitempty"`
+
+	// NameFlatten says, for a placeholder of the id format, how the
+	// file's flatten function keeps the API's value: "whole" (return v)
+	// or "last-segment" (GetResourceNameFromSelfLink). Read only beside
+	// CreateNameArg.
+	NameFlatten map[string]string `json:"name_flatten,omitempty"`
 }
 
 // ImportNameSet is one importer's `d.Set(Attr, Template)` after
