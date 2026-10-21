@@ -21,8 +21,8 @@ package markers
 // constants and the directives off this package's source, measures every
 // function in the tree that references a surface's members, and fails when
 // one handles some surfaces and not others without saying why. Adding a
-// fourth surface is therefore one constant and one directive per new
-// function here, and every seam that has not learned it goes red.
+// surface is therefore one constant and one directive per new function
+// here, and every seam that has not learned it goes red.
 type Surface string
 
 const (
@@ -38,4 +38,10 @@ const (
 	// label, inside the dynamic manifest argument at
 	// manifest.metadata.labels.
 	SurfaceManifest Surface = "manifest"
+
+	// SurfaceGoogleLabels is the hashicorp/google shape: tofu-estate alone,
+	// in a settable top-level labels map that the provider reconciles with
+	// default_labels into a computed effective_labels map (GitHub issue
+	// #1121's ruling of 2026-10-11).
+	SurfaceGoogleLabels Surface = "google-labels"
 )

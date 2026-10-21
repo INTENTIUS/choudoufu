@@ -140,17 +140,20 @@ type ratifiedUniqueName struct {
 // ratifiedComponent mirrors [identity.Component] under the same contract as
 // [ratifiedRow].
 type ratifiedComponent struct {
-	Literal                string              `json:"literal,omitempty"`
-	Attrs                  *[]string           `json:"attrs,omitempty"`
-	Path                   *[]string           `json:"path,omitempty"`
-	Block                  string              `json:"block,omitempty"`
-	OmitIfAbsent           bool                `json:"omit_if_absent,omitempty"`
-	Default                string              `json:"default,omitempty"`
-	ServerAssignedIfAbsent bool                `json:"server_assigned_if_absent,omitempty"`
-	Cloud                  identity.CloudValue `json:"cloud,omitempty"`
-	IdentityAttr           string              `json:"identity_attr,omitempty"`
-	SoleElement            bool                `json:"sole_element,omitempty"`
-	PerElement             bool                `json:"per_element,omitempty"`
+	Literal                string                `json:"literal,omitempty"`
+	Attrs                  *[]string             `json:"attrs,omitempty"`
+	Path                   *[]string             `json:"path,omitempty"`
+	Block                  string                `json:"block,omitempty"`
+	OmitIfAbsent           bool                  `json:"omit_if_absent,omitempty"`
+	Default                string                `json:"default,omitempty"`
+	ServerAssignedIfAbsent bool                  `json:"server_assigned_if_absent,omitempty"`
+	Cloud                  identity.CloudValue   `json:"cloud,omitempty"`
+	IdentityAttr           string                `json:"identity_attr,omitempty"`
+	SoleElement            bool                  `json:"sole_element,omitempty"`
+	PerElement             bool                  `json:"per_element,omitempty"`
+	LongForm               identity.LongFormRule `json:"long_form,omitempty"`
+	Qualifiers             *[]string             `json:"qualifiers,omitempty"`
+	AtLeastOneOf           *[]string             `json:"at_least_one_of,omitempty"`
 }
 
 // toRatified converts one live row to its stored form.
@@ -186,6 +189,9 @@ func toRatified(e identity.TypeIdentity) ratifiedRow {
 				IdentityAttr:           c.IdentityAttr,
 				SoleElement:            c.SoleElement,
 				PerElement:             c.PerElement,
+				LongForm:               c.LongForm,
+				Qualifiers:             strsPtr(c.Qualifiers),
+				AtLeastOneOf:           strsPtr(c.AtLeastOneOf),
 			})
 		}
 		r.Components = &comps
@@ -228,6 +234,9 @@ func fromRatified(r ratifiedRow) identity.TypeIdentity {
 				IdentityAttr:           c.IdentityAttr,
 				SoleElement:            c.SoleElement,
 				PerElement:             c.PerElement,
+				LongForm:               c.LongForm,
+				Qualifiers:             strsValue(c.Qualifiers),
+				AtLeastOneOf:           strsValue(c.AtLeastOneOf),
 			})
 		}
 		e.Components = comps

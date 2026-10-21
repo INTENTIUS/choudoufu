@@ -107,6 +107,7 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 	// was read off its own call site, and every one is built with
 	// tfdiags.Error or hcl.DiagError.
 	fatal := map[string]bool{
+		SummaryGCPAddressCollision:                         true,
 		"Address too long to carry an ownership marker":    true,
 		"Invalid estate name":                              true,
 		SummaryKubernetesKindNotServed:                     true,
@@ -167,6 +168,13 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 			if SeverityForRefusal(r.Summary) != SeverityWarning {
 				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
 			}
+		case r.Summary == SummaryGCPSweepIncomplete, r.Summary == SummaryGCPOrphanUnaddressed:
+			// GitHub issue #1119: a project the GCP leg could not search,
+			// and an orphan it reports and never proposes removing; the
+			// plan in front of the operator is correct either way.
+			if SeverityForRefusal(r.Summary) != SeverityWarning {
+				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
+			}
 		case r.Summary == SummaryHelmNotInManifest:
 			// GitHub issue #1738 item 4: a finding the sweep reports and
 			// acts on by proposing nothing, so the plan stands.
@@ -196,4 +204,18 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 func summaryIsAProblemKind(summary string) bool {
 	_, ok := problemKindForSummary(summary)
 	return ok
+}
+
+// TestUncomposableRecordIsAnError pins INTENTIUS/choudoufu#2139 item 3's
+// refusal: a removed google block whose record cannot be composed into an
+// import ID stops the plan, as the record leg's other refusals of a removal
+// it cannot propose do, rather than leave the object live as a warning.
+func TestUncomposableRecordIsAnError(t *testing.T) {
+	summary := problemSummaries[ProblemUncomposableRecord]
+	if _, ok := LookupRefusal(summary); !ok {
+		t.Fatalf("%q is not in the refusal registry", summary)
+	}
+	if got := SeverityForRefusal(summary); got != SeverityError {
+		t.Fatalf("SeverityForRefusal(%q) = %v, want %v", summary, got, SeverityError)
+	}
 }

@@ -18,6 +18,21 @@
   "discourse/punchy-fragments": 1,
   "anaphora/repeated-opening": 1
  },
+ "site/src/content/docs/gcp/adopt.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/gcp/compatibility.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/gcp/gate.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/gcp/operate.mdx": {
+  "discourse/punchy-fragments": 1
+ },
+ "site/src/content/docs/gcp/proof.mdx": {
+  "discourse/punchy-fragments": 1
+ },
  "site/src/content/docs/kubernetes/adopt.mdx": {
   "discourse/punchy-fragments": 1
  },

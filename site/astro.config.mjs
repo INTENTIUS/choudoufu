@@ -85,7 +85,7 @@ export default defineConfig({
 			editLink: {
 				baseUrl: 'https://github.com/INTENTIUS/choudoufu/edit/main/site/',
 			},
-			// The groups from #2092: Start here, AWS, Kubernetes, How it works, Use,
+			// The groups from #2092: Start here, AWS, Kubernetes, GCP, How it works, Use,
 			// Reference. A group joins this list when its first page is written.
 			// Every group but Start here starts collapsed.
 			sidebar: [
@@ -130,6 +130,18 @@ export default defineConfig({
 						{ label: 'Operate', slug: 'kubernetes/operate' },
 						{ label: 'Compatibility', slug: 'kubernetes/compatibility' },
 						{ label: 'Proof', slug: 'kubernetes/proof' },
+					],
+				},
+				{
+					label: 'GCP',
+					collapsed: true,
+					items: [
+						{ label: 'Overview', slug: 'gcp' },
+						{ label: 'Adopt', slug: 'gcp/adopt' },
+						{ label: 'Gate', slug: 'gcp/gate' },
+						{ label: 'Operate', slug: 'gcp/operate' },
+						{ label: 'Compatibility', slug: 'gcp/compatibility' },
+						{ label: 'Proof', slug: 'gcp/proof' },
 					],
 				},
 				{

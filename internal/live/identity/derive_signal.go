@@ -117,7 +117,7 @@ func derivableFromConfig(schemas map[string]providers.Schema, typeName string, s
 		return DerivableType{}, false
 	}
 
-	_, inTable := DefaultTable[typeName]
+	_, inTable := LookupType(typeName)
 	return DerivableType{
 		Type:          typeName,
 		IdentityAttrs: required,

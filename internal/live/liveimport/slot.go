@@ -151,6 +151,11 @@ func (r *Ratification) migrationSlots() map[string]string {
 			continue
 		}
 		tags, hasTags := tagsFromObject(elig.schema, elig.applied)
+		if elig.googleLabelled {
+			// GitHub issue #1119: the GCP labels carry a slot as the AWS
+			// tags do.
+			tags, hasTags = googleLabelsFromObject(elig.schema.Block, elig.applied)
+		}
 		if !hasTags {
 			// Unreadable tags means the live slot state of this member is
 			// unknown, so the set cannot be classified. approveOne fails this

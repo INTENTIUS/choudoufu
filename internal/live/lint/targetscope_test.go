@@ -150,6 +150,8 @@ var lintRuleTargetScope = map[Rule]struct {
 	RuleReceiptLeaf:     {ruleScoped, "narrowed on the REFERRING block; a reference is the dependency edge targeting follows, so targeting the referrer keeps the receipt too"},
 	RuleReceiptValue:    {ruleScoped, "the receipt block's own declaration, for a receipt this run will not write"},
 	RuleReceiptSecret:   {ruleScoped, "same block, same run"},
+	RuleGCPLabelCount:   {ruleScoped, "a create this run will not make cannot overflow; TestGCPLabelCountHonoursTheTargetScope pins it, outside the shared fixture"},
+	RuleGCPEstateLabel:  {ruleScoped, "the node stamp refuses per instance, and a block this run leaves out is never stamped; TestGCPEstateLabelHonoursTheTargetScope pins it, outside the shared fixture"},
 
 	// ---- names a block, and still does not narrow ------------------
 	RuleMovedBlock:              {ruleBlockButUnscoped, "internal/live/discovery's declaredInstances is built on lint refusing exactly the statements it leaves out; and a moved endpoint is an addrs.MoveEndpoint whose FROM address the configuration no longer declares, so the plan graph has no vertex for it. See checkMovedBlocks"},
@@ -172,6 +174,7 @@ var lintRuleTargetScope = map[Rule]struct {
 	RuleStrictProviderChange:      {ruleWholeConfig, "same block"},
 	RuleStrictMarkers:             {ruleWholeConfig, "the markers selection is a declaration about the estate, malformed on every run whatever this one touches; checkStrictMarkers runs once over the whole tree, outside checkConfig"},
 	RuleStrictMarkersUnrecordable: {ruleWholeConfig, "same selection, and its unit is a TYPE rather than a block"},
+	RuleGCPMultiProject:           {ruleWholeConfig, "the projects the estate spans, read off every google provider block and resource; a narrowed run plans fewer blocks of the same estate, whose fence is the same whatever this run targets"},
 }
 
 // scopedRules is [lintRuleTargetScope]'s scoped half, so the behavioural
@@ -187,15 +190,18 @@ func scopedRuleSet() []Rule {
 }
 
 // scopedRules are the members of [scopedRuleSet] this fixture actually
-// trips. Two of the twelve are absent, and both ride the identical
+// trips. Four of the fourteen are absent. Two ride the identical
 // `continue` in checkManagedResources that RuleProvisioner,
 // RuleLogicalResource, RuleUnadmittedType, RuleCountIndex and
 // RuleIgnoreChanges are pinned on here: RuleMarkerlessType (whose #1203
 // twin, check.NodeStampUnmarkedApply, is pinned by
 // TestNodeStampUnmarkedApplyHonoursTheTargetScope over the same question)
-// and RuleGenerateName (Kubernetes only). Stated rather than silently
-// omitted, and [TestEveryScopedRuleIsInTheFixture] holds the pair to
-// exactly those two.
+// and RuleGenerateName (Kubernetes only). The other two, RuleGCPLabelCount
+// and RuleGCPEstateLabel, have fixtures of their own
+// (TestGCPLabelCountHonoursTheTargetScope,
+// TestGCPEstateLabelHonoursTheTargetScope). Stated rather than silently
+// omitted, and [TestEveryScopedRuleIsInTheFixture] holds the set to
+// exactly those four.
 var scopedRules = []Rule{
 	RuleProvisioner,
 	RuleLogicalResource,
@@ -372,15 +378,23 @@ func TestEveryScopedRuleIsInTheFixture(t *testing.T) {
 			uncovered[rule] = true
 		}
 	}
+	//
+	// gcp-label-count and gcp-estate-label are the other two. Without
+	// provider schemas every google type is also refused as
+	// unadmitted-type, so a google pair in the shared fixture would move
+	// unadmitted-type's own counts; TestGCPLabelCountHonoursTheTargetScope
+	// and TestGCPEstateLabelHonoursTheTargetScope run the same three arms
+	// on fixtures of their own (gcp-estate-label also needs a live block
+	// the shared fixture does not have).
 	for rule := range uncovered {
-		if rule != RuleMarkerlessType && rule != RuleGenerateName {
+		if rule != RuleMarkerlessType && rule != RuleGenerateName && rule != RuleGCPLabelCount && rule != RuleGCPEstateLabel {
 			t.Errorf("%s is classified scoped and this fixture does not exercise it. Add a _targeted/_excluded pair to %s, "+
-				"or say here why it cannot be one - the two standing exceptions are markerless-type and generate-name.",
+				"or say here why it cannot be one - the four standing exceptions are markerless-type, generate-name, gcp-label-count and gcp-estate-label.",
 				rule, lintTargetScopeFixture)
 		}
 	}
-	if len(uncovered) != 2 {
-		t.Errorf("want exactly the two documented uncovered scoped rules, got %d: %v", len(uncovered), uncovered)
+	if len(uncovered) != 4 {
+		t.Errorf("want exactly the four documented uncovered scoped rules, got %d: %v", len(uncovered), uncovered)
 	}
 }
 

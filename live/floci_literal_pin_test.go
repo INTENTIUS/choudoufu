@@ -71,6 +71,12 @@ func flociDigestFindings(path, src, pin string) []string {
 			if d == pinDigest || strings.Contains(line, "floci@"+d) {
 				continue // the pin, or a full reference already judged above
 			}
+			if strings.Contains(line, "floci-gcp@"+d) {
+				// The GCP emulator's own image, a different repository with
+				// its own pin (live/floci-gcp-image), held by
+				// TestFlociGCPRefsMatchThePin rather than to floci's.
+				continue
+			}
 			out = append(out, fmt.Sprintf("%s:%d attributes the bare digest %s to floci, but live/floci-image pins %s (#1741).\n"+
 				"A record of what a past run measured says so and quotes the digest truncated, the way this "+
 				"repository's prose does; a full digest beside floci reads as the pin.", path, n+1, d, pinDigest))
@@ -237,5 +243,66 @@ func TestFlociDigestFindingsIsRedOnABareDigest(t *testing.T) {
 	}
 	if got := flociDigestFindings("x", "ghcr.io/lex00/floci@"+stale, pin); len(got) != 1 {
 		t.Errorf("a full stale reference should be exactly one finding, not also a bare one: %v", got)
+	}
+}
+
+// flociGCPDigestRef is a full reference to the GCP emulator's image
+// (GitHub issue #1119), the lex00/floci-gcp fork, pinned in
+// live/floci-gcp-image.
+var flociGCPDigestRef = regexp.MustCompile(`ghcr\.io/lex00/floci-gcp@sha256:[0-9a-f]{64}`)
+
+// flociGCPMeasuredRecords are the files that name the floci-gcp image a
+// recorded gauntlet run was measured against. That digest is evidence about
+// the run, not a pin to keep current, the same reason flociLiteralExceptions
+// gives for floci's board and artifact. The first recorded GCP run (run 8,
+// 9bf3d1480b) was measured on 4e9b7bff, and re-pinning to ea6da33 after it
+// must not rewrite what it ran on.
+var flociGCPMeasuredRecords = map[string]bool{
+	"live/gauntlet.json":       true,
+	"live/gauntlet-board.json": true,
+	"live/BOARD.md":            true,
+}
+
+// TestFlociGCPRefsMatchThePin holds every full floci-gcp reference in the
+// tree to live/floci-gcp-image, the way floci's references are held to
+// live/floci-image, and checks it reached the pin file itself. A file in
+// flociGCPMeasuredRecords is skipped: it records what a run measured on.
+func TestFlociGCPRefsMatchThePin(t *testing.T) {
+	root := repoRoot(t)
+	data, err := os.ReadFile("floci-gcp-image")
+	if err != nil {
+		t.Fatalf("reading live/floci-gcp-image: %v", err)
+	}
+	pin := strings.TrimSpace(string(data))
+	if !flociGCPDigestRef.MatchString(pin) || flociGCPDigestRef.FindString(pin) != pin {
+		t.Fatalf("live/floci-gcp-image holds %q, not one ghcr.io/lex00/floci-gcp@sha256 reference", pin)
+	}
+	out, err := exec.Command("git", "-C", root, "grep", "-Il", "-E", flociGCPDigestRef.String(), "--", ".", ":!CHANGELOG.md", ":!live/history/").Output()
+	if err != nil {
+		t.Fatalf("git grep found no floci-gcp reference at all, so live/floci-gcp-image itself was not read: %v", err)
+	}
+	reached := false
+	for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if f == "live/floci-gcp-image" {
+			reached = true
+		}
+		if flociGCPMeasuredRecords[f] {
+			continue
+		}
+		b, rerr := os.ReadFile(filepath.Join(root, f))
+		if rerr != nil {
+			t.Errorf("reading %s: %v", f, rerr)
+			continue
+		}
+		for n, line := range strings.Split(string(b), "\n") {
+			for _, m := range flociGCPDigestRef.FindAllString(line, -1) {
+				if m != pin {
+					t.Errorf("%s:%d pins %s, but live/floci-gcp-image pins %s. Point it at the pin.", f, n+1, m, pin)
+				}
+			}
+		}
+	}
+	if !reached {
+		t.Error("the scan did not reach live/floci-gcp-image; the pattern or pathspec has stopped recognizing floci-gcp references")
 	}
 }

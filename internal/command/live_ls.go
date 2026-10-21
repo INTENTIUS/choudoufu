@@ -28,6 +28,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/lint"
@@ -268,7 +269,7 @@ func (c *LiveLsCommand) liveLs(ctx context.Context, args *arguments.LiveLs) (*vi
 	}
 
 	if args.ConfigDir != "" {
-		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.has(substrate.SweepLabelList), substrates.unclaimed, items)
+		cmp, gapDiags := c.liveLsGaps(ctx, args.Estate, args.ConfigDir, config, cfgDiags, substrates.has(substrate.SweepLabelList), substrates.has(substrate.SweepAssetSearch), substrates.unclaimed, items)
 		diags = diags.Append(gapDiags)
 		rep.Gaps = cmp.Gaps
 		rep.GapsSkipped = cmp.Skipped
@@ -696,7 +697,7 @@ func pollConsistentEvery(ctx context.Context, read func(ctx context.Context) ([]
 // after resolution, since what it calls declared is a resolution's kind and
 // natural key. Its items come back in the comparison's Kubernetes field
 // and are counted found for the gap list below.
-func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, config *configs.Config, cfgDiags tfdiags.Diagnostics, kubernetes bool, unclaimed []addrs.AbsProviderConfig, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
+func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, config *configs.Config, cfgDiags tfdiags.Diagnostics, kubernetes, gcp bool, unclaimed []addrs.AbsProviderConfig, items []views.LiveLsItem) (liveLsComparison, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	// Whether provider schemas were read, tracked across the skip paths
 	// below rather than only on the path that completes: a comparison that
@@ -820,6 +821,13 @@ func (c *LiveLsCommand) liveLsGaps(ctx context.Context, estate, dir string, conf
 		kube, kubeDiags = c.liveLsKubernetes(ctx, estate, config, provs, resolutions.All(), nodeRefused)
 		diags = diags.Append(kubeDiags)
 	}
+	if gcp {
+		// GitHub issue #1119: the GCP listing, filed beside the cluster's
+		// in the comparison's non-AWS items.
+		found, gcpDiags := c.liveLsGCP(ctx, estate, config, provs, resolutions.All())
+		diags = diags.Append(gcpDiags)
+		kube = append(kube, found...)
+	}
 	closeProviders()
 
 	declared := make(map[string]bool, resolutions.Len())
@@ -892,6 +900,7 @@ type liveLsSubstrateSet struct {
 var liveLsListings = map[substrate.Sweep]string{
 	substrate.SweepTaggingIndex: "the Resource Groups Tagging API index and the IAM role pass",
 	substrate.SweepLabelList:    "one label-selected list per kind each cluster serves",
+	substrate.SweepAssetSearch:  "one Cloud Asset Inventory search per project the estate's google resources name",
 }
 
 // liveLsNotListed is the warning for every family in set whose sweep
@@ -1223,6 +1232,12 @@ func liveLsRung(res identity.Resolution, schemas map[string]providers.Schema) (r
 			// instance's is - not a rung.
 			return "", "", false
 		}
+		if _, labels := markers.GoogleLabelSurface(schema.Block); labels {
+			// Marker-carried on GCP: the marker is in the labels map
+			// (live/MARKERS.md, "GCP: labels"), so a missing instance is
+			// a genuine absence, not a rung.
+			return "", "", false
+		}
 		return "declaration-carried",
 			fmt.Sprintf("%s has no settable tags argument, so no ownership marker was ever written for it - live/MARKERS.md's tier definitions (#417) name this the declaration-carried tier. Its identity comes entirely from configuration.", res.Type()),
 			true
@@ -1322,4 +1337,71 @@ Options:
 
 func (c *LiveLsCommand) Synopsis() string {
 	return "List what the account holds under an estate, read from the live system"
+}
+
+// liveLsGCP lists the estate's GCP resources through every google provider
+// configuration DIR's managed resources use (GitHub issue #1119): the
+// client from the block's own credential arguments, as live-plan's sweep
+// builds it ([projectionProviders.assetSearchLeg]), searching the
+// provider's project and every project a google resource names
+// ([discovery.GCPSweepProjectsIn]). An item is filed under the block whose
+// encoded address its tofu-address label carries ([markers.GoogleAddressValue]),
+// held by a controller when [substrate.ControllerHeld] says so, and
+// otherwise under no address. A project that cannot be searched is a
+// warning under the sweep's own summary, and the listing goes on.
+func (c *LiveLsCommand) liveLsGCP(ctx context.Context, estate string, config *configs.Config, provs *projectionProviders, resolutions []identity.Resolution) ([]views.LiveLsItem, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	var items []views.LiveLsItem
+	declared := map[string]string{}
+	for _, r := range resolutions {
+		if strings.HasPrefix(r.Type(), "google_") {
+			declared[markers.GoogleAddressValue(r.Addr)] = r.Addr.String()
+		}
+	}
+	for _, addr := range liveManagedResourceProviders(config) {
+		sub, ok := substrate.ForProvider(addr.Provider.Type)
+		if !ok || sub.Sweep() != substrate.SweepAssetSearch {
+			continue
+		}
+		if _, err := provs.ConfiguredProvider(ctx, addr); err != nil {
+			diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryGCPSweepIncomplete,
+				fmt.Sprintf("Provider configuration %s could not be configured, so no GCP resource owned by estate %q is listed through it: %s.", addr, estate, err)))
+			continue
+		}
+		leg, legDiags := provs.assetSearchLeg(ctx, sub, addr)
+		diags = diags.Append(legDiags)
+		gcpLeg, isGCP := leg.(discovery.GCPAssetSweep)
+		if !isGCP || gcpLeg.Searcher == nil {
+			continue
+		}
+		projects := discovery.GCPSweepProjectsIn(ctx, config, gcpLeg.Project, resolutions)
+		cov := gcpsweep.Coverage{}
+		for _, p := range projects {
+			cov[p] = gcpLeg.Searcher
+		}
+		for _, pr := range gcpsweep.Sweep(ctx, cov, projects, estate) {
+			if pr.Err != nil {
+				diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryGCPSweepIncomplete,
+					fmt.Sprintf("Project %s could not be searched, so any GCP resource estate %q owns there is missing from the listing: %s.", pr.Project, estate, pr.Err)))
+				continue
+			}
+			for _, a := range pr.Assets {
+				item := views.LiveLsItem{
+					ID:     a.Name,
+					Type:   a.AssetType,
+					Slot:   a.Labels[markers.TagSlot],
+					Source: string(discovery.SourceGCPAssets),
+					Tags:   a.Labels,
+				}
+				if address, isDeclared := declared[a.Labels[markers.TagAddress]]; isDeclared {
+					item.Address, item.Declared = address, true
+				}
+				if hold, held := substrate.ControllerHeld(substrate.HoldEvidence{Labels: a.Labels, AssetType: a.AssetType}); held {
+					item.HeldBy = hold.HeldBy
+				}
+				items = append(items, item)
+			}
+		}
+	}
+	return items, diags
 }

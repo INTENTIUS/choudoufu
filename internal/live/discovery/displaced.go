@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -248,6 +249,19 @@ func configIdentityMismatch(typeName string, res identity.Resolution, c claimant
 		}
 	}
 
+	// A GCP Asset hit carries no identity object, so the precise path above
+	// never compares, and a google row has more than one component, so the
+	// import-ID fallback below never runs either. Left there, an object
+	// still wearing a declared address's label after its name was changed
+	// in configuration would vouch for that address, unread (GitHub issue
+	// #2134 item 13, the GCP side of #2136). Its full resource name says
+	// which object it is: every identity value the configuration computes
+	// (project, region or zone, name) must be one of its path segments, and
+	// the last segment must be one of them.
+	if c.resourcePath != "" && len(res.IdentityValues) > 0 {
+		return gcpPathMismatch(res, c.resourcePath)
+	}
+
 	// The fallback: the whole import ID, and only where it cannot be a join.
 	if res.ImportID == "" || c.importID == "" {
 		return "", false
@@ -397,4 +411,39 @@ func displacedProblem(req Request, typeName, escaped, want string, c claimant) P
 			"A live %s with identity %q carries estate %q and the address %q, but the identity this configuration computes for %s is %q, and this estate's own record does not name this object as the one that address owns. This live object is therefore not the one the address is planned against: the plan for %s is computed from the identity the configuration names, which is either a different live resource or nothing yet. That is most often what a renumbering leaves behind - deleting a middle element of a count list moves every later instance's identity down one while the live resources keep the markers they were stamped with. This run does nothing to the object named here: it is bound to no address, it is not read, not changed and not destroyed, and it will stay in the account until a human says which resource is which. Read the plan for %s beside this warning for what that address itself is proposed for. Use choudoufu live-mv, or a moved block, to say that a resource moved; remove this resource's markers to disown it.",
 			typeName, c.displayID(), req.Estate, escaped, escaped, want, escaped, escaped),
 	}
+}
+
+// gcpPathMismatch is [configIdentityMismatch] for a GCP Asset claimant:
+// want names the first configured identity value missing from path's
+// segments, sorted by attribute for a stable message, or the resource's
+// own name when path ends in none of them.
+func gcpPathMismatch(res identity.Resolution, path string) (want string, mismatched bool) {
+	segments := strings.Split(path, "/")
+	have := make(map[string]bool, len(segments))
+	for _, seg := range segments {
+		have[seg] = true
+	}
+	names := make([]string, 0, len(res.IdentityValues))
+	for name := range res.IdentityValues {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	lastIsAValue := false
+	last := segments[len(segments)-1]
+	for _, name := range names {
+		v := res.IdentityValues[name]
+		if v == "" {
+			continue
+		}
+		if v == last {
+			lastIsAValue = true
+		}
+		if !have[v] {
+			return fmt.Sprintf("%s=%s", name, v), true
+		}
+	}
+	if !lastIsAValue {
+		return res.ImportID, true
+	}
+	return "", false
 }

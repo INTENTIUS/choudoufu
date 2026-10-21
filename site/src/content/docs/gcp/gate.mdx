@@ -1,0 +1,20 @@
+---
+title: Gate
+description: One estate per project. A project IAM binding grants it.
+prompt: |
+  Follow https://intentius.io/choudoufu/gcp/gate/. Draft the project IAM bindings granting one team this estate and show them to me.
+  Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
+---
+import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+
+<PlatformSwitch />
+
+GCP IAM conditions cannot read a label, so the project is the fence. Give each estate its own project and bind its runner there ([estate-grant.sh](https://github.com/INTENTIUS/choudoufu/blob/main/live/gcp/estate-grant.sh)).
+
+## What that buys
+
+Reads and writes are fenced per principal. Handing over moves the binding. `gcloud` meets the same fence.
+
+## What it cannot reach
+
+Two estates in one project are not fenced from each other. Nothing finer than an estate can be granted. Folder and organization bindings pass ([GATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/gcp/GATE.md)).

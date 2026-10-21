@@ -117,6 +117,11 @@ type UntaggableFacts struct {
 	// an object is live at its configured identity (the 2026-10-20 ruling).
 	// A family may answer differently for a type it knows more about.
 	Unrecorded string `json:"unrecorded"`
+
+	// UnrecordedByType counts the untaggable types taking each answer, for
+	// a family that answers per type (the google family). Unrecorded is
+	// then what a type the family has never seen gets.
+	UnrecordedByType map[string]int `json:"unrecorded_by_type,omitempty"`
 }
 
 // HarnessFacts is the emulator this family's estates run against: its name,

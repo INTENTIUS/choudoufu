@@ -247,6 +247,10 @@ var refusals = []Refusal{
 		What:    "A resource block was removed, and the record its instance left (the record-orphan-read leg, issue #364) names the provider configuration that managed it, which no pass of this run reads through - an alias renamed or removed in a root with several configurations of one provider (GitHub issue #1721). Its removal is read only through that configuration, because reading the identity through another region or account could reach a different object of the same name. Declaring the configuration again lets the plan destroy it.",
 	},
 	{
+		Summary: "Removed resource's record has no import ID to destroy it by",
+		What:    "INTENTIUS/choudoufu#2139 item 3: a resource block was removed, and the record its instance left holds the identity as its identity schema's attributes with no import ID. No import ID composes from them (the type's identity-table row, or the import formats the provider source at the pin states, need a part the record does not carry), and the type's importer at the pin takes no identity object either, or needs an attribute the record lacks (#2145 item 4), so there is nothing to read or destroy the object by. The plan refuses, naming the type, rather than drop the record and leave the object live. Importing the object to a declared block, or destroying it by hand and deleting the record, clears it.",
+	},
+	{
 		Summary: "Resolved resource missing from the configuration",
 		What:    "Discovery was asked to find a resource the configuration it was given does not declare. The resolutions and the configuration came from different runs; a bug in whatever assembled them, not in the configuration.",
 	},
@@ -278,6 +282,18 @@ var refusals = []Refusal{
 	{
 		Summary: "Two live resources claiming one address",
 		What:    "Two live resources carry the same tofu-address marker (on Kubernetes, the same address annotation, where neither object is at the namespace and name the configuration names), so both claim one configuration address. Binding either would be a guess, and on Kubernetes destroying both as orphans would take the object the block still needs (GitHub issue #1641).",
+	},
+	{
+		Summary: SummaryGCPSweepIncomplete,
+		What:    "GitHub issue #1119: the GCP leg could not search one project for the estate's label: the Cloud Asset API is not enabled there, the credential lacks cloudasset.assets.searchAllResources, a page failed part way, or no project is known. A gap in coverage, never a wrong plan.",
+	},
+	{
+		Summary: SummaryGCPAddressCollision,
+		What:    "GitHub issue #1121's address ruling: two declared google instances whose tofu-address label values are equal, or two blocks whose block parts are, are refused by name, since the label is matched and never decoded and a collision would bind one block's object to the other. At 130 bits a part it does not happen in practice.",
+	},
+	{
+		Summary: SummaryGCPOrphanUnaddressed,
+		What:    "GitHub issue #1119: a GCP resource carries the estate's tofu-estate label and a tofu-address label the configuration does not declare. A GCP address label is matched, never decoded, so it is reported and never planned for removal here; a deleted block's record is what proposes the removal.",
 	},
 	{
 		Summary: "Two live resources claiming one slot",
@@ -328,7 +344,7 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable || summary == SummaryFieldGranularOrphanUnclassified || summary == SummaryFieldGranularOrphansPending || summary == SummaryFieldHandoverFailed || summary == SummaryFieldSharedWithStock {
+	if summary == SummaryIncompleteSweep || summary == SummaryGCPSweepIncomplete || summary == SummaryGCPOrphanUnaddressed || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable || summary == SummaryFieldGranularOrphanUnclassified || summary == SummaryFieldGranularOrphansPending || summary == SummaryFieldHandoverFailed || summary == SummaryFieldSharedWithStock {
 		// A gap in coverage, never a wrong plan: the run in front of the
 		// operator is correct and simply did not see everything. The held
 		// delete (GitHub issue #1184) is the same severity for a different

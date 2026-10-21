@@ -40,6 +40,7 @@ const LockReportEnv = "GAUNTLET_LOCK_REPORT_DIR"
 const (
 	ProviderAWS        = "hashicorp/aws"
 	ProviderKubernetes = "hashicorp/kubernetes"
+	ProviderGoogle     = "hashicorp/google"
 )
 
 // ResolvedProviders is what one run's reported lock files say it resolved:

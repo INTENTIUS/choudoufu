@@ -111,6 +111,14 @@ func buildRow(root string, s substrate.Substrate, rf readinessFacts) (Row, error
 	// The family's default: asked with no type name, which no family
 	// holds a per-type fact about.
 	row.Untaggable.Unrecorded = string(s.Unrecorded(""))
+	if pt, ok := s.(interface {
+		UnrecordedCounts() map[substrate.Unrecorded]int
+	}); ok {
+		row.Untaggable.UnrecordedByType = map[string]int{}
+		for a, n := range pt.UnrecordedCounts() {
+			row.Untaggable.UnrecordedByType[string(a)] = n
+		}
+	}
 
 	fence, err := fenceFor(family)
 	if err != nil {
@@ -152,6 +160,8 @@ func sweepFacts(kind substrate.Sweep) SweepFacts {
 		desc = "runs through the configured provider itself; no separate client is built from the provider block"
 	case substrate.SweepLabelList:
 		desc = "a cluster client built from the provider block's own connection arguments (Substrate.NewSweeper)"
+	case substrate.SweepAssetSearch:
+		desc = "a Cloud Asset Inventory client built from the provider block's own credential arguments (Substrate.NewSweeper), one search per project the estate's resources name; the index lags creates and deletes"
 	}
 	return SweepFacts{Kind: string(kind), Description: desc}
 }
@@ -212,6 +222,7 @@ func controllerHeldFacts(s substrate.Substrate) ControllerHeldFacts {
 var fenceByFamily = map[string]string{
 	"aws":        "IAM conditions on aws:ResourceTag, reads and writes, per principal (live/MARKERS.md).",
 	"kubernetes": "One ValidatingAdmissionPolicy, writes only, enforced per principal through the cluster's authorizer.",
+	"google":     "Project-scoped, restated: an IAM condition cannot match a label, so one estate per project, granted by an ordinary project IAM binding. Resource Manager tag bindings, which a condition can match, are ruled later (#1121).",
 }
 
 func fenceFor(family string) (string, error) {
@@ -241,6 +252,11 @@ var harnessByFamily = map[string]struct {
 		Name:    "kind",
 		PinFile: "live/kind-node-image",
 		Notes:   "a kind cluster on the pinned node image; no per-service capability probe like floci's exists for it.",
+	},
+	"google": {
+		Name:    "floci-gcp",
+		PinFile: "live/floci-gcp-image",
+		Notes:   "the lex00/floci-gcp fork's GHCR image pinned by digest; the fork's issues for Resource Manager tags, Cloud Asset search, matchTag and IAM enforce mode (lex00/floci-gcp#4 to #9) and the Compute confidentialInstanceConfig gap (#23) are closed, and no gcp-lane run on it has passed yet.",
 	},
 }
 
@@ -277,11 +293,15 @@ type readinessArtifact struct {
 	Kubernetes struct {
 		Types []readinessType `json:"types"`
 	} `json:"kubernetes"`
+	Google struct {
+		Types []readinessType `json:"types"`
+	} `json:"google"`
 }
 
 type readinessFacts struct {
-	awsTypes []readinessType
-	k8sTypes []readinessType
+	awsTypes    []readinessType
+	k8sTypes    []readinessType
+	googleTypes []readinessType
 }
 
 func loadReadinessFacts(root string) (readinessFacts, error) {
@@ -289,7 +309,7 @@ func loadReadinessFacts(root string) (readinessFacts, error) {
 	if err := decodeJSON(root, ReadinessJSONRel, &art); err != nil {
 		return readinessFacts{}, err
 	}
-	return readinessFacts{awsTypes: art.Types, k8sTypes: art.Kubernetes.Types}, nil
+	return readinessFacts{awsTypes: art.Types, k8sTypes: art.Kubernetes.Types, googleTypes: art.Google.Types}, nil
 }
 
 func decodeJSON(root, rel string, v any) error {
@@ -319,6 +339,9 @@ func untaggableFor(family string, rf readinessFacts) UntaggableFacts {
 	case "kubernetes":
 		return tallyUntaggable(rf.k8sTypes, func(t readinessType) bool { return !t.Facts.LabelSurface },
 			"an admitted Kubernetes type whose schema carries no metadata.labels block (live/readiness.json kubernetes.types facts.label_surface=false)")
+	case "google":
+		return tallyUntaggable(rf.googleTypes, func(t readinessType) bool { return t.Tier != "marker-carried" },
+			"a google or google-beta 8.6.0 type whose schema carries no settable labels map beside effective_labels, or one that only labels what the type creates, an instance template's (live/readiness.json google.types, every tier but marker-carried)")
 	}
 	return UntaggableFacts{Definition: "no definition recorded for family " + family, ByTier: map[string]int{}}
 }

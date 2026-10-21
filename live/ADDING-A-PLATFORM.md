@@ -133,9 +133,12 @@ afterwards.
 
 Fixed: read from the schema or generated evidence, never a type-name list;
 `SynthesizeIdentity` is the family's answer for a type with no row. Per
-platform: the source. GCP's open question is Magic Modules rows versus a
-`name`/`project`/location rule (#1119 item 1, #1121 measurement 5), not yet
-ruled. Azure's is ruled (#1122): a `resource_group_name` + `name` rule with
+platform: the source. GCP's is ruled: rows from the provider's own source
+at the pin, which `tools/gcp-row-gen` reads (the generated
+terraform-provider-google source at the tag, not Magic Modules, because it
+also covers the handwritten and IAM types) into
+`internal/live/identity/table_generated_google.go`, with the project,
+region and zone an id format embeds taken from the provider block. Azure's is ruled (#1122): a `resource_group_name` + `name` rule with
 the ARM type from a table generated from azurerm's id parsers, and azapi
 binding by `type` + `parent_id` + `name`, the manifest mechanism.
 
@@ -176,12 +179,13 @@ encoding of the address (#1121, 2026-10-19).
 
 | | AWS | Kubernetes |
 |---|---|---|
-| Answer | the declaration-carried tier, counted in `live/SUBSTRATES.md` and classified by survey path in `live/RECOVERY.md` (client-named, parent-derived, account-derived, unique-name) | no untaggable whole-object types; the field-granular types (#1191) carry the server-side-apply field manager `choudoufu:<estate>` as their marker (`kubesweep/fieldgranular.go`) |
+| Answer | the declaration-carried tier, counted in `live/SUBSTRATES.md`, and split by how each type comes back in `live/READINESS.md`'s generated table (`tools/readiness-gen/paths.go`) | no untaggable whole-object types; the field-granular types (#1191) carry the server-side-apply field manager `choudoufu:<estate>` as their marker (`kubesweep/fieldgranular.go`) |
 | Veto | `identity.MarkerlessTypes` (`identity/markerless_generated.go`) refuses untaggable types whose identity is server-minted | none needed |
 | Fence gap | stated per service in `live/MARKERS.md`, "What this grant cannot reach" | none for whole objects |
 
 The rule for a new platform, in order: look first for a carrier the stock
-provider already writes; classify the rest by survey path; veto the
+provider already writes; tier the rest from the facts that re-derive them,
+and give the platform a table in `tools/readiness-gen/paths.go`; veto the
 server-minted ones; state the fence gap. This tier is large on both new
 platforms: GCP's network skeleton has no labels (#1119 item 3), and on
 Azure 1,132 of 2017 ARM resource types take no tags (#1122). The proving claims are
@@ -212,7 +216,9 @@ failures.
 Fixed: an undeclared object carrying the estate's marker shows up in a plan;
 a sweep failure is a refusal registered in `discovery/refusals.go`. Per
 platform: the call shape and the consistency lag. GCP's is Cloud Asset
-Inventory, and sweep equivalence waits on lex00/floci-gcp#7 (#1121). Azure's
+Inventory (#1121). The pinned floci-gcp image serves its search
+(lex00/floci-gcp#7, closed), and sweep equivalence is unmeasured until a
+gcp-lane run passes. Azure's
 is Resource Graph (#1120 item 3).
 
 ### 9. Record store
