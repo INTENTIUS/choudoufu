@@ -967,7 +967,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// function. See that field's own doc comment for why leaving it unset
 	// would let the node adopt a client-named resource this run does not
 	// own.
-	resolver.Unowned = nodeResolverUnownedSet(projResult.Unowned)
+	resolver.Unowned = nodeResolverUnownedSet(projResult)
 
 	// GitHub issue #949: internal/live/stamp.Request.PolicyUntag's node-path
 	// port, set here for the identical reason Unowned two lines up is. See

@@ -387,6 +387,9 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 	})
 
 	sortUnowned(b.unownedList)
+	sort.Slice(b.releasedList, func(i, j int) bool {
+		return b.releasedList[i].String() < b.releasedList[j].String()
+	})
 	sort.Slice(b.recordVersions, func(i, j int) bool {
 		return b.recordVersions[i].Addr.String() < b.recordVersions[j].Addr.String()
 	})
@@ -423,6 +426,7 @@ func buildFrom(ctx context.Context, cfg *configs.Config, resolutions []identity.
 		Materialized:        b.materialized,
 		Omitted:             b.omissionList,
 		Unowned:             b.unownedList,
+		Released:            b.releasedList,
 		RecordVersions:      b.recordVersions,
 		EnvelopeVersions:    b.envelopeVersions,
 		RecordFallbackAddrs: recordFallbackAddrs,
@@ -522,6 +526,7 @@ type builder struct {
 	materialized []addrs.AbsResourceInstance
 	unownedList  []Unowned
 	policyList   []PolicyOutcome
+	releasedList []addrs.AbsResourceInstance
 
 	// materializedIdentity records, for every instance this pass has
 	// successfully materialized, whether SOME instance of its resource type
@@ -2575,6 +2580,9 @@ func (b *builder) materialize(ctx context.Context, w wanted) bool {
 	// does not set Undeclared for it - and that is the same block-level
 	// coarsening internal/live/stamp's PolicyUntag already documents,
 	// rather than a new one.
+	if b.releasedByOwnDestroy(ctx, w, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared) {
+		return true
+	}
 	switch b.checkOwnershipAt(addr, typeName, importID, schema, obj.Value, rc != nil && !w.undeclared, w.located, w.recordFirst, !w.recordFirst || w.declaredKey) {
 	case ownershipStale:
 		// The record's binding did not survive being checked against the
