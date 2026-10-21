@@ -120,6 +120,5 @@ assignments, and the same three writes must land. Policy `deny` and
 `denyAction` evaluation and role assignments with enforcement are served
 by floci-az since 30000b0, and the compose service turns both on; not yet
 run. The RBAC half, `live/azure/estate-grant.json`, is not in the scenario
-yet. Resource Graph is served by floci-az since 30000b0, but the
-sweep's query uses `union`, `mv-expand` and `bag_keys`, which its KQL
-subset refuses ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads unproven.
+yet. Floci-az runs the sweep's Resource Graph query, `union`, `mv-expand` and
+`bag_keys` included, since dfa33ca (lex00/floci-az#11), not yet run ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the cell reads unproven.

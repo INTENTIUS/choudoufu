@@ -19,18 +19,24 @@ import (
 // Two findings are about the removal stages. A removed block's object of a
 // type that takes tags is found only by its marker through the Resource
 // Graph sweep (internal/live/discovery/recordorphan_read.go skips such a
-// type: the sweep covers it), and floci-az's KQL subset refuses the sweep's
-// query (lex00/floci-az#11). So reference-azure's day2_remove (a public IP)
-// and both estates' day2_count scale-downs (identities) plan no destroy on
-// floci-az. Each of those stages used to fail() there, which exits the
-// script, so the gap at day2_remove also cost every stage after it. They now
-// record the failure naming the gap (gauntlet_azure_sweep_note), put back
-// the shape the later stages expect by hand, and go on.
+// type: the sweep covers it), and floci-az's KQL subset refused the sweep's
+// query at 30000b0 (lex00/floci-az#11). So reference-azure's day2_remove (a
+// public IP) and both estates' day2_count scale-downs (identities) planned
+// no destroy on floci-az. Each of those stages used to fail() there, which
+// exits the script, so the gap at day2_remove also cost every stage after
+// it. They now record the failure naming the warning
+// (gauntlet_azure_sweep_note), put back the shape the later stages expect by
+// hand, and go on. floci-az runs the query as sent since dfa33ca, so all
+// three are expected to pass; the fallback stays for a sweep that fails for
+// a new reason.
 
 func TestAzureSweepNoteNamesTheGap(t *testing.T) {
 	warned := "Warning: Azure sweep unavailable\n\nQuerying Azure Resource Graph for subscription 00000000-0000-0000-0000-000000000001 failed, so this is an incomplete sweep and not an empty one.\n\nNo changes. Your infrastructure matches the configuration.\n"
 	got := driveVerdict(t, "", "gauntlet_azure_sweep_note", warned)
-	wantIn(t, got, `"Azure sweep unavailable"`, "lex00/floci-az#11", "a type that takes tags")
+	wantIn(t, got, `"Azure sweep unavailable"`, "the Resource Graph sweep failed", "a type that takes tags")
+	if strings.Contains(got, "refuses") {
+		t.Errorf("floci-az runs the sweep's query since dfa33ca (lex00/floci-az#11), so the note must not say it refuses it: %q", got)
+	}
 	if !strings.HasPrefix(got, "; ") {
 		t.Errorf("the note is a clause appended to a verdict and starts with \"; \": %q", got)
 	}

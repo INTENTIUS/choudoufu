@@ -9,10 +9,10 @@ This page says what that fence holds and what it does not.
 
 None of it is measured, so every statement here comes from Azure's
 documentation. floci-az serves role assignments with enforcement and
-evaluates Policy `deny` and `denyAction` since `30000b0`, not yet run. It
-approximates both: ABAC conditions and data actions are never evaluated,
-`mode: Indexed` skips only resource groups, and `cascadeBehaviors` is not
-read ([`live/FLOCI.md`](../FLOCI.md#azure-floci-az)).
+evaluates Policy `deny` and `denyAction` since `30000b0`, not yet run, with
+`mode: Indexed` and `cascadeBehaviors` read as Azure reads them since
+`dfa33ca`. It still approximates: ABAC conditions and data actions are
+never evaluated ([`live/FLOCI.md`](../FLOCI.md#azure-floci-az)).
 
 ## An estate is a set of resource groups
 

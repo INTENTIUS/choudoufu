@@ -23,9 +23,7 @@
 #
 # What floci-az cannot answer today (live/FLOCI.md, Azure): it stores the
 # three settings and reads them back, but makes no blob versions and runs
-# no lifecycle rule; every plan's sweep is a Resource Graph query, and its
-# KQL subset refuses the query's union, mv-expand and bag_keys; and it
-# stores ABAC conditions on role assignments without evaluating them, so
+# no lifecycle rule; and it stores ABAC conditions on role assignments without evaluating them, so
 # the read fence (live/azure/record-store-abac.condition) is not measured
 # here.
 

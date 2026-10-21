@@ -1784,9 +1784,10 @@ counts both, per tier.
   record store's read fence is separate: the ABAC condition in
   [`live/azure/record-store-abac.condition`](azure/record-store-abac.condition).
 - floci-az evaluates `deny` and `denyAction` since `30000b0`, with tag names
-  matched in any case, but not yet run. It also approximates: `mode: Indexed`
-  skips only resource groups there, and `cascadeBehaviors` is not read
-  (`live/FLOCI.md`, "Azure: floci-az"). Until the templates are applied on
+  matched in any case, but not yet run. Since `dfa33ca` its `mode: Indexed`
+  skips every type without tags and a location, as Azure does, and a
+  resource-group delete honours `cascadeBehaviors` (`live/FLOCI.md`,
+  "Azure: floci-az"). Until the templates are applied on
   real Azure, every statement in this list is from Azure's documentation,
   not measured.
 

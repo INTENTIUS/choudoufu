@@ -53,4 +53,4 @@ floor is one label-selected list per kind the cluster serves.
 
 ## On Azure
 
-Open. Nothing has run on Azure yet. A plan's sweep is one Resource Graph query per subscription, filtered on the estate's tag; nothing counts it. Resource Graph is served by floci-az since 30000b0, not yet run, and its KQL subset refuses the sweep's `union`, `mv-expand` and `bag_keys`.
+Open. Nothing has run on Azure yet. A plan's sweep is one Resource Graph query per subscription, filtered on the estate's tag; nothing counts it. floci-az serves Resource Graph, the sweep's `union`, `mv-expand` and `bag_keys` included, since dfa33ca (lex00/floci-az#11); not yet run.

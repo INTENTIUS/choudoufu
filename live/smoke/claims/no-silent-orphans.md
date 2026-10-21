@@ -133,7 +133,6 @@ exactly that destroy, found by its `tofu-estate` tag through the Resource
 Graph sweep. An identity tagged for another estate at the same address in
 the same group must be left alone. `BREAK=1` strips the orphan's
 `tofu-estate` tag with an ARM PATCH first, and the replan must then
-propose nothing. Resource Graph is served by floci-az since 30000b0, but the
-sweep's query uses `union`, `mv-expand` and `bag_keys`, which its KQL
-subset refuses ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the
+propose nothing. Floci-az runs the sweep's Resource Graph query, `union`, `mv-expand` and
+`bag_keys` included, since dfa33ca (lex00/floci-az#11), not yet run ([live/FLOCI.md](../../FLOCI.md#azure-floci-az)). It has no dated run yet, so the
 cell reads unproven.
