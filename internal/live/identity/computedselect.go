@@ -136,6 +136,29 @@ func (r *resolver) foldedSelect(expr hcl.Expression, scope instScope, ident conf
 		// An output has no declared type, so nothing converts what is read
 		// out of it and there is nothing for the gate below to check.
 		parts, resolved, applicable = r.resolveModuleOutput(nameStep.Name, rest, ident)
+		if !applicable || !resolved {
+			// #2142: the structural walk declined - the output is built
+			// with a conditional, zipmap() or a comprehension it does not
+			// select through, as terraform-google-modules/iam's helper
+			// module builds bindings_authoritative - so the output is
+			// evaluated WHOLE, strictly, in the child instance's own
+			// evaluator and the folded steps are selected out of the
+			// result. [resolver.moduleOutputValue] is the same reading a
+			// module-call argument already gets, with its guards: the
+			// result must be wholly known, non-null and unmarked, a
+			// sensitive output is refused on its declaration, and
+			// anything the child cannot evaluate statically - a managed
+			// resource's attribute, an uncovered data source, a provider
+			// function - fails it, leaving the refusal standing.
+			r.diags = r.diags[:mark]
+			r.pendingSiblingApply = r.pendingSiblingApply[:sibMark]
+			if val, ok := r.moduleOutputValue(r.curCfg, r.modInst, trav); ok {
+				if s, ok := r.stringValueIn(val, expr, scope, ident); ok {
+					return []Part{{Literal: s}}, true
+				}
+			}
+			return decline()
+		}
 	} else {
 		parts, resolved, applicable = r.foldedNamed(root, nameStep.Name, rest, scope, ident)
 	}

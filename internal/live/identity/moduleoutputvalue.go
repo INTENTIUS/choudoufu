@@ -95,57 +95,17 @@ func (r *resolver) moduleOutputValue(parentCfg *configs.Config, parentInst addrs
 		return cty.NilVal, false
 	}
 	callName := nameStep.Name
-	mc, ok := parentCfg.Module.ModuleCalls[callName]
-	if !ok || mc.Config == nil {
-		return cty.NilVal, false
-	}
 
-	// Key handling is [resolver.resolveModuleOutput]'s, for its reasons: an
-	// indexed reference supplies the instance key, an unindexed one is only
-	// meaningful on a call with no repetition, and the key has to be one the
-	// call actually expands to - otherwise module.foo[7] on a three-instance
-	// call would enter the child module anyway and answer for an instance
-	// that will never exist.
-	rest := trav[2:]
-	repeated := mc.Count != nil || mc.ForEach != nil
-	key := addrs.InstanceKey(addrs.NoKey)
-	if idx, isIndex := rest[0].(hcl.TraverseIndex); isIndex {
-		if !repeated {
-			return cty.NilVal, false
-		}
-		k, ok := indexKeyValue(idx.Key)
-		if !ok {
-			return cty.NilVal, false
-		}
-		key = k
-		rest = rest[1:]
-	} else if repeated {
+	// The guards are [parseModuleOutputRef]'s, shared with
+	// [resolver.resolveModuleOutput] and the key-set chases, for their
+	// reasons.
+	ref, ok := parseModuleOutputRef(r.ctx, parentCfg, callName, trav[2:])
+	if !ok || ref.out.Sensitive {
 		return cty.NilVal, false
 	}
-	if repeated {
-		if _, ok := ChildModuleRepetitionData(r.ctx, parentCfg, childSubject(callName), mc.Count, mc.ForEach, key); !ok {
-			return cty.NilVal, false
-		}
-	}
-
-	if len(rest) == 0 {
-		// "module.foo" with no output named: an object of every output
-		// rather than one value, which is not a leaf this can answer.
-		return cty.NilVal, false
-	}
-	outStep, isAttr := rest[0].(hcl.TraverseAttr)
-	if !isAttr {
-		return cty.NilVal, false
-	}
-	rest = rest[1:]
-
-	childInst := parentInst.Child(callName, key)
-	childCfg, ok := ConfigForModule(r.rootCfg, childInst)
-	if !ok || childCfg.Module == nil {
-		return cty.NilVal, false
-	}
-	out, ok := childCfg.Module.Outputs[outStep.Name]
-	if !ok || out.Expr == nil || out.Sensitive {
+	out, rest := ref.out, ref.rest
+	childInst := parentInst.Child(callName, ref.key)
+	if childCfg, ok := ConfigForModule(r.rootCfg, childInst); !ok || childCfg.Module == nil {
 		return cty.NilVal, false
 	}
 
@@ -162,7 +122,7 @@ func (r *resolver) moduleOutputValue(parentCfg *configs.Config, parentInst addrs
 
 	ident := configs.StaticIdentifier{
 		Module:    childInst.Module(),
-		Subject:   "output." + outStep.Name,
+		Subject:   "output." + ref.name,
 		DeclRange: out.DeclRange,
 	}
 	val, diags := eval.Evaluate(r.ctx, out.Expr, ident)

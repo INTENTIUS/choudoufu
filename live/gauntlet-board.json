@@ -212,7 +212,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-alb-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-alb-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -349,7 +349,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-autoscaling-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-autoscaling-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -486,7 +486,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-dynamodb-table-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-dynamodb-table-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -622,7 +622,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-ec2-instance-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-ec2-instance-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -759,7 +759,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-ecs-fargate/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-ecs-fargate/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -896,7 +896,7 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-eks-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-eks-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1033,7 +1033,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-evoteum-modules/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-evoteum-modules/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1170,7 +1170,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-giantswarm-crossplane/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-giantswarm-crossplane/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1307,7 +1307,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1444,7 +1444,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-iam-policy/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-iam-policy/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1581,7 +1581,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-lambda-simple/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-lambda-simple/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1718,7 +1718,7 @@
       "provider_note": "Provider: hashicorp/aws `5.100.0`. **Stale**: the current pin is `6.63.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-leynos-monitoring/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-leynos-monitoring/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1855,7 +1855,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-overture-tiles/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-overture-tiles/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -1991,7 +1991,7 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-rds-complete-postgres/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-rds-complete-postgres/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2128,7 +2128,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-s3-bucket-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-s3-bucket-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2265,7 +2265,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-security-group-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-security-group-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2402,7 +2402,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-simpleinfra-dns/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-simpleinfra-dns/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2538,7 +2538,7 @@
       "oracle_note": "Oracle: stock terraform `1.16.1`, stock tofu `1.13.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-sqs-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-sqs-basic/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2675,7 +2675,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-sumaform-aws/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-sumaform-aws/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2812,7 +2812,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-vpc-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-vpc-complete/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -2949,7 +2949,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-xancloud-iac/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-xancloud-iac/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3084,7 +3084,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-ec2-vpc/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-ec2-vpc/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3222,7 +3222,7 @@
       "provider_note": "Provider: hashicorp/aws `6.59.0`. **Stale**: the current pin is `6.63.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/terralith-scale/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/terralith-scale/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3360,7 +3360,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3504,7 +3504,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.3.0`. **Stale**: the current pin is `3.2.1`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3648,7 +3648,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.3.0`. **Stale**: the current pin is `3.2.1`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -3903,7 +3903,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4047,7 +4047,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-mastino-dns/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-mastino-dns/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4183,7 +4183,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.3.0`. **Stale**: the current pin is `3.2.1`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4325,7 +4325,7 @@
       "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin). Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-eks/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-eks/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4550,7 +4550,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4692,7 +4692,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4834,7 +4834,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4976,7 +4976,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5118,7 +5118,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gcp.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5260,7 +5260,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5402,7 +5402,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5544,7 +5544,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gcp.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5686,7 +5686,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5828,7 +5828,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -5970,7 +5970,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -6112,7 +6112,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -6255,7 +6255,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (`live/e2e/lib/gcp.sh` differs from the version that run measured). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -6397,7 +6397,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (3 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
