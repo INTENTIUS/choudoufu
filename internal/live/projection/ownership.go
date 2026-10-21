@@ -569,9 +569,10 @@ const SummaryUnrecordedMarkerless = "Unrecorded live object at a declared identi
 //   - a family answering [substrate.UnrecordedParentOwned]: AWS, whose
 //     untaggable types are attachments and associations identified by
 //     tagged parents (this file's checkOwnership doc comment);
-//   - an instance whose record sits at an address a honoured `moved` chain
-//     says it used to have ([builder.recordedAtMovedFrom]): a stock rename
-//     does not re-key the record, and that record is this instance's;
+//   - an instance whose record sits at exactly one address a honoured
+//     `moved` chain says it used to have ([builder.recordedAtMovedFrom]): a
+//     stock rename does not re-key the record, and that record is this
+//     instance's (more than one such record is refused by name);
 //   - declared_untagged = "adopt" or "converge", which an operator wrote to
 //     admit declared objects that carry no marker.
 func (b *builder) unrecordedMarkerless(addr addrs.AbsResourceInstance, typeName, importID string, schema providers.Schema, declared, recordFirst, atDeclaredKey bool) ownershipVerdict {
@@ -590,8 +591,12 @@ func (b *builder) unrecordedMarkerless(addr addrs.AbsResourceInstance, typeName,
 	if rule == substrate.UnrecordedParentOwned {
 		return ownershipOK
 	}
-	if b.recordedAtMovedFrom(addr) {
+	switch origins := b.recordedAtMovedFrom(addr); {
+	case len(origins) == 1:
 		return ownershipOK
+	case len(origins) > 1:
+		b.movedRecordsAmbiguous(addr, typeName, importID, origins)
+		return ownershipUnowned
 	}
 	verb := own.Policy.Verb(true, false)
 	nonDefault := verb != policy.DefaultVerb[policy.DeclaredUntagged]
@@ -623,9 +628,9 @@ func (b *builder) unrecordedMarkerless(addr addrs.AbsResourceInstance, typeName,
 	return ownershipUnowned
 }
 
-// recordedAtMovedFrom reports whether exactly one address a honoured `moved`
-// statement chain says addr used to have holds an identity record. A record
-// is keyed by the address it was written under, and nothing re-keys it for a
+// recordedAtMovedFrom returns the addresses a honoured `moved` statement
+// chain says addr used to have that hold an identity record. A record is
+// keyed by the address it was written under, and nothing re-keys it for a
 // bare HCL `moved` block (only `live-mv` does, through
 // [RecordStore.MoveRecord]), so after a stock rename the instance's record
 // sits at its old address. That record is this instance's claim, and
@@ -636,26 +641,47 @@ func (b *builder) unrecordedMarkerless(addr addrs.AbsResourceInstance, typeName,
 // of statements is followed the way the plan's own move resolution follows
 // it.
 //
-// More than one alias carrying a record, or a store error, answers false:
-// guessing which prior record is this instance's is the wrong-marker shape
-// the safety rule forbids, and false keeps option A's refusal, which names
-// the way out.
+// Exactly one recorded origin is this instance's record. More than one is
+// refused by name ([builder.movedRecordsAmbiguous]): guessing which prior
+// record is this instance's is the wrong-marker shape the safety rule
+// forbids. A store error answers none, which keeps option A's refusal.
 //
 // The read uses context.Background() because the ownership check is not
 // handed a context; [RecordStore.GetIdentity] is served from the run's
 // record cache (#636), so this costs no round trip.
-func (b *builder) recordedAtMovedFrom(addr addrs.AbsResourceInstance) bool {
-	matches := 0
+func (b *builder) recordedAtMovedFrom(addr addrs.AbsResourceInstance) []addrs.AbsResourceInstance {
+	var recorded []addrs.AbsResourceInstance
 	for _, origin := range moved.Aliases(b.movedStmts, addr) {
 		_, _, _, found, err := b.opts.RecordStore.GetIdentity(context.Background(), origin)
 		if err != nil {
-			return false
+			return nil
 		}
 		if found {
-			matches++
+			recorded = append(recorded, origin)
 		}
 	}
-	return matches == 1
+	return recorded
+}
+
+// SummaryMovedRecordsAmbiguous is the Error a markerless instance carries
+// when more than one address its `moved` chain leads from holds a record.
+const SummaryMovedRecordsAmbiguous = "Several moved-from addresses hold a record"
+
+// movedRecordsAmbiguous refuses addr by name: each of origins is an address
+// a honoured `moved` chain says addr used to have, and each holds a record,
+// so nothing says which one is this instance's. Picking one could bind the
+// wrong object, and option A's generic answer would plan a create beside an
+// object this estate made, so the plan stops and names every candidate.
+func (b *builder) movedRecordsAmbiguous(addr addrs.AbsResourceInstance, typeName, importID string, origins []addrs.AbsResourceInstance) {
+	names := make([]string, len(origins))
+	for i, o := range origins {
+		names[i] = o.String()
+	}
+	detail := fmt.Sprintf(
+		"%s is a %s, which carries no ownership marker, and the live object at %q is claimed by a record at more than one address its moved blocks lead from: %s. Only one of them can be this instance's, and this plan will not guess which, so it stops here. Remove the stale records (live-mv moves a record to its new address), or change the moved blocks so that only one recorded address leads to %s, then re-run.",
+		addr, typeName, importID, strings.Join(names, ", "), addr)
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryMovedRecordsAmbiguous, detail))
+	b.omit(addr, ReasonUnowned, detail, fmt.Sprintf("records at %s each claim the live %s.", strings.Join(names, ", "), typeName))
 }
 
 // SummaryNameHeld is the Error GitHub issue #1546's refusal carries.
