@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec",
-  "banner": "Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 2 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-13T01:50:50Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "44 of 46 estates have a recorded run duration, totaling 13h26m42.1s, but not from one sweep: 8h32m40.9s across 18 estate(s) at commit `2f02038dd1`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 2 estate(s) with no recorded duration yet.",
-  "script_banner": "**44 of 46 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 20 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-govuk-cluster-services, corpus-hongbomiao-labelbox, corpus-iam-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-eks, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-argo-cd, reference-k8s-helm-cloudnative-pg, reference-k8s-helm-external-secrets, reference-k8s-helm-ingress-nginx, reference-k8s-helm-keda, reference-k8s-helm-kyverno, reference-k8s-helm-metallb, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads, reference-k8s-yaml-rollouts, terralith-scale. 2 more cannot be checked from this checkout: corpus-k8s-infra-gcp-gcve, reference-gcp.",
+  "banner": "Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 2 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-21T16:30:17Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "46 of 46 estates have a recorded run duration, totaling 13h47m36.6s, but not from one sweep: 8h32m40.9s across 18 estate(s) at commit `2f02038dd1`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 20m54.5s across 2 estate(s) at commit `9bf3d1480b`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 0 estate(s) with no recorded duration yet.",
+  "script_banner": "**44 of 46 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 20 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-govuk-cluster-services, corpus-hongbomiao-labelbox, corpus-iam-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-eks, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-argo-cd, reference-k8s-helm-cloudnative-pg, reference-k8s-helm-external-secrets, reference-k8s-helm-ingress-nginx, reference-k8s-helm-keda, reference-k8s-helm-kyverno, reference-k8s-helm-metallb, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads, reference-k8s-yaml-rollouts, terralith-scale.",
   "provider_banner": "Estates were last measured against different hashicorp/aws versions: 20 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 17 against `3.2.1` (current pin), 3 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
-  "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 44 estates measured so far, 44 recorded running on it.",
+  "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 46 estates measured so far, 46 recorded running on it.",
   "stage_count": 15,
   "stages": [
     {
@@ -3762,109 +3762,140 @@
       "set": "growing",
       "lane": "gcp",
       "substrate": "floci-gcp",
-      "clear": false,
+      "clear": true,
       "source": "kubernetes/k8s.io infra/gcp/terraform/k8s-infra-gcp-gcve (commit 4046258e7d, Apache-2.0), the Kubernetes project's own root for its VMware Engine CI project: five google_project_service over a for_each whose project comes from a data source, a custom-mode VPC, a subnetwork and two firewalls (one reading the subnetwork's range), terraform-google-modules simple_bucket (a bucket and its IAM member) and projects_iam in authoritative mode (five project IAM bindings keyed by its helper module's outputs) - 16 instances, one labelled, on hashicorp/google 8.6.0. The gcp lane's first published root (#1119): provider.tf replaced for the pin and the emulator, simple_bucket ~\u003e 12.4 for google 8.x, and the five VMware Engine resources left out because floci-gcp does not serve them",
       "url": "https://github.com/kubernetes/k8s.io.git",
       "pin": "4046258e7d54fdc156e2f39ad8da51b57be88f55",
       "script": "live/e2e/corpus-k8s-infra-gcp-gcve/run.sh",
-      "protocol": "legacy",
+      "protocol": "gauntlet",
       "cells": [
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run"
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass"
       ],
-      "runtime_total": "-",
-      "runtime_cells": "none recorded yet",
-      "legacy_note": "Verdicts were recorded from this estate's crossing script by hand before the script spoke the gauntlet protocol; the next run that does will replace them.",
-      "script_stale": "unknown",
-      "script_note": "**Unverified**: whether `live/e2e/corpus-k8s-infra-gcp-gcve` or `live/e2e/lib` has changed since the run recorded above cannot be told from this checkout - this row has recorded no run, so there is nothing to compare the script against. The verdicts above may describe an earlier version of the script (#1264, #1292).",
+      "runtime_total": "15m27.5s",
+      "runtime_cells": "cold_deploy 1m38s, migrate 16s, test_plan 4s, test_apply 34s, drift_reconverge 1m6s, day2_rename 49s, day2_remove 1m11s, day2_count 1m53s, day2_replace 2m19s, day2_crash 1m36s, day2_teardown 49s, plan_approval 1m8s, greenfield 1m17s, strict 1s, no_local_state 12s",
+      "last_run_note": "Last run at commit `9bf3d1480b` on 2026-10-21T16:30:17Z, exit code 0, against substrate image `ghcr.io/lex00/floci-gcp@sha256:4e9b7bff6a59f4b87d6130cbfff62e2335d5b00cc5f2e2726b750115320cf376`. Total run time 15m27.5s.",
+      "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
+      "provider_note": "Provider: hashicorp/google `8.6.0` (matches the current pin).",
+      "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m38s",
+          "detail": "16 instances (five google_project_service, the network, the subnetwork, two firewalls, the simple_bucket module's bucket and IAM member, five authoritative project IAM bindings from projects_iam) from plain terraform against floci-gcp sha256:4e9b7bff6a59, the k8s.io root at 4046258e7d with three deltas (provider.tf for the lane's 8.6.0 pin and the emulator, simple_bucket ~\u003e 12.4 for 8.x, the five VMware Engine resources the emulator does not serve left out); a real terraform.tfstate, zero tofu-estate labels read back with the REST API; the identical root cold-deployed by stock on a second emulator as every later stage's oracle"
         },
         {
           "id": "migrate",
           "title": "Migrate",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "16s",
+          "detail": "16 of 16 bound: the module's bucket stamped through a labels-only plan and carrying tofu-estate=corpus-k8s-infra-gcp-gcve read back with the REST API; the 15 with no labels argument (five services, network, subnetwork, two firewalls, the bucket IAM member, five project IAM bindings) skipped for that reason alone, and all 16 identities recorded"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "4s",
+          "detail": "the plan with no state file is empty; all 16 identities confirmed with the REST API: the network, subnetwork, two firewalls and bucket by name under projects/broadcom-451918, the five services ENABLED, the five roles in the project's policy"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "34s",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); buckets carrying tofu-estate=corpus-k8s-infra-gcp-gcve unchanged at 1, counted with the REST API"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m6s",
+          "detail": "the internet firewall's sourceRanges tampered with a REST PATCH; choudoufu proposed exactly google_compute_firewall.maintenance-firewall-internet (0 add, 1 change, 0 destroy), a declaration-carried object read at the identity its configuration computes, matching stock's own plan on the oracle emulator for the same tamper; apply changed 1 and 0.0.0.0/0 reads back. BREAK=1 tampers the internal firewall as well and the single-object assertion correctly fails"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "49s",
+          "detail": "moved block: google_compute_firewall.maintenance-firewall-internet -\u003e google_compute_firewall.maintenance_firewall_internet, zero churn (no add, change or destroy), the apply touching nothing and the replan empty, the firewall still there (REST); a firewall carries no label, so its record is what followed the block. Stock's plan for the same moved block on the oracle emulator is zero churn too. live-mv is not exercised by this stage, so the moved block is the only rename measured. BREAK=1 renames the firewall itself, which is a genuine identity change and plans a destroy and a create"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m11s",
+          "detail": "deleting google_compute_firewall.maintenance-firewall-internal's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at google_compute_firewall.maintenance-firewall-internal, stock's own address for it - a firewall carries no label, so the estate's record is what proposed the removal - applied cleanly, the firewall gone (REST: 404), the network and the subnetwork it read its range from still there, and the next plan empty; stock's plan for the same removal on the oracle emulator is also exactly one destroy. BREAK_REMOVE=1 keeps the block and no destroy is proposed"
         },
         {
           "id": "day2_count",
           "title": "Change count",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m53s",
+          "detail": "dropping essentialcontacts.googleapis.com from google_project_service.project's for_each destroyed exactly that key (the service left ENABLED, as stock's own destroy left it on the oracle, since the root leaves disable_on_destroy unset; the other four still ENABLED, read with the REST API; the replan empty) - a service carries no label, so the key is found through the record and the configuration's identity; putting it back created exactly that key and the next plan is empty; stock's plans for the same two changes on the oracle emulator have the identical shape. BREAK_COUNT=1 asserts the dropped service differs from stock's and correctly fails"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "2m19s",
+          "detail": "a create_before_destroy rename of a scratch google_storage_bucket.cbd (broadcom-451918-gcve-cbd-a -\u003e broadcom-451918-gcve-cbd-b) planned stock's replace (must be replaced, create first); at -parallelism=1 the apply log shows the new bucket's create complete (line 124) before the deposed object's destroy starts (line 125); only broadcom-451918-gcve-cbd-b remains, read with the REST API, and the next plan is empty. Stock's replace of the same block on the oracle emulator leaves the same single bucket. BREAK_REPLACE=1 recreates the old bucket with the block's labels and the next plan correctly stops being empty. Removing the scratch block then destroyed exactly one bucket on each emulator, choudoufu from the block's record and stock from its state, and neither broadcom-451918-gcve-cbd-a nor broadcom-451918-gcve-cbd-b is left on A or B (REST)"
         },
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m36s",
+          "detail": "an apply creating two buckets was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 walker the instant google_storage_bucket.crash_first's create committed; crash_second's name reads crash_first's, so the walker cannot have reached it, and the REST API confirms the first exists carrying tofu-estate=corpus-k8s-infra-gcp-gcve and the second does not. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, google_storage_bucket.crash_second created) and nothing for crash_first, which it bound by its labels, matching stock's own plan from the same position on the oracle emulator; the recovery apply added exactly one bucket and the plan after it is empty. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips crash_first's labels and the same check correctly fails"
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "49s",
+          "detail": "apply -destroy removed 17 objects in one apply, the same number stock's destroy of the same estate removed on the oracle emulator; no bucket carries tofu-estate=corpus-k8s-infra-gcp-gcve, the unlabelled network, subnetwork and firewall are gone (REST: 404), and each of the five services is in the state stock's own destroy left it in on the oracle (ENABLED for compute.googleapis.com: the root leaves disable_on_destroy unset, so neither destroy disables an API)"
         },
         {
           "id": "plan_approval",
           "title": "Plan, review, apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m8s",
+          "detail": "plan -out wrote one update (the internet firewall gains a description); the world then moved out of band (the internal firewall's sourceRanges, a REST PATCH, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3; with the range put back the identical file applied, 0 added, 1 changed, 0 destroyed, and the description reads back; stock's own planfile applied on the oracle emulator in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m17s",
+          "detail": "16 instances applied fresh with a live block and no terraform.tfstate, the bucket carrying tofu-estate=corpus-k8s-infra-gcp-gcve (REST API); replanned empty with and without the cache; the emulator's inventory (the network, the subnetwork's range, both firewalls' rules, the bucket's location, versioning and storage.admin member, the five services' state, the five roles' members in the project policy) matches stock's cold deploy on the same emulator object by object, labels never compared. BREAK=1 drops the internet firewall from the expected inventory and the match correctly fails"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1s",
+          "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming google_storage_bucket) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         },
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "12s",
+          "detail": "after the greenfield apply's empty plan, deleting both the record store and the state cache made the plan refuse, by name, exactly the four markerless objects holding a declared name (the network, the subnetwork, both firewalls), with no record left to claim them (option A, #2152), and nothing else: the bucket was found by its labels. With the record store put back and the cache still deleted the plan was empty (No changes. Your infrastructure matches the configuration.): the records alone claim the declaration-carried instances. hashicorp/google sent 27 request(s) for that plan against 27 for the cache-serving plan (counted from TF_LOG=debug's request blocks). BREAK_NO_LOCAL_STATE=1 strips the bucket's label and the refusal check correctly fails"
         }
       ]
     },
@@ -4413,107 +4444,138 @@
       "set": "growing",
       "lane": "gcp",
       "substrate": "floci-gcp",
-      "clear": false,
+      "clear": true,
       "source": "hand-written reference shape kept in this repository: a VPC network, a subnetwork, a firewall, a Cloud Storage bucket, a service account, a Pub/Sub topic, a blank boot disk and a Compute instance on it, plus a two-instance count topic, on hashicorp/google 8.6.0; the gcp lane's first estate, run against the floci-gcp emulator (#1119)",
       "script": "live/e2e/reference-gcp/run.sh",
-      "protocol": "legacy",
+      "protocol": "gauntlet",
       "cells": [
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run"
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass"
       ],
-      "runtime_total": "-",
-      "runtime_cells": "none recorded yet",
-      "legacy_note": "Verdicts were recorded from this estate's crossing script by hand before the script spoke the gauntlet protocol; the next run that does will replace them.",
-      "script_stale": "unknown",
-      "script_note": "**Unverified**: whether `live/e2e/reference-gcp` or `live/e2e/lib` has changed since the run recorded above cannot be told from this checkout - this row has recorded no run, so there is nothing to compare the script against. The verdicts above may describe an earlier version of the script (#1264, #1292).",
+      "runtime_total": "5m27s",
+      "runtime_cells": "cold_deploy 1m45s, migrate 16s, test_plan -, test_apply 2s, drift_reconverge 3s, day2_rename 5s, day2_remove 25s, day2_count 10s, day2_replace 6s, day2_crash 12s, day2_teardown 1m2s, plan_approval 5s, greenfield 39s, strict 1s, no_local_state 2s",
+      "last_run_note": "Last run at commit `9bf3d1480b` on 2026-10-21T16:20:16Z, exit code 0, against substrate image `ghcr.io/lex00/floci-gcp@sha256:4e9b7bff6a59f4b87d6130cbfff62e2335d5b00cc5f2e2726b750115320cf376`. Total run time 5m27s.",
+      "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
+      "provider_note": "Provider: hashicorp/google `8.6.0` (matches the current pin).",
+      "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "stage_rows": [
         {
           "id": "cold_deploy",
           "title": "Cold deploy",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m45s",
+          "detail": "10 instances (network, subnetwork, firewall, service account, bucket, topic, boot disk, instance, 2 count topics) from plain terraform against floci-gcp sha256:4e9b7bff6a59, a real terraform.tfstate with 10 instances, zero tofu-estate labels read back with the REST API; the identical shape cold-deployed by stock on a second emulator as every later stage's oracle"
         },
         {
           "id": "migrate",
           "title": "Migrate",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "16s",
+          "detail": "10 of 10 bound: the 6 labelled instances stamped through a labels-only plan and carrying tofu-estate=reference-gcp read back with the REST API; the 4 with no labels argument (network, subnetwork, firewall, service account) skipped for that reason alone, and all 10 identities recorded"
         },
         {
           "id": "test_plan",
           "title": "Replan from nothing",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "-",
+          "detail": "the plan with no state file is empty; all 10 identities (resource names, projects/chdf-refgcp/...) confirmed present with the REST API"
         },
         {
           "id": "test_apply",
           "title": "No-op apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "2s",
+          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=reference-gcp unchanged at 6 across the four labelled types, counted with the REST API"
         },
         {
           "id": "drift_reconverge",
           "title": "Drift and reconverge",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "3s",
+          "detail": "one bucket label tampered with a REST PATCH; choudoufu proposed exactly google_storage_bucket.logs (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle emulator for the same tamper; apply changed 1 and tier=logs reads back. BREAK=1 tampers the topic as well and the single-object assertion correctly fails"
         },
         {
           "id": "day2_rename",
           "title": "Rename",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "5s",
+          "detail": "moved block: google_pubsub_topic.events -\u003e .stream, no add and no destroy, one in-place change confined to the tofu-address label rewrite (0 add, 1 change, 0 destroy), the label reading the encoding of google_pubsub_topic.stream afterwards, read with the REST API; stock's plan for the same moved block on the oracle emulator is zero churn, since stock never writes the label. The moved-block half only: live-mv is not exercised by this stage. BREAK=1 renames the topic itself, which is a genuine identity change and plans a destroy and a create"
         },
         {
           "id": "day2_remove",
           "title": "Remove a block",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "25s",
+          "detail": "deleting google_compute_firewall.ssh's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at google_compute_firewall.ssh, stock's own address for it - a firewall carries no label, so the estate's record for it is what proposed the removal - applied cleanly, the firewall gone (REST: 404), the network it sat on still there, and the next plan empty; stock's plan for the same removal on the oracle emulator is also exactly one destroy. BREAK_REMOVE=1 keeps the block and no destroy is proposed"
         },
         {
           "id": "day2_count",
           "title": "Change count",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "10s",
+          "detail": "scaling google_pubsub_topic.shard from 2 to 1 destroyed exactly google_pubsub_topic.shard[1] (refgcp-shard-0 untouched, both read with the REST API) - the instance key is in the topic's tofu-address label, so the leaving instance is found at its own address; back to 2 created exactly google_pubsub_topic.shard[1]; the next plan is empty; stock's plans for the same two changes on the oracle emulator have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
         },
         {
           "id": "day2_replace",
           "title": "Replace with create_before_destroy",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "6s",
+          "detail": "a create_before_destroy rename of google_pubsub_topic.cbd (refgcp-cbd-a -\u003e refgcp-cbd-b) planned stock's replace (must be replaced, create first); at -parallelism=1 the apply log shows the new topic's create complete (line 93) before the deposed object's destroy starts (line 94); only refgcp-cbd-b remains, read with the REST API, and the next plan is empty. Stock's replace of the same block on the oracle emulator leaves the same single topic. BREAK_REPLACE=1 recreates the old topic with the block's labels and the next plan correctly stops being empty"
         },
         {
           "id": "day2_crash",
           "title": "Crash mid-apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "12s",
+          "detail": "an apply creating two topics was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 walker the instant google_pubsub_topic.crash_first's create committed; crash_second's name reads crash_first's, so the walker cannot have reached it, and the REST API confirms the first exists carrying tofu-estate=reference-gcp and the second does not. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, google_pubsub_topic.crash_second created) and nothing for crash_first, which it bound by its labels, matching stock's own plan from the same position on the oracle emulator; the recovery apply added exactly one topic and the plan after it is empty. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips crash_first's labels and the same check correctly fails"
         },
         {
           "id": "day2_teardown",
           "title": "Teardown",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1m2s",
+          "detail": "apply -destroy removed 11 objects in one apply, the same number stock's destroy of the same estate removed on the oracle emulator; no object of the four labelled types carries tofu-estate=reference-gcp and the unlabelled network, subnetwork and service account are gone (REST: 404)"
         },
         {
           "id": "plan_approval",
           "title": "Plan, review, apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "5s",
+          "detail": "plan -out wrote one update (the events topic gains reviewed=yes); the world then moved out of band (the bucket's declared tier label set to moved, a REST PATCH, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3; with tier=logs put back the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle emulator in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
         },
         {
           "id": "greenfield",
           "title": "Greenfield apply",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "39s",
+          "detail": "10 instances applied fresh with a live block and no terraform.tfstate, the 6 labelled ones carrying tofu-estate=reference-gcp (REST API); replanned empty with and without the cache; the emulator's inventory (the network, the subnetwork's range, the firewall's rule, the service account, the bucket's location and access, the topics, the disk's size and type, the instance's machine type, subnetwork and boot disk) matches stock's cold deploy on the same emulator object by object, labels never compared. BREAK=1 drops the instance from the expected inventory and the match correctly fails"
         },
         {
           "id": "strict",
           "title": "Strict profile (not a headline stage)",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "1s",
+          "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming google_pubsub_topic) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
         },
         {
           "id": "no_local_state",
           "title": "Plan with no local state (not a headline stage)",
-          "verdict": "not run"
+          "verdict": "pass",
+          "duration": "2s",
+          "detail": "after the greenfield apply's empty plan, deleting both the record store and the state cache made the plan refuse, by name, exactly the four markerless objects holding a declared name (the network, the subnetwork, the firewall, the service account), with no record left to claim them (option A, #2152), and nothing else: the six labelled objects were found by their labels. With the record store put back and the cache still deleted the plan was empty (No changes. Your infrastructure matches the configuration.): the records alone claim the declaration-carried instances. hashicorp/google sent 12 request(s) for that plan against 12 for the cache-serving plan (counted from TF_LOG=debug's request blocks). BREAK_NO_LOCAL_STATE=1 strips the bucket's label and the refusal check correctly fails"
         }
       ]
     },
