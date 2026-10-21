@@ -1771,6 +1771,14 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, comp.Literal)
 	}
 	if !failed {
+		if group, ok := emptyAtLeastOneOf(entry.Components, segs); ok {
+			r.errorf(rc.DeclRange, "Identity argument not set",
+				"%s has no value for any of %s; the provider requires at least one of them, so its import identity (%s) cannot be built.",
+				addr.String(), orList(group), entry.ImportSyntax)
+			fail(len(r.pendingSiblingApply), "")
+		}
+	}
+	if !failed {
 		if composed, ok := r.composeLongForms(entry, segs, addr); ok {
 			segs = composed
 		} else {

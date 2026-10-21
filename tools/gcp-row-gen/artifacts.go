@@ -79,6 +79,18 @@ type Source struct {
 	// arguments its id format names, keyed by argument.
 	Defaults map[string]string `json:"defaults,omitempty"`
 
+	// OtherDefaults names the arguments the id format names whose schema
+	// field declares a Default that is not a string literal (`Default:
+	// 443`), which Defaults cannot carry. Either kind rules out rendering
+	// the argument as an empty segment when it is unset.
+	OtherDefaults []string `json:"other_defaults,omitempty"`
+
+	// AtLeastOneOf is the schema's AtLeastOneOf list on the field of an
+	// argument the id format names, keyed by that argument:
+	// google_compute_global_network_endpoint's fqdn declares
+	// []string{"fqdn", "ip_address"}.
+	AtLeastOneOf map[string][]string `json:"at_least_one_of,omitempty"`
+
 	// Derived maps a computed attribute the id format names to the
 	// template the provider's own CustomizeDiff computes it from:
 	// `diff.SetNew("email", fmt.Sprintf("%s@%s.iam.gserviceaccount.com",

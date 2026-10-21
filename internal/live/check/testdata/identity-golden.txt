@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=725 instances=2514
-# shape: class CONCRETE=1560
+# shape: dirs=726 instances=2520
+# shape: class CONCRETE=1566
 # shape: class NEEDS_DISCOVERY=789
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=694 fixture-instances=1810
+# shape: fixture-dirs=695 fixture-instances=1816
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=bc19900b0ce3e3b47592d7f3901b71869839044ec0a771160c518390dccb5f4c
+# shape: body-sha256=1af560e05d6f4453c31e04b4ce29c5d8a4796c642444d8c76436a0220d27edaf
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -382,6 +382,12 @@ internal/live/identity/testdata/gcp-create-named	google_data_loss_prevention_ins
 internal/live/identity/testdata/gcp-create-named	google_data_loss_prevention_inspect_template.unnamed	NEEDS_DISCOVERY		
 internal/live/identity/testdata/gcp-create-named	google_dialogflow_generator.summary	CONCRETE	projects/estate-prod/locations/global/generators/summary	name=projects/estate-prod/locations/global/generators/summary
 internal/live/identity/testdata/gcp-create-named	google_scc_v2_organization_notification_config.findings	CONCRETE	organizations/123456789/locations/global/notificationConfigs/findings	name=organizations/123456789/locations/global/notificationConfigs/findings
+internal/live/identity/testdata/gcp-empty-segment	google_compute_global_network_endpoint.by_fqdn	CONCRETE	estate-prod/neg//api.example.com/443	fqdn=api.example.com,global_network_endpoint_group=neg,port=443
+internal/live/identity/testdata/gcp-empty-segment	google_compute_global_network_endpoint.by_ip	CONCRETE	estate-prod/neg/10.0.0.1//80	global_network_endpoint_group=neg,ip_address=10.0.0.1,port=80
+internal/live/identity/testdata/gcp-empty-segment	google_compute_global_network_endpoint.null_fqdn	CONCRETE	estate-prod/neg/10.0.0.9//80	global_network_endpoint_group=neg,ip_address=10.0.0.9,port=80
+internal/live/identity/testdata/gcp-empty-segment	google_compute_network_endpoint.no_instance	CONCRETE	estate-prod/europe-west1-b/zneg//10.0.0.3/80	ip_address=10.0.0.3,network_endpoint_group=zneg,port=80
+internal/live/identity/testdata/gcp-empty-segment	google_compute_region_network_endpoint.by_fqdn	CONCRETE	estate-prod/europe-west1/rneg//db.example.com/5432	fqdn=db.example.com,port=5432,region_network_endpoint_group=rneg
+internal/live/identity/testdata/gcp-empty-segment	google_compute_region_network_endpoint.by_ip	CONCRETE	estate-prod/europe-west1/rneg/10.0.0.2//8080	ip_address=10.0.0.2,port=8080,region_network_endpoint_group=rneg
 internal/live/identity/testdata/gcp-handwritten	google_app_engine_application.app	CONCRETE	estate-prod	
 internal/live/identity/testdata/gcp-handwritten	google_cloudfunctions_function.fn	CONCRETE	projects/estate-prod/locations/europe-west1/functions/fn	name=fn
 internal/live/identity/testdata/gcp-handwritten	google_compute_shared_vpc_host_project.host	CONCRETE	host-prj	project=host-prj

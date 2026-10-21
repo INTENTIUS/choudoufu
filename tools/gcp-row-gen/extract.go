@@ -308,6 +308,14 @@ func resourceSource(text string) Source {
 				s.Defaults = map[string]string{}
 			}
 			s.Defaults[name] = v
+		} else if schemaHasDefault(text, name) {
+			s.OtherDefaults = append(s.OtherDefaults, name)
+		}
+		if group := schemaAtLeastOneOf(text, name); group != nil {
+			if s.AtLeastOneOf == nil {
+				s.AtLeastOneOf = map[string][]string{}
+			}
+			s.AtLeastOneOf[name] = group
 		}
 		if tmpl, ok := customizeDiffDerivation(text, name); ok {
 			if s.Derived == nil {
@@ -338,11 +346,12 @@ func idFromResponse(text string) string {
 	return ""
 }
 
-// schemaDefault reads the string Default the file's schema map declares for
-// a top-level argument: a `"name": {` field opening, up to the closing brace
-// at the same indentation. The identity schema's own field of the same name
-// (RequiredForImport or OptionalForImport) is skipped.
-func schemaDefault(text, name string) (string, bool) {
+// schemaField is the text of the schema map's field for a top-level
+// argument: a `"name": {` field opening, up to the closing brace at the
+// same indentation, with the indentation it opened at. The identity
+// schema's own field of the same name (RequiredForImport or
+// OptionalForImport) is skipped.
+func schemaField(text, name string) (field, indent string, ok bool) {
 	open := regexp.MustCompile(`\n(\t+)"` + regexp.QuoteMeta(name) + `": \{\n`)
 	for _, loc := range open.FindAllStringSubmatchIndex(text, -1) {
 		indent := text[loc[2]:loc[3]]
@@ -355,13 +364,47 @@ func schemaDefault(text, name string) (string, bool) {
 		if strings.Contains(field, "ForImport:") {
 			continue
 		}
-		m := regexp.MustCompile(`\n` + indent + `\tDefault:\s*"([^"]*)",`).FindStringSubmatch("\n" + field)
-		if m == nil {
-			return "", false
-		}
-		return m[1], true
+		return field, indent, true
 	}
-	return "", false
+	return "", "", false
+}
+
+// schemaDefault reads the string Default the file's schema map declares for
+// a top-level argument.
+func schemaDefault(text, name string) (string, bool) {
+	field, indent, ok := schemaField(text, name)
+	if !ok {
+		return "", false
+	}
+	m := regexp.MustCompile(`\n` + indent + `\tDefault:\s*"([^"]*)",`).FindStringSubmatch("\n" + field)
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
+}
+
+// schemaHasDefault is true when the field declares any Default at all, a
+// string or otherwise (`Default: 443`, `Default: false`): what
+// schemaDefault cannot carry as a value still rules out an empty segment.
+func schemaHasDefault(text, name string) bool {
+	field, indent, ok := schemaField(text, name)
+	if !ok {
+		return false
+	}
+	return regexp.MustCompile(`\n` + indent + `\tDefault:`).MatchString("\n" + field)
+}
+
+// schemaAtLeastOneOf is the field's AtLeastOneOf list, or nil.
+func schemaAtLeastOneOf(text, name string) []string {
+	field, indent, ok := schemaField(text, name)
+	if !ok {
+		return nil
+	}
+	m := regexp.MustCompile(`\n` + indent + `\tAtLeastOneOf:\s*\[\]string\{([^}]*)\}`).FindStringSubmatch("\n" + field)
+	if m == nil {
+		return nil
+	}
+	return unquoteAll(m[1])
 }
 
 // customizeDiffDerivation recognises a computed attribute the provider's own

@@ -413,6 +413,9 @@ func renderComponent(c identity.Component) string {
 	if c.Default != "" {
 		f = append(f, fmt.Sprintf("Default: %q", c.Default))
 	}
+	if len(c.AtLeastOneOf) > 0 {
+		f = append(f, "AtLeastOneOf: "+renderStrings(c.AtLeastOneOf))
+	}
 	if c.ServerAssignedIfAbsent {
 		f = append(f, "ServerAssignedIfAbsent: true")
 	}
