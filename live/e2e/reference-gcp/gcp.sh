@@ -313,7 +313,11 @@ if not any(ok):
     print("both applies failed (exit %d: %s; exit %d: %s)" % (runs[0][1], first_error(runs[0][0]), runs[1][1], first_error(runs[1][0]))); sys.exit(1)
 w = ok.index(True); l = 1 - w
 lo = runs[l][0]
-if not (re.search(r"^Error: Record store write conflict", lo, re.M) and "time_sleep.race" in lo and "Nothing was overwritten" in lo):
+# tofu wraps a diagnostic's body, so the address and "Nothing was
+# overwritten" can each straddle a line break (the first gcs run); match
+# them on the body with its whitespace collapsed.
+flat = " ".join(lo.split())
+if not (re.search(r"^Error: Record store write conflict", lo, re.M) and "time_sleep.race" in flat and "Nothing was overwritten" in flat):
     print("apply %d failed (exit %d) but not with the store's write conflict on time_sleep.race: %s" % (l + 1, runs[l][1], first_error(lo))); sys.exit(1)
 print(w + 1, l + 1)
 PY

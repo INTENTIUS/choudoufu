@@ -1105,7 +1105,9 @@ apply_stub() {
     sleep 0.2
     if [ -n "${RACE_BOTH_OK:-}" ]; then printf '\nApply complete! Resources: 1 added, 0 changed, 0 destroyed.\n'; return 0; fi
     if [ -n "${RACE_OTHER_ERR:-}" ]; then printf '\nError: Cannot persist a record\n'; return 1; fi
-    printf '\nError: Record store write conflict\n\nWriting the persisted record for time_sleep.race failed: another writer changed it between this run'"'"'s plan and apply. This run expected version "(absent)" and the store now holds version "1761004800000". Nothing was overwritten. Re-plan and re-apply to reconcile with the other writer'"'"'s change.\n'
+    # Wrapped exactly as tofu printed it in the first gcs run: the address
+    # and "Nothing was overwritten" each straddle a line break.
+    printf '\nError: Record store write conflict\n\nWriting the persisted record for time_sleep.race failed: another writer\nchanged it between this run'"'"'s plan and apply. This run expected version "(no\nrecord)" and the store now holds version "1792615775369". Nothing was\noverwritten. Re-plan and re-apply to reconcile with the other writer'"'"'s\nchange.\n'
     return 1
   fi
   if [ -f firewall.tf ]; then
