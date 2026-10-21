@@ -59,3 +59,29 @@ func TestGoogleSweepFindsNothingUnadmitted(t *testing.T) {
 		}
 	}
 }
+
+// TestGoogleUnrecorded: the 2026-10-20 ruling's per-type answer, read off
+// each type's Create at the provider pin. A create that cannot collide
+// plans; one Google refuses at a held name stops; an unseen type stops.
+func TestGoogleUnrecorded(t *testing.T) {
+	for typeName, want := range map[string]Unrecorded{
+		"google_project_service":       UnrecordedCreates,  // its Create takes a service already enabled
+		"google_project_iam_member":    UnrecordedCreates,  // setIamPolicy read-modify-write
+		"google_project_iam_binding":   UnrecordedCreates,  // setIamPolicy read-modify-write
+		"google_project_iam_policy":    UnrecordedCreates,  // setIamPolicy read-modify-write
+		"google_compute_firewall":      UnrecordedNameHeld, // POST to a collection, 409 alreadyExists
+		"google_compute_network":       UnrecordedNameHeld,
+		"google_service_account":       UnrecordedNameHeld,
+		"google_compute_router_nat":    UnrecordedNameHeld, // a PATCH that refuses an existing NAT
+		"google_not_a_type_at_the_pin": UnrecordedNameHeld,
+	} {
+		if got := Google.Unrecorded(typeName); got != want {
+			t.Errorf("Google.Unrecorded(%q) = %q, want %q", typeName, got, want)
+		}
+	}
+	for typeName := range googleUnrecordedCreates {
+		if _, dup := googleUnrecordedNameHeld[typeName]; dup {
+			t.Errorf("%s is in both generated tables", typeName)
+		}
+	}
+}

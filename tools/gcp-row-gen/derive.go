@@ -669,6 +669,15 @@ func sameIdentitySource(a, b Source) bool {
 	a.APIService, b.APIService = "", ""
 	a.CAINameFormats, b.CAINameFormats = nil, nil
 	a.DocImportFormats, b.DocImportFormats = nil, nil
+	// What the Create sends decides the 2026-10-20 ruling's answer
+	// (unrecorded.go), never the identity.
+	a.CreateFunc, b.CreateFunc = "", ""
+	a.CreateMethods, b.CreateMethods = nil, nil
+	a.CreateCustom, b.CreateCustom = "", ""
+	a.CreateSetCalls, b.CreateSetCalls = nil, nil
+	a.CreateNewCalls, b.CreateNewCalls = nil, nil
+	a.CreateAdopts, b.CreateAdopts = false, false
+	a.CreateRefusesExisting, b.CreateRefusesExisting = "", ""
 	return reflect.DeepEqual(providerNeutral(a), providerNeutral(b))
 }
 

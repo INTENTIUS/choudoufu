@@ -11,13 +11,13 @@ prompt: >-
 |---|---|---|
 | The cache | One slower plan | Run `choudoufu plan` |
 | Your working copy | One slower plan | Check it out and plan |
-| Markers on live resources | Those resources look unowned | Find who untagged them |
-| The record store | Record-backed resources and a few untagged AWS types | The steps below |
+| Markers on live resources | Those resources look unowned | Find who removed them; on Kubernetes `managedFields` names the manager |
+| The record store | Record-backed resources, a few untagged AWS types, and untagged objects on other providers | The steps below |
 
 Most resources come back from their markers.
 
-1. Leave records and tags as they are.
-2. Restore the record store if you can. Removing a bucket record's delete
+1. Leave records and markers as they are.
+2. Restore the record store if you can. On S3, removing a record's delete
    marker restores it while the noncurrent version lasts, with the
    [recovery permissions](../bucket/#what-a-recovery-needs). If that works, stop.
 3. Run `choudoufu init`, then `choudoufu plan -adoption-only`.
@@ -36,5 +36,10 @@ Most resources come back from their markers.
 6. Plan again and read why anything stays unbound.
 
 A record-backed resource such as `random_pet` regenerates without its record.
+On a provider other than AWS, an untagged object with no record is no longer
+adopted from its configured identity: the plan warns `Unrecorded live object
+at a declared identity` and proposes the create. Restore the store, run
+`live-import`, or set `policy { declared_untagged = "adopt" }` for one apply
+once you know the objects are yours.
 [`live/RECOVERY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/RECOVERY.md)
 has a worked example.

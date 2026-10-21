@@ -303,3 +303,28 @@ func (google) HoldRecognition() HoldRecognition {
 		Keys:      keys,
 	}
 }
+
+// Unrecorded answers per type from what the type's Create sends at the
+// provider pin (google_unrecorded_generated.go, written by
+// tools/gcp-row-gen): [UnrecordedCreates] where a create at an identity
+// something already holds cannot collide (an IAM member, binding or policy,
+// whose create is a setIamPolicy read-modify-write; a project service,
+// whose Create takes a service it finds already enabled; a create sent as
+// PATCH or PUT), and [UnrecordedNameHeld] everywhere else, where Google
+// answers 409 alreadyExists or the source shows nothing either way. A type
+// the table has never seen is name-held too, the safe side.
+func (google) Unrecorded(typeName string) Unrecorded {
+	if _, ok := googleUnrecordedCreates[typeName]; ok {
+		return UnrecordedCreates
+	}
+	return UnrecordedNameHeld
+}
+
+// UnrecordedCounts is how many labelless types take each answer, for
+// live/SUBSTRATES.md (tools/substrates-gen).
+func (google) UnrecordedCounts() map[Unrecorded]int {
+	return map[Unrecorded]int{
+		UnrecordedCreates:  len(googleUnrecordedCreates),
+		UnrecordedNameHeld: len(googleUnrecordedNameHeld),
+	}
+}

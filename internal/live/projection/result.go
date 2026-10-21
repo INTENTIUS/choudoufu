@@ -82,15 +82,6 @@ type Result struct {
 	// what is missing".
 	Unowned []Unowned
 
-	// Released lists the declared instances whose live object this estate's
-	// own apply destroyed and left in place: the record holds a tombstone
-	// for the identity the object is found at, and no current identity
-	// (see [builder.releasedByOwnDestroy]). Each also appears in Omitted
-	// with [ReasonAbsent], and the plan proposes a create, as stock's does.
-	// The plan-node seam must not resolve them to an import either, so the
-	// command layer adds them to [NodeResolver.Unowned].
-	Released []addrs.AbsResourceInstance
-
 	// RecordVersions lists the store version read at plan time for every
 	// GitHub issue #73 record-backed instance whose record actually
 	// existed, in address order. Write-back (WriteBack) uses this as the

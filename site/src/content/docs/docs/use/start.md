@@ -12,8 +12,9 @@ prompt: >-
 Use this page for an empty estate where choudoufu creates every resource.
 
 :::caution
-If AWS already holds these resources, [migrate the estate](../migrate/)
-first. Applying against unmarked resources creates duplicates.
+If your account or cluster already holds these resources,
+[migrate the estate](../migrate/) first. Applying against unmarked resources
+creates duplicates on AWS and refuses by name on Kubernetes.
 :::
 
 ## Install
@@ -40,17 +41,20 @@ Create `estate.chdf.hcl` beside your configuration and remove any `backend` or
 estate = "my-estate"
 ```
 
-Every resource is tagged with the estate name. Your `.tf` files stay
-unchanged. Delete the file to revert.
+Every resource is marked with the estate name: tags on AWS, a label on
+Kubernetes. Your `.tf` files stay unchanged. Delete the file to revert.
 
 Records go to a local `.tofu-records` directory. Add it to `.gitignore` before
 the first run, because it holds generated secrets. A team can share records in
-a bucket with `record_store "s3"` once [the bucket exists](../setup/).
+a bucket with `record_store "s3"`, or in the cluster with
+`record_store "kubernetes"`, once [the store exists](../setup/).
 
 A `live` block inside `terraform` takes the same content. Stock Terraform
 rejects that block, so prefer the sidecar file.
 
 ## A first configuration
+
+An AWS estate:
 
 ```hcl
 # AWS assigns the ID, so ownership comes back only from a tag.
@@ -64,6 +68,21 @@ resource "aws_s3_bucket" "data" {
 }
 ```
 
+A Kubernetes estate, with the provider reading your kubeconfig:
+
+```hcl
+# Namespace and name are the identity. The label marks the owner.
+resource "kubernetes_config_map" "app" {
+  metadata {
+    name      = "app-config"
+    namespace = "default"
+  }
+  data = {
+    greeting = "hello"
+  }
+}
+```
+
 ## Apply
 
 ```
@@ -71,7 +90,7 @@ choudoufu init
 choudoufu apply
 ```
 
-The diff shows the markers on each resource.
+The diff shows the markers on each resource, two tags on AWS:
 
 ```
   # aws_vpc.main will be created
@@ -84,15 +103,18 @@ The diff shows the markers on each resource.
     }
 ```
 
+For Kubernetes the diff adds `tofu-estate` to `metadata.labels` and the
+address to the `choudoufu.intentius.io/tofu-address` annotation.
 [`live/MARKERS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md)
-specifies the two tags.
+specifies both.
 
 ## Check that the markers carry it
 
-Run `choudoufu plan` again. It reads the tags and reports no changes.
+Run `choudoufu plan` again. It reads the markers and reports no changes.
 
 ## Next
 
 - [What you set up by hand](../setup/)
 - [Day-2 operations](../day2/)
-- [Compatibility](../../../aws/compatibility/)
+- Compatibility on [AWS](../../../aws/compatibility/) or
+  [Kubernetes](../../../kubernetes/compatibility/)

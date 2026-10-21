@@ -16,11 +16,12 @@ prompt: >-
 | Markers on resources choudoufu creates | The apply |
 | Markers on resources that already exist | You, by [migrating](../migrate/) |
 
-## Credentials and region
+## Credentials
 
-Credentials come from the usual SDK chain. A live plan reads widely, so set
-`AWS_PROFILE` on purpose. A missing region or credential fails with
-`Error: Provider unavailable for marker discovery`.
+A live plan reads widely, so pick its credential on purpose. On AWS it comes
+from the usual SDK chain, so set `AWS_PROFILE` and a region. On Kubernetes the
+provider reads your kubeconfig, or `KUBE_CONFIG_PATH`. A missing credential
+fails with `Error: Provider unavailable for marker discovery`.
 
 Pin `required_providers` to the `provider_version` in `live/survey.json` for a
 quiet first plan. Other versions print a warning.
@@ -50,8 +51,10 @@ estate = "my-estate"
 Create the bucket or namespace outside the estate that uses it. The plan opens
 the store first, so a store the estate declares fails with `NoSuchBucket`.
 
-[Set up a record store bucket](../bucket/) has the commands. A Kubernetes
-namespace defaults to `tofu-records-<estate>`.
+[Set up a record store bucket](../bucket/) has the commands for AWS. On
+Kubernetes the namespace defaults to `tofu-records-<estate>`, and
+[`examples/record-store-cluster`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-cluster/README.md)
+creates it with a plan Role and an apply Role.
 
 ## Permissions
 
@@ -61,6 +64,11 @@ store no run has opened is refused by name.
 A role scoped to fewer services prints an `Incomplete sweep` warning per type
 it cannot list.
 
-Adoption needs the service's tagging action, such as `ec2:CreateTags`.
+On AWS, adoption needs the service's tagging action, such as
+`ec2:CreateTags`.
 [`live/IAM-REFERENCE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/IAM-REFERENCE.md)
 lists the actions per stage, store and service.
+
+On Kubernetes, a cluster admin installs the admission policy once to fence
+writes by estate, and each writer then needs `use` on its estate through a
+ClusterRole and binding ([the gate](../../../kubernetes/gate/)).

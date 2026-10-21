@@ -136,5 +136,6 @@
  "/docs/use/storage/": "https://github.com/INTENTIUS/choudoufu/blob/main/live/STORAGE.md",
  "/docs/what-you-pay/": "https://github.com/INTENTIUS/choudoufu/blob/main/live/PLAN-CONE.md",
  "/evidence/": "/choudoufu/",
- "/how-it-works/effects/": "https://github.com/INTENTIUS/choudoufu/blob/main/live/RECEIPTS.md"
+ "/how-it-works/effects/": "https://github.com/INTENTIUS/choudoufu/blob/main/live/RECEIPTS.md",
+ "/start/": "/choudoufu/docs/use/start/"
 }

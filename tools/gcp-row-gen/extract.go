@@ -299,6 +299,7 @@ func resourceSource(text string) Source {
 	}
 	readImporterShapes(&s, text)
 	readCreateName(&s, text)
+	readCreateWrites(&s, text)
 	readLocationSet(&s, text)
 	s.IDFromResponse = idFromResponse(text)
 	for _, name := range placeholders(s.IDFormat) {

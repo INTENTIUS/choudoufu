@@ -252,6 +252,35 @@ type Source struct {
 	// BasePath) when the resource has no value for them. Any other
 	// placeholder the schema lacks renders empty (location.go).
 	ConfigPlaceholders []string `json:"config_placeholders,omitempty"`
+
+	// The CreateWrite* fields are what the type's Create sends, read for
+	// the ruling of 2026-10-20 (createwrite.go): whether a create at an
+	// identity something already holds collides with it.
+	//
+	// CreateFunc is the function the type's schema.Resource registers as
+	// its Create, when this file defines it. CreateMethods are the HTTP
+	// methods its SendRequest calls name, in order; CreateCustom the
+	// custom method the create URL ends in ("setAddons" for
+	// ".../organizations/{{org}}:setAddons"). CreateSetCalls and
+	// CreateNewCalls are the API calls it makes whose names begin with a
+	// set verb (Set..., set...) or a create verb (Insert, Create, Add),
+	// other than on d and tpgresource. CreateAdopts is set when the
+	// Create, before any write, returns success from a branch that sets
+	// the id and calls nothing but d.Set, d.SetId, logging and
+	// tpgresource.SetResourceIdentityAttributes: it takes an object it
+	// found instead of creating one.
+	CreateFunc     string   `json:"create_func,omitempty"`
+	CreateMethods  []string `json:"create_methods,omitempty"`
+	CreateCustom   string   `json:"create_custom,omitempty"`
+	CreateSetCalls []string `json:"create_set_calls,omitempty"`
+	CreateNewCalls []string `json:"create_new_calls,omitempty"`
+	CreateAdopts   bool     `json:"create_adopts,omitempty"`
+
+	// CreateRefusesExisting is the first error message in the file that
+	// says an object is already there ("Unable to create RouterNat,
+	// existing object already found: %+v"): a create sent as a PATCH of
+	// a parent that still refuses a name the parent already holds.
+	CreateRefusesExisting string `json:"create_refuses_existing,omitempty"`
 }
 
 // ImportNameSet is one importer's `d.Set(Attr, Template)` after

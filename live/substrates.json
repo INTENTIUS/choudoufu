@@ -51,7 +51,8 @@
           "declaration-carried": 379,
           "excluded by design": 2,
           "record-carried": 471
-        }
+        },
+        "unrecorded": "parent-owned"
       },
       "fence": "IAM conditions on aws:ResourceTag, reads and writes, per principal (live/MARKERS.md).",
       "harness": {
@@ -111,6 +112,11 @@
         "by_tier": {
           "declaration-carried": 958,
           "record-carried": 209
+        },
+        "unrecorded": "name-held",
+        "unrecorded_by_type": {
+          "creates": 562,
+          "name-held": 605
         }
       },
       "fence": "Project-scoped, restated: an IAM condition cannot match a label, so one estate per project, granted by an ordinary project IAM binding. Resource Manager tag bindings, which a condition can match, are ruled later (#1121).",
@@ -174,7 +180,8 @@
       "untaggable": {
         "definition": "an admitted Kubernetes type whose schema carries no metadata.labels block (live/readiness.json kubernetes.types facts.label_surface=false)",
         "count": 0,
-        "by_tier": {}
+        "by_tier": {},
+        "unrecorded": "creates"
       },
       "fence": "One ValidatingAdmissionPolicy, writes only, enforced per principal through the cluster's authorizer.",
       "harness": {

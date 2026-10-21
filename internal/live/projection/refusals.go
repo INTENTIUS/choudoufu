@@ -315,6 +315,11 @@ var refusals = []Refusal{
 		What:    "The record saying which live object a markerless resource owns could not be read: the store failed, the payload did not decode, or it names a different resource address. Reading on would bind the instance to another object's identity.",
 	},
 	{
+		Summary: SummaryUnrecordedMarkerless,
+		What:    "The maintainer's ruling of 2026-10-20: a declared instance of a type with no marker surface was read live at the identity its configuration computes, and the estate's record store holds no record of it, so nothing says this estate made the object. It is left out of the prior state and the plan proposes the create, as stock does for an object its state does not hold. A destroy that left the object in place (a google_project_service with disable_on_destroy unset) and a lost record store both end here. AWS types are unaffected: their untaggable types are attachments owned through their tagged parents. Restoring the record store, live-import from a state file, or policy { declared_untagged = \"adopt\" } admits the object.",
+		Warning: true,
+	},
+	{
 		Summary: SummaryStaleRecord,
 		What:    "GitHub issue #364 unit B's universal record-first read found an object through the estate's record store, but the object's own tofu-address marker does not confirm it - it names a different address, or (for a taggable type) there is no address marker at all. The record is treated as absent rather than as a claim to defend: the instance falls back to marker discovery or static derivation, exactly as if no record existed for it. Always a warning; the plan that follows is correct either way.",
 	},
@@ -364,7 +369,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryNameHeld,
-		What:    "GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = \"adopt\" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected.",
+		What:    "GitHub issue #1546: a declared built-in Kubernetes object (a type whose schema carries metadata.labels) was read on the cluster at the namespace and name its block declares, and it carries no tofu-estate label. Under declared_untagged's default the plan would propose creating it, which the API server refuses with 409 AlreadyExists while the unlabelled object holds the name, so the run stops instead. policy { declared_untagged = \"adopt\" } adopts the object, and writing tofu-estate=<estate> onto it does the same by hand. An absent object never triggers this; nor does a *_default_* type such as kubernetes_default_service_account, whose create adopts the existing object; kubernetes_manifest is left to the server's own dry run, and AWS types are unaffected. The same refusal stops a declared markerless instance with no record whose provider family says a create at a held identity collides (the 2026-10-20 ruling): the google family says so for a type whose create Google refuses with 409 alreadyExists at a held name, such as google_compute_firewall, and for a labelless type whose create the provider source does not show either way.",
 	},
 	{
 		Summary: "Unsupported resource type for the provider",

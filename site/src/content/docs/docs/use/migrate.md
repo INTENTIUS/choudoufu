@@ -26,14 +26,16 @@ This runs offline and prints a verdict with each refusal and its fix. Run
 `choudoufu init` first so provider schemas let it admit more. `-json` prints
 the same verdict as one document.
 
-Then plan against a non-production account.
+Then plan against a non-production account or cluster.
 [`live/COMPATIBILITY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/COMPATIBILITY.md)
-explains each refusal.
+explains each AWS refusal and
+[Kubernetes compatibility](../../../kubernetes/compatibility/) each Kubernetes one.
 
 ## Keep the state file
 
 Keep `terraform.tfstate`. It is the input to `live-import` and your way back to
-stock. For remote state, run `tofu state pull > terraform.tfstate`.
+stock. For remote state, including the `kubernetes` backend's Secret, run
+`tofu state pull > terraform.tfstate`.
 
 ## With a state file: two commands
 
@@ -44,9 +46,10 @@ choudoufu live-import -state=terraform.tfstate -estate=my-estate
 choudoufu live-import -state=terraform.tfstate -estate=my-estate -approve
 ```
 
-The first prints a dry report. The second tags every `VERIFIED` or `DRIFTED`
-entry and leaves the state file as it was. The report explains each entry it
-skips. This works on AWS and Kubernetes.
+The first prints a dry report. The second marks every `VERIFIED` or
+`DRIFTED` entry and leaves the state file as it was: tags on AWS, the
+`tofu-estate` label and address annotation on Kubernetes. The report explains
+each entry it skips.
 
 ## Without a state file
 
@@ -59,14 +62,17 @@ This path skips `count` and `for_each` instances.
 3. Execute those commands as printed.
 4. Run `choudoufu plan` again. Adopted resources report no changes.
 
+On Kubernetes, step 2 stops on each unlabelled object that holds a declared
+name. Set `policy { declared_untagged = "adopt" }` to adopt them instead.
+
 Keep the sidecar from then on. A stock plan with no state file proposes
 rebuilding the estate.
 
 ## Getting back out
 
 Copy `.terraform/choudoufu-cache.tfstate` to `terraform.tfstate` and remove the
-`live` block. Stock OpenTofu's first plan proposes removing only the marker
-tags. choudoufu refuses that plan. To leave on purpose, run
+`live` block. Stock OpenTofu's first plan proposes removing only the
+markers. choudoufu refuses that plan. To leave on purpose, run
 `CHOUDOUFU_UNMIGRATE=my-estate choudoufu apply`.
 [`live/MIGRATE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/MIGRATE.md)
 has the rest.

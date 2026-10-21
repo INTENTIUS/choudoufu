@@ -137,9 +137,13 @@ the definitions, including the caveat that matters most here: a
 declaration-carried instance derived from a parent is only as recoverable as
 that parent.
 
+Those tiers are measured on `hashicorp/aws`. On another provider family a
+markerless type's configured identity is not enough on its own any more:
+see "Markerless objects outside AWS" below.
+
 ## What does not come back
 
-Two populations, and they are not the same kind of loss.
+Three populations, and they are not the same kind of loss.
 
 ### Resources with no cloud object at all
 
@@ -197,6 +201,37 @@ same as "recovers" - see the honest edge at the end of this page for what you
 can actually do about it.
 
 The dangerous subset is where the duplicate succeeds.
+
+### Markerless objects outside AWS
+
+Since the maintainer's ruling of 2026-10-20, a declared instance whose type
+has no marker surface and which has no record is not owned, even when an
+object is live at the identity its configuration computes. Before it, a
+lost record store cost such an instance nothing: the plan re-derived the
+identity and adopted whatever was there, which is also how an object
+somebody else made at that name, or one a destroy left in place, was
+silently taken over.
+
+Now a lost record store leaves every such instance of a provider family
+other than AWS out of the prior state. The plan warns `Unrecorded live
+object at a declared identity` for each one and proposes creating it. Where
+the create is idempotent, enabling a `google_project_service` that is
+already enabled, applying it is harmless and the apply writes the record
+back. Where the identity is unique, a `google_compute_firewall` name, the
+apply fails at the provider while the old object holds it; a family that
+knows its creates collide stops the plan at
+`Unlabelled live object holds the declared name` instead, and none does
+today (`live/SUBSTRATES.md`).
+
+AWS is unchanged. Its untaggable types are attachments and associations
+whose ownership is their tagged parents', so they still re-derive and bind
+with no record, and the Kubernetes patch types judged by field manager are
+unchanged too.
+
+To take the objects back after checking they are yours: restore the store
+(step 2 below), or run `live-import` against a state file that holds them
+(step 5), or set `policy { declared_untagged = "adopt" }` in the live block
+for one plan and apply, which admits them and records them, then remove it.
 
 ### `aws_iam_access_key`, worked
 

@@ -92,11 +92,16 @@ type Output struct {
 	// (identityimport.go), rendered as IdentityImportsRaw.
 	IdentityImports    []IdentityImportDecision
 	IdentityImportsRaw []byte
+
+	// Unrecorded is each labelless type's answer to the 2026-10-20 ruling
+	// (unrecorded.go), rendered as UnrecordedRaw.
+	Unrecorded    []UnrecordedDecision
+	UnrecordedRaw []byte
 }
 
 // Files maps each output to its repository-relative path.
 func (o Output) Files() map[string][]byte {
-	return map[string][]byte{TableGoRel: o.Table, SurveyJSONRel: o.SurveyRaw, ImportIDsGoRel: o.ImportIDs, IdentityImportsGoRel: o.IdentityImportsRaw}
+	return map[string][]byte{TableGoRel: o.Table, SurveyJSONRel: o.SurveyRaw, ImportIDsGoRel: o.ImportIDs, IdentityImportsGoRel: o.IdentityImportsRaw, UnrecordedGoRel: o.UnrecordedRaw}
 }
 
 // Generate is the whole derivation from the three evidence artifacts.
@@ -207,6 +212,11 @@ func Generate(ev Evidence, facts Facts, names AssetNames) (Output, error) {
 
 	out.IdentityImports = deriveIdentityImports(ev, byType)
 	if out.IdentityImportsRaw, err = renderIdentityImports(out.IdentityImports); err != nil {
+		return Output{}, err
+	}
+
+	out.Unrecorded = deriveUnrecorded(ev, out.Decisions)
+	if out.UnrecordedRaw, err = renderUnrecorded(out.Unrecorded); err != nil {
 		return Output{}, err
 	}
 	return out, nil

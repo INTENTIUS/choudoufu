@@ -79,6 +79,13 @@ func (aws) MarkerOutlivesObject() bool { return true }
 
 func (aws) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
 
+// Unrecorded is [UnrecordedParentOwned]: an untaggable AWS type is an
+// attachment, association or policy identified by a composite of tagged
+// parents, so it is admitted at its declared identity with no record, as
+// before the 2026-10-20 ruling. AWS also never refuses on a name collision
+// ([aws.CreateCollidesOnKey]).
+func (aws) Unrecorded(string) Unrecorded { return UnrecordedParentOwned }
+
 // ---- GitHub issue #1584: the answers the projection's shadow enum held ----
 
 // CreateCollidesOnKey is false: AWS is out of scope of #1546's ruling.

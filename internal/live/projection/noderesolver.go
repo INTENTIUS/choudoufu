@@ -330,10 +330,23 @@ func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.A
 		}
 	}
 
+	// The maintainer's ruling of 2026-10-20, the node's half of
+	// [builder.unrecordedMarkerless]: (a) found no record, and a markerless
+	// instance with no record is not owned, so neither (b) nor (c) may
+	// import the object its configuration names. Both would: (b)'s index
+	// carries the static evaluator's configuration-derived resolution, and
+	// (c) derives the same identity from the evaluated value. Where (c)
+	// derives one, not found plans the create; where it cannot, the
+	// refusals below stand as before. The pre-walk projection has already
+	// reported the object it left out (or stopped the plan with the
+	// name-held refusal), and this also covers an instance that projection
+	// never reached.
+	notOwned := n.RecordStore != nil && unrecordedNotOwned(n.providerType(addr), addr.Resource.Resource.Type, schema)
+
 	// (b) The marker sweep's own index - #364's read half, computed
 	// pre-walk and handed to this resolver as a snapshot (see
 	// [NewMarkerIndex]).
-	if target, ok := n.MarkerIndex[addr.String()]; ok {
+	if target, ok := n.MarkerIndex[addr.String()]; ok && !notOwned {
 		if target.IsIDBased() || target.IsIdentityBased() {
 			return target, true, diags
 		}
@@ -385,6 +398,9 @@ func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.A
 				w.importID = importID
 			}
 			if target := importTarget(w, schema); target.IsIDBased() || target.IsIdentityBased() {
+				if notOwned {
+					return providers.ImportTarget{}, false, diags
+				}
 				return target, true, diags
 			}
 		}
@@ -491,6 +507,28 @@ func (n *NodeResolver) ResolveResourceIdentity(ctx context.Context, addr addrs.A
 		addr, addr.Resource.Resource.Type,
 	)))
 	return providers.ImportTarget{}, false, diags
+}
+
+// unrecordedNotOwned reports whether a declared instance of typeName, under
+// a provider of providerType, with no record, is not owned under the
+// 2026-10-20 ruling: its type has no marker surface, it is not a
+// field-granular patch type, and its family does not own its markerless
+// types through their parents ([substrate.UnrecordedParentOwned]). The
+// projection's [builder.unrecordedMarkerless] asks the same three things.
+func unrecordedNotOwned(providerType, typeName string, schema providers.Schema) bool {
+	if providerType == "" {
+		providerType = addrs.Resource{Mode: addrs.ManagedResourceMode, Type: typeName}.ImpliedProvider()
+	}
+	if schema.Block == nil {
+		return false
+	}
+	if surface, _ := substrate.SurfaceOf(providerType, schema.Block); surface != "" {
+		return false
+	}
+	if fieldGranularOwned("", schema) {
+		return false
+	}
+	return substrate.UnrecordedFor(providerType, typeName) != substrate.UnrecordedParentOwned
 }
 
 // providerType is the type name of the provider addr's resource block is
