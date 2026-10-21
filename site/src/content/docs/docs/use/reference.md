@@ -22,7 +22,9 @@ prompt: >-
 | `live-mv <old> <new>` | Rewrites a marker |
 | `live-plan` | The live plan; [`-filter`](https://github.com/INTENTIUS/choudoufu/blob/main/live/REPORT-FILTER.md) narrows it |
 | `live-history <address>` | A record's versions, newest first |
+| `live-ls -estate=<name>` | Lists what the account or cluster holds under an estate |
 | `live-bucket -bucket <name>` | Checks a bucket |
+| `live-cluster` | Checks a cluster record store and names each fix |
 | `live-cone`, `plan -cone` | [The plan cone](https://github.com/INTENTIUS/choudoufu/blob/main/live/PLAN-CONE.md) |
 | `force-unlock` | Refused: there is no lock |
 

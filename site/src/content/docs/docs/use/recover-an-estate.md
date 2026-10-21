@@ -11,13 +11,13 @@ prompt: >-
 |---|---|---|
 | The cache | One slower plan | Run `choudoufu plan` |
 | Your working copy | One slower plan | Check it out and plan |
-| Markers on live resources | Those resources look unowned | Find who untagged them |
+| Markers on live resources | Those resources look unowned | Find who removed them; on Kubernetes `managedFields` names the manager |
 | The record store | Record-backed resources, a few untagged AWS types, and untagged objects on other providers | The steps below |
 
 Most resources come back from their markers.
 
-1. Leave records and tags as they are.
-2. Restore the record store if you can. Removing a bucket record's delete
+1. Leave records and markers as they are.
+2. Restore the record store if you can. On S3, removing a record's delete
    marker restores it while the noncurrent version lasts, with the
    [recovery permissions](../bucket/#what-a-recovery-needs). If that works, stop.
 3. Run `choudoufu init`, then `choudoufu plan -adoption-only`.

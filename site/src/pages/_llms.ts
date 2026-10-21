@@ -4,7 +4,7 @@ import { getCollection } from 'astro:content';
 import { bodyMarkdown, pageUrl } from '../markdown';
 
 // Sidebar order. A page not listed here comes after these, by id.
-const ORDER = ['index', 'start'];
+const ORDER = ['index', 'docs/use/start'];
 
 export async function pages() {
 	const docs = await getCollection('docs');

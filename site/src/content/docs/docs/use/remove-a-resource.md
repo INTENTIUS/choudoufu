@@ -30,7 +30,7 @@ lists the verbs.
 
 Delete the block and apply. Check that the plan destroys exactly that resource.
 
-Destroy an untaggable type, such as `aws_route`, before removing its block,
+On AWS, destroy an untaggable type, such as `aws_route`, before removing its block,
 because the block is its only record. Plans list these types under "Not swept
 for removal".
 [`live/LIMITATIONS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md)
@@ -38,5 +38,10 @@ covers these orphans.
 
 To remove the whole estate, run `choudoufu destroy`. It refuses `-refresh-only`.
 
-The sweep may read AWS's eventually consistent tagging index, so an orphan can
-appear one run late.
+The AWS sweep may read the eventually consistent tagging index, so an orphan
+can appear one run late.
+
+On Kubernetes the sweep lists each kind by the `tofu-estate` label. It never
+proposes deleting what a controller made: an owned object, a Helm release's
+object, or one only the control plane wrote. A finalizer can hold a
+deleted object, and deleting a marked Namespace takes everything inside it.
