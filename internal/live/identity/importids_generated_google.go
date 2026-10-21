@@ -352,15 +352,14 @@ var GoogleAssetUnknown = map[string]string{
 // [GoogleTable] row whose identity schema requires two or more attributes
 // (INTENTIUS/choudoufu#2139 item 3). Its record holds those attributes as
 // Components and no import ID, and the record leg composes one from the
-// first form whose every part the record carries. Of 24 such types (4
-// labelled), 17 compose (4 labelled) and 7 are refused by name
+// first form whose every part the record carries. Of 23 such types (4
+// labelled), 16 compose (4 labelled) and 7 are refused by name
 // ([GoogleCompositeRefused]).
 var GoogleCompositeImports = map[string][]GoogleImportFormat{
 	"google_access_context_manager_egress_policy":                      {{Template: "{{egress_policy_name}}/{{resource}}"}},
 	"google_access_context_manager_ingress_policy":                     {{Template: "{{ingress_policy_name}}/{{resource}}"}},
 	"google_access_context_manager_service_perimeter_dry_run_resource": {{Template: "{{perimeter_name}}/{{resource}}"}},
 	"google_access_context_manager_service_perimeter_resource":         {{Template: "{{perimeter_name}}/{{resource}}"}},
-	"google_artifact_registry_rule":                                    {{Template: "projects/{{project}}/locations/{{location}}/repositories/{{repository_id}}/rules/{{rule_id}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/repositories/(?P<repository_id>[^/]+)/rules/(?P<rule_id>[^/]+)$"}, {Template: "{{project}}/{{location}}/{{repository_id}}/{{rule_id}}", Regex: "^(?P<project>[^/]+)/(?P<location>[^/]+)/(?P<repository_id>[^/]+)/(?P<rule_id>[^/]+)$"}, {Template: "{{location}}/{{repository_id}}/{{rule_id}}", Regex: "^(?P<location>[^/]+)/(?P<repository_id>[^/]+)/(?P<rule_id>[^/]+)$"}},
 	"google_bigquery_reservation_assignment":                           {{Template: "projects/{{project}}/locations/{{location}}/reservations/{{reservation}}/assignments/{{name}}", Regex: "^projects/(?P<project>[^/]+)/locations/(?P<location>[^/]+)/reservations/(?P<reservation>[^/]+)/assignments/(?P<name>[^/]+)$"}, {Template: "{{project}}/{{location}}/{{reservation}}/{{name}}", Regex: "^(?P<project>[^/]+)/(?P<location>[^/]+)/(?P<reservation>[^/]+)/(?P<name>[^/]+)$"}, {Template: "{{location}}/{{reservation}}/{{name}}", Regex: "^(?P<location>[^/]+)/(?P<reservation>[^/]+)/(?P<name>[^/]+)$"}},
 	"google_ces_app_root_agent_association":                            {{Template: "projects/{{project}}/locations/{{location}}/apps/{{app_id}}/agents/{{agent_id}}"}, {Template: "{{project}}/{{location}}/{{app_id}}/{{agent_id}}"}, {Template: "{{location}}/{{app_id}}/{{agent_id}}"}},
 	"google_cloud_security_compliance_cloud_control":                   {{Template: "{{parent}}/locations/{{location}}/cloudControls/{{cloud_control_id}}"}},

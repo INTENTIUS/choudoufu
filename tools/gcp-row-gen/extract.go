@@ -217,6 +217,10 @@ func extractSources(dir string) (map[string]Source, error) {
 		return nil, err
 	}
 	iamIdentity := iamKindIdentity(dir)
+	fields, err := configFields(dir)
+	if err != nil {
+		return nil, err
+	}
 	out := map[string]Source{}
 	tpgresourceText := ""
 	tpgresourceOnce := false
@@ -254,6 +258,7 @@ func extractSources(dir string) (map[string]Source, error) {
 				s.IdentityImport = iamIdentityImport(text, s.Kind, pkg, iamIdentity)
 			} else {
 				s = resourceSource(text)
+				readConfigPlaceholders(&s, fields)
 				s.IdentityImport = resourceIdentityImport(text, pkg)
 				m := meta[typeName]
 				s.Generation = m.generation
@@ -294,6 +299,7 @@ func resourceSource(text string) Source {
 	}
 	readImporterShapes(&s, text)
 	readCreateName(&s, text)
+	readLocationSet(&s, text)
 	s.IDFromResponse = idFromResponse(text)
 	for _, name := range placeholders(s.IDFormat) {
 		if v, ok := schemaDefault(text, name); ok {
@@ -478,6 +484,7 @@ func iamSource(typeName, text string, grammar map[string]string, pkgText, tpgres
 		if tmpl, ok := regexToTemplate(renameGroups(qualifiersRe.FindStringSubmatch(body)[1], keys, nil)); ok {
 			s.IAMParent = tmpl
 		}
+		s.IAMParseUnset = parseUnsetKeys(body)
 	case wholeIDSetRe.MatchString(body):
 		s.IAMParent = "{{" + wholeIDSetRe.FindStringSubmatch(body)[1] + "}}"
 	default:

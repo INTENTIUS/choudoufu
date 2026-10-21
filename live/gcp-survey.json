@@ -7,17 +7,17 @@
   "version": "8.6.0",
   "counts": {
     "types": 1485,
-    "rowed": 1228,
+    "rowed": 1233,
     "server_assigned": 12,
     "markerless": 135,
-    "schema_routed": 37,
-    "refused": 220,
+    "schema_routed": 35,
+    "refused": 217,
     "google": {
       "types": 1370,
-      "rowed": 1134,
+      "rowed": 1138,
       "markerless": 126,
-      "schema_routed": 37,
-      "refused": 199
+      "schema_routed": 35,
+      "refused": 197
     }
   },
   "types": [
@@ -1216,8 +1216,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names {{location}}, which the provider fills in by a rule of this type's own when it is unset"
+      "verdict": "rowed",
+      "scoped": true,
+      "template": "projects/{{project}}/locations/{{location}}/projectConfig"
     },
     {
       "type": "google_artifact_registry_repository",
@@ -1226,9 +1227,8 @@
         "google-beta"
       ],
       "labels": true,
-      "verdict": "unrowed",
-      "schema_route": true,
-      "reason": "the id format names {{location}}, which the provider fills in by a rule of this type's own when it is unset"
+      "verdict": "rowed",
+      "template": "projects/{{project}}/locations/{{location}}/repositories/{{repository_id}}"
     },
     {
       "type": "google_artifact_registry_repository_iam_binding",
@@ -1276,9 +1276,11 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "schema_route": true,
-      "reason": "the id format names {{location}}, which the provider fills in by a rule of this type's own when it is unset"
+      "verdict": "rowed",
+      "parents": [
+        "repository_id"
+      ],
+      "template": "projects/{{project}}/locations/{{location}}/repositories/{{repository_id}}/rules/{{rule_id}}"
     },
     {
       "type": "google_artifact_registry_vpcsc_config",
@@ -1286,8 +1288,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names {{location}}, which the provider fills in by a rule of this type's own when it is unset"
+      "verdict": "rowed",
+      "scoped": true,
+      "template": "projects/{{project}}/locations/{{location}}/vpcscConfig"
     },
     {
       "type": "google_assured_workloads_workload",
@@ -1358,7 +1361,8 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "reason": "the id format names {{name}}, which is no attribute of the schema"
+      "no_source": true,
+      "reason": "the provider source has no ParseImportId importer for this type"
     },
     {
       "type": "google_beyondcorp_security_gateway",
@@ -2217,7 +2221,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "reason": "the id format names {{location}}, which the provider fills in by a rule of this type's own when it is unset"
+      "reason": "the Create sets an unset {{location}} with `d.Set(\"location\", parts[2])` (resource_bigquery_reservation_assignment.go:269), from a value a row does not compose yet"
     },
     {
       "type": "google_bigquery_reservation_group",
@@ -3659,7 +3663,7 @@
       "labels": false,
       "verdict": "unrowed",
       "schema_route": true,
-      "reason": "the id format names {{location}}, which the provider fills in by a rule of this type's own when it is unset"
+      "reason": "the Create sets an unset {{location}} with `location, err = tpgresource.ExtractFieldByPattern(\"location\", location, parent_connection, \"projects/[a-z0-9A-Z-]*/locations/([a-z0-9-]*)/connections/.*\")` (resource_cloudbuildv2_repository.go:592), from a value a row does not compose yet"
     },
     {
       "type": "google_clouddeploy_automation",
@@ -6010,8 +6014,9 @@
         "google-beta"
       ],
       "labels": false,
-      "verdict": "unrowed",
-      "reason": "the id format names {{name}}, which is no attribute of the schema"
+      "verdict": "rowed",
+      "scoped": true,
+      "template": "projects/{{project}}/global/snapshotSettings/"
     },
     {
       "type": "google_compute_ssl_certificate",
@@ -6494,7 +6499,7 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "reason": "the id format names {{location}}, which the provider fills in by a rule of this type's own when it is unset"
+      "reason": "the id format names {{location}}, but the Create does not build its id from that format (the importer's ReplaceVars is what was read), so which location it uses is not this template's"
     },
     {
       "type": "google_container_registry",
@@ -8268,7 +8273,8 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "reason": "the id format names {{name}}, which is no attribute of the schema"
+      "no_source": true,
+      "reason": "the provider source has no ParseImportId importer for this type"
     },
     {
       "type": "google_dialogflow_entity_type",
@@ -9021,7 +9027,7 @@
       "labels": true,
       "verdict": "unrowed",
       "schema_route": true,
-      "reason": "the id format names {{location}}, which the provider fills in by a rule of this type's own when it is unset"
+      "reason": "the Create sets an unset {{location}} with `d.Set(\"location\", zone)` (resource_filestore_instance.go:795), from a value a row does not compose yet"
     },
     {
       "type": "google_filestore_snapshot",
@@ -11983,7 +11989,7 @@
       "labels": false,
       "verdict": "unrowed",
       "schema_route": true,
-      "reason": "the id format names {{location}}, which the provider fills in by a rule of this type's own when it is unset"
+      "reason": "the Create sets an unset {{location}} with `location, err = tpgresource.ExtractFieldByPattern(\"location\", location, bucket, \"[a-zA-Z]*/[a-z0-9A-Z-]*/locations/([a-z0-9-]*)/buckets/.*\")` (resource_logging_linked_dataset.go:540), from a value a row does not compose yet"
     },
     {
       "type": "google_logging_log_scope",
@@ -11994,7 +12000,7 @@
       "labels": false,
       "verdict": "unrowed",
       "schema_route": true,
-      "reason": "the id format names {{location}}, which the provider fills in by a rule of this type's own when it is unset"
+      "reason": "the Create sets an unset {{location}} with `location, err = tpgresource.ExtractFieldByPattern(\"location\", location, name, \"[a-zA-Z]*/[a-z0-9A-Z-]*/locations/([a-z0-9-]*)/logScopes/.*\")` (resource_logging_log_scope.go:593), from a value a row does not compose yet"
     },
     {
       "type": "google_logging_log_view",
@@ -12005,7 +12011,7 @@
       "labels": false,
       "verdict": "unrowed",
       "schema_route": true,
-      "reason": "the id format names {{location}}, which the provider fills in by a rule of this type's own when it is unset"
+      "reason": "the Create sets an unset {{location}} with `location, err = tpgresource.ExtractFieldByPattern(\"location\", location, bucket, \"[a-zA-Z]*/[a-z0-9A-Z-]*/locations/([a-z0-9-]*)/buckets/.*\")` (resource_logging_log_view.go:621), from a value a row does not compose yet"
     },
     {
       "type": "google_logging_log_view_iam_binding",
@@ -15289,7 +15295,7 @@
       "parents": [
         "google_service_directory_namespace"
       ],
-      "reason": "the IAM updater's GetResourceId builds {{name}}, but the IdParseFunc parses projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}, which does not carry {{name}}; a row over the import string would not tell apart parents that differ only there"
+      "reason": "the IdParseFunc builds the updater from values[\"name\"], which none of its GetImportIdQualifiers groups sets, so stock's import gives the parent {{name}} an empty value and fails; this type cannot be imported at v8.6.0"
     },
     {
       "type": "google_service_directory_namespace_iam_member",
@@ -15302,7 +15308,7 @@
       "parents": [
         "google_service_directory_namespace"
       ],
-      "reason": "the IAM updater's GetResourceId builds {{name}}, but the IdParseFunc parses projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}, which does not carry {{name}}; a row over the import string would not tell apart parents that differ only there"
+      "reason": "the IdParseFunc builds the updater from values[\"name\"], which none of its GetImportIdQualifiers groups sets, so stock's import gives the parent {{name}} an empty value and fails; this type cannot be imported at v8.6.0"
     },
     {
       "type": "google_service_directory_namespace_iam_policy",
@@ -15315,7 +15321,7 @@
       "parents": [
         "google_service_directory_namespace"
       ],
-      "reason": "the IAM updater's GetResourceId builds {{name}}, but the IdParseFunc parses projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}, which does not carry {{name}}; a row over the import string would not tell apart parents that differ only there"
+      "reason": "the IdParseFunc builds the updater from values[\"name\"], which none of its GetImportIdQualifiers groups sets, so stock's import gives the parent {{name}} an empty value and fails; this type cannot be imported at v8.6.0"
     },
     {
       "type": "google_service_directory_service",
@@ -15339,7 +15345,7 @@
       "parents": [
         "google_service_directory_service"
       ],
-      "reason": "the IAM updater's GetResourceId builds {{name}}, but the IdParseFunc parses projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}/services/{{service_id}}, which does not carry {{name}}; a row over the import string would not tell apart parents that differ only there"
+      "reason": "the IdParseFunc builds the updater from values[\"name\"], which none of its GetImportIdQualifiers groups sets, so stock's import gives the parent {{name}} an empty value and fails; this type cannot be imported at v8.6.0"
     },
     {
       "type": "google_service_directory_service_iam_member",
@@ -15352,7 +15358,7 @@
       "parents": [
         "google_service_directory_service"
       ],
-      "reason": "the IAM updater's GetResourceId builds {{name}}, but the IdParseFunc parses projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}/services/{{service_id}}, which does not carry {{name}}; a row over the import string would not tell apart parents that differ only there"
+      "reason": "the IdParseFunc builds the updater from values[\"name\"], which none of its GetImportIdQualifiers groups sets, so stock's import gives the parent {{name}} an empty value and fails; this type cannot be imported at v8.6.0"
     },
     {
       "type": "google_service_directory_service_iam_policy",
@@ -15365,7 +15371,7 @@
       "parents": [
         "google_service_directory_service"
       ],
-      "reason": "the IAM updater's GetResourceId builds {{name}}, but the IdParseFunc parses projects/{{project}}/locations/{{location}}/namespaces/{{namespace_id}}/services/{{service_id}}, which does not carry {{name}}; a row over the import string would not tell apart parents that differ only there"
+      "reason": "the IdParseFunc builds the updater from values[\"name\"], which none of its GetImportIdQualifiers groups sets, so stock's import gives the parent {{name}} an empty value and fails; this type cannot be imported at v8.6.0"
     },
     {
       "type": "google_service_networking_connection",
@@ -16968,7 +16974,8 @@
       ],
       "labels": false,
       "verdict": "unrowed",
-      "reason": "the id format names {{name}}, which is no attribute of the schema"
+      "no_source": true,
+      "reason": "the provider source has no ParseImportId importer for this type"
     },
     {
       "type": "google_workstations_workstation",

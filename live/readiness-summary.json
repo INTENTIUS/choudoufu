@@ -9235,8 +9235,8 @@
       {
         "tier": "marker-carried",
         "counts": [
-          301,
-          13,
+          302,
+          12,
           0,
           4,
           0,
@@ -9247,26 +9247,26 @@
       {
         "tier": "declaration-carried",
         "counts": [
-          927,
-          28,
+          931,
+          27,
           0,
           0,
           0,
           0
         ],
-        "total": 955
+        "total": 958
       },
       {
         "tier": "record-carried",
         "counts": [
           0,
-          49,
+          43,
           0,
-          28,
+          31,
           135,
           0
         ],
-        "total": 212
+        "total": 209
       },
       {
         "tier": "excluded by design",
@@ -9282,10 +9282,10 @@
       }
     ],
     "column_totals": [
-      1228,
-      90,
+      1233,
+      82,
       0,
-      32,
+      35,
       135,
       0
     ],
@@ -9300,19 +9300,19 @@
       {
         "path": "client-named",
         "tier": "declaration-carried",
-        "count": 338,
+        "count": 337,
         "means": "The configuration names it, under a project or location it also names or the provider supplies."
       },
       {
         "path": "parent-derived",
         "tier": "declaration-carried",
-        "count": 596,
+        "count": 597,
         "means": "Composed over a containing resource the configuration also names; every IAM type is this shape."
       },
       {
         "path": "project-derived",
         "tier": "declaration-carried",
-        "count": 21,
+        "count": 24,
         "means": "Only project, region or zone names it: one per project or region."
       },
       {
@@ -9330,7 +9330,7 @@
       {
         "path": "unbindable",
         "tier": "record-carried",
-        "count": 77,
+        "count": 74,
         "means": "No row and no identity-schema route; a record is the only copy."
       }
     ],
@@ -9882,15 +9882,13 @@
       },
       {
         "type": "google_artifact_registry_project_config",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_artifact_registry_repository",
         "tier": "marker-carried",
-        "status": "pending-ratification",
-        "reason": "no row; the provider's identity schema admits it at run time, as it would an unrowed AWS type."
+        "status": "in-contract"
       },
       {
         "type": "google_artifact_registry_repository_iam_binding",
@@ -9910,14 +9908,12 @@
       {
         "type": "google_artifact_registry_rule",
         "tier": "declaration-carried",
-        "status": "pending-ratification",
-        "reason": "no row; the provider's identity schema admits it at run time, as it would an unrowed AWS type."
+        "status": "in-contract"
       },
       {
         "type": "google_artifact_registry_vpcsc_config",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_assured_workloads_workload",
@@ -9953,8 +9949,8 @@
       {
         "type": "google_backup_dr_service_config",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "needs-evidence",
+        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
       },
       {
         "type": "google_beyondcorp_security_gateway",
@@ -11987,9 +11983,8 @@
       },
       {
         "type": "google_compute_snapshot_settings",
-        "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "tier": "declaration-carried",
+        "status": "in-contract"
       },
       {
         "type": "google_compute_ssl_certificate",
@@ -12995,8 +12990,8 @@
       {
         "type": "google_dialogflow_encryption_spec",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "needs-evidence",
+        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
       },
       {
         "type": "google_dialogflow_entity_type",
@@ -16969,8 +16964,8 @@
       {
         "type": "google_workload_identity_service_agent",
         "tier": "record-carried",
-        "status": "pending-ratification",
-        "reason": "no row: its id format needs a reading tools/gcp-row-gen does not make (see live/gcp-survey.json's reason)."
+        "status": "needs-evidence",
+        "reason": "the provider source states no id format a row can be read from, and the provider serves no identity schema that admits it."
       },
       {
         "type": "google_workstations_workstation",

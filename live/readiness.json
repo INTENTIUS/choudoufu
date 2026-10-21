@@ -24519,15 +24519,15 @@
     "counts": {
       "types": 1485,
       "tiers": {
-        "declaration-carried": 955,
+        "declaration-carried": 958,
         "marker-carried": 318,
-        "record-carried": 212
+        "record-carried": 209
       },
       "statuses": {
-        "in-contract": 1228,
-        "needs-evidence": 32,
+        "in-contract": 1233,
+        "needs-evidence": 35,
         "pending-mechanism": 135,
-        "pending-ratification": 90
+        "pending-ratification": 82
       }
     },
     "types": [
@@ -25911,11 +25911,11 @@
       },
       {
         "type": "google_artifact_registry_project_config",
-        "tier": "record-carried",
-        "status": "pending-ratification",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -25925,15 +25925,14 @@
       {
         "type": "google_artifact_registry_repository",
         "tier": "marker-carried",
-        "status": "pending-ratification",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
           "label_surface": true,
-          "schema_route": true,
           "rejected": false
         }
       },
@@ -25979,24 +25978,23 @@
       {
         "type": "google_artifact_registry_rule",
         "tier": "declaration-carried",
-        "status": "pending-ratification",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
-          "schema_route": true,
           "rejected": false
         }
       },
       {
         "type": "google_artifact_registry_vpcsc_config",
-        "tier": "record-carried",
-        "status": "pending-ratification",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -26086,7 +26084,7 @@
       {
         "type": "google_backup_dr_service_config",
         "tier": "record-carried",
-        "status": "pending-ratification",
+        "status": "needs-evidence",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -31295,11 +31293,11 @@
       },
       {
         "type": "google_compute_snapshot_settings",
-        "tier": "record-carried",
-        "status": "pending-ratification",
+        "tier": "declaration-carried",
+        "status": "in-contract",
         "facts": {
           "taggable": false,
-          "admitted": false,
+          "admitted": true,
           "markerless": false,
           "not_importable": false,
           "tier_d": false,
@@ -33862,7 +33860,7 @@
       {
         "type": "google_dialogflow_encryption_spec",
         "tier": "record-carried",
-        "status": "pending-ratification",
+        "status": "needs-evidence",
         "facts": {
           "taggable": false,
           "admitted": false,
@@ -44061,7 +44059,7 @@
       {
         "type": "google_workload_identity_service_agent",
         "tier": "record-carried",
-        "status": "pending-ratification",
+        "status": "needs-evidence",
         "facts": {
           "taggable": false,
           "admitted": false,

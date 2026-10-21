@@ -7,6 +7,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"sort"
@@ -175,6 +176,13 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, names AssetNames, u
 	var toks []token
 	tmpl := ""
 	for _, tok := range tokenize(src.IDFormat) {
+		if tok.name != "" && !tok.escaped && rendersEmpty(src, attrFlags(tfs, tok.name), tok.name) {
+			// ReplaceVars substitutes "" for a placeholder the resource
+			// has no attribute for and the provider configuration no
+			// field (location.go): the segment is empty on every
+			// instance, in the create's id and the importer's alike.
+			continue
+		}
 		derived, ok := src.Derived[tok.name]
 		if tok.name == "" || !ok || attrFlags(tfs, tok.name) != "C" {
 			toks = append(toks, tok)
@@ -278,7 +286,31 @@ func decideResource(d Decision, src Source, tfs []TypeFacts, names AssetNames, u
 			comp.Attrs = []string{name}
 		case "OC":
 			if name == "location" {
-				return unrowed(false, "the id format names {{location}}, which the provider fills in by a rule of this type's own when it is unset")
+				// The location is the URL's as well as the id's, so the API
+				// never fills it in: the Create either sets it from a rule
+				// of its own or builds an id with an empty segment.
+				if why := locationRefusal(src); why != "" {
+					return unrowed(false, "%s", why)
+				}
+				comp.Attrs = []string{name}
+				if src.LocationSet == LocationSetRegion {
+					// tpgresource.GetRegion reads the resource's own
+					// region, then the region of its zone, before the
+					// provider's.
+					if attrFlags(tfs, "region") != "" || attrFlags(tfs, "zone") != "" {
+						return unrowed(false, "the encoder sets an unset {{location}} from tpgresource.GetRegion (%s:%d), which reads this type's own region or zone argument first", filepath.Base(src.File), src.LocationSetLine)
+					}
+					comp.Cloud = identity.CloudRegion
+					comps = append(comps, comp)
+					continue
+				}
+				// Nothing sets it: unwritten, the create's URL and id
+				// carry an empty segment, and resolution refuses that
+				// instance by name, as for an optional argument.
+				if def, ok := src.Defaults[name]; ok {
+					comp.Default = def
+				}
+				break
 			}
 			comp.Attrs = []string{name}
 			comp.ServerAssignedIfAbsent = true
@@ -374,6 +406,13 @@ func decideIAM(d Decision, src Source, tfs []TypeFacts, unrowed unrowedFunc) Dec
 			return unrowed(false, "the IAM updater's GetResourceId rebuilds the parent through code of its own (%s), which no row composes from configuration yet", src.IAMResourceIDUnread)
 		}
 		return unrowed(true, "the IAM type's IdParseFunc reads its parent id in a shape this generator does not read")
+	}
+	if len(src.IAMParseUnset) > 0 {
+		// Stock's import runs the IdParseFunc, which builds the updater
+		// from values its regexes never set, so the parent it rebuilds is
+		// empty and the import fails before any read.
+		return unrowed(false, "the IdParseFunc builds the updater from values[%s], which none of its GetImportIdQualifiers groups sets, so stock's import gives the parent %s an empty value and fails; this type cannot be imported at v%s",
+			strings.Join(quoteAll(src.IAMParseUnset), ", "), src.IAMResourceID, ProviderVersion)
 	}
 	if missing := missingPlaceholders(src.IAMResourceID, src.IAMParent); len(missing) > 0 {
 		// The create's id reads an argument the import string does not
@@ -639,6 +678,7 @@ func sameIdentitySource(a, b Source) bool {
 func providerNeutral(s Source) Source {
 	s.File = ""
 	s.CreateIDAt = nil
+	s.LocationSetLine = 0
 	s.ImporterAt = ""
 	s.CreateUnread = strings.ReplaceAll(s.CreateUnread, "google-beta/services/", "google/services/")
 	s.ImporterUnread = strings.ReplaceAll(s.ImporterUnread, "google-beta/services/", "google/services/")
@@ -687,4 +727,12 @@ func compileAll(patterns []string) bool {
 		}
 	}
 	return true
+}
+
+func quoteAll(names []string) []string {
+	q := make([]string, len(names))
+	for i, n := range names {
+		q[i] = fmt.Sprintf("%q", n)
+	}
+	return q
 }

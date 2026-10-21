@@ -129,6 +129,11 @@ type Source struct {
 	IAMResourceID       string `json:"iam_resource_id,omitempty"`
 	IAMResourceIDUnread string `json:"iam_resource_id_unread,omitempty"`
 
+	// IAMParseUnset are the values-map keys the IdParseFunc's updater
+	// struct reads that nothing in that function sets: "" after every
+	// import (parseUnsetKeys, #2145 item 7).
+	IAMParseUnset []string `json:"iam_parse_unset,omitempty"`
+
 	// IAMDefaults are the arguments an IAM type's file fills in from the
 	// provider when the resource leaves them unset, read off its calls to
 	// tpgresource.GetProject, GetRegion, GetZone and GetLocation.
@@ -232,6 +237,21 @@ type Source struct {
 	// or "last-segment" (GetResourceNameFromSelfLink). Read only beside
 	// CreateNameArg.
 	NameFlatten map[string]string `json:"name_flatten,omitempty"`
+
+	// LocationSet says how a generated Create whose id format names
+	// {{location}} sets it before building the id (location.go, #2145
+	// item 7): "none", "provider-region" (an encoder's
+	// tpgresource.GetRegion default), "create-elsewhere" (the id is not
+	// built from IDFormat in the Create), or the statement that sets it.
+	// LocationSetLine is that statement's line in File.
+	LocationSet     string `json:"location_set,omitempty"`
+	LocationSetLine int    `json:"location_set_line,omitempty"`
+
+	// ConfigPlaceholders are the id format's placeholders ReplaceVars
+	// would fill from transport_tpg.Config's field of that name (or a
+	// BasePath) when the resource has no value for them. Any other
+	// placeholder the schema lacks renders empty (location.go).
+	ConfigPlaceholders []string `json:"config_placeholders,omitempty"`
 }
 
 // ImportNameSet is one importer's `d.Set(Attr, Template)` after
