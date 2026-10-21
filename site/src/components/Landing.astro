@@ -1,49 +1,12 @@
 ---
-// The home page under the hero and its lead: the picker, three short cards,
-// the proven figures with their last run, and a link to the claims. The
-// figures come from data/proof.ts, which counts them at build from live/. The
-// stink lines (hr.cd-wisps, styled in choudoufu.css) part the sections.
+// The home page under the hero and its lead: the picker, then a link to the
+// claims.
 import Picker from './Picker.astro';
-import { CLAIMS, boardFigure, claimsFigure, type Figure } from '../data/proof';
 
-const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-const href = (h: string) => (/^https?:/.test(h) ? h : `${base}${h}`);
-const cards = [
-	{ title: 'Adopt what already runs', body: 'live-import marks what your state file lists. Resources stay in place.', href: '/docs/use/migrate/' },
-	{ title: 'Use the permissions you have', body: 'IAM reads the tag on AWS. An admission policy reads the label on Kubernetes.', href: '/how-it-works/identity/#who-may-change-it' },
-	{ title: 'The state file is a cache', body: 'Plans read the live system.', href: '/how-it-works/cache/' },
-];
-const figures = [boardFigure('aws'), boardFigure('kubernetes'), claimsFigure('kubernetes')].filter((f): f is Figure => !!f);
+const CLAIMS = 'https://github.com/INTENTIUS/choudoufu/blob/main/live/CLAIMS.md';
 ---
 <div class="cd-landing not-content">
 	<Picker />
-	<hr class="cd-wisps" />
-	<ul class="cards">
-		{cards.map((c) => (
-			<li>
-				<a href={href(c.href)}>
-					<b>{c.title}</b>
-					<span>{c.body}</span>
-				</a>
-			</li>
-		))}
-	</ul>
-	<hr class="cd-wisps" />
-	<section aria-labelledby="cd-proven">
-		<h2 id="cd-proven">Proven</h2>
-		<ul class="figures">
-			{figures.map((f) => (
-				<li>
-					<a href={f.href}>
-						<b>{f.value}</b>
-						<span>{f.label}</span>
-						<small>{f.measured}</small>
-					</a>
-				</li>
-			))}
-		</ul>
-	</section>
-	<hr class="cd-wisps" />
 	<p class="claims"><a href={CLAIMS}>Every claim is proven</a></p>
 </div>
 
@@ -60,61 +23,6 @@ const figures = [boardFigure('aws'), boardFigure('kubernetes'), claimsFigure('ku
 	.cd-landing :global(.cd-picker) {
 		margin: 0;
 	}
-	ul {
-		margin: 0;
-		padding: 0;
-		list-style: none;
-	}
-	h2 {
-		margin: 0 0 0.9rem;
-		font-size: 0.68rem;
-		font-weight: 600;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		color: var(--sl-color-gray-3);
-	}
-	.cards,
-	.figures {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 0.75rem;
-	}
-	.cards a,
-	.figures a {
-		display: grid;
-		gap: 0.35rem;
-		height: 100%;
-		padding: 1rem;
-		color: var(--sl-color-gray-2);
-		background: var(--cd-panel);
-		border: 1px solid var(--cd-rule);
-		border-top: 1px solid var(--cd-gold);
-		border-radius: 0.6rem;
-		text-decoration: none;
-	}
-	.cards a:hover,
-	.figures a:hover {
-		border-color: var(--cd-gold);
-	}
-	.cards b {
-		color: var(--sl-color-white);
-		font-size: var(--sl-text-base);
-	}
-	.figures b {
-		font-size: 1.75rem;
-		font-weight: 600;
-		line-height: 1.1;
-		letter-spacing: -0.02em;
-		color: var(--cd-accent);
-		font-variant-numeric: tabular-nums;
-	}
-	.figures small {
-		font-size: var(--sl-text-xs);
-		color: var(--sl-color-gray-3);
-	}
-	hr.cd-wisps {
-		margin: 0 auto;
-	}
 	.claims {
 		margin: 0;
 		text-align: center;
@@ -125,11 +33,5 @@ const figures = [boardFigure('aws'), boardFigure('kubernetes'), claimsFigure('ku
 	}
 	.claims a:hover {
 		text-decoration-color: var(--cd-gold);
-	}
-	@media (max-width: 52rem) {
-		.cards,
-		.figures {
-			grid-template-columns: minmax(0, 1fr);
-		}
 	}
 </style>
