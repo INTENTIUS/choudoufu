@@ -47,7 +47,7 @@ hashicorp/google planned a replacement of every instance on every plan)
 and #24 (a service account PATCH now honours updateMask and displayName
 no longer defaults to the accountId, without which stock planned
 `display_name -> null` on every plan). The image pinned in
-`live/floci-gcp-image` (`sha256:0add037b`, built from ea6da33) is the one
+`live/floci-gcp-image` (`sha256:97faafa3`, built from 641e6e8) is the one
 that serves them, and also serves the global and regional internet network
 endpoint groups and zonal ones without an instance (#26) that the
 day2_endpoints stage needs.

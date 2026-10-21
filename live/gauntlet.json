@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec",
-  "emulator_gcp": "ghcr.io/lex00/floci-gcp@sha256:0add037bf4688b16104fbea9b7935675a2022c070226fa0114075360cb7ecc8f",
+  "emulator_gcp": "ghcr.io/lex00/floci-gcp@sha256:97faafa3e7adecb6233f4bb2596cf4bca979126673dc8485b4b8075ca6b5a4b7",
   "oracle": {
     "terraform": "1.16.1",
     "tofu": "1.13.0"
@@ -263,7 +263,7 @@
       "break": "Hand stock the import id with the empty segment collapsed, the rendering before item 6; the import must fail and the stage with it.",
       "substrates": {
         "floci-eks": "Not run on this substrate; the stage is reference-gcp's (#2145 item 6).",
-        "floci-gcp": "Run by reference-gcp only, last, in a scratch estate of its own, on scratch global and regional internet NEGs, which a NEG and its endpoints carry no label for, so the record alone claims them. The pinned image (ea6da33) serves global and regional internet NEGs, which lex00/floci-gcp#26 added; on an image without them the stage fails at stock's own create on the oracle emulator, naming #26."
+        "floci-gcp": "Run by reference-gcp only, last, in a scratch estate of its own, on scratch global and regional internet NEGs, which a NEG and its endpoints carry no label for, so the record alone claims them. The pinned image (641e6e8) serves global and regional internet NEGs, which lex00/floci-gcp#26 added; on an image without them the stage fails at stock's own create on the oracle emulator, naming #26."
       }
     }
   ],
