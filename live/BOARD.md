@@ -57,7 +57,7 @@ Per active stage, over the same bars:
 | Strict profile | 1 pass, 0 fail, 22 not run | 1 pass, 0 fail, 24 not run | 19 pass, 0 fail, 0 not run |
 | Plan with no local state | 0 pass, 0 fail, 23 not run | 0 pass, 0 fail, 25 not run | 18 pass, 0 fail, 1 not run |
 
-Behaviors proven: 1 of 16 stages have their representative-set fixtures passing against the tier-1 behavior matrix. It is a development-loop signal, not a coverage claim.
+Behaviors proven: 1 of 17 stages have their representative-set fixtures passing against the tier-1 behavior matrix. It is a development-loop signal, not a coverage claim.
 <!-- board-gen:end bars -->
 
 ## The stages
@@ -83,6 +83,7 @@ Planned stages show the target and count toward nothing until activated.
 | 14 | Strict profile | active | no | With every strict toggle on, the estate is refused for exactly the things the toggles name (secrets stored, markers unrepaired, and so on) with the documented message, and for nothing else. |
 | 15 | Plan with no local state | active | no | After the estate is applied and its plan is empty, deleting BOTH the local record store and the state cache - a fresh clone or a new machine, with only the account left - still yields a plan that finds every declared object by its own marker or a stamped parent: nothing created, destroyed or replaced. |
 | 16 | Endpoints with an unset optional identity field | planned | no | A network endpoint whose identity names an optional field the block leaves unset (#2145 item 6: a global or regional internet NEG endpoint with only ip_address or only fqdn) is created, replans empty with and without the state cache, is bound by its record, and is destroyed on removal exactly as stock destroys it. |
+| 17 | Records in a GCS bucket | planned | no | record_store "gcs" works against a Cloud Storage endpoint: a migration writes every record to the bucket and nothing local, an apply adds a record, the replan and the plan with no state cache are empty on the bucket's records alone, two applies racing to create one record land exactly one and refuse the other with the store's write conflict (the create-only ifGenerationMatch=0 write), and removing every block destroys what the records claim. |
 <!-- board-gen:end stages -->
 
 ## The estates

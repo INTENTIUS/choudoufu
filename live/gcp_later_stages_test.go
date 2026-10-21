@@ -15,6 +15,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/projection"
 )
 
 // The gcp lane's later stages, checked offline before the next run. Four
@@ -990,5 +993,280 @@ func TestRefGCPEndpointsRunsLastInItsOwnEstate(t *testing.T) {
 	}
 	if strings.Contains(stage, "$ADOPTED") || strings.Contains(stage, "$ORACLE") {
 		t.Error("day2_endpoints names $ADOPTED or $ORACLE, the headline estate's roots")
+	}
+}
+
+// refgcpGCSStage is reference-gcp's record_store_gcs stage as run.sh holds
+// it, from its gauntlet_begin_stage to the line before the subshell closes,
+// and checks the stage runs in a subshell of its own, after day2_endpoints
+// and before gauntlet_end, never naming the headline estate's roots.
+func refgcpGCSStage(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile("e2e/reference-gcp/run.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	i := strings.Index(s, "\ngauntlet_begin_stage record_store_gcs\n")
+	j := strings.Index(s, "\n); stage_done $? record_store_gcs\n")
+	if i < 0 || j < i {
+		t.Fatal("run.sh: no record_store_gcs stage closed by \"); stage_done $? record_store_gcs\"")
+	}
+	if open := strings.LastIndex(s[:i], "\n(\n"); open < 0 || strings.Contains(s[open:i], "); stage_done ") {
+		t.Fatal("run.sh: record_store_gcs does not open its own subshell, so a fail() in it ends the run")
+	}
+	endpoints := strings.Index(s, "\n); stage_done $? day2_endpoints\n")
+	end := strings.Index(s, "\ngauntlet_end\n")
+	if endpoints < 0 || end < 0 || i < endpoints || i > end {
+		t.Errorf("record_store_gcs begins at byte %d, want after day2_endpoints' stage_done (%d) and before gauntlet_end (%d)", i, endpoints, end)
+	}
+	stage := s[i:j]
+	if m := regexp.MustCompile(`(^|[^_a-z])(plan_a|apply_a|stock_b)\b`).FindString(stage); m != "" {
+		t.Errorf("record_store_gcs calls the headline estate's %s", strings.TrimSpace(m))
+	}
+	if strings.Contains(stage, "$ADOPTED") || strings.Contains(stage, "$ORACLE") || strings.Contains(stage, "$GREEN") {
+		t.Error("record_store_gcs names $ADOPTED, $ORACLE or $GREEN, the headline estate's roots")
+	}
+	return stage
+}
+
+// record_store_gcs, stub-run offline. Every command the stage sends to the
+// emulator or to a binary is a stub over files in a temporary directory: a
+// live object is a file per name, the record bucket a directory of files
+// whose content is the tofu-estate metadata, and the record keys are
+// refgcp_record_key's own. The two racing applies run as the stage runs
+// them, in the background, and are judged by refgcp_gcs_race_verdict. The
+// pass case passes cleanly; each other case breaks one gate, and that
+// gate's own verdict must read fail with nothing left on A and no bucket.
+func TestRefGCPRecordStoreGCSStageGates(t *testing.T) {
+	stage := refgcpGCSStage(t)
+	run := func(t *testing.T, env ...string) string {
+		t.Helper()
+		w := t.TempDir()
+		body := gcpFail + `source e2e/reference-gcp/gcp.sh
+W="` + w + `"; WORK="$W"; ADOPTED="$W/a"; ORACLE="$W/b"; GREEN="$W/g"; PROJECT=p; REGION=r; ZONE=z; ESTATE=reference-gcp; EPA=a; EPB=b
+GOOGLE_REQUIRED_PROVIDER='    google = { source = "hashicorp/google", version = "= 8.6.0" }'
+export GOOGLE_OAUTH_ACCESS_TOKEN=chdf-test GS_RACE_SECONDS=1
+mkdir -p "$ADOPTED/.tofu-records" "$ORACLE" "$W/bucket"; echo '{}' > "$ADOPTED/.tofu-records/pre"; echo x > "$ORACLE/main.tf"
+log() { printf '%s\n' "$*"; }
+versions_block() { echo "# versions $1 $2"; }
+gcp_provider_block() { echo "# provider $1"; }
+gauntlet_locked_init() { return 0; }
+topic_path() { printf 'v1/projects/%s/topics/%s' "$PROJECT" "$1"; }
+live() { [ -f "$W/A.$(basename "$1")" ]; }
+exists_a() { live "$1"; }
+ra() { case "$1" in
+  GET) case "$2" in
+    storage/v1/b/*) [ -e "$W/bucket.exists" ] || return 1
+      if [ -n "${BAD_BUCKET:-}" ]; then echo '{"versioning":{"enabled":false},"lifecycle":{"rule":[{"action":{"type":"Delete"},"condition":{"daysSinceNoncurrentTime":30}}]},"iamConfiguration":{"publicAccessPrevention":"enforced","uniformBucketLevelAccess":{"enabled":true}}}'
+      else echo '{"versioning":{"enabled":true},"lifecycle":{"rule":[{"action":{"type":"Delete"},"condition":{"daysSinceNoncurrentTime":30}}]},"iamConfiguration":{"publicAccessPrevention":"enforced","uniformBucketLevelAccess":{"enabled":true}}}'; fi ;;
+    *) live "$2" ;;
+    esac ;;
+  DELETE) rm -f "$W/A.$(basename "$2")" ;;
+esac; }
+refgcp_gcs_make_bucket() { [ -z "${MKB_ERR:-}" ] || return 1; mkdir -p "$W/bucket"; : > "$W/bucket.exists"; }
+put_record() { printf '%s' "$2" > "$W/bucket/${1//\//%}"; }
+has_record() { [ -f "$W/bucket/${1//\//%}" ]; }
+refgcp_gcs_records() { local f n; for f in "$W"/bucket/*; do [ -f "$f" ] || continue; n="${f##*/}"; n="${n//\%//}"; case "$n" in "$3"*) echo "$n $(cat "$f")" ;; esac; done | sort; }
+refgcp_gcs_delete() { rm -f "$W/bucket/${3//\//%}"; }
+refgcp_gcs_scrub() { rm -rf "$W/bucket" "$W/bucket.exists"; }
+GS_E=reference-gcp-gcs
+NETK="$(refgcp_record_key $GS_E google_compute_network.main)"
+TOPK="$(refgcp_record_key $GS_E google_pubsub_topic.events)"
+FWK="$(refgcp_record_key $GS_E google_compute_firewall.ssh)"
+RACEK="$(refgcp_record_key $GS_E time_sleep.race)"
+cache() { echo "$PWD/.terraform/choudoufu-cache.tfstate"; }
+plan_stub() {
+  local out
+  if [ ! -f "$(cache)" ] && ! has_record "$NETK" && [ -z "${IGNORE_RECORDS:-}" ]; then
+    printf '\nError: Unlabelled live object holds the declared name\n'; return 1
+  fi
+  if [ ! -f main.tf ]; then out="${PLAN_LAST:-No changes.}"
+  elif [ -f race.tf ]; then if [ "${PWD##*/}" = gcs-a2 ]; then out="${PLAN_RACE_A2:-No changes.}"; else out="${PLAN_RACE_A:-No changes.}"; fi
+  elif [ -f firewall.tf ] && [ ! -f "$(cache)" ]; then out="${PLAN_NOCACHE:-No changes.}"
+  elif [ -f firewall.tf ]; then out="${PLAN_APPLY:-No changes.}"
+  else out="${PLAN_MIGRATE:-No changes.}"; fi
+  mkdir -p .terraform; : > "$(cache)"
+  printf '%s\n' "$out"
+}
+apply_stub() {
+  if [ ! -f main.tf ]; then
+    [ -n "${LEAVE_NET:-}" ] || rm -f "$W/A.refgcp-gcs-net"; rm -f "$W/A.refgcp-gcs-fw" "$W/A.refgcp-gcs-topic"
+    printf '\nApply complete! Resources: 0 added, 0 changed, %s destroyed.\n' "${T_N:-4}"; return 0
+  fi
+  if [ -f race.tf ]; then
+    local me=1; [ "${PWD##*/}" = gcs-a2 ] && me=2
+    if [ "$me" = 2 ] && [ -n "${NO_OVERLAP:-}" ]; then printf '\nApply complete! Resources: 0 added, 0 changed, 0 destroyed.\n'; return 0; fi
+    printf 'time_sleep.race: Creating...\ntime_sleep.race: Creation complete after 1s [id=2026-10-21T00:00:0%sZ]\n' "$me"
+    if [ "$me" = 1 ]; then
+      [ -n "${NO_RACE_RECORD:-}" ] || put_record "$RACEK" "$GS_E"
+      printf '\nApply complete! Resources: 1 added, 0 changed, 0 destroyed.\n'; return 0
+    fi
+    sleep 0.2
+    if [ -n "${RACE_BOTH_OK:-}" ]; then printf '\nApply complete! Resources: 1 added, 0 changed, 0 destroyed.\n'; return 0; fi
+    if [ -n "${RACE_OTHER_ERR:-}" ]; then printf '\nError: Cannot persist a record\n'; return 1; fi
+    printf '\nError: Record store write conflict\n\nWriting the persisted record for time_sleep.race failed: another writer changed it between this run'"'"'s plan and apply. This run expected version "(absent)" and the store now holds version "1761004800000". Nothing was overwritten. Re-plan and re-apply to reconcile with the other writer'"'"'s change.\n'
+    return 1
+  fi
+  if [ -f firewall.tf ]; then
+    : > "$W/A.refgcp-gcs-fw"; [ -n "${NO_FW_RECORD:-}" ] || put_record "$FWK" "$GS_E"
+    printf '\nApply complete! Resources: %s added, 0 changed, 0 destroyed.\n' "${FW_N:-1}"; return 0
+  fi
+}
+tofu_stub() {
+  case "$1" in
+    init) mkdir -p .terraform; return 0 ;;
+    plan) plan_stub ;;
+    apply) apply_stub ;;
+    live-import)
+      [ -n "${NO_NET_RECORD:-}" ] || put_record "$NETK" "$GS_E"
+      put_record "$TOPK" "$GS_E"
+      [ -z "${LOCAL_RECORDS:-}" ] || mkdir -p .tofu-records
+      printf 'SKIPPED (1)\n  google_compute_network.main  google_compute_network has no tags argument in the provider'"'"'s schema, so there is nowhere on it to carry an ownership marker.\n\n'
+      printf '%s resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 1 skipped.\n2 identities recorded.\n' "${MIG_STAMPED:-1}"
+      if [ -n "${MIG_RC:-}" ]; then printf '\nError: Cannot open the record store\n'; return 1; fi ;;
+  esac
+}
+TOFU=tofu_stub
+terraform() {
+  case "$1" in
+    init) return 0 ;;
+    apply) if [ -n "${STOCK_ERR:-}" ]; then printf '\nError: Error creating Network: googleapi: Error 500\n'; return 1; fi
+      : > "$W/A.refgcp-gcs-net"; : > "$W/A.refgcp-gcs-topic"
+      printf '\nApply complete! Resources: %s added, 0 changed, 0 destroyed.\n' "${STOCK_N:-2}" ;;
+  esac
+}
+CURRENT_STAGE=""
+( ` + stage + `
+)
+echo "rc=$?"
+echo "left: $(cd "$W" && ls A.* bucket.exists 2>/dev/null | tr '\n' ' ')"
+[ "$(ls "$ADOPTED/.tofu-records" | tr '\n' ' ')" = "pre " ] && [ "$(cat "$ORACLE/main.tf")" = x ] && [ ! -e "$GREEN" ] || echo "HEADLINE TOUCHED"
+grep -q 'estate = "reference-gcp-gcs"' "$W/gcs-a/versions.tf" 2>/dev/null || echo "NOT ITS OWN ESTATE"
+grep -q 'record_store "gcs"' "$W/gcs-a/versions.tf" 2>/dev/null && grep -q 'storage_custom_endpoint = "a/storage/v1/"' "$W/gcs-a/versions.tf" || echo "NOT THE GCS STORE"
+true`
+		out, _ := gcpBash(t, env, body)
+		return out
+	}
+
+	t.Run("pass", func(t *testing.T) {
+		out := run(t)
+		for _, want := range []string{"GAUNTLET stage=record_store_gcs verdict=pass", "rc=0", "left: \n",
+			"apply 1 landed and apply 2 was refused", "wrote 2 record object(s) carrying tofu-estate=reference-gcp-gcs",
+			"the network's at tofu-records/reference-gcp-gcs/google_compute_network/"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("the pass case lacks %q:\n%s", want, out)
+			}
+		}
+		for _, bad := range []string{"FAIL", "verdict=fail", "HEADLINE TOUCHED", "NOT ITS OWN ESTATE", "NOT THE GCS STORE"} {
+			if strings.Contains(out, bad) {
+				t.Errorf("the pass case carries %q:\n%s", bad, out)
+			}
+		}
+	})
+
+	t.Run("BREAK_GCS_STORE", func(t *testing.T) {
+		out := run(t, "BREAK_GCS_STORE=1")
+		if !regexp.MustCompile(`GAUNTLET stage=record_store_gcs verdict=pass .*detail=BREAK_GCS_STORE=1 control`).MatchString(out) || !strings.Contains(out, "Unlabelled live object holds the declared name") || !strings.Contains(out, "left: \n") {
+			t.Errorf("the Break control did not pass as a control naming the refusal, with nothing left:\n%s", out)
+		}
+	})
+
+	notEmpty := "Plan: 1 to add, 0 to change, 0 to destroy."
+	for name, c := range map[string]struct {
+		env  []string
+		want string
+	}{
+		"the bucket is not created":            {[]string{"MKB_ERR=1"}, "floci-gcp did not create the record bucket p-refgcp-records"},
+		"the bucket reads back unversioned":    {[]string{"BAD_BUCKET=1"}, "did not read back with the contract's four settings (versioning is not enabled)"},
+		"stock cannot create the shape":        {[]string{"STOCK_ERR=1"}, "stock could not create the gcs scratch shape on A: Error: Error creating Network"},
+		"stock creates another count":          {[]string{"STOCK_N=1"}, "did not add exactly the network and the topic"},
+		"live-import fails":                    {[]string{"MIG_RC=1"}, "live-import -approve into the gcs record store failed: Error: Cannot open the record store"},
+		"live-import stamps nothing":           {[]string{"MIG_STAMPED=0"}, "did not stamp the topic, skip the network"},
+		"no network record in the bucket":      {[]string{"NO_NET_RECORD=1"}, "holds no record for google_compute_network.main at tofu-records/reference-gcp-gcs/google_compute_network/"},
+		"a local record store appears":         {[]string{"LOCAL_RECORDS=1"}, `a local .tofu-records appeared beside record_store "gcs"`},
+		"the plan after the migration":         {[]string{"PLAN_MIGRATE=" + notEmpty}, "the plan after the migration is not empty (Plan: 1 to add"},
+		"the apply adds another count":         {[]string{"FW_N=2"}, "the apply adding the firewall did not add exactly one object"},
+		"no firewall record":                   {[]string{"NO_FW_RECORD=1"}, "the apply wrote no record for google_compute_firewall.ssh"},
+		"the replan after the apply":           {[]string{"PLAN_APPLY=" + notEmpty}, "the replan after the apply is not empty (Plan: 1 to add"},
+		"the plan with no state cache":         {[]string{"PLAN_NOCACHE=" + notEmpty}, "the plan with no state cache is not empty (exit 0, Plan: 1 to add"},
+		"the applies do not overlap":           {[]string{"NO_OVERLAP=1"}, "the two applies did not overlap: 1 of 2 created time_sleep.race"},
+		"both racing applies succeed":          {[]string{"RACE_BOTH_OK=1"}, "the second record write under ifGenerationMatch=0 was not refused"},
+		"the loser fails for another reason":   {[]string{"RACE_OTHER_ERR=1"}, "apply 2 failed (exit 1) but not with the store's write conflict on time_sleep.race: Error: Cannot persist a record"},
+		"no record lands for the race":         {[]string{"NO_RACE_RECORD=1"}, "after the race the bucket holds no record for time_sleep.race"},
+		"the losing root plans after the race": {[]string{"PLAN_RACE_A2=" + notEmpty}, "the plan in gcs-a2 after the race is not empty (Plan: 1 to add"},
+		"the removal destroys another count":   {[]string{"T_N=3"}, "removing the scratch blocks did not destroy exactly the network, the topic, the firewall and time_sleep.race"},
+		"the network outlives its block":       {[]string{"LEAVE_NET=1"}, "refgcp-gcs-net still exists on A after its block was removed"},
+		"the plan after the removal":           {[]string{"PLAN_LAST=" + notEmpty}, "the plan after the removal is not empty (Plan: 1 to add"},
+		"the Break control finds no refusal":   {[]string{"BREAK_GCS_STORE=1", "IGNORE_RECORDS=1"}, "BREAK_GCS_STORE=1: with the network's record deleted from the bucket the plan with no state cache is still empty"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			out := run(t, c.env...)
+			if !regexp.MustCompile(`GAUNTLET stage=record_store_gcs verdict=fail .*` + regexp.QuoteMeta(c.want)).MatchString(out) {
+				t.Errorf("want a fail verdict carrying %q:\n%s", c.want, out)
+			}
+			if strings.Contains(out, "verdict=pass") || !strings.Contains(out, "rc=1") {
+				t.Errorf("the stage did not end failed:\n%s", out)
+			}
+			if !strings.Contains(out, "left: \n") {
+				t.Errorf("a scratch object or the record bucket outlived the failed stage:\n%s", out)
+			}
+			if strings.Contains(out, "HEADLINE TOUCHED") {
+				t.Errorf("the failed stage touched the headline estate's roots:\n%s", out)
+			}
+		})
+	}
+}
+
+// refgcp_record_key must name the object choudoufu's own RecordKey writes,
+// or every bucket check in record_store_gcs looks in the wrong place. Held
+// to projection.RecordKey itself, a module path, an instance key and an
+// address long enough to be chunked included.
+func TestRefGCPRecordKeyIsRecordKey(t *testing.T) {
+	long := `module.a["` + strings.Repeat("k", 300) + `"].time_sleep.race`
+	for _, a := range []string{"google_compute_network.main", "time_sleep.race", `google_pubsub_topic.shard[1]`,
+		`module.net["eu.west"].module.inner.google_compute_firewall.ssh["x/y"]`, long} {
+		addr, diags := addrs.ParseAbsResourceInstanceStr(a)
+		if diags.HasErrors() {
+			t.Fatalf("%s: %s", a, diags.Err())
+		}
+		want := projection.RecordKey(projection.RecordKeyPrefix("reference-gcp-gcs"), addr)
+		out, err := exec.Command("bash", "-c", `source e2e/reference-gcp/gcp.sh; refgcp_record_key "$0" "$1"`, "reference-gcp-gcs", a).CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s: %v\n%s", a, err, out)
+		}
+		if got := strings.TrimSpace(string(out)); got != want {
+			t.Errorf("%s: refgcp_record_key says %q, RecordKey says %q", a, got, want)
+		}
+	}
+}
+
+// refgcp_gcs_bucket_problems names each of the four contract settings a
+// storage.buckets.get response lacks, and nothing for a bucket that has
+// them. A noncurrent rule without a window, or isLive alone, does not
+// count: the contract page says so.
+func TestRefGCPGCSBucketProblems(t *testing.T) {
+	const good = `{"versioning":{"enabled":true},"lifecycle":{"rule":[{"action":{"type":"Delete"},"condition":{"daysSinceNoncurrentTime":30}}]},"iamConfiguration":{"publicAccessPrevention":"enforced","uniformBucketLevelAccess":{"enabled":true}}}`
+	for name, c := range map[string]struct{ in, want string }{
+		"all four":      {good, ""},
+		"no versioning": {strings.Replace(good, `"versioning":{"enabled":true}`, `"versioning":{}`, 1), "versioning is not enabled"},
+		"isLive only":   {strings.Replace(good, `"daysSinceNoncurrentTime":30`, `"isLive":false`, 1), "no Delete rule with daysSinceNoncurrentTime"},
+		"PAP inherited": {strings.Replace(good, `"enforced"`, `"inherited"`, 1), "publicAccessPrevention reads 'inherited'"},
+		"no uniform":    {strings.Replace(good, `"uniformBucketLevelAccess":{"enabled":true}`, `"uniformBucketLevelAccess":{"enabled":false}`, 1), "uniform bucket-level access is not enabled"},
+		"no response":   {"", "unreadable"},
+		"an error page": {`<html>404</html>`, "unreadable"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cmd := exec.Command("bash", "-c", "source e2e/reference-gcp/gcp.sh; refgcp_gcs_bucket_problems")
+			cmd.Stdin = strings.NewReader(c.in)
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("%v\n%s", err, out)
+			}
+			got := strings.TrimSpace(string(out))
+			if (c.want == "" && got != "") || (c.want != "" && !strings.Contains(got, c.want)) {
+				t.Errorf("got %q, want %q", got, c.want)
+			}
+		})
 	}
 }

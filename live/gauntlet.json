@@ -265,6 +265,21 @@
         "floci-eks": "Not run on this substrate; the stage is reference-gcp's (#2145 item 6).",
         "floci-gcp": "Run by reference-gcp only, last, in a scratch estate of its own, on scratch global and regional internet NEGs, which a NEG and its endpoints carry no label for, so the record alone claims them. The pinned image (641e6e8) serves global and regional internet NEGs, which lex00/floci-gcp#26 added; on an image without them the stage fails at stock's own create on the oracle emulator, naming #26."
       }
+    },
+    {
+      "id": "record_store_gcs",
+      "order": 17,
+      "title": "Records in a GCS bucket",
+      "status": "planned",
+      "headline": false,
+      "tier1_gated": false,
+      "proves": "record_store \"gcs\" works against a Cloud Storage endpoint: a migration writes every record to the bucket and nothing local, an apply adds a record, the replan and the plan with no state cache are empty on the bucket's records alone, two applies racing to create one record land exactly one and refuse the other with the store's write conflict (the create-only ifGenerationMatch=0 write), and removing every block destroys what the records claim. Run by reference-gcp only, last and in a scratch estate of its own; not part of the headline bars.",
+      "oracle": "Stock's own state for the migration's source (stock creates the scratch shape first), the bucket's objects read with the JSON API behind the tool's back, and an empty plan with no local state; the race has no stock equivalent, and its oracle is the store's documented contract: one conditional create lands and the other answers 412.",
+      "break": "Delete one unlabelled object's record from the bucket before the plan with no state cache; that plan must then not be empty, and the stage must fail.",
+      "substrates": {
+        "floci-eks": "Not run on this substrate; the stage is reference-gcp's.",
+        "floci-gcp": "Run by reference-gcp only, last, against emulator A's Cloud Storage through record_store \"gcs\"'s storage_custom_endpoint: the bucket is made with the REST API to the contract's four settings, the records are listed with the JSON API, and the race is two applies of one estate on one bucket. The pinned image (641e6e8) serves every call the store makes, read from its source; no open floci-gcp issue is on the stage's path. lex00/floci-gcp#32 (an object request in a missing bucket answers \"Object not found\" where GCS says the bucket does not exist) is off it, since the stage never deletes its bucket mid-run."
+      }
     }
   ],
   "sets": {
@@ -339,6 +354,11 @@
           "pass": 24,
           "fail": 0,
           "not_run": 1
+        },
+        "record_store_gcs": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 25
         },
         "strict": {
           "pass": 1,
@@ -429,6 +449,11 @@
           "fail": 0,
           "not_run": 0
         },
+        "record_store_gcs": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 23
+        },
         "strict": {
           "pass": 1,
           "fail": 0,
@@ -516,6 +541,11 @@
           "not_run": 2
         },
         "plan_approval": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 2
+        },
+        "record_store_gcs": {
           "pass": 0,
           "fail": 0,
           "not_run": 2
@@ -609,6 +639,11 @@
           "fail": 0,
           "not_run": 0
         },
+        "record_store_gcs": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 19
+        },
         "strict": {
           "pass": 19,
           "fail": 0,
@@ -697,6 +732,11 @@
           "pass": 7,
           "fail": 0,
           "not_run": 0
+        },
+        "record_store_gcs": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 7
         },
         "strict": {
           "pass": 0,
@@ -787,6 +827,11 @@
           "fail": 0,
           "not_run": 0
         },
+        "record_store_gcs": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 1
+        },
         "strict": {
           "pass": 0,
           "fail": 0,
@@ -875,6 +920,11 @@
           "pass": 2,
           "fail": 0,
           "not_run": 1
+        },
+        "record_store_gcs": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 3
         },
         "strict": {
           "pass": 1,
@@ -965,6 +1015,11 @@
           "fail": 0,
           "not_run": 0
         },
+        "record_store_gcs": {
+          "pass": 0,
+          "fail": 0,
+          "not_run": 14
+        },
         "strict": {
           "pass": 0,
           "fail": 0,
@@ -1007,6 +1062,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -1123,6 +1179,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -1239,6 +1296,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -1378,6 +1436,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -1494,6 +1553,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -1609,6 +1669,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -1726,6 +1787,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -1841,6 +1903,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -1957,6 +2020,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -2073,6 +2137,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -2212,6 +2277,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -2351,6 +2417,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -2467,6 +2534,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -2583,6 +2651,7 @@
         "migrate": "not_run",
         "no_local_state": "not_run",
         "plan_approval": "not_run",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "not_run",
         "test_plan": "not_run"
@@ -2613,6 +2682,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -2752,6 +2822,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -2868,6 +2939,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -2983,6 +3055,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -3099,6 +3172,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -3215,6 +3289,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -3354,6 +3429,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -3469,6 +3545,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -3585,6 +3662,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -3701,6 +3779,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -3817,6 +3896,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -3932,6 +4012,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -4048,6 +4129,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -4164,6 +4246,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -4278,6 +4361,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -4404,6 +4488,7 @@
         "migrate": "fail",
         "no_local_state": "not_run",
         "plan_approval": "not_run",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "not_run",
         "test_plan": "not_run"
@@ -4464,6 +4549,7 @@
         "migrate": "not_run",
         "no_local_state": "not_run",
         "plan_approval": "not_run",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "not_run",
         "test_plan": "not_run"
@@ -4492,6 +4578,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -4629,6 +4716,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -4766,6 +4854,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -4903,6 +4992,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -5040,6 +5130,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -5192,6 +5283,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -5329,6 +5421,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -5466,6 +5559,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -5618,6 +5712,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -5755,6 +5850,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -5892,6 +5988,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -6029,6 +6126,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -6166,6 +6264,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -6319,6 +6418,7 @@
         "migrate": "pass",
         "no_local_state": "pass",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "pass",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -6456,6 +6556,7 @@
         "migrate": "pass",
         "no_local_state": "not_run",
         "plan_approval": "pass",
+        "record_store_gcs": "not_run",
         "strict": "not_run",
         "test_apply": "pass",
         "test_plan": "pass"
@@ -6556,7 +6657,7 @@
     }
   ],
   "behaviors_proven": 1,
-  "behaviors_total": 16,
+  "behaviors_total": 17,
   "live_cert": [
     {
       "estate": "reference-ec2-vpc",
