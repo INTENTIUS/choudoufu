@@ -1,6 +1,6 @@
 ---
 title: Operate
-description: Rename, keep records in a bucket, remove.
+description: Rename, records, remove.
 prompt: |
   Follow https://intentius.io/choudoufu/gcp/operate/ for my change. Edit the configuration, run `choudoufu plan -out=plan.bin` and report the plan.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
@@ -11,34 +11,34 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 ## Rename
 
-Rename the block and plan, or run `live-mv`. Either rewrites the address label in place.
+`live-mv <old> <new>` or a `moved` block rewrites the `tofu-address` label.
 
 ### Records
 
 ```hcl
 record_store "gcs" {
-  bucket = "my-estate-records"
+  bucket = "my-records-bucket"
 }
 ```
 
-Use one bucket per estate. GCS cannot fence a listing.
+One bucket per estate ([CONTRACT.md](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-gcs/CONTRACT.md)).
 
 ## Remove
 
-A labelled resource with your label and no block is proposed for deletion. GKE, Dataproc and Batch VMs and disks are excluded.
+Delete the block to destroy it. `policy { undeclared_tagged = "untag" }` releases it.
 
 ## Scale
 
-A `count` set the server names carries `tofu-slot`, so scaling down keeps every survivor's index.
+Server-named `count` members carry `tofu-slot`.
 
 ## Plan, review, apply
 
-`apply FILE` applies a saved plan that still matches the live system, and exits 3 otherwise.
+`apply FILE` exits 3 if the live system moved since the plan.
 
 ## From CI
 
-The CI principal holds the project bindings the gate grants.
+See the [CI how-to](/choudoufu/docs/use/cicd/).
 
 ## Two runs at once
 
-The record write is conditional, so choudoufu refuses the second apply ([OPERATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/gcp/OPERATE.md)).
+Conditional writes let one apply win each record ([OPERATE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/gcp/OPERATE.md)).

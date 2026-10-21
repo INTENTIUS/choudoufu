@@ -1,6 +1,6 @@
 ---
 title: Compatibility
-description: Every type with a labels map plans. A short list is refused by name.
+description: Every google and google-beta type with a labels map carries the marker.
 prompt: |
   Follow https://intentius.io/choudoufu/gcp/compatibility/. Run `choudoufu live-check` here and report each refusal.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
@@ -9,25 +9,21 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 <PlatformSwitch />
 
+```
+choudoufu live-check
+```
+
 ## The backend
 
-Labels record ownership, so the configuration carries no `backend` or `cloud` block; choudoufu refuses one.
+Markers record ownership, so the configuration carries no `backend` or `cloud` block.
 
 ## Expansions and identity arguments
 
-Every expansion works. The address label is a fixed-length hash, so no key is too long.
+Every expansion works, because the address label has a fixed length.
 
 ## Resource types
 
-Every `google_*` and `google-beta` type with a `labels` map carries the marker. The network skeleton binds by name and project. The sweep needs the Cloud Asset API enabled.
-
-### Refused
-
-| What | Fix |
-|---|---|
-| A marker label in an instance template | Remove it |
-| An estate name over 63 characters | Shorten it |
-| An unlabelled type the server names, with no `live` block | Add the `live` block; its record holds the identity |
+Stock `hashicorp/google` and `google-beta`. Types with a `labels` map carry the marker, the network skeleton binds by name, and the record holds the rest.
 
 ## Running it
 
@@ -35,4 +31,4 @@ Every `google_*` and `google-beta` type with a `labels` map carries the marker. 
 
 ## Other providers
 
-One estate per project. Two estates sharing a project are not fenced from each other ([COMPATIBILITY.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/gcp/COMPATIBILITY.md)).
+The full list is [COMPATIBILITY.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/gcp/COMPATIBILITY.md).

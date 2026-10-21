@@ -1,6 +1,6 @@
 ---
 title: Adopt
-description: Three labels mark each resource. One command migrates a stock state file.
+description: Labels mark each resource. One command migrates a stock state file.
 prompt: |
   Follow https://intentius.io/choudoufu/gcp/adopt/. Run `choudoufu live-import -state=stock.tfstate -estate=<name>` without `-approve` and report its output.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
@@ -9,7 +9,7 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 <PlatformSwitch />
 
-A resource is yours once its `labels` carry `tofu-estate` and `tofu-address`, an encoding of its address. Both go on with the create call.
+A resource is yours once its `labels` carry `tofu-estate` and `tofu-address`.
 
 ## The bulk path
 
@@ -17,12 +17,12 @@ A resource is yours once its `labels` carry `tofu-estate` and `tofu-address`, an
 choudoufu live-import -state=stock.tfstate -estate=my-estate -approve
 ```
 
-Without `-approve` it previews. Approved, it writes the labels through a labels-only plan. It refuses resources labelled for another estate.
+Without `-approve` it previews. Approved, it writes the labels through a labels-only plan.
 
 ## What binds on its own
 
-The network skeleton has no labels map. It binds by the name, project and location you declare.
+Networks and other types with no `labels` map bind by the name and project you declare.
 
 ## Leaving
 
-Drop the `live` block and keep the cache file. Stock OpenTofu carries on ([ADOPT.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/gcp/ADOPT.md)).
+Copy the cache to `terraform.tfstate` and remove the `live` block ([Migrate](/choudoufu/docs/use/migrate/)).

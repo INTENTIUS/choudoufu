@@ -116,13 +116,24 @@ for (const l of detail) console.log(l);
 // Hedge and apology phrasing. No baseline: one hit fails. It reads the same
 // prose as above (code, URLs and front matter blanked) for every page and
 // for rooms.ts, minus rooms.ts's LIMITS list, which states limits by design.
-const HEDGE = /\b(not yet|unproven|not measured|limitations?|caveats?|unfortunately|does not support|cannot yet|is refused|we don't|still needs|stale)\b/gi;
+// The last five came after #2130's GCP pages shipped "None has a dated run
+// yet." and "report which GCP claims are open"; a sentence ending in "yet" is
+// matched on its own, since "\b" cannot close after the full stop.
+const HEDGE = /\b(not yet|unproven|not measured|limitations?|caveats?|unfortunately|does not support|cannot yet|is refused|we don't|still needs|stale|dated run yet|claims are open|none has a dated run|cannot reach)\b|\byet\.(?!\w)/gi;
 const hedges = [];
 for (const { rel, prose, line } of sources) {
   if (rel === "README.md") continue;
   let text = prose;
   if (rel.endsWith("rooms.ts")) text = blankLimits(readFileSync(ROOMS, "utf8"), prose);
   for (const m of text.matchAll(HEDGE)) hedges.push(`${rel}:${line(m.index)}: "${m[0]}"`);
+}
+// The front matter too: the page shows its description, and its prompt sits
+// under the title. extractProse blanks both.
+for (const file of docFiles(DOCS_ROOT)) {
+  const src = readFileSync(file, "utf8");
+  const fm = /^---\n([\s\S]*?)\n---/.exec(src);
+  if (!fm) continue;
+  for (const m of fm[1].matchAll(HEDGE)) hedges.push(`${relative(REPO, file)}:${lineOf(src, m.index + 4)}: "${m[0]}" (front matter)`);
 }
 if (hedges.length > 0) {
   console.error(`prose lint: ${hedges.length} hedge or apology phrase(s); state what the product does:`);

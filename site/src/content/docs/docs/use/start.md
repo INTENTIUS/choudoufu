@@ -102,6 +102,50 @@ Apply the same way. The plan adds the label and the address annotation:
             }
 ```
 
+## On GCP
+
+`estate.chdf.hcl`:
+
+```hcl
+estate = "my-estate"
+
+record_store "gcs" {
+  bucket = "my-records-bucket"
+}
+```
+
+`main.tf`:
+
+```hcl
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "8.6.0"
+    }
+  }
+}
+
+provider "google" {
+  project = "my-project"
+  region  = "us-central1"
+}
+
+resource "google_pubsub_topic" "events" {
+  name = "events"
+}
+```
+
+Create the bucket as [CONTRACT.md](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-gcs/CONTRACT.md)
+describes, then apply. The labels carry the address as a hash:
+
+```
+      + labels                     = {
+          + "tofu-address" = "sr3xznzcyhjfbivm2dllsqcp4d-sr3xznzcyhjfbivm2dllsqcp4d"
+          + "tofu-estate"  = "my-estate"
+        }
+```
+
 ## Check that the markers carry it
 
 Run `choudoufu plan` again. It reads the markers and reports no changes.
