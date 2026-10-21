@@ -393,10 +393,17 @@ SUMMARY_LINE="$(grep -E 'resource\(s\) newly stamped' <<< "$APPROVE_OUT" | head 
 log "  approve: ${SUMMARY_LINE:-no summary line}"
 TAGGED="$(count_a)" || fail "could not read A's resources through ARM"
 RA_RECORD="$(gauntlet_record_file "$ADOPTED/.tofu-records/tofu-records" azapi_resource.roleAssignments || true)"
-if grep -qE ' 0 failed, 0 skipped' <<< "$SUMMARY_LINE" && [ "$TAGGED" = "2" ] && [ -n "$RA_RECORD" ]; then
-  gauntlet_stage migrate pass "$SUMMARY_LINE; both taggable resources (the resource group and the identity) carry tofu-estate=$ESTATE, read back through ARM, and the role assignment, which has no tags at any API version, is held by its record"
+# The role assignment takes no tags at any API version: live-import reports
+# it UNTAGGABLE and SKIPPED (the marker write is what was skipped) and
+# records its identity, as it does an untaggable AWS type's. So it alone is
+# skipped, and any other skip is a failure named with its reason (#1120's
+# first run skipped the azapi resource group too, with nothing said).
+SKIPPED_ADDRS="$(gauntlet_live_import_skipped_addrs <<< "$APPROVE_OUT")"
+WANT_SKIPPED="azapi_resource.roleAssignments"
+if grep -qE ' 0 failed, 1 skipped' <<< "$SUMMARY_LINE" && [ "$SKIPPED_ADDRS" = "$WANT_SKIPPED" ] && [ "$TAGGED" = "2" ] && [ -n "$RA_RECORD" ]; then
+  gauntlet_stage migrate pass "$SUMMARY_LINE; both taggable resources (the resource group and the identity) carry tofu-estate=$ESTATE, read back through ARM, and the role assignment, which has no tags at any API version, is the 1 skipped and is held by its record"
 else
-  gauntlet_stage migrate fail "live-import -approve: ${SUMMARY_LINE:-no summary line}; $TAGGED of 2 taggable resources carry tofu-estate=$ESTATE through ARM; role assignment record: ${RA_RECORD:-none}; first Error: line: \"$(gauntlet_first_error_line <<< "$APPROVE_OUT")\""
+  gauntlet_stage migrate fail "live-import -approve: ${SUMMARY_LINE:-no summary line}; $TAGGED of 2 taggable resources carry tofu-estate=$ESTATE through ARM; role assignment record: ${RA_RECORD:-none}; skipped (want only $WANT_SKIPPED): \"$(gauntlet_live_import_skips <<< "$APPROVE_OUT")\"; first Error: line: \"$(gauntlet_first_error_line <<< "$APPROVE_OUT")\""
 fi
 
 # ── 3. test_plan: replan from nothing ────────────────────────────────────

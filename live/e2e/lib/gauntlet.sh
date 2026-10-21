@@ -1840,6 +1840,43 @@ gauntlet_first_error_line() {
   { grep -m1 -E '^[[:space:]]*(│[[:space:]]*)?Error: ' || true; } | sed -E 's/^[[:space:]]*│?[[:space:]]*//'
 }
 
+# gauntlet_live_import_skips - every row of the SKIPPED group in a
+# live-import -approve report on stdin, as "<address>: <reason>" joined by
+# "; ", empty when the group is absent. live-import prints each skip with its
+# reason (internal/command/views/live_import.go, "  %-42s %-24s %s"), and a
+# skip is never an Error: line, so a migrate verdict that showed only
+# gauntlet_first_error_line read "" for every resource it skipped (#1120's
+# first Azure lane run: three azapi_resource instances, none named).
+gauntlet_live_import_skips() {
+  _gauntlet_live_import_skip_rows | awk -F '\t' '{ out = out (out == "" ? "" : "; ") $1 ": " $2 } END { print out }'
+}
+
+# _gauntlet_live_import_skip_rows - the SKIPPED group's rows on stdin, one
+# "<address><TAB><reason>" line each. A reason may hold "; " and ": ", so
+# the two functions around it split rows here and never re-split the joined
+# text.
+_gauntlet_live_import_skip_rows() {
+  awk '
+    /^SKIPPED \([0-9]+\) - / { in_group = 1; next }
+    in_group && !/^  [^ ]/ { in_group = 0 }
+    in_group {
+      line = $0
+      sub(/^  /, "", line)
+      addr = line; sub(/ .*/, "", addr)
+      reason = line; sub(/^[^ ]+ +[^ ]+ +/, "", reason)
+      print addr "\t" reason
+    }'
+}
+
+# gauntlet_live_import_skipped_addrs - the addresses of the SKIPPED group in
+# a live-import -approve report on stdin, sorted, one space between each;
+# empty when the group is absent. What a migrate gate compares against the
+# instances it expects skipped (the untaggable ones, whose identity is
+# recorded and whose marker write is what was skipped).
+gauntlet_live_import_skipped_addrs() {
+  _gauntlet_live_import_skip_rows | cut -f1 | sort | tr '\n' ' ' | sed 's/ $//'
+}
+
 # gauntlet_plan_line - the plan's own "Plan: ..." or "No changes." summary
 # line on stdin, without its trailing period; empty when there is none.
 gauntlet_plan_line() {

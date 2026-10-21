@@ -390,10 +390,17 @@ APPROVE_OUT="$(tofu_a "$ADOPTED" live-import -state="$STOCK/terraform.tfstate" -
 SUMMARY_LINE="$(grep -E 'resource\(s\) newly stamped' <<< "$APPROVE_OUT" | head -1 | sed 's/\.$//')"
 log "  approve: ${SUMMARY_LINE:-no summary line}"
 TAGGED="$(count_a)" || fail "could not read A's resources through ARM"
-if grep -qE ' 0 failed, 0 skipped' <<< "$SUMMARY_LINE" && [ "$TAGGED" = "9" ]; then
-  gauntlet_stage migrate pass "$SUMMARY_LINE; all 9 taggable resources carry tofu-estate=$ESTATE, read back through ARM (the subnet and the NSG rule have no tags argument)"
+# The subnet and the NSG rule have no tags argument: live-import reports
+# them UNTAGGABLE and SKIPPED (the marker write is what was skipped) and
+# records their identity, as it does an untaggable AWS type's. So exactly
+# those two are skipped, and any other skip is a failure named with its
+# reason (#1120's first run skipped azapi_resource.worker with nothing said).
+SKIPPED_ADDRS="$(gauntlet_live_import_skipped_addrs <<< "$APPROVE_OUT")"
+WANT_SKIPPED="azurerm_network_security_rule.ssh azurerm_subnet.app"
+if grep -qE ' 0 failed, 2 skipped' <<< "$SUMMARY_LINE" && [ "$SKIPPED_ADDRS" = "$WANT_SKIPPED" ] && [ "$TAGGED" = "9" ]; then
+  gauntlet_stage migrate pass "$SUMMARY_LINE; all 9 taggable resources carry tofu-estate=$ESTATE, read back through ARM; the 2 skipped are the subnet and the NSG rule, which have no tags argument"
 else
-  gauntlet_stage migrate fail "live-import -approve: ${SUMMARY_LINE:-no summary line}; $TAGGED of 9 taggable resources carry tofu-estate=$ESTATE through ARM; first Error: line: \"$(gauntlet_first_error_line <<< "$APPROVE_OUT")\""
+  gauntlet_stage migrate fail "live-import -approve: ${SUMMARY_LINE:-no summary line}; $TAGGED of 9 taggable resources carry tofu-estate=$ESTATE through ARM; skipped (want only $WANT_SKIPPED): \"$(gauntlet_live_import_skips <<< "$APPROVE_OUT")\"; first Error: line: \"$(gauntlet_first_error_line <<< "$APPROVE_OUT")\""
 fi
 
 # ── 3. test_plan: replan from nothing ────────────────────────────────────

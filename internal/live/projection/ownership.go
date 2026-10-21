@@ -14,6 +14,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/armtypes"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/policy"
@@ -310,6 +312,27 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		return ownershipOK
 	}
 
+	// GitHub issue #1120's first Azure lane run. azapi_resource's schema has
+	// a tags argument for every ARM type, so the surface above is arm-tags
+	// for a role assignment too; but whether an object can carry a marker is
+	// a property of the ARM type and API version its type argument names,
+	// and the stamp writes none on a type that takes no tags
+	// ([azapiCarriesNoMarker], the stamp's own armTagTarget question). Such
+	// an object's empty tags say nothing about whose it is. Its record does:
+	// live-import -approve and an apply's write-back record its identity,
+	// the way an untaggable AWS or azurerm type's is recorded, so a record
+	// that bound it is the proof, as for a located instance above. Without
+	// this the record-first read reported the record stale (no tofu-address
+	// to confirm it), the instance fell back to its declared id, and the
+	// overwrite refusal below fired on an object this estate had just
+	// migrated. With no record the refusal stands, worded for the record
+	// path ([builder.overwritesAtKey]) rather than for tags nothing can
+	// write.
+	markerless := surface == markers.SurfaceARMTags && azapiCarriesNoMarker(schema.Block, obj)
+	if markerless && recordFirst {
+		return ownershipOK
+	}
+
 	tags, taggable := substrate.MarkersOf(surface, obj)
 	if !taggable {
 		if recordFirst {
@@ -544,7 +567,7 @@ func (b *builder) checkOwnershipAt(addr addrs.AbsResourceInstance, typeName, imp
 		// internal/live/lint's policy-overwrite-at-key refuses the two
 		// verbs before any plan for an estate this reaches; this is the
 		// projection's own guard, for a run that bypassed lint.
-		b.overwritesAtKey(addr, typeName, importID, verb)
+		b.overwritesAtKey(addr, typeName, importID, verb, markerless, obj)
 		return ownershipUnowned
 	}
 
@@ -642,11 +665,21 @@ const SummaryOverwriteAtKey = "Unmarked live object at the declared id would be 
 // the apply would raise anyway, not the only thing between the plan and a
 // takeover (GitHub issue #2133, finding 5). It stays on both, for the
 // reasons that function gives.
-func (b *builder) overwritesAtKey(addr addrs.AbsResourceInstance, typeName, importID string, verb policy.Verb) {
+//
+// markerless is an azapi object whose ARM type takes no tags at its API
+// version ([azapiCarriesNoMarker]), read with no record binding it. No tag
+// can be on it and none can be written, so the message speaks of the record
+// that would be its only carrier, and sends the operator to the two routes
+// that write one (adopt, and live-import -approve), never to tagging it.
+func (b *builder) overwritesAtKey(addr addrs.AbsResourceInstance, typeName, importID string, verb policy.Verb, markerless bool, obj cty.Value) {
 	own := b.opts.Ownership
 	var asked string
 	if verb != "" && verb != policy.DefaultVerb[policy.DeclaredUntagged] {
 		asked = fmt.Sprintf(" policy { %s = %q } does not change this: that verb leaves the object out of this estate and lets the plan propose the create, which is the PUT above.", policy.DeclaredUntagged.Attribute(), verb)
+	}
+	if markerless {
+		b.overwritesUnrecordedAtKey(addr, typeName, importID, asked, obj)
+		return
 	}
 	detail := fmt.Sprintf(
 		"A live %s already exists at %q, the id %s declares, and carries no %s tag, so this estate does not own it. Creating this resource is a PUT to that id, and ARM answers a PUT to an id that already exists by updating the object there instead of failing. %s%s To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, or write the tags %s=%q and %s=%q onto it and re-run. To keep it out of this estate, point this resource at a name nobody is using. This is #1546's refusal for a server that overwrites instead of refusing (GitHub issue #1120).",
@@ -663,6 +696,50 @@ func (b *builder) overwritesAtKey(addr addrs.AbsResourceInstance, typeName, impo
 	})
 	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryOverwriteAtKey, detail))
 	b.omit(addr, ReasonUnowned, detail, noMarkerCause(typeName))
+}
+
+// overwritesUnrecordedAtKey is [builder.overwritesAtKey]'s message for a
+// markerless azapi object: the same Unowned entry, omission and Error under
+// [SummaryOverwriteAtKey], with the record, not a tag, as the missing
+// carrier. AddressMarker is false: no tofu-address can be written onto it.
+func (b *builder) overwritesUnrecordedAtKey(addr addrs.AbsResourceInstance, typeName, importID, asked string, obj cty.Value) {
+	own := b.opts.Ownership
+	armType, apiVersion, _ := armtypes.ParseAzapiType(obj.GetAttr(azapiTypeName).AsString())
+	var record string
+	if b.opts.RecordStore == nil {
+		record = "Its identity record is the only thing that could say this estate owns it, and this live block declares no record_store, so there is nowhere to keep one: add a record_store to the live block first."
+	} else {
+		record = fmt.Sprintf("Its identity record in this estate's record store is the only thing that could say this estate owns it, and there is none for %s.", addr)
+	}
+	detail := fmt.Sprintf(
+		"A live %s already exists at %q, the id %s declares. Its ARM type, %s at API version %s, takes no tags, so it cannot carry a %s marker and none is looked for. %s Creating this resource is a PUT to that id, and ARM answers a PUT to an id that already exists by updating the object there instead of failing. %s%s To adopt the object, set policy { declared_untagged = \"adopt\" } in the live block and re-run, and the apply records it; or, if a stock state file manages it, run choudoufu live-import -state=<that file> -estate=%s -approve, which writes its record. To keep it out of this estate, point this resource at a name nobody is using. This is #1546's refusal for a server that overwrites instead of refusing (GitHub issue #1120).",
+		typeName, importID, addr, armType, apiVersion, markers.TagEstate, record,
+		overwriteProviderGuard(b.providerType(addr, typeName)), asked,
+		own.Estate)
+	b.unownedList = append(b.unownedList, Unowned{
+		Addr:     addr,
+		TypeName: typeName,
+		ImportID: importID,
+		Detail:   detail,
+	})
+	b.diags = b.diags.Append(tfdiags.Sourceless(tfdiags.Error, SummaryOverwriteAtKey, detail))
+	b.omit(addr, ReasonUnowned, detail, fmt.Sprintf("the live %s at its declared id has no record in this estate's record store, and its ARM type carries no marker.", typeName))
+}
+
+// azapiCarriesNoMarker reports whether obj, an object of a block with
+// azapi_resource's shape, names in its type argument an ARM type that takes
+// no tags at that API version, or one this build does not know: the objects
+// the stamp writes no marker on ([armTagTarget]). False for any other block,
+// and for an object whose type cannot be read.
+func azapiCarriesNoMarker(block *configschema.Block, obj cty.Value) bool {
+	if !azapiShaped(block) || obj == cty.NilVal || obj.IsNull() || !obj.IsKnown() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute(azapiTypeName) {
+		return false
+	}
+	typ := obj.GetAttr(azapiTypeName)
+	if typ.IsMarked() || typ.IsNull() || !typ.IsKnown() || typ.Type() != cty.String {
+		return false
+	}
+	return !substrate.AzapiTypeCarriesMarker(typ.AsString())
 }
 
 // SummaryOverwriteMarkedAtKey is the Error GitHub issue #2135's widening of

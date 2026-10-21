@@ -744,12 +744,29 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 	typeName := res.Addr.Resource.Type
 	entry := Entry{Addr: addr, TypeName: typeName}
 
-	if _, admitted := identity.LookupType(typeName); !admitted && !admittedByProviderSchema(ctx, req, res, typeName) && !locatedByProviderSchema(ctx, req, res, typeName) {
-		entry.Status = StatusUnadmittedType
-		entry.Detail = fmt.Sprintf(
-			"There is no identity knowledge for resource type %q, so this run cannot read or verify it. See live/LIMITATIONS.md, \"unadmitted-type\", for the admitted set.",
-			typeName)
-		return entry, carriers{}
+	providerAddr := impliedProviderAddr(req.Config, res)
+	if _, admitted := identity.LookupType(typeName); !admitted {
+		// The two schema doors below both need the provider. A provider
+		// this run cannot reach is said by name, as MISSING, and never
+		// filed as an unadmitted type: until GitHub issue #1120's first
+		// Azure lane run it was, and every azapi_resource in a stock state
+		// file was reported "no identity knowledge for resource type
+		// azapi_resource" when what had failed was reaching
+		// registry.opentofu.org/hashicorp/azapi, a provider that does not
+		// exist (see [impliedProviderAddr]).
+		resp, err := providerSchemaFor(ctx, req, providerAddr)
+		if err != nil {
+			entry.Status = StatusMissing
+			entry.Detail = fmt.Sprintf("Provider %s could not be used, so this run cannot tell whether resource type %q is admitted, and could not verify this instance: %s.", providerAddr, typeName, err)
+			return entry, carriers{}
+		}
+		if !admittedByProviderSchema(resp, typeName) && !locatedByProviderSchema(resp, typeName) {
+			entry.Status = StatusUnadmittedType
+			entry.Detail = fmt.Sprintf(
+				"There is no identity knowledge for resource type %q, so this run cannot read or verify it. See live/LIMITATIONS.md, \"unadmitted-type\", for the admitted set.",
+				typeName)
+			return entry, carriers{}
+		}
 	}
 
 	if inst == nil || inst.Current == nil {
@@ -758,7 +775,6 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		return entry, carriers{}
 	}
 
-	providerAddr := impliedProviderAddr(res)
 	provider, err := req.Providers.ConfiguredProvider(ctx, providerAddr)
 	if err != nil {
 		entry.Status = StatusMissing
@@ -1186,12 +1202,52 @@ func ratifyRecordBacked(entry Entry, typeName string, schema providers.Schema, i
 // here, same as a root resource on a non-default provider always has - but
 // v1 does not need one: the default provider address is what "choudoufu
 // init" in this directory already prepared.
-func impliedProviderAddr(res *states.Resource) addrs.AbsProviderConfig {
+//
+// "Default" means the configuration's own: the root module's
+// required_providers entry for the type's implied local name when it has one
+// (configs.Module.ImpliedProviderForUnqualifiedType, the lookup stock makes
+// for a resource block with no provider argument), and the hashicorp
+// namespace only when it has none. GitHub issue #1120: azure/azapi is not
+// in the hashicorp namespace, so the bare implied address,
+// registry.opentofu.org/hashicorp/azapi, named a provider nobody publishes
+// and "choudoufu init" never installed; every azapi_resource in the Azure
+// lane's first stock state files failed to reach its provider and was
+// skipped. A configuration cannot have been initialised for an azapi
+// resource at all without such an entry, because init resolves the same
+// way. cfg nil (a caller with no configuration) keeps the hashicorp default.
+func impliedProviderAddr(cfg *configs.Config, res *states.Resource) addrs.AbsProviderConfig {
+	return configProviderAddr(cfg, res.Addr.Resource.Type, res.ProviderConfig.Alias)
+}
+
+// configProviderAddr is [impliedProviderAddr] for a resource type and alias:
+// the root-module provider configuration the configuration's
+// required_providers resolve typeName's implied local name to.
+func configProviderAddr(cfg *configs.Config, typeName, alias string) addrs.AbsProviderConfig {
+	local := addrs.Resource{Mode: addrs.ManagedResourceMode, Type: typeName}.ImpliedProvider()
+	provider := addrs.ImpliedProviderForUnqualifiedType(local)
+	if cfg != nil && cfg.Module != nil {
+		provider = cfg.Module.ImpliedProviderForUnqualifiedType(local)
+	}
 	return addrs.AbsProviderConfig{
 		Module:   addrs.RootModule,
-		Provider: addrs.ImpliedProviderForUnqualifiedType(res.Addr.Resource.ImpliedProvider()),
-		Alias:    res.ProviderConfig.Alias,
+		Provider: provider,
+		Alias:    alias,
 	}
+}
+
+// providerSchemaFor is the provider schema the two schema admission doors
+// read, or the error that stood in the way of reaching the provider at all,
+// which ratifyOne reports by name rather than as an unadmitted type.
+func providerSchemaFor(ctx context.Context, req Request, providerAddr addrs.AbsProviderConfig) (providers.GetProviderSchemaResponse, error) {
+	provider, err := req.Providers.ConfiguredProvider(ctx, providerAddr)
+	if err != nil {
+		return providers.GetProviderSchemaResponse{}, err
+	}
+	resp := provider.GetProviderSchema(ctx)
+	if resp.Diagnostics.HasErrors() {
+		return resp, fmt.Errorf("the provider's schema could not be read: %w", resp.Diagnostics.Err())
+	}
+	return resp, nil
 }
 
 // admittedByProviderSchema is the schema-based admission fallback
@@ -1206,9 +1262,9 @@ func impliedProviderAddr(res *states.Resource) addrs.AbsProviderConfig {
 // example, none of which have a static table row because the runtime
 // schema fallback already covers them everywhere else in this fork.
 //
-// Fetching the provider or its schema failing here is not itself reported:
-// it just means the fallback does not apply, and the caller's ordinary "no
-// identity knowledge" refusal stands exactly as it did before this existed.
+// Fetching the provider or its schema is the caller's ([providerSchemaFor]),
+// and a failure there is reported as the provider failure it is, never as
+// "no identity knowledge" (GitHub issue #1120).
 //
 // The claim above - that this is the same admission lint applies - is a
 // claim about ONE function, [identity.SynthesizeTypeIdentity], and it was
@@ -1221,15 +1277,7 @@ func impliedProviderAddr(res *states.Resource) addrs.AbsProviderConfig {
 // this comment asserts is held by construction rather than by two functions
 // being kept in step - which is what live/notimportable_routes_test.go
 // measures over the whole provider surface.
-func admittedByProviderSchema(ctx context.Context, req Request, res *states.Resource, typeName string) bool {
-	provider, err := req.Providers.ConfiguredProvider(ctx, impliedProviderAddr(res))
-	if err != nil {
-		return false
-	}
-	resp := provider.GetProviderSchema(ctx)
-	if resp.Diagnostics.HasErrors() {
-		return false
-	}
+func admittedByProviderSchema(resp providers.GetProviderSchemaResponse, typeName string) bool {
 	_, ok := identity.SynthesizeTypeIdentity(typeName, resp.ResourceTypes, nil)
 	return ok
 }
@@ -1256,15 +1304,7 @@ func admittedByProviderSchema(ctx context.Context, req Request, res *states.Reso
 // conditions for it, so a migrated estate's next live-plan read the
 // instance as unclaimed and proposed creating a second one, having never
 // been given the chance to record the first.
-func locatedByProviderSchema(ctx context.Context, req Request, res *states.Resource, typeName string) bool {
-	provider, err := req.Providers.ConfiguredProvider(ctx, impliedProviderAddr(res))
-	if err != nil {
-		return false
-	}
-	resp := provider.GetProviderSchema(ctx)
-	if resp.Diagnostics.HasErrors() {
-		return false
-	}
+func locatedByProviderSchema(resp providers.GetProviderSchemaResponse, typeName string) bool {
 	schema, ok := resp.ResourceTypes[typeName]
 	if !ok || schema.Block == nil {
 		return false
