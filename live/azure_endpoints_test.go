@@ -295,7 +295,29 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 eval "$(awk '/^write_root\(\) \{/{on=1} /^# ── substrate helpers/{on=0} on' e2e/corpus-azapi-role-assignment/run.sh)"
 SRC="$CSRC" RA_GUID=6faae21a-0cd6-4536-8c23-a278823d12ed ESTATE=corpus-azapi-role-assignment
 AZAPI_REQUIRED_PROVIDER="$(gauntlet_azapi_required_provider)" AZURERM_REQUIRED_PROVIDER="$(gauntlet_azurerm_required_provider)"
-write_root "$DST" live`, "CSRC="+src, "DST="+dst)
+RECORD_STORE_HCL="$(FLOCI_AZ_HOST="$H" gauntlet_floci_az_record_store_block choudoufuazrarecords adopted choudoufu-records)" || exit 1
+write_root "$DST" live`, "CSRC="+src, "DST="+dst, "H="+azTestHost)
+	// The live block's records go to the blob container on floci-az, the
+	// lane's ruling, through the endpoint lock's connection arguments.
+	live := readFile(t, filepath.Join(dst, "live.tf"))
+	if !strings.Contains(live, `record_store "azurerm" {`) || strings.Contains(live, `record_store "local"`) {
+		t.Errorf("write_root's live.tf does not keep records in record_store \"azurerm\":\n%s", live)
+	}
+	got := map[string]string{}
+	for _, l := range strings.Split(live, "\n") {
+		if a := azArgLine.FindStringSubmatch(l); a != nil {
+			got[a[1]] = a[2]
+		}
+	}
+	for k, v := range map[string]string{
+		"metadata_host": `"` + azTestHost + `"`, "client_secret": `"` + azTestSecret + `"`,
+		"use_cli": "false", "use_msi": "false", "use_oidc": "false", "use_aks_workload_identity": "false",
+		"storage_account_name": `"choudoufuazrarecords"`, "container_name": `"adopted"`, "resource_group_name": `"choudoufu-records"`,
+	} {
+		if got[k] != v {
+			t.Errorf("live.tf's record_store %s = %q, want %s", k, got[k], v)
+		}
+	}
 	var all strings.Builder
 	for _, f := range []string{"main.tf", "floci-az.tf"} {
 		b, err := os.ReadFile(filepath.Join(dst, f))
