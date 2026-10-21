@@ -1876,6 +1876,17 @@ az deployment sub create --location <region> \
   --parameters estate=<estate> resourceGroups='["<rg-1>","<rg-2>"]'
 ```
 
+Without a checkout, `--template-uri` takes the raw URL:
+
+```
+az deployment sub create --location <region> \
+  --template-uri https://raw.githubusercontent.com/INTENTIUS/choudoufu/main/live/azure/estate-grant.json \
+  --parameters estate=<estate> resourceGroups='["<rg-1>","<rg-2>"]' principalId=<object-id>
+az deployment sub create --location <region> \
+  --template-uri https://raw.githubusercontent.com/INTENTIUS/choudoufu/main/live/azure/estate-boundary.json \
+  --parameters estate=<estate> resourceGroups='["<rg-1>","<rg-2>"]'
+```
+
 Both are ARM JSON rather than Bicep. `az deployment` takes ARM JSON with
 nothing else installed, where Bicep needs the Bicep CLI on the machine
 (az fetches it on first use, which an air-gapped runner cannot do), and

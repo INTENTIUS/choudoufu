@@ -36,7 +36,7 @@ to manufacture the fault. Only the maintainer runs them.
 | `gcp-a-markerless-type-is-held-by-its-record` | 51, held by its record, or refused | drops the live block; live-check must refuse it |
 | `gcp-the-fence-gap-is-as-stated` | 52, the derived types' fence | removes the binding; the apply must be refused |
 
-## Emulator gaps
+## What the emulator serves
 
 Each gap was filed on the fork rather than routed around: Resource Manager
 tags (lex00/floci-gcp#4), Compute verify (#5), the labels round trip (#6),
@@ -51,12 +51,6 @@ no longer defaults to the accountId, without which stock planned
 that serves them, and also serves the global and regional internet network
 endpoint groups and zonal ones without an instance (#26) that the
 day2_endpoints stage needs.
-
-Serving a capability is not measuring it. No scenario or estate run on
-that image has passed yet, so the sweep's equivalence with real GCP, the
-labels round trip and the fence are still unmeasured here. A stage that
-fails on one of them says so in its own verdict, and that is a finding to
-file on the fork.
 
 ## The gauntlet lane
 
@@ -74,5 +68,5 @@ reads on that substrate. Its estates are in `live/gauntlet/estates.json`:
 go run ./tools/gauntlet run -lane gcp
 ```
 
-Only the maintainer runs it. No gcp-lane run has passed: `live/gauntlet.json`
-records both estates as not run, with 0 of 2 clear.
+Only the maintainer runs it. Each estate's row on
+[the board](../BOARD.md#reference-gcp) records its last run.

@@ -42,7 +42,8 @@ one way to meet the two that are the namespace's - `namespace_access` and
 Roles built with your own tooling are just as correct if the authorizer
 answers the same questions the same way. The other two are the cluster's:
 the estate boundary policy is installed once per cluster by an admin with
-`kubectl apply -f live/kubernetes/estate-boundary.yaml`, and encryption at
+`kubectl apply -f live/kubernetes/estate-boundary.yaml` (or, without a
+checkout, `kubectl apply -f https://raw.githubusercontent.com/INTENTIUS/choudoufu/main/live/kubernetes/estate-boundary.yaml`), and encryption at
 rest is an API server flag no namespace can set.
 
 ## The two identities

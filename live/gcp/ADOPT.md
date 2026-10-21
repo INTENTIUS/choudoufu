@@ -20,6 +20,7 @@ declared skeleton object binds on the first plan.
 
 ```
 choudoufu live-import -state=stock.tfstate -estate=my-estate
+choudoufu live-import -state=stock.tfstate -estate=my-estate -approve
 ```
 
 Without `-approve` it previews. With it, it reads the state file once,
@@ -62,6 +63,6 @@ name with nothing written.
 
 ## Leaving
 
-Remove the `live` block, keep the cache file, and stock OpenTofu with the
+Delete `estate.chdf.hcl` (or the `live` block), keep the cache file, and stock OpenTofu with the
 same provider carries on. The labels stay on the resources, where stock
 ignores them, or `gcloud` removes them.

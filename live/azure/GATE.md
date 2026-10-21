@@ -40,6 +40,17 @@ az deployment sub create --location <region> \
   --parameters estate=<estate> resourceGroups='["<rg-1>"]'
 ```
 
+Without a checkout, `--template-uri` takes the raw URL:
+
+```
+az deployment sub create --location <region> \
+  --template-uri https://raw.githubusercontent.com/INTENTIUS/choudoufu/main/live/azure/estate-grant.json \
+  --parameters estate=<estate> resourceGroups='["<rg-1>"]' principalId=<object-id>
+az deployment sub create --location <region> \
+  --template-uri https://raw.githubusercontent.com/INTENTIUS/choudoufu/main/live/azure/estate-boundary.json \
+  --parameters estate=<estate> resourceGroups='["<rg-1>"]'
+```
+
 [`estate-grant.json`](estate-grant.json) is the RBAC half. It assigns one
 principal a role at each of the estate's groups, plus read at the
 subscription for the plan's Resource Graph sweep. The default role is a

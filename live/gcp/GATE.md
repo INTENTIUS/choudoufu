@@ -23,6 +23,12 @@ the principal that runs it:
 live/gcp/estate-grant.sh
 ```
 
+Without a checkout:
+
+```
+curl -fsSLO https://raw.githubusercontent.com/INTENTIUS/choudoufu/main/live/gcp/estate-grant.sh
+```
+
 It enables the Cloud Asset API in the project, binds
 `roles/cloudasset.viewer` for the sweep, and binds the roles the estate's
 types need. `live/MARKERS.md`, "Granting a GCP estate", inlines it.

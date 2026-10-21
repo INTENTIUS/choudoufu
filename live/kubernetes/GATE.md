@@ -19,6 +19,12 @@ Nothing in RBAC can say "may update objects carrying this label".
 kubectl apply -f live/kubernetes/estate-boundary.yaml
 ```
 
+Without a checkout:
+
+```
+kubectl apply -f https://raw.githubusercontent.com/INTENTIUS/choudoufu/main/live/kubernetes/estate-boundary.yaml
+```
+
 One `ValidatingAdmissionPolicy`, GA in `admissionregistration/v1`,
 installed once by a cluster admin. Its CEL reads `tofu-estate` off
 `oldObject`, the object a write is about to change, which is the
@@ -83,6 +89,15 @@ sed -e 's/ESTATE/app/g' \
     -e 's/PRINCIPAL_NAMESPACE/kube-system/g' \
     -e 's/PRINCIPAL/NAME/g' \
     live/kubernetes/estate-grant.yaml | kubectl apply -f -
+```
+
+Without a checkout:
+
+```
+curl -fsSL https://raw.githubusercontent.com/INTENTIUS/choudoufu/main/live/kubernetes/estate-grant.yaml |
+  sed -e 's/ESTATE/app/g' \
+      -e 's/PRINCIPAL_NAMESPACE/kube-system/g' \
+      -e 's/PRINCIPAL/NAME/g' | kubectl apply -f -
 ```
 
 Do not add it to the installed policy's list: `estate_boundary` fails a

@@ -82,7 +82,8 @@ naming the object and the `az tag update` line that marks it.
 ## From a stock state file
 
 ```
-choudoufu live-import -state=stock.tfstate -approve
+choudoufu live-import -state=stock.tfstate -estate=my-estate
+choudoufu live-import -state=stock.tfstate -estate=my-estate -approve
 ```
 
 The bulk path is the AWS one ([#1073](https://github.com/INTENTIUS/choudoufu/issues/1073)).

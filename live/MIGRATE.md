@@ -1,11 +1,8 @@
 # Migrate an existing estate
 
-Most people arrive here, with an OpenTofu configuration already managing live
-AWS resources.
-
-Migrating means binding those resources to your configuration, one marker at a
-time, until each carries its own ownership record. Nothing does this
-automatically, and the failure mode is quiet.
+Migrating binds the resources an existing configuration manages to that
+configuration, one marker at a time, until each carries its own ownership
+record. Nothing does this automatically, and the failure mode is quiet.
 
 Turning on the live backend does not bind resources you already manage. A resource
 with no marker is not yours yet, so the first plan reads it as absent and
@@ -14,6 +11,32 @@ duplicate.
 
 Run `choudoufu plan` and read the `Adoptable` and `Unowned` sections before
 applying anything.
+
+## The order
+
+1. Pull the state into a file, if it lives in a backend:
+   `tofu state pull > terraform.tfstate`.
+2. Remove the `backend` or `cloud` block. Both are refused beside a live
+   configuration.
+3. Write `estate.chdf.hcl` beside the configuration, with the estate's name
+   and its record store ([`STORAGE.md`](STORAGE.md)):
+
+   ```hcl
+   # estate.chdf.hcl
+   estate = "my-estate"
+
+   record_store "s3" {
+     bucket = "my-records-bucket"
+   }
+   ```
+4. `choudoufu init`.
+5. `choudoufu live-check`, which reports what in the configuration can move
+   under markers and names what stops the rest.
+6. `choudoufu live-import -state=terraform.tfstate -estate=my-estate`, which
+   writes nothing and prints the report, then the same command with
+   `-approve`, which stamps the markers
+   ([the bulk path](#moving-a-large-estate-in-one-go)).
+7. `choudoufu plan`. It is empty once every resource carries its markers.
 
 ## Keep the state file until the migration is done
 
@@ -38,10 +61,7 @@ the only way through.
 
 Keeping it costs nothing while you decide. The live backend does not read a state
 file, refuse one, or mention one, so a `terraform.tfstate` sitting beside a
-live configuration changes no behaviour at all:
-[What you set up by hand](https://intentius.io/choudoufu/docs/use/setup/#deleting-the-state-file-is-not-enforced)
-covers why its presence is harmless and believing it still counts for something
-is not.
+live configuration changes no behaviour at all.
 
 ## What binds on its own, and what does not
 
@@ -68,6 +88,10 @@ too, but nothing in their configuration tells one from another, so the
 classifier can never offer them. A route table is "the one attached to this
 VPC". A listener is a port and protocol on a load balancer named only by a live
 ARN. Write their markers yourself.
+
+`aws_route`, `aws_route_table_association` and `aws_iam_role_policy_attachment`
+bind through their parents: their identity composes from the parents'
+markers, and they bind on the plan after the parents do.
 
 `aws_eip` binds by slot marker, so a pre-existing unmarked EIP is never offered.
 The first apply gives it a fresh slot instead of recognising the old one. The
@@ -246,17 +270,10 @@ instead.
 
 5. **Plan again.** Every adopted resource reads back its own markers and
    reports no changes.
-6. **Turn the live block on.** This is the migration's end state: with
-   the block in the configuration, the ordinary `choudoufu plan` and
-   `apply` run the live backend, and `live-plan` retires. Do it before
-   any plain plan or apply. Without the block those are stock mode, and
-   stock mode with no state file proposes rebuilding the whole estate.
-   A stock-mode plan that would create marker-stamped resources from an
-   empty state warns and names this situation.
-7. **Delete the state file, if you want it gone.** This is optional
+6. **Delete the state file, if you want it gone.** This is optional
    housekeeping, and it comes last. Nothing reads or refuses the file
    itself, and nothing checks that you removed it. What is refused is a
-   later run without the live block whose plan would strip this estate's
+   later run without `estate.chdf.hcl` (or the live block) whose plan would strip this estate's
    markers: see
    [Leaving, and the guard](#leaving-and-the-guard-that-makes-it-deliberate).
 
@@ -269,13 +286,13 @@ a resource.
 Leaving is supported and cheap, and the smoke proves it: the
 [roundtrip claim](smoke/claims/roundtrip.md)
 adopts a stock estate, operates it, and hands it back. The exit is one
-file and one edit: the cache copied to `terraform.tfstate`, the live
-block removed. Stock's first plan back proposes exactly one kind of
+file and one deletion: the cache copied to `terraform.tfstate`, and
+`estate.chdf.hcl` (or the live block) deleted. Stock's first plan back proposes exactly one kind of
 change, removing the two marker tags. Run that leg with stock OpenTofu
 and you are done.
 
 Run it with choudoufu instead and one guard stands in the way, on
-purpose. A choudoufu run WITHOUT a live block behaves as stock does,
+purpose. A choudoufu run without `estate.chdf.hcl` or a live block behaves as stock does,
 with a single measured exception: a plan that would strip a migrated
 estate's ownership markers is computed, rendered in full, and then
 refused with `Plan would remove this estate's ownership markers`. The
@@ -296,7 +313,7 @@ the same plan carries a warning headline instead of the refusal.
 That is the entire boundary. An unmigrated estate never meets the
 guard, which is what keeps the
 [stock-when-you-need-it proof](smoke/claims/roundtrip.md#stock-when-you-need-it-claim-8-until-it-merged-here)'s
-measured parity intact: no live block means stock behavior, and the one
+measured parity intact: no `estate.chdf.hcl` or live block means stock behavior, and the one
 divergence is this refusal, on a migrated estate, guarding the
 migration you already performed.
 
@@ -334,11 +351,6 @@ govern](OWNERSHIP-POLICY.md#what-the-matrix-does-not-govern)
 has the two commands that do cross that boundary.
 
 ## What has no adoption path
-
-`aws_route`, `aws_route_table_association` and `aws_iam_role_policy_attachment`
-carry no tags, so a marker has nowhere to go. Their identity composes from
-already-admitted parents, and they bind on the next plan once the parents are
-adopted.
 
 A type outside the admission table has no adoption path at all. Hand-stamping
 markers does not help, because nothing sweeps for a type this configuration
@@ -391,8 +403,9 @@ matrix.
 
 ## On Azure
 
-The path is the AWS one, built and not yet run against an emulator or a
-subscription. `live-import -approve` reads the stock state once, verifies
+The path is the AWS one. Both Azure estates on [the board](BOARD.md),
+`reference-azure` and `corpus-azapi-role-assignment`, clear every stage on
+floci-az, migrate included. `live-import -approve` reads the stock state once, verifies
 each object at its ARM id, and writes `tofu-estate` and `tofu-address` as
 ARM tags through a tags-only plan and apply: azurerm's `tags` argument, or
 an `azapi_resource`'s top-level `tags`, or its `body.tags` where the
@@ -435,14 +448,15 @@ configuration declares, the way `aws_route` binds through its parents.
 Two things differ from AWS. The fence is the project, so migrate one
 estate per project before granting it
 ([`live/MARKERS.md`](MARKERS.md#granting-a-gcp-estate)). And `live-mv`
-refuses a GCP resource by name until its label rewrite lands; rename the
-block and plan instead, and the plan rewrites the address label in place.
+rewrites a GCP resource's `tofu-address` label in place, after asking Cloud
+Asset Inventory whether anything else in the destination estate already
+carries the new value.
 
 ## Getting back out
 
 Know this before you start. Keeping the door open costs nothing.
 
-Markers are plain tags and the resources are ordinary resources. Remove the
-live configuration, restore a `backend` if you want one, and import the
+Markers are plain tags and the resources are ordinary resources. Delete
+`estate.chdf.hcl` (or the live block), restore a `backend` if you want one, and import the
 resources into a fresh state file with stock tooling. Marker tags can stay,
 since stock OpenTofu ignores them, or delete them with your cloud CLI.
