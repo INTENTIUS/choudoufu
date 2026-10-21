@@ -113,6 +113,36 @@ for (const { rel, prose, line } of sources) {
 
 for (const l of detail) console.log(l);
 
+// Hedge and apology phrasing. No baseline: one hit fails. It reads the same
+// prose as above (code, URLs and front matter blanked) for every page and
+// for rooms.ts, minus rooms.ts's LIMITS list, which states limits by design.
+const HEDGE = /\b(not yet|unproven|not measured|limitations?|caveats?|unfortunately|does not support|cannot yet|is refused|we don't|still needs|stale)\b/gi;
+const hedges = [];
+for (const { rel, prose, line } of sources) {
+  if (rel === "README.md") continue;
+  let text = prose;
+  if (rel.endsWith("rooms.ts")) text = blankLimits(readFileSync(ROOMS, "utf8"), prose);
+  for (const m of text.matchAll(HEDGE)) hedges.push(`${rel}:${line(m.index)}: "${m[0]}"`);
+}
+if (hedges.length > 0) {
+  console.error(`prose lint: ${hedges.length} hedge or apology phrase(s); state what the product does:`);
+  for (const h of hedges) console.error(`  ${h}`);
+  process.exit(1);
+}
+
+// rooms.ts prose with the LIMITS entries' literals blanked, offsets kept.
+function blankLimits(src, prose) {
+  const start = src.indexOf("export const LIMITS");
+  if (start < 0) return prose;
+  const end = src.indexOf("];", start);
+  let out = prose;
+  for (const m of src.slice(start, end).matchAll(LITERAL)) {
+    const lit = (m[1] ?? "") + (m[2] ?? "") + (m[3] ?? "");
+    if (lit.includes(" ")) out = out.replace(lit, " ".repeat(lit.length));
+  }
+  return out;
+}
+
 if (updateBaseline) {
   writeFileSync(BASELINE, JSON.stringify(current, null, 1) + "\n");
   console.log(`prose lint: baseline written, ${gated} gated finding(s) in ${Object.keys(current).length} file(s) (${total} incl. low tiers)`);
