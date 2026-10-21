@@ -80,3 +80,26 @@ if drop:
 print(json.dumps(inv, sort_keys=True, indent=1))
 PY
 }
+
+# refgcp_display_name_only_diff: reads a plan on stdin and succeeds only
+# when its whole diff is lex00/floci-gcp#24 on the service account: exactly
+# one in-place update, of google_service_account.app, whose one changed
+# attribute is display_name going to null. The emulator defaults
+# displayName to the account id where Google leaves it empty, and its PATCH
+# ignores updateMask, so the diff never converges. Anything more in the
+# plan, or anything else in its place, is not #24 and fails this check.
+refgcp_display_name_only_diff() {
+  python3 -c '
+import re, sys
+s = sys.stdin.read()
+if "Plan: 0 to add, 1 to change, 0 to destroy." not in s:
+    sys.exit(1)
+heads = re.findall(r"^\s*# (\S+) will be (?:updated in-place|created|destroyed|replaced)", s, re.M)
+heads += re.findall(r"^\s*# (\S+) must be replaced", s, re.M)
+if heads != ["google_service_account.app"]:
+    sys.exit(1)
+attrs = [l for l in s.splitlines() if re.match(r"^\s+[~+-] (?!resource )[A-Za-z_\"][^=]*= ", l)]
+if len(attrs) != 1 or not re.match(r"^\s+- display_name\s+= \".*\" -> null\s*$", attrs[0]):
+    sys.exit(1)
+'
+}

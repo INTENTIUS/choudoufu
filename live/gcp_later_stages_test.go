@@ -440,6 +440,124 @@ true`
 	}
 }
 
+// refgcpSA24Plan is reference-gcp's test_plan output in runs 5 and 6, the
+// whole diff lex00/floci-gcp#24 on the service account.
+const refgcpSA24Plan = `OpenTofu used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+
+OpenTofu will perform the following actions:
+
+  # google_service_account.app will be updated in-place
+  ~ resource "google_service_account" "app" {
+      - display_name    = "refgcp-app" -> null
+        id              = "projects/chdf-refgcp/serviceAccounts/refgcp-app@chdf-refgcp.iam.gserviceaccount.com"
+        name            = "projects/chdf-refgcp/serviceAccounts/refgcp-app@chdf-refgcp.iam.gserviceaccount.com"
+        # (7 unchanged attributes hidden)
+    }
+
+Plan: 0 to add, 1 to change, 0 to destroy.
+`
+
+func TestRefGCPDisplayNameOnlyDiffIsExactlyFloci24(t *testing.T) {
+	cases := map[string]struct {
+		plan string
+		want bool
+	}{
+		"run 6's test_plan":           {refgcpSA24Plan, true},
+		"a second attribute changes":  {strings.Replace(refgcpSA24Plan, "        id ", "      ~ description     = \"a\" -> \"b\"\n        id ", 1), false},
+		"display_name set to a value": {strings.Replace(refgcpSA24Plan, `-> null`, `-> "x"`, 1), false},
+		"another resource":            {strings.ReplaceAll(refgcpSA24Plan, "google_service_account.app will", "google_pubsub_topic.events will"), false},
+		"a second resource changes": {strings.Replace(strings.Replace(refgcpSA24Plan, "Plan: 0 to add, 1 to change", "Plan: 0 to add, 2 to change", 1),
+			"    }\n\nPlan", "    }\n\n  # google_storage_bucket.logs will be updated in-place\n  ~ resource \"google_storage_bucket\" \"logs\" {\n      ~ labels = {}\n    }\n\nPlan", 1), false},
+		"no changes": {"No changes. Your infrastructure matches the configuration.\n", false},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			cmd := exec.Command("bash", "-c", "source e2e/reference-gcp/gcp.sh; refgcp_display_name_only_diff")
+			cmd.Stdin = strings.NewReader(c.plan)
+			err := cmd.Run()
+			if got := err == nil; got != c.want {
+				t.Errorf("refgcp_display_name_only_diff = %v, want %v (err %v)", got, c.want, err)
+			}
+		})
+	}
+}
+
+// refgcpTestPlanStage is reference-gcp's test_plan stage as run.sh holds
+// it, from its gauntlet_begin_stage to the adoption count after it.
+func refgcpTestPlanStage(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile("e2e/reference-gcp/run.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(raw)
+	i := strings.Index(s, "\ngauntlet_begin_stage test_plan\n")
+	j := strings.Index(s, "\n[ \"$(count_a)\" = \"6\" ] || fail")
+	if i < 0 || j < i {
+		t.Fatal("run.sh: test_plan stage not found")
+	}
+	return s[i:j]
+}
+
+// A test_plan whose only diff is #24 records fail naming #24, pins the
+// display_name in both roots, and the run goes on to the later stages,
+// which say after_fail=test_plan. Any other diff takes the adopting apply
+// as before. Red against 8e4055c205, where #24 sent the run through the
+// adopting apply, which the emulator fails, and that ended the run.
+func TestRefGCPTestPlanGoesOnPastFloci24(t *testing.T) {
+	for name, c := range map[string]struct {
+		firstPlan, wantVerdict string
+		wantPinned             bool
+	}{
+		"floci-gcp#24 only": {refgcpSA24Plan, "lex00/floci-gcp#24", true},
+		"another diff":      {strings.Replace(refgcpSA24Plan, `-> null`, `-> "x"`, 1), "Plan: 0 to add, 1 to change, 0 to destroy", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := t.TempDir()
+			if err := os.WriteFile(filepath.Join(w, "plan1"), []byte(c.firstPlan), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			body := gcpFail + `source e2e/reference-gcp/gcp.sh
+W="` + w + `"; ADOPTED="$W"; ORACLE="$W"; EPA=a; EPB=b; PROJECT=p; REGION=r; ZONE=z; BUCKET=bk
+gcp_fail_flag "$W/failed"
+gauntlet_begin
+log() { printf '%s\n' "$*"; }
+topic_path() { printf 'v1/projects/%s/topics/%s' "$PROJECT" "$1"; }
+exists_a() { return 0; }
+count_a() { echo 6; }
+write_config() { printf 'write_config %s %s pin=[%s]\n' "$2" "$3" "$SA_DISPLAY_LINE"; touch "$W/rewritten"; }
+plan_a() { if [ -e "$W/rewritten" ] || [ -e "$W/applied" ]; then echo "No changes."; else cat "$W/plan1"; fi; }
+apply_a() { echo ADOPTING_APPLY >&2; touch "$W/applied"; }
+SA_DISPLAY_LINE=""
+CURRENT_STAGE=test_plan
+` + refgcpTestPlanStage(t) + `
+( gauntlet_begin_stage test_apply; gauntlet_stage test_apply pass later ); gcp_stage_done $? test_apply
+gauntlet_end
+echo REACHED_THE_END
+`
+			out, _ := gcpBash(t, nil, body)
+			if !strings.Contains(out, "REACHED_THE_END") {
+				t.Fatalf("the run ended at test_plan:\n%s", out)
+			}
+			if !regexp.MustCompile(`GAUNTLET stage=test_plan verdict=fail .*` + regexp.QuoteMeta(c.wantVerdict)).MatchString(out) {
+				t.Errorf("test_plan's verdict does not record fail with %q:\n%s", c.wantVerdict, out)
+			}
+			if !strings.Contains(out, "GAUNTLET stage=test_apply verdict=pass") || !strings.Contains(out, "after_fail=test_plan") {
+				t.Errorf("the later stage did not run with after_fail=test_plan:\n%s", out)
+			}
+			pinned := strings.Contains(out, `write_config live a pin=[  display_name = "refgcp-app"]`) && strings.Contains(out, `write_config stock b pin=[  display_name = "refgcp-app"]`)
+			if pinned != c.wantPinned {
+				t.Errorf("display_name pinned in both roots = %v, want %v:\n%s", pinned, c.wantPinned, out)
+			}
+			if adopted := strings.Contains(out, "ADOPTING_APPLY"); adopted == c.wantPinned {
+				t.Errorf("adopting apply ran = %v, want %v:\n%s", adopted, !c.wantPinned, out)
+			}
+		})
+	}
+}
+
 // gcveNoLocalStateRefusal is the shape of no_local_state's plan once the
 // record store and the cache are deleted, under option A (#2152): the four
 // markerless objects at held names refused in the real format, and the
@@ -507,5 +625,38 @@ func TestGCPNameHeldCheckWantsExactlyTheMarkerlessRefusals(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), `gcp_name_held_check "$NLS/cold.plan" "${NLS_HELD[@]}"`) {
 		t.Error("gcve's no_local_state does not check the plan with no local state with gcp_name_held_check")
+	}
+}
+
+// reference-gcp's no_local_state under option A: the plan with no record
+// store refuses exactly the four markerless objects the greenfield root
+// declares (network, subnetwork, firewall, service account) by the
+// identity each refusal quotes. Red against 8e4055c205, where the stage
+// expected the plan to be empty.
+func TestRefGCPNoLocalStateWantsTheFourMarkerlessRefusals(t *testing.T) {
+	raw, err := os.ReadFile("e2e/reference-gcp/run.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"global/networks/refgcp-net", "regions/$REGION/subnetworks/refgcp-subnet", "global/firewalls/refgcp-ssh", "serviceAccounts/refgcp-app@$PROJECT.iam.gserviceaccount.com"} {
+		if !strings.Contains(string(raw), `"projects/$PROJECT/`+id+`"`) {
+			t.Errorf("reference-gcp's no_local_state does not require a refusal naming projects/$PROJECT/%s", id)
+		}
+	}
+	if !strings.Contains(string(raw), `gcp_name_held_check "$NLS/cold.plan" "${NLS_HELD[@]}"`) {
+		t.Error("reference-gcp's no_local_state does not check the plan with no local state with gcp_name_held_check")
+	}
+	ids := []string{"projects/chdf-refgcp/global/networks/refgcp-net", "projects/chdf-refgcp/regions/us-central1/subnetworks/refgcp-subnet",
+		"projects/chdf-refgcp/global/firewalls/refgcp-ssh", "projects/chdf-refgcp/serviceAccounts/refgcp-app@chdf-refgcp.iam.gserviceaccount.com"}
+	var b strings.Builder
+	for _, id := range ids {
+		fmt.Fprintf(&b, "\nError: Unlabelled live object holds the declared name\n\nA live object already exists at\n%q, the identity it declares.\n", id)
+	}
+	f := filepath.Join(t.TempDir(), "cold.plan")
+	if err := os.WriteFile(f, []byte(b.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, _ := gcpBash(t, nil, `gcp_name_held_check "`+f+`" "`+strings.Join(ids, `" "`)+`"`); out != "" {
+		t.Errorf("the four refusals in the real format do not satisfy the check: %q", out)
 	}
 }
