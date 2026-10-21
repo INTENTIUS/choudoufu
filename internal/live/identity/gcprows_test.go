@@ -314,6 +314,9 @@ func TestGoogleIAMParseShapes(t *testing.T) {
 		"google_spanner_instance_iam_member.inst":             "estate-data/core roles/spanner.viewer" + g,
 		"google_bigquery_dataset_iam_member.ds":               "projects/estate-prod/datasets/analytics roles/bigquery.dataViewer" + g,
 		"google_dataproc_cluster_iam_member.cl":               "projects/estate-prod/regions/europe-west1/clusters/batch roles/dataproc.viewer" + g,
+		"google_folder_iam_member.short":                      "folders/123 roles/viewer" + g,
+		"google_folder_iam_member.long":                       "folders/456 roles/viewer" + g,
+		"google_billing_account_iam_member.ba":                "012345-6789AB-CDEF01 roles/billing.viewer" + g,
 	}
 	for addr, id := range want {
 		got := resolutionAt(t, result, addr)
@@ -324,6 +327,13 @@ func TestGoogleIAMParseShapes(t *testing.T) {
 	long := resolutionAt(t, result, "google_dataproc_metastore_database_iam_member.long")
 	if long.IdentityValues["service_id"] != "meta" || long.IdentityValues["project"] != "other" || long.IdentityValues["database"] != "sales" {
 		t.Errorf("the long form's identity values = %v, want service_id=meta project=other database=sales", long.IdentityValues)
+	}
+	// The prefix CanonicalFolderId adds is the parent id's, not the
+	// argument's: stock's state and identity keep folder as written.
+	for addr, folder := range map[string]string{"google_folder_iam_member.short": "123", "google_folder_iam_member.long": "folders/456"} {
+		if got := resolutionAt(t, result, addr).IdentityValues["folder"]; got != folder {
+			t.Errorf("%s identity folder = %q, want %q as written", addr, got, folder)
+		}
 	}
 }
 

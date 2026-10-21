@@ -43,6 +43,10 @@ var (
 	sprintfCallRe  = regexp.MustCompile(`(?s)^fmt\.Sprintf\(("(?:[^"\\]|\\.)*"|\w+), (.*)\)$`)
 	structMethodRe = regexp.MustCompile(`(?s)^(\w+)\{(.*)\}\.(\w+)\(\)$`)
 	bareFieldRe    = regexp.MustCompile(`^u\.(\w+)$`)
+	// helperGetRe is a struct field set from one argument passed through
+	// a function of the package: `folderId:
+	// CanonicalFolderId(d.Get("folder").(string))`.
+	helperGetRe = regexp.MustCompile(`^(\w+)\(d\.Get\("([a-z0-9_]+)"\)\.\(string\)\)$`)
 
 	// The IdParseFunc shapes a hand-written updater uses instead of
 	// GetImportIdQualifiers: ParseImportId over regexes, or a parse helper
@@ -124,20 +128,27 @@ func iamReadKeys(body string) map[string]bool {
 // over the arguments the constructor reads, or "" and the first piece
 // that is no argument read as written: a parse helper's result, a computed
 // name.
-func updaterResourceID(text, pkg string) (tmpl, unread string) {
+//
+// A piece passed through a canonicalising helper of the package is read
+// when the helper is one of two shapes, and anything else stays unread:
+// one that returns its argument unchanged (cloudbilling's
+// canonicalBillingAccountId), and one that adds a fixed prefix the value
+// lacks (resourcemanager's CanonicalFolderId, "folders/"), which prefixes
+// records by argument.
+func updaterResourceID(text, pkg string) (tmpl, unread string, prefixes map[string]string) {
 	rid := resourceIDRe.FindAllStringSubmatch(text, -1)
 	if len(rid) != 1 {
-		return "", ""
+		return "", "", nil
 	}
 	typ, ret := rid[0][1], strings.TrimSpace(rid[0][2])
 	ctors := constructorRe.FindAllStringIndex(text, -1)
 	if len(ctors) != 1 {
-		return "", ""
+		return "", "", nil
 	}
 	body := funcBody(text, ctors[0][0])
 	lit := strings.Index(body, "&"+typ+"{")
 	if lit < 0 {
-		return "", ""
+		return "", "", nil
 	}
 	litBody := body[lit:]
 	if end := strings.Index(litBody, "\n\t}"); end >= 0 {
@@ -164,6 +175,19 @@ func updaterResourceID(text, pkg string) (tmpl, unread string) {
 			fields[name] = getFieldRe.FindStringSubmatch(expr)[1]
 		case cloud[expr]:
 			fields[name] = expr
+		case helperGetRe.MatchString(expr):
+			m := helperGetRe.FindStringSubmatch(expr)
+			prefix, ok := canonicalHelper(pkg, m[1])
+			if !ok {
+				break
+			}
+			fields[name] = m[2]
+			if prefix != "" {
+				if prefixes == nil {
+					prefixes = map[string]string{}
+				}
+				prefixes[m[2]] = prefix
+			}
 		}
 	}
 	field := func(f string) (string, bool) {
@@ -184,9 +208,9 @@ func updaterResourceID(text, pkg string) (tmpl, unread string) {
 	case bareFieldRe.MatchString(ret):
 		v, ok := field(bareFieldRe.FindStringSubmatch(ret)[1])
 		if !ok {
-			return "", unread
+			return "", unread, nil
 		}
-		return v, ""
+		return v, "", prefixes
 	case sprintfCallRe.MatchString(ret):
 		m := sprintfCallRe.FindStringSubmatch(ret)
 		out, ok := fillSprintf(m[1], m[2], "", func(a string) (string, bool) {
@@ -197,20 +221,20 @@ func updaterResourceID(text, pkg string) (tmpl, unread string) {
 			return field(f)
 		}, nil)
 		if !ok {
-			return "", unread
+			return "", unread, nil
 		}
-		return out, ""
+		return out, "", prefixes
 	case structMethodRe.MatchString(ret):
 		m := structMethodRe.FindStringSubmatch(ret)
 		sfields := map[string]string{}
 		for _, f := range structFieldRe.FindAllStringSubmatch(m[2], -1) {
 			uf, ok := strings.CutPrefix(f[2], "u.")
 			if !ok {
-				return "", ""
+				return "", "", nil
 			}
 			v, ok := field(uf)
 			if !ok {
-				return "", unread
+				return "", unread, nil
 			}
 			sfields[f[1]] = v
 		}
@@ -219,11 +243,11 @@ func updaterResourceID(text, pkg string) (tmpl, unread string) {
 			return v, ok
 		})
 		if !ok {
-			return "", ""
+			return "", "", nil
 		}
-		return out, ""
+		return out, "", prefixes
 	}
-	return "", ""
+	return "", "", nil
 }
 
 // fillSprintf renders a fmt.Sprintf call whose verbs are all %s, each
@@ -312,7 +336,7 @@ func handParseTemplate(body, helpers string) string {
 		return ""
 	}
 	v, helper, lead := call[0][1], call[0][2], strings.TrimSuffix(call[0][3], ", ")
-	ret := regexp.MustCompile(`func ` + regexp.QuoteMeta(helper) + `\([^)]*\) \(\*?(\w+), error\)`).FindAllStringSubmatch(helpers, -1)
+	ret := regexp.MustCompile(`func `+regexp.QuoteMeta(helper)+`\([^)]*\) \(\*?(\w+), error\)`).FindAllStringSubmatch(helpers, -1)
 	if len(ret) != 1 {
 		return ""
 	}
@@ -379,4 +403,35 @@ func parseUnsetKeys(body string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// canonicalHelper reads the package function name of one string argument,
+// and says whether it is the identity (prefix "") or adds prefix to a
+// value that lacks it:
+//
+//	func CanonicalFolderId(folder string) string {
+//		if strings.HasPrefix(folder, "folders/") {
+//			return folder
+//		}
+//
+//		return "folders/" + folder
+//	}
+//
+// ok is false for any other body, or when the package does not define
+// name exactly once.
+func canonicalHelper(pkg, name string) (prefix string, ok bool) {
+	re := regexp.MustCompile(`(?s)\nfunc ` + regexp.QuoteMeta(name) + `\((\w+) string\) string \{\n(.*?)\n\}\n`)
+	ms := re.FindAllStringSubmatch(pkg, -1)
+	if len(ms) != 1 {
+		return "", false
+	}
+	param, body := regexp.QuoteMeta(ms[0][1]), ms[0][2]
+	if regexp.MustCompile(`^\s*return ` + param + `\s*$`).MatchString(body) {
+		return "", true
+	}
+	m := regexp.MustCompile(`^\s*if strings\.HasPrefix\(` + param + `, "([^"\\]+)"\) \{\s*return ` + param + `\s*\}\s*return "([^"\\]+)" \+ ` + param + `\s*$`).FindStringSubmatch(body)
+	if m == nil || m[1] != m[2] {
+		return "", false
+	}
+	return m[1], true
 }

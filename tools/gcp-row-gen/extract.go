@@ -500,7 +500,7 @@ func iamSource(typeName, text string, grammar map[string]string, pkgText, tpgres
 	if s.IAMQualified == "" && pkgText != nil {
 		s.IAMQualified, s.IAMComputedPattern, s.IAMComputedFormat = computedName(text, pkgText)
 	}
-	s.IAMResourceID, s.IAMResourceIDUnread = updaterResourceID(text, pkg)
+	s.IAMResourceID, s.IAMResourceIDUnread, s.IAMResourceIDPrefixes = updaterResourceID(text, pkg)
 	funcs := parseFuncRe.FindAllStringSubmatchIndex(text, -1)
 	parseText := text
 	if len(funcs) == 0 {

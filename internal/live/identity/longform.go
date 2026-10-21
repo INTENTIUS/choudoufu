@@ -95,6 +95,24 @@ func (r *resolver) longFormValue(comp Component, addr addrs.AbsResourceInstance,
 			addr.String(), attr.Name, parent, comp.LongForm.describe())
 		return nil, false
 	}
+	if comp.LongForm == LongFormEnsurePrefix {
+		if len(comp.Qualifiers) != 1 {
+			r.errorf(attr.Range, "Rewritten identity argument not composable",
+				"%s sets %s to %q. %s, and this fork did not read which prefix, so the instance is refused rather than given an id (#2145).",
+				addr.String(), attr.Name, v, comp.LongForm.describe())
+			return nil, false
+		}
+		if v == "" || v == comp.Qualifiers[0] {
+			r.errorf(attr.Range, "Rewritten identity argument not composable",
+				"%s sets %s to %q. %s (%q), which leaves nothing after it, and a parent id with an empty segment names no "+
+					"object, so the instance is refused rather than given one (#2145).",
+				addr.String(), attr.Name, v, comp.LongForm.describe(), comp.Qualifiers[0])
+			return nil, false
+		}
+		// The value itself is unchanged: [ensuredPrefix] adds the prefix
+		// to the import ID alone.
+		return got, true
+	}
 	if comp.LongForm == LongFormTrimPrefix {
 		if len(comp.Qualifiers) != 1 {
 			r.errorf(attr.Range, "Rewritten identity argument not composable",
@@ -328,4 +346,18 @@ func templateMatch(entry TypeIdentity, parent []segment, v string) ([]string, []
 		return nil, nil, false
 	}
 	return m, re.SubexpNames(), true
+}
+
+// ensuredPrefix is the import-ID prefix a component contributes before its
+// value: its own [Component.Literal], followed for [LongFormEnsurePrefix]
+// by the prefix the provider's helper adds when the value lacks it. got
+// has already been through [resolver.longFormValue], so it is known.
+func ensuredPrefix(comp Component, got []Part) string {
+	if comp.LongForm != LongFormEnsurePrefix || len(comp.Qualifiers) != 1 {
+		return comp.Literal
+	}
+	if v, _ := literal(got); !strings.HasPrefix(v, comp.Qualifiers[0]) {
+		return comp.Literal + comp.Qualifiers[0]
+	}
+	return comp.Literal
 }

@@ -80,3 +80,25 @@ resource "google_dataproc_cluster_iam_member" "cl" {
   role    = "roles/dataproc.viewer"
   member  = "group:a@example.com"
 }
+
+# resourcemanager.CanonicalFolderId adds "folders/" to a folder that lacks
+# it, so the short and the long spelling name one parent, "folders/<id>",
+# while the folder argument keeps the value as written.
+resource "google_folder_iam_member" "short" {
+  folder = "123"
+  role   = "roles/viewer"
+  member = "group:a@example.com"
+}
+
+resource "google_folder_iam_member" "long" {
+  folder = "folders/456"
+  role   = "roles/viewer"
+  member = "group:a@example.com"
+}
+
+# cloudbilling.canonicalBillingAccountId returns its argument unchanged.
+resource "google_billing_account_iam_member" "ba" {
+  billing_account_id = "012345-6789AB-CDEF01"
+  role               = "roles/billing.viewer"
+  member             = "group:a@example.com"
+}

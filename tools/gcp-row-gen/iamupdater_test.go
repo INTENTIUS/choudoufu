@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
 // The snippets below are cut from the v8.6.0 files they name, trimmed to
@@ -253,5 +255,83 @@ func TestDecideIAMResourceIDNotInParent(t *testing.T) {
 	src.IAMResourceID = "v1/" + src.IAMParent
 	if d := Decide("google_x_iam_member", map[string]Source{ProviderGoogle: src}, map[string]TypeFacts{ProviderGoogle: tf}); d.Verdict != VerdictRowed {
 		t.Errorf("a prefixed resource id = %s (%s), want rowed", d.Verdict, d.Reason)
+	}
+}
+
+// Hand-written updaters that pass their argument through a canonicalising
+// helper of the package (iam_folder.go, iam_billing_account.go).
+const folderIamText = `
+func NewFolderIamUpdater(d tpgresource.TerraformResourceData, config *transport_tpg.Config) (tpgiamresource.ResourceIamUpdater, error) {
+	return &FolderIamUpdater{
+		folderId: CanonicalFolderId(d.Get("folder").(string)),
+		d:        d,
+		Config:   config,
+	}, nil
+}
+
+func (u *FolderIamUpdater) GetResourceId() string {
+	return u.folderId
+}
+
+func CanonicalFolderId(folder string) string {
+	if strings.HasPrefix(folder, "folders/") {
+		return folder
+	}
+
+	return "folders/" + folder
+}
+`
+
+const billingIamText = `
+func NewBillingAccountIamUpdater(d tpgresource.TerraformResourceData, config *transport_tpg.Config) (tpgiamresource.ResourceIamUpdater, error) {
+	return &BillingAccountIamUpdater{
+		billingAccountId: canonicalBillingAccountId(d.Get("billing_account_id").(string)),
+		d:                d,
+		Config:           config,
+	}, nil
+}
+
+func (u *BillingAccountIamUpdater) GetResourceId() string {
+	return u.billingAccountId
+}
+
+func canonicalBillingAccountId(resource string) string {
+	return resource
+}
+`
+
+// TestIAMCanonicalHelpers: GetResourceId over a helper that adds a prefix
+// the value lacks names the prefixed parent, one over the identity
+// helper names the argument as written, and any other helper stays
+// unread. A parent the updater rebuilds through code left unread is
+// refused, never rowed over the argument as written.
+func TestIAMCanonicalHelpers(t *testing.T) {
+	text := func(s string) func() string { return func() string { return s } }
+	tf := TypeFacts{Attrs: map[string]string{"folder": "R", "billing_account_id": "R", "role": "R", "member": "R"}}
+
+	folder := iamSource("google_folder_iam_member", folderIamText, nil, text(folderIamText), text(""))
+	if folder.IAMResourceID != "{{folder}}" || folder.IAMResourceIDUnread != "" || !reflect.DeepEqual(folder.IAMResourceIDPrefixes, map[string]string{"folder": "folders/"}) {
+		t.Fatalf("folder resource id %q, unread %q, prefixes %v", folder.IAMResourceID, folder.IAMResourceIDUnread, folder.IAMResourceIDPrefixes)
+	}
+	folder.Kind, folder.IAMParent, folder.IAMGrammar = "iam_member", "{{folder}}", "resource_name role member"
+	d := Decide("google_folder_iam_member", map[string]Source{ProviderGoogle: folder}, map[string]TypeFacts{ProviderGoogle: tf})
+	if d.Verdict != VerdictRowed || d.Row.Components[0].LongForm != identity.LongFormEnsurePrefix || !reflect.DeepEqual(d.Row.Components[0].Qualifiers, []string{"folders/"}) {
+		t.Errorf("folder = %s (%s), row %+v; want rowed with the folders/ prefix ensured", d.Verdict, d.Reason, d.Row)
+	}
+
+	billing := iamSource("google_billing_account_iam_member", billingIamText, nil, text(billingIamText), text(""))
+	if billing.IAMResourceID != "{{billing_account_id}}" || billing.IAMResourceIDUnread != "" || billing.IAMResourceIDPrefixes != nil {
+		t.Fatalf("billing resource id %q, unread %q, prefixes %v", billing.IAMResourceID, billing.IAMResourceIDUnread, billing.IAMResourceIDPrefixes)
+	}
+
+	other := strings.Replace(folderIamText, `return "folders/" + folder`, `return "folders/" + strings.ToLower(folder)`, 1)
+	src := iamSource("google_folder_iam_member", other, nil, text(other), text(""))
+	if src.IAMResourceID != "" || !strings.Contains(src.IAMResourceIDUnread, "CanonicalFolderId") {
+		t.Fatalf("an unread helper: resource id %q, unread %q", src.IAMResourceID, src.IAMResourceIDUnread)
+	}
+	src.Kind, src.IAMParent, src.IAMGrammar = "iam_member", "{{folder}}", "resource_name role member"
+	d = Decide("google_folder_iam_member", map[string]Source{ProviderGoogle: src}, map[string]TypeFacts{ProviderGoogle: tf})
+	if d.Verdict != VerdictUnrowed || !strings.Contains(d.Reason, "CanonicalFolderId") {
+		t.Errorf("an unread helper = %s (%s), want unrowed naming it", d.Verdict, d.Reason)
 	}
 }
