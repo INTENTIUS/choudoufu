@@ -1451,6 +1451,9 @@ func identityFromValues(w wanted, schema providers.Schema) (cty.Value, bool) {
 	if len(w.values) == 0 {
 		return cty.NilVal, false
 	}
+	// The importer's form of each value, not the stored one: a recorded
+	// google region may be the self link its Read wrote.
+	w.values = identity.RewriteIdentityValues(w.addr.Resource.Resource.Type, w.values)
 	body := schema.IdentitySchema
 
 	vals := make(map[string]cty.Value, len(body.Attributes))

@@ -747,6 +747,7 @@ func TestRefGCPEndpointsStageGates(t *testing.T) {
 W="` + w + `"; WORK="$W"; ADOPTED="$W/a"; ORACLE="$W/b"; PROJECT=p; REGION=r
 mkdir -p "$ADOPTED/.terraform" "$ADOPTED/.tofu-records" "$ORACLE"
 echo '{"cache":1}' > "$ADOPTED/.terraform/choudoufu-cache.tfstate"
+echo '{}' > "$ADOPTED/.tofu-records/pre"
 log() { printf '%s\n' "$*"; }
 NEGS="refgcp-gneg-ip refgcp-gneg-fqdn refgcp-rneg-ip refgcp-rneg-fqdn"
 live() { [ -f "$W/$1.$(basename "$2")" ]; }
@@ -817,6 +818,7 @@ echo "left: $(cd "$W" && ls A.* B.* 2>/dev/null | tr '\n' ' ')"
 [ -e "$ADOPTED/day2_endpoints.tf" ] && echo "SCRATCH LEFT ON A"
 [ -e "$ORACLE/day2_endpoints.tf" ] && echo "SCRATCH LEFT ON B"
 [ -f "$ADOPTED/.terraform/choudoufu-cache.tfstate" ] || echo "CACHE NOT RESTORED"
+echo "records: $(ls "$ADOPTED/.tofu-records" | tr '\n' ' ')"
 [ -f "$W/imports" ] && cat "$W/imports"
 true`
 		out, _ := gcpBash(t, env, body)
@@ -877,6 +879,12 @@ true`
 			}
 			if !strings.Contains(out, "left: \n") {
 				t.Errorf("a NEG outlived the failed stage on A or B:\n%s", out)
+			}
+			// The NEGs were deleted with the REST API, so a record of them
+			// left on A would be imported by every later plan and fail it
+			// (run 9): the store must be the one the stage started with.
+			if !strings.Contains(out, "records: pre \n") {
+				t.Errorf("A's record store is not the one the stage started with:\n%s", out)
 			}
 		})
 	}

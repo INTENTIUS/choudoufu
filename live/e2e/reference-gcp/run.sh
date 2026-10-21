@@ -793,8 +793,24 @@ scrub_endpoints() {
     exists_a "$neg" && { ra DELETE "$neg" >/dev/null 2>&1; log "  day2_endpoints: ${neg##*/} deleted from A with the REST API so no later stage inherits it"; }
     rb GET "$neg" >/dev/null 2>&1 && { rb DELETE "$neg" >/dev/null 2>&1; log "  day2_endpoints: ${neg##*/} deleted from B with the REST API so no later stage inherits it"; }
   done
+  # A's record store and state cache go back to the snapshot taken before
+  # the create: records for objects just deleted with the REST API would
+  # otherwise be imported by every later plan and fail it (the ninth GCP
+  # run lost day2_crash through no_local_state that way).
+  if [ -d "$EP_SNAP/records" ]; then
+    rm -rf "$ADOPTED/.tofu-records"; cp -R "$EP_SNAP/records" "$ADOPTED/.tofu-records"
+    log "  day2_endpoints: A's record store put back as it was before the stage"
+  fi
+  if [ -f "$EP_SNAP/cache.tfstate" ]; then
+    cp "$EP_SNAP/cache.tfstate" "$ADOPTED/.terraform/choudoufu-cache.tfstate"
+  else
+    rm -f "$ADOPTED/.terraform/choudoufu-cache.tfstate"
+  fi
   return 0
 }
+EP_SNAP="$WORK/day2-endpoints-snapshot"; rm -rf "$EP_SNAP"; mkdir -p "$EP_SNAP"
+cp -R "$ADOPTED/.tofu-records" "$EP_SNAP/records" 2>/dev/null || true
+cp "$ADOPTED/.terraform/choudoufu-cache.tfstate" "$EP_SNAP/cache.tfstate" 2>/dev/null || true
 trap scrub_endpoints EXIT
 endpoints_block > "$ORACLE/$EP_FILE" || fail "could not write the scratch endpoints to the oracle root"
 endpoints_block > "$ADOPTED/$EP_FILE" || fail "could not write the scratch endpoints to the adopted root"
