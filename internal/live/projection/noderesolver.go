@@ -528,7 +528,7 @@ func unrecordedNotOwned(providerType, typeName string, schema providers.Schema) 
 	if fieldGranularOwned("", schema) {
 		return false
 	}
-	return substrate.UnrecordedFor(providerType) != substrate.UnrecordedParentOwned
+	return substrate.UnrecordedFor(providerType, typeName) != substrate.UnrecordedParentOwned
 }
 
 // providerType is the type name of the provider addr's resource block is

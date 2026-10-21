@@ -165,12 +165,16 @@ type Substrate interface {
 	// #1883; live/MARKERS.md's record table).
 	MarkerOutlivesObject() bool
 
-	// Unrecorded is what a declared instance of one of this family's
-	// markerless types (no surface at all) means when a record store is in
-	// play, it holds no record for the instance, and an object is live at
-	// the identity its configuration computes ([Unrecorded], the
-	// maintainer's ruling of 2026-10-20).
-	Unrecorded() Unrecorded
+	// Unrecorded is what a declared instance of typeName, one of this
+	// family's markerless types (no surface at all), means when a record
+	// store is in play, it holds no record for the instance, and an object
+	// is live at the identity its configuration computes ([Unrecorded], the
+	// maintainer's ruling of 2026-10-20). It is per type because whether a
+	// create at a held identity collides is: enabling a google project
+	// service that is already enabled succeeds, creating a firewall whose
+	// name is taken does not. A family answers from its own facts about the
+	// type, never from a list in a caller.
+	Unrecorded(typeName string) Unrecorded
 
 	// NewSweeper builds the family's estate-sweep client from its provider
 	// block's evaluated configuration (ok false when the run holds none):
@@ -307,9 +311,9 @@ const (
 // [UnrecordedCreates] for a provider no family claims: nothing vouches that
 // its markerless objects are anybody's, and nothing says a create there
 // collides.
-func UnrecordedFor(providerType string) Unrecorded {
+func UnrecordedFor(providerType, typeName string) Unrecorded {
 	if s, ok := ForProvider(providerType); ok {
-		return s.Unrecorded()
+		return s.Unrecorded(typeName)
 	}
 	return UnrecordedCreates
 }

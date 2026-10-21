@@ -84,7 +84,7 @@ func (aws) NewSweeper(cty.Value, bool) (Sweeper, error) { return nil, nil }
 // parents, so it is admitted at its declared identity with no record, as
 // before the 2026-10-20 ruling. AWS also never refuses on a name collision
 // ([aws.CreateCollidesOnKey]).
-func (aws) Unrecorded() Unrecorded { return UnrecordedParentOwned }
+func (aws) Unrecorded(string) Unrecorded { return UnrecordedParentOwned }
 
 // ---- GitHub issue #1584: the answers the projection's shadow enum held ----
 

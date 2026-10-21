@@ -108,7 +108,7 @@ func (kubernetes) MarkerOutlivesObject() bool { return false }
 // patch an object someone else made and are judged by field manager, never
 // by this answer (internal/live/projection's fieldGranularOwned). Any other
 // markerless type with no record plans its create.
-func (kubernetes) Unrecorded() Unrecorded { return UnrecordedCreates }
+func (kubernetes) Unrecorded(string) Unrecorded { return UnrecordedCreates }
 
 // NewSweeper is the cluster client the provider block's own connection
 // arguments build ([KubernetesSweepAttrs] mirrors hashicorp/kubernetes'

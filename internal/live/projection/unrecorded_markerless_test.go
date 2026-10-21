@@ -12,6 +12,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tofu"
 )
@@ -303,6 +304,90 @@ func TestUnrecordedMarkerless_awsParentOwnedIsUnchanged(t *testing.T) {
 			}
 			if _, found, _ := n.ResolveResourceIdentity(ctx, addr, cty.NilVal, fakeSchemas()["aws_s3_bucket_policy"]); !found {
 				t.Errorf("the node resolver no longer binds the AWS attachment from its configuration-derived identity")
+			}
+		})
+	}
+}
+
+// TestUnrecordedMarkerless_greenfieldAfterTeardown is gcve's greenfield
+// stage: the estate was destroyed, stock's destroy left every service
+// enabled (disable_on_destroy unset), and the next apply starts from a fresh
+// record store. Every live service is unrecorded and must plan its create,
+// as stock's apply does; before the ruling all of them were adopted.
+func TestUnrecordedMarkerless_greenfieldAfterTeardown(t *testing.T) {
+	rs := newTestLocatedStore(localHintStore(t), ownershipEstate).rs
+	cloud := &googleCloud{enabled: map[string]bool{gcpKeptService: true, gcpGoneService: true}}
+
+	res := buildServices(t, rs, cloud, gcpKeptService, gcpGoneService)
+	assertMaterialized(t, res, nil)
+	assertOmitted(t, res, map[string]Reason{
+		serviceAddr(t, gcpKeptService).String(): ReasonUnowned,
+		serviceAddr(t, gcpGoneService).String(): ReasonUnowned,
+	})
+}
+
+// perTypeFamily stands in for a provider family that knows, per type,
+// whether a create at a held identity collides: the hook the google family
+// on gcp-lane implements, where enabling a service that is already enabled
+// succeeds and a firewall whose name is taken does not. Everything else is
+// Kubernetes', by embedding.
+type perTypeFamily struct {
+	substrate.Substrate
+	answers map[string]substrate.Unrecorded
+}
+
+func (perTypeFamily) Name() string            { return "google" }
+func (perTypeFamily) ProviderTypes() []string { return []string{"google"} }
+func (f perTypeFamily) Unrecorded(typeName string) substrate.Unrecorded {
+	if a, ok := f.answers[typeName]; ok {
+		return a
+	}
+	return substrate.UnrecordedCreates
+}
+
+func withFamily(t *testing.T, f substrate.Substrate) {
+	t.Helper()
+	saved := substrate.All
+	substrate.All = append([]substrate.Substrate{f}, saved...)
+	t.Cleanup(func() { substrate.All = saved })
+}
+
+// TestUnrecordedMarkerless_theFamilyDecidesPerType: the same unrecorded
+// object plans its create where the family says the create cannot collide,
+// and stops at the name-held refusal where it says it would.
+func TestUnrecordedMarkerless_theFamilyDecidesPerType(t *testing.T) {
+	for name, tc := range map[string]struct {
+		answer    substrate.Unrecorded
+		wantError bool
+	}{
+		"idempotent create": {answer: substrate.UnrecordedCreates},
+		"create collides":   {answer: substrate.UnrecordedNameHeld, wantError: true},
+		"parent-owned":      {answer: substrate.UnrecordedParentOwned},
+	} {
+		t.Run(name, func(t *testing.T) {
+			withFamily(t, perTypeFamily{Substrate: substrate.Kubernetes, answers: map[string]substrate.Unrecorded{"google_project_service": tc.answer}})
+			rs := migrated(t, gcpKeptService)
+			cloud := &googleCloud{enabled: map[string]bool{gcpKeptService: true, gcpGoneService: true}}
+			cfg := loadConfig(t, "testdata/unrecorded-markerless")
+			res, diags := BuildWith(context.Background(), cfg, serviceResolutions(t, gcpKeptService, gcpGoneService),
+				SingleProvider(googleProvider, cloud.provider()),
+				Options{RecordStore: rs, Ownership: &Ownership{Estate: ownershipEstate}})
+			gone := serviceAddr(t, gcpGoneService).String()
+			switch tc.answer {
+			case substrate.UnrecordedParentOwned:
+				assertNoErrors(t, diags)
+				assertMaterialized(t, res, []string{serviceAddr(t, gcpKeptService).String(), gone})
+			case substrate.UnrecordedNameHeld:
+				if errs := errorDiagsWith(diags, SummaryNameHeld); len(errs) != 1 {
+					t.Fatalf("want one %q error, got:\n%s", SummaryNameHeld, renderDiags(diags))
+				}
+				assertOmitted(t, res, map[string]Reason{gone: ReasonUnowned})
+			default:
+				assertNoErrors(t, diags)
+				assertOmitted(t, res, map[string]Reason{gone: ReasonUnowned})
+				if !hasDiag(diags, SummaryUnrecordedMarkerless, googleServiceID(gcpGoneService)) {
+					t.Errorf("no create warning:\n%s", renderDiags(diags))
+				}
 			}
 		})
 	}

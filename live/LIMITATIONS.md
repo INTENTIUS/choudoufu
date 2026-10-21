@@ -5377,7 +5377,7 @@ in the estate's record store, has nothing that says this estate made it. Off
 AWS it is left out of the prior state with the warning `Unrecorded live
 object at a declared identity`, and the plan proposes the create, as stock
 does for an object its state does not hold. The family decides what that
-means per substrate (`live/SUBSTRATES.md`, the "Untaggable, no record,
+means, type by type (`live/SUBSTRATES.md`, the "Untaggable, no record,
 object live" row): AWS keeps the admission, because its untaggable types
 are attachments and associations whose ownership is their tagged parents';
 a family that says a create at a held identity collides stops the plan with

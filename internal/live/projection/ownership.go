@@ -582,7 +582,7 @@ func (b *builder) unrecordedMarkerless(addr addrs.AbsResourceInstance, typeName,
 	if fieldGranularOwned("", schema) {
 		return ownershipOK
 	}
-	rule := substrate.UnrecordedFor(providerType)
+	rule := substrate.UnrecordedFor(providerType, typeName)
 	if rule == substrate.UnrecordedParentOwned {
 		return ownershipOK
 	}
