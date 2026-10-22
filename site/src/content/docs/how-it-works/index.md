@@ -7,8 +7,8 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-choudoufu is OpenTofu with ownership on the resources. Each resource carries
-its estate's marker, and small records hold the rest.
+choudoufu is OpenTofu with ownership on the resources. Each taggable resource
+carries its estate's marker, and small records hold the rest.
 
 ![What choudoufu keeps, and where](../../../assets/diagram-pieces.svg)
 
@@ -17,8 +17,9 @@ its estate's marker, and small records hold the rest.
 An estate is one configuration and everything it owns, named once in
 `estate.chdf.hcl`.
 
-A marker is a tag or label holding the estate name and block address
-([Identity](identity/)).
+A marker is a tag or label holding the estate name. The block address sits
+beside it: a tag, a label, or on Kubernetes the
+`choudoufu.intentius.io/tofu-address` annotation ([Identity](identity/)).
 
 A record holds what the live resource cannot return, such as a generated
 password ([Records](values/)).

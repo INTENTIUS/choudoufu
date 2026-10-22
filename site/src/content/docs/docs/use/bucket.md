@@ -38,4 +38,4 @@ The role reaches only its estate's objects. Add `--read-only` for a plan job.
 
 Grant `s3:ListBucketVersions`, `s3:DeleteObjectVersion` and
 `s3:GetObjectVersion` to the person who recovers
-([`live/STORAGE.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STORAGE.md)).
+([`live/RECOVERY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/RECOVERY.md#the-procedure)).

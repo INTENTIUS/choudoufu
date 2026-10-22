@@ -25,8 +25,9 @@ func TestLiveImportHelpDescribesBothSubstrates(t *testing.T) {
 	help := (&LiveImportCommand{}).Help()
 
 	for _, want := range []string{
-		// The Kubernetes marker is one label and carries no address.
-		"one label, tofu-estate, and no address",
+		// The Kubernetes marker is one label, with the address in an
+		// annotation (#1639).
+		"one label, tofu-estate, and the address in the\n  choudoufu.intentius.io/tofu-address annotation",
 		// Where a typed kubernetes_* resource carries it (#1073), and how
 		// a kubernetes_manifest gets it (#1109).
 		"metadata.labels",
@@ -45,6 +46,9 @@ func TestLiveImportHelpDescribesBothSubstrates(t *testing.T) {
 	}
 
 	for _, gone := range []string{
+		// The address once stayed off a Kubernetes object; -approve now
+		// writes the annotation.
+		"and no address",
 		// Every resource gets both markers.
 		"tofu-estate and tofu-address markers onto every resource",
 		// A tags argument is the only carrier.

@@ -20,7 +20,7 @@ prompt: >-
 | Platform | Credentials |
 |---|---|
 | AWS | `AWS_PROFILE` and a region |
-| Kubernetes | Your kubeconfig, or `KUBE_CONFIG_PATH` |
+| Kubernetes | `config_path` in `record_store`, or `KUBECONFIG` or `KUBE_CONFIG_PATH` |
 | GCP | `gcloud auth application-default login` |
 | Azure | `az login`, and `subscription_id` in the `azurerm` provider block |
 

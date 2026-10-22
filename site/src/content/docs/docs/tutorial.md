@@ -36,11 +36,11 @@ bash live/e2e/run.sh --expect 5
 The output ends like this:
 
 ```
-EXPECT 5: OK -- every step phase<=5 is pass, every step phase>5 is not_implemented
 PASS: live-mode E2E harness reached the end.
+EXPECT 5: OK -- every step phase<=5 is pass, every step phase>5 is not_implemented
 ```
 
-Step 2 applies and tags each resource with `tofu-estate` and `tofu-address`.
+Step 2 applies and tags each taggable resource with `tofu-estate` and `tofu-address`.
 Step 3 deletes `terraform.tfstate`. Steps 4 and 5 plan again, and both plans
 come back empty.
 
@@ -55,7 +55,7 @@ finds them by the `tofu-estate` label and comes back empty.
 
 ## What just happened
 
-The apply wrote a marker on each resource, so the state file is now a cache.
+The apply wrote a marker on each taggable resource, so the state file is now a cache.
 In your own estate, an `estate.chdf.hcl` file turns that on.
 
 ## Next

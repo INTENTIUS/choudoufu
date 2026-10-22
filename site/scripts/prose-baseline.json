@@ -71,8 +71,8 @@
  "site/src/data/rooms.ts": {
   "discourse/punchy-fragments": 12,
   "discourse/staccato-register": 1,
-  "repetition/near-duplicate": 3,
   "anaphora/repeated-opening": 1,
-  "tricolon/comma-series": 1
+  "tricolon/comma-series": 1,
+  "repetition/near-duplicate": 2
  }
 }

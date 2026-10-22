@@ -38,7 +38,7 @@ the backend.
 A `live` block that declares no `record_store` gets the local one, the way
 stock implies a local state file.
 
-All four give the same guarantees; a run cannot tell them apart. Each record
+All five give the same guarantees; a run cannot tell them apart. Each record
 is its own object, tagged or labelled with the estate's name the way a
 managed resource is, so one S3 bucket or cluster serves any number of estates
 and your IAM or RBAC decides who reads which. A GCS bucket cannot fence its

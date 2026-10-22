@@ -211,7 +211,7 @@ export const ROOMS: Room[] = [
 		works: [
 			'The tutorial needs Docker, the aws CLI and Go',
 			'Each claim is a scenario you can run and break',
-			'Leaving is one file copy and deleting the estate file',
+			'Undo is six steps back to your backend',
 		],
 		differs: [],
 		first: { label: 'Tutorial', href: '/docs/tutorial/' },

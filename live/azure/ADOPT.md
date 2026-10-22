@@ -10,7 +10,7 @@ against each estate's stock state.
 
 An Azure object is yours once it carries the `tofu-estate` tag naming your
 estate. The tags are the AWS ones, `tofu-estate`, `tofu-address` with its
-continuations, and `tofu-slot` on a `count` member, written lowercase into
+continuations, written lowercase into
 the `tags` argument both providers already accept (ruled on
 [#1122](https://github.com/INTENTIUS/choudoufu/issues/1122)). ARM treats tag
 keys as case-insensitive, so every read folds case: a configuration that
@@ -43,9 +43,9 @@ the plan says why.
 azurerm serves a resource identity schema for 196 of its 1,106 types at
 5.10.0, subnets and routes among them, and those keep the identity-schema
 route, with `subscription_id` from the provider block. The route admits 103
-of them on the schema alone. Another 72 are admitted through the generated
+of them on the schema alone. Another 78 are admitted through the generated
 template, which a guard first holds to the identity attributes azurerm's
-own identity tests read. The other 21 are refused by name: 19 have no
+own identity tests read. The other 15 are refused by name: 13 have no
 template, and 2 have a template the guard withholds. Each type's route is
 recorded in `live/azurerm-ids.json`.
 

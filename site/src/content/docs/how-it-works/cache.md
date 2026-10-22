@@ -7,7 +7,7 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-Every run writes an ordinary state file, `.terraform/choudoufu-cache.tfstate`.
+By default, every run writes an ordinary state file, `.terraform/choudoufu-cache.tfstate`.
 A default plan reads the live system, so a fresh checkout or CI runner plans
 correctly from an empty cache.
 

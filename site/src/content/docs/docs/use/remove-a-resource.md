@@ -22,7 +22,7 @@ policy {
 
 ## Destroy it
 
-Delete the block and apply. To remove the whole estate, run `choudoufu destroy`.
+With `undeclared_tagged` at its default, `delete`, delete the block and apply. To remove the whole estate, run `choudoufu destroy`.
 
 On Kubernetes the sweep finds each kind by the `tofu-estate` label and leaves
 what a controller or a Helm release made.

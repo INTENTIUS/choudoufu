@@ -13,14 +13,40 @@ The create call writes the tag, so a role can be scoped by it.
 
 ```json
 {
-  "Sid": "MutateOnlyThisEstate",
-  "Effect": "Allow",
-  "Action": ["ec2:CreateTags", "ec2:DeleteTags", "ec2:TerminateInstances"],
-  "Resource": "*",
-  "Condition": {
-    "StringEquals": {"aws:ResourceTag/tofu-estate": "prod-networking"},
-    "StringEqualsIfExists": {"aws:RequestTag/tofu-estate": "prod-networking"}
-  }
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "MutateOnlyThisEstate",
+      "Effect": "Allow",
+      "Action": ["ec2:CreateTags", "ec2:DeleteTags", "ec2:TerminateInstances"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {"aws:ResourceTag/tofu-estate": "prod-networking"},
+        "StringEqualsIfExists": {"aws:RequestTag/tofu-estate": "prod-networking"}
+      }
+    },
+    {
+      "Sid": "CreateOnlyIntoThisEstate",
+      "Effect": "Allow",
+      "Action": ["ec2:RunInstances"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {"aws:RequestTag/tofu-estate": "prod-networking"}
+      }
+    },
+    {
+      "Sid": "TagOnlyAsPartOfThatCreate",
+      "Effect": "Allow",
+      "Action": ["ec2:CreateTags"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/tofu-estate": "prod-networking",
+          "ec2:CreateAction": "RunInstances"
+        }
+      }
+    }
+  ]
 }
 ```
 
@@ -30,4 +56,4 @@ Handing an estate over moves this policy to the new role, and plain `aws` calls 
 
 ## Guarding the marker
 
-An SCP that denies the untag actions keeps the tag on every resource in the account ([GOVERNANCE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/GOVERNANCE.md)).
+An SCP that denies the untag actions keeps the tag on resources in member accounts ([GOVERNANCE.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/GOVERNANCE.md)).
