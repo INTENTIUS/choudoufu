@@ -121,7 +121,7 @@ It installs the `aws` and `random` providers and reports success.
 choudoufu apply
 ```
 
-The plan adds 3 resources, and the VPC and the role each get two tags:
+The plan adds all three, and the VPC and the role each get two tags:
 
 ```
       + tags       = {
@@ -138,8 +138,7 @@ Type `yes`. The pet's record is now in `.tofu-records/`.
 choudoufu live-ls -estate=tutorial-a .
 ```
 
-The listing starts with `Estate "tutorial-a": 2 resource(s) carry its marker in us-east-1.`
-and shows the VPC and the role, each with its `tofu-address`.
+The listing shows the VPC and the role, each with its `tofu-address`.
 
 ## Delete the cache
 

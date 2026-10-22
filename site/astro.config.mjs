@@ -172,7 +172,16 @@ export default defineConfig({
 					label: 'Use',
 					collapsed: true,
 					items: [
-						{ label: 'Tutorial', slug: 'docs/tutorial' },
+						{
+							label: 'Tutorial',
+							items: [
+								{ label: 'Overview', slug: 'docs/tutorial' },
+								{ label: 'AWS', slug: 'docs/tutorial/aws' },
+								{ label: 'Kubernetes', slug: 'docs/tutorial/kubernetes' },
+								{ label: 'GCP', slug: 'docs/tutorial/gcp' },
+								{ label: 'Azure', slug: 'docs/tutorial/azure' },
+							],
+						},
 						{ label: 'Start a new estate', slug: 'docs/use/start' },
 						{ label: 'What you set up by hand', slug: 'docs/use/setup' },
 						{ label: 'Migrate an existing estate', slug: 'docs/use/migrate' },
