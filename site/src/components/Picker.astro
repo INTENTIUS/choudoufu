@@ -1,11 +1,10 @@
 ---
 // The home page's picker, in terragucci's DoorPicker shape: what you run today
-// as tiles, where it runs as a switch, and the roles as a line of links. Two
-// cards then say what works for that pick (the tile's room and what carries
-// over) and the first step. A
-// quiet line under them says what differs. Every list comes from
-// data/rooms.ts, the room pages' source. The first pick is rendered on the
-// server, so the cards read the same without script.
+// and where it runs as two rows of tiles, and the roles as a line of links
+// at the end. A card gives the first step for that pick, and a line under it says what
+// differs. Every list comes from data/rooms.ts, the room pages' source. The
+// first pick is rendered on the server, so the card reads the same without
+// script.
 import Cube from './Cube.astro';
 import { FROM, PLATFORMS, ROLES, room } from '../data/rooms';
 
@@ -13,7 +12,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (h: string) => (/^https?:/.test(h) ? h : `${base}${h}`);
 const tiles = FROM.map((f) => {
 	const r = room(f.room);
-	return { id: f.id, label: f.label, room: href(`/for/${f.room}/`), title: r.title, works: r.works, differs: r.differs, carries: f.carries, first: { label: r.first.label, href: href(r.first.href) } };
+	return { id: f.id, label: f.label, room: href(`/for/${f.room}/`), title: r.title, differs: r.differs, first: { label: r.first.label, href: href(r.first.href) } };
 });
 const platforms = PLATFORMS.map((p) => {
 	const r = room(p.room);
@@ -24,7 +23,8 @@ const [tile] = tiles;
 const [platform] = platforms;
 ---
 <section class="cd-picker not-content" aria-label="Where to start">
-	<div class="tiles" role="group" aria-label="What you run today">
+	<div class="tiles" role="group" aria-labelledby="cd-pick-from">
+		<span id="cd-pick-from" class="h">You run today</span>
 		{FROM.map((f, i) => (
 			<button type="button" class="tile" data-pick="tile" value={f.id} aria-pressed={String(i === 0)}>
 				<Cube size={24} />
@@ -33,46 +33,35 @@ const [platform] = platforms;
 			</button>
 		))}
 	</div>
-	<div class="row">
-		<div class="switch">
-			<span id="cd-pick-platform">Runs on</span>
-			<div class="seg" role="group" aria-labelledby="cd-pick-platform">
-				{platforms.map((p, i) => <button type="button" data-pick="platform" value={p.id} aria-pressed={String(i === 0)}>{p.label}</button>)}
-			</div>
-		</div>
+	<div class="tiles" role="group" aria-labelledby="cd-pick-platform">
+		<span id="cd-pick-platform" class="h">Runs on</span>
+		{PLATFORMS.map((p, i) => (
+			<button type="button" class="tile" data-pick="platform" value={p.id} aria-pressed={String(i === 0)}>
+				<Cube size={24} />
+				<b>{p.label}</b>
+				<small>{p.blurb}</small>
+			</button>
+		))}
 	</div>
-	<nav class="roles" aria-label="By role">
-		<span>Or start from your role</span>
-		{ROLES.map((r) => <a class="role" href={href(`/for/${r.room}/`)}><Cube size={16} />{r.label}</a>)}
-	</nav>
-	<div class="cards" aria-live="polite">
-		<div class="card">
-			<p class="h">Works</p>
-			<ul class="cube-list" data-works>
-				{tile.works.map((w) => <li>{w}</li>)}
-			</ul>
-			<div data-carries hidden={!tile.carries.length}>
-				<p class="h from" data-carries-title>Carries over from {tile.label}</p>
-				<ul class="cube-list" data-carries-list>{tile.carries.map((c) => <li>{c}</li>)}</ul>
-			</div>
-		</div>
-		<div class="card">
-			<p class="h">First step</p>
-			<a class="go" data-first href={tile.first.href}>{tile.first.label}</a>
-			<p class="sub" data-more>Then read <a href={tile.room}>{tile.title}</a> and <a href={platform.room}>{platform.title}</a>.</p>
-		</div>
+	<div class="card" aria-live="polite">
+		<a class="go" data-first href={tile.first.href}>{tile.first.label}</a>
+		<p class="sub" data-more>Then read <a href={tile.room}>{tile.title}</a> and <a href={platform.room}>{platform.title}</a>.</p>
 	</div>
 	<div class="notes" data-notes hidden={!(tile.differs.length + platform.differs.length)}>
 		<p class="h">Differs</p>
 		<ul data-differs>{[...tile.differs, ...platform.differs].map((d) => <li>{d}</li>)}</ul>
 	</div>
+	<nav class="roles" aria-label="By role">
+		<span>Or start from your role</span>
+		{ROLES.map((r) => <a class="role" href={href(`/for/${r.room}/`)}><Cube size={16} />{r.label}</a>)}
+	</nav>
 	<script type="application/json" data-picker-data set:html={JSON.stringify(data).replace(/</g, '\\u003c')} />
 </section>
 
 <script>
 	type Link = { label: string; href: string };
 	type Data = {
-		tiles: { id: string; label: string; room: string; title: string; works: string[]; differs: string[]; carries: string[]; first: Link }[];
+		tiles: { id: string; label: string; room: string; title: string; differs: string[]; first: Link }[];
 		platforms: { id: string; label: string; room: string; title: string; differs: string[] }[];
 	};
 	const key = 'cd-picker';
@@ -96,10 +85,6 @@ const [platform] = platforms;
 			for (const b of section.querySelectorAll<HTMLButtonElement>('button[data-pick]')) {
 				b.setAttribute('aria-pressed', String(pick[b.dataset.pick!] === b.value));
 			}
-			$('[data-works]').replaceChildren(...tile.works.map((w) => li(w)));
-			$('[data-carries]').hidden = !tile.carries.length;
-			$('[data-carries-title]').textContent = `Carries over from ${tile.label}`;
-			$('[data-carries-list]').replaceChildren(...tile.carries.map((c) => li(c)));
 			const go = $<HTMLAnchorElement>('[data-first]');
 			go.href = tile.first.href;
 			go.textContent = tile.first.label;
@@ -175,19 +160,10 @@ const [platform] = platforms;
 	.tile[aria-pressed='true'] :global(img) {
 		opacity: 1;
 	}
-	.row {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem 1.5rem;
-		align-items: center;
+	.tiles > .h {
+		grid-column: 1 / -1;
+		margin: 0;
 	}
-	.switch {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.6rem;
-		align-items: center;
-	}
-	.switch > span,
 	.roles > span,
 	.h {
 		font-size: 0.68rem;
@@ -195,31 +171,6 @@ const [platform] = platforms;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		color: var(--sl-color-gray-3);
-	}
-	.seg {
-		display: inline-flex;
-		flex-wrap: wrap;
-		padding: 3px;
-		border: 1px solid var(--cd-rule);
-		border-radius: 0.55rem;
-		background: var(--cd-panel);
-	}
-	.seg button {
-		padding: 0.35rem 0.8rem;
-		font: inherit;
-		font-weight: 500;
-		color: var(--sl-color-gray-3);
-		background: none;
-		border: 0;
-		border-radius: 0.4rem;
-		cursor: pointer;
-	}
-	.seg button:hover {
-		color: var(--sl-color-white);
-	}
-	.seg button[aria-pressed='true'] {
-		color: var(--sl-color-black);
-		background: var(--sl-color-white);
 	}
 	.roles {
 		display: flex;
@@ -246,46 +197,16 @@ const [platform] = platforms;
 	.role:focus-visible {
 		border-color: var(--cd-gold);
 	}
-	.cards {
-		display: grid;
-		grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-		gap: 0.75rem;
-	}
 	.card {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem 1rem;
+		align-items: center;
 		padding: 1rem;
 		background: var(--cd-panel);
 		border: 1px solid var(--cd-rule);
 		border-top: 1px solid var(--cd-gold);
 		border-radius: 0.6rem;
-	}
-	.h {
-		margin: 0 0 0.5rem;
-	}
-	.h.from {
-		margin-top: 1rem;
-	}
-	.cube-list {
-		display: grid;
-		gap: 0.4rem;
-		margin: 0;
-		padding: 0;
-		list-style: none;
-	}
-	.cube-list :global(li) {
-		position: relative;
-		margin: 0;
-		padding-left: 1.6rem;
-		color: var(--sl-color-white);
-	}
-	.cube-list :global(li)::before {
-		content: '';
-		position: absolute;
-		left: 0;
-		top: calc((1lh - 16px) / 2);
-		width: 16px;
-		height: 16px;
-		background: url('/choudoufu/brand/cube-16.png') no-repeat;
-		image-rendering: pixelated;
 	}
 	.card :global(a) {
 		color: var(--cd-accent);
@@ -303,7 +224,7 @@ const [platform] = platforms;
 		filter: brightness(1.1);
 	}
 	.sub {
-		margin: 0.75rem 0 0;
+		margin: 0;
 		font-size: var(--sl-text-xs);
 		color: var(--sl-color-gray-3);
 	}
@@ -332,9 +253,6 @@ const [platform] = platforms;
 	@media (max-width: 52rem) {
 		.tiles {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
-		}
-		.cards {
-			grid-template-columns: minmax(0, 1fr);
 		}
 	}
 </style>
