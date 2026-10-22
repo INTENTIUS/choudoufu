@@ -20,37 +20,34 @@ export type Room = {
 
 const repo = (path: string) => `https://github.com/INTENTIUS/choudoufu/blob/main/${path}`;
 
-/** The tiles. `carries` is what comes with you. */
-export const FROM: { id: string; label: string; blurb: string; room: string; carries: string[] }[] = [
+/** The tiles. */
+export const FROM: { id: string; label: string; blurb: string; room: string }[] = [
 	{
 		id: 'state',
 		label: 'OpenTofu or Terraform',
 		blurb: 'With a state file',
-		room: 'state-file',
-		carries: ['Your configuration, minus its backend block', 'Your state file, as your way back'],
+		room: 'state-file'
 	},
 	{
 		id: 'terragrunt',
 		label: 'Terragrunt',
 		blurb: 'Units with their own state',
-		room: 'terragrunt',
-		carries: ["Each unit's configuration, minus its backend block"],
+		room: 'terragrunt'
 	},
 	{
 		id: 'terragucci',
 		label: 'terragucci',
 		blurb: 'choudoufu as its binary',
-		room: 'terragucci',
-		carries: ['Your terragucci pipeline'],
+		room: 'terragucci'
 	},
-	{ id: 'new', label: 'Nothing yet', blurb: 'A new estate', room: 'new', carries: [] },
+	{ id: 'new', label: 'Nothing yet', blurb: 'A new estate', room: 'new' },
 ];
 
-export const PLATFORMS: { id: Platform; label: string; room: string; hub: string }[] = [
-	{ id: 'aws', label: 'AWS', room: 'aws', hub: '/aws/' },
-	{ id: 'kubernetes', label: 'Kubernetes', room: 'kubernetes', hub: '/kubernetes/' },
-	{ id: 'gcp', label: 'GCP', room: 'gcp', hub: '/gcp/' },
-	{ id: 'azure', label: 'Azure', room: 'azure', hub: '/azure/' },
+export const PLATFORMS: { id: Platform; label: string; blurb: string; room: string; hub: string }[] = [
+	{ id: 'aws', label: 'AWS', blurb: 'Tags and IAM conditions', room: 'aws', hub: '/aws/' },
+	{ id: 'kubernetes', label: 'Kubernetes', blurb: 'Labels and admission', room: 'kubernetes', hub: '/kubernetes/' },
+	{ id: 'gcp', label: 'GCP', blurb: 'Labels and project IAM', room: 'gcp', hub: '/gcp/' },
+	{ id: 'azure', label: 'Azure', blurb: 'Tags and resource groups', room: 'azure', hub: '/azure/' },
 ];
 
 export const ROLES: { label: string; room: string }[] = [
