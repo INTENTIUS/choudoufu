@@ -51,7 +51,7 @@ kubectl reports each object as created.
 
 ## Write the estate
 
-In an empty directory, `estate.chdf.hcl`:
+In an empty directory, `estate.chdf.hcl`, the live backend:
 
 ```hcl
 estate = "tutorial"

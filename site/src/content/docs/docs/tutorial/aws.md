@@ -49,7 +49,7 @@ curl -s http://localhost:4566/_localstack/health
 mkdir tutorial-a && cd tutorial-a
 ```
 
-`estate.chdf.hcl`:
+`estate.chdf.hcl`, the live backend:
 
 ```hcl
 estate = "tutorial-a"

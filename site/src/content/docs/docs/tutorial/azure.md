@@ -111,7 +111,7 @@ resource "azurerm_storage_account" "app" {
 }
 ```
 
-`estate.chdf.hcl`:
+`estate.chdf.hcl`, the live backend:
 
 ```hcl
 estate = "alpha"

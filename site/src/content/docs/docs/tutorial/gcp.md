@@ -88,7 +88,7 @@ resource "google_storage_bucket" "files" {
 }
 ```
 
-`estate.chdf.hcl`:
+`estate.chdf.hcl`, the live backend:
 
 ```hcl
 estate = "orders"
