@@ -1,6 +1,6 @@
 ---
 title: Reference
-description: The commands choudoufu adds and the live configuration's arguments.
+description: The commands choudoufu adds and the live backend's arguments.
 prompt: >-
   Use https://intentius.io/choudoufu/docs/use/reference/ to check this
   repository's `estate.chdf.hcl` or `live` block and list any unknown or
@@ -27,10 +27,10 @@ prompt: >-
 | `live-cluster` | Checks a cluster record store |
 | `live-cone`, `plan -cone` | [The plan cone](https://github.com/INTENTIUS/choudoufu/blob/main/live/PLAN-CONE.md) |
 
-## The live configuration
+## The live backend
 
-Write it in `estate.chdf.hcl` at the root, or in a `live` block inside
-`terraform`.
+The live backend takes the place of the `backend` block. Write it in
+`estate.chdf.hcl` at the root, or in a `live` block inside `terraform`.
 
 ```hcl
 estate = "prod-networking"

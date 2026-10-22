@@ -60,7 +60,7 @@ export const ROLES: { label: string; room: string }[] = [
 const migrate = { label: 'Migrate an existing estate', href: '/docs/use/migrate/' };
 const setup = { label: 'What you set up by hand', href: '/docs/use/setup/' };
 const whatItIs = { label: 'What it is', href: '/how-it-works/' };
-const reference = { label: 'Commands and the live block', href: '/docs/use/reference/' };
+const reference = { label: 'Commands and the live backend', href: '/docs/use/reference/' };
 
 export const ROOMS: Room[] = [
 	{
@@ -72,7 +72,7 @@ export const ROOMS: Room[] = [
 			'count, for_each, modules and multiple providers work',
 		],
 		differs: [
-			'A file naming the estate and its record_store block takes the place of the backend block.',
+			'The live backend, in estate.chdf.hcl, takes the place of the backend block.',
 			'Run live-import before the first apply, so every resource carries its marker.',
 		],
 		first: migrate,
@@ -89,7 +89,7 @@ export const ROOMS: Room[] = [
 			'Other estates are read live',
 		],
 		differs: [
-			'estate.chdf.hcl replaces the generated backend block.',
+			'estate.chdf.hcl, the live backend, replaces the generated backend block.',
 		],
 		first: migrate,
 		howto: [migrate, { label: 'Day 2', href: '/docs/use/day2/' }],
@@ -117,7 +117,7 @@ export const ROOMS: Room[] = [
 		lede: 'You are starting a new estate.',
 		works: [
 			'The tutorial needs Docker and the release binary',
-			'An estate is one name in estate.chdf.hcl',
+			'An estate is one name in estate.chdf.hcl, the live backend',
 		],
 		differs: [],
 		first: { label: 'Start a new estate', href: '/docs/use/start/' },

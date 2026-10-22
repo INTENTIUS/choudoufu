@@ -13,7 +13,8 @@ prompt: >-
 ---
 
 Run these steps in the directory that holds your configuration, before any
-`choudoufu apply`. Follow the section for your platform, from step 1.
+`choudoufu apply`. Follow the section for your platform, from step 1. Steps 3
+and 4 swap your `backend` block for the live backend, `estate.chdf.hcl`.
 
 ## Install
 
