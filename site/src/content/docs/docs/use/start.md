@@ -28,7 +28,7 @@ Then put `choudoufu` on your `PATH`.
 
 ## On AWS
 
-Two files, and no `backend` block. `estate.chdf.hcl`:
+Two files. `estate.chdf.hcl` is the live backend, in place of a `backend` block:
 
 ```hcl
 estate = "my-estate"
