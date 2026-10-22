@@ -26,6 +26,7 @@ prompt: >-
 | `no path` | Run [`choudoufu live-import`](../migrate/) on an old state file |
 | `in the way` | Another estate owns it |
 | `nothing live` | An apply creates it |
+| `not read` | Fix the read error printed under it |
 
 [`live/RECOVERY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/RECOVERY.md)
 has a worked example.

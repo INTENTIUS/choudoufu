@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 330" width="720" height="330"
      role="img" aria-labelledby="v-title v-desc">
-  <title id="v-title">Every managed instance has a record, of one of two kinds, in one of three stores</title>
+  <title id="v-title">Every managed instance has a record, of one of two kinds, in one of five stores</title>
   <desc id="v-desc">Every managed resource instance has one record. A resource
   with a live object gets an identity record, which holds what a read of the
   live object cannot return; its ownership is the marker on the resource. A
   record-backed resource, one with no live object, gets an object record, which is the only copy of
-  its value. Records live in a local directory, an S3 bucket or Kubernetes
-  Secrets, one object per instance, written conditionally with no lock.</desc>
+  its value. Records live in a local directory, an S3 bucket, Kubernetes
+  Secrets, an Azure Storage container or a GCS bucket, one object per instance, written conditionally with no lock.</desc>
 
   <style>
     .ink   { fill: #241f16; }
@@ -60,6 +60,6 @@
   <rect x="14" y="246" width="692" height="72" rx="6" class="dim"/>
   <rect x="14" y="246" width="692" height="72" rx="6" fill="none" class="rule"/>
   <text x="30" y="270" class="h ink">Both kinds live in the record store</text>
-  <text x="30" y="290" class="l muted">a local directory, an S3 bucket, or Secrets in a cluster</text>
+  <text x="30" y="290" class="l muted">a local directory, an S3 bucket, Secrets in a cluster, Azure Storage or GCS</text>
   <text x="30" y="308" class="l muted">one object per instance, every write conditional, nothing locked</text>
 </svg>

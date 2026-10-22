@@ -60,7 +60,7 @@
     <rect x="364" y="128" width="342" height="52" rx="6" fill="none" class="rule"/>
     <circle cx="384" cy="154" r="5" class="olive"/>
     <text x="400" y="151" class="h ink">A record in the record store</text>
-    <text x="400" y="170" class="l muted">one per resource: a directory, a bucket, or Secrets</text>
+    <text x="400" y="170" class="l muted">a directory, S3, GCS, Azure Storage or Secrets</text>
   </g>
 
   <text x="535" y="218" class="s muted" text-anchor="middle">one boundary per resource</text>

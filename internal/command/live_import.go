@@ -510,10 +510,10 @@ Usage: choudoufu [global options] live-import -state=PATH -estate=NAME [-approve
   Rerun with the same two flags plus -approve to stamp this estate's
   ownership marker onto every resource the report showed as VERIFIED or
   DRIFTED. On AWS that marker is two tags, tofu-estate and tofu-address. On
-  Kubernetes it is one label, tofu-estate, and no address: an object is
-  re-bound by its own group, kind, namespace and name, so the address never
-  goes onto it. Every other status - MISSING, UNTAGGABLE, UNADMITTED_TYPE -
-  is never stamped; the report says why for each one.
+  Kubernetes it is one label, tofu-estate, and the address in the
+  choudoufu.intentius.io/tofu-address annotation. Every other status -
+  MISSING, UNTAGGABLE, UNADMITTED_TYPE - is never stamped; the report says
+  why for each one.
 
   The state file is opened exactly once, at the start of the run, and is
   never opened again - not to write it, and not to read it a second time,

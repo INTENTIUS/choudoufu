@@ -65,5 +65,5 @@
   <rect x="570" y="164" width="136" height="70" rx="6" fill="none" class="rule"/>
   <text x="586" y="188" class="h ink">prior state</text>
   <text x="586" y="210" class="l muted">rebuilt, used,</text>
-  <text x="586" y="226" class="l muted">then discarded</text>
+  <text x="586" y="226" class="l muted">then cached</text>
 </svg>

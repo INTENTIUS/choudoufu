@@ -13,7 +13,7 @@ prompt: >-
 | `live-plan` | Pull request | Reports drift and unmarked matches |
 | `live-apply` | Push to `main` | Plans to a file, applies it once approved |
 | `live-adopt` | Push to `staging` | Shows the adoptions, writes markers once approved |
-| `live-discover` | Schedule | Lists marked resources nobody declares |
+| `live-discover` | Schedule | Sweeps the estate's marked resources and reports what can be adopted |
 | `backend-prepare` | Push to `bootstrap` | Creates or updates the S3 record store bucket |
 
 Give each job its own narrow role. An apply exits 3 when the live system moved

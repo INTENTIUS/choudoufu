@@ -7,7 +7,7 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-A marker names the estate that owns a resource. The create call writes it.
+A marker names the estate that owns a resource. The create call writes it, or a tag write right after it.
 
 ![How a plan binds a configuration address to a live AWS resource](../../../assets/diagram-identity.svg)
 
@@ -19,7 +19,7 @@ A marker names the estate that owns a resource. The create call writes it.
 | Azure | Tags `tofu-estate` and `tofu-address`, keys matched case-insensitively |
 
 On Kubernetes a plan finds each kind by the label and joins each object to its
-block on namespace and name.
+block on namespace and name, or on the address annotation.
 
 ## Two ways back
 

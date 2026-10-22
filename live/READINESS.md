@@ -132,8 +132,8 @@ as on AWS: the Resource Graph pass runs the record-store removal leg
 without AWS's admission-table sweep, and turns a record that holds an
 identity schema's attributes back into the ARM id by the type's template.
 A record missing a segment of that id is not guessed at; the plan warns,
-naming the type and the estate. An untaggable ARM type declared through `azapi_resource` is
-not reached yet: the leg does not read `azapi_resource` records.
+naming the type and the estate. An untaggable ARM type declared through
+`azapi_resource` is found the same way, from its `azapi_resource` record.
 
 <!-- readiness-gen:begin azure -->
 hashicorp/azurerm 5.10.0: 1106 resource types.

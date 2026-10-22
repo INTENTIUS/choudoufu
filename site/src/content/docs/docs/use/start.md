@@ -15,7 +15,7 @@ This page starts an empty estate. For one whose resources already exist, [migrat
 
 Every [release](https://github.com/INTENTIUS/choudoufu/releases) carries
 binaries for macOS, Linux and Windows on amd64 and arm64. Download and unpack
-the one for your machine:
+the one for your machine with the GitHub CLI, signed in through `gh auth login`:
 
 ```
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -23,6 +23,8 @@ arch=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
 gh release download -R INTENTIUS/choudoufu --pattern "*_${os}_${arch}.tar.gz"
 tar xzf choudoufu_*_"${os}"_"${arch}".tar.gz
 ```
+
+Then put `choudoufu` on your `PATH`.
 
 ## On AWS
 
@@ -68,7 +70,9 @@ Apply with `choudoufu init` and `choudoufu apply`. The plan adds the two tags:
 ```hcl
 estate = "my-estate"
 
-record_store "kubernetes" {}
+record_store "kubernetes" {
+  config_path = "~/.kube/config"
+}
 ```
 
 `main.tf`:

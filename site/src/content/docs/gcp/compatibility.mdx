@@ -1,6 +1,6 @@
 ---
 title: Compatibility
-description: Every google and google-beta type with a labels map carries the marker.
+description: Every google and google-beta type with labels and effective_labels carries the marker.
 prompt: |
   Follow https://intentius.io/choudoufu/gcp/compatibility/. Run `choudoufu live-check` here and report each refusal.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
@@ -23,7 +23,7 @@ Every expansion works, because the address label has a fixed length.
 
 ## Resource types
 
-Stock `hashicorp/google` and `google-beta`. Types with a `labels` map carry the marker, the network skeleton binds by name, and the record holds the rest.
+Stock `hashicorp/google` and `google-beta`. Types with `labels` and `effective_labels` carry the marker, the network skeleton binds by name, and the record holds the rest.
 
 ## Running it
 

@@ -336,7 +336,7 @@ the whole recovery. On `gcs` it is the same: the store refuses a bucket
 without object versioning and a lifecycle rule that expires noncurrent
 versions only, so a deleted record is a noncurrent generation to restore. It takes `s3:ListBucketVersions` and
 `s3:DeleteObjectVersion`, which the estate's own role does not have
-([IAM](https://intentius.io/choudoufu/docs/use/iam/#what-a-recovery-needs)). Check before
+([What a recovery needs](https://intentius.io/choudoufu/docs/use/bucket/#what-a-recovery-needs)). Check before
 doing anything else: restoring is strictly better than every option below it,
 and it makes the rest of this page moot.
 

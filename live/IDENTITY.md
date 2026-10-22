@@ -73,7 +73,7 @@ shapes this rule refuses shrink to the genuinely cold case: an estate
 encountered with no cache, no record and no marker to read.
 
 This is the rule behind what [Compatibility
-reference](https://intentius.io/choudoufu/docs/use/compatibility/) still refuses, and it is
+reference](https://intentius.io/choudoufu/aws/compatibility/) still refuses, and it is
 narrower than "the value is not written in the configuration text". Two
 phases run ahead of resolution and feed it: data sources are read before
 anything resolves, so a `count` or `for_each` over one expands normally, and
@@ -110,7 +110,7 @@ An untaggable resource's address is composed rather than looked up.
 `aws_route53_record` is a zone, a name and a type. Every part comes from your
 configuration or from a parent that does carry a marker, so the address
 resolves identically on every run with nothing stored anywhere. That is what
-the [declaration-carried tier](https://intentius.io/choudoufu/docs/use/resource-tiers/)
+the [declaration-carried tier](READINESS.md)
 names.
 
 They are not a rounding error. On the same generated terralith [what a plan

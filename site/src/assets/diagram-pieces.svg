@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" width="720" height="300"
      role="img" aria-labelledby="p-title p-desc">
   <title id="p-title">What choudoufu keeps, and where</title>
-  <desc id="p-desc">choudoufu keeps two things. A marker on every resource says
+  <desc id="p-desc">choudoufu keeps two things. A marker on each taggable resource says
   which estate owns it and which configuration block it belongs to; the apply
   writes it on the create call, and it is the only thing that says what you
   own. A record per resource holds what cannot be read back from the live
   object; choudoufu writes it to the record store, which is a local directory,
-  an S3 bucket or Secrets in a cluster. A state file is still written on the
+  an S3 bucket, Secrets in a cluster, Azure Storage or GCS. A state file is still written on the
   machine that ran, as a cache that may be deleted.</desc>
 
   <style>
@@ -23,7 +23,7 @@
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
   </style>
 
-  <text x="14" y="24" class="s muted">on every resource</text>
+  <text x="14" y="24" class="s muted">on each taggable resource</text>
   <rect x="14" y="36" width="336" height="150" rx="6" class="brass"/>
   <text x="32" y="66" class="h ink">1. A marker</text>
   <text x="32" y="90" class="l ink">says who owns the resource</text>
@@ -39,8 +39,8 @@
   <text x="388" y="90" class="l ink">holds what cannot be read back</text>
   <text x="388" y="116" class="l muted">one per resource: a password the API never</text>
   <text x="388" y="132" class="l muted">returns, a random name, a script that ran</text>
-  <text x="388" y="160" class="l muted">a local directory, an S3 bucket,</text>
-  <text x="388" y="176" class="l muted">or Secrets in a cluster</text>
+  <text x="388" y="160" class="l muted">a local directory, an S3 bucket, Secrets</text>
+  <text x="388" y="176" class="l muted">in a cluster, Azure Storage or GCS</text>
 
   <rect x="14" y="210" width="692" height="70" rx="6" class="dim"/>
   <rect x="14" y="210" width="692" height="70" rx="6" fill="none" class="rule"/>
