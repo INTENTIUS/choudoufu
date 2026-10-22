@@ -10,7 +10,7 @@ prompt: >-
 | Piece | Who creates it |
 |---|---|
 | Credentials and an access policy | You |
-| `estate.chdf.hcl`, with the estate name and the `record_store` block | You |
+| `estate.chdf.hcl`, the live backend: the estate name and the `record_store` block | You |
 | The record store: a bucket, a namespace or a storage container | You |
 | Markers on new resources | The apply |
 | Markers on existing resources | You, by [migrating](../migrate/) |

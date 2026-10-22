@@ -15,7 +15,7 @@ carries its estate's marker, and small records hold the rest.
 ## Three words
 
 An estate is one configuration and everything it owns, named once in
-`estate.chdf.hcl`.
+`estate.chdf.hcl`, the live backend.
 
 A marker is a tag or label holding the estate name. The block address sits
 beside it: a tag, a label, or on Kubernetes the
