@@ -370,16 +370,8 @@ func armEvaluatedBodyTags(ctx context.Context, mod *configs.Module, body hcl.Bod
 	if !val.Type().IsObjectType() && !val.Type().IsMapType() {
 		return nil, false, false
 	}
-	var tagsVal cty.Value
-	switch {
-	case val.Type().IsObjectType() && val.Type().HasAttribute(markers.ARMTagsArgument):
-		tagsVal = val.GetAttr(markers.ARMTagsArgument)
-	case val.Type().IsMapType() && val.HasIndex(cty.StringVal(markers.ARMTagsArgument)).True():
-		tagsVal = val.Index(cty.StringVal(markers.ARMTagsArgument))
-	default:
-		return nil, false, true
-	}
-	if tagsVal.IsNull() {
+	tagsVal, found := val.AsValueMap()[markers.ARMTagsArgument]
+	if !found || tagsVal.IsNull() {
 		return nil, false, true
 	}
 	return hcl.StaticExpr(tagsVal, expr.Range()), true, true
