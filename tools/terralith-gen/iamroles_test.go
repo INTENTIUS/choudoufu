@@ -208,7 +208,7 @@ func TestIAMRolesFlagPrintsOneInteger(t *testing.T) {
 		want  string
 	}{{1, "11\n"}, {3, "33\n"}, {50, "550\n"}, {136, "1496\n"}} {
 		var out bytes.Buffer
-		if err := printIAMRoles(&out, tc.scale); err != nil {
+		if err := printIAMRoles(&out, tc.scale, false); err != nil {
 			t.Fatalf("scale=%d: %v", tc.scale, err)
 		}
 		if out.String() != tc.want {
@@ -216,7 +216,7 @@ func TestIAMRolesFlagPrintsOneInteger(t *testing.T) {
 		}
 	}
 	var out bytes.Buffer
-	if err := printIAMRoles(&out, 0); err == nil || out.Len() != 0 {
+	if err := printIAMRoles(&out, 0, false); err == nil || out.Len() != 0 {
 		t.Errorf("scale=0: err=%v out=%q, want an error and nothing printed - a script reading stdout must never see a number for a scale the generator refuses", err, out.String())
 	}
 }

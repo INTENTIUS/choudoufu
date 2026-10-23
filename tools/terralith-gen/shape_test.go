@@ -326,10 +326,15 @@ func TestValidateGeneratedTerralith(t *testing.T) {
 		t.Setenv(plugincache.EnvDir, "")
 	}
 
-	for _, scale := range []int{1, 4} {
-		t.Run(fmt.Sprintf("scale=%d", scale), func(t *testing.T) {
+	// The last case is the -findings layer (issue #2199): new resource types
+	// whose arguments only the provider's schema can check.
+	for _, tc := range []struct {
+		scale    int
+		findings bool
+	}{{1, false}, {4, false}, {4, true}} {
+		t.Run(fmt.Sprintf("scale=%d,findings=%t", tc.scale, tc.findings), func(t *testing.T) {
 			out := filepath.Join(t.TempDir(), "terralith")
-			e := buildEstate(scale, "tl")
+			e := buildEstateWith(tc.scale, "tl", tc.findings)
 			if err := e.write(out); err != nil {
 				t.Fatal(err)
 			}
