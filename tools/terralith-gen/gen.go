@@ -121,13 +121,18 @@ type composition struct {
 	// included in identityResources/dnsResources above - these exist to
 	// report the proportions #574 asks for (see generatedMD and main.go),
 	// not to be summed again.
+	// findingsResources is the -findings layer (findings.go, issue #2199):
+	// zero unless the flag is set, and kept out of the four buckets above so
+	// their counts, and the shares #564 measures, read the same either way.
+	findingsResources int
+
 	countExpandedInstances   int // buildCountTeams: one block set, `count = n`, root level
 	forEachExpandedInstances int // writeRecords: one block, `for_each` over a map, root level
 	moduleNestedInstances    int // buildModulePods: module call (for_each) whose body ALSO carries `count`
 }
 
 func (c composition) totalResources() int {
-	return c.identityResources + c.containerResources + c.dnsResources + c.supportingResources
+	return c.identityResources + c.containerResources + c.dnsResources + c.supportingResources + c.findingsResources
 }
 
 func (c composition) identityPercent() float64 {
@@ -208,6 +213,12 @@ type estate struct {
 // (internal/live/markers/modulemarker.go) rather than the multi-state
 // decomposition #546's last comment contrasts a terralith with.
 func buildEstate(scale int, prefix string) *estate {
+	return buildEstateWith(scale, prefix, false)
+}
+
+// buildEstateWith is buildEstate with the -findings layer optionally added
+// (findings.go, issue #2199). With findings false it is buildEstate exactly.
+func buildEstateWith(scale int, prefix string, findings bool) *estate {
 	teams := teamsPerScale * scale
 	services := servicesPerScale * scale
 	dnsRecords := dnsRecordsPerScale * scale
@@ -275,8 +286,13 @@ func buildEstate(scale int, prefix string) *estate {
 		"network.tf":                    header("network.tf", "the one shared VPC/subnet/security group the container-service layer's tasks run in") + network.String(),
 		"ecs.tf":                        header("ecs.tf", "the container-service layer: one cluster, and per service a template task definition plus a service with lifecycle.ignore_changes on task_definition") + ecs.String(),
 		"dns.tf":                        header("dns.tf", "the DNS fan-out: one zone, many for_each'd records (issue #574)") + dns.String(),
-		"GENERATED.md":                  generatedMD(scale, prefix, teams, services, dnsRecords, countTeams, podSize, comp),
 	}
+	if findings {
+		files["bastion.tf"] = bastionTF(prefix)
+		files["data.tf"] = dataTF(prefix)
+		comp.findingsResources = findingsBastionResources + findingsDataResources
+	}
+	files["GENERATED.md"] = generatedMD(scale, prefix, teams, services, dnsRecords, countTeams, podSize, comp)
 
 	// Canonicalize the HCL here, in this process, with the same library
 	// `terraform fmt` and `tofu fmt` are built on
@@ -940,6 +956,9 @@ func generatedMD(scale int, prefix string, teams, services, dnsRecords, countTea
 	fmt.Fprintf(&b, "| container | %d | %.1f%% |\n", c.containerResources, 100*float64(c.containerResources)/float64(c.totalResources()))
 	fmt.Fprintf(&b, "| dns | %d | %.1f%% |\n", c.dnsResources, 100*float64(c.dnsResources)/float64(c.totalResources()))
 	fmt.Fprintf(&b, "| supporting (network) | %d | %.1f%% |\n", c.supportingResources, 100*float64(c.supportingResources)/float64(c.totalResources()))
+	if c.findingsResources > 0 {
+		fmt.Fprintf(&b, "| findings layer (-findings: bastion.tf, data.tf) | %d | %.1f%% |\n", c.findingsResources, 100*float64(c.findingsResources)/float64(c.totalResources()))
+	}
 	fmt.Fprintf(&b, "| **total** | **%d** | |\n\n", c.totalResources())
 	fmt.Fprintf(&b, "Role/policy duplication (see composition's doc comment for the exact method): %d/%d blocks measured duplicate (%.1f%%).\n\n",
 		c.duplicateRolePolicyBlocks, c.totalRolePolicyBlocks, c.duplicationPercent())
