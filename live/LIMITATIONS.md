@@ -1361,9 +1361,14 @@ names each with its source:
 - the ARM type's documented maximum, from the `tags` description in the
   type data azapi embeds (`taglimits_generated.txt`, 38 ARM types at azapi
   2.13.0, among them Cosmos DB and storage accounts at 15 and API
-  Management at 10). An azapi resource's ARM type is its `type` argument;
-  an azurerm type's is read off its id template in `live/azurerm-ids.json`
-  (`azurerm_armtypes_generated.txt`);
+  Management at 10). An azapi resource's ARM type and API version are its
+  `type` argument; an azurerm type's ARM type is read off its id template
+  in `live/azurerm-ids.json`, and its API version off the go-azure-sdk
+  package of its id parser (`azurerm_armtypes_generated.txt`, #2147). A
+  type that documents a count at some versions only is measured at that
+  version; an azurerm type whose id parser names no version (a commonids
+  type, such as `azurerm_storage_account`) at the lowest count any version
+  documents;
 - ARM's default of 50 tags, 512-character keys and 256-character values
   (go-azure-helpers' `tags.Validate`, and Azure's documented limits)
   otherwise.
@@ -1386,9 +1391,9 @@ resource's identity in the record store instead of a marker
 
 **Enforcement.** `RuleARMTagLimit`, `internal/live/lint/arm_tag_limit.go`
 (`checkARMTagLimit`), severity warning. It reads what configuration alone
-states: a `tags` argument (or an azapi `body.tags` written as an object)
-whose keys do not evaluate is skipped, and a key whose value is unknown is
-counted, since the key takes a slot whatever its value. With provider
+states: a `tags` argument (or an azapi `body.tags`, read from an object
+constructor or from a `body` evaluated whole) whose keys do not evaluate is
+skipped, and a key whose value is unknown is counted, since the key takes a slot whatever its value. With provider
 schemas it counts only a type whose schema carries the `arm-tags` surface,
 so the three azurerm types whose `tags` is a list of strings are never
 counted. Fixture at `live/e2e/limits/arm-tag-limit/`, which a schemaless

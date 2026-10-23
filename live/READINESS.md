@@ -117,15 +117,21 @@ as on AWS, and refused by name only where no record can hold its
 identity. No Azure type is minted outright: every admitted azurerm type's
 id components are arguments the configuration sets (none is a
 Computed-only attribute at 5.10.0), so the AWS markerless list gains no
-Azure member. Seven admitted untaggable types make the naming argument
+Azure member. That holds only because no type whose id the server mints is
+admitted (#2147). Seven admitted untaggable types make the naming argument
 optional and mint a GUID when it is left out (`azurerm_management_group`,
 `azurerm_role_definition` and five more); an instance that leaves it out
 is record-located through the record store every live block implies, the
 way an AWS `name_prefix` instance is. An `azapi_resource` with no `name`
 is named by its provider block's `default_name`, read like its
-`subscription_id`; with none, azapi refuses the block itself (#2142). An unadmitted type whose create reads its id from the response
-(`azurerm_sentinel_threat_intelligence_indicator`) is refused as
-unadmitted.
+`subscription_id`; with none, azapi refuses the block itself (#2142).
+Seventeen unadmitted azurerm types take part of their id from the create
+response, a UUID minted inside create, or an object looked up at apply
+(#2147): among them `azurerm_key_vault_key`, `azurerm_key_vault_secret`,
+`azurerm_key_vault_certificate` and
+`azurerm_sentinel_threat_intelligence_indicator`. Each is refused as
+unadmitted, where AWS finds a taggable server-assigned type by its marker
+and holds an untaggable minted one by its record.
 
 A removed declaration-carried block is found again through its record,
 as on AWS: the Resource Graph pass runs the record-store removal leg
