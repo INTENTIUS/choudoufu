@@ -116,7 +116,7 @@ export const ROOMS: Room[] = [
 		title: 'Starting new',
 		lede: 'You are starting a new estate.',
 		works: [
-			'The tutorial needs Docker, the aws CLI and Go',
+			'The tutorial needs Docker and the release binary',
 			'An estate is one name in estate.chdf.hcl, the live backend',
 		],
 		differs: [],
@@ -209,7 +209,7 @@ export const ROOMS: Room[] = [
 		title: 'Evaluating',
 		lede: 'You want to see it work first.',
 		works: [
-			'The tutorial needs Docker, the aws CLI and Go',
+			'The tutorial needs Docker and the release binary',
 			'Each claim is a scenario you can run and break',
 			'Undo is six steps back to your backend',
 		],
