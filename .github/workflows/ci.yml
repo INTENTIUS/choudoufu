@@ -7,10 +7,15 @@ on:
   # workflow_dispatch lets a run be started by hand. Every ordinary change
   # still runs on push and pull_request (TestCIValidationRunsOnOrdinaryEvents).
   workflow_dispatch:
+  # release.yml calls this workflow so a tag is gated on the same unit tier.
+  workflow_call:
 
 permissions:
   contents: read
 
+# Unit tests only on pull_request, push and release: gofmt, build and the Go
+# unit test tier. example-ci-pipelines is not a unit test, so it runs only on
+# workflow_dispatch (it is skipped, not removed, so its guard test still holds).
 jobs:
   fast:
     runs-on: ubuntu-latest
@@ -153,23 +158,13 @@ jobs:
       - name: Fast test tier
         run: go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/backend/remote-state/azure/auth/ ./internal/configs/ ./internal/plans/ ./internal/plans/planfile/ ./internal/plugin/ ./internal/plugin6/ ./internal/plugins/ ./internal/states/statemgr/ ./internal/tracing/... ./internal/builtin/providers/tf/
 
-  # examples/ci-pipelines' byte-for-byte regeneration proof (issue #807) is
-  # the example's own `npm test`: it re-runs generate.ts for all three forges
-  # into a scratch directory and diffs the result against what is checked in,
-  # byte for byte. It needs node and the example's own dependencies, which
-  # nothing in this workflow installed, so the proof had only ever run on a
-  # laptop (issue #1022) - never in this repository's CI, and never once. The
-  # Go tests in live/ci_pipelines_test.go that stand in for it when node is
-  # absent (see that file's header) skip for the identical reason.
-  #
-  # A separate job rather than a step in `fast`: an npm outage should name
-  # itself here instead of reddening the Go tier, and running beside `fast`
-  # costs a pull request no wall clock. Measured on the example,
-  # issue #1022: `npm ci` ~1s, `npm test` ~4s.
-  #
-  # Cache keyed on the example's own lock file, not the whole repo's, so a
-  # change anywhere else in the tree cannot invalidate it.
+  # examples/ci-pipelines' byte-for-byte regeneration proof (issue #807, #1022)
+  # is the example's own `npm test`: it re-runs generate.ts for all three
+  # forges into a scratch directory and diffs the result against what is
+  # checked in. Manual only, so pull requests, pushes and releases skip it.
+  # Cache is keyed on the example's own lock file.
   example-ci-pipelines:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

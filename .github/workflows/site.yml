@@ -1,11 +1,11 @@
 name: site
 
-# Builds the Astro + Starlight site in site/ on every pull request, with the
+# Builds the Astro + Starlight site in site/ by hand (it no longer runs on pull requests), with the
 # same steps pages.yml runs before it deploys, so a change that breaks the
 # build, a room link or an old URL fails here rather than on main (#2092). It
 # never deploys.
 on:
-  pull_request: {}
+  workflow_dispatch: {}
 
 permissions:
   contents: read
