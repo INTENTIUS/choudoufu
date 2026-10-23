@@ -59,18 +59,19 @@ func main() {
 	out := flag.String("out", "", "output directory (required)")
 	prefix := flag.String("prefix", "tl", "short name prefix for every generated resource, so more than one generated terralith can coexist in one account without name collisions")
 	fmtBin := flag.String("fmt-bin", defaultFmtBin, "binary used to canonicalize the generated *.tf files' formatting, recursively (terraform, tofu or choudoufu); skipped when not on PATH, but a binary that runs and rejects the generated HCL fails the generation")
+	findings := flag.Bool("findings", false, "add one fixed layer a reviewer has questions about (issue #2199): an instance in an internet-gateway-routed subnet whose launch template's security group opens SSH to 0.0.0.0/0, an unencrypted postgres instance, and a role whose attached policy reaches a DynamoDB table. Off by default; without it the output is unchanged")
 	iamRoles := flag.Bool("iam-roles", false, "print how many aws_iam_role instances the estate at -scale declares (the number an IAM role quota is charged for) and exit; generates nothing, so -out is not needed (issue #1230)")
 	flag.Parse()
 
 	if *iamRoles {
-		if err := printIAMRoles(os.Stdout, *scale); err != nil {
+		if err := printIAMRoles(os.Stdout, *scale, *findings); err != nil {
 			fmt.Fprintf(os.Stderr, "terralith-gen: %v\n", err)
 			os.Exit(1)
 		}
 		return
 	}
 
-	if err := run(*scale, *out, *prefix, *fmtBin); err != nil {
+	if err := run(*scale, *out, *prefix, *fmtBin, *findings); err != nil {
 		fmt.Fprintf(os.Stderr, "terralith-gen: %v\n", err)
 		os.Exit(1)
 	}
@@ -81,15 +82,19 @@ func main() {
 // per-scale formula from the generator that owns it rather than carrying a
 // typed copy that drifts (issue #1230). Everything the generator says about
 // itself goes to stderr, as run() already does.
-func printIAMRoles(w io.Writer, scale int) error {
+func printIAMRoles(w io.Writer, scale int, findings bool) error {
 	if scale < 1 {
 		return fmt.Errorf("-scale must be >= 1, got %d", scale)
 	}
-	_, err := fmt.Fprintf(w, "%d\n", IAMRoleInstances(scale))
+	n := IAMRoleInstances(scale)
+	if findings {
+		n += findingsIAMRoles
+	}
+	_, err := fmt.Fprintf(w, "%d\n", n)
 	return err
 }
 
-func run(scale int, out, prefix, fmtBin string) error {
+func run(scale int, out, prefix, fmtBin string, findings bool) error {
 	if scale < 1 {
 		return fmt.Errorf("-scale must be >= 1, got %d", scale)
 	}
@@ -103,7 +108,7 @@ func run(scale int, out, prefix, fmtBin string) error {
 		return err
 	}
 
-	est := buildEstate(scale, prefix)
+	est := buildEstateWith(scale, prefix, findings)
 
 	if err := est.write(out); err != nil {
 		return err
@@ -115,9 +120,9 @@ func run(scale int, out, prefix, fmtBin string) error {
 
 	c := est.composition
 	fmt.Fprintf(os.Stderr,
-		"terralith-gen: wrote %s (scale=%d, prefix=%q): %d resources total, %d identity (%.1f%%), %d container, %d dns, %d supporting; %d/%d role+policy blocks measured duplicate (%.1f%%)\n",
+		"terralith-gen: wrote %s (scale=%d, prefix=%q): %d resources total, %d identity (%.1f%%), %d container, %d dns, %d supporting%s; %d/%d role+policy blocks measured duplicate (%.1f%%)\n",
 		out, scale, prefix, c.totalResources(), c.identityResources, c.identityPercent(),
-		c.containerResources, c.dnsResources, c.supportingResources,
+		c.containerResources, c.dnsResources, c.supportingResources, findingsSummary(c),
 		c.duplicateRolePolicyBlocks, c.totalRolePolicyBlocks, c.duplicationPercent())
 	return nil
 }
@@ -219,4 +224,13 @@ func formatWithBinary(fmtBin, out string) error {
 		return fmt.Errorf("running %s fmt -recursive %s: %w", fmtBin, out, err)
 	}
 	return nil
+}
+
+// findingsSummary is the -findings layer's part of run's summary line, and
+// empty without the flag so the default line reads as it always has.
+func findingsSummary(c composition) string {
+	if c.findingsResources == 0 {
+		return ""
+	}
+	return fmt.Sprintf(", %d findings", c.findingsResources)
 }

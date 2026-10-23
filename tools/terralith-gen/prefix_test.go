@@ -102,7 +102,7 @@ func TestMixedCasePrefixIsRefused(t *testing.T) {
 	for _, prefix := range []string{"rtA", "RT", "Tl", "ticket-ABC-42", "tlX"} {
 		t.Run(prefix, func(t *testing.T) {
 			out := filepath.Join(t.TempDir(), "terralith")
-			err := run(1, out, prefix, "")
+			err := run(1, out, prefix, "", false)
 			if err == nil {
 				t.Fatalf("run with -prefix %q returned nil, want a refusal", prefix)
 			}
