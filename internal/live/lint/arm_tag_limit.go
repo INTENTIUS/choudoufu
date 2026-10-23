@@ -47,10 +47,13 @@ import (
 //     an azapi resource's from its type argument. Seven types document a
 //     count at some API versions only, so an azapi block is measured at the
 //     version its type argument names (GitHub issue #2133, finding 8). An
-//     azurerm block is measured at the lowest count any version documents:
-//     its configuration names no API version, and the one azurerm sends is
-//     fixed inside the provider per type, not something this rule can read;
-//     the lowest is the figure no version of the type contradicts;
+//     azurerm block is measured at the version azurerm sends, which its
+//     configuration does not name but the provider fixes per type: the
+//     go-azure-sdk package of the type's id parser
+//     ([armtypes.AzurermAPIVersion], GitHub issue #2147). A type whose id
+//     parser names no version (a commonids type, such as
+//     azurerm_storage_account's) is measured at the lowest count any
+//     version documents, the figure no version of the type contradicts;
 //   - ARM's default of 50 otherwise.
 //
 // It also checks every marker tag the stamp would write against
@@ -67,7 +70,9 @@ import (
 // It reads what configuration alone states, the same can-see boundary as
 // the overlong-address rule: a tags argument whose keys do not evaluate is
 // skipped; a key whose value is unknown is counted, since the key is what
-// takes a slot.
+// takes a slot. An azapi body that is not an object constructor (body =
+// local.b) is evaluated whole for its tags, and skipped when it does not
+// evaluate (GitHub issue #2147).
 func checkARMTagLimit(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleInstance, schemas map[string]providers.Schema, scope identity.Scope, issues *[]Issue) {
 	mod := cfg.Module
 	names := make([]string, 0, len(mod.ManagedResources))
@@ -102,8 +107,8 @@ type armTagBudget struct {
 	// keyed by, for [armtypes.CheckTag]; azapi has none.
 	rulesType string
 	armType   string
-	// apiVersion is the azapi block's own, from its type argument; empty
-	// for azurerm.
+	// apiVersion is the azapi block's own, from its type argument, or the
+	// one azurerm sends for the type; empty when neither is known.
 	apiVersion string
 }
 
@@ -131,6 +136,7 @@ func armTagLimitIssue(ctx context.Context, mod *configs.Module, modInst addrs.Mo
 		budget.rulesType = rc.Type
 		budget.apply(rules.MaxTags, fmt.Sprintf("azurerm %s's own validation of tags, %s", armtypes.DefaultRMTags().Version, rules.Validator))
 		budget.armType, _ = armtypes.AzurermARMType(rc.Type)
+		budget.apiVersion, _ = armtypes.AzurermAPIVersion(rc.Type)
 	} else {
 		// azapi_resource: the ARM type and API version are its type
 		// argument, and the stamp writes only where azapi's type data says
@@ -151,6 +157,12 @@ func armTagLimitIssue(ctx context.Context, mod *configs.Module, modInst addrs.Mo
 			// azapi sends body.tags when the body carries them, and the
 			// stamp writes there; the top-level argument is the other path.
 			tagsExpr, hasTags = armBodyTagsExpr(rc.Config)
+			if !hasTags {
+				var readable bool
+				if tagsExpr, hasTags, readable = armEvaluatedBodyTags(ctx, mod, rc.Config); !readable {
+					return Issue{}, false
+				}
+			}
 		}
 	}
 	if budget.armType != "" {
@@ -328,6 +340,41 @@ func armBodyTagsExpr(body hcl.Body) (hcl.Expression, bool) {
 		}
 	}
 	return nil, false
+}
+
+// armEvaluatedBodyTags is the tags of an azapi body that is not an object
+// constructor (body = local.b, or a merge of objects), evaluated whole, as a
+// literal expression [armStaticTagKeys] reads. readable is false when the
+// body does not evaluate to a known object, so the rule cannot say how many
+// tags it carries; hasTags is false when the body carries none, or there is
+// no body.
+func armEvaluatedBodyTags(ctx context.Context, mod *configs.Module, body hcl.Body) (tags hcl.Expression, hasTags bool, readable bool) {
+	expr, ok := armBodyAttr(body, "body")
+	if !ok {
+		return nil, false, true
+	}
+	if _, cons := expr.(*hclsyntax.ObjectConsExpr); cons {
+		// An object constructor with no tags item carries none.
+		return nil, false, true
+	}
+	if mod == nil || mod.StaticEvaluator == nil {
+		return nil, false, false
+	}
+	val, vok := staticeval.EvaluateOK(ctx, mod.StaticEvaluator.Pure(), expr, "body")
+	if !vok || val.IsMarked() || !val.IsKnown() {
+		return nil, false, false
+	}
+	if val.IsNull() {
+		return nil, false, true
+	}
+	if !val.Type().IsObjectType() && !val.Type().IsMapType() {
+		return nil, false, false
+	}
+	tagsVal, found := val.AsValueMap()[markers.ARMTagsArgument]
+	if !found || tagsVal.IsNull() {
+		return nil, false, true
+	}
+	return hcl.StaticExpr(tagsVal, expr.Range()), true, true
 }
 
 // armStaticTagKeys is the set of keys a tags expression states, read from

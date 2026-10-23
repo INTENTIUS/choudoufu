@@ -178,10 +178,11 @@ func buildAzureSubstrate(root string) (AzureSubstrate, error) {
 // a GUID when it is left out (internal/live/substrate's
 // markProviderMintedIfAbsent); an instance that leaves it out is
 // record-located through the record fallback, as AWS's name_prefix
-// instances are. Whether an UNADMITTED type's create reads its id from
-// the response (azurerm_sentinel_threat_intelligence_indicator does) is in
-// no committed artifact; those types are refused as unadmitted either way
-// and are record-carried here.
+// instances are. Which UNADMITTED types take their id from the create
+// response, a UUID minted in create or a lookup at apply (17 at 5.10.0,
+// GitHub issue #2147, azurerm_sentinel_threat_intelligence_indicator among
+// them) is in no committed artifact; those types are refused as unadmitted
+// either way and are record-carried here.
 func azurermRow(typeName, class, templateClass, scope string, taggable bool) (Row, error) {
 	facts := Facts{Taggable: taggable, ARMIDClass: class, ARMScope: scope}
 	status := StatusNeedsEvidence

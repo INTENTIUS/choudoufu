@@ -382,9 +382,9 @@ func DefaultTagLimits() *TagLimits {
 // documents a second, different count). A version whose description gives
 // no count gets ARM's default, as a type that never documents one does:
 // API Management's 10 is in its 2016-07-07 description and in none of the
-// 24 since. An empty apiVersion (azurerm, whose configuration names none)
-// and a version azapi's data does not know get the lowest count any
-// version documents, and the source says so.
+// 24 since. An empty apiVersion (an azurerm type whose id parser names no
+// version, [AzurermAPIVersion]) and a version azapi's data does not know get
+// the lowest count any version documents, and the source says so.
 func TagLimit(armType, apiVersion string) (max int, source string) {
 	t := DefaultTagLimits()
 	r, ok := t.Limit(armType)

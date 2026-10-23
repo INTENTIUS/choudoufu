@@ -176,12 +176,67 @@ resource "azurerm_cosmosdb_account" "a" {
 }`,
 			want: []string{"the most it takes is 50", "Microsoft.ApiManagement/service@2024-05-01 documents no count"},
 		},
-		"azurerm names no version and takes the lowest": {
+		// GitHub issue #2147: azurerm sends API Management at 2024-05-01
+		// (its id package's version), which documents no count, so the 10
+		// of 2016-07-07 does not apply to it.
+		"azurerm at the version it sends, documenting no count": {
 			src: `resource "azurerm_api_management" "a" {
   name = "a"
-  tags = ` + nTags(9) + `
+  tags = ` + nTags(12) + `
 }`,
-			want: []string{"the most it takes is 10", "the lowest any API version documents; no API version was given"},
+		},
+		"azurerm at the version it sends, over ARM's 50": {
+			src: `resource "azurerm_api_management" "a" {
+  name = "a"
+  tags = ` + nTags(49) + `
+}`,
+			want: []string{"the most it takes is 50", "Microsoft.ApiManagement/service@2024-05-01 documents no count"},
+		},
+		"azurerm whose id parser names no version takes the lowest": {
+			src: `resource "azurerm_storage_account" "a" {
+  name = "a"
+  tags = ` + nTags(14) + `
+}`,
+			want: []string{"the most it takes is 15", "the lowest any API version documents; no API version was given"},
+		},
+		// GitHub issue #2147: a body that is not an object constructor is
+		// evaluated for its tags rather than counted as carrying none.
+		"azapi body from a local": {
+			src: `locals {
+  b = {
+    tags = ` + nTags(14) + `
+    properties = {}
+  }
+}
+resource "azapi_resource" "a" {
+  type      = "Microsoft.DocumentDB/databaseAccounts@2026-03-15"
+  name      = "a"
+  parent_id = "/subscriptions/0/resourceGroups/rg"
+  body      = local.b
+}`,
+			want: []string{"would carry 16 tags", "14 from its own tags"},
+		},
+		"azapi body from a local with room": {
+			src: `locals {
+  b = { tags = ` + nTags(13) + ` }
+}
+resource "azapi_resource" "a" {
+  type      = "Microsoft.DocumentDB/databaseAccounts@2026-03-15"
+  name      = "a"
+  parent_id = "/subscriptions/0/resourceGroups/rg"
+  body      = local.b
+}`,
+		},
+		"azapi body it cannot evaluate is skipped": {
+			src: `resource "azurerm_resource_group" "src" {
+  name = "src"
+}
+resource "azapi_resource" "a" {
+  type      = "Microsoft.DocumentDB/databaseAccounts@2026-03-15"
+  name      = "a"
+  parent_id = "/subscriptions/0/resourceGroups/rg"
+  body      = { tags = azurerm_resource_group.src.tags }
+}`,
 		},
 		"azapi type that takes no tags": {
 			src: `resource "azapi_resource" "a" {

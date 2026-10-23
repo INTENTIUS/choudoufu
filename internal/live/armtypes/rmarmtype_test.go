@@ -83,6 +83,25 @@ func TestAzurermARMTypeKnownRows(t *testing.T) {
 	}
 }
 
+// TestAzurermAPIVersionKnownRows pins the version the tag-limit lint
+// measures each version-dependent azurerm type at (GitHub issue #2147),
+// and that a commonids id parser names none.
+func TestAzurermAPIVersionKnownRows(t *testing.T) {
+	for tf, want := range map[string]string{
+		"azurerm_api_management":            "2024-05-01",
+		"azurerm_cognitive_account":         "2026-03-01",
+		"azurerm_maps_account":              "2023-06-01",
+		"azurerm_monitor_autoscale_setting": "2022-10-01",
+	} {
+		if got, ok := AzurermAPIVersion(tf); !ok || got != want {
+			t.Errorf("AzurermAPIVersion(%s) = %q, %v; want %q", tf, got, ok, want)
+		}
+	}
+	if got, ok := AzurermAPIVersion("azurerm_storage_account"); ok {
+		t.Errorf("AzurermAPIVersion(azurerm_storage_account) = %q; its commonids id parser names no version", got)
+	}
+}
+
 func TestARMTemplateType(t *testing.T) {
 	for template, want := range map[string]string{
 		"/subscriptions/{s}/resourceGroups/{rg}":                                                             "Microsoft.Resources/resourceGroups",
@@ -110,10 +129,12 @@ func TestARMTemplateType(t *testing.T) {
 func TestParseRMARMTypesRefusesDamage(t *testing.T) {
 	good := string(committedRMARMTypes)
 	for name, bad := range map[string]string{
-		"count":    replaceOnce(good, "mapped=", "mapped=1"),
-		"no pin":   replaceOnce(good, "# source: ", "# nothing: "),
-		"unsorted": good + "azurerm_aaa Microsoft.X/y\n",
-		"shape":    good + "azurerm_zzzzzz\n",
+		"count":     replaceOnce(good, "mapped=", "mapped=1"),
+		"no pin":    replaceOnce(good, "# source: ", "# nothing: "),
+		"unsorted":  good + "azurerm_aaa Microsoft.X/y\n",
+		"shape":     good + "azurerm_zzzzzz\n",
+		"version":   good + "azurerm_zzzzzz Microsoft.X/y notaversion\n",
+		"versioned": replaceOnce(good, "versioned=", "versioned=1"),
 	} {
 		if _, err := ParseRMARMTypes([]byte(bad)); err == nil {
 			t.Errorf("%s: damaged join parsed", name)
