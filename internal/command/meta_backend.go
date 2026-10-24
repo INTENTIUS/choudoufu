@@ -775,10 +775,13 @@ func (m *Meta) backendFromConfig(ctx context.Context, opts *BackendOpts, enc enc
 //     is left exactly where it is - not deleted, because a record of what the
 //     directory used to be is the operator's, and deleting it is not a cache's
 //     or a guard's business - and simply not read.
-//   - Asked for a migration or a reconfiguration explicitly (an error): those
-//     flags name an operation on a stored state, so answering them by quietly
-//     doing nothing would be worse than refusing. The message names the live
-//     block and says where the estate's ownership actually lives.
+//   - Asked for a migration (-migrate-state, which -force-copy implies; an
+//     error): that names an operation on a stored state, so answering it by
+//     quietly doing nothing would be worse than refusing. The message names
+//     the live block and says where the estate's ownership actually lives.
+//   - Asked for -reconfigure (GitHub issue #2213): Atmos passes it by default.
+//     With no backend there is nothing to reconfigure, so it is accepted as a
+//     no-op with a one-line warning, and skip is true as in the first case.
 //
 // prev is the backend recorded in .terraform, used only to make the refusal
 // concrete about what would have been migrated.
@@ -793,15 +796,33 @@ func (m *Meta) liveBackendGuard(ctx context.Context, prev *clistate.BackendState
 		return false, nil
 	}
 
-	if !m.backendArgs.MigrateState && !m.backendArgs.Reconfigure {
+	if !m.backendArgs.MigrateState {
 		log.Printf("[TRACE] Meta.Backend: the configuration has a live block, so no backend is initialized and no state is read")
-		return true, nil
+		// A backend block ignored beside a live block warns where the
+		// decoder warned (a plain root). A composed root has no live block of
+		// its own, so its own backend block is only seen here.
+		if settings.IsComposed() {
+			if mod, _ := m.loadSingleModule(ctx, ".", configs.SelectiveLoadBackend); mod != nil && (mod.Backend != nil || mod.CloudConfig != nil) {
+				diags = diags.Append(tfdiags.Sourceless(
+					tfdiags.Warning,
+					"Backend configuration ignored under live resource markers",
+					"This root composes estates that carry live blocks, so its state cache is local and each estate's records are in its record_store; the backend or cloud block in this root configures nothing this run uses and is ignored.",
+				))
+			}
+		}
+		if m.backendArgs.Reconfigure {
+			// Atmos passes -reconfigure by default and Terragrunt may. With
+			// no backend there is nothing to reconfigure, so it is a no-op.
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Warning,
+				"-reconfigure has nothing to do under live resource markers",
+				"This configuration has a live block, so it has no backend to reconfigure; -reconfigure is accepted and ignored.",
+			))
+		}
+		return true, diags
 	}
 
-	flag := "-reconfigure"
-	if m.backendArgs.MigrateState {
-		flag = "-migrate-state"
-	}
+	flag := "-migrate-state"
 	from := "the previously configured backend"
 	if !prev.Empty() {
 		from = fmt.Sprintf("the previously configured %q backend", prev.Type)

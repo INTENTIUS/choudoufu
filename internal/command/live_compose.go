@@ -120,7 +120,7 @@ func liveBeginComposed(
 	diags := rejections
 	if opReq.Workspace != backend.DefaultStateName {
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Error, "Workspaces are not available under live resource markers",
-			fmt.Sprintf("This run selected workspace %q. An estate is the unit of ownership under live resource markers, not a workspace. Select the default workspace.", opReq.Workspace)))
+			fmt.Sprintf("This run selected workspace %q. An estate is the unit of ownership under live resource markers, not a workspace. %s", opReq.Workspace, liveWorkspaceRemedy)))
 	}
 	local, ok := be.(*backendLocal.Local)
 	if !ok || local.ContextOpts == nil {

@@ -63,11 +63,20 @@ func (m *Meta) liveWorkspaceGuard(ctx context.Context, subcommand string, worksp
 	))
 }
 
+// liveWorkspaceRemedy is the way out of a non-default workspace, shared by the
+// plan/apply refusal and the workspace-command guard. The workspace usually
+// arrives from a tool rather than a person: Atmos selects one named after the
+// stack, and TF_WORKSPACE is how most wrappers pass one.
+const liveWorkspaceRemedy = "Unset TF_WORKSPACE and select the default workspace (\"choudoufu workspace select default\"); " +
+	"with Atmos, turn workspaces off for the component (components.terraform.workspaces_enabled: false in atmos.yaml), " +
+	"and give each environment its own estate name in its own live block, which is the separation a workspace was standing in for."
+
 func liveWorkspaceDetail(subcommand string) string {
 	shared := fmt.Sprintf("\"choudoufu workspace %s\" is not available here. ", subcommand) +
 		"A workspace is a second state file under a different name, and this configuration's live block says there is no first one. " +
 		"The unit of ownership under live resource markers is the estate, named by the live block and recorded on the resources themselves as the tofu-estate marker (live/MARKERS.md). " +
-		"Give each environment its own configuration directory with its own estate name, which is the separation workspaces were standing in for. "
+		"Give each environment its own configuration directory with its own estate name, which is the separation workspaces were standing in for. " +
+		"Tools that select a workspace named after the stack (Atmos) need it switched off for this component (components.terraform.workspaces_enabled: false in atmos.yaml). "
 
 	switch subcommand {
 	case "new":

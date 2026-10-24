@@ -878,10 +878,10 @@ func TestLiveMode_forceUnlockRefused(t *testing.T) {
 	assertNoStateArtifacts(t, td)
 }
 
-// TestLiveMode_backendConflict: a configuration asking for both is
-// refused by the decoder, which is the earliest wall and the one every
-// command passes through.
-func TestLiveMode_backendConflict(t *testing.T) {
+// TestLiveMode_backendIgnored: a configuration with both a live block and a
+// backend block loads (GitHub issue #2213); the backend is ignored with a
+// warning and no state artifact appears.
+func TestLiveMode_backendIgnored(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("live-block-backend"), td)
 	t.Chdir(td)
@@ -890,13 +890,36 @@ func TestLiveMode_backendConflict(t *testing.T) {
 
 	code := c.Run([]string{"-no-color"})
 	output := done(t)
-	if code != 1 {
-		t.Fatalf("exit code %d, want 1\nstdout:\n%s", code, output.Stdout())
+	if code != 0 {
+		t.Fatalf("exit code %d, want 0\nstderr:\n%s", code, output.Stderr())
 	}
-	if !strings.Contains(output.Stderr(), "Both a backend and a live configuration are present") {
-		t.Errorf("wrong diagnostic:\n%s", output.Stderr())
+	if !strings.Contains(output.All(), "Backend configuration ignored") {
+		t.Errorf("no ignored-backend warning:\n%s", output.All())
 	}
 	assertNoStateArtifacts(t, td)
+}
+
+// TestLiveMode_tfWorkspaceRefused: TF_WORKSPACE (how Atmos and most wrappers
+// pass a workspace) is refused under a live block with a message that says how
+// to get out, rather than failing deeper in.
+func TestLiveMode_tfWorkspaceRefused(t *testing.T) {
+	td := t.TempDir()
+	testCopyDir(t, testFixturePath("live-block"), td)
+	t.Chdir(td)
+	t.Setenv("TF_WORKSPACE", "plat-ue2-dev")
+
+	c, done := newLiveBlockPlanCommand(t, newLiveTestCloud())
+	code := c.Run([]string{"-no-color"})
+	output := done(t)
+	if code != 1 {
+		t.Fatalf("exit code %d, want 1", code)
+	}
+	got := output.Stderr()
+	for _, want := range []string{"Workspaces are not available", "plat-ue2-dev", "workspaces_enabled: false"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("stderr lacks %q:\n%s", want, got)
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
