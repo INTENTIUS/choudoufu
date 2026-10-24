@@ -2966,9 +2966,12 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Empty per-element identity argument | error | `internal/live/identity` | "Empty per-element identity argument" |
 | 0 | 0 | identity | Ephemeral value not allowed | error | `internal/configs` | "Ephemeral value not allowed" |
 | 0 | 0 | identity | Error in function call | error | `hcl` | "Error in function call" |
+| - | - | identity | Escaped identity argument not known before apply | error | `internal/live/identity` | "Escaped identity argument not known before apply" |
 | 0 | 0 | identity | Expression not evaluable here | error | `internal/live/identity` | "Expression not evaluable here" |
 | 0 | 0 | identity | Failed to get working directory | error | `internal/configs` | "Failed to get working directory" |
 | 0 | 0 | identity | Function calls not allowed | error | `hcl` | "Function calls not allowed" |
+| - | - | identity | Identity argument is not a plain reference | error | `internal/live/identity` | "Identity argument is not a plain reference" |
+| - | - | identity | Identity argument is not the expected ARM id | error | `internal/live/identity` | "Identity argument is not the expected ARM id" |
 | 0 | 0 | identity | Identity derived from a sensitive value | error | `internal/live/identity` | "Identity derived from a sensitive value" |
 | 0 | 0 | identity | Identity derived from an impure function | error | `internal/live/identity` | "Identity derived from an impure function" |
 | 0 | 0 | identity | Identity table and provider schema disagree | warning | `internal/live/identity` | "Identity table and provider schema disagree" |
@@ -3031,6 +3034,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | Unable to use variable in static context | error | `internal/configs` | "Unable to use variable in static context" |
 | 0 | 0 | identity | Undefined local | error | `internal/configs` | "Undefined local" |
 | 0 | 0 | identity | Undefined variable | error | `internal/configs` | "Undefined variable" |
+| - | - | identity | Unknown identity escape | error | `internal/live/identity` | "Unknown identity escape" |
 | 0 | 0 | identity | Unknown variable | error | `hcl` | "Unknown variable" |
 | 0 | 0 | identity | Unsupported attribute | error | `hcl` | "Unsupported attribute" |
 | 0 | 0 | identity | Unsupported each.value reference | error | `internal/live/identity` | "Unsupported each.value reference" |
@@ -3164,7 +3168,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**307 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**311 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -4014,6 +4018,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Blocked no configuration in the measured corpus.
 
+#### Escaped identity argument not known before apply
+
+**What.** An Azure data-plane URL id escapes an argument's value as azurerm does (url.PathEscape on an App Configuration key, url.QueryEscape on its label, #2206), and the value is not known until apply. The escape reads the value's text, so no formula can carry it; the instance is refused by name. Writing a literal resolves it.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Expression not evaluable here
 
 **What.** Static evaluation of an identity argument panicked and was recovered; most often an expression inside a keyed module resolving, several layers down, back to the module call's own each.key or each.value.
@@ -4037,6 +4049,22 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `hcl` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Identity argument is not a plain reference
+
+**What.** An Azure data-plane URL id takes one segment of an ARM id argument (a Key Vault's name out of key_vault_id, #2206), and the argument is neither a literal ARM id nor a bare reference to a parent's id, so no segment can be taken from it.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Identity argument is not the expected ARM id
+
+**What.** An Azure data-plane URL id takes one segment of an ARM id argument (a Key Vault's name out of key_vault_id, #2206), and the literal value has no such segment where the id type puts it. The instance is refused by name rather than given a host read from the wrong place.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Identity derived from a sensitive value
 
@@ -4537,6 +4565,14 @@ reserved for the limits wing's fixture directories, and
 **Where.** Raised by `internal/configs` and passed through: this is a diagnostic the live path shows without having written it. See the section preamble.
 
 **How often.** Blocked no configuration in the measured corpus.
+
+#### Unknown identity escape
+
+**What.** A component names an escape the identity package does not know (#2206). A table error, never raised for a generated row.
+
+**Where.** The identity pass, raised by `internal/live/identity`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
 
 #### Unknown variable
 

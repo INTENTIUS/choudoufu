@@ -102,8 +102,8 @@
         "definition": "an azurerm type whose schema carries no ARM tags map (live/readiness.json azure.azurerm.types facts.taggable=false); through azapi_resource, 2366 of 3397 ARM types take no tags at their latest API version (azure.azapi.types), all declaration-carried, not counted here",
         "count": 719,
         "by_tier": {
-          "declaration-carried": 492,
-          "record-carried": 227
+          "declaration-carried": 594,
+          "record-carried": 125
         },
         "unrecorded": "parent-owned"
       },
