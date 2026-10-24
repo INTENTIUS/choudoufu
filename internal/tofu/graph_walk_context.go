@@ -51,6 +51,7 @@ type ContextGraphWalker struct {
 	// set them in ContextOpts.
 	ResourceIdentityResolver ResourceIdentityResolver
 	ConfigValueAdjuster      ConfigValueAdjuster
+	InRunEstates             map[string]addrs.Module
 
 	// This is an output. Do not set this, nor read it while a graph walk
 	// is in progress.
@@ -124,6 +125,7 @@ func (w *ContextGraphWalker) EvalContext() EvalContext {
 
 		ResourceIdentityResolverValue: w.ResourceIdentityResolver,
 		ConfigValueAdjusterValue:      w.ConfigValueAdjuster,
+		InRunEstatesValue:             w.InRunEstates,
 	}
 
 	return ctx

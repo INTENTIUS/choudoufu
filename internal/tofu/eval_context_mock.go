@@ -131,6 +131,7 @@ type MockEvalContext struct {
 
 	ResourceIdentityResolverValue ResourceIdentityResolver
 	ConfigValueAdjusterValue      ConfigValueAdjuster
+	InRunEstatesValue             map[string]addrs.Module
 }
 
 // MockEvalContext implements EvalContext
@@ -361,4 +362,8 @@ func (c *MockEvalContext) ResourceIdentityResolver() ResourceIdentityResolver {
 
 func (c *MockEvalContext) ConfigValueAdjuster() ConfigValueAdjuster {
 	return c.ConfigValueAdjusterValue
+}
+
+func (c *MockEvalContext) InRunEstates() map[string]addrs.Module {
+	return c.InRunEstatesValue
 }

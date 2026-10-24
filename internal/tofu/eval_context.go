@@ -187,4 +187,8 @@ type EvalContext interface {
 	// adjuster, or nil if none was configured (the default). See
 	// resource_identity.go.
 	ConfigValueAdjuster() ConfigValueAdjuster
+
+	// InRunEstates maps the estates a composed run applies as modules to
+	// their module calls, or is nil. See inrun_estates.go.
+	InRunEstates() map[string]addrs.Module
 }

@@ -30,6 +30,9 @@ import (
 //     those are only important once we already know what action we're planning
 //     to take against a particular resource instance.
 type PlanGraphBuilder struct {
+	// InRunEstates is ContextOpts.InRunEstates (GitHub issue #2059).
+	InRunEstates map[string]addrs.Module
+
 	// Config is the configuration tree to build a plan from.
 	Config *configs.Config
 
@@ -239,6 +242,8 @@ func (b *PlanGraphBuilder) Steps() []GraphTransformer {
 		},
 
 		&ReferenceTransformer{},
+
+		&InRunEstateOutputsTransformer{Estates: b.InRunEstates, Config: b.Config},
 
 		&AttachDependenciesTransformer{},
 

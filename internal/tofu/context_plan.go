@@ -900,6 +900,7 @@ func (c *Context) planGraph(ctx context.Context, config *configs.Config, prevRun
 			GenerateConfigPath:      opts.GenerateConfigPath,
 			RemoveStatements:        opts.RemoveStatements,
 			ProviderFunctionTracker: providerFunctionTracker,
+			InRunEstates:            c.inRunEstates,
 		}).Build(ctx, addrs.RootModuleInstance)
 		return graph, walkPlan, diags
 	case plans.RefreshOnlyMode:
@@ -915,6 +916,7 @@ func (c *Context) planGraph(ctx context.Context, config *configs.Config, prevRun
 			Operation:               walkPlan,
 			ExternalReferences:      opts.ExternalReferences,
 			ProviderFunctionTracker: providerFunctionTracker,
+			InRunEstates:            c.inRunEstates,
 		}).Build(ctx, addrs.RootModuleInstance)
 		return graph, walkPlan, diags
 	case plans.DestroyMode:
@@ -928,6 +930,7 @@ func (c *Context) planGraph(ctx context.Context, config *configs.Config, prevRun
 			skipRefresh:             opts.SkipRefresh,
 			Operation:               walkPlanDestroy,
 			ProviderFunctionTracker: providerFunctionTracker,
+			InRunEstates:            c.inRunEstates,
 		}).Build(ctx, addrs.RootModuleInstance)
 		return graph, walkPlanDestroy, diags
 	default:

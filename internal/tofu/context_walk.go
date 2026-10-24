@@ -184,5 +184,6 @@ func (c *Context) graphWalker(operation walkOperation, opts *graphWalkOpts) *Con
 
 		ResourceIdentityResolver: c.resourceIdentityResolver,
 		ConfigValueAdjuster:      c.configValueAdjuster,
+		InRunEstates:             c.inRunEstates,
 	}
 }

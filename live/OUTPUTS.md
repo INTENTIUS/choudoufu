@@ -247,6 +247,53 @@ and marked `"reads": "planned"` with `planned_from` naming the upstream.
 
 An output read is never for a value a data source can read.
 
+## Composed runs: one plan and one apply across estates
+
+A root that has no `live` block of its own and calls estate directories as
+modules runs them in one plan and one apply:
+
+```hcl
+# root/main.tf
+module "net" { source = "../net" }   # ../net has its own live block, estate "net"
+module "app" { source = "../app" }   # ../app has its own live block, estate "app"
+```
+
+```hcl
+# app/main.tf, the same file whether app runs alone or composed
+data "terraform_estate_outputs" "net" {
+  estate = "net"
+  names  = ["vpc_id"]
+}
+resource "aws_s3_bucket" "logs" {
+  bucket = "app-logs"
+  tags   = { vpc = data.terraform_estate_outputs.net.values.vpc_id }
+}
+```
+
+Run it from the root directory with the usual `choudoufu plan` and
+`choudoufu apply`. No flag turns it on; a root with no live block that calls
+local directories carrying one is composed.
+
+An estate's read of an estate that is in the same run is not sent to the
+record store. The block waits for the module, and while that module has
+changes pending the read is deferred to the apply, like any data source whose
+dependency has changes. At the apply the values come from the module's
+outputs, so an id that does not exist until the apply is available to the
+other estate in the same apply. If the module has nothing pending, the read
+happens in the plan, from outputs the walk already holds. The `values` object
+has one attribute per name, as before. Outputs that are sensitive are refused
+with the same summary as a store read. The module's outputs are also recorded
+for the estate after the apply, so a later run of another estate on its own
+reads them from the store as usual.
+
+Records and markers follow the estate, not the composition. Each module is
+treated as the root of its own directory for ownership: its estate name, its
+record store (a local one is the `.tofu-records` beside the estate's own
+files), its markers, and the address in `tofu-address` and in the record key
+(`aws_vpc.main`, not `module.net.aws_vpc.main`). See "A composed run" in
+[LIMITATIONS.md](LIMITATIONS.md) for what the root may hold, how roles work,
+and what a failed apply leaves.
+
 ## Demonstrated
 
 `internal/live/lifecycle/cross_estate_live_test.go`'s

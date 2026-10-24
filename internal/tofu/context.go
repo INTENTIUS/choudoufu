@@ -15,6 +15,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/lang/eval"
@@ -56,6 +57,18 @@ type ContextOpts struct {
 	// without this field existing. See resource_identity.go.
 	ResourceIdentityResolver ResourceIdentityResolver
 	ConfigValueAdjuster      ConfigValueAdjuster
+
+	// InRunEstates maps an estate name to the module call that carries it
+	// in a composed run (GitHub issue #2059). See inrun_estates.go. Nil for
+	// every other run.
+	InRunEstates map[string]addrs.Module
+}
+
+// SetInRunEstates installs ContextOpts.InRunEstates after the context is
+// built. A composed run learns its estates' names only while it builds the
+// prior state, which is after NewContext and before the first walk.
+func (c *Context) SetInRunEstates(m map[string]addrs.Module) {
+	c.inRunEstates = m
 }
 
 // ContextMeta is metadata about the running context. This is information
@@ -106,6 +119,7 @@ type Context struct {
 
 	resourceIdentityResolver ResourceIdentityResolver
 	configValueAdjuster      ConfigValueAdjuster
+	inRunEstates             map[string]addrs.Module
 }
 
 // (additional methods on Context can be found in context_*.go files.)
@@ -167,6 +181,7 @@ func NewContext(opts *ContextOpts) (*Context, tfdiags.Diagnostics) {
 
 		resourceIdentityResolver: opts.ResourceIdentityResolver,
 		configValueAdjuster:      opts.ConfigValueAdjuster,
+		inRunEstates:             opts.InRunEstates,
 	}, diags
 }
 

@@ -24,6 +24,9 @@ import (
 // that aren't explicitly in the diff. There are other scenarios where the
 // diff can be deviated, so this is just one layer of protection.
 type ApplyGraphBuilder struct {
+	// InRunEstates is ContextOpts.InRunEstates (GitHub issue #2059).
+	InRunEstates map[string]addrs.Module
+
 	// Config is the configuration tree that the diff was built from.
 	Config *configs.Config
 
@@ -179,6 +182,7 @@ func (b *ApplyGraphBuilder) Steps() []GraphTransformer {
 
 		// Connect references so ordering is correct
 		&ReferenceTransformer{},
+		&InRunEstateOutputsTransformer{Estates: b.InRunEstates, Config: b.Config},
 		&AttachDependenciesTransformer{},
 
 		// Nested data blocks should be loaded after every other resource has
