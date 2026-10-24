@@ -39,6 +39,14 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.31.0 (Unreleased)
 
+- Added: the 14 azurerm composite and association types derive their id as
+  azurerm builds it (GitHub issue #2204). Eleven join two ARM ids with `|`
+  (`commonids.CompositeResourceID`) and the three
+  `azurerm_subnet_*_association` types use the subnet's id.
+  `tools/azurerm-id-gen` checks each type against azurerm 5.10.0's id code
+  before it records one, and a unit test holds the derived id to azurerm's
+  own `ID()` format on a fixture. A type that fails a check stays refused
+  with its reason. Not run against Azure.
 - Changed: claims hold only the promise and its proof. A cell is `proven`
   or `n/a`; `unproven`, `open`, `restated` and the stale marking are gone,
   and each proof shows the date and commit it last ran. Claim 47 left the

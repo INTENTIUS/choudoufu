@@ -28,3 +28,13 @@ func (id RecordId) Segments() []resourceids.Segment {
 		resourceids.UserSpecifiedSegment("relativeRecordSetName", "name"),
 	}
 }
+
+func NewRecordID(subscriptionId string, resourceGroupName string, dnsZoneName string, recordType RecordType, relativeRecordSetName string) RecordId {
+	return RecordId{
+		SubscriptionId:        subscriptionId,
+		ResourceGroupName:     resourceGroupName,
+		DnsZoneName:           dnsZoneName,
+		RecordType:            string(recordType),
+		RelativeRecordSetName: relativeRecordSetName,
+	}
+}

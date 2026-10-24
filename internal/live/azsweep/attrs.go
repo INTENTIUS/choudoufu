@@ -359,6 +359,23 @@ func EnvSubscriptionID(getenv func(string) string) string {
 	return Attrs{}.WithEnv(getenv).SubscriptionID
 }
 
+// EnvEnvironment is the Azure cloud the environment gives an azurerm or
+// azapi provider block that sets no `environment`, for
+// internal/live/identity's CloudContext.Environment (GitHub issue #2206):
+// ARM_ENVIRONMENT through getenv, and "public" when that is unset, the
+// default both providers apply. "" when ARM_METADATA_HOSTNAME names a
+// metadata host, because azurerm then takes its cloud from that host and
+// not from either argument, and nothing here reads it.
+func EnvEnvironment(getenv func(string) string) string {
+	if getenv("ARM_METADATA_HOSTNAME") != "" {
+		return ""
+	}
+	if env := (Attrs{}).WithEnv(getenv).Environment; env != "" {
+		return env
+	}
+	return "public"
+}
+
 // refusedMarks are the arguments the block marked, which [New] refuses
 // rather than stand in for: every argument read here decides who the
 // sweep authenticates as or which endpoint it calls.

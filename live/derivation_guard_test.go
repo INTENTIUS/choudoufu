@@ -209,6 +209,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"check, not the hand-wiring. Exported (issue #418) so tools/readiness-gen can read it directly.",
 		Data: 3, Code: 0,
 	},
+	"tools/azurerm-id-gen/dataplane.go": {
+		Reason: "dataPlaneSpecs (issue #2206): the 19 azurerm 5.10.0 types whose id is a data-plane URL, keyed by type because " +
+			"no id type states such an id's grammar (five hand-written ID() shapes, none a Segments() list). Each derived entry " +
+			"is held at generation time to the string literals of the id type's ID(), to the names the resource's code uses " +
+			"for the host, and to the id type its ARM-id argument's validator or Parse call names; a mismatch refuses the type. " +
+			"Each refused entry carries its reason, which is the artifact's, not a gap in the table.",
+		Data: 19, Code: 0,
+	},
 	"internal/live/identity/azure_resourcegroup.go": {
 		Reason: "foreignResourceGroupWarnings (issue #1122): the Azure fence ruling defines an estate as the resource " +
 			"groups it declares, so the warning has to recognise the block that declares a group. azurerm_resource_group " +
@@ -217,6 +225,40 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"its ARM type, Microsoft.Resources/resourceGroups, read from configuration. The second spelling is the " +
 			"data source of the same name, read when a resource's group comes from data.azurerm_resource_group.",
 		Data: 1, Code: 0,
+	},
+	"internal/command/live_plan_dataplane.go": {
+		Reason: "keyVaultObjectTypes (issue #2205): the three Key Vault data-plane types (key, secret, certificate) the " +
+			"plan's data-plane sweep lists at a vault's own URL, because Resource Graph does not index a vault's objects. " +
+			"No provider schema says an azurerm type is a data-plane object inside another resource, so the set is a " +
+			"hand-verified provider fact; the three in-function literals pick the collection for each type.",
+		Data: 3, Code: 3,
+	},
+	"internal/live/discovery/dataplane.go": {
+		Reason: "DataPlaneKind (issue #2205): maps each Key Vault collection (keys, secrets, certificates) to the azurerm " +
+			"type its objects hold, and back, so the data-plane leg can file a listed object as the type configuration " +
+			"declares. The collection-to-type pairing is a fact of Key Vault's data plane that no azurerm schema states.",
+		Data: 0, Code: 6,
+	},
+	"internal/live/identity/azure_recordcarried.go": {
+		Reason: "AzureRecordCarriedTypes (maintainer ruling of 2026-10-23 on #2201, items 2 and 8; built by #2203): the 37 " +
+			"azurerm parent-id settings objects admitted as record-carried BY DECLARATION, because each stores its " +
+			"parent's ARM id as its own and has no tags argument, so no marker can name it. A declaration, not a " +
+			"derivation: moving a type in or out of the list is a ruling.",
+		Data: 37, Code: 0,
+	},
+	"internal/live/identity/azure_serverminted.go": {
+		Reason: "AzureServerMintedTypes (issue #2205, ruling of 2026-10-23 on #2201 item 4): the 17 azurerm types whose id " +
+			"the server mints, held by hand because no committed artifact says per type which ids the server supplies; " +
+			"the classification is #2147's trace of azurerm 5.10.0's Create functions. " +
+			"TestAzureServerMintedRosterIsServed holds the roster to the committed schema-side facts.",
+		Data: 17, Code: 0,
+	},
+	"tools/azurerm-id-gen/composite.go": {
+		Reason: "composite and association id rules (issue #2204, ruling of 2026-10-23 on #2201): the 31 azurerm types whose " +
+			"id joins two linked objects' ids with \"|\" (or is the subnet's own id), keyed by type because the pairing " +
+			"and part order are read from each resource's Create at the pin. Each rule is checked against the importer, " +
+			"the id types and the schema at generation time, and a failed check refuses the type with its reason.",
+		Data: 31, Code: 0,
 	},
 	"internal/live/identity/docimportid.go": {
 		Reason: "VariadicTrailingImportIDTypes: aws_security_group_rule alone, the one type today whose documented " +
@@ -757,8 +799,18 @@ const (
 	// azurerm_resource_group once, as a package-level const, because the
 	// ruling defines an estate as the groups it declares
 	// (internal/live/identity/azure_resourcegroup.go).
-	typeLiteralDataTotal = 1251
-	typeLiteralCodeTotal = 131
+	// 1251 -> 1270 data, code unchanged, on 2026-10-24 (#2206):
+	// tools/azurerm-id-gen/dataplane.go's dataPlaneSpecs, the 19 data-plane
+	// URL types, 19 new Data literals, none moved.
+	// 1270 -> 1358 data and 131 -> 140 code on 2026-10-23: five files the
+	// Azure lane added were never registered: internal/command/live_plan_dataplane.go
+	// (3 / 3), internal/live/discovery/dataplane.go (0 / 6),
+	// internal/live/identity/azure_recordcarried.go (37 / 0),
+	// internal/live/identity/azure_serverminted.go (17 / 0) and
+	// tools/azurerm-id-gen/composite.go (31 / 0). 88 new Data and 9 new Code
+	// literals, none moved.
+	typeLiteralDataTotal = 1358
+	typeLiteralCodeTotal = 140
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
 	// identity_golden_pin_test.go's identityGoldenSweepFloor and

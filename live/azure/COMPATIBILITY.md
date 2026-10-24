@@ -25,7 +25,11 @@ one family, `substrate.Azure`, chosen by provider name.
 Of azapi's four resource types only `azapi_resource` is admitted.
 `azapi_update_resource` and `azapi_resource_action` act on an object they
 do not create, and `azapi_data_plane_resource` has no tags and no ARM id,
-so none of them owns the object its arguments name. The test is the
+so none of them owns the object its arguments name. The last is the
+exception that a declared record can hold: with a `record_store` it is
+admitted as record-carried (`identity.AzureRecordCarriedTypes`, #2203),
+as are 36 azurerm settings objects that take their parent's id as
+their own. The test is the
 schema's shape (`substrate.AzapiResourceShape`), not the type name.
 
 An azurerm importer's 404 is read as absence, not failure, in both forms
@@ -38,28 +42,62 @@ Every azurerm type whose ARM id template could be read from azurerm's own
 id parsers is admitted ([`live/azurerm-ids.json`](../azurerm-ids.json)),
 and so is every ARM type declared through `azapi_resource`.
 [`live/READINESS.md`](../READINESS.md#azure) generates the counts: of
-azurerm's 1,106 types, 849 are in contract, and all 3,397 of azapi's ARM
+azurerm's 1,106 types, 996 are in contract, and all 3,397 of azapi's ARM
 types are.
+
+An association's id is not an ARM id of its own: azurerm joins its two
+linked objects' ids with `|` (`commonids.CompositeResourceID`), and the
+three `azurerm_subnet_*_association` types use the subnet's id. These 14
+types derive their id the same way, from the arguments that hold the linked
+ids. The generator admits one only after checking each part against
+azurerm's id code at the pin (the importer's two id types, every segment of
+each, each argument's validator, and that Create builds the id from a
+composite id), and a type that fails a check stays refused with the reason.
+Arguments holding an id are used as written, so the derived id equals
+azurerm's for an id in the form azurerm formats (leading slash, no
+trailing slash), which is the form a reference to another resource's `id`
+has. Nothing here has run against Azure.
 
 ### Readiness tiers
 
 The tiers are AWS's. For azurerm at 5.10.0, 387 types have an ARM tags map
-and are marker-carried, 492 untaggable types bind from their declaration,
-and 227 untaggable types nothing admits are record-carried. For azapi at
+and are marker-carried, 589 untaggable types bind from their declaration,
+and 130 untaggable types nothing admits are record-carried. For azapi at
 2.13.0, 1,031 ARM types take tags at their latest API version and 2,366 do
 not; 84 change between versions, and the stamp reads the version the
 block's `type` names.
 
+### Where an id template comes from
+
+A type's ARM id template is read from the id parser its importer names.
+Where the segment names find no argument for a segment (a DNS record's
+type, a bot channel's name, a `"default"` singleton, a parent's name held
+inside an `_id` argument), the generator reads azurerm's Create call
+instead (`tools/azurerm-id-gen`, GitHub issue #2201 item 1, ruled
+2026-10-23). The `New<Id>(...)` call Create stores its id with states a
+source for every segment: a configuration argument, the provider's
+subscription, a constant, or a value parsed out of an `_id` argument. Those
+are trusted as written. A segment read from a response, minted (a uuid),
+looked up by friendly name at apply, or from a Create that stores an id
+other than the one it built, is not, and the type stays refused with the
+reason in `live/azurerm-ids.json` (`create_call_problem`). 99 types gained
+a template this way. A leading run parsed out of one `_id` argument is that
+argument's whole id when the argument's id type is exactly that run; the
+provider's subscription inside the run stands for the parent's own, which
+azurerm's calls are made in. A type whose id is the whole of one argument's
+id (a settings object of its parent) is not read this way: that is the
+record rung's, per #2201 item 2.
+
 ### Refused
 
-The 257 azurerm types short of in-contract, each listed with its reason in
+The 110 azurerm types short of in-contract, each listed with its reason in
 `live/READINESS.md`:
 
 | Why | What happens |
 |---|---|
-| No id template could be read from azurerm's parsers (235 types) | Refused as `unadmitted-type`. No template is guessed from the schema |
-| The template names the parent or is not the object's own or fails a guard (9 types) | Withheld rather than risk a wrong marker |
-| On the identity-schema route with no template for an attribute no argument supplies (13 types) | Refused as unadmitted |
+| No id template could be read from azurerm's parsers or its Create calls (124 types) | Refused as `unadmitted-type`. No template is guessed from the schema |
+| The template names the parent or is not the object's own or fails a guard (8 types) | Withheld rather than risk a wrong marker |
+| On the identity-schema route with no template for an attribute no argument supplies (11 types) | Refused as unadmitted |
 
 On `azapi_resource`, four things stop the stamp:
 

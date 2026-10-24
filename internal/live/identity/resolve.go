@@ -1296,6 +1296,20 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	}
 
 	entry, ok := r.lookupType(resAddr.Type)
+	if !ok && AzureServerMintedTaggable(resAddr.Type) {
+		// GitHub issue #2205, the second of AWS's two answers: an Azure type
+		// whose id the server mints and which carries the ARM tags map is
+		// found again by its tofu-address tag, as a taggable
+		// server-assigned AWS type is. It has no table row because nothing
+		// computes its id; the record-located door above has already taken
+		// the estates that declared a record_store.
+		return Resolution{
+			Addr:   addr,
+			Class:  ClassNeedsDiscovery,
+			Reason: AzureServerMintedTypes[resAddr.Type].Mints,
+			Cause:  DiscoveryServerAssigned,
+		}, true
+	}
 	if !ok {
 		// This used to interpolate strings.Join(AdmittedTypes(), ", "),
 		// which was reasonable when the table held a few dozen rows and
@@ -1846,6 +1860,14 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			fail(sibBefore, "")
 			continue
 		}
+		if got, ok = r.armSegmentValue(comp, addr, attr, got); !ok {
+			fail(sibBefore, "")
+			continue
+		}
+		if got, ok = r.urlEscapeValue(comp, addr, attr, got); !ok {
+			fail(sibBefore, "")
+			continue
+		}
 		// The identity-attribute formula gets the resolved value alone; a
 		// prefix Literal (see [Component.Literal] and [Component.OmitIfAbsent])
 		// is punctuation in the import-ID STRING, not part of the identity
@@ -2142,7 +2164,43 @@ func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bo
 			return "", false
 		}
 	}
+	if env, suffix := azureSuffixService(which); suffix {
+		name, ok := r.cloudValueFor(CloudEnvironment, cs)
+		if !ok {
+			return "", false
+		}
+		return AzureDNSSuffix(name, env)
+	}
+	if which == CloudEnvironment {
+		return r.azureEnvironment(cs)
+	}
 	return r.cloud.value(which)
+}
+
+// azureEnvironment answers [CloudEnvironment] (GitHub issue #2206): the
+// provider block's own static `environment`, else the run's
+// [CloudContext.Environment] for a block that sets none, exactly the shape
+// [CloudSubscriptionID] has. Names are matched case-insensitively and only
+// the three clouds [AzureDNSSuffix] knows are answered; azapi's "custom"
+// (a cloud of endpoint values alone) and anything else is not.
+//
+// A block that sets azurerm's `metadata_host` takes its cloud from that
+// host instead of from `environment`, so it is not answered at all.
+func (r *resolver) azureEnvironment(cs cloudScopeKey) (string, bool) {
+	if _, set := r.providerStaticAttr(cs.provider, "metadata_host"); set || !r.providerLeavesUnset(cs.provider, "metadata_host") {
+		return "", false
+	}
+	if env, ok := r.providerStaticAttr(cs.provider, "environment"); ok && env != "" {
+		return canonicalAzureEnvironment(env)
+	}
+	if !r.providerLeavesUnset(cs.provider, "environment") {
+		return "", false
+	}
+	env, ok := r.cloud.value(CloudEnvironment)
+	if !ok {
+		return "", false
+	}
+	return canonicalAzureEnvironment(env)
 }
 
 // cloudComponentAttr reports the resource argument that supplies a

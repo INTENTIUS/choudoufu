@@ -125,6 +125,15 @@ type IdentityComponent struct {
 	// ARMTypeSegment is identity.Component's field of the same name.
 	ARMTypeSegment bool
 
+	// ARMSegmentIndex and ARMSegmentAfter are identity.Component's fields
+	// of the same names: the component is one path segment of the ARM id
+	// its argument holds (GitHub issue #2206).
+	ARMSegmentIndex int
+	ARMSegmentAfter string
+
+	// URLEscape is identity.Component's field of the same name.
+	URLEscape string
+
 	// ServerAssignedIfAbsent is identity.Component's field of the same
 	// name: leaving every one of Attrs unset asks the provider to mint the
 	// value (GitHub issue #2119; see [markProviderMintedIfAbsent]).

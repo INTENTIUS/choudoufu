@@ -3451,7 +3451,7 @@ func liveResolve(ctx context.Context, config *configs.Config, provs projection.P
 		// ([projectionProviders.resourceGraphClientFor], through
 		// azsweep.Attrs.WithEnv), so identity and the sweep cannot
 		// disagree about it.
-		Cloud:       identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv)},
+		Cloud:       identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv), Environment: azsweep.EnvEnvironment(os.Getenv)},
 		Schemas:     resourceSchemas,
 		DataResults: dataResults,
 		// GitHub issue #352, and nil for an untargeted run. See
@@ -4811,6 +4811,19 @@ func (p *projectionProviders) liveSweepLegs(ctx context.Context, sub substrate.S
 		return []discovery.Sweeper{discovery.NoSweepLeg{Family: sub.Name(), Kind: sub.Sweep()}}, false, nil
 	}
 	leg, sweep, diags := build(ctx, p, sub, addr)
+	if sub.Sweep() == substrate.SweepResourceGraph {
+		// The Key Vault data-plane leg runs beside the Resource Graph leg,
+		// never instead of it (GitHub issue #2205).
+		dp, dpDiags := p.dataPlaneLeg(ctx, addr)
+		diags = diags.Append(dpDiags)
+		if dp != nil {
+			legs := []discovery.Sweeper{}
+			if leg != nil {
+				legs = append(legs, leg)
+			}
+			return append(legs, dp), sweep, diags
+		}
+	}
 	if leg == nil {
 		// No leg could be built (the Kubernetes leg's cluster client, say):
 		// the builder's warning already says so, and the pass lists nothing

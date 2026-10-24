@@ -625,6 +625,31 @@ type Component struct {
 	// is refused rather than rendered later.
 	ARMTypeSegment bool
 
+	// ARMSegmentIndex, when positive, says the argument holds an Azure ARM
+	// id and this component contributes one path segment of it: the one at
+	// position ARMSegmentIndex of the id split on "/" (the id's leading "/"
+	// makes position 0 the empty string, so "/subscriptions/s/resourceGroups/g
+	// /providers/Microsoft.KeyVault/vaults/kv" has its name at 8).
+	// ARMSegmentAfter is the text of the segment before it ("vaults"),
+	// compared without regard to case: a value of any other shape is refused
+	// by name, never misread. The Azure data-plane ids are the users (GitHub
+	// issue #2206): a Key Vault's host is the name segment of key_vault_id
+	// and the cloud's suffix. A value only an apply can know, a reference to
+	// the parent's id, is carried as that reference with the same two steps
+	// applied to it (split on "/", element ARMSegmentIndex), so the id
+	// renders once the parent's id is known.
+	ARMSegmentIndex int
+	ARMSegmentAfter string
+
+	// URLEscape is the escaping azurerm applies to this argument's value
+	// when it formats a URL id (GitHub issue #2206): "path" is
+	// url.PathEscape, which App Configuration puts on a key, and "query"
+	// is url.QueryEscape, which it puts on a label. Empty, the ordinary
+	// case, is the value as written. A literal value is escaped here; a
+	// value only an apply can know is refused by name, since the escape
+	// reads its text and a formula cannot carry it.
+	URLEscape string
+
 	// LongForm names a rewrite the provider applies to this argument's
 	// value before it becomes part of the id (#2144). Empty, the ordinary
 	// case, means the value is substituted as written, which is what the
@@ -848,6 +873,24 @@ const (
 	// provider's `region`, or its `zone` when it states no region. The
 	// hashicorp/google IAM types read their parent's location this way.
 	CloudLocation CloudValue = "location"
+
+	// CloudEnvironment is the Azure cloud the run is against: "public",
+	// "usgovernment" or "china" (GitHub issue #2206, the maintainer's
+	// ruling of 2026-10-23 on #2201 item 5). It is a provider-block value
+	// like [CloudSubscriptionID]: azurerm and azapi take it from their
+	// block's `environment`, or ARM_ENVIRONMENT when the block sets none,
+	// and "public" when neither does. Data-plane ids are URLs whose host
+	// is an object's name plus the cloud's DNS suffix, so the suffix
+	// values below are all answered from this one.
+	CloudEnvironment CloudValue = "environment"
+
+	// The DNS suffixes of the data-plane hosts azurerm names objects by
+	// (#2206): "https://{vault}." + CloudKeyVaultDNSSuffix, and the like.
+	// Each is answered by [AzureDNSSuffix] from the [CloudEnvironment].
+	CloudKeyVaultDNSSuffix         CloudValue = "key-vault-dns-suffix"
+	CloudManagedHSMDNSSuffix       CloudValue = "managed-hsm-dns-suffix"
+	CloudAppConfigurationDNSSuffix CloudValue = "app-configuration-dns-suffix"
+	CloudStorageDNSSuffix          CloudValue = "storage-dns-suffix"
 )
 
 // describe renders a cloud value for an operator-facing sentence.
@@ -865,6 +908,10 @@ func (c CloudValue) describe() string {
 		return "zone"
 	case CloudLocation:
 		return "location"
+	case CloudEnvironment:
+		return "Azure environment (the provider block's environment, or ARM_ENVIRONMENT when the block sets none)"
+	case CloudKeyVaultDNSSuffix, CloudManagedHSMDNSSuffix, CloudAppConfigurationDNSSuffix, CloudStorageDNSSuffix:
+		return "Azure data-plane DNS suffix (" + string(c) + ", from the provider block's environment, or ARM_ENVIRONMENT when the block sets none)"
 	default:
 		return string(c)
 	}
@@ -909,6 +956,16 @@ type CloudContext struct {
 	// block that sets it, statically or not, is never overridden by it,
 	// as neither provider overrides it.
 	SubscriptionID string
+
+	// Environment is the Azure cloud the run's environment gives a provider
+	// block that names none: ARM_ENVIRONMENT, or "public" when that is
+	// unset too, which is the default both providers apply. The caller
+	// fills it from internal/live/azsweep.EnvEnvironment, which answers ""
+	// when ARM_METADATA_HOSTNAME names a metadata host (the cloud is then
+	// whatever that host serves, which nothing here reads). Like
+	// SubscriptionID it is consulted only for a block that does not set
+	// `environment` at all (GitHub issue #2206).
+	Environment string
 }
 
 // value returns the context's value for one cloud property, and whether the
@@ -922,6 +979,8 @@ func (c CloudContext) value(which CloudValue) (string, bool) {
 		v = c.Region
 	case CloudSubscriptionID:
 		v = c.SubscriptionID
+	case CloudEnvironment:
+		v = c.Environment
 	default:
 		return "", false
 	}
@@ -956,23 +1015,35 @@ func LookupType(typeName string) (TypeIdentity, bool) {
 
 // IsMarkerless reports whether a derived rule refuses typeName because its
 // provider mints the identity and it has nowhere to carry a marker:
-// [MarkerlessTypes] for AWS, [GoogleMarkerlessTypes] for hashicorp/google.
-// The two are generated by different tools from different evidence and
+// [MarkerlessTypes] for AWS, [GoogleMarkerlessTypes] for hashicorp/google,
+// and the untaggable members of [AzureServerMintedTypes] for azurerm (GitHub
+// issue #2205). The first two are generated by different tools from different evidence and
 // read the same way.
 func IsMarkerless(typeName string) bool {
 	if _, ok := MarkerlessTypes[typeName]; ok {
 		return true
 	}
-	_, ok := GoogleMarkerlessTypes[typeName]
-	return ok
+	if _, ok := AzureRecordCarriedTypes[typeName]; ok {
+		return true
+	}
+	if _, ok := GoogleMarkerlessTypes[typeName]; ok {
+		return true
+	}
+	return AzureServerMintedMarkerless(typeName)
 }
 
 // MarkerlessReasonFor is the ruling that put typeName in the markerless
 // veto, worded for the provider it belongs to: [GoogleMarkerlessReason] for
 // a [GoogleMarkerlessTypes] member, [MarkerlessReason] otherwise.
 func MarkerlessReasonFor(typeName string) string {
+	if AzureServerMintedMarkerless(typeName) {
+		return AzureMarkerlessReason
+	}
 	if _, ok := GoogleMarkerlessTypes[typeName]; ok {
 		return GoogleMarkerlessReason
+	}
+	if _, ok := AzureRecordCarriedTypes[typeName]; ok {
+		return AzureRecordCarriedReason
 	}
 	return MarkerlessReason
 }

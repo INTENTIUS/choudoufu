@@ -18,6 +18,8 @@ func (r Registration) SupportedResources() map[string]*pluginsdk.Resource {
 		"azurerm_widget_gizmo_legacy": resourceGizmoLegacy(),
 		"azurerm_widget_container":    resourceWidgetContainer(),
 		"azurerm_widget_record":       resourceWidgetRecord(),
+		"azurerm_widget_zonerecord":   resourceWidgetZoneRecord(),
+		"azurerm_widget_zoneecho":     resourceWidgetZoneEcho(),
 	}
 }
 
@@ -98,4 +100,47 @@ func resourceWidgetRecord() *pluginsdk.Resource {
 			return err
 		}),
 	}
+}
+
+// #2201 item 1: no segment name finds zone_name, and there is no identity
+// schema; the Create call builds the id from arguments, the provider's
+// subscription and a constant.
+func resourceWidgetZoneRecord() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		Create: resourceWidgetZoneRecordCreate,
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			_, err := gizmos.ParseRecordID(id)
+			return err
+		}),
+	}
+}
+
+func resourceWidgetZoneRecordCreate(d *pluginsdk.ResourceData, meta interface{}) error {
+	subscriptionId := meta.(*clients.Client).Account.SubscriptionId
+	id := gizmos.NewRecordID(subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), gizmos.RecordTypeCNAME, d.Get("name").(string))
+	d.SetId(id.ID())
+	return nil
+}
+
+// The same Create, but the id it stores is read back from the server, so
+// the constructor's arguments are not what azurerm stores.
+func resourceWidgetZoneEcho() *pluginsdk.Resource {
+	return &pluginsdk.Resource{
+		Create: resourceWidgetZoneEchoCreate,
+		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
+			_, err := gizmos.ParseRecordID(id)
+			return err
+		}),
+	}
+}
+
+func resourceWidgetZoneEchoCreate(d *pluginsdk.ResourceData, meta interface{}) error {
+	subscriptionId := meta.(*clients.Client).Account.SubscriptionId
+	id := gizmos.NewRecordID(subscriptionId, d.Get("resource_group_name").(string), d.Get("zone_name").(string), gizmos.RecordTypeCNAME, d.Get("name").(string))
+	resp, err := client.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	d.SetId(*resp.Model.Id)
+	return nil
 }

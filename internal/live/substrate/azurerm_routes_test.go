@@ -166,17 +166,40 @@ func TestAzurermServedSchemaGuard(t *testing.T) {
 // records on each route. TO CHANGE A NUMBER, regenerate
 // live/azurerm-ids.json and say in the commit which types moved and why.
 //
+// GitHub issue #2204 moved the 14 composite and subnet association types
+// from unmapped to composite (TestAzurermCompositeIDsAreAzurermsFormat).
+//
 // GitHub issue #2138 moved six identity-schema types from unmapped to
 // template-fallback, their templates taken from azurerm's identity test
 // where segment names found no argument; TestAzurermAdmissionCounts names
 // them.
+//
+// GitHub issue #2201 item 1 (the Create-call rule) moved 99 types out of
+// unmapped: 52 to parent-id, 44 to template and 3 to template-fallback
+// (azurerm_private_dns_a_record and _cname_record, whose record type is
+// the constant azurerm's Create passes, and the two netapp bucket types
+// that left withheld: azurerm ships no identity test for them and the
+// Create call stands in). azurerm_api_management_api_policy came out
+// withheld by the shared-template guard.
+//
+// GitHub issue #2201 item 1 (the Create-call rule) moved 99 types out of
+// unmapped: 52 to parent-id, 44 to template and 3 to template-fallback
+// (azurerm_private_dns_a_record and _cname_record, whose record type is
+// the constant azurerm's Create passes), and the two netapp bucket types
+// left withheld for template-fallback: azurerm ships no identity test for
+// them and the Create call stands in. azurerm_api_management_api_policy
+// came out withheld by the shared-template guard.
+//
+// GitHub issue #2206 moved 9 data-plane URL types out of unmapped, 8 to
+// template and 1 to parent-id.
 var azurermRoutesPinned = map[string]int{
 	AzurermRouteIdentitySchema:   103,
-	AzurermRouteTemplateFallback: 78,
-	AzurermRouteTemplate:         317,
-	AzurermRouteParentID:         351,
-	AzurermRouteWithheld:         9,
-	AzurermRouteUnmapped:         248,
+	AzurermRouteTemplateFallback: 82,
+	AzurermRouteTemplate:         369,
+	AzurermRouteParentID:         404,
+	AzurermRouteComposite:        14,
+	AzurermRouteWithheld:         8,
+	AzurermRouteUnmapped:         126,
 }
 
 // TestAzurermRoutesAreTheGuardsVerdicts is condition (c)'s guard on this
@@ -205,7 +228,7 @@ func TestAzurermRoutesAreTheGuardsVerdicts(t *testing.T) {
 			consistent = identity
 		case AzurermRouteTemplateFallback:
 			consistent = identity && bearing && !withheld
-		case AzurermRouteTemplate, AzurermRouteParentID:
+		case AzurermRouteTemplate, AzurermRouteParentID, AzurermRouteComposite:
 			consistent = !identity && row.Class == row.Route && !withheld
 		case AzurermRouteWithheld:
 			consistent = bearing && withheld
