@@ -269,3 +269,15 @@ func TestJointStubAndSession(t *testing.T) {
 		u()
 	}
 }
+
+// Atmos parses the result of !terraform.output as YAML, so the placeholder must
+// stay a plain scalar: a colon-space would make it a one-entry map.
+func TestJointSentinelIsAPlainYAMLScalar(t *testing.T) {
+	s := jointSentinel("dev-network", "subnet_b_id")
+	if strings.Contains(s, ": ") || strings.Contains(s, " #") {
+		t.Errorf("sentinel %q would parse as more than a string", s)
+	}
+	if !jointSentinelRE.MatchString(s) {
+		t.Errorf("sentinel %q does not match its own pattern", s)
+	}
+}

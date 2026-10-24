@@ -6,17 +6,13 @@
 package command
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
-	"time"
 )
 
 // jointRootMarker is the file that makes a composed root a joint root
@@ -34,7 +30,9 @@ const jointStubMagic = "choudoufu_joint_plan"
 
 // jointSentinelRE finds the placeholder `output -json` hands a tool for an
 // upstream unit's output that is not known until apply.
-var jointSentinelRE = regexp.MustCompile(`\(known after apply: ([A-Za-z_][A-Za-z0-9_-]*)\.([A-Za-z0-9_-]+)\)`)
+// It holds no ": " or " #": Atmos parses the result of !terraform.output as
+// YAML, and a colon-space would turn the placeholder into a map.
+var jointSentinelRE = regexp.MustCompile(`\(known after apply from ([A-Za-z_][A-Za-z0-9_-]*)\.([A-Za-z0-9_-]+)\)`)
 
 // jointDebugf says why a unit took the ordinary path, when asked to.
 func jointDebugf(format string, a ...any) {
@@ -44,7 +42,7 @@ func jointDebugf(format string, a ...any) {
 }
 
 func jointSentinel(unit, output string) string {
-	return "(known after apply: " + unit + "." + output + ")"
+	return "(known after apply from " + unit + "." + output + ")"
 }
 
 // jointTool is the Terragrunt or Atmos process that is invoking this binary
@@ -71,16 +69,13 @@ func detectJointTool() *jointTool {
 	if ppid <= 1 {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	args, err := exec.CommandContext(ctx, "ps", "-o", "args=", "-p", strconv.Itoa(ppid)).Output()
+	args, start, err := jointParentProcess(ppid)
 	if err != nil {
-		jointDebugf("ps failed: %v", err)
+		jointDebugf("parent process: %v", err)
 		return nil
 	}
-	jointDebugf("parent %d: %s", ppid, strings.TrimSpace(string(args)))
-	start, _ := exec.CommandContext(ctx, "ps", "-o", "lstart=", "-p", strconv.Itoa(ppid)).Output()
-	return jointToolFromArgs(ppid, strings.TrimSpace(string(start)), strings.Fields(string(args)))
+	jointDebugf("parent %d: %s", ppid, strings.TrimSpace(args))
+	return jointToolFromArgs(ppid, strings.TrimSpace(start), strings.Fields(args))
 }
 
 func jointToolFromArgs(pid int, start string, argv []string) *jointTool {
