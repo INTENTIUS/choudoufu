@@ -176,8 +176,8 @@ func (c *jointCommand) jointPlan(args []string) (int, bool) {
 	doc := sess.loadDoc(st.Serial)
 	slice := jointSliceDoc(doc, unit.ID)
 	add, chg, del := jointCounts(slice)
-	fmt.Printf("Joint plan for unit %s, one plan across %d units of this %s run (%s).\n", unit.ID, len(st.Units), tool.Kind, strings.Join(st.Units, ", "))
-	fmt.Printf("The whole plan is in %s; a value another unit has not produced yet is shown as (known after apply).\n\n", sess.path("plan.txt"))
+	fmt.Printf("Unit %s, planned jointly with the %d units of this %s run that have started so far (%s).\n", unit.ID, len(st.Units), tool.Kind, strings.Join(st.Units, ", "))
+	fmt.Printf("A unit that starts later joins this plan and plans it again. The whole plan is in %s; a value another unit has not produced yet is shown as (known after apply).\n\n", sess.path("plan.txt"))
 	if b, err := os.ReadFile(sess.path("plan.txt")); err == nil {
 		fmt.Println(jointUnitBlocks(string(b), unit.ID))
 	}
