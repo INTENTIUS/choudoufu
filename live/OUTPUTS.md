@@ -391,7 +391,7 @@ them into one run:
   own record store and markers.
 - `output -json` in a unit's directory during the plan answers from that joint
   plan. An output that is known is returned as it is. An output that is not
-  known until apply is returned as the string `(known after apply: <unit>.<output>)`.
+  known until apply is returned as the string `(known after apply from <unit>.<output>)`.
   The tool puts that string into the dependent unit's input, and the joint
   root turns it into a reference to the upstream module's output, so the
   dependent's resource shows `(known after apply)` in the same plan and is
