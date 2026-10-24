@@ -3451,7 +3451,7 @@ func liveResolve(ctx context.Context, config *configs.Config, provs projection.P
 		// ([projectionProviders.resourceGraphClientFor], through
 		// azsweep.Attrs.WithEnv), so identity and the sweep cannot
 		// disagree about it.
-		Cloud:       identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv)},
+		Cloud:       identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv), Environment: azsweep.EnvEnvironment(os.Getenv)},
 		Schemas:     resourceSchemas,
 		DataResults: dataResults,
 		// GitHub issue #352, and nil for an untargeted run. See

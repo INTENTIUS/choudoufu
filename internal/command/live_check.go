@@ -184,7 +184,7 @@ func (c *LiveCheckCommand) liveCheck(ctx context.Context, dir string) check.Repo
 		ProviderManagedTypes: managedTypes,
 		// As liveResolve does, so live-check and live-plan name the same
 		// azurerm and azapi resources (GitHub issue #2133, finding 4).
-		Cloud: identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv)},
+		Cloud: identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv), Environment: azsweep.EnvEnvironment(os.Getenv)},
 	})
 	analyzeSpan.End()
 	report.Load = load
