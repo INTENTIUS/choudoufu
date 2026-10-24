@@ -73,12 +73,53 @@ type azurermIDType struct {
 	// azurerm_sources.go).
 	IdentitySources        map[string]azurermIdentitySource `json:"identity_sources"`
 	IdentitySourcesProblem string                           `json:"identity_sources_problem"`
+	// CreateCall, on a row whose components were built from azurerm's
+	// Create call (GitHub issue #2201 item 1), says where each segment's
+	// value came from. Only a constant matters here: a row that ends in
+	// one, or an identity attribute that is one, passes the guards below
+	// because azurerm's Create states it.
+	CreateCall *azurermCreateCall `json:"create_call"`
 	// Route is the generator's record of the route this package and the
 	// identity-schema route give the type (#1120 unit 17), one of the
 	// AzurermRoute* constants. Admission does not read it; the guards
 	// below decide, and TestAzurermRoutesAreTheGuardsVerdicts holds the
 	// record to them.
 	Route string `json:"route"`
+}
+
+// azurermCreateCall is the part of the artifact's create_call the guards
+// read: the constant segments, by the id's segment name.
+type azurermCreateCall struct {
+	Sources map[string]struct {
+		Constant string `json:"constant"`
+	} `json:"sources"`
+}
+
+// constants is the Create call's constant segments, segment name to value.
+func (c *azurermCreateCall) constants() map[string]string {
+	out := map[string]string{}
+	if c == nil {
+		return out
+	}
+	for seg, s := range c.Sources {
+		if s.Constant != "" {
+			out[seg] = s.Constant
+		}
+	}
+	return out
+}
+
+// azurermShareKey is the key under which two rows share a template: the
+// template with each value segment's name dropped and its letters folded
+// ([normalizedARMTemplate]), and with a segment azurerm's Create call
+// gives a constant standing as that constant, so the six API Management
+// identity providers, whose ids differ only in that constant, are six ids.
+func azurermShareKey(t azurermIDType) string {
+	tmpl := t.Template
+	for seg, v := range t.CreateCall.constants() {
+		tmpl = strings.ReplaceAll(tmpl, "{"+seg+"}", v)
+	}
+	return normalizedARMTemplate(tmpl)
 }
 
 // azurermContract is azurerm's own statement, in the resource identity
@@ -195,7 +236,7 @@ func parseAzurermIDs(raw []byte) (*azurermIDs, error) {
 	for _, t := range f.Types {
 		out.rows[t.Type] = t
 		if t.templateBearing() {
-			k := normalizedARMTemplate(t.Template)
+			k := azurermShareKey(t)
 			byTemplate[k] = append(byTemplate[k], t.Type)
 		}
 	}
@@ -211,7 +252,7 @@ func parseAzurermIDs(raw []byte) (*azurermIDs, error) {
 			out.withheld[t.Type] = why
 			continue
 		}
-		if why := azurermSharedTemplateProblem(t, byTemplate[normalizedARMTemplate(t.Template)]); why != "" {
+		if why := azurermSharedTemplateProblem(t, byTemplate[azurermShareKey(t)]); why != "" {
 			out.withheld[t.Type] = why
 			continue
 		}
@@ -282,6 +323,12 @@ func azurermSegmentProblem(t azurermIDType) string {
 // because azurerm_storage_container's test states it is in there, not
 // because the names look alike.
 func azurermContractProblem(t azurermIDType) string {
+	if t.CreateCall != nil && t.Contract == nil {
+		// No identity test, but azurerm's Create call builds the very
+		// components the segment names gave (the generator checks, and
+		// records create_call only then; GitHub issue #2201 item 1).
+		return ""
+	}
 	if t.Contract == nil || len(t.Contract.Attributes) == 0 {
 		return "azurerm publishes no resource identity test for it, so nothing outside this table says its ARM id template reads its identity attributes from configuration exactly"
 	}
@@ -348,11 +395,27 @@ func azurermContractProblem(t azurermIDType) string {
 			// The parent's id carries its own subscription, which the test
 			// asserts is the provider's.
 		case a.Constant != "" && azurermTemplateHasLiteral(t, a.Constant):
+		case a.Within == "id" && azurermCreateConstantNamed(t, name):
+			// azurerm's identity test finds the attribute in the object's
+			// own id, and its Create call gives that segment the constant
+			// (a DNS record's type): the template carries the constant.
 		default:
 			return fmt.Sprintf("identity attribute %s is read by no segment of %s, where azurerm's identity test (%s) reads it from %s", name, t.Template, t.Contract.Source, a.describe())
 		}
 	}
 	return ""
+}
+
+// azurermCreateConstantNamed reports whether the row's Create call gives a
+// segment the constant, and that segment is the identity attribute attr
+// (record_type for the segment recordType).
+func azurermCreateConstantNamed(t azurermIDType, attr string) bool {
+	for seg := range t.CreateCall.constants() {
+		if strings.EqualFold(strings.ReplaceAll(attr, "_", ""), seg) {
+			return true
+		}
+	}
+	return false
 }
 
 // azurermTemplateHasLiteral reports whether one of the row's literal
@@ -468,7 +531,7 @@ func azurermRowShapeProblem(t azurermIDType) string {
 	if len(t.Components) == 0 {
 		return "it has no components"
 	}
-	if len(t.Components[len(t.Components)-1].Attrs) == 0 {
+	if len(t.Components[len(t.Components)-1].Attrs) == 0 && !azurermEndsInCreateConstant(t) {
 		return "its id does not end in an argument naming the object"
 	}
 	for _, c := range t.Components {
@@ -477,6 +540,24 @@ func azurermRowShapeProblem(t azurermIDType) string {
 		}
 	}
 	return "its id is a single argument with no typed segment, the id of a scope rather than of an object in it"
+}
+
+// azurermEndsInCreateConstant reports whether a row's id ends in a segment
+// azurerm's Create call gives a constant ("default", "current", a channel
+// name): the object's own name is then that constant, which azurerm states
+// and which is the same for every object of the type.
+func azurermEndsInCreateConstant(t azurermIDType) bool {
+	last := t.Components[len(t.Components)-1]
+	if last.Literal == "" || len(last.Attrs) > 0 || last.Cloud != "" {
+		return false
+	}
+	tail := last.Literal[strings.LastIndex(last.Literal, "/")+1:]
+	for _, v := range t.CreateCall.constants() {
+		if strings.EqualFold(v, tail) {
+			return true
+		}
+	}
+	return false
 }
 
 // azurermAdmits is the azurerm answer to [Substrate.SynthesizeIdentity].
