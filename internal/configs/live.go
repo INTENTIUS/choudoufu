@@ -153,6 +153,12 @@ type Live struct {
 	// carry a live block. It is empty for every decoded live block.
 	Composed []ComposedEstate
 
+	// Joint marks a composed root that choudoufu wrote itself to join the
+	// per-unit invocations of a Terragrunt or Atmos run (GitHub issue
+	// #2213). Its module calls carry the arguments the tool gave each unit
+	// (inputs, vars, tfvars), which a hand-written composed root may not.
+	Joint bool
+
 	// Strict is the optional nested "strict" block: GitHub issue #365's
 	// profile toggles, each one of the principles this fork exists for
 	// turned into a setting whose default is today's behavior. Nil when the

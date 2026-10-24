@@ -596,6 +596,13 @@ func initCommands(meta command.Meta) {
 		},
 	}
 
+	// Terragrunt and Atmos run a binary once per unit; these four join those
+	// invocations into one joint run when they come from one tool run
+	// (GitHub issue #2213). Anything else takes the factory's command as is.
+	for _, name := range []string{"plan", "apply", "show", "output"} {
+		commands[name] = command.JointWrap(name, meta, commands[name])
+	}
+
 	primaryCommands = []string{
 		"init",
 		"validate",
