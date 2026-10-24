@@ -232,6 +232,37 @@ deletes that output's record, so a consumer naming either is refused with
 value. A scoped apply deletes nothing it did not evaluate. This is
 `PruneRootOutputValues`, called from the apply's write-back.
 
+## `choudoufu output` reads the record store
+
+In a directory with a live block, `choudoufu output` and `output -json` answer
+from `tofu-outputs/<estate>/`, not from a state file, so a fresh checkout with
+no local cache works (choudoufu#2213). This is what a Terragrunt `dependency`
+block (it runs `<binary> output -json`) and Atmos `!terraform.output` call.
+A composed root, whose outputs belong to several estates, still takes the stock
+path.
+
+The output names come from the directory's configuration, because the
+namespace has no listing. The JSON is the stock document, `{name: {sensitive,
+type, value}}`, with `sensitive` always `false`, since a sensitive output is
+never recorded. What is not recorded is left out, never returned as null:
+
+- a sensitive output and an output whose value was not wholly known at the end
+  of the apply, and an output no apply has recorded yet;
+- `output -json` (everything) omits them and warns on stderr, naming each, so
+  stdout stays a clean JSON document;
+- `output NAME` for one of them exits 1 and says why (marked sensitive, or no
+  recorded value). `-show-sensitive` changes nothing, as there is no value.
+
+A record store that cannot be opened, or a record that cannot be decoded, is an
+error. Warnings and errors go to stderr.
+
+`terraform_remote_state` and Atmos `!terraform.state` read a state file from a
+backend, not through `output`. The first still reads whatever state file the
+backend holds (see above). The second is read by Atmos itself, so no binary
+can answer it. Serving either from a choudoufu estate would need the apply to
+publish an outputs-only state document to the backend the consumer names; that
+is not built.
+
 A pull request that changes a producer's output and a consumer that reads
 it would otherwise plan the consumer on the old recorded value. #2051 adds
 `plan -estate-outputs-from <estate>=<plan.json>`, repeatable, which answers
