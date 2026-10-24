@@ -165,6 +165,8 @@ export default defineConfig({
 						{ label: 'What it is', slug: 'how-it-works' },
 						{ label: 'Identity', slug: 'how-it-works/identity' },
 						{ label: 'Records', slug: 'how-it-works/values' },
+						{ label: 'Resource-level locking', slug: 'how-it-works/locking' },
+						{ label: 'Across estates', slug: 'how-it-works/across-estates' },
 						{ label: 'The cache', slug: 'how-it-works/cache' },
 					],
 				},
