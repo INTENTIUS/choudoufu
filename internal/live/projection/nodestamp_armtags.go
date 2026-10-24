@@ -159,8 +159,20 @@ func azapiShaped(block *configschema.Block) bool {
 // ([azapiShaped]) the top-level argument or body.tags, whichever the
 // configuration itself uses, or nowhere when its ARM type is not known to
 // take tags. It is a function of its own so the decision has one name.
-func armTagTarget(addr addrs.AbsResourceInstance, block *configschema.Block, config cty.Value) (armTagsAt, tfdiags.Diagnostics) {
+//
+// readObject says config is an object the provider read back, not the
+// configuration (live-import's adopt and live-mv, [ARMTagPlacement]). On a
+// read object azapi fills the top-level tags from the response body's
+// whatever the configuration did, so a populated top-level tags says
+// nothing about where the configuration put its tags. The two rules below
+// that treat a known top-level tags as the configuration's own choice
+// (GitHub issue #2207, ruled 2026-10-23 on #2201) are therefore skipped for
+// a read object, which keeps its warning where the body cannot be read.
+func armTagTarget(addr addrs.AbsResourceInstance, block *configschema.Block, config cty.Value, readObject bool) (armTagsAt, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
+	// configSetsTags: the configuration itself set the top-level tags to a
+	// known, non-null value. Never true for a read object.
+	configSetsTags := !readObject && armTopLevelTagsSet(config)
 	if !azapiShaped(block) {
 		return armTagsTopLevel, diags
 	}
@@ -204,7 +216,7 @@ func armTagTarget(addr addrs.AbsResourceInstance, block *configschema.Block, con
 			"%s's body is marked as a whole, which this pass will not unmark to see whether it carries tags, so no ownership marker was written on it.", addr)))
 	}
 	switch {
-	case !body.IsKnown() && armTopLevelTagsSet(config):
+	case !body.IsKnown() && configSetsTags:
 		// The body is unknown, but the configuration sets the top-level
 		// tags argument to a known, non-null value, and that settles where
 		// azapi sends tags (GitHub issue #2142's audit of Azure refusals):
@@ -250,7 +262,8 @@ func armTopLevelTagsSet(config cty.Value) bool {
 }
 
 // ARMTagPlacement is [armTagTarget] for a write onto an object that already
-// exists, outside the node stamp: live-import's adopt write and live-mv's
+// exists (readObject true: the top-level tags of a read object are filled
+// from its body, so they never settle the placement, GitHub issue #2207), outside the node stamp: live-import's adopt write and live-mv's
 // rewrite (GitHub issue #1120 unit 19), handed the object as the provider
 // read it. inBody says the marker goes in body.tags, where the object's own
 // configuration keeps its tags; otherwise in the top-level tags argument.
@@ -259,7 +272,7 @@ func armTopLevelTagsSet(config cty.Value) bool {
 // this build does not know, or a body no marker can be merged into. Both
 // writers therefore decline exactly the objects a plan declines to stamp.
 func ARMTagPlacement(addr addrs.AbsResourceInstance, block *configschema.Block, obj cty.Value) (inBody, ok bool, why string) {
-	at, diags := armTagTarget(addr, block, obj)
+	at, diags := armTagTarget(addr, block, obj, true)
 	switch {
 	case at == armTagsInBody:
 		return true, true, ""
@@ -277,7 +290,7 @@ func ARMTagPlacement(addr addrs.AbsResourceInstance, block *configschema.Block, 
 // into, each with its own diagnostic).
 func (n *NodeResolver) stampedARMTags(addr addrs.AbsResourceInstance, block *configschema.Block, config cty.Value) (attr string, val cty.Value, stamped bool, diags tfdiags.Diagnostics) {
 	address := markers.EscapeAddress(addr.String())
-	at, diags := armTagTarget(addr, block, config)
+	at, diags := armTagTarget(addr, block, config, false)
 	if diags.HasErrors() {
 		return "", cty.NilVal, false, diags
 	}
