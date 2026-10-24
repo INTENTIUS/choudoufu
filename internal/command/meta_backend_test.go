@@ -2234,13 +2234,38 @@ func TestMetaBackend_liveSkipsBackend(t *testing.T) {
 // is refused with a message that names the live block, rather than silently
 // doing nothing. The flags name an operation on a stored state, and a
 // configuration that has none should say so.
+// TestMetaBackend_liveAcceptsReconfigure pins GitHub issue #2213: -reconfigure
+// has no backend to act on under a live block, so it is a warned no-op, and
+// leaves the previous backend's state alone.
+func TestMetaBackend_liveAcceptsReconfigure(t *testing.T) {
+	td := liveBackendTestDir(t)
+
+	m := testMetaBackend(t)
+	m.backendArgs = arguments.Backend{Reconfigure: true}
+
+	// init reaches the guard directly (init.go), and it is the only command
+	// that sets -reconfigure.
+	skip, diags := m.liveBackendGuard(t.Context(), nil)
+	if diags.HasErrors() || !skip {
+		t.Fatalf("-reconfigure was refused in a live directory (skip=%v): %s", skip, diags.Err())
+	}
+	if len(diags) != 1 || !strings.Contains(diags[0].Description().Summary, "nothing to do") {
+		t.Errorf("want one note that -reconfigure was ignored, got %v", diags)
+	}
+	if _, err := os.Stat(filepath.Join(td, arguments.DefaultStateFilename)); err == nil {
+		t.Error("a state file appeared in a live directory")
+	}
+	if got, err := os.ReadFile(filepath.Join(td, "previous.tfstate")); err != nil || string(got) != liveStateFixture {
+		t.Errorf("the previous backend's state was disturbed: %v", err)
+	}
+}
+
 func TestMetaBackend_liveRefusesMigration(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		args arguments.Backend
 	}{
 		{"migrate-state", arguments.Backend{MigrateState: true}},
-		{"reconfigure", arguments.Backend{Reconfigure: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			td := liveBackendTestDir(t)
