@@ -24,13 +24,14 @@ const azurermIDsPinnedVersion = "5.10.0"
 var azurermRoutes = map[string]bool{
 	"identity-schema": true, "template-fallback": true, "template": true,
 	"parent-id": true, "withheld": true, "unmapped": true,
+	"composite": true, // #2204: the join of the type's linked ids, as azurerm joins them
 }
 
 // TestAzurermIDsArtifactIsWhole reads live/azurerm-ids.json, the ARM id
 // table tools/azurerm-id-gen generates from azurerm's id parsers (#1122,
 // epic #1120), and checks what can be checked without the provider source:
 // it is pinned to the lane's version and a commit, its rows are sorted and
-// unique, every row has one of the four classes and one of the six routes,
+// unique, every row has one of the five classes and one of the seven routes,
 // a mapped row has components and an unmapped one a reason, and the
 // headline counts are the rows' own. The regeneration check that needs the source is
 // TestRegeneratingFromThePinReproducesTheArtifact in the generator.
@@ -72,7 +73,7 @@ func TestAzurermIDsArtifactIsWhole(t *testing.T) {
 		counts[r.Class]++
 		counts["route/"+r.Route]++
 		if !azurermRoutes[r.Route] {
-			t.Errorf("%s has route %q, not one of the six (#1120 unit 17)", r.Type, r.Route)
+			t.Errorf("%s has route %q, not a known route (#1120 unit 17, #2204)", r.Type, r.Route)
 		}
 		class := r.Class
 		if class == "identity-schema" {
@@ -80,7 +81,7 @@ func TestAzurermIDsArtifactIsWhole(t *testing.T) {
 			class = r.TemplateClass
 		}
 		switch class {
-		case "template", "parent-id":
+		case "template", "parent-id", "composite":
 			if len(r.Components) == 0 || r.Reason != "" {
 				t.Errorf("%s is %s but has %d components and reason %q", r.Type, class, len(r.Components), r.Reason)
 			}
