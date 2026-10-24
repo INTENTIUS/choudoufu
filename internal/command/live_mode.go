@@ -117,7 +117,10 @@ func (m *Meta) liveSettings(ctx context.Context, tolerateLoadErrors bool) (*conf
 	// Warnings are dropped rather than returned, matching loadBackendConfig:
 	// the full configuration load inside the operation raises them again, and
 	// reporting them twice is worse than reporting them late.
-	return mod.Live, nil
+	if mod.Live != nil {
+		return mod.Live, nil
+	}
+	return m.composedSettings(ctx), nil
 }
 
 // liveBegin prepares a plan or apply operation to run in live mode, and
@@ -138,6 +141,9 @@ func liveBegin(
 	estateOutputs *liveEstateOutputs,
 	rejections tfdiags.Diagnostics,
 ) tfdiags.Diagnostics {
+	if settings.IsComposed() {
+		return liveBeginComposed(be, opReq, settings, view, adoptionOnly, filter, estateOutputs, rejections)
+	}
 	diags := rejections
 
 	if settings.EstateSet && !discovery.ValidEstateName(settings.Estate) {
@@ -717,6 +723,11 @@ type liveRunner struct {
 	// PriorState. Nil only in a test that builds a runner by hand.
 	estateOutputs *liveEstateOutputs
 
+	// baseDir is the directory the estate's local record store is opened in:
+	// empty (the working directory) for every run but a composed one, where it
+	// is the called estate's directory.
+	baseDir string
+
 	// settings is the live block this run was started from. The whole block
 	// is kept, not just its estate name, so that a diagnostic raised once the
 	// run is under way can still point at the configuration that asked for
@@ -1114,7 +1125,14 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 		var store staterecord.Store
 		storeOpts, storeErr := recordStoreOpenOptions()
 		if storeErr == nil {
-			store, storeErr = projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, estate, ".", storeOpts...)
+			dir := "."
+			if r.baseDir != "" {
+				// A composed run opens an estate's local record store in the
+				// estate's own directory, where the estate finds it when it
+				// runs alone (GitHub issue #2059).
+				dir = r.baseDir
+			}
+			store, storeErr = projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, estate, dir, storeOpts...)
 		}
 		if storeErr != nil {
 			diags = diags.Append(recordStoreOpenDiag(recordStoreCfg.Type, storeErr))

@@ -228,3 +228,31 @@ func (cs *ChangesSync) RemoveOutputChange(addr addrs.AbsOutputValue) {
 		return
 	}
 }
+
+// AnyUnder reports whether any resource change in the module at or below
+// mod satisfies pred. It is how a composed run asks whether a module has
+// changes pending (GitHub issue #2059).
+func (cs *ChangesSync) AnyUnder(mod addrs.Module, pred func(Action) bool) bool {
+	if cs == nil {
+		return false
+	}
+	cs.lock.Lock()
+	defer cs.lock.Unlock()
+	for _, rc := range cs.changes.Resources {
+		m := rc.Addr.Module.Module()
+		if len(m) < len(mod) {
+			continue
+		}
+		match := true
+		for i := range mod {
+			if m[i] != mod[i] {
+				match = false
+				break
+			}
+		}
+		if match && pred(rc.Action) {
+			return true
+		}
+	}
+	return false
+}

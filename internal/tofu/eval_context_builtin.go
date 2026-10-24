@@ -83,6 +83,7 @@ type BuiltinEvalContext struct {
 	// given one in ContextOpts.
 	ResourceIdentityResolverValue ResourceIdentityResolver
 	ConfigValueAdjusterValue      ConfigValueAdjuster
+	InRunEstatesValue             map[string]addrs.Module
 }
 
 // BuiltinEvalContext implements EvalContext
@@ -470,4 +471,8 @@ func (c *BuiltinEvalContext) ResourceIdentityResolver() ResourceIdentityResolver
 
 func (c *BuiltinEvalContext) ConfigValueAdjuster() ConfigValueAdjuster {
 	return c.ConfigValueAdjusterValue
+}
+
+func (c *BuiltinEvalContext) InRunEstates() map[string]addrs.Module {
+	return c.InRunEstatesValue
 }

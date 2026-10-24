@@ -254,6 +254,7 @@ func (c *Context) applyGraph(ctx context.Context, plan *plans.Plan, config *conf
 		Operation:               operation,
 		ExternalReferences:      plan.ExternalReferences,
 		ProviderFunctionTracker: providerFunctionTracker,
+		InRunEstates:            c.inRunEstates,
 	}).Build(ctx, addrs.RootModuleInstance)
 	diags = diags.Append(moreDiags)
 	if moreDiags.HasErrors() {

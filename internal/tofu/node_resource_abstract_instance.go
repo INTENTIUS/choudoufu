@@ -2131,7 +2131,13 @@ func (n *NodeAbstractResourceInstance) readDataSource(ctx context.Context, evalC
 		ProviderMeta: metaConfigVal,
 	}
 	var resp providers.ReadDataSourceResponse
-	if tfp, ok := provider.(ProviderWithEncryption); ok {
+	if target, inRun, self := n.inRunEstateTarget(evalCtx, configVal); inRun {
+		// GitHub issue #2059: an estate this run applies as a module is read
+		// from that module's outputs, not from the record store.
+		val, _, inRunDiags := n.inRunEstateValue(evalCtx, target, self, configVal)
+		resp.Diagnostics = inRunDiags
+		resp.State = val
+	} else if tfp, ok := provider.(ProviderWithEncryption); ok {
 		// Special case for terraform_remote_state
 		resp = tfp.ReadDataSourceEncrypted(ctx, req, n.Addr, evalCtx.GetEncryption())
 	} else {
@@ -2389,6 +2395,18 @@ func (n *NodeAbstractResourceInstance) planDataSource(ctx context.Context, evalC
 
 	configKnown := configVal.IsWhollyKnown()
 	depsPending := n.dependenciesHavePendingChanges(evalCtx)
+	if configKnown && !depsPending {
+		if target, inRun, self := n.inRunEstateTarget(evalCtx, configVal); inRun && !self {
+			// GitHub issue #2059: an in-run estate read waits for the
+			// module it reads while that module has changes pending, and
+			// for any output that is not yet wholly known.
+			if inRunEstatePending(evalCtx, target) {
+				depsPending = true
+			} else if _, known, d := n.inRunEstateValue(evalCtx, target, false, configVal); !d.HasErrors() && !known {
+				depsPending = true
+			}
+		}
+	}
 	// If our configuration contains any unknown values, or we depend on any
 	// unknown values then we must defer the read to the apply phase by
 	// producing a "Read" change for this resource, and a placeholder value for
