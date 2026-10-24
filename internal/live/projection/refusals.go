@@ -111,7 +111,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryARMBodyNotMergeable,
-		What:    "GitHub issue #1120's ARM branch of the node-path stamp found an azapi_resource body, or a body.tags, it cannot add the ownership markers into - a body that is marked or is not an object, or a tags entry that is not a string - so it left the configuration value as evaluated and wrote no marker.",
+		What:    "GitHub issue #1120's ARM branch of the node-path stamp found an azapi_resource body, or a body.tags, it cannot add the ownership markers into - a body that is marked as a whole while the configuration sets no top-level tags (with them set, GitHub issue #2207, the marker goes there), a body that is not an object, or a tags entry that is not a string - so it left the configuration value as evaluated and wrote no marker.",
 		Warning: true,
 	},
 	{
@@ -302,7 +302,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryARMTypeNotStamped,
-		What:    "GitHub issue #1120: an azapi_resource whose ARM type and API version are not known to take tags (the taggability table generated from azapi's type data says it does not, or does not know it), so the stamp writes no marker rather than one Azure would refuse.",
+		What:    "GitHub issue #1120: an azapi_resource whose ARM type and API version are not known to take tags (the taggability table generated from azapi's type data says it does not, or does not know it and the configuration sets no top-level tags of its own: GitHub issue #2207), so the stamp writes no marker rather than one Azure would refuse.",
 		Warning: true,
 	},
 	{
