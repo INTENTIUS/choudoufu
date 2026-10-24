@@ -34,8 +34,16 @@ type Module struct {
 	// values.
 	SourceDir string
 
-	Backend              *Backend
-	CloudConfig          *CloudConfig
+	Backend     *Backend
+	CloudConfig *CloudConfig
+
+	// IgnoredBackend is the backend block dropped from Backend because the
+	// module has a live block (Terragrunt's generated backend.tf, Atmos's
+	// backend.tf.json). Nothing reads state through it. It is kept only so an
+	// apply can publish an outputs-only state document to the location it
+	// names, for terraform_remote_state and !terraform.state readers
+	// (GitHub issue #2213).
+	IgnoredBackend       *Backend
 	Live                 *Live
 	ProviderConfigs      map[string]*Provider
 	ProviderRequirements *RequiredProviders
@@ -1007,9 +1015,10 @@ func (m *Module) ignoreStateStoreUnderLive(diags *hcl.Diagnostics) {
 		*diags = append(*diags, &hcl.Diagnostic{
 			Severity: hcl.DiagWarning,
 			Summary:  "Backend configuration ignored under live resource markers",
-			Detail:   fmt.Sprintf("This module has a live block (at %s), so its state cache is local and its records are in record_store; the backend block at %s configures nothing this run uses and is ignored. A generated backend.tf or backend.tf.json can stay where it is.", m.Live.DeclRange, m.Backend.DeclRange),
+			Detail:   fmt.Sprintf("This module has a live block (at %s), so its state cache is local and its records are in record_store; the backend block at %s configures nothing this run uses and is ignored. A generated backend.tf or backend.tf.json can stay where it is; an apply writes this estate's non-sensitive outputs to the location it names, for terraform_remote_state readers.", m.Live.DeclRange, m.Backend.DeclRange),
 			Subject:  &m.Backend.DeclRange,
 		})
+		m.IgnoredBackend = m.Backend
 		m.Backend = nil
 	}
 	if m.CloudConfig != nil {

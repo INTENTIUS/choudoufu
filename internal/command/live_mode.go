@@ -1729,6 +1729,11 @@ func (r *liveRunner) WriteBack(ctx context.Context, finalState *states.State, sc
 	if provs != nil {
 		diags = diags.Append(provs.close(ctx))
 	}
+
+	// choudoufu#2213: only once the records are written, and only warnings.
+	if !diags.HasErrors() {
+		diags = diags.Append(publishOutputsState(ctx, r.liveConfig, r.rootOutputStore))
+	}
 	return diags
 }
 
