@@ -257,6 +257,8 @@ func NewModule(primaryFiles, overrideFiles []*File, sourceDir string, load Selec
 		diags = append(diags, fileDiags...)
 	}
 
+	mod.ignoreStateStoreUnderLive(&diags)
+
 	if load == SelectiveLoadAll && len(mod.LanguageExperiments) != 0 {
 		// Include warning if any experiments are present
 		var names []string
@@ -428,39 +430,6 @@ func (m *Module) appendFile(file *File) hcl.Diagnostics {
 			continue
 		}
 		m.Live = s
-	}
-
-	// A live block and a state store are mutually exclusive by
-	// construction, but not because a live run has nowhere to write state -
-	// it keeps state the same way OpenTofu does, in a disposable cache.
-	// What a backend or cloud block would add is a SECOND authoritative
-	// home for state, when the live block has already made the markers on
-	// the resources themselves that record: a plan under a live block
-	// never reads the cache to decide what it owns, so a backend
-	// configuring where an authoritative state file lives is a
-	// contradiction about where the truth lives, not a redundant setting.
-	// Refusing it here, in the decoder, means no command can reach a state
-	// manager while markers are the record of ownership.
-	//
-	// Ruled on issue #1170 (maintainer, 2026-09-26): the refusal stays, and
-	// the diagnostic says what a live-mode module actually keeps - its
-	// cache locally, its records in record_store - rather than say a live
-	// block removes state, which was the over-rotation #685 unwound.
-	if m.Live != nil && m.Backend != nil {
-		diags = append(diags, &hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  "Both a backend and a live configuration are present",
-			Detail:   fmt.Sprintf("A live-mode module keeps its state cache locally (choudoufu-cache.tfstate) and its records in record_store; that is why a 'backend' block, a second authoritative home for state, is refused. Live resource markers are configured at %s; a backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.Backend.DeclRange),
-			Subject:  &m.Backend.DeclRange,
-		})
-	}
-	if m.Live != nil && m.CloudConfig != nil {
-		diags = append(diags, &hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  "Both a cloud and a live configuration are present",
-			Detail:   fmt.Sprintf("A live-mode module keeps its state cache locally (choudoufu-cache.tfstate) and its records in record_store; that is why a 'cloud' block, a second authoritative home for state, is refused. Live resource markers are configured at %s; a cloud backend is configured at %s. Remove one of them.", m.Live.DeclRange, m.CloudConfig.DeclRange),
-			Subject:  &m.CloudConfig.DeclRange,
-		})
 	}
 
 	for _, pc := range file.ProviderConfigs {
@@ -1017,4 +986,39 @@ func (m *Module) EphemeralVariablesHints() map[string]bool {
 		res[vn] = vc.Ephemeral
 	}
 	return res
+}
+
+// ignoreStateStoreUnderLive drops a backend or cloud block from a module that
+// also has a live block, with a warning (GitHub issue #2213, superseding the
+// refusal ruled on #1170).
+//
+// A live-mode module keeps its state cache locally and its records in
+// record_store, so the block configures nothing this run touches. Terragrunt's
+// remote_state/generate "backend.tf" and Atmos's "backend.tf.json" write one
+// next to the live block on every run; refusing it meant a user could not
+// switch the binary and change nothing else. Dropping it here, after primary
+// and override files are merged, means no command can reach a state manager
+// through it: m.Backend and m.CloudConfig are nil for every later reader.
+func (m *Module) ignoreStateStoreUnderLive(diags *hcl.Diagnostics) {
+	if m.Live == nil {
+		return
+	}
+	if m.Backend != nil {
+		*diags = append(*diags, &hcl.Diagnostic{
+			Severity: hcl.DiagWarning,
+			Summary:  "Backend configuration ignored under live resource markers",
+			Detail:   fmt.Sprintf("This module has a live block (at %s), so its state cache is local and its records are in record_store; the backend block at %s configures nothing this run uses and is ignored. A generated backend.tf or backend.tf.json can stay where it is.", m.Live.DeclRange, m.Backend.DeclRange),
+			Subject:  &m.Backend.DeclRange,
+		})
+		m.Backend = nil
+	}
+	if m.CloudConfig != nil {
+		*diags = append(*diags, &hcl.Diagnostic{
+			Severity: hcl.DiagWarning,
+			Summary:  "Cloud configuration ignored under live resource markers",
+			Detail:   fmt.Sprintf("This module has a live block (at %s), so its state cache is local and its records are in record_store; the cloud block at %s configures nothing this run uses and is ignored.", m.Live.DeclRange, m.CloudConfig.DeclRange),
+			Subject:  &m.CloudConfig.DeclRange,
+		})
+		m.CloudConfig = nil
+	}
 }

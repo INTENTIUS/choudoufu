@@ -308,8 +308,6 @@ func TestModule_liveConflicts(t *testing.T) {
 		dir  string
 		want string
 	}{
-		{"testdata/invalid-modules/live-and-backend", "Both a backend and a live configuration are present"},
-		{"testdata/invalid-modules/live-and-cloud", "Both a cloud and a live configuration are present"},
 		{"testdata/invalid-modules/live-duplicate", "Duplicate live configuration"},
 	} {
 		t.Run(tc.dir, func(t *testing.T) {
@@ -329,32 +327,30 @@ func TestModule_liveConflicts(t *testing.T) {
 // the estate.chdf.hcl sidecar file instead. The sidecar's body is the live
 // block's content, decoded by the same decoder, so nested blocks come
 // through identically.
-// TestModule_liveBackendRefusalNamesWhatIsKept pins the ruling on issue
-// #1170 (maintainer, 2026-09-26): the backend and cloud refusals must say
-// what a live-mode module actually keeps - a local cache and its records in
-// record_store - rather than leave the reader to infer it. The older,
-// over-rotated wording #685 unwound is guarded separately and repo-wide by
-// live/no_state_absence_claims_test.go; this test is deliberately not a
-// second copy of that check, since quoting that wording here - even to
-// assert its absence - would itself trip the repo-wide scan.
-func TestModule_liveBackendRefusalNamesWhatIsKept(t *testing.T) {
+// TestModule_liveBackendIgnored pins GitHub issue #2213: a backend or cloud
+// block beside a live block (Terragrunt's generated backend.tf, Atmos's
+// backend.tf.json) loads, is dropped from the module, and warns once.
+func TestModule_liveBackendIgnored(t *testing.T) {
 	for _, tc := range []struct {
-		dir string
+		dir  string
+		want string
 	}{
-		{"testdata/invalid-modules/live-and-backend"},
-		{"testdata/invalid-modules/live-and-cloud"},
+		{"testdata/warning-modules/live-and-backend", "Backend configuration ignored"},
+		{"testdata/warning-modules/live-and-cloud", "Cloud configuration ignored"},
 	} {
 		t.Run(tc.dir, func(t *testing.T) {
-			_, diags := testModuleFromDir(tc.dir)
-			if !diags.HasErrors() {
-				t.Fatal("no diagnostics")
+			mod, diags := testModuleFromDir(tc.dir)
+			if diags.HasErrors() {
+				t.Fatalf("unexpected errors:\n%s", diags.Error())
 			}
-			got := diags.Error()
-			if !strings.Contains(got, "record_store") {
-				t.Errorf("does not say records live in record_store:\n%s", got)
+			if mod.Live == nil {
+				t.Fatal("live block was lost")
 			}
-			if !strings.Contains(strings.ToLower(got), "locally") {
-				t.Errorf("does not say the cache is kept locally:\n%s", got)
+			if mod.Backend != nil || mod.CloudConfig != nil {
+				t.Error("the ignored state store is still set on the module")
+			}
+			if !strings.Contains(diags.Error(), tc.want) {
+				t.Errorf("no %q warning:\n%s", tc.want, diags.Error())
 			}
 		})
 	}
@@ -402,12 +398,15 @@ func TestModule_liveSidecar(t *testing.T) {
 // it runs in live mode.
 func TestModule_liveSidecarSelectiveBackendWall(t *testing.T) {
 	parser := NewParser(nil)
-	_, diags := parser.LoadConfigDirSelective("testdata/invalid-modules/live-sidecar-and-backend", SelectiveLoadBackend)
-	if !diags.HasErrors() {
-		t.Fatal("a sidecar live configuration beside a backend block loaded with no errors under SelectiveLoadBackend")
+	mod, diags := parser.LoadConfigDirSelective("testdata/warning-modules/live-sidecar-and-backend", SelectiveLoadBackend)
+	if diags.HasErrors() {
+		t.Fatalf("a sidecar live configuration beside a backend block was refused:\n%s", diags.Error())
 	}
-	if !strings.Contains(diags.Error(), "Both a backend and a live configuration are present") {
-		t.Errorf("the backend wall did not fire for a sidecar live configuration:\n%s", diags.Error())
+	if mod.Live == nil || mod.Backend != nil {
+		t.Errorf("want live kept and backend ignored, got live=%v backend=%v", mod.Live != nil, mod.Backend != nil)
+	}
+	if !strings.Contains(diags.Error(), "Backend configuration ignored") {
+		t.Errorf("no ignored-backend warning:\n%s", diags.Error())
 	}
 }
 

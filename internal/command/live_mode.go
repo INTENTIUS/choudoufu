@@ -163,7 +163,7 @@ func liveBegin(
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			"Workspaces are not available under live resource markers",
-			fmt.Sprintf("This run selected workspace %q. A workspace is a second state file under a different name, and a live-markers run has no first one: an estate is the unit of ownership instead, named by the live block. Select the default workspace, or give each estate its own configuration.", opReq.Workspace),
+			fmt.Sprintf("This run selected workspace %q. A workspace is a second state file under a different name, and a live-markers run has no first one: an estate is the unit of ownership instead, named by the live block. %s", opReq.Workspace, liveWorkspaceRemedy),
 		))
 	}
 
