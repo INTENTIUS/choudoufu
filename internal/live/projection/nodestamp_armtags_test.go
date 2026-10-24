@@ -330,3 +330,83 @@ func requireTaggable(t *testing.T, armType, apiVersion string, want bool) {
 		t.Fatalf("armtypes.Taggable(%s, %s) = %v, %v; the fixture needs %v, true", armType, apiVersion, got, known, want)
 	}
 }
+
+// TestARMStampConfigSetTagsSettleTheMarker: where the configuration itself
+// sets known, non-null top-level tags on an azapi resource, the marker goes
+// there, for a body marked sensitive as a whole and for a type azapi's
+// embedded data does not know (GitHub issue #2207, ruled 2026-10-23 on
+// #2201). Without config-set tags both stay warnings with nothing written,
+// and a type known to take no tags is never stamped.
+func TestARMStampConfigSetTagsSettleTheMarker(t *testing.T) {
+	requireTaggable(t, "Microsoft.Network/virtualNetworks", "2023-09-01", true)
+	requireTaggable(t, "Microsoft.Network/virtualNetworks/subnets", "2023-09-01", false)
+	const known = "Microsoft.Network/virtualNetworks@2023-09-01"
+	const unknownType = "Microsoft.Network/virtualNetworks@1999-01-01"
+	if _, k := armtypes.Taggable("Microsoft.Network/virtualNetworks", "1999-01-01"); k {
+		t.Fatal("the fixture's unknown API version is known to the table")
+	}
+	own := cty.MapVal(map[string]cty.Value{"env": cty.StringVal("prod")})
+	none := cty.NullVal(cty.Map(cty.String))
+	marked := cty.ObjectVal(map[string]cty.Value{"location": cty.StringVal("westeurope")}).Mark("sensitive")
+	plain := cty.ObjectVal(map[string]cty.Value{"location": cty.StringVal("westeurope")})
+	want := map[string]string{"env": "prod", markers.TagEstate: "prod", markers.TagAddress: "azapi_resource.vnet"}
+
+	for name, tc := range map[string]struct {
+		config      cty.Value
+		wantStamped bool
+		warn        string
+	}{
+		"marked body, config tags":      {azapiConfig(known, marked, own), true, ""},
+		"marked body, no tags":          {azapiConfig(known, marked, none), false, SummaryARMBodyNotMergeable},
+		"unknown taggability, tags set": {azapiConfig(unknownType, plain, own), true, ""},
+		"unknown taggability, no tags":  {azapiConfig(unknownType, plain, none), false, SummaryARMTypeNotStamped},
+		"unknown taggability, unknown tags": {azapiConfig(unknownType, plain, cty.UnknownVal(cty.Map(cty.String))),
+			false, SummaryARMTypeNotStamped},
+		"untaggable type, tags set": {azapiConfig("Microsoft.Network/virtualNetworks/subnets@2023-09-01", plain, own),
+			false, SummaryARMTypeNotStamped},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, diags := armFixture(t).AdjustConfigValue(context.Background(), armAddr(t, "azapi_resource.vnet"), tc.config, azapiSchema())
+			if diags.HasErrors() {
+				t.Fatal(diags.Err())
+			}
+			if !tc.wantStamped {
+				if !got.RawEquals(tc.config) {
+					t.Errorf("config changed: %#v", got)
+				}
+				if !hasSummary(diags, tc.warn) {
+					t.Errorf("no %q warning: %v", tc.warn, diags)
+				}
+				return
+			}
+			if hasSummary(diags, SummaryARMBodyNotMergeable) || hasSummary(diags, SummaryARMTypeNotStamped) {
+				t.Errorf("unexpected warning: %v", diags)
+			}
+			if tags := stringMap(t, got.GetAttr("tags")); !reflect.DeepEqual(tags, want) {
+				t.Errorf("tags = %v, want %v", tags, want)
+			}
+			if !got.GetAttr("body").RawEquals(tc.config.GetAttr("body")) {
+				t.Errorf("body changed: %#v", got.GetAttr("body"))
+			}
+		})
+	}
+}
+
+// TestARMTagPlacementReadObjectIgnoresTopLevelTagsForTheNewRules: the two
+// config-set-tags rules are the configuration's, so adopt and mv, which
+// read an object whose top-level tags azapi filled from the body, still
+// decline a marked body and a type this build does not know.
+func TestARMTagPlacementReadObjectIgnoresTopLevelTagsForTheNewRules(t *testing.T) {
+	requireTaggable(t, "Microsoft.Network/virtualNetworks", "2023-09-01", true)
+	own := cty.MapVal(map[string]cty.Value{"env": cty.StringVal("prod")})
+	plain := cty.ObjectVal(map[string]cty.Value{"location": cty.StringVal("westeurope")})
+	addr := armAddr(t, "azapi_resource.vnet")
+	for name, obj := range map[string]cty.Value{
+		"marked body":      azapiConfig("Microsoft.Network/virtualNetworks@2023-09-01", plain.Mark("sensitive"), own),
+		"unknown taggable": azapiConfig("Microsoft.Network/virtualNetworks@1999-01-01", plain, own),
+	} {
+		if _, ok, why := ARMTagPlacement(addr, azapiSchema().Block, obj); ok || why == "" {
+			t.Errorf("%s: placed=%v why=%q, want declined with a reason", name, ok, why)
+		}
+	}
+}

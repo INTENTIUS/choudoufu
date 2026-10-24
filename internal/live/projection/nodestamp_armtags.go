@@ -197,6 +197,12 @@ func armTagTarget(addr addrs.AbsResourceInstance, block *configschema.Block, con
 	// type and version (84 types differ between versions at azapi 2.13.0).
 	taggable, known := armtypes.Taggable(armType, apiVersion)
 	switch {
+	case !known && configSetsTags:
+		// GitHub issue #2207: azapi's embedded data does not know the type,
+		// but the configuration sets the top-level tags itself, and azapi
+		// sends them whatever its data says (the argument is a plain
+		// attribute, planned when not null: tagsWithDefaultTags step 1).
+		// The resource is treated as taggable and the marker goes there.
 	case !known:
 		return armTagsNowhere, diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryARMTypeNotStamped, fmt.Sprintf(
 			"This build does not know whether %s at API version %s takes tags, so %s carries no ownership marker: a marker an ARM type cannot hold would be refused by Azure, or written where nothing reads it. The next plan reads it as carrying none.", armType, apiVersion, addr)))
@@ -208,6 +214,15 @@ func armTagTarget(addr addrs.AbsResourceInstance, block *configschema.Block, con
 	body := cty.NullVal(cty.DynamicPseudoType)
 	if config.Type().HasAttribute(azapiBodyName) {
 		body = config.GetAttr(azapiBodyName)
+	}
+	if body.IsMarked() && configSetsTags {
+		// GitHub issue #2207: a body marked as a whole is not read, but the
+		// top-level tags the configuration sets settle where azapi sends
+		// tags, by the reasoning of the unknown-body case below. If the
+		// sensitive body also carries tags azapi refuses the configuration
+		// itself, so the marker is never written to an argument azapi
+		// ignores.
+		return armTagsTopLevel, diags
 	}
 	if body.IsMarked() {
 		// Refused rather than unmarked (internal/live/marksafe): which
