@@ -110,6 +110,17 @@ func TestFixtureClassifiesEachShape(t *testing.T) {
 			attrs:    []string{"cloud:subscription-id", "resource_group_name", "zone_name", "name"},
 			template: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Widget/zones/{dnsZoneName}/{recordType}/{relativeRecordSetName}",
 		},
+		{
+			// #2201 item 1: the Create call states what the names do not.
+			typ: "azurerm_widget_zonerecord", class: classTemplate, kind: "resourceids", idType: "RecordId",
+			attrs:    []string{"cloud:subscription-id", "resource_group_name", "zone_name", "name"},
+			template: "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Widget/zones/{dnsZoneName}/{recordType}/{relativeRecordSetName}",
+		},
+		{
+			// The same call, but Create stores an id read from the server.
+			typ: "azurerm_widget_zoneecho", class: classUnmapped, kind: "resourceids", idType: "RecordId",
+			reason: "no argument for the parent segment",
+		},
 	}
 	if len(rows) != len(cases) {
 		t.Errorf("fixture produced %d rows, want %d", len(rows), len(cases))
@@ -498,5 +509,32 @@ func TestInsensitiveParseIsRead(t *testing.T) {
 		if got := l.namesInsensitiveParse(p, nil, e, 0); got != want {
 			t.Errorf("%s: insensitive %v, want %v", src, got, want)
 		}
+	}
+}
+
+// TestCreateCallIsTheSourceWhereNamesFindNone pins #2201 item 1: the
+// constant and the renamed argument come from the Create call, the row
+// records the trace, and a Create that stores a server-read id leaves the
+// row refused with the reason beside it.
+func TestCreateCallIsTheSourceWhereNamesFindNone(t *testing.T) {
+	rows := fixtureRows(t)
+	ok := rows["azurerm_widget_zonerecord"]
+	if ok.CreateCall == nil {
+		t.Fatalf("zonerecord has no create_call; problem %q", ok.CreateCallProblem)
+	}
+	if got := ok.CreateCall.Sources["recordType"].Constant; got != "CNAME" {
+		t.Errorf("recordType constant = %q, want CNAME", got)
+	}
+	if got := ok.CreateCall.Sources["zonename"]; got.Segment != "" {
+		t.Errorf("unexpected source %+v", got)
+	}
+	for _, c := range ok.Components {
+		if len(c.Attrs) > 0 && c.Rule != ruleCreateCall && c.Rule != "" {
+			t.Errorf("component %+v not from the Create call", c)
+		}
+	}
+	echo := rows["azurerm_widget_zoneecho"]
+	if echo.CreateCall != nil || !strings.Contains(echo.CreateCallProblem, "stores *resp.Model.Id as the id") {
+		t.Errorf("zoneecho: create_call %+v, problem %q", echo.CreateCall, echo.CreateCallProblem)
 	}
 }

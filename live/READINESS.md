@@ -146,11 +146,11 @@ hashicorp/azurerm 5.10.0: 1106 resource types.
 
 | Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
 |---|---|---|---|---|---|---|---|
-| marker-carried | 357 | 0 | 0 | 30 | 0 | 0 | 387 |
-| declaration-carried | 492 | 0 | 0 | 0 | 0 | 0 | 492 |
-| record-carried | 0 | 0 | 0 | 227 | 0 | 0 | 227 |
+| marker-carried | 371 | 0 | 0 | 16 | 0 | 0 | 387 |
+| declaration-carried | 578 | 0 | 0 | 0 | 0 | 0 | 578 |
+| record-carried | 0 | 0 | 0 | 141 | 0 | 0 | 141 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Total | 849 | 0 | 0 | 257 | 0 | 0 | 1106 |
+| Total | 949 | 0 | 0 | 157 | 0 | 0 | 1106 |
 
 azure/azapi 2.13.0: 3397 ARM resource types declared through azapi_resource.
 
@@ -169,8 +169,8 @@ The fence for azurerm, by tier and by where the type lives:
 | Tier | resource-group | from-argument | subscription | tenant | unknown | What Policy adds to the group RBAC |
 |---|---|---|---|---|---|---|
 | marker-carried | 375 | 1 | 1 | 3 | 7 | the deny on a write lacking or changing tofu-estate, and the delete lock when deleteLock is on |
-| declaration-carried | 451 | 21 | 12 | 8 | 0 | nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen |
-| record-carried | 168 | 20 | 5 | 3 | 31 | nothing, and the type is not admitted |
+| declaration-carried | 530 | 23 | 15 | 10 | 0 | nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen |
+| record-carried | 89 | 18 | 2 | 1 | 31 | nothing, and the type is not admitted |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | not admitted |
 
 | Scope | What the estate's group RBAC reaches |
@@ -191,30 +191,15 @@ The azurerm types short of in-contract:
 
 | Type | Tier | Status | Reason |
 |---|---|---|---|
-| `azurerm_aadb2c_directory` | marker-carried | needs-evidence | 1 |
 | `azurerm_active_directory_domain_service` | marker-carried | needs-evidence | 1 |
 | `azurerm_active_directory_domain_service_replica_set` | record-carried | needs-evidence | 1 |
 | `azurerm_advanced_threat_protection` | record-carried | needs-evidence | 1 |
 | `azurerm_ai_foundry_project` | marker-carried | needs-evidence | 1 |
-| `azurerm_api_management_api_diagnostic` | record-carried | needs-evidence | 1 |
 | `azurerm_api_management_api_operation_policy` | record-carried | needs-evidence | 2 |
-| `azurerm_api_management_api_policy` | record-carried | needs-evidence | 1 |
+| `azurerm_api_management_api_policy` | record-carried | needs-evidence | 2 |
 | `azurerm_api_management_api_tag_description` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_custom_domain` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_diagnostic` | record-carried | needs-evidence | 1 |
 | `azurerm_api_management_gateway_api` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_gateway_certificate_authority` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_identity_provider_aad` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_identity_provider_aadb2c` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_identity_provider_facebook` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_identity_provider_google` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_identity_provider_microsoft` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_identity_provider_twitter` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_notification_recipient_email` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_notification_recipient_user` | record-carried | needs-evidence | 1 |
 | `azurerm_api_management_policy` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_product_api` | record-carried | needs-evidence | 1 |
-| `azurerm_api_management_product_group` | record-carried | needs-evidence | 1 |
 | `azurerm_api_management_product_policy` | record-carried | needs-evidence | 2 |
 | `azurerm_api_management_subscription` | record-carried | needs-evidence | 1 |
 | `azurerm_api_management_workspace_policy` | record-carried | needs-evidence | 1 |
@@ -222,35 +207,18 @@ The azurerm types short of in-contract:
 | `azurerm_app_configuration_key` | marker-carried | needs-evidence | 1 |
 | `azurerm_app_service_certificate_binding` | record-carried | needs-evidence | 1 |
 | `azurerm_app_service_managed_certificate` | marker-carried | needs-evidence | 1 |
-| `azurerm_app_service_public_certificate` | record-carried | needs-evidence | 1 |
-| `azurerm_app_service_slot_custom_hostname_binding` | record-carried | needs-evidence | 1 |
 | `azurerm_app_service_slot_virtual_network_swift_connection` | record-carried | needs-evidence | 1 |
 | `azurerm_app_service_source_control` | record-carried | needs-evidence | 1 |
 | `azurerm_app_service_source_control_slot` | record-carried | needs-evidence | 1 |
 | `azurerm_app_service_virtual_network_swift_connection` | record-carried | needs-evidence | 1 |
 | `azurerm_application_insights_analytics_item` | record-carried | needs-evidence | 2 |
 | `azurerm_arc_kubernetes_cluster_extension` | record-carried | needs-evidence | 1 |
-| `azurerm_arc_machine_automanage_configuration_assignment` | record-carried | needs-evidence | 1 |
-| `azurerm_automation_hybrid_runbook_worker` | record-carried | needs-evidence | 1 |
 | `azurerm_automation_job_schedule` | record-carried | needs-evidence | 1 |
 | `azurerm_backup_container_storage_account` | record-carried | needs-evidence | 1 |
-| `azurerm_backup_policy_file_share` | record-carried | needs-evidence | 1 |
-| `azurerm_backup_policy_vm_workload` | record-carried | needs-evidence | 1 |
 | `azurerm_backup_protected_file_share` | record-carried | needs-evidence | 1 |
 | `azurerm_backup_protected_vm` | record-carried | needs-evidence | 1 |
 | `azurerm_blueprint_assignment` | record-carried | needs-evidence | 1 |
-| `azurerm_bot_channel_alexa` | record-carried | needs-evidence | 1 |
-| `azurerm_bot_channel_direct_line_speech` | record-carried | needs-evidence | 1 |
-| `azurerm_bot_channel_directline` | record-carried | needs-evidence | 1 |
-| `azurerm_bot_channel_email` | record-carried | needs-evidence | 1 |
-| `azurerm_bot_channel_facebook` | record-carried | needs-evidence | 1 |
-| `azurerm_bot_channel_line` | record-carried | needs-evidence | 1 |
-| `azurerm_bot_channel_ms_teams` | record-carried | needs-evidence | 1 |
-| `azurerm_bot_channel_slack` | record-carried | needs-evidence | 1 |
-| `azurerm_bot_channel_sms` | record-carried | needs-evidence | 1 |
-| `azurerm_bot_channel_web_chat` | record-carried | needs-evidence | 1 |
 | `azurerm_cdn_frontdoor_custom_domain_association` | record-carried | needs-evidence | 1 |
-| `azurerm_chaos_studio_capability` | record-carried | needs-evidence | 1 |
 | `azurerm_chaos_studio_target` | record-carried | needs-evidence | 1 |
 | `azurerm_cognitive_account_customer_managed_key` | record-carried | needs-evidence | 1 |
 | `azurerm_communication_service_email_domain_association` | record-carried | needs-evidence | 1 |
@@ -259,7 +227,6 @@ The azurerm types short of in-contract:
 | `azurerm_container_registry_token_password` | record-carried | needs-evidence | 1 |
 | `azurerm_cosmosdb_mongo_role_definition` | record-carried | needs-evidence | 1 |
 | `azurerm_cosmosdb_mongo_user_definition` | record-carried | needs-evidence | 1 |
-| `azurerm_cosmosdb_sql_dedicated_gateway` | record-carried | needs-evidence | 1 |
 | `azurerm_cost_anomaly_alert` | record-carried | needs-evidence | 1 |
 | `azurerm_cost_management_scheduled_action` | record-carried | needs-evidence | 1 |
 | `azurerm_data_factory_customer_managed_key` | record-carried | needs-evidence | 1 |
@@ -267,14 +234,7 @@ The azurerm types short of in-contract:
 | `azurerm_data_protection_backup_vault_customer_managed_key` | record-carried | needs-evidence | 3 |
 | `azurerm_databricks_workspace_root_dbfs_customer_managed_key` | record-carried | needs-evidence | 3 |
 | `azurerm_dev_test_global_vm_shutdown_schedule` | marker-carried | needs-evidence | 1 |
-| `azurerm_dns_aaaa_record` | marker-carried | needs-evidence | 1 |
-| `azurerm_dns_caa_record` | marker-carried | needs-evidence | 1 |
-| `azurerm_dns_mx_record` | marker-carried | needs-evidence | 1 |
-| `azurerm_dns_ns_record` | marker-carried | needs-evidence | 1 |
-| `azurerm_dns_ptr_record` | marker-carried | needs-evidence | 1 |
-| `azurerm_dns_srv_record` | marker-carried | needs-evidence | 1 |
 | `azurerm_eventgrid_partner_configuration` | marker-carried | needs-evidence | 2 |
-| `azurerm_eventgrid_system_topic_event_subscription` | record-carried | needs-evidence | 1 |
 | `azurerm_eventhub_namespace_customer_managed_key` | record-carried | needs-evidence | 1 |
 | `azurerm_express_route_circuit_peering` | record-carried | needs-evidence | 1 |
 | `azurerm_frontdoor_custom_https_configuration` | record-carried | needs-evidence | 1 |
@@ -282,9 +242,6 @@ The azurerm types short of in-contract:
 | `azurerm_function_app_hybrid_connection` | record-carried | needs-evidence | 1 |
 | `azurerm_iotcentral_application_network_rule_set` | record-carried | needs-evidence | 1 |
 | `azurerm_iotcentral_organization` | record-carried | needs-evidence | 1 |
-| `azurerm_iothub_dps_certificate` | record-carried | needs-evidence | 1 |
-| `azurerm_iothub_enrichment` | record-carried | needs-evidence | 1 |
-| `azurerm_iothub_fallback_route` | record-carried | needs-evidence | 1 |
 | `azurerm_iothub_file_upload` | record-carried | needs-evidence | 1 |
 | `azurerm_ip_group_cidr` | record-carried | needs-evidence | 1 |
 | `azurerm_key_vault_access_policy` | record-carried | needs-evidence | 1 |
@@ -300,7 +257,6 @@ The azurerm types short of in-contract:
 | `azurerm_key_vault_managed_storage_account_sas_token_definition` | marker-carried | needs-evidence | 1 |
 | `azurerm_key_vault_secret` | marker-carried | needs-evidence | 1 |
 | `azurerm_kubernetes_cluster_deployment_safeguard` | record-carried | needs-evidence | 1 |
-| `azurerm_kubernetes_cluster_extension` | record-carried | needs-evidence | 1 |
 | `azurerm_kusto_cluster_customer_managed_key` | record-carried | needs-evidence | 1 |
 | `azurerm_log_analytics_cluster_customer_managed_key` | record-carried | needs-evidence | 1 |
 | `azurerm_log_analytics_data_export_rule` | record-carried | needs-evidence | 1 |
@@ -309,33 +265,22 @@ The azurerm types short of in-contract:
 | `azurerm_maintenance_assignment_virtual_machine` | record-carried | needs-evidence | 1 |
 | `azurerm_maintenance_assignment_virtual_machine_scale_set` | record-carried | needs-evidence | 1 |
 | `azurerm_managed_disk_sas_token` | record-carried | needs-evidence | 1 |
-| `azurerm_managed_redis_access_policy_assignment` | record-carried | needs-evidence | 1 |
 | `azurerm_managed_redis_geo_replication` | record-carried | needs-evidence | 1 |
 | `azurerm_management_group_subscription_association` | record-carried | needs-evidence | 1 |
-| `azurerm_marketplace_agreement` | record-carried | needs-evidence | 1 |
 | `azurerm_marketplace_role_assignment` | record-carried | needs-evidence | 1 |
-| `azurerm_mongo_cluster_user` | record-carried | needs-evidence | 1 |
 | `azurerm_mssql_database_extended_auditing_policy` | record-carried | needs-evidence | 1 |
 | `azurerm_mssql_job_agent` | marker-carried | needs-evidence | 3 |
 | `azurerm_mssql_job_schedule` | record-carried | needs-evidence | 1 |
-| `azurerm_mssql_managed_instance_active_directory_administrator` | record-carried | needs-evidence | 1 |
 | `azurerm_mssql_managed_instance_failover_group` | record-carried | needs-evidence | 1 |
 | `azurerm_mssql_managed_instance_security_alert_policy` | record-carried | needs-evidence | 1 |
 | `azurerm_mssql_managed_instance_start_stop_schedule` | record-carried | needs-evidence | 1 |
-| `azurerm_mssql_managed_instance_transparent_data_encryption` | record-carried | needs-evidence | 1 |
-| `azurerm_mssql_managed_instance_vulnerability_assessment` | record-carried | needs-evidence | 1 |
-| `azurerm_mssql_server_extended_auditing_policy` | record-carried | needs-evidence | 1 |
-| `azurerm_mssql_server_microsoft_support_auditing_policy` | record-carried | needs-evidence | 1 |
 | `azurerm_mssql_server_security_alert_policy` | record-carried | needs-evidence | 1 |
-| `azurerm_mssql_server_transparent_data_encryption` | record-carried | needs-evidence | 1 |
 | `azurerm_mssql_server_vulnerability_assessment` | record-carried | needs-evidence | 1 |
 | `azurerm_mssql_virtual_machine` | marker-carried | needs-evidence | 3 |
 | `azurerm_mysql_flexible_server_active_directory_administrator` | record-carried | needs-evidence | 1 |
 | `azurerm_nat_gateway_public_ip_association` | record-carried | needs-evidence | 1 |
 | `azurerm_nat_gateway_public_ip_prefix_association` | record-carried | needs-evidence | 1 |
 | `azurerm_netapp_account_encryption` | record-carried | needs-evidence | 1 |
-| `azurerm_netapp_volume_bucket` | record-carried | needs-evidence | 2 |
-| `azurerm_netapp_volume_bucket_with_server` | record-carried | needs-evidence | 2 |
 | `azurerm_network_interface_application_gateway_backend_address_pool_association` | record-carried | needs-evidence | 1 |
 | `azurerm_network_interface_application_security_group_association` | record-carried | needs-evidence | 1 |
 | `azurerm_network_interface_backend_address_pool_association` | record-carried | needs-evidence | 1 |
@@ -343,61 +288,32 @@ The azurerm types short of in-contract:
 | `azurerm_network_interface_security_group_association` | record-carried | needs-evidence | 1 |
 | `azurerm_network_manager_deployment` | record-carried | needs-evidence | 1 |
 | `azurerm_network_security_perimeter_association` | record-carried | needs-evidence | 1 |
-| `azurerm_new_relic_tag_rule` | record-carried | needs-evidence | 1 |
-| `azurerm_nginx_configuration` | record-carried | needs-evidence | 1 |
 | `azurerm_palo_alto_local_rulestack_outbound_trust_certificate_association` | record-carried | needs-evidence | 1 |
 | `azurerm_palo_alto_local_rulestack_outbound_untrust_certificate_association` | record-carried | needs-evidence | 1 |
 | `azurerm_palo_alto_virtual_network_appliance` | record-carried | needs-evidence | 1 |
 | `azurerm_pim_active_role_assignment` | record-carried | needs-evidence | 2 |
 | `azurerm_pim_eligible_role_assignment` | record-carried | needs-evidence | 2 |
 | `azurerm_policy_definition` | record-carried | needs-evidence | 1 |
-| `azurerm_portal_tenant_configuration` | record-carried | needs-evidence | 1 |
 | `azurerm_postgresql_flexible_server_virtual_endpoint` | record-carried | needs-evidence | 1 |
-| `azurerm_private_dns_a_record` | marker-carried | needs-evidence | 3 |
-| `azurerm_private_dns_aaaa_record` | marker-carried | needs-evidence | 1 |
-| `azurerm_private_dns_cname_record` | marker-carried | needs-evidence | 3 |
-| `azurerm_private_dns_mx_record` | marker-carried | needs-evidence | 1 |
-| `azurerm_private_dns_ptr_record` | marker-carried | needs-evidence | 1 |
-| `azurerm_private_dns_srv_record` | marker-carried | needs-evidence | 1 |
-| `azurerm_private_dns_txt_record` | marker-carried | needs-evidence | 1 |
 | `azurerm_private_endpoint_application_security_group_association` | record-carried | needs-evidence | 1 |
-| `azurerm_recovery_services_vault_resource_guard_association` | record-carried | needs-evidence | 1 |
 | `azurerm_redis_linked_server` | record-carried | needs-evidence | 1 |
 | `azurerm_role_assignment` | record-carried | needs-evidence | 1 |
 | `azurerm_role_management_policy` | record-carried | needs-evidence | 2 |
 | `azurerm_security_center_assessment` | record-carried | needs-evidence | 1 |
 | `azurerm_security_center_assessment_policy` | record-carried | needs-evidence | 1 |
-| `azurerm_security_center_server_vulnerability_assessment_virtual_machine` | record-carried | needs-evidence | 1 |
 | `azurerm_security_center_server_vulnerability_assessments_setting` | record-carried | needs-evidence | 1 |
 | `azurerm_security_center_storage_defender` | record-carried | needs-evidence | 1 |
-| `azurerm_security_center_subscription_pricing` | record-carried | needs-evidence | 1 |
-| `azurerm_security_center_workspace` | record-carried | needs-evidence | 1 |
 | `azurerm_sentinel_alert_rule_anomaly_duplicate` | record-carried | needs-evidence | 1 |
-| `azurerm_sentinel_alert_rule_fusion` | record-carried | needs-evidence | 1 |
-| `azurerm_sentinel_log_analytics_workspace_onboarding` | record-carried | needs-evidence | 1 |
 | `azurerm_sentinel_threat_intelligence_indicator` | record-carried | needs-evidence | 1 |
 | `azurerm_servicebus_namespace_customer_managed_key` | record-carried | needs-evidence | 3 |
-| `azurerm_servicebus_namespace_disaster_recovery_config` | record-carried | needs-evidence | 1 |
 | `azurerm_signalr_service_network_acl` | record-carried | needs-evidence | 1 |
-| `azurerm_site_recovery_fabric` | record-carried | needs-evidence | 1 |
 | `azurerm_site_recovery_hyperv_network_mapping` | record-carried | needs-evidence | 1 |
-| `azurerm_site_recovery_hyperv_replication_policy` | record-carried | needs-evidence | 1 |
 | `azurerm_site_recovery_hyperv_replication_policy_association` | record-carried | needs-evidence | 1 |
 | `azurerm_site_recovery_network_mapping` | record-carried | needs-evidence | 1 |
-| `azurerm_site_recovery_protection_container` | record-carried | needs-evidence | 1 |
-| `azurerm_site_recovery_protection_container_mapping` | record-carried | needs-evidence | 1 |
 | `azurerm_site_recovery_replicated_vm` | record-carried | needs-evidence | 1 |
-| `azurerm_site_recovery_replication_policy` | record-carried | needs-evidence | 1 |
-| `azurerm_site_recovery_replication_recovery_plan` | record-carried | needs-evidence | 1 |
-| `azurerm_site_recovery_services_vault_hyperv_site` | record-carried | needs-evidence | 1 |
 | `azurerm_site_recovery_vmware_replicated_vm` | record-carried | needs-evidence | 1 |
-| `azurerm_site_recovery_vmware_replication_policy` | record-carried | needs-evidence | 1 |
 | `azurerm_site_recovery_vmware_replication_policy_association` | record-carried | needs-evidence | 1 |
-| `azurerm_source_control_token` | record-carried | needs-evidence | 1 |
 | `azurerm_spring_cloud_active_deployment` | record-carried | needs-evidence | 1 |
-| `azurerm_spring_cloud_builder` | record-carried | needs-evidence | 1 |
-| `azurerm_stack_hci_deployment_setting` | record-carried | needs-evidence | 1 |
-| `azurerm_static_web_app_custom_domain` | record-carried | needs-evidence | 1 |
 | `azurerm_static_web_app_function_app_registration` | record-carried | needs-evidence | 1 |
 | `azurerm_storage_account_customer_managed_key` | record-carried | needs-evidence | 3 |
 | `azurerm_storage_account_network_rules` | record-carried | needs-evidence | 3 |
@@ -409,12 +325,10 @@ The azurerm types short of in-contract:
 | `azurerm_storage_container_immutability_policy` | record-carried | needs-evidence | 1 |
 | `azurerm_storage_data_lake_gen2_filesystem` | record-carried | needs-evidence | 1 |
 | `azurerm_storage_data_lake_gen2_path` | record-carried | needs-evidence | 1 |
-| `azurerm_storage_management_policy` | record-carried | needs-evidence | 1 |
 | `azurerm_storage_object_replication` | record-carried | needs-evidence | 1 |
 | `azurerm_storage_share_directory` | record-carried | needs-evidence | 1 |
 | `azurerm_storage_share_file` | record-carried | needs-evidence | 1 |
 | `azurerm_storage_table_entity` | record-carried | needs-evidence | 1 |
-| `azurerm_stream_analytics_job_schedule` | record-carried | needs-evidence | 1 |
 | `azurerm_stream_analytics_job_storage_account` | record-carried | needs-evidence | 1 |
 | `azurerm_subnet_nat_gateway_association` | record-carried | needs-evidence | 1 |
 | `azurerm_subnet_network_security_group_association` | record-carried | needs-evidence | 1 |
@@ -422,29 +336,15 @@ The azurerm types short of in-contract:
 | `azurerm_subscription` | marker-carried | needs-evidence | 1 |
 | `azurerm_synapse_managed_private_endpoint` | record-carried | needs-evidence | 1 |
 | `azurerm_synapse_role_assignment` | record-carried | needs-evidence | 1 |
-| `azurerm_synapse_sql_pool_extended_auditing_policy` | record-carried | needs-evidence | 1 |
-| `azurerm_synapse_sql_pool_security_alert_policy` | record-carried | needs-evidence | 1 |
 | `azurerm_synapse_sql_pool_vulnerability_assessment` | record-carried | needs-evidence | 1 |
-| `azurerm_synapse_workspace_aad_admin` | record-carried | needs-evidence | 1 |
-| `azurerm_synapse_workspace_extended_auditing_policy` | record-carried | needs-evidence | 1 |
 | `azurerm_synapse_workspace_key` | record-carried | needs-evidence | 1 |
-| `azurerm_synapse_workspace_security_alert_policy` | record-carried | needs-evidence | 1 |
-| `azurerm_synapse_workspace_sql_aad_admin` | record-carried | needs-evidence | 1 |
 | `azurerm_synapse_workspace_vulnerability_assessment` | record-carried | needs-evidence | 1 |
 | `azurerm_system_center_virtual_machine_manager_virtual_machine_instance` | record-carried | needs-evidence | 1 |
 | `azurerm_system_center_virtual_machine_manager_virtual_machine_instance_guest_agent` | record-carried | needs-evidence | 1 |
-| `azurerm_traffic_manager_azure_endpoint` | record-carried | needs-evidence | 1 |
-| `azurerm_traffic_manager_external_endpoint` | record-carried | needs-evidence | 1 |
-| `azurerm_traffic_manager_nested_endpoint` | record-carried | needs-evidence | 1 |
-| `azurerm_virtual_desktop_host_pool_registration_info` | record-carried | needs-evidence | 1 |
 | `azurerm_virtual_desktop_scaling_plan_host_pool_association` | record-carried | needs-evidence | 1 |
 | `azurerm_virtual_desktop_workspace_application_group_association` | record-carried | needs-evidence | 1 |
-| `azurerm_virtual_hub_route_table_route` | record-carried | needs-evidence | 1 |
-| `azurerm_virtual_machine_automanage_configuration_assignment` | record-carried | needs-evidence | 1 |
 | `azurerm_virtual_machine_data_disk_attachment` | record-carried | needs-evidence | 1 |
 | `azurerm_virtual_machine_gallery_application_assignment` | record-carried | needs-evidence | 1 |
-| `azurerm_virtual_network_dns_servers` | record-carried | needs-evidence | 1 |
-| `azurerm_vmware_cluster` | record-carried | needs-evidence | 1 |
 | `azurerm_web_app_active_slot` | record-carried | needs-evidence | 1 |
 | `azurerm_web_app_hybrid_connection` | record-carried | needs-evidence | 1 |
 | `azurerm_web_pubsub_network_acl` | record-carried | needs-evidence | 1 |

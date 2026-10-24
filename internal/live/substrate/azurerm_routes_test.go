@@ -170,13 +170,21 @@ func TestAzurermServedSchemaGuard(t *testing.T) {
 // template-fallback, their templates taken from azurerm's identity test
 // where segment names found no argument; TestAzurermAdmissionCounts names
 // them.
+//
+// GitHub issue #2201 item 1 (the Create-call rule) moved 99 types out of
+// unmapped: 52 to parent-id, 44 to template and 3 to template-fallback
+// (azurerm_private_dns_a_record and _cname_record, whose record type is
+// the constant azurerm's Create passes, and the two netapp bucket types
+// that left withheld: azurerm ships no identity test for them and the
+// Create call stands in). azurerm_api_management_api_policy came out
+// withheld by the shared-template guard.
 var azurermRoutesPinned = map[string]int{
 	AzurermRouteIdentitySchema:   103,
-	AzurermRouteTemplateFallback: 78,
-	AzurermRouteTemplate:         317,
-	AzurermRouteParentID:         351,
-	AzurermRouteWithheld:         9,
-	AzurermRouteUnmapped:         248,
+	AzurermRouteTemplateFallback: 82,
+	AzurermRouteTemplate:         361,
+	AzurermRouteParentID:         403,
+	AzurermRouteWithheld:         8,
+	AzurermRouteUnmapped:         149,
 }
 
 // TestAzurermRoutesAreTheGuardsVerdicts is condition (c)'s guard on this
