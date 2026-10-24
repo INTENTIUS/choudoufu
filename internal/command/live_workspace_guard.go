@@ -10,83 +10,70 @@ import (
 	"fmt"
 
 	"github.com/intentius/choudoufu/internal/backend"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
-// liveWorkspaceGuard refuses the workspace commands that would put a
-// live-mode working directory into a workspace it cannot run in, and is a
-// no-op for every other configuration.
+// liveWorkspaceAccept is the workspace commands' side of the rule that a
+// workspace means nothing under a live block (GitHub issue #2221).
 //
-// The hole this closes (audit finding F-WS): a live directory refused a
-// non-default workspace at plan and apply time - the right refusal in the
-// wrong place. "choudoufu workspace new staging" succeeded, selected the new
-// workspace as a side effect, and left the operator with a directory where
-// every plan and every apply errored out, with the refusal describing a
-// choice they no longer appeared to have made. The failure was recoverable
-// only by knowing to run "workspace select default", which nothing said.
+// It replaces the refusal #2215 made, which told an Atmos user to switch
+// workspaces off in atmos.yaml: a config change, where the requirement is to
+// switch only the binary. Atmos selects a workspace named after the stack by
+// default, so the command has to succeed.
 //
-// So the guard is on the two commands that CHANGE which workspace is
-// selected, and it is deliberately not symmetric:
-//
-//   - "workspace new" is refused outright. Its whole product is a second
-//     state file, and creating one selects it.
-//   - "workspace select" is refused for every workspace except the default,
-//     which is always allowed. That is the recovery path out of a directory
-//     stranded by a version of OpenTofu before this guard, or by a workspace
-//     created before the live block was added, and refusing it would
-//     make this guard the thing that strands people.
-//
-// "workspace list", "workspace show" and "workspace delete" are left alone.
-// The first two read and print; the third removes a workspace that already
-// exists, which is cleanup rather than stranding, and it cannot run against
-// the selected workspace anyway.
-//
-// Like the other live-mode guards, this runs before a backend is prepared,
-// so a refused command cannot leave a state file, a workspace directory or a
-// lock behind.
-func (m *Meta) liveWorkspaceGuard(ctx context.Context, subcommand string, workspace string) tfdiags.Diagnostics {
+// The estate named in the live block, not the workspace, is the authority for
+// identity and records. So "workspace new" and "workspace select" are accepted
+// for any valid name, record the selection in the working directory the way
+// any workspace command does (so "workspace show" returns what the tool
+// selected), create no state, and warn that the name is ignored. The caller
+// returns early when live is true and skips preparing a backend, so nothing
+// is written but the selection itself.
+func (m *Meta) liveWorkspaceAccept(ctx context.Context, workspace string) (live bool, diags tfdiags.Diagnostics) {
 	settings, diags := m.liveSettings(ctx, false)
 	if diags.HasErrors() || settings == nil {
-		return diags
+		return false, diags
 	}
-	if subcommand == "select" && workspace == backend.DefaultStateName {
-		// The way back. Always available, in every configuration.
-		return diags
+	if workspace == backend.DefaultStateName {
+		// The way back; nothing to warn about.
+		return true, diags
 	}
-	// Same shape as the other two guards: the summary is a noun phrase and
-	// the command that was refused opens the detail. See
-	// [Meta.liveStateGuard] for why.
-	return diags.Append(tfdiags.Sourceless(
-		tfdiags.Error,
-		"Command not available under live resource markers",
-		liveWorkspaceDetail(subcommand),
-	))
+	return true, diags.Append(liveWorkspaceIgnoredWarning(workspace, liveEstateLabel(settings)))
 }
 
-// liveWorkspaceRemedy is the way out of a non-default workspace, shared by the
-// plan/apply refusal and the workspace-command guard. The workspace usually
-// arrives from a tool rather than a person: Atmos selects one named after the
-// stack, and TF_WORKSPACE is how most wrappers pass one.
-const liveWorkspaceRemedy = "Unset TF_WORKSPACE and select the default workspace (\"choudoufu workspace select default\"); " +
-	"with Atmos, turn workspaces off for the component (components.terraform.workspaces_enabled: false in atmos.yaml), " +
-	"and give each environment its own estate name in its own live block, which is the separation a workspace was standing in for."
-
-func liveWorkspaceDetail(subcommand string) string {
-	shared := fmt.Sprintf("\"choudoufu workspace %s\" is not available here. ", subcommand) +
-		"A workspace is a second state file under a different name, and this configuration's live block says there is no first one. " +
-		"The unit of ownership under live resource markers is the estate, named by the live block and recorded on the resources themselves as the tofu-estate marker (live/MARKERS.md). " +
-		"Give each environment its own configuration directory with its own estate name, which is the separation workspaces were standing in for. " +
-		"Tools that select a workspace named after the stack (Atmos) need it switched off for this component (components.terraform.workspaces_enabled: false in atmos.yaml). "
-
-	switch subcommand {
-	case "new":
-		return shared +
-			"Creating a workspace here would also select it, and plan and apply refuse to run in any workspace but the default, " +
-			"so the directory would be left unable to do anything until \"choudoufu workspace select default\" put it back."
-	case "select":
-		return shared +
-			"Selecting the default workspace is always allowed, and is how a directory that is already in another one gets back: run \"choudoufu workspace select default\"."
+// liveEstateLabel names the estate (or estates) a live block settles on, as
+// far as the configuration alone can say. A block that names no estate gets its
+// name from the directory, which only a run settles.
+func liveEstateLabel(settings *configs.Live) string {
+	switch {
+	case settings.IsComposed():
+		return "each estate this root composes"
+	case settings.EstateSet:
+		return fmt.Sprintf("%q", settings.Estate)
 	default:
-		return shared
+		return "the one the live block names"
 	}
+}
+
+// liveWorkspaceIgnoredWarning is the one sentence both the workspace commands
+// and plan/apply give when a non-default workspace is selected.
+func liveWorkspaceIgnoredWarning(workspace, estate string) tfdiags.Diagnostic {
+	return tfdiags.Sourceless(
+		tfdiags.Warning,
+		"Workspace ignored under live resource markers",
+		fmt.Sprintf("Workspace %q ignored under live resource markers; this estate is %s. Separate environments need separate estate names.", workspace, estate),
+	)
+}
+
+// ignoreLiveWorkspace resets a plan or apply operation to the default
+// workspace and returns the name it had selected ("" when it was the default).
+// With the workspace reset, the run uses the estate's records exactly as a
+// default-workspace run does, and creates no per-workspace state.
+func ignoreLiveWorkspace(opReq *backend.Operation) string {
+	if opReq.Workspace == backend.DefaultStateName {
+		return ""
+	}
+	selected := opReq.Workspace
+	opReq.Workspace = backend.DefaultStateName
+	return selected
 }

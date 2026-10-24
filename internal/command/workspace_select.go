@@ -50,13 +50,35 @@ func (c WorkspaceSelectCommand) Execute(args *arguments.WorkspaceSelect, view vi
 
 	configPath := c.WorkingDir.NormalizePath(c.WorkingDir.RootModuleDir())
 
-	// A live block makes every workspace but the default unrunnable, so
-	// selecting one is refused here rather than at the plan that would have
-	// been the operator's first sign. Selecting the default stays allowed,
-	// because it is the way out. See Meta.liveWorkspaceGuard.
-	if guardDiags := c.liveWorkspaceGuard(ctx, "select", args.WorkspaceName); guardDiags.HasErrors() {
-		view.Diagnostics(diags.Append(guardDiags))
+	// Under a live block the workspace is accepted and ignored (GitHub issue
+	// #2221): the selection is recorded so "workspace show" returns it, no
+	// backend is prepared, and a warning says the name changes nothing. See
+	// Meta.liveWorkspaceAccept.
+	if live, liveDiags := c.liveWorkspaceAccept(ctx, args.WorkspaceName); liveDiags.HasErrors() {
+		view.Diagnostics(diags.Append(liveDiags))
 		return 1
+	} else if live {
+		name := args.WorkspaceName
+		if !validWorkspaceName(name) {
+			view.WorkspaceInvalidName(name)
+			return 1
+		}
+		current, isOverridden := c.WorkspaceOverridden(ctx)
+		if isOverridden && current != name {
+			view.WorkspaceIsOverriddenSelectError()
+			return 1
+		}
+		if err := c.SetWorkspace(name); err != nil {
+			view.Diagnostics(tfdiags.Diagnostics{tfdiags.Sourceless(
+				tfdiags.Error,
+				"Error setting workspace",
+				fmt.Sprintf("Could not set the requested workspace: %s", err),
+			)})
+			return 1
+		}
+		view.Diagnostics(liveDiags)
+		view.WorkspaceChanged(name)
+		return 0
 	}
 
 	backendConfig, backendDiags := c.loadBackendConfig(ctx, configPath)

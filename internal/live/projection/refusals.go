@@ -200,6 +200,10 @@ var refusals = []Refusal{
 		What:    "Guided discovery's plan-cost hint could not be written to the estate's record store, so the next run pays a full estate sweep instead of a narrowed one.",
 	},
 	{
+		Summary: "Workspaces share this estate's records",
+		What:    "GitHub issue #2221: two or more workspaces (an Atmos stack per workspace is the usual way) have applied to the same estate. Workspaces are ignored under live resource markers, so they read and write the same records and the same marked resources. This is a warning naming both; give each environment its own estate name if they are meant to be separate.",
+	},
+	{
 		Summary: "Could not write the state cache",
 		What:    "GitHub issue #685's state cache could not be written (default: choudoufu-cache.tfstate under the data dir; CHOUDOUFU_STATE_CACHE overrides the path, the value off disables), so the next plan rebuilds prior state from live reads instead of starting from the cache. This costs API calls and not correctness: a cached entry is a candidate verified against the tag index, never a fact trusted, so an absent cache is the same as a stale one.",
 	},

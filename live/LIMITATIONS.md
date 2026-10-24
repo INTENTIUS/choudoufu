@@ -6929,13 +6929,26 @@ from any artifact, so this roster is curated
 
 ## Workspaces
 
-Under a live block, plan and apply (plain and composed), `workspace new` and
-`workspace select <name>` refuse any workspace but the default, whether it came
-from `TF_WORKSPACE`, `.terraform/environment` or the command. The message names
-the way out: unset `TF_WORKSPACE`, run `workspace select default`, and for
-Atmos set `components.terraform.workspaces_enabled: false`. Records are not
-keyed by workspace, deliberately: the estate name is the unit of ownership and
-the `tofu-estate` marker on each resource, so a workspace key on the records
-would split one estate's records from the markers that are the authority, and
-two workspaces over one set of resources would both claim them. Per-environment
-separation is a distinct estate name in its own live block (GitHub issue #2213).
+Under a live block a workspace is accepted and ignored (GitHub issue #2221).
+`TF_WORKSPACE`, `workspace select <name>` and `workspace new <name>` succeed
+with one warning: the workspace is ignored under live resource markers, the
+estate is named, and separate environments need separate estate names. Plan and
+apply run as the default workspace would, so a stock Atmos stack with
+workspaces on (its default, one workspace per stack) needs only
+`components.terraform.command: choudoufu`.
+
+Records are not keyed by workspace, deliberately: the estate name is the unit
+of ownership and the `tofu-estate` marker on each resource, so a workspace key
+would split one estate's records from the markers that are the authority.
+`workspace list` shows `default` plus the name a tool selected, `workspace show`
+returns what was selected, and no state file or workspace directory is created.
+`terraform.workspace` evaluates to `default` in a live run.
+
+Two stacks that point at the same estate name share its records and its marked
+resources. That is a warning, not a silent share: an apply under a non-default
+workspace adds the workspace to a small registry beside the estate's hint
+(`tofu-hints/<estate>/workspaces`, in the record store), and a plan or apply
+under a different workspace then warns, naming both. The registry is a notice
+and never authority, and a run with no record store has none to read. A stack
+and a second stack that differ only by directory, with no workspace selected,
+are not detected.
