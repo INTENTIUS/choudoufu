@@ -4,7 +4,7 @@
 // imports the image at build time, and the logo files arrive in their own PR;
 // a URL reference lets the build pass before they land.
 //
-// On a phone a Docs link sits beside it: Starlight hides the header's right
+// On a phone Docs and Demo links sit beside it: Starlight hides the header's right
 // side (where SocialIcons.astro puts Docs) below its md width.
 // Adapted from terragucci's docs-site.
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -15,6 +15,7 @@ const { siteTitleHref } = Astro.locals.starlightRoute;
 	<span translate="no">choudoufu</span>
 </a>
 <a class="cd-docs-phone" href={`${base}/docs/use/start/`}>Docs</a>
+<a class="cd-docs-phone" href="https://demo.intentius.io/">Demo</a>
 
 <style>
 	.site-title {
