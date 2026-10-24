@@ -560,3 +560,21 @@ func TestAzAPICustomEnvironment(t *testing.T) {
 		t.Error("ARM_DISABLE_INSTANCE_DISCOVERY overrode the block's disable_instance_discovery = false")
 	}
 }
+
+// GitHub issue #2206: EnvEnvironment is the cloud a silent provider block
+// gets, "public" by default, and nothing when a metadata host decides it.
+func TestEnvEnvironment(t *testing.T) {
+	env := func(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
+	for name, c := range map[string]struct {
+		env  map[string]string
+		want string
+	}{
+		"unset is public":       {nil, "public"},
+		"ARM_ENVIRONMENT wins":  {map[string]string{"ARM_ENVIRONMENT": "china"}, "china"},
+		"metadata host decides": {map[string]string{"ARM_ENVIRONMENT": "china", "ARM_METADATA_HOSTNAME": "h.example.test"}, ""},
+	} {
+		if got := EnvEnvironment(env(c.env)); got != c.want {
+			t.Errorf("%s: EnvEnvironment = %q, want %q", name, got, c.want)
+		}
+	}
+}

@@ -2142,7 +2142,43 @@ func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bo
 			return "", false
 		}
 	}
+	if env, suffix := azureSuffixService(which); suffix {
+		name, ok := r.cloudValueFor(CloudEnvironment, cs)
+		if !ok {
+			return "", false
+		}
+		return AzureDNSSuffix(name, env)
+	}
+	if which == CloudEnvironment {
+		return r.azureEnvironment(cs)
+	}
 	return r.cloud.value(which)
+}
+
+// azureEnvironment answers [CloudEnvironment] (GitHub issue #2206): the
+// provider block's own static `environment`, else the run's
+// [CloudContext.Environment] for a block that sets none, exactly the shape
+// [CloudSubscriptionID] has. Names are matched case-insensitively and only
+// the three clouds [AzureDNSSuffix] knows are answered; azapi's "custom"
+// (a cloud of endpoint values alone) and anything else is not.
+//
+// A block that sets azurerm's `metadata_host` takes its cloud from that
+// host instead of from `environment`, so it is not answered at all.
+func (r *resolver) azureEnvironment(cs cloudScopeKey) (string, bool) {
+	if _, set := r.providerStaticAttr(cs.provider, "metadata_host"); set || !r.providerLeavesUnset(cs.provider, "metadata_host") {
+		return "", false
+	}
+	if env, ok := r.providerStaticAttr(cs.provider, "environment"); ok && env != "" {
+		return canonicalAzureEnvironment(env)
+	}
+	if !r.providerLeavesUnset(cs.provider, "environment") {
+		return "", false
+	}
+	env, ok := r.cloud.value(CloudEnvironment)
+	if !ok {
+		return "", false
+	}
+	return canonicalAzureEnvironment(env)
 }
 
 // cloudComponentAttr reports the resource argument that supplies a
