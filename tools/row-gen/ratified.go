@@ -156,6 +156,9 @@ type ratifiedComponent struct {
 	Qualifiers             *[]string             `json:"qualifiers,omitempty"`
 	AtLeastOneOf           *[]string             `json:"at_least_one_of,omitempty"`
 	ARMTypeSegment         bool                  `json:"arm_type_segment,omitempty"`
+	ARMSegmentIndex        int                   `json:"arm_segment_index,omitempty"`
+	ARMSegmentAfter        string                `json:"arm_segment_after,omitempty"`
+	URLEscape              string                `json:"url_escape,omitempty"`
 }
 
 // toRatified converts one live row to its stored form.
@@ -193,6 +196,9 @@ func toRatified(e identity.TypeIdentity) ratifiedRow {
 				SoleElement:            c.SoleElement,
 				PerElement:             c.PerElement,
 				ARMTypeSegment:         c.ARMTypeSegment,
+				ARMSegmentIndex:        c.ARMSegmentIndex,
+				ARMSegmentAfter:        c.ARMSegmentAfter,
+				URLEscape:              c.URLEscape,
 				LongForm:               c.LongForm,
 				Qualifiers:             strsPtr(c.Qualifiers),
 				AtLeastOneOf:           strsPtr(c.AtLeastOneOf),
@@ -240,6 +246,9 @@ func fromRatified(r ratifiedRow) identity.TypeIdentity {
 				SoleElement:            c.SoleElement,
 				PerElement:             c.PerElement,
 				ARMTypeSegment:         c.ARMTypeSegment,
+				ARMSegmentIndex:        c.ARMSegmentIndex,
+				ARMSegmentAfter:        c.ARMSegmentAfter,
+				URLEscape:              c.URLEscape,
 				LongForm:               c.LongForm,
 				Qualifiers:             strsValue(c.Qualifiers),
 				AtLeastOneOf:           strsValue(c.AtLeastOneOf),
