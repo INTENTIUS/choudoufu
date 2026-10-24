@@ -2395,15 +2395,21 @@ func (n *NodeAbstractResourceInstance) planDataSource(ctx context.Context, evalC
 
 	configKnown := configVal.IsWhollyKnown()
 	depsPending := n.dependenciesHavePendingChanges(evalCtx)
+	// inRunPlaceholder is the object an in-run estate read plans with when
+	// it is deferred: each output keeps the value the walk holds for it,
+	// known or not, so a dependent of a known output is not replaced.
+	inRunPlaceholder := cty.NilVal
 	if configKnown && !depsPending {
 		if target, inRun, self := n.inRunEstateTarget(evalCtx, configVal); inRun && !self {
 			// GitHub issue #2059: an in-run estate read waits for the
 			// module it reads while that module has changes pending, and
 			// for any output that is not yet wholly known.
-			if inRunEstatePending(evalCtx, target) {
+			val, known, d := n.inRunEstateValue(evalCtx, target, false, configVal)
+			if inRunEstatePending(evalCtx, target) || (!d.HasErrors() && !known) {
 				depsPending = true
-			} else if _, known, d := n.inRunEstateValue(evalCtx, target, false, configVal); !d.HasErrors() && !known {
-				depsPending = true
+				if !d.HasErrors() && val != cty.NilVal {
+					inRunPlaceholder = val
+				}
 			}
 		}
 	}
@@ -2438,10 +2444,14 @@ func (n *NodeAbstractResourceInstance) planDataSource(ctx context.Context, evalC
 
 		unmarkedConfigVal, configMarkPaths := configVal.UnmarkDeepWithPaths()
 		proposedNewVal := objchange.PlannedUnknownObject(schema.Block, unmarkedConfigVal)
+		if configKnown && inRunPlaceholder != cty.NilVal {
+			proposedNewVal = inRunPlaceholder
+		}
 		proposedNewVal = proposedNewVal.MarkWithPaths(configMarkPaths)
 
-		// Apply detects that the data source will need to be read by the After
-		// value containing unknowns from PlanDataResourceObject.
+		// Apply reads the data source because the action is Read, not
+		// because After holds unknowns: an in-run estate read can carry a
+		// wholly known After and is still read again at apply.
 		plannedChange := &plans.ResourceInstanceChange{
 			Addr:         n.Addr,
 			PrevRunAddr:  n.prevRunAddr(evalCtx),

@@ -23,6 +23,10 @@ import (
 func inRunEstatesProviders(t *testing.T, readCalls *int) plugins.Library {
 	t.Helper()
 	test := simpleMockProvider()
+	// test_thing has a computed id, unknown until the resource exists.
+	thing := simpleTestSchema()
+	thing.Attributes["id"] = &configschema.Attribute{Type: cty.String, Computed: true}
+	test.GetProviderSchemaResponse.ResourceTypes["test_thing"] = providers.Schema{Block: thing}
 	tf := &MockProvider{
 		GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
 			Provider: providers.Schema{Block: &configschema.Block{}},
@@ -195,5 +199,92 @@ output "vpc_id" {
 	_, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
 	if !diags.HasErrors() || !strings.Contains(diags.Err().Error(), "cannot read its own outputs") {
 		t.Fatalf("want the self-read refusal, got %v", diags.Err())
+	}
+}
+
+// A pending upstream estate does not make every output unknown: an output
+// whose resource already exists keeps its planned value, so a downstream
+// resource using it is left alone, and only the output of the new resource
+// is unknown.
+func TestContext2Plan_inRunEstatePartialOutputs(t *testing.T) {
+	m := testModuleInline(t, map[string]string{
+		"main.tf": `
+module "net" {
+  source = "./net"
+}
+module "app" {
+  source = "./app"
+}
+`,
+		"net/main.tf": `
+resource "test_thing" "a" {
+  test_string = "a"
+}
+resource "test_thing" "b" {
+  test_string = "b"
+}
+output "a" {
+  value = test_thing.a.id
+}
+output "b" {
+  value = test_thing.b.id
+}
+`,
+		"app/main.tf": `
+data "terraform_estate_outputs" "net" {
+  estate = "net"
+  names  = ["a", "b"]
+}
+resource "test_thing" "old" {
+  test_string = data.terraform_estate_outputs.net.values.a
+}
+resource "test_thing" "new" {
+  test_string = data.terraform_estate_outputs.net.values.b
+}
+`,
+	})
+	prior := states.BuildState(func(s *states.SyncState) {
+		prov := mustProviderConfig(`provider["registry.opentofu.org/hashicorp/test"]`)
+		s.SetResourceInstanceCurrent(mustResourceInstanceAddr("module.net.test_thing.a"), &states.ResourceInstanceObjectSrc{
+			Status:    states.ObjectReady,
+			AttrsJSON: []byte(`{"id":"a-id","test_string":"a"}`),
+		}, prov, addrs.NoKey)
+		s.SetResourceInstanceCurrent(mustResourceInstanceAddr("module.app.test_thing.old"), &states.ResourceInstanceObjectSrc{
+			Status:    states.ObjectReady,
+			AttrsJSON: []byte(`{"id":"old-id","test_string":"a-id"}`),
+		}, prov, addrs.NoKey)
+	})
+
+	readCalls := 0
+	ctx := testContext2(t, &ContextOpts{
+		Plugins:      inRunEstatesProviders(t, &readCalls),
+		InRunEstates: map[string]addrs.Module{"net": {"net"}},
+	})
+	opts := *DefaultPlanOpts
+	opts.SkipRefresh = true
+	plan, diags := ctx.Plan(context.Background(), m, prior, &opts)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors\n%s", diags.Err())
+	}
+	dc := plan.Changes.ResourceInstance(mustResourceInstanceAddr("module.app.data.terraform_estate_outputs.net"))
+	if dc == nil || dc.Action != plans.Read || dc.ActionReason != plans.ResourceInstanceReadBecauseDependencyPending {
+		t.Fatalf("the read should stay deferred to the apply, got %#v", dc)
+	}
+	old := plan.Changes.ResourceInstance(mustResourceInstanceAddr("module.app.test_thing.old"))
+	if old == nil || old.Action != plans.NoOp {
+		t.Fatalf("the existing resource must be left alone, got %#v", old)
+	}
+	nw := plan.Changes.ResourceInstance(mustResourceInstanceAddr("module.app.test_thing.new"))
+	if nw == nil || nw.Action != plans.Create {
+		t.Fatalf("the new resource should be created, got %#v", nw)
+	}
+	schema := simpleTestSchema()
+	schema.Attributes["id"] = &configschema.Attribute{Type: cty.String, Computed: true}
+	after, err := nw.After.Decode(schema.ImpliedType())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.GetAttr("test_string").IsKnown() {
+		t.Fatalf("the new resource's attribute should be unknown at plan")
 	}
 }
