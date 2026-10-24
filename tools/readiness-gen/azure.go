@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/armtypes"
+	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
@@ -198,8 +199,17 @@ func azurermRow(typeName, class, templateClass, scope string, taggable bool) (Ro
 	default:
 		return Row{}, fmt.Errorf("%s gives %s the class %q, which the Azure readiness rule does not know", AzurermIDsJSONRel, typeName, class)
 	}
+	// GitHub issue #2203, the 2026-10-23 ruling on #2201: the 37 parent-id
+	// settings objects and azapi_data_plane_resource are record-carried by
+	// declaration (identity.AzureRecordCarriedTypes), admitted through the
+	// record rung once the estate declares a record_store.
+	_, declared := identity.AzureRecordCarriedTypes[typeName]
+	if declared && !taggable {
+		facts.Admitted, status = true, StatusInContract
+	}
 	tier := TierRecordCarried
 	switch {
+	case declared && !taggable:
 	case taggable:
 		tier = TierMarkerCarried
 	case facts.Admitted:

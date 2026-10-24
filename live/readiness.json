@@ -24525,8 +24525,8 @@
           "record-carried": 227
         },
         "statuses": {
-          "in-contract": 849,
-          "needs-evidence": 257
+          "in-contract": 885,
+          "needs-evidence": 221
         }
       },
       "types": [
@@ -24744,10 +24744,10 @@
         {
           "type": "azurerm_api_management_api_operation_policy",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -24774,10 +24774,10 @@
         {
           "type": "azurerm_api_management_api_policy",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25224,10 +25224,10 @@
         {
           "type": "azurerm_api_management_policy",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25299,10 +25299,10 @@
         {
           "type": "azurerm_api_management_product_policy",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25464,10 +25464,10 @@
         {
           "type": "azurerm_api_management_workspace_policy",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25690,10 +25690,10 @@
         {
           "type": "azurerm_app_service_source_control",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -25720,10 +25720,10 @@
         {
           "type": "azurerm_app_service_virtual_network_swift_connection",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27383,10 +27383,10 @@
         {
           "type": "azurerm_cognitive_account_customer_managed_key",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -27610,10 +27610,10 @@
         {
           "type": "azurerm_container_app_environment_custom_domain",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -28395,10 +28395,10 @@
         {
           "type": "azurerm_data_factory_customer_managed_key",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29307,10 +29307,10 @@
         {
           "type": "azurerm_data_protection_backup_vault_customer_managed_key",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -29529,10 +29529,10 @@
         {
           "type": "azurerm_databricks_workspace_root_dbfs_customer_managed_key",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -30546,10 +30546,10 @@
         {
           "type": "azurerm_eventhub_namespace_customer_managed_key",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -31287,10 +31287,10 @@
         {
           "type": "azurerm_iotcentral_application_network_rule_set",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -31542,10 +31542,10 @@
         {
           "type": "azurerm_iothub_file_upload",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -31860,10 +31860,10 @@
         {
           "type": "azurerm_kubernetes_cluster_deployment_safeguard",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -32026,10 +32026,10 @@
         {
           "type": "azurerm_kusto_cluster_customer_managed_key",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -32466,10 +32466,10 @@
         {
           "type": "azurerm_log_analytics_cluster_customer_managed_key",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33233,10 +33233,10 @@
         {
           "type": "azurerm_managed_disk_sas_token",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33293,10 +33293,10 @@
         {
           "type": "azurerm_managed_redis_geo_replication",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -33947,10 +33947,10 @@
         {
           "type": "azurerm_mssql_job_schedule",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -34434,10 +34434,10 @@
         {
           "type": "azurerm_netapp_account_encryption",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -37588,10 +37588,10 @@
         {
           "type": "azurerm_servicebus_namespace_customer_managed_key",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -37804,10 +37804,10 @@
         {
           "type": "azurerm_signalr_service_network_acl",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38089,10 +38089,10 @@
         {
           "type": "azurerm_spring_cloud_active_deployment",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38720,10 +38720,10 @@
         {
           "type": "azurerm_storage_account_customer_managed_key",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38752,10 +38752,10 @@
         {
           "type": "azurerm_storage_account_network_rules",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38768,10 +38768,10 @@
         {
           "type": "azurerm_storage_account_queue_properties",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38784,10 +38784,10 @@
         {
           "type": "azurerm_storage_account_static_website",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38800,10 +38800,10 @@
         {
           "type": "azurerm_storage_account_table_properties",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -38831,10 +38831,10 @@
         {
           "type": "azurerm_storage_blob_inventory_policy",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -39294,10 +39294,10 @@
         {
           "type": "azurerm_stream_analytics_job_storage_account",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -39580,10 +39580,10 @@
         {
           "type": "azurerm_subnet_nat_gateway_association",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -39595,10 +39595,10 @@
         {
           "type": "azurerm_subnet_network_security_group_association",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -39610,10 +39610,10 @@
         {
           "type": "azurerm_subnet_route_table_association",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
@@ -41132,10 +41132,10 @@
         {
           "type": "azurerm_web_pubsub_network_acl",
           "tier": "record-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,

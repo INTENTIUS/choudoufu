@@ -963,6 +963,9 @@ func IsMarkerless(typeName string) bool {
 	if _, ok := MarkerlessTypes[typeName]; ok {
 		return true
 	}
+	if _, ok := AzureRecordCarriedTypes[typeName]; ok {
+		return true
+	}
 	_, ok := GoogleMarkerlessTypes[typeName]
 	return ok
 }
@@ -973,6 +976,9 @@ func IsMarkerless(typeName string) bool {
 func MarkerlessReasonFor(typeName string) string {
 	if _, ok := GoogleMarkerlessTypes[typeName]; ok {
 		return GoogleMarkerlessReason
+	}
+	if _, ok := AzureRecordCarriedTypes[typeName]; ok {
+		return AzureRecordCarriedReason
 	}
 	return MarkerlessReason
 }

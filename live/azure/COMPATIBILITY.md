@@ -25,7 +25,11 @@ one family, `substrate.Azure`, chosen by provider name.
 Of azapi's four resource types only `azapi_resource` is admitted.
 `azapi_update_resource` and `azapi_resource_action` act on an object they
 do not create, and `azapi_data_plane_resource` has no tags and no ARM id,
-so none of them owns the object its arguments name. The test is the
+so none of them owns the object its arguments name. The last is the
+exception that a declared record can hold: with a `record_store` it is
+admitted as record-carried (`identity.AzureRecordCarriedTypes`, #2203),
+as are 36 azurerm settings objects that take their parent's id as
+their own. The test is the
 schema's shape (`substrate.AzapiResourceShape`), not the type name.
 
 An azurerm importer's 404 is read as absence, not failure, in both forms
@@ -38,7 +42,7 @@ Every azurerm type whose ARM id template could be read from azurerm's own
 id parsers is admitted ([`live/azurerm-ids.json`](../azurerm-ids.json)),
 and so is every ARM type declared through `azapi_resource`.
 [`live/READINESS.md`](../READINESS.md#azure) generates the counts: of
-azurerm's 1,106 types, 849 are in contract, and all 3,397 of azapi's ARM
+azurerm's 1,106 types, 885 are in contract, and all 3,397 of azapi's ARM
 types are.
 
 ### Readiness tiers
@@ -52,7 +56,7 @@ block's `type` names.
 
 ### Refused
 
-The 257 azurerm types short of in-contract, each listed with its reason in
+The 221 azurerm types short of in-contract, each listed with its reason in
 `live/READINESS.md`:
 
 | Why | What happens |
