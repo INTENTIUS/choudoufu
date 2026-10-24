@@ -150,11 +150,11 @@ hashicorp/azurerm 5.10.0: 1106 resource types.
 
 | Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
 |---|---|---|---|---|---|---|---|
-| marker-carried | 371 | 0 | 0 | 16 | 0 | 0 | 387 |
-| declaration-carried | 589 | 0 | 0 | 0 | 0 | 0 | 589 |
-| record-carried | 36 | 0 | 0 | 94 | 0 | 0 | 130 |
+| marker-carried | 375 | 0 | 0 | 12 | 0 | 0 | 387 |
+| declaration-carried | 594 | 0 | 0 | 0 | 0 | 0 | 594 |
+| record-carried | 36 | 0 | 0 | 89 | 0 | 0 | 125 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Total | 996 | 0 | 0 | 110 | 0 | 0 | 1106 |
+| Total | 1005 | 0 | 0 | 101 | 0 | 0 | 1106 |
 
 azure/azapi 2.13.0: 3397 ARM resource types declared through azapi_resource.
 
@@ -173,8 +173,8 @@ The fence for azurerm, by tier and by where the type lives:
 | Tier | resource-group | from-argument | subscription | tenant | unknown | What Policy adds to the group RBAC |
 |---|---|---|---|---|---|---|
 | marker-carried | 375 | 1 | 1 | 3 | 7 | the deny on a write lacking or changing tofu-estate, and the delete lock when deleteLock is on |
-| declaration-carried | 541 | 23 | 15 | 10 | 0 | nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen |
-| record-carried | 89 | 18 | 2 | 1 | 20 | nothing, and the type is not admitted |
+| declaration-carried | 541 | 23 | 15 | 10 | 5 | nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen |
+| record-carried | 89 | 16 | 2 | 1 | 17 | nothing, and the type is not admitted |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | not admitted |
 
 | Scope | What the estate's group RBAC reaches |
@@ -203,7 +203,6 @@ The azurerm types short of in-contract:
 | `azurerm_api_management_gateway_api` | record-carried | needs-evidence | 1 |
 | `azurerm_api_management_subscription` | record-carried | needs-evidence | 1 |
 | `azurerm_app_configuration_feature` | marker-carried | needs-evidence | 1 |
-| `azurerm_app_configuration_key` | marker-carried | needs-evidence | 1 |
 | `azurerm_app_service_managed_certificate` | marker-carried | needs-evidence | 1 |
 | `azurerm_app_service_slot_virtual_network_swift_connection` | record-carried | needs-evidence | 1 |
 | `azurerm_app_service_source_control_slot` | record-carried | needs-evidence | 1 |
@@ -232,15 +231,8 @@ The azurerm types short of in-contract:
 | `azurerm_ip_group_cidr` | record-carried | needs-evidence | 1 |
 | `azurerm_key_vault_access_policy` | record-carried | needs-evidence | 1 |
 | `azurerm_key_vault_certificate` | marker-carried | needs-evidence | 1 |
-| `azurerm_key_vault_certificate_contacts` | record-carried | needs-evidence | 1 |
-| `azurerm_key_vault_certificate_issuer` | record-carried | needs-evidence | 1 |
 | `azurerm_key_vault_key` | marker-carried | needs-evidence | 1 |
-| `azurerm_key_vault_managed_hardware_security_module_key` | marker-carried | needs-evidence | 1 |
 | `azurerm_key_vault_managed_hardware_security_module_key_rotation_policy` | record-carried | needs-evidence | 1 |
-| `azurerm_key_vault_managed_hardware_security_module_role_assignment` | record-carried | needs-evidence | 1 |
-| `azurerm_key_vault_managed_hardware_security_module_role_definition` | record-carried | needs-evidence | 1 |
-| `azurerm_key_vault_managed_storage_account` | marker-carried | needs-evidence | 1 |
-| `azurerm_key_vault_managed_storage_account_sas_token_definition` | marker-carried | needs-evidence | 1 |
 | `azurerm_key_vault_secret` | marker-carried | needs-evidence | 1 |
 | `azurerm_log_analytics_data_export_rule` | record-carried | needs-evidence | 1 |
 | `azurerm_log_analytics_linked_service` | record-carried | needs-evidence | 1 |
@@ -283,7 +275,6 @@ The azurerm types short of in-contract:
 | `azurerm_site_recovery_vmware_replicated_vm` | record-carried | needs-evidence | 1 |
 | `azurerm_site_recovery_vmware_replication_policy_association` | record-carried | needs-evidence | 1 |
 | `azurerm_static_web_app_function_app_registration` | record-carried | needs-evidence | 1 |
-| `azurerm_storage_blob` | record-carried | needs-evidence | 1 |
 | `azurerm_storage_container_immutability_policy` | record-carried | needs-evidence | 1 |
 | `azurerm_storage_data_lake_gen2_filesystem` | record-carried | needs-evidence | 1 |
 | `azurerm_storage_data_lake_gen2_path` | record-carried | needs-evidence | 1 |

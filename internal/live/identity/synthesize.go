@@ -603,13 +603,16 @@ func fromSynthesized(typeName string, synth substrate.SynthesizedIdentity) TypeI
 	components := make([]Component, 0, len(synth.Components))
 	for _, c := range synth.Components {
 		comp := Component{
-			Literal:        c.Literal,
-			Attrs:          c.Attrs,
-			Block:          c.Block,
-			Path:           c.Path,
-			OmitIfAbsent:   c.OmitIfAbsent,
-			Cloud:          CloudValue(c.Cloud),
-			ARMTypeSegment: c.ARMTypeSegment,
+			Literal:         c.Literal,
+			Attrs:           c.Attrs,
+			Block:           c.Block,
+			Path:            c.Path,
+			OmitIfAbsent:    c.OmitIfAbsent,
+			Cloud:           CloudValue(c.Cloud),
+			ARMTypeSegment:  c.ARMTypeSegment,
+			ARMSegmentIndex: c.ARMSegmentIndex,
+			ARMSegmentAfter: c.ARMSegmentAfter,
+			URLEscape:       c.URLEscape,
 			// GitHub issue #2119: an Azure name the provider mints when it
 			// is omitted takes AWS's path for the same convention, the
 			// record rung through [resolver.recordFallback].

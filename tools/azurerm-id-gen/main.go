@@ -117,8 +117,11 @@ type entry struct {
 	// Create call (GitHub issue #2201 item 1, [createCallSources]), is the
 	// trace they came from. CreateCallProblem, on a row that stays unmapped,
 	// is why the Create call did not settle it.
-	CreateCall        *createCall `json:"create_call,omitempty"`
-	CreateCallProblem string      `json:"create_call_problem,omitempty"`
+	CreateCall *createCall `json:"create_call,omitempty"`
+	// DataPlane, on a derived data-plane URL row, is the evidence the
+	// family grammar was matched with (GitHub issue #2206, dataplane.go).
+	DataPlane         *dataPlaneInfo `json:"data_plane,omitempty"`
+	CreateCallProblem string         `json:"create_call_problem,omitempty"`
 	// Route is how choudoufu admits the type (#1120 unit 17), one of
 	// internal/live/substrate's AzurermRoute* values: identity-schema,
 	// template-fallback, template, parent-id, withheld or unmapped. See
@@ -283,6 +286,9 @@ func generate(src, schemaPath string) (*artifact, error) {
 func classify(l *loader, name string, ts typeSchema, r registration, src *idSource, problem string, c *contract, parentTypes func([]segment) []string, typeTemplate func(string) (string, bool)) entry {
 	if ce, ok := l.classifyComposite(name, ts, r, src, parentTypes); ok {
 		return ce
+	}
+	if spec, ok := dataPlaneType(name); ok {
+		return l.classifyDataPlane(name, ts, r, src, spec)
 	}
 	e := entry{Type: name, IdentitySchema: ts.Identity, Via: r.Via, IdentityContract: c}
 	var at map[string]int

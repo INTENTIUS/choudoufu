@@ -58,6 +58,14 @@ type component struct {
 	// constants), so a later unit can trust or re-check a row by the rule
 	// that made it rather than all-or-nothing.
 	Rule string `json:"rule,omitempty"`
+	// ARMSegment, on a data-plane row (dataplane.go), says the argument
+	// holds an ARM id and this component is one path segment of it.
+	ARMSegment *armSegment `json:"arm_segment,omitempty"`
+	// URLEscape is the escaping azurerm applies as it formats a URL id,
+	// "path" or "query"; OmitIfAbsent leaves an optional argument's segment
+	// empty when it is unset.
+	URLEscape    string `json:"url_escape,omitempty"`
+	OmitIfAbsent bool   `json:"omit_if_absent,omitempty"`
 }
 
 // Mapping rules, recorded on each component that names an argument.
@@ -65,6 +73,9 @@ const (
 	// ruleSubscription: the provider configuration's subscription, or the
 	// type's own subscription_id read as its validator says.
 	ruleSubscription = "subscription"
+	// ruleDataPlane: a data-plane URL id's component, read off azurerm's
+	// own id code by the family grammar in dataplane.go.
+	ruleDataPlane = "data-plane"
 	// ruleSegmentName: the argument is the segment's own name in
 	// snake_case (storageAccountName -> storage_account_name), or name for
 	// the last segment, or a word-suffix of either.

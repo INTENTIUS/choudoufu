@@ -625,6 +625,31 @@ type Component struct {
 	// is refused rather than rendered later.
 	ARMTypeSegment bool
 
+	// ARMSegmentIndex, when positive, says the argument holds an Azure ARM
+	// id and this component contributes one path segment of it: the one at
+	// position ARMSegmentIndex of the id split on "/" (the id's leading "/"
+	// makes position 0 the empty string, so "/subscriptions/s/resourceGroups/g
+	// /providers/Microsoft.KeyVault/vaults/kv" has its name at 8).
+	// ARMSegmentAfter is the text of the segment before it ("vaults"),
+	// compared without regard to case: a value of any other shape is refused
+	// by name, never misread. The Azure data-plane ids are the users (GitHub
+	// issue #2206): a Key Vault's host is the name segment of key_vault_id
+	// and the cloud's suffix. A value only an apply can know, a reference to
+	// the parent's id, is carried as that reference with the same two steps
+	// applied to it (split on "/", element ARMSegmentIndex), so the id
+	// renders once the parent's id is known.
+	ARMSegmentIndex int
+	ARMSegmentAfter string
+
+	// URLEscape is the escaping azurerm applies to this argument's value
+	// when it formats a URL id (GitHub issue #2206): "path" is
+	// url.PathEscape, which App Configuration puts on a key, and "query"
+	// is url.QueryEscape, which it puts on a label. Empty, the ordinary
+	// case, is the value as written. A literal value is escaped here; a
+	// value only an apply can know is refused by name, since the escape
+	// reads its text and a formula cannot carry it.
+	URLEscape string
+
 	// LongForm names a rewrite the provider applies to this argument's
 	// value before it becomes part of the id (#2144). Empty, the ordinary
 	// case, means the value is substituted as written, which is what the

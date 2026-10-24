@@ -1860,6 +1860,14 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			fail(sibBefore, "")
 			continue
 		}
+		if got, ok = r.armSegmentValue(comp, addr, attr, got); !ok {
+			fail(sibBefore, "")
+			continue
+		}
+		if got, ok = r.urlEscapeValue(comp, addr, attr, got); !ok {
+			fail(sibBefore, "")
+			continue
+		}
 		// The identity-attribute formula gets the resolved value alone; a
 		// prefix Literal (see [Component.Literal] and [Component.OmitIfAbsent])
 		// is punctuation in the import-ID STRING, not part of the identity

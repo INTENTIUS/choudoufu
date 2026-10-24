@@ -196,6 +196,20 @@ type azurermIDComponent struct {
 	Cloud   string   `json:"cloud"`
 	ARMID   bool     `json:"arm_id"`
 	Segment string   `json:"segment"`
+	// ARMSegment, on a data-plane row (GitHub issue #2206), says the one
+	// argument holds an ARM id and this component is the path segment at
+	// Index of it, after the segment named After.
+	ARMSegment *azurermARMSegment `json:"arm_segment"`
+	// URLEscape is "path" or "query" where azurerm escapes the value as it
+	// formats the URL; OmitIfAbsent is an optional argument whose absence
+	// leaves an empty segment (App Configuration's label).
+	URLEscape    string `json:"url_escape"`
+	OmitIfAbsent bool   `json:"omit_if_absent"`
+}
+
+type azurermARMSegment struct {
+	Index int    `json:"index"`
+	After string `json:"after"`
 }
 
 // The routes the generator records per type (#1120 unit 17), the field
@@ -316,8 +330,21 @@ func parseAzurermIDs(raw []byte) (*azurermIDs, error) {
 // the last of these: its {scopePath} was mapped to the scope argument,
 // whose value is "shared" or "user", not an id.
 func azurermSegmentProblem(t azurermIDType) string {
+	dataPlane := false
+	for _, c := range t.Components {
+		if c.ARMSegment != nil || azurermDNSSuffixCloud(c.Cloud) {
+			dataPlane = true
+		}
+	}
+	if dataPlane {
+		if why := azurermDataPlaneProblem(t); why != "" {
+			return why
+		}
+	}
 	for i, c := range t.Components {
 		switch {
+		case c.ARMSegment != nil || azurermDNSSuffixCloud(c.Cloud):
+			// Held to the family grammar above.
 		case c.Cloud != "":
 			if c.Cloud != azurermCloudSubscription || len(c.Attrs) > 0 {
 				return fmt.Sprintf("segment {%s} is the provider configuration's %q, which this family does not answer", c.Segment, c.Cloud)
@@ -565,7 +592,7 @@ func azurermRowShapeProblem(t azurermIDType) string {
 	if len(t.Components) == 0 {
 		return "it has no components"
 	}
-	if len(t.Components[len(t.Components)-1].Attrs) == 0 && !azurermEndsInCreateConstant(t) {
+	if len(t.Components[len(t.Components)-1].Attrs) == 0 && !azurermEndsInCreateConstant(t) && !azurermDataPlaneSingleton(t) {
 		return "its id does not end in an argument naming the object"
 	}
 	for _, c := range t.Components {
@@ -754,11 +781,16 @@ func AzurermWithheldIn(raw []byte) (map[string]string, error) {
 func azurermTemplate(row azurermIDType) SynthesizedIdentity {
 	comps := make([]IdentityComponent, 0, len(row.Components))
 	for _, c := range row.Components {
-		comps = append(comps, IdentityComponent{
+		ic := IdentityComponent{
 			Literal: c.Literal,
 			Attrs:   append([]string(nil), c.Attrs...),
 			Cloud:   c.Cloud,
-		})
+		}
+		ic.URLEscape, ic.OmitIfAbsent = c.URLEscape, c.OmitIfAbsent
+		if c.ARMSegment != nil {
+			ic.ARMSegmentIndex, ic.ARMSegmentAfter = c.ARMSegment.Index, c.ARMSegment.After
+		}
+		comps = append(comps, ic)
 	}
 	return SynthesizedIdentity{
 		NonAWSProvider: true,
@@ -824,4 +856,13 @@ func AzurermWithheld() [][2]string {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i][0] < out[j][0] })
 	return out
+}
+
+// azurermDataPlaneSingleton reports whether the row is a data-plane id that
+// ends in a fixed path: the one object a vault holds, such as its
+// certificate contacts, named by the parent whose host the id carries. The
+// grammar ([azurermDataPlaneProblem]) has already held the host to an
+// argument, so the id is not a constant.
+func azurermDataPlaneSingleton(t azurermIDType) bool {
+	return len(t.Components) > 1 && t.Components[1].ARMSegment != nil
 }

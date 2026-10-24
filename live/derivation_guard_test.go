@@ -209,6 +209,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"check, not the hand-wiring. Exported (issue #418) so tools/readiness-gen can read it directly.",
 		Data: 3, Code: 0,
 	},
+	"tools/azurerm-id-gen/dataplane.go": {
+		Reason: "dataPlaneSpecs (issue #2206): the 19 azurerm 5.10.0 types whose id is a data-plane URL, keyed by type because " +
+			"no id type states such an id's grammar (five hand-written ID() shapes, none a Segments() list). Each derived entry " +
+			"is held at generation time to the string literals of the id type's ID(), to the names the resource's code uses " +
+			"for the host, and to the id type its ARM-id argument's validator or Parse call names; a mismatch refuses the type. " +
+			"Each refused entry carries its reason, which is the artifact's, not a gap in the table.",
+		Data: 19, Code: 0,
+	},
 	"internal/live/identity/azure_resourcegroup.go": {
 		Reason: "foreignResourceGroupWarnings (issue #1122): the Azure fence ruling defines an estate as the resource " +
 			"groups it declares, so the warning has to recognise the block that declares a group. azurerm_resource_group " +
@@ -757,7 +765,10 @@ const (
 	// azurerm_resource_group once, as a package-level const, because the
 	// ruling defines an estate as the groups it declares
 	// (internal/live/identity/azure_resourcegroup.go).
-	typeLiteralDataTotal = 1251
+	// 1251 -> 1270 data, code unchanged, on 2026-10-24 (#2206):
+	// tools/azurerm-id-gen/dataplane.go's dataPlaneSpecs, the 19 data-plane
+	// URL types, 19 new Data literals, none moved.
+	typeLiteralDataTotal = 1270
 	typeLiteralCodeTotal = 131
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
