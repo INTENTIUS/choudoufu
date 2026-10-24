@@ -87,6 +87,11 @@ const discoveryAWSLeg = "an AWS discovery leg (tagging index, list, Cloud Contro
 // leg.
 const discoveryAzureLeg = "the Azure discovery leg (Resource Graph), run as discovery.ResourceGraphSweep: it reads the ARM tag map case-insensitively and files each resource through the tag sweep's own fileCandidate. internal/command picks a pass's discovery.Sweeper legs by the provider family's substrate.Sweep property (sweepLegBuilders in internal/command/live_plan.go), not by surface, so the choice is not a seam this guard measures"
 
+// discoveryDataPlaneLeg is the reason the Azure data-plane discovery leg is
+// exempt (GitHub issue #2205): the discoveryAzureLeg reason, for the Key
+// Vault listing that Resource Graph does not index.
+const discoveryDataPlaneLeg = "the Azure data-plane discovery leg, run as discovery.DataPlaneSweep: it reads the ARM tag map case-insensitively (markers.CanonicalARMMarkers) off Key Vault keys, secrets and certificates and files each through the tag sweep's own fileCandidate. internal/command picks a pass's discovery.Sweeper legs by the provider family's substrate.Sweep property (sweepLegBuilders in internal/command/live_plan.go), not by surface, so the choice is not a seam this guard measures"
+
 // sweepFieldCredit is why the AWS discovery seams that read a Sweep field
 // are measured handling the ARM tag surface too.
 const sweepFieldCredit = "credited with the Azure leg's arm-tags arm by name alone: it reads a Sweep field (Request.Sweep or TypeScan.Sweep), which this guard's syntactic resolution takes for every method named Sweep in the package, discovery.ResourceGraphSweep.Sweep among them (GitHub issue #1120). Otherwise " + discoveryAWSLeg
@@ -123,9 +128,14 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 	"internal/live/discovery/reconcile.go":                                                     {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
 	"internal/live/discovery/sweepconcurrency.go":                                              {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
 	"internal/live/discovery/tagging.go":                                                       {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
+	"internal/live/discovery/dataplane.go":                                                     {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: discoveryDataPlaneLeg},
 	"internal/live/discovery/resourcegraph.go":                                                 {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: discoveryAzureLeg},
 	"internal/live/discovery/cloudcontrol.go:scanTypeCloudControl":                             {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
 	"internal/live/discovery/directread.go:directReadFallback":                                 {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/discovery.go:Discover":                                            {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/discovery.go:discover":                                            {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/result.go:TypeScan.String":                                        {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/sweeper.go:TaggingIndexSweep.Sweep":                               {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
 	"internal/live/discovery/discovery.go:scanType":                                            {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
 	"internal/live/discovery/discovery.go:scanTypeReporting":                                   {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
 	"internal/live/discovery/lookalikerelist.go:relistForLookalikes":                           {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
