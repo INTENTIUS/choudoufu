@@ -189,14 +189,17 @@ func TestAzurermServedSchemaGuard(t *testing.T) {
 // left withheld for template-fallback: azurerm ships no identity test for
 // them and the Create call stands in. azurerm_api_management_api_policy
 // came out withheld by the shared-template guard.
+//
+// GitHub issue #2206 moved 9 data-plane URL types out of unmapped, 8 to
+// template and 1 to parent-id.
 var azurermRoutesPinned = map[string]int{
 	AzurermRouteIdentitySchema:   103,
 	AzurermRouteTemplateFallback: 82,
-	AzurermRouteTemplate:         361,
-	AzurermRouteParentID:         403,
+	AzurermRouteTemplate:         369,
+	AzurermRouteParentID:         404,
 	AzurermRouteComposite:        14,
 	AzurermRouteWithheld:         8,
-	AzurermRouteUnmapped:         135,
+	AzurermRouteUnmapped:         126,
 }
 
 // TestAzurermRoutesAreTheGuardsVerdicts is condition (c)'s guard on this

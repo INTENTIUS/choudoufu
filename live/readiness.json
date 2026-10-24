@@ -24520,13 +24520,13 @@
       "counts": {
         "types": 1106,
         "tiers": {
-          "declaration-carried": 589,
+          "declaration-carried": 594,
           "marker-carried": 387,
-          "record-carried": 130
+          "record-carried": 125
         },
         "statuses": {
-          "in-contract": 996,
-          "needs-evidence": 110
+          "in-contract": 1005,
+          "needs-evidence": 101
         }
       },
       "types": [
@@ -25524,14 +25524,14 @@
         {
           "type": "azurerm_app_configuration_key",
           "tier": "marker-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": true,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
+            "arm_id_class": "template",
             "arm_scope": "unknown",
             "rejected": false
           }
@@ -31663,31 +31663,31 @@
         },
         {
           "type": "azurerm_key_vault_certificate_contacts",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
+            "arm_id_class": "template",
             "arm_scope": "unknown",
             "rejected": false
           }
         },
         {
           "type": "azurerm_key_vault_certificate_issuer",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
-            "arm_scope": "from-argument",
+            "arm_id_class": "template",
+            "arm_scope": "unknown",
             "rejected": false
           }
         },
@@ -31724,14 +31724,14 @@
         {
           "type": "azurerm_key_vault_managed_hardware_security_module_key",
           "tier": "marker-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": true,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
+            "arm_id_class": "template",
             "arm_scope": "unknown",
             "rejected": false
           }
@@ -31753,30 +31753,30 @@
         },
         {
           "type": "azurerm_key_vault_managed_hardware_security_module_role_assignment",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
+            "arm_id_class": "template",
             "arm_scope": "unknown",
             "rejected": false
           }
         },
         {
           "type": "azurerm_key_vault_managed_hardware_security_module_role_definition",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
+            "arm_id_class": "template",
             "arm_scope": "unknown",
             "rejected": false
           }
@@ -31784,14 +31784,14 @@
         {
           "type": "azurerm_key_vault_managed_storage_account",
           "tier": "marker-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": true,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
+            "arm_id_class": "template",
             "arm_scope": "unknown",
             "rejected": false
           }
@@ -31799,14 +31799,14 @@
         {
           "type": "azurerm_key_vault_managed_storage_account_sas_token_definition",
           "tier": "marker-carried",
-          "status": "needs-evidence",
+          "status": "in-contract",
           "facts": {
             "taggable": true,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
+            "arm_id_class": "parent-id",
             "arm_scope": "from-argument",
             "rejected": false
           }
@@ -38817,15 +38817,15 @@
         },
         {
           "type": "azurerm_storage_blob",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
+            "arm_id_class": "template",
             "arm_scope": "unknown",
             "rejected": false
           }
@@ -39121,7 +39121,7 @@
             "not_importable": false,
             "tier_d": false,
             "arm_id_class": "unmapped",
-            "arm_scope": "from-argument",
+            "arm_scope": "unknown",
             "rejected": false
           }
         },

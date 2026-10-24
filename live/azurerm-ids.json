@@ -12,16 +12,16 @@
     "identity-schema/parent-id": 70,
     "identity-schema/template": 115,
     "identity-schema/unmapped": 11,
-    "parent-id": 407,
+    "parent-id": 408,
     "route/composite": 14,
     "route/identity-schema": 103,
-    "route/parent-id": 403,
-    "route/template": 361,
+    "route/parent-id": 404,
+    "route/template": 369,
     "route/template-fallback": 82,
-    "route/unmapped": 135,
+    "route/unmapped": 126,
     "route/withheld": 8,
-    "template": 365,
-    "unmapped": 124
+    "template": 373,
+    "unmapped": 115
   },
   "types": [
     {
@@ -3249,12 +3249,12 @@
         "file": "internal/services/appconfiguration/parse/nested_item.go"
       },
       "read": "not-found",
-      "reason": "ID() format is not an ARM path",
+      "reason": "data-plane id not derived: its key is the key argument when set and the name argument otherwise, prefixed with .appconfig.featureflag/, which is a choice between two arguments this table does not make",
       "route": "unmapped"
     },
     {
       "type": "azurerm_app_configuration_key",
-      "class": "unmapped",
+      "class": "template",
       "via": "IDValidationFunc",
       "source": {
         "kind": "hand-parser",
@@ -3262,9 +3262,81 @@
         "id_type": "NestedItemId",
         "file": "internal/services/appconfiguration/parse/nested_item.go"
       },
+      "template": "https://{configurationStoreName}.{appConfigurationDnsSuffix}/kv/{key}?label={label}",
+      "components": [
+        {
+          "literal": "https://"
+        },
+        {
+          "attrs": [
+            "configuration_store_id"
+          ],
+          "segment": "configurationStoreName",
+          "rule": "data-plane",
+          "arm_segment": {
+            "index": 8,
+            "after": "configurationStores"
+          }
+        },
+        {
+          "literal": "."
+        },
+        {
+          "cloud": "app-configuration-dns-suffix",
+          "segment": "appConfigurationDnsSuffix",
+          "rule": "data-plane"
+        },
+        {
+          "literal": "/kv/"
+        },
+        {
+          "attrs": [
+            "key"
+          ],
+          "segment": "key",
+          "rule": "data-plane",
+          "url_escape": "path"
+        },
+        {
+          "literal": "?label="
+        },
+        {
+          "attrs": [
+            "label"
+          ],
+          "segment": "label",
+          "rule": "data-plane",
+          "url_escape": "query",
+          "omit_if_absent": true
+        }
+      ],
       "read": "not-found",
-      "reason": "ID() format is not an ARM path",
-      "route": "unmapped"
+      "data_plane": {
+        "family": "app-configuration",
+        "id_literals": {
+          "NestedItemId": [
+            "kv/%s",
+            "kv/%s",
+            "label=%s"
+          ]
+        },
+        "uses": [
+          "EndpointForConfigurationStore",
+          "NewNestedItemID"
+        ],
+        "parents": {
+          "configuration_store_id": {
+            "id_type": "ConfigurationStoreId",
+            "segments": {
+              "configurationStoreName": {
+                "index": 8,
+                "after": "configurationStores"
+              }
+            }
+          }
+        }
+      },
+      "route": "template"
     },
     {
       "type": "azurerm_app_service_certificate",
@@ -27740,12 +27812,12 @@
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/keyvault/nested_item.go"
       },
       "read": "not-found",
-      "reason": "ID() does not format a path with fmt.Sprintf",
+      "reason": "data-plane id not derived: its id is the versioned id the Key Vault service returns from the create (azurerm sets it from the response's id), and a version is minted by the server, so the id is located by record, not derived (#2205)",
       "route": "unmapped"
     },
     {
       "type": "azurerm_key_vault_certificate_contacts",
-      "class": "unmapped",
+      "class": "template",
       "via": "IDValidationFunc",
       "source": {
         "kind": "hand-parser",
@@ -27753,13 +27825,66 @@
         "id_type": "CertificateContactsId",
         "file": "internal/services/keyvault/parse/certificate_contacts.go"
       },
+      "template": "https://{keyVaultName}.{keyVaultDnsSuffix}/certificates/contacts",
+      "components": [
+        {
+          "literal": "https://"
+        },
+        {
+          "attrs": [
+            "key_vault_id"
+          ],
+          "segment": "keyVaultName",
+          "rule": "data-plane",
+          "arm_segment": {
+            "index": 8,
+            "after": "vaults"
+          }
+        },
+        {
+          "literal": "."
+        },
+        {
+          "cloud": "key-vault-dns-suffix",
+          "segment": "keyVaultDnsSuffix",
+          "rule": "data-plane"
+        },
+        {
+          "literal": "/certificates/contacts"
+        }
+      ],
       "read": "not-found",
-      "reason": "ID() does not format a path with fmt.Sprintf",
-      "route": "unmapped"
+      "data_plane": {
+        "family": "key-vault",
+        "id_literals": {
+          "CertificateContactsId": [
+            "/",
+            "certificates",
+            "contacts",
+            "/",
+            "/"
+          ]
+        },
+        "uses": [
+          "BaseUriForKeyVault"
+        ],
+        "parents": {
+          "key_vault_id": {
+            "id_type": "KeyVaultId",
+            "segments": {
+              "keyVaultName": {
+                "index": 8,
+                "after": "vaults"
+              }
+            }
+          }
+        }
+      },
+      "route": "template"
     },
     {
       "type": "azurerm_key_vault_certificate_issuer",
-      "class": "unmapped",
+      "class": "template",
       "via": "Importer",
       "source": {
         "kind": "hand-parser",
@@ -27767,12 +27892,66 @@
         "id_type": "IssuerId",
         "file": "internal/services/keyvault/parse/certificate_issuer.go"
       },
-      "template": "{keyVaultBaseUrl}/certificates/issuers/{name}",
+      "template": "https://{keyVaultName}.{keyVaultDnsSuffix}/certificates/issuers/{name}",
+      "components": [
+        {
+          "literal": "https://"
+        },
+        {
+          "attrs": [
+            "key_vault_id"
+          ],
+          "segment": "keyVaultName",
+          "rule": "data-plane",
+          "arm_segment": {
+            "index": 8,
+            "after": "vaults"
+          }
+        },
+        {
+          "literal": "."
+        },
+        {
+          "cloud": "key-vault-dns-suffix",
+          "segment": "keyVaultDnsSuffix",
+          "rule": "data-plane"
+        },
+        {
+          "literal": "/certificates/issuers/"
+        },
+        {
+          "attrs": [
+            "name"
+          ],
+          "segment": "name",
+          "rule": "data-plane"
+        }
+      ],
       "read": "agrees",
-      "reason": "data-plane id (a URL, not an ARM path)",
-      "detail": "segment keyVaultBaseUrl",
-      "create_call_problem": "segment {keyVaultBaseUrl} is keyVaultBaseUri is the result of keyVaultsClient.BaseUriForKeyVault(...), which no configuration states",
-      "route": "unmapped"
+      "data_plane": {
+        "family": "key-vault",
+        "id_literals": {
+          "IssuerId": [
+            "%s/certificates/issuers/%s",
+            "/"
+          ]
+        },
+        "uses": [
+          "BaseUriForKeyVault"
+        ],
+        "parents": {
+          "key_vault_id": {
+            "id_type": "KeyVaultId",
+            "segments": {
+              "keyVaultName": {
+                "index": 8,
+                "after": "vaults"
+              }
+            }
+          }
+        }
+      },
+      "route": "template"
     },
     {
       "type": "azurerm_key_vault_key",
@@ -27785,7 +27964,7 @@
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/keyvault/nested_item.go"
       },
       "read": "not-found",
-      "reason": "ID() does not format a path with fmt.Sprintf",
+      "reason": "data-plane id not derived: its id is the versioned id the Key Vault service returns from the create (azurerm sets it from the response's id), and a version is minted by the server, so the id is located by record, not derived (#2205)",
       "route": "unmapped"
     },
     {
@@ -27834,7 +28013,7 @@
     },
     {
       "type": "azurerm_key_vault_managed_hardware_security_module_key",
-      "class": "unmapped",
+      "class": "template",
       "via": "IDValidationFunc",
       "source": {
         "kind": "hand-parser",
@@ -27842,9 +28021,66 @@
         "id_type": "ManagedHSMDataPlaneVersionlessKeyId",
         "file": "internal/services/managedhsm/parse/managed_hsm_data_plane_versionless_key.go"
       },
+      "template": "https://{managedHsmName}.{managedHsmDnsSuffix}/keys/{keyName}",
+      "components": [
+        {
+          "literal": "https://"
+        },
+        {
+          "attrs": [
+            "managed_hsm_id"
+          ],
+          "segment": "managedHsmName",
+          "rule": "data-plane",
+          "arm_segment": {
+            "index": 8,
+            "after": "managedHSMs"
+          }
+        },
+        {
+          "literal": "."
+        },
+        {
+          "cloud": "managed-hsm-dns-suffix",
+          "segment": "managedHsmDnsSuffix",
+          "rule": "data-plane"
+        },
+        {
+          "literal": "/keys/"
+        },
+        {
+          "attrs": [
+            "name"
+          ],
+          "segment": "keyName",
+          "rule": "data-plane"
+        }
+      ],
       "read": "not-found",
-      "reason": "ID() format is not an ARM path",
-      "route": "unmapped"
+      "data_plane": {
+        "family": "managed-hsm",
+        "id_literals": {
+          "ManagedHSMDataPlaneVersionlessKeyId": [
+            "https://%s.%s/keys/%s"
+          ]
+        },
+        "uses": [
+          "DomainSuffix",
+          "NewManagedHSMDataPlaneVersionlessKeyID"
+        ],
+        "parents": {
+          "managed_hsm_id": {
+            "id_type": "ManagedHSMId",
+            "segments": {
+              "managedHsmName": {
+                "index": 8,
+                "after": "managedHSMs"
+              }
+            }
+          }
+        }
+      },
+      "route": "template"
     },
     {
       "type": "azurerm_key_vault_managed_hardware_security_module_key_rotation_policy",
@@ -27857,12 +28093,12 @@
         "file": "internal/services/managedhsm/parse/managed_hsm_data_plane_versionless_key.go"
       },
       "read": "not-found",
-      "reason": "ID() format is not an ARM path",
+      "reason": "data-plane id not derived: its id is its managed_hsm_key_id argument, parsed and formatted again, so it names the key the policy configures and not an object the policy owns",
       "route": "unmapped"
     },
     {
       "type": "azurerm_key_vault_managed_hardware_security_module_role_assignment",
-      "class": "unmapped",
+      "class": "template",
       "via": "IDValidationFunc",
       "source": {
         "kind": "hand-parser",
@@ -27870,13 +28106,83 @@
         "id_type": "ManagedHSMDataPlaneRoleAssignmentId",
         "file": "internal/services/managedhsm/parse/managed_hsm_data_plane_role_assignment.go"
       },
+      "template": "https://{managedHsmName}.{managedHsmDnsSuffix}/{scope}/providers/Microsoft.Authorization/roleAssignments/{roleAssignmentName}",
+      "components": [
+        {
+          "literal": "https://"
+        },
+        {
+          "attrs": [
+            "managed_hsm_id"
+          ],
+          "segment": "managedHsmName",
+          "rule": "data-plane",
+          "arm_segment": {
+            "index": 8,
+            "after": "managedHSMs"
+          }
+        },
+        {
+          "literal": "."
+        },
+        {
+          "cloud": "managed-hsm-dns-suffix",
+          "segment": "managedHsmDnsSuffix",
+          "rule": "data-plane"
+        },
+        {
+          "literal": "/"
+        },
+        {
+          "attrs": [
+            "scope"
+          ],
+          "segment": "scope",
+          "rule": "data-plane"
+        },
+        {
+          "literal": "/providers/Microsoft.Authorization/roleAssignments/"
+        },
+        {
+          "attrs": [
+            "name"
+          ],
+          "segment": "roleAssignmentName",
+          "rule": "data-plane"
+        }
+      ],
       "read": "not-found",
-      "reason": "ID() format is not an ARM path",
-      "route": "unmapped"
+      "data_plane": {
+        "family": "managed-hsm",
+        "id_literals": {
+          "ManagedHSMDataPlaneRoleAssignmentId": [
+            "https://%s.%s%s"
+          ],
+          "managedHSMRoleAssignmentPathId": [
+            "/%s/providers/Microsoft.Authorization/roleAssignments/%s"
+          ]
+        },
+        "uses": [
+          "DomainSuffix",
+          "NewManagedHSMDataPlaneRoleAssignmentID"
+        ],
+        "parents": {
+          "managed_hsm_id": {
+            "id_type": "ManagedHSMId",
+            "segments": {
+              "managedHsmName": {
+                "index": 8,
+                "after": "managedHSMs"
+              }
+            }
+          }
+        }
+      },
+      "route": "template"
     },
     {
       "type": "azurerm_key_vault_managed_hardware_security_module_role_definition",
-      "class": "unmapped",
+      "class": "template",
       "via": "IDValidationFunc",
       "source": {
         "kind": "hand-parser",
@@ -27884,13 +28190,74 @@
         "id_type": "ManagedHSMDataPlaneRoleDefinitionId",
         "file": "internal/services/managedhsm/parse/managed_hsm_data_plane_role_definition.go"
       },
+      "template": "https://{managedHsmName}.{managedHsmDnsSuffix}///providers/Microsoft.Authorization/roleDefinitions/{roleDefinitionName}",
+      "components": [
+        {
+          "literal": "https://"
+        },
+        {
+          "attrs": [
+            "managed_hsm_id"
+          ],
+          "segment": "managedHsmName",
+          "rule": "data-plane",
+          "arm_segment": {
+            "index": 8,
+            "after": "managedHSMs"
+          }
+        },
+        {
+          "literal": "."
+        },
+        {
+          "cloud": "managed-hsm-dns-suffix",
+          "segment": "managedHsmDnsSuffix",
+          "rule": "data-plane"
+        },
+        {
+          "literal": "///providers/Microsoft.Authorization/roleDefinitions/"
+        },
+        {
+          "attrs": [
+            "name"
+          ],
+          "segment": "roleDefinitionName",
+          "rule": "data-plane"
+        }
+      ],
       "read": "not-found",
-      "reason": "ID() format is not an ARM path",
-      "route": "unmapped"
+      "data_plane": {
+        "family": "managed-hsm",
+        "id_literals": {
+          "ManagedHSMDataPlaneRoleDefinitionId": [
+            "https://%s.%s%s"
+          ],
+          "managedHSMRoleDefinitionPathId": [
+            "/%s/providers/Microsoft.Authorization/roleDefinitions/%s"
+          ]
+        },
+        "uses": [
+          "DomainSuffix",
+          "NewManagedHSMDataPlaneRoleDefinitionID",
+          "RoleScopeGlobal"
+        ],
+        "parents": {
+          "managed_hsm_id": {
+            "id_type": "ManagedHSMId",
+            "segments": {
+              "managedHsmName": {
+                "index": 8,
+                "after": "managedHSMs"
+              }
+            }
+          }
+        }
+      },
+      "route": "template"
     },
     {
       "type": "azurerm_key_vault_managed_storage_account",
-      "class": "unmapped",
+      "class": "template",
       "via": "Importer",
       "source": {
         "kind": "hand-parser",
@@ -27898,13 +28265,71 @@
         "id_type": "NestedItemID",
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/keyvault/nested_item.go"
       },
+      "template": "https://{keyVaultName}.{keyVaultDnsSuffix}/storage/{name}",
+      "components": [
+        {
+          "literal": "https://"
+        },
+        {
+          "attrs": [
+            "key_vault_id"
+          ],
+          "segment": "keyVaultName",
+          "rule": "data-plane",
+          "arm_segment": {
+            "index": 8,
+            "after": "vaults"
+          }
+        },
+        {
+          "literal": "."
+        },
+        {
+          "cloud": "key-vault-dns-suffix",
+          "segment": "keyVaultDnsSuffix",
+          "rule": "data-plane"
+        },
+        {
+          "literal": "/storage/"
+        },
+        {
+          "attrs": [
+            "name"
+          ],
+          "segment": "name",
+          "rule": "data-plane"
+        }
+      ],
       "read": "not-found",
-      "reason": "ID() does not format a path with fmt.Sprintf",
-      "route": "unmapped"
+      "data_plane": {
+        "family": "key-vault",
+        "id_literals": {
+          "NestedItemID": [
+            "",
+            "/"
+          ]
+        },
+        "uses": [
+          "BaseUriForKeyVault",
+          "NestedItemTypeStorage"
+        ],
+        "parents": {
+          "key_vault_id": {
+            "id_type": "KeyVaultId",
+            "segments": {
+              "keyVaultName": {
+                "index": 8,
+                "after": "vaults"
+              }
+            }
+          }
+        }
+      },
+      "route": "template"
     },
     {
       "type": "azurerm_key_vault_managed_storage_account_sas_token_definition",
-      "class": "unmapped",
+      "class": "parent-id",
       "via": "Importer",
       "source": {
         "kind": "hand-parser",
@@ -27912,12 +28337,40 @@
         "id_type": "SasDefinitionId",
         "file": "internal/services/keyvault/parse/sas_definition.go"
       },
-      "template": "{keyVaultBaseUrl}/storage/{storageAccountName}/sas/{name}",
+      "template": "{managedStorageAccountId}/sas/{name}",
+      "components": [
+        {
+          "attrs": [
+            "managed_storage_account_id"
+          ],
+          "arm_id": true,
+          "segment": "managedStorageAccountId",
+          "rule": "data-plane"
+        },
+        {
+          "literal": "/sas/"
+        },
+        {
+          "attrs": [
+            "name"
+          ],
+          "segment": "name",
+          "rule": "data-plane"
+        }
+      ],
       "read": "agrees",
-      "reason": "data-plane id (a URL, not an ARM path)",
-      "detail": "segment keyVaultBaseUrl",
-      "create_call_problem": "Create does not build the id with a constructor of an id shaped {keyVaultBaseUrl}/storage/{storageAccountName}/sas/{name}",
-      "route": "unmapped"
+      "data_plane": {
+        "family": "key-vault",
+        "id_literals": {
+          "SasDefinitionId": [
+            "%s/storage/%s/sas/%s"
+          ]
+        },
+        "uses": [
+          "NestedItemTypeStorage"
+        ]
+      },
+      "route": "parent-id"
     },
     {
       "type": "azurerm_key_vault_secret",
@@ -27930,7 +28383,7 @@
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/keyvault/nested_item.go"
       },
       "read": "not-found",
-      "reason": "ID() does not format a path with fmt.Sprintf",
+      "reason": "data-plane id not derived: its id is the versioned id the Key Vault service returns from the create (azurerm sets it from the response's id), and a version is minted by the server, so the id is located by record, not derived (#2205)",
       "route": "unmapped"
     },
     {
@@ -51454,7 +51907,7 @@
     },
     {
       "type": "azurerm_storage_blob",
-      "class": "unmapped",
+      "class": "template",
       "via": "Importer",
       "source": {
         "kind": "hand-parser",
@@ -51462,9 +51915,89 @@
         "id_type": "BlobId",
         "file": "vendor/github.com/jackofallops/giovanni/storage/2023-11-03/blob/blobs/resource_id.go"
       },
+      "template": "https://{storageAccountName}.blob.{storageDnsSuffix}/{containerName}/{name}",
+      "components": [
+        {
+          "literal": "https://"
+        },
+        {
+          "attrs": [
+            "storage_container_id"
+          ],
+          "segment": "storageAccountName",
+          "rule": "data-plane",
+          "arm_segment": {
+            "index": 8,
+            "after": "storageAccounts"
+          }
+        },
+        {
+          "literal": ".blob."
+        },
+        {
+          "cloud": "storage-dns-suffix",
+          "segment": "storageDnsSuffix",
+          "rule": "data-plane"
+        },
+        {
+          "literal": "/"
+        },
+        {
+          "attrs": [
+            "storage_container_id"
+          ],
+          "segment": "containerName",
+          "rule": "data-plane",
+          "arm_segment": {
+            "index": 12,
+            "after": "containers"
+          }
+        },
+        {
+          "literal": "/"
+        },
+        {
+          "attrs": [
+            "name"
+          ],
+          "segment": "name",
+          "rule": "data-plane"
+        }
+      ],
       "read": "not-found",
-      "reason": "ID() argument is not an id field",
-      "route": "unmapped"
+      "data_plane": {
+        "family": "storage",
+        "id_literals": {
+          "AccountId": [
+            "https://%s",
+            "."
+          ],
+          "BlobId": [
+            "%s/%s/%s"
+          ]
+        },
+        "uses": [
+          "StorageDomainSuffix",
+          "BlobSubDomainType",
+          "NewBlobID"
+        ],
+        "parents": {
+          "storage_container_id": {
+            "id_type": "StorageContainerId",
+            "segments": {
+              "containerName": {
+                "index": 12,
+                "after": "containers"
+              },
+              "storageAccountName": {
+                "index": 8,
+                "after": "storageAccounts"
+              }
+            }
+          }
+        }
+      },
+      "route": "template"
     },
     {
       "type": "azurerm_storage_blob_inventory_policy",
@@ -51849,7 +52382,7 @@
         "file": "vendor/github.com/jackofallops/giovanni/storage/2023-11-03/datalakestore/filesystems/resource_id.go"
       },
       "read": "not-found",
-      "reason": "ID() argument is not an id field",
+      "reason": "data-plane id not derived: its host is the account's reported data plane endpoint, parsed back into the id (accounts.ParseAccountID), and an account with dns_endpoint_type AzureDnsZone reports a server-assigned zone label the child's configuration does not state",
       "route": "unmapped"
     },
     {
@@ -51863,7 +52396,7 @@
         "file": "vendor/github.com/jackofallops/giovanni/storage/2023-11-03/datalakestore/paths/resource_id.go"
       },
       "read": "not-found",
-      "reason": "ID() argument is not an id field",
+      "reason": "data-plane id not derived: its host is the account's reported data plane endpoint, parsed back into the id (accounts.ParseAccountID), and an account with dns_endpoint_type AzureDnsZone reports a server-assigned zone label the child's configuration does not state",
       "route": "unmapped"
     },
     {
@@ -53391,7 +53924,7 @@
         "file": "vendor/github.com/jackofallops/giovanni/storage/2023-11-03/file/directories/resource_id.go"
       },
       "read": "not-found",
-      "reason": "ID() argument is not an id field",
+      "reason": "data-plane id not derived: its id formats storage_share_url again through ParseShareID, which normalizes the host and path, so the argument is not the id's prefix as written",
       "route": "unmapped"
     },
     {
@@ -53404,11 +53937,8 @@
         "id_type": "FileId",
         "file": "vendor/github.com/jackofallops/giovanni/storage/2023-11-03/file/files/resource_id.go"
       },
-      "template": "{directoryPath}/",
       "read": "agrees",
-      "reason": "no argument for the scope segment",
-      "detail": "segment \"directoryPath\"; tried scope, directory_path, directory_path_id, storage_share_id, storage_id, share_file_id, file_id, target_resource_id, resource_id",
-      "create_call_problem": "the constructor's field AccountId is no value segment of {directoryPath}/",
+      "reason": "data-plane id not derived: its id formats storage_share_url again through ParseShareID, which normalizes the host and path, so the argument is not the id's prefix as written",
       "route": "unmapped"
     },
     {
@@ -54104,7 +54634,7 @@
         "file": "vendor/github.com/jackofallops/giovanni/storage/2023-11-03/table/entities/resource_id.go"
       },
       "read": "not-found",
-      "reason": "ID() argument is not an id field",
+      "reason": "data-plane id not derived: its host is the account's reported data plane endpoint, parsed back into the id (accounts.ParseAccountID), and an account with dns_endpoint_type AzureDnsZone reports a server-assigned zone label the child's configuration does not state",
       "route": "unmapped"
     },
     {

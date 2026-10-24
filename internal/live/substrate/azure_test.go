@@ -318,6 +318,11 @@ func TestAzapiResourceShape(t *testing.T) {
 // azurerm_email_communication_service_domain_sender_username (its domain's
 // id, email_service_domain_id, as the leading parent id).
 //
+// GitHub issue #2206 moved 9 data-plane URL types out of unmapped (8 to
+// template, 1 to parent-id): the Key Vault, Managed HSM, App Configuration
+// and Storage hosts are the parent's name plus the environment's suffix
+// (tools/azurerm-id-gen dataplane.go). The other 10 stay refused by name.
+//
 // GitHub issue #2201 item 1 moved 99 types out of unmapped by reading
 // azurerm's Create calls (tools/azurerm-id-gen's createCallSources), 4 of
 // them identity-schema types that now carry a template (the two private
@@ -327,13 +332,13 @@ func TestAzurermAdmissionCounts(t *testing.T) {
 		t.Errorf("embedded artifact is from azurerm %s (%s)", v, c)
 	}
 	want := map[string]int{
-		"template":                 361,
-		"parent-id":                403,
+		"template":                 369,
+		"parent-id":                404,
 		"withheld":                 8,
 		"identity-schema+template": 185,
 		"identity-schema":          11,
 		"composite":                14,
-		"unmapped":                 124,
+		"unmapped":                 115,
 	}
 	got := AzurermAdmission()
 	for k, n := range want {
