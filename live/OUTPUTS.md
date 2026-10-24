@@ -328,6 +328,83 @@ files), its markers, and the address in `tofu-address` and in the record key
 [LIMITATIONS.md](LIMITATIONS.md) for what the root may hold, how roles work,
 and what a failed apply leaves.
 
+## Joint runs: Terragrunt and Atmos keep their layout
+
+A Terragrunt repo (one directory per unit, each with `terragrunt.hcl`,
+`inputs` and `dependency` blocks) or an Atmos stack (one component per
+directory, `vars`, `!terraform.output`) is used as it is. The only change is
+the binary: `terraform_binary = "choudoufu"` in Terragrunt,
+`components.terraform.command: choudoufu` in Atmos. Each unit keeps its own
+directory, inputs, `live` block and records.
+
+Both tools run the binary once per unit, in dependency order: `init`, then
+`plan` or `apply` with the unit's inputs in `TF_VAR_` variables (Terragrunt)
+or a generated `-var-file` (Atmos), and `output -json` in a dependency's
+directory to read what it publishes. When the invocations come from one
+`terragrunt run --all` or one `atmos terraform ... --all` / `--affected`
+(found from the parent process: its name and its arguments), choudoufu joins
+them into one run:
+
+- Each unit that has a live block registers itself in a session shared by
+  the invocations (a directory under the temporary directory named for the
+  tool process): its directory, the values of its variables from every
+  source the unit itself would use (`TF_VAR_`, `terraform.tfvars`,
+  `*.auto.tfvars`, `-var`, `-var-file`), and the outputs it declares.
+- The composed root of "Composed runs" above is written over the units in the
+  session, one module call per unit carrying that unit's inputs, and planned.
+  It is planned again as each unit registers, so the plan after the last unit
+  is one plan across all of them. Each unit is still its own estate, with its
+  own record store and markers.
+- `output -json` in a unit's directory during the plan answers from that joint
+  plan. An output that is known is returned as it is. An output that is not
+  known until apply is returned as the string `(known after apply: <unit>.<output>)`.
+  The tool puts that string into the dependent unit's input, and the joint
+  root turns it into a reference to the upstream module's output, so the
+  dependent's resource shows `(known after apply)` in the same plan and is
+  resolved by the same apply. An output that is only partly unknown is returned
+  as one such string.
+- `plan -out=<file>` writes a small stub that names the session and the unit.
+  `show -json <file>` is the unit's slice of the joint plan: the module's step
+  is taken off every address, and the outputs are the unit's own.
+  `apply <file>` applies the whole joint plan, in dependency order, once;
+  the other units' `apply <file>` find it done and report that. A failed
+  joint apply is reported by every unit's apply.
+- `plan` prints the unit's own resources and the path of the whole plan.
+
+A unit run alone, a run of the tools without `--all` / `--affected`, a unit
+without a live block, and any plan that uses `-target`, `-destroy`,
+`-refresh-only`, `-replace`, `-json` or `-generate-config-out` take the
+ordinary path. `CHOUDOUFU_JOINT_RUN=off` turns joining off. For a driver that
+is neither tool, any other value of `CHOUDOUFU_JOINT_RUN` is the run id the
+invocations share. `CHOUDOUFU_JOINT_TIMEOUT` (default 30m) is how long an
+invocation waits for another that is planning or applying.
+
+What the tools' own models decide:
+
+- Terragrunt `run --all apply` and Atmos `apply --all` / `--affected` without
+  a plan file apply one unit at a time: the tool starts a unit only when the
+  units it depends on have exited, and Atmos does not accept a plan file in a
+  bulk apply (`--from-plan` is refused with `--all` and `--affected`). So the
+  joint plan is the one plan, and a joint apply needs the stub files from
+  `plan -out` (`terragrunt run --all apply -- <file>`). Without them each unit
+  applies on its own, in order, and reads its upstream unit's recorded
+  output from the record store (`choudoufu output`), which is by then known.
+- Atmos calls `output -json` for a component with no inputs of its own, so a
+  component joins the plan when Atmos plans it, not before. A dependency read
+  of a component Atmos has not planned yet is answered from the record store.
+- `--affected` plans the units the tool names. A dependent of a changed unit is
+  in the joint plan only if the tool includes it (`--include-dependents`).
+- The joint plan is all or nothing: a unit whose configuration fails in the
+  joint plan fails the plan of every unit that waits for it, and each
+  unit's invocation prints the error. A unit that does not load at all (a syntax
+  error) plans alone and reports its own error.
+- An input that is a number, a bool or an object whose attribute is unknown
+  cannot be carried: the placeholder is a string. Strings, and strings inside
+  lists and objects, are carried.
+
+(`internal/command/joint_*.go`, asserted by `internal/command/joint_test.go`.
+`CHOUDOUFU_JOINT_DEBUG=1` says why an invocation was not joined.)
+
 ## Demonstrated
 
 `internal/live/lifecycle/cross_estate_live_test.go`'s

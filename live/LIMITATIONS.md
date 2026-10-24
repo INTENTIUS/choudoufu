@@ -6295,6 +6295,18 @@ What a composed root may hold and what it may not:
   asserted by `internal/command/live_compose_test.go` and
   `internal/tofu/inrun_estates_test.go`.)
 
+**A joint run (Terragrunt `run --all`, Atmos `--all` / `--affected`) is one
+plan, and one apply only from saved plans.** The units are joined into a
+composed root written by choudoufu (OUTPUTS.md, "Joint runs"), so the limits
+of a composed run apply to it (not all-or-nothing on apply, no `-target`).
+The tools start a unit's apply only after the units it depends on have exited,
+and Atmos refuses a plan file in a bulk apply, so an apply without the
+`plan -out` files is one apply per unit, in order. Parts of the tools' output
+that choudoufu cannot carry as unknown: numbers, bools and objects that depend
+on another unit's value known only after apply. Units are found from the parent
+process's name and arguments, so a wrapper script around the tool is not
+recognised unless `CHOUDOUFU_JOINT_RUN` names a run id.
+
 ## Exclusion cohorts
 
 The residue roster (issue #49): the entries above are what *is* implemented
