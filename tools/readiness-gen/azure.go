@@ -101,6 +101,9 @@ const (
 	azurermClassParentID       = "parent-id"
 	azurermClassIdentitySchema = "identity-schema"
 	azurermClassUnmapped       = "unmapped"
+	// azurermClassComposite: an association whose id azurerm joins from its
+	// linked objects' ids (GitHub issue #2204).
+	azurermClassComposite = "composite"
 	// azurermClassWithheld is not a class in the artifact: it is a
 	// template-bearing row internal/live/substrate refuses to admit.
 	azurermClassWithheld = "withheld"
@@ -189,11 +192,11 @@ func azurermRow(typeName, class, templateClass, scope string, taggable bool) (Ro
 	facts := Facts{Taggable: taggable, ARMIDClass: class, ARMScope: scope}
 	status := StatusNeedsEvidence
 	switch class {
-	case azurermClassTemplate, azurermClassParentID:
+	case azurermClassTemplate, azurermClassParentID, azurermClassComposite:
 		facts.Admitted, status = true, StatusInContract
 	case azurermClassIdentitySchema:
 		facts.SchemaRoute = true
-		if templateClass == azurermClassTemplate || templateClass == azurermClassParentID {
+		if templateClass == azurermClassTemplate || templateClass == azurermClassParentID || templateClass == azurermClassComposite {
 			facts.Admitted, status = true, StatusInContract
 		}
 	case azurermClassUnmapped, azurermClassWithheld:

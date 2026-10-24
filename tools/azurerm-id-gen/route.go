@@ -49,7 +49,7 @@ func assignRoutes(a *artifact, schemas map[string]typeSchema) error {
 		if e.Class == classIdentitySchema {
 			templateClass = e.TemplateClass
 		}
-		bearing := templateClass == classTemplate || templateClass == classParentID
+		bearing := templateClass == classTemplate || templateClass == classParentID || templateClass == classComposite
 		_, isWithheld := withheld[e.Type]
 		switch {
 		case e.Class == classIdentitySchema && identity.IdentitySchemaRouteAdmits(ps, e.Type, cloud):

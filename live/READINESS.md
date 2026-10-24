@@ -167,10 +167,10 @@ hashicorp/azurerm 5.10.0: 1106 resource types.
 | Tier | in-contract | pending-ratification | needs-separator | needs-evidence | pending-mechanism | excluded | Total |
 |---|---|---|---|---|---|---|---|
 | marker-carried | 357 | 0 | 0 | 30 | 0 | 0 | 387 |
-| declaration-carried | 492 | 0 | 0 | 0 | 0 | 0 | 492 |
-| record-carried | 36 | 0 | 0 | 191 | 0 | 0 | 227 |
+| declaration-carried | 503 | 0 | 0 | 0 | 0 | 0 | 503 |
+| record-carried | 36 | 0 | 0 | 180 | 0 | 0 | 216 |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Total | 885 | 0 | 0 | 221 | 0 | 0 | 1106 |
+| Total | 896 | 0 | 0 | 210 | 0 | 0 | 1106 |
 
 azure/azapi 2.13.0: 3397 ARM resource types declared through azapi_resource.
 
@@ -189,8 +189,8 @@ The fence for azurerm, by tier and by where the type lives:
 | Tier | resource-group | from-argument | subscription | tenant | unknown | What Policy adds to the group RBAC |
 |---|---|---|---|---|---|---|
 | marker-carried | 375 | 1 | 1 | 3 | 7 | the deny on a write lacking or changing tofu-estate, and the delete lock when deleteLock is on |
-| declaration-carried | 451 | 21 | 12 | 8 | 0 | nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen |
-| record-carried | 168 | 20 | 5 | 3 | 31 | nothing, and the type is not admitted |
+| declaration-carried | 462 | 21 | 12 | 8 | 0 | nothing: Policy's Indexed mode never evaluates an untaggable type, and deleting its parent removes it unseen |
+| record-carried | 168 | 20 | 5 | 3 | 20 | nothing, and the type is not admitted |
 | excluded by design | 0 | 0 | 0 | 0 | 0 | not admitted |
 
 | Scope | What the estate's group RBAC reaches |
@@ -235,7 +235,6 @@ The azurerm types short of in-contract:
 | `azurerm_api_management_subscription` | record-carried | needs-evidence | 1 |
 | `azurerm_app_configuration_feature` | marker-carried | needs-evidence | 1 |
 | `azurerm_app_configuration_key` | marker-carried | needs-evidence | 1 |
-| `azurerm_app_service_certificate_binding` | record-carried | needs-evidence | 1 |
 | `azurerm_app_service_managed_certificate` | marker-carried | needs-evidence | 1 |
 | `azurerm_app_service_public_certificate` | record-carried | needs-evidence | 1 |
 | `azurerm_app_service_slot_custom_hostname_binding` | record-carried | needs-evidence | 1 |
@@ -245,7 +244,6 @@ The azurerm types short of in-contract:
 | `azurerm_arc_kubernetes_cluster_extension` | record-carried | needs-evidence | 1 |
 | `azurerm_arc_machine_automanage_configuration_assignment` | record-carried | needs-evidence | 1 |
 | `azurerm_automation_hybrid_runbook_worker` | record-carried | needs-evidence | 1 |
-| `azurerm_automation_job_schedule` | record-carried | needs-evidence | 1 |
 | `azurerm_backup_container_storage_account` | record-carried | needs-evidence | 1 |
 | `azurerm_backup_policy_file_share` | record-carried | needs-evidence | 1 |
 | `azurerm_backup_policy_vm_workload` | record-carried | needs-evidence | 1 |
@@ -265,7 +263,6 @@ The azurerm types short of in-contract:
 | `azurerm_cdn_frontdoor_custom_domain_association` | record-carried | needs-evidence | 1 |
 | `azurerm_chaos_studio_capability` | record-carried | needs-evidence | 1 |
 | `azurerm_chaos_studio_target` | record-carried | needs-evidence | 1 |
-| `azurerm_communication_service_email_domain_association` | record-carried | needs-evidence | 1 |
 | `azurerm_container_registry_task_schedule_run_now` | record-carried | needs-evidence | 1 |
 | `azurerm_container_registry_token_password` | record-carried | needs-evidence | 1 |
 | `azurerm_cosmosdb_mongo_role_definition` | record-carried | needs-evidence | 1 |
@@ -330,15 +327,8 @@ The azurerm types short of in-contract:
 | `azurerm_mssql_server_vulnerability_assessment` | record-carried | needs-evidence | 1 |
 | `azurerm_mssql_virtual_machine` | marker-carried | needs-evidence | 3 |
 | `azurerm_mysql_flexible_server_active_directory_administrator` | record-carried | needs-evidence | 1 |
-| `azurerm_nat_gateway_public_ip_association` | record-carried | needs-evidence | 1 |
-| `azurerm_nat_gateway_public_ip_prefix_association` | record-carried | needs-evidence | 1 |
 | `azurerm_netapp_volume_bucket` | record-carried | needs-evidence | 2 |
 | `azurerm_netapp_volume_bucket_with_server` | record-carried | needs-evidence | 2 |
-| `azurerm_network_interface_application_gateway_backend_address_pool_association` | record-carried | needs-evidence | 1 |
-| `azurerm_network_interface_application_security_group_association` | record-carried | needs-evidence | 1 |
-| `azurerm_network_interface_backend_address_pool_association` | record-carried | needs-evidence | 1 |
-| `azurerm_network_interface_nat_rule_association` | record-carried | needs-evidence | 1 |
-| `azurerm_network_interface_security_group_association` | record-carried | needs-evidence | 1 |
 | `azurerm_network_manager_deployment` | record-carried | needs-evidence | 1 |
 | `azurerm_network_security_perimeter_association` | record-carried | needs-evidence | 1 |
 | `azurerm_new_relic_tag_rule` | record-carried | needs-evidence | 1 |
@@ -350,7 +340,6 @@ The azurerm types short of in-contract:
 | `azurerm_pim_eligible_role_assignment` | record-carried | needs-evidence | 2 |
 | `azurerm_policy_definition` | record-carried | needs-evidence | 1 |
 | `azurerm_portal_tenant_configuration` | record-carried | needs-evidence | 1 |
-| `azurerm_postgresql_flexible_server_virtual_endpoint` | record-carried | needs-evidence | 1 |
 | `azurerm_private_dns_a_record` | marker-carried | needs-evidence | 3 |
 | `azurerm_private_dns_aaaa_record` | marker-carried | needs-evidence | 1 |
 | `azurerm_private_dns_cname_record` | marker-carried | needs-evidence | 3 |
