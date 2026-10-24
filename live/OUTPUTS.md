@@ -257,11 +257,45 @@ A record store that cannot be opened, or a record that cannot be decoded, is an
 error. Warnings and errors go to stderr.
 
 `terraform_remote_state` and Atmos `!terraform.state` read a state file from a
-backend, not through `output`. The first still reads whatever state file the
-backend holds (see above). The second is read by Atmos itself, so no binary
-can answer it. Serving either from a choudoufu estate would need the apply to
-publish an outputs-only state document to the backend the consumer names; that
-is not built.
+backend, not through `output`, and Atmos reads it itself, so no binary can
+answer it. They are served by the apply (next section).
+
+### Outputs published to the backend
+
+After an apply in a directory with a live block and a backend block (a
+hand-written one, a Terragrunt `generate` or `remote_state` `backend.tf`, an
+Atmos `backend.tf.json`; the live block otherwise ignores it), choudoufu
+writes a stock state document to the location that block names: version 4,
+`outputs` filled, `resources` empty. A stock root's `terraform_remote_state`
+(plan-time, no binary of ours involved) and Atmos's `!terraform.state` read
+the outputs as they always did (choudoufu#2213).
+
+- It is written last, after the apply's records. If the records fail, nothing is
+  published.
+- The values are the ones `output` returns: read from the record store, so a
+  sensitive output and one not wholly known are never published, and a scoped
+  apply does not blank outputs it did not evaluate. A whole destroy leaves a
+  document with no outputs.
+- No backend block, a `local` one, or no record store: nothing happens.
+- The write goes through the backend's own state manager, so its locking is
+  used (the S3 lockfile or DynamoDB table; gcs and azurerm locks), and the lock
+  is released before the apply returns. A lock held by someone else means no
+  write and a warning, never a wait.
+- Lineage and serial are the backend's: an existing document keeps its lineage
+  and its serial goes up by one, an unchanged document is not rewritten, and a
+  first write gets a new lineage. A document that holds resources is a stock
+  state somebody still owns and is never overwritten.
+- A backend that cannot be written (unreachable, no permission, a block
+  without its bucket) is a warning. The apply never fails because of it.
+- The workspace is the one in `TF_WORKSPACE` or `.terraform/environment`,
+  else `default`.
+
+What is not covered: a backend configured only through `init -backend-config`
+flags (the apply sees `backend "s3" {}` with no bucket and warns); state
+encryption (the document is written unencrypted); a composed root; and
+sensitive outputs, by rule. Verified against floci's S3 for the s3 backend,
+with a stock `tofu` root reading the key. The gcs and azurerm backends go
+through the same code and are not exercised against an emulator here.
 
 A pull request that changes a producer's output and a consumer that reads
 it would otherwise plan the consumer on the old recorded value. #2051 adds

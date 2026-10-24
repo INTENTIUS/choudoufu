@@ -751,6 +751,14 @@ since moving a previous backend's state into a directory with no state is the
 leak the refusal exists for. This lint warning therefore fires only on a module
 with no `live` block, and on a child module.
 
+The ignored block is not wasted: an apply publishes the estate's outputs to
+the location it names, so `terraform_remote_state` and Atmos
+`!terraform.state` keep reading the estate (GitHub issue #2213;
+`live/OUTPUTS.md`, "Outputs published to the backend"). `Module.IgnoredBackend`
+keeps the dropped block for that. A backend configured only by `init
+-backend-config` flags (a bare `backend "s3" {}`) is not known to the apply, so
+nothing is published and the apply warns. A composed root publishes nothing.
+
 **Enforcement.** `RuleStateBackend`, `internal/live/lint/lint.go`
 (`checkStateBackends`), warning severity (`Rule.Severity`,
 `internal/live/lint/issue.go`). Fixture at `live/e2e/limits/backend-block/`.
@@ -5451,7 +5459,11 @@ a consumer elsewhere can tell. The eventual native answer is an estate
 publishing its own outputs into its `record_store` and cross-stack reads
 pointed there instead of at a state file that may no longer be truthful;
 that is its own design, filed when stage 3's experience says what it needs
-(#179's design issue, "Staleness is the honest limitation"). Until then, the
+(#179's design issue, "Staleness is the honest limitation"). For a producer
+directory that still has its backend block (a hand-written one, Terragrunt's
+generated `backend.tf`, Atmos's `backend.tf.json`), the staleness is closed
+for outputs by #2213: each apply publishes the estate's recorded outputs there
+as an outputs-only state document (`live/OUTPUTS.md`). Otherwise, the
 forwarding address for a producer estate that has already adopted live
 markers is the same one `terraform_remote_state` itself has always had for
 any other cross-stack situation: pass the value across explicitly, or read
