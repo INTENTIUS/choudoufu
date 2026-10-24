@@ -743,7 +743,7 @@ refusal ruled on #1170). That covers Terragrunt's `remote_state`/`generate`
 and so cannot be deleted. `Module.ignoreStateStoreUnderLive`
 (`internal/configs/module.go`) drops the block after primary and override
 files are merged, so no later reader sees it. A composed root's own backend
-block is ignored the same way, with the warning raised from
+block is ignored the same way, with the warning raised on `init` from
 `liveBackendGuard`. With a live block there is no backend, so `init
 -reconfigure` (Atmos passes it by default) is accepted as a no-op with a
 one-line warning; `init -migrate-state` (and `-force-copy`) is still refused,
@@ -6927,7 +6927,7 @@ from any artifact, so this roster is curated
 **Total.** 4 types.
 <!-- survey-gen:end residue-emulator -->
 
-### workspaces
+## Workspaces
 
 Under a live block, plan and apply (plain and composed), `workspace new` and
 `workspace select <name>` refuse any workspace but the default, whether it came
