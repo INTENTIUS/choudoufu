@@ -58,12 +58,33 @@ func (c WorkspaceNewCommand) Execute(args *arguments.WorkspaceNew, view views.Wo
 
 	workspace := args.WorkspaceName
 
-	// A live block makes a new workspace both meaningless and harmful: see
-	// Meta.liveWorkspaceGuard. Refused here, before a backend is
-	// prepared, so nothing is created and nothing is selected.
-	if guardDiags := c.liveWorkspaceGuard(ctx, "new", workspace); guardDiags.HasErrors() {
-		view.Diagnostics(diags.Append(guardDiags))
+	// Under a live block a new workspace is accepted and ignored (GitHub issue
+	// #2221): no state is created, the name is selected so "workspace show"
+	// returns it, and a warning says it changes nothing. See
+	// Meta.liveWorkspaceAccept.
+	if live, liveDiags := c.liveWorkspaceAccept(ctx, workspace); liveDiags.HasErrors() {
+		view.Diagnostics(diags.Append(liveDiags))
 		return 1
+	} else if live {
+		if !validWorkspaceName(workspace) {
+			view.WorkspaceInvalidName(workspace)
+			return 1
+		}
+		if current, isOverridden := c.WorkspaceOverridden(ctx); current != workspace && isOverridden {
+			view.WorkspaceIsOverriddenNewError()
+			return 1
+		}
+		if err := c.SetWorkspace(workspace); err != nil {
+			view.Diagnostics(tfdiags.Diagnostics{tfdiags.Sourceless(
+				tfdiags.Error,
+				"Error selecting the new workspace",
+				fmt.Sprintf("Failed selecting the new workspace %s: %s", workspace, err),
+			)})
+			return 1
+		}
+		view.Diagnostics(liveDiags)
+		view.WorkspaceCreated(workspace)
+		return 0
 	}
 
 	if !validWorkspaceName(workspace) {

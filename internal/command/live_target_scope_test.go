@@ -151,6 +151,8 @@ var liveTargetScopeClassification = map[string]struct {
 	"livePlanDiagnostics":                 {notAPass, "converts diagnostics already in hand into the JSON document's wire format"},
 	"livePlanFilterDocument":              {notAPass, "narrows an already-built JSON document by -filter; reads no resource"},
 	"livePlanForeign":                     {notAPass, "projects the foreign report's rows into the JSON document"},
+	"liveWorkspaceIgnoredWarning":         {notAPass, "renders the warning that the selected workspace is ignored (#2221); a fact about the run's environment, not about any resource"},
+	"projection.NoteWorkspaceClaim":       {notAPass, "reads and writes the estate's workspace registry (#2221); it names workspaces, not resources, so no target set narrows it"},
 	"liveRecordCloud":                     {notAPass, "reads ARM_SUBSCRIPTION_ID for the write-back's provider-configuration identity components (#2135); a fact about the run's environment, not about any resource"},
 }
 

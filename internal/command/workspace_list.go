@@ -7,8 +7,10 @@ package command
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/backend"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/posener/complete"
@@ -89,6 +91,13 @@ func (c WorkspaceListCommand) Execute(args *arguments.WorkspaceList, view views.
 	}
 
 	env, isOverridden := c.WorkspaceOverridden(ctx)
+	// Under a live block no workspace has state, so the backend lists only
+	// "default". A tool that selected a name (Atmos does) is shown that name
+	// as well, so a select-then-list check sees what it selected.
+	if settings, _ := c.liveSettings(ctx, true); settings != nil && env != backend.DefaultStateName && !slices.Contains(workspaces, env) {
+		workspaces = append(workspaces, env)
+		slices.Sort(workspaces)
+	}
 	view.ListWorkspaces(workspaces, env)
 
 	if isOverridden {

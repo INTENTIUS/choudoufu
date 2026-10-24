@@ -899,29 +899,6 @@ func TestLiveMode_backendIgnored(t *testing.T) {
 	assertNoStateArtifacts(t, td)
 }
 
-// TestLiveMode_tfWorkspaceRefused: TF_WORKSPACE (how Atmos and most wrappers
-// pass a workspace) is refused under a live block with a message that says how
-// to get out, rather than failing deeper in.
-func TestLiveMode_tfWorkspaceRefused(t *testing.T) {
-	td := t.TempDir()
-	testCopyDir(t, testFixturePath("live-block"), td)
-	t.Chdir(td)
-	t.Setenv("TF_WORKSPACE", "plat-ue2-dev")
-
-	c, done := newLiveBlockPlanCommand(t, newLiveTestCloud())
-	code := c.Run([]string{"-no-color"})
-	output := done(t)
-	if code != 1 {
-		t.Fatalf("exit code %d, want 1", code)
-	}
-	got := output.Stderr()
-	for _, want := range []string{"Workspaces are not available", "plat-ue2-dev", "workspaces_enabled: false"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("stderr lacks %q:\n%s", want, got)
-		}
-	}
-}
-
 // ---------------------------------------------------------------------------
 // The invariant: no block, no change
 // ---------------------------------------------------------------------------

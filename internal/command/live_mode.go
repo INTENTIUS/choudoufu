@@ -159,13 +159,11 @@ func liveBegin(
 		})
 	}
 
-	if opReq.Workspace != backend.DefaultStateName {
-		diags = diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Workspaces are not available under live resource markers",
-			fmt.Sprintf("This run selected workspace %q. A workspace is a second state file under a different name, and a live-markers run has no first one: an estate is the unit of ownership instead, named by the live block. %s", opReq.Workspace, liveWorkspaceRemedy),
-		))
-	}
+	// GitHub issue #2221: a non-default workspace is accepted and ignored.
+	// The run goes on exactly as the default workspace's would, so the
+	// operation's workspace is reset here; the name is kept for the warning
+	// and the shared-estate check in PriorState, where the estate is settled.
+	runWorkspace := ignoreLiveWorkspace(opReq)
 
 	local, ok := be.(*backendLocal.Local)
 	if !ok || local.ContextOpts == nil {
@@ -236,6 +234,8 @@ func liveBegin(
 		// cacheServesReads (which also folds in the reads policy).
 		refreshFalse:  !opReq.PlanRefresh,
 		envelopeVouch: !opReq.PlanRefresh && readsSelective && opReq.Type == backend.OperationTypePlan,
+		workspace:     runWorkspace,
+		applying:      opReq.Type == backend.OperationTypeApply,
 		lib:           local.ContextOpts.Plugins,
 		mgr:           mgr,
 		// GitHub issue #587: the one place the adoption-only mode picks a
@@ -886,6 +886,14 @@ type liveRunner struct {
 	recordEstate   string
 	waiverWarned   bool
 
+	// workspace is the non-default workspace this run selected and ignored,
+	// "" for the default (GitHub issue #2221). applying is true for an apply,
+	// the only operation that records the workspace's claim on the estate.
+	// workspaceNoted keeps the warning to once per runner.
+	workspace      string
+	applying       bool
+	workspaceNoted bool
+
 	// envelopeVersions is GitHub issue #364's merge of what used to be
 	// three separate fields (locatedVersions, residueVersions,
 	// provisionedVersions) for GitHub issues #270, #275 and #353: the
@@ -1115,6 +1123,10 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 	// (a run with no record_store block) makes the hydration and
 	// write-back paths below no-ops, exactly like a run with no live block
 	// at all skips this whole file.
+	if r.workspace != "" && !r.workspaceNoted {
+		r.workspaceNoted = true
+		diags = diags.Append(liveWorkspaceIgnoredWarning(r.workspace, fmt.Sprintf("%q", estate)))
+	}
 	var recordStoreCfg *configs.LiveRecordStore
 	var retryCfg *configs.LiveRetry
 	if config.Module != nil && config.Module.Live != nil {
@@ -1199,6 +1211,11 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 		// hint write itself never fails PersistState (HintWarning) - so an
 		// interrupted plan can at most warn about the hint.
 		r.mgr.EnableHint(store, estate, time.Now)
+		// GitHub issue #2221: stacks that differ only by workspace share this
+		// estate's records. Say so, naming both, rather than share silently.
+		if r.workspace != "" {
+			diags = diags.Append(projection.NoteWorkspaceClaim(ctx, store, estate, r.workspace, r.applying, time.Now))
+		}
 	} else {
 		r.estateOutputs.open(nil, nil, estate, "this configuration's live block has no record store")
 	}

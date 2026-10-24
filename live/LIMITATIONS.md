@@ -3168,10 +3168,11 @@ refused, and each says so in its own entry.
 | - | - | projection | Unsupported resource type for the provider | error | `internal/live/projection` | "Unsupported resource type for the provider" |
 | - | - | projection | Values from another estate are as of its last apply | warning | `internal/live/projection` | "Values from another estate are as of its last apply" |
 | - | - | projection | Values from another estate are as that estate's plan proposes them | warning | `internal/live/projection` | "Values from another estate are as that estate's plan proposes them" |
+| - | - | projection | Workspaces share this estate's records | error | `internal/live/projection` | "Workspaces share this estate's records" |
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**311 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**312 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -5403,6 +5404,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Workspaces share this estate's records
+
+**What.** GitHub issue #2221: two or more workspaces (an Atmos stack per workspace is the usual way) have applied to the same estate. Workspaces are ignored under live resource markers, so they read and write the same records and the same marked resources. This is a warning naming both; give each environment its own estate name if they are meant to be separate.
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Ownership marker conflict
 
 **What.** The configuration already sets an ownership tag by hand, to a value other than the one this estate's markers require. Overwriting it would move ownership of a live resource without anyone saying so, so the run stops instead.
@@ -6953,13 +6962,26 @@ from any artifact, so this roster is curated
 
 ## Workspaces
 
-Under a live block, plan and apply (plain and composed), `workspace new` and
-`workspace select <name>` refuse any workspace but the default, whether it came
-from `TF_WORKSPACE`, `.terraform/environment` or the command. The message names
-the way out: unset `TF_WORKSPACE`, run `workspace select default`, and for
-Atmos set `components.terraform.workspaces_enabled: false`. Records are not
-keyed by workspace, deliberately: the estate name is the unit of ownership and
-the `tofu-estate` marker on each resource, so a workspace key on the records
-would split one estate's records from the markers that are the authority, and
-two workspaces over one set of resources would both claim them. Per-environment
-separation is a distinct estate name in its own live block (GitHub issue #2213).
+Under a live block a workspace is accepted and ignored (GitHub issue #2221).
+`TF_WORKSPACE`, `workspace select <name>` and `workspace new <name>` succeed
+with one warning: the workspace is ignored under live resource markers, the
+estate is named, and separate environments need separate estate names. Plan and
+apply run as the default workspace would, so a stock Atmos stack with
+workspaces on (its default, one workspace per stack) needs only
+`components.terraform.command: choudoufu`.
+
+Records are not keyed by workspace, deliberately: the estate name is the unit
+of ownership and the `tofu-estate` marker on each resource, so a workspace key
+would split one estate's records from the markers that are the authority.
+`workspace list` shows `default` plus the name a tool selected, `workspace show`
+returns what was selected, and no state file or workspace directory is created.
+`terraform.workspace` evaluates to `default` in a live run.
+
+Two stacks that point at the same estate name share its records and its marked
+resources. That is a warning, not a silent share: an apply under a non-default
+workspace adds the workspace to a small registry beside the estate's hint
+(`tofu-hints/<estate>/workspaces`, in the record store), and a plan or apply
+under a different workspace then warns, naming both. The registry is a notice
+and never authority, and a run with no record store has none to read. A stack
+and a second stack that differ only by directory, with no workspace selected,
+are not detected.
