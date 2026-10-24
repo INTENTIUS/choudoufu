@@ -44,8 +44,14 @@ kubectl get configmaps,services -A -l tofu-estate=prod-networking
 |---|---|---|
 | Permission unit | one file | one resource |
 | To narrow access | split the state | write a policy |
-| Two applies at once | a lock | a conditional write per record |
+| Two applies at once | a lock | [a conditional write per record](locking/) |
 | Losing it | you lose what you own | a slower plan |
+
+## Two runs, and two estates
+
+[Resource-level locking](locking/) covers two applies to one estate.
+[One plan, one apply, across estates](across-estates/) covers one run over
+several.
 
 ## Upstream
 
