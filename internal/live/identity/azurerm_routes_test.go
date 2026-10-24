@@ -504,10 +504,11 @@ func TestAzurermRoutesMatchTheRecord(t *testing.T) {
 func TestAzurermFallbackRefusesAnUnresolvableSegment(t *testing.T) {
 	_, schemas := loadAzurermIdentityExtract(t)
 
-	// No identity test from azurerm: nothing says volume_id holds the
-	// identity's account, pool and volume names.
+	// No identity test from azurerm for the netapp buckets: its Create
+	// call, which builds the id the segment names gave, stands in for it
+	// (GitHub issue #2201 item 1), so they are admitted.
 	_, refusal := synthesizeTypeIdentity("azurerm_netapp_volume_bucket", schemas, nil)
-	if !strings.Contains(refusal, "withheld") || !strings.Contains(refusal, "no resource identity test") {
+	if refusal != "" {
 		t.Errorf("azurerm_netapp_volume_bucket refusal = %q", refusal)
 	}
 

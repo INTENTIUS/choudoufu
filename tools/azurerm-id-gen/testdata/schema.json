@@ -3,65 +3,269 @@
   "provider_schemas": {
     "registry.opentofu.org/hashicorp/azurerm": {
       "resource_schemas": {
-        "azurerm_widget": {"version": 0, "block": {"attributes": {
-          "id": {"type": "string", "computed": true},
-          "name": {"type": "string", "required": true},
-          "resource_group_name": {"type": "string", "required": true},
-          "location": {"type": "string", "required": true}
-        }}},
-        "azurerm_widget_storage": {"version": 0, "block": {"attributes": {
-          "name": {"type": "string", "required": true},
-          "resource_group_name": {"type": "string", "required": true}
-        }}},
-        "azurerm_widget_link": {"version": 0, "block": {"attributes": {
-          "left_id": {"type": "string", "required": true},
-          "right_id": {"type": "string", "required": true}
-        }}},
-        "azurerm_widget_gizmo": {"version": 0, "block": {"attributes": {
-          "name": {"type": "string", "required": true},
-          "resource_group_name": {"type": "string", "required": true},
-          "widget_name": {"type": "string", "required": true}
-        }}},
-        "azurerm_widget_gizmo_legacy": {"version": 0, "block": {"attributes": {
-          "name": {"type": "string", "required": true},
-          "widget_id": {"type": "string", "required": true},
-          "widget_name": {"type": "string", "computed": true},
-          "resource_group_name": {"type": "string", "computed": true}
-        }}},
-        "azurerm_widget_ghost": {"version": 0, "block": {"attributes": {
-          "name": {"type": "string", "required": true}
-        }}},
-        "azurerm_widget_container": {"version": 0, "block": {"attributes": {
-          "id": {"type": "string", "optional": true, "computed": true},
-          "name": {"type": "string", "required": true},
-          "storage_account_id": {"type": "string", "required": true}
-        }}},
-        "azurerm_widget_record": {"version": 0, "block": {"attributes": {
-          "id": {"type": "string", "optional": true, "computed": true},
-          "name": {"type": "string", "required": true},
-          "resource_group_name": {"type": "string", "required": true},
-          "zone_name": {"type": "string", "required": true}
-        }}}
+        "azurerm_widget": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "id": {
+                "type": "string",
+                "computed": true
+              },
+              "name": {
+                "type": "string",
+                "required": true
+              },
+              "resource_group_name": {
+                "type": "string",
+                "required": true
+              },
+              "location": {
+                "type": "string",
+                "required": true
+              }
+            }
+          }
+        },
+        "azurerm_widget_storage": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": {
+                "type": "string",
+                "required": true
+              },
+              "resource_group_name": {
+                "type": "string",
+                "required": true
+              }
+            }
+          }
+        },
+        "azurerm_widget_link": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "left_id": {
+                "type": "string",
+                "required": true
+              },
+              "right_id": {
+                "type": "string",
+                "required": true
+              }
+            }
+          }
+        },
+        "azurerm_widget_gizmo": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": {
+                "type": "string",
+                "required": true
+              },
+              "resource_group_name": {
+                "type": "string",
+                "required": true
+              },
+              "widget_name": {
+                "type": "string",
+                "required": true
+              }
+            }
+          }
+        },
+        "azurerm_widget_gizmo_legacy": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": {
+                "type": "string",
+                "required": true
+              },
+              "widget_id": {
+                "type": "string",
+                "required": true
+              },
+              "widget_name": {
+                "type": "string",
+                "computed": true
+              },
+              "resource_group_name": {
+                "type": "string",
+                "computed": true
+              }
+            }
+          }
+        },
+        "azurerm_widget_ghost": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "name": {
+                "type": "string",
+                "required": true
+              }
+            }
+          }
+        },
+        "azurerm_widget_container": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "id": {
+                "type": "string",
+                "optional": true,
+                "computed": true
+              },
+              "name": {
+                "type": "string",
+                "required": true
+              },
+              "storage_account_id": {
+                "type": "string",
+                "required": true
+              }
+            }
+          }
+        },
+        "azurerm_widget_record": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "id": {
+                "type": "string",
+                "optional": true,
+                "computed": true
+              },
+              "name": {
+                "type": "string",
+                "required": true
+              },
+              "resource_group_name": {
+                "type": "string",
+                "required": true
+              },
+              "zone_name": {
+                "type": "string",
+                "required": true
+              }
+            }
+          }
+        },
+        "azurerm_widget_zonerecord": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "id": {
+                "type": "string",
+                "optional": true,
+                "computed": true
+              },
+              "name": {
+                "type": "string",
+                "required": true
+              },
+              "resource_group_name": {
+                "type": "string",
+                "required": true
+              },
+              "zone_name": {
+                "type": "string",
+                "required": true
+              }
+            }
+          }
+        },
+        "azurerm_widget_zoneecho": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "id": {
+                "type": "string",
+                "optional": true,
+                "computed": true
+              },
+              "name": {
+                "type": "string",
+                "required": true
+              },
+              "resource_group_name": {
+                "type": "string",
+                "required": true
+              },
+              "zone_name": {
+                "type": "string",
+                "required": true
+              }
+            }
+          }
+        }
       },
       "resource_identity_schemas": {
-        "azurerm_widget_storage": {"version": 0, "attributes": {
-          "name": {"type": "string", "required_for_import": true},
-          "resource_group_name": {"type": "string", "required_for_import": true},
-          "subscription_id": {"type": "string", "required_for_import": true}
-        }},
-        "azurerm_widget_container": {"version": 0, "attributes": {
-          "name": {"type": "string", "required_for_import": true},
-          "resource_group_name": {"type": "string", "required_for_import": true},
-          "storage_account_name": {"type": "string", "required_for_import": true},
-          "subscription_id": {"type": "string", "required_for_import": true}
-        }},
-        "azurerm_widget_record": {"version": 0, "attributes": {
-          "dns_zone_name": {"type": "string", "required_for_import": true},
-          "name": {"type": "string", "required_for_import": true},
-          "record_type": {"type": "string", "required_for_import": true},
-          "resource_group_name": {"type": "string", "required_for_import": true},
-          "subscription_id": {"type": "string", "required_for_import": true}
-        }}
+        "azurerm_widget_storage": {
+          "version": 0,
+          "attributes": {
+            "name": {
+              "type": "string",
+              "required_for_import": true
+            },
+            "resource_group_name": {
+              "type": "string",
+              "required_for_import": true
+            },
+            "subscription_id": {
+              "type": "string",
+              "required_for_import": true
+            }
+          }
+        },
+        "azurerm_widget_container": {
+          "version": 0,
+          "attributes": {
+            "name": {
+              "type": "string",
+              "required_for_import": true
+            },
+            "resource_group_name": {
+              "type": "string",
+              "required_for_import": true
+            },
+            "storage_account_name": {
+              "type": "string",
+              "required_for_import": true
+            },
+            "subscription_id": {
+              "type": "string",
+              "required_for_import": true
+            }
+          }
+        },
+        "azurerm_widget_record": {
+          "version": 0,
+          "attributes": {
+            "dns_zone_name": {
+              "type": "string",
+              "required_for_import": true
+            },
+            "name": {
+              "type": "string",
+              "required_for_import": true
+            },
+            "record_type": {
+              "type": "string",
+              "required_for_import": true
+            },
+            "resource_group_name": {
+              "type": "string",
+              "required_for_import": true
+            },
+            "subscription_id": {
+              "type": "string",
+              "required_for_import": true
+            }
+          }
+        }
       }
     }
   }

@@ -317,18 +317,23 @@ func TestAzapiResourceShape(t *testing.T) {
 // site_name, hostname for name) and
 // azurerm_email_communication_service_domain_sender_username (its domain's
 // id, email_service_domain_id, as the leading parent id).
+//
+// GitHub issue #2201 item 1 moved 99 types out of unmapped by reading
+// azurerm's Create calls (tools/azurerm-id-gen's createCallSources), 4 of
+// them identity-schema types that now carry a template (the two private
+// DNS records and the two netapp buckets' contract guard).
 func TestAzurermAdmissionCounts(t *testing.T) {
 	if v, c := AzurermIDSource(); v != "5.10.0" || c != "b24dfdc1dafe6d0721572b0f6debecb7ab5e81c6" {
 		t.Errorf("embedded artifact is from azurerm %s (%s)", v, c)
 	}
 	want := map[string]int{
-		"template":                 317,
-		"parent-id":                351,
-		"withheld":                 7,
-		"identity-schema+template": 181,
-		"identity-schema":          15,
+		"template":                 361,
+		"parent-id":                403,
+		"withheld":                 8,
+		"identity-schema+template": 185,
+		"identity-schema":          11,
 		"composite":                14,
-		"unmapped":                 221,
+		"unmapped":                 124,
 	}
 	got := AzurermAdmission()
 	for k, n := range want {

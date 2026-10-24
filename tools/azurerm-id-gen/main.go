@@ -113,6 +113,12 @@ type entry struct {
 	// azurerm's statements agree on, which is the reason the record rung
 	// refuses the type by name.
 	IdentitySourcesProblem string `json:"identity_sources_problem,omitempty"`
+	// CreateCall, on a row whose components were built from azurerm's
+	// Create call (GitHub issue #2201 item 1, [createCallSources]), is the
+	// trace they came from. CreateCallProblem, on a row that stays unmapped,
+	// is why the Create call did not settle it.
+	CreateCall        *createCall `json:"create_call,omitempty"`
+	CreateCallProblem string      `json:"create_call_problem,omitempty"`
 	// Route is how choudoufu admits the type (#1120 unit 17), one of
 	// internal/live/substrate's AzurermRoute* values: identity-schema,
 	// template-fallback, template, parent-id, withheld or unmapped. See
@@ -323,6 +329,43 @@ func classify(l *loader, name string, ts typeSchema, r registration, src *idSour
 					m.ParentID = true
 				}
 			}
+		}
+	}
+	if m.Reason != "" && src.Segments != nil {
+		// #2201 item 1: where neither the segment names nor azurerm's
+		// identity test find the arguments, its Create call may.
+		mctx := mapCtx{Schema: ts, ArgForms: argFormsIn(r.File)}
+		cc, vals, problem := l.createCallSources(r, src.Segments)
+		if problem == "" {
+			var comps []component
+			comps, problem = createComponents(src.Segments, vals, mctx)
+			if problem == "" {
+				m = mapping{Components: comps}
+				for _, c := range comps {
+					if c.ARMID {
+						m.ParentID = true
+					}
+				}
+				e.CreateCall = cc
+			}
+		}
+		e.CreateCallProblem = problem
+	}
+	if m.Reason == "" && ts.Identity != nil && c == nil {
+		// A type azurerm ships no identity test for has nothing outside
+		// this table to say its template is exact (the substrate's
+		// contract guard). Its Create call can: the template stands when
+		// the call builds the very components the names gave.
+		if cc, vals, problem := l.createCallSources(r, src.Segments); problem == "" {
+			if comps, problem := createComponents(src.Segments, vals, mapCtx{Schema: ts, ArgForms: argFormsIn(r.File)}); problem == "" && sameComponents(comps, m.Components) {
+				e.CreateCall = cc
+			} else if problem != "" {
+				e.CreateCallProblem = problem
+			} else {
+				e.CreateCallProblem = "its Create call builds a different id from the one the segment names gave"
+			}
+		} else {
+			e.CreateCallProblem = problem
 		}
 	}
 	if m.Reason != "" {

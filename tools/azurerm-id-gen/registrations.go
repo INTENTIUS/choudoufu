@@ -36,6 +36,15 @@ type registration struct {
 	ReadPkg  *pkg
 	ReadFile *ast.File
 	Read     ast.Node
+
+	// CreatePkg, CreateFile and Create are the resource's Create function,
+	// found as Read is: an untyped resource's `Create: f`, a typed
+	// resource's Create() method (whose body holds the Func literal).
+	// [loader.createCallSources] reads the id it builds. Nil when none was
+	// found.
+	CreatePkg  *pkg
+	CreateFile *ast.File
+	Create     ast.Node
 }
 
 // registrations walks every package under internal/services and returns
@@ -161,6 +170,7 @@ func (l *loader) untypedRegistrations(p *pkg, f *ast.File, fd *ast.FuncDecl) []r
 		}
 		r.Pkg, r.File, r.Expr = ip, ifl, expr
 		r.ReadPkg, r.ReadFile, r.Read = l.findRead(cp, cf, ctor, 0, map[*ast.FuncDecl]bool{})
+		r.CreatePkg, r.CreateFile, r.Create = l.findFuncKey(cp, cf, ctor, "Create", 0, map[*ast.FuncDecl]bool{})
 		out = append(out, r)
 	}
 	return out
@@ -172,6 +182,12 @@ func (l *loader) untypedRegistrations(p *pkg, f *ast.File, fd *ast.FuncDecl) []r
 // `Read: pluginsdk.DefaultTimeout(...)` of its Timeouts block, which is a
 // call, not a function reference.
 func (l *loader) findRead(p *pkg, f *ast.File, fd *ast.FuncDecl, depth int, seen map[*ast.FuncDecl]bool) (*pkg, *ast.File, ast.Node) {
+	return l.findFuncKey(p, f, fd, "Read", depth, seen)
+}
+
+// findFuncKey is [loader.findRead] for any function-valued key of the
+// resource schema: Read, Create.
+func (l *loader) findFuncKey(p *pkg, f *ast.File, fd *ast.FuncDecl, wantKey string, depth int, seen map[*ast.FuncDecl]bool) (*pkg, *ast.File, ast.Node) {
 	if fd == nil || fd.Body == nil || seen[fd] {
 		return nil, nil, nil
 	}
@@ -183,7 +199,7 @@ func (l *loader) findRead(p *pkg, f *ast.File, fd *ast.FuncDecl, depth int, seen
 		calls []*ast.CallExpr
 	)
 	try := func(key string, value ast.Expr) bool {
-		if key != "Read" {
+		if key != wantKey {
 			return false
 		}
 		switch value.(type) {
@@ -228,7 +244,7 @@ func (l *loader) findRead(p *pkg, f *ast.File, fd *ast.FuncDecl, depth int, seen
 		if cfd == nil || !strings.HasPrefix(cp.path, l.module+"/internal/services/") {
 			continue
 		}
-		if rp, rf, e := l.findRead(cp, cf, cfd, depth+1, seen); e != nil {
+		if rp, rf, e := l.findFuncKey(cp, cf, cfd, wantKey, depth+1, seen); e != nil {
 			return rp, rf, e
 		}
 	}
@@ -310,6 +326,9 @@ func (l *loader) typedRegistrations(p *pkg, f *ast.File, fd *ast.FuncDecl) []reg
 		r.Pkg, r.File, r.Expr = mp, mp.fileOf[m], m.Body
 		if rp, rm := l.methodWithEmbedding(tp, tname, "Read", 0); rm != nil && rm.Body != nil {
 			r.ReadPkg, r.ReadFile, r.Read = rp, rp.fileOf[rm], rm.Body
+		}
+		if cp, cm := l.methodWithEmbedding(tp, tname, "Create", 0); cm != nil && cm.Body != nil {
+			r.CreatePkg, r.CreateFile, r.Create = cp, cp.fileOf[cm], cm.Body
 		}
 		out = append(out, r)
 	}
