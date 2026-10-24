@@ -182,8 +182,9 @@ func buildAzureSubstrate(root string) (AzureSubstrate, error) {
 // instances are. Which UNADMITTED types take their id from the create
 // response, a UUID minted in create or a lookup at apply (17 at 5.10.0,
 // GitHub issue #2147, azurerm_sentinel_threat_intelligence_indicator among
-// them) is in no committed artifact; those types are refused as unadmitted
-// either way and are record-carried here.
+// them) is in no committed artifact; those types are held by
+// identity.AzureServerMintedTypes (#2205): record-located, and marker
+// discovery for the taggable ones. The roster is not a readiness input.
 func azurermRow(typeName, class, templateClass, scope string, taggable bool) (Row, error) {
 	facts := Facts{Taggable: taggable, ARMIDClass: class, ARMScope: scope}
 	status := StatusNeedsEvidence

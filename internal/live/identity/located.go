@@ -137,7 +137,10 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 		// about an identity the provider will never accept back.
 		return false
 	}
-	if !IsMarkerless(resourceType) {
+	if !IsMarkerless(resourceType) && !IsAzureServerMinted(resourceType) {
+		// The Azure roster is admitted whole (GitHub issue #2205): its
+		// taggable members take this route too when a record_store is
+		// declared, and marker discovery otherwise.
 		return false
 	}
 	if _, ok := LookupType(resourceType); ok {

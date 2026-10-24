@@ -1296,6 +1296,20 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	}
 
 	entry, ok := r.lookupType(resAddr.Type)
+	if !ok && AzureServerMintedTaggable(resAddr.Type) {
+		// GitHub issue #2205, the second of AWS's two answers: an Azure type
+		// whose id the server mints and which carries the ARM tags map is
+		// found again by its tofu-address tag, as a taggable
+		// server-assigned AWS type is. It has no table row because nothing
+		// computes its id; the record-located door above has already taken
+		// the estates that declared a record_store.
+		return Resolution{
+			Addr:   addr,
+			Class:  ClassNeedsDiscovery,
+			Reason: AzureServerMintedTypes[resAddr.Type].Mints,
+			Cause:  DiscoveryServerAssigned,
+		}, true
+	}
 	if !ok {
 		// This used to interpolate strings.Join(AdmittedTypes(), ", "),
 		// which was reasonable when the table held a few dozen rows and
