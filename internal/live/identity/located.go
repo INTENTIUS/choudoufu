@@ -150,6 +150,14 @@ func LocatedType(resourceType string, schemas map[string]providers.Schema) bool 
 	if !ok {
 		return false
 	}
+	if _, declared := AzureRecordCarriedTypes[resourceType]; declared && schema.Block != nil {
+		// Admitted by declaration (#2203) only while the schema still has no
+		// marker surface; a type that grows one is no longer in the
+		// population the ruling admitted.
+		if _, carries := substrate.SurfaceOf("", schema.Block); carries {
+			return false
+		}
+	}
 	return recordableIdentitySchema(resourceType, schema)
 }
 
