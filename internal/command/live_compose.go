@@ -8,6 +8,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 
 	"github.com/hashicorp/hcl/v2"
@@ -83,7 +84,11 @@ func (m *Meta) composedSettings(ctx context.Context) *configs.Live {
 	if len(found) == 0 {
 		return nil
 	}
-	return configs.NewComposedLive(found)
+	live := configs.NewComposedLive(found)
+	if _, err := os.Stat(jointRootMarker); err == nil {
+		live.Joint = true
+	}
+	return live
 }
 
 // composedEstate is one module's runner and the configuration it runs over.
@@ -263,7 +268,7 @@ func composedCheck(settings *configs.Live, config *configs.Config) tfdiags.Diagn
 			fail(mc.DeclRange.Ptr(), "An estate module call cannot be handed providers",
 				fmt.Sprintf("Module %q uses the provider blocks in its own directory. Those carry the estate's own role, and a provider handed in from the root would be one identity for every estate. Remove the providers argument.", name))
 		}
-		if mc.Config != nil {
+		if mc.Config != nil && !settings.Joint {
 			if attrs, ad := mc.Config.JustAttributes(); !ad.HasErrors() && len(attrs) > 0 {
 				argNames := make([]string, 0, len(attrs))
 				for a := range attrs {

@@ -97,7 +97,7 @@ func (m *Meta) loadSingleModule(ctx context.Context, dir string, load configs.Se
 		if config != nil {
 			module = config.Module
 		}
-	} else {
+	} else if module != nil {
 		fDiags := module.Finalize(symlib.EmptyTable, call)
 		diags = diags.Append(fDiags)
 	}
@@ -194,7 +194,7 @@ func (m *Meta) loadSingleModuleWithTests(ctx context.Context, dir string, testDi
 		if config != nil {
 			module = config.Module
 		}
-	} else {
+	} else if module != nil {
 		fDiags := module.Finalize(symlib.EmptyTable, call)
 		diags = diags.Append(fDiags)
 	}
