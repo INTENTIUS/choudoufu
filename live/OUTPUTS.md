@@ -279,7 +279,10 @@ record store. The block waits for the module, and while that module has
 changes pending the read is deferred to the apply, like any data source whose
 dependency has changes. At the apply the values come from the module's
 outputs, so an id that does not exist until the apply is available to the
-other estate in the same apply. If the module has nothing pending, the read
+other estate in the same apply. Only the outputs that are unknown at plan are unknown to the
+reading estate: an output whose resource already exists keeps its planned
+value, so a resource of the other estate that uses it is not replaced because
+the module has something else pending. The read is still redone at the apply. If the module has nothing pending, the read
 happens in the plan, from outputs the walk already holds. The `values` object
 has one attribute per name, as before. Outputs that are sensitive are refused
 with the same summary as a store read. The module's outputs are also recorded
