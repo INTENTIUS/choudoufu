@@ -24520,13 +24520,13 @@
       "counts": {
         "types": 1106,
         "tiers": {
-          "declaration-carried": 492,
+          "declaration-carried": 506,
           "marker-carried": 387,
-          "record-carried": 227
+          "record-carried": 213
         },
         "statuses": {
-          "in-contract": 849,
-          "needs-evidence": 257
+          "in-contract": 863,
+          "needs-evidence": 243
         }
       },
       "types": [
@@ -25553,16 +25553,16 @@
         },
         {
           "type": "azurerm_app_service_certificate_binding",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
-            "arm_scope": "unknown",
+            "arm_id_class": "composite",
+            "arm_scope": "resource-group",
             "rejected": false
           }
         },
@@ -26300,16 +26300,16 @@
         },
         {
           "type": "azurerm_automation_job_schedule",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
-            "arm_scope": "unknown",
+            "arm_id_class": "composite",
+            "arm_scope": "resource-group",
             "rejected": false
           }
         },
@@ -27474,16 +27474,16 @@
         },
         {
           "type": "azurerm_communication_service_email_domain_association",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
-            "arm_scope": "unknown",
+            "arm_id_class": "composite",
+            "arm_scope": "resource-group",
             "rejected": false
           }
         },
@@ -34388,31 +34388,31 @@
         },
         {
           "type": "azurerm_nat_gateway_public_ip_association",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
-            "arm_scope": "unknown",
+            "arm_id_class": "composite",
+            "arm_scope": "resource-group",
             "rejected": false
           }
         },
         {
           "type": "azurerm_nat_gateway_public_ip_prefix_association",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
-            "arm_scope": "unknown",
+            "arm_id_class": "composite",
+            "arm_scope": "resource-group",
             "rejected": false
           }
         },
@@ -34690,76 +34690,76 @@
         },
         {
           "type": "azurerm_network_interface_application_gateway_backend_address_pool_association",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
-            "arm_scope": "unknown",
+            "arm_id_class": "composite",
+            "arm_scope": "resource-group",
             "rejected": false
           }
         },
         {
           "type": "azurerm_network_interface_application_security_group_association",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
-            "arm_scope": "unknown",
+            "arm_id_class": "composite",
+            "arm_scope": "resource-group",
             "rejected": false
           }
         },
         {
           "type": "azurerm_network_interface_backend_address_pool_association",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
-            "arm_scope": "unknown",
+            "arm_id_class": "composite",
+            "arm_scope": "resource-group",
             "rejected": false
           }
         },
         {
           "type": "azurerm_network_interface_nat_rule_association",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
-            "arm_scope": "unknown",
+            "arm_id_class": "composite",
+            "arm_scope": "resource-group",
             "rejected": false
           }
         },
         {
           "type": "azurerm_network_interface_security_group_association",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
-            "arm_scope": "unknown",
+            "arm_id_class": "composite",
+            "arm_scope": "resource-group",
             "rejected": false
           }
         },
@@ -35899,16 +35899,16 @@
         },
         {
           "type": "azurerm_postgresql_flexible_server_virtual_endpoint",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
-            "arm_scope": "unknown",
+            "arm_id_class": "composite",
+            "arm_scope": "resource-group",
             "rejected": false
           }
         },
@@ -39579,45 +39579,45 @@
         },
         {
           "type": "azurerm_subnet_nat_gateway_association",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
+            "arm_id_class": "composite",
             "arm_scope": "resource-group",
             "rejected": false
           }
         },
         {
           "type": "azurerm_subnet_network_security_group_association",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
+            "arm_id_class": "composite",
             "arm_scope": "resource-group",
             "rejected": false
           }
         },
         {
           "type": "azurerm_subnet_route_table_association",
-          "tier": "record-carried",
-          "status": "needs-evidence",
+          "tier": "declaration-carried",
+          "status": "in-contract",
           "facts": {
             "taggable": false,
-            "admitted": false,
+            "admitted": true,
             "markerless": false,
             "not_importable": false,
             "tier_d": false,
-            "arm_id_class": "unmapped",
+            "arm_id_class": "composite",
             "arm_scope": "resource-group",
             "rejected": false
           }

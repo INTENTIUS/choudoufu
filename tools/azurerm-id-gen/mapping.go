@@ -26,6 +26,10 @@ const (
 	// template is still computed and recorded beside it, so the two
 	// sources can be compared rather than one silently replacing the other.
 	classIdentitySchema = "identity-schema"
+	// classComposite: the id is several ARM ids joined by "|" (or, for the
+	// subnet associations, one whole id), derived as azurerm builds it and
+	// verified part by part ([compositeRules], GitHub issue #2204).
+	classComposite = "composite"
 	// classUnmapped: no template, with the reason.
 	classUnmapped = "unmapped"
 )
@@ -77,6 +81,9 @@ const (
 	// ruleScopeFallback: a scope read from the conventional
 	// target_resource_id or resource_id argument.
 	ruleScopeFallback = "scope-fallback"
+	// ruleComposite: the argument is named by the composite rule for the
+	// type and checked against the part's id type ([compositeRules]).
+	ruleComposite = "composite-part"
 )
 
 // attrInfo is what the provider schema says about one argument.

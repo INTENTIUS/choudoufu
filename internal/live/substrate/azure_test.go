@@ -327,7 +327,8 @@ func TestAzurermAdmissionCounts(t *testing.T) {
 		"withheld":                 7,
 		"identity-schema+template": 181,
 		"identity-schema":          15,
-		"unmapped":                 235,
+		"composite":                14,
+		"unmapped":                 221,
 	}
 	got := AzurermAdmission()
 	for k, n := range want {

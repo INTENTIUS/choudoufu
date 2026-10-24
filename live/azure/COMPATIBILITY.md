@@ -38,14 +38,27 @@ Every azurerm type whose ARM id template could be read from azurerm's own
 id parsers is admitted ([`live/azurerm-ids.json`](../azurerm-ids.json)),
 and so is every ARM type declared through `azapi_resource`.
 [`live/READINESS.md`](../READINESS.md#azure) generates the counts: of
-azurerm's 1,106 types, 849 are in contract, and all 3,397 of azapi's ARM
+azurerm's 1,106 types, 863 are in contract, and all 3,397 of azapi's ARM
 types are.
+
+An association's id is not an ARM id of its own: azurerm joins its two
+linked objects' ids with `|` (`commonids.CompositeResourceID`), and the
+three `azurerm_subnet_*_association` types use the subnet's id. These 14
+types derive their id the same way, from the arguments that hold the linked
+ids. The generator admits one only after checking each part against
+azurerm's id code at the pin (the importer's two id types, every segment of
+each, each argument's validator, and that Create builds the id from a
+composite id), and a type that fails a check stays refused with the reason.
+Arguments holding an id are used as written, so the derived id equals
+azurerm's for an id in the form azurerm formats (leading slash, no
+trailing slash), which is the form a reference to another resource's `id`
+has. Nothing here has run against Azure.
 
 ### Readiness tiers
 
 The tiers are AWS's. For azurerm at 5.10.0, 387 types have an ARM tags map
-and are marker-carried, 492 untaggable types bind from their declaration,
-and 227 untaggable types nothing admits are record-carried. For azapi at
+and are marker-carried, 506 untaggable types bind from their declaration,
+and 213 untaggable types nothing admits are record-carried. For azapi at
 2.13.0, 1,031 ARM types take tags at their latest API version and 2,366 do
 not; 84 change between versions, and the stamp reads the version the
 block's `type` names.

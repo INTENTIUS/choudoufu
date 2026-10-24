@@ -83,6 +83,9 @@ type entry struct {
 	// Template is the ARM id with value segments as {name}.
 	Template   string      `json:"template,omitempty"`
 	Components []component `json:"components,omitempty"`
+	// Composite, on a composite-class row, is the parts the id joins and
+	// where azurerm builds it (composite.go).
+	Composite *compositeInfo `json:"composite,omitempty"`
 	// TemplateClass, on an identity-schema row, is what the template alone
 	// classifies as: template, parent-id or unmapped.
 	TemplateClass  string   `json:"template_class,omitempty"`
@@ -272,6 +275,9 @@ func generate(src, schemaPath string) (*artifact, error) {
 }
 
 func classify(l *loader, name string, ts typeSchema, r registration, src *idSource, problem string, c *contract, parentTypes func([]segment) []string, typeTemplate func(string) (string, bool)) entry {
+	if ce, ok := l.classifyComposite(name, ts, r, src, parentTypes); ok {
+		return ce
+	}
 	e := entry{Type: name, IdentitySchema: ts.Identity, Via: r.Via, IdentityContract: c}
 	var at map[string]int
 	if ts.Identity != nil {

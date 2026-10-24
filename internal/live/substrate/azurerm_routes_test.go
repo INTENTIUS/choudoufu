@@ -166,6 +166,9 @@ func TestAzurermServedSchemaGuard(t *testing.T) {
 // records on each route. TO CHANGE A NUMBER, regenerate
 // live/azurerm-ids.json and say in the commit which types moved and why.
 //
+// GitHub issue #2204 moved the 14 composite and subnet association types
+// from unmapped to composite (TestAzurermCompositeIDsAreAzurermsFormat).
+//
 // GitHub issue #2138 moved six identity-schema types from unmapped to
 // template-fallback, their templates taken from azurerm's identity test
 // where segment names found no argument; TestAzurermAdmissionCounts names
@@ -175,8 +178,9 @@ var azurermRoutesPinned = map[string]int{
 	AzurermRouteTemplateFallback: 78,
 	AzurermRouteTemplate:         317,
 	AzurermRouteParentID:         351,
+	AzurermRouteComposite:        14,
 	AzurermRouteWithheld:         9,
-	AzurermRouteUnmapped:         248,
+	AzurermRouteUnmapped:         234,
 }
 
 // TestAzurermRoutesAreTheGuardsVerdicts is condition (c)'s guard on this
@@ -205,7 +209,7 @@ func TestAzurermRoutesAreTheGuardsVerdicts(t *testing.T) {
 			consistent = identity
 		case AzurermRouteTemplateFallback:
 			consistent = identity && bearing && !withheld
-		case AzurermRouteTemplate, AzurermRouteParentID:
+		case AzurermRouteTemplate, AzurermRouteParentID, AzurermRouteComposite:
 			consistent = !identity && row.Class == row.Route && !withheld
 		case AzurermRouteWithheld:
 			consistent = bearing && withheld

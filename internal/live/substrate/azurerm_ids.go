@@ -44,6 +44,12 @@ const (
 	azurermClassParentID       = "parent-id"
 	azurermClassIdentitySchema = "identity-schema"
 	azurermClassUnmapped       = "unmapped"
+	// azurermClassComposite: the id is several ARM ids joined by "|" as
+	// azurerm's commonids.CompositeResourceID formats them, or for the
+	// subnet associations one whole id; tools/azurerm-id-gen derives it
+	// only after checking each part against azurerm's id code (GitHub
+	// issue #2204).
+	azurermClassComposite = "composite"
 )
 
 // azurermCloudSubscription is the artifact's spelling of the subscription
@@ -68,6 +74,9 @@ type azurermIDType struct {
 	Components     []azurermIDComponent `json:"components"`
 	IdentitySchema []string             `json:"identity_schema"`
 	Contract       *azurermContract     `json:"identity_contract"`
+	// Composite is a composite row's record of its parts and where azurerm
+	// builds the id (tools/azurerm-id-gen composite.go).
+	Composite *azurermComposite `json:"composite"`
 	// IdentitySources and IdentitySourcesProblem are where a record reads
 	// each identity attribute from, or why it cannot (GitHub issue #2138,
 	// azurerm_sources.go).
@@ -124,7 +133,20 @@ func (t azurermIDType) templateClass() string {
 // templateBearing reports whether the row maps a whole ARM id.
 func (t azurermIDType) templateBearing() bool {
 	c := t.templateClass()
-	return c == azurermClassTemplate || c == azurermClassParentID
+	return c == azurermClassTemplate || c == azurermClassParentID || c == azurermClassComposite
+}
+
+// composite reports whether the row is a composite-class one.
+func (t azurermIDType) composite() bool { return t.templateClass() == azurermClassComposite }
+
+type azurermComposite struct {
+	Join   string `json:"join"`
+	Create string `json:"create"`
+	Parts  []struct {
+		IDType    string   `json:"id_type"`
+		Template  string   `json:"template"`
+		Arguments []string `json:"arguments"`
+	} `json:"parts"`
 }
 
 type azurermIDComponent struct {
@@ -152,6 +174,9 @@ const (
 	// admitted by the template alone.
 	AzurermRouteTemplate = azurermClassTemplate
 	AzurermRouteParentID = azurermClassParentID
+	// AzurermRouteComposite: the id is the join of the type's linked
+	// objects' ids as azurerm joins them (GitHub issue #2204).
+	AzurermRouteComposite = azurermClassComposite
 	// AzurermRouteWithheld: the type has a template and a guard refuses
 	// it, and nothing else admits the type. Refused by name.
 	AzurermRouteWithheld = "withheld"
@@ -207,6 +232,12 @@ func parseAzurermIDs(raw []byte) (*azurermIDs, error) {
 			out.withheld[t.Type] = why
 			continue
 		}
+		if t.composite() {
+			if why := azurermCompositeProblem(t); why != "" {
+				out.withheld[t.Type] = why
+			}
+			continue
+		}
 		if why := azurermRowShapeProblem(t); why != "" {
 			out.withheld[t.Type] = why
 			continue
@@ -256,6 +287,9 @@ func azurermSegmentProblem(t azurermIDType) string {
 			}
 		case len(c.Attrs) > 1:
 			return fmt.Sprintf("segment {%s} reads whichever of %s is set, so which argument names the object is a choice this table would be guessing", c.Segment, strings.Join(c.Attrs, ", "))
+		case c.ARMID && i > 0 && t.composite() && strings.HasSuffix(t.Components[i-1].Literal, "|"):
+			// A composite id is its parts joined by "|"; each part may
+			// begin with a whole id argument (azurermCompositeProblem).
 		case c.ARMID && i > 0:
 			return fmt.Sprintf("segment {%s} is read from %s, an argument holding a whole ARM id, after the id has begun, so the id would be two ids joined rather than one", c.Segment, c.Attrs[0])
 		}
@@ -477,6 +511,43 @@ func azurermRowShapeProblem(t azurermIDType) string {
 		}
 	}
 	return "its id is a single argument with no typed segment, the id of a scope rather than of an object in it"
+}
+
+// azurermCompositeProblem is the composite class's replacement for the
+// shape and shared-template guards (GitHub issue #2204). Those guards ask
+// whether an id is the id of the object the type owns; a composite id is
+// not one ARM id at all, it is azurerm's own join of the parts, and the
+// generator has already accounted for every segment of every part against
+// azurerm's id types (composite.go). What is held here is that the record
+// says so: the parts are recorded, the template is exactly the parts'
+// templates joined as azurerm joins them, and the components render
+// that many parts, each beginning where the previous "|" ended.
+func azurermCompositeProblem(t azurermIDType) string {
+	c := t.Composite
+	if c == nil || len(c.Parts) == 0 || c.Create == "" {
+		return "its composite id has no recorded parts or no record of where azurerm builds it"
+	}
+	if (len(c.Parts) > 1) != (c.Join == "|") || len(c.Parts) > 2 {
+		return fmt.Sprintf("its composite id joins %d parts with %q, which is not azurerm's CompositeResourceID (two ids, %q) or a single id", len(c.Parts), c.Join, "|")
+	}
+	var tmpls []string
+	for _, p := range c.Parts {
+		if p.Template == "" || len(p.Arguments) == 0 {
+			return fmt.Sprintf("part %s records no template or no argument", p.IDType)
+		}
+		tmpls = append(tmpls, p.Template)
+	}
+	if strings.Join(tmpls, "|") != t.Template {
+		return "its template is not its parts' templates joined with |"
+	}
+	joins := 0
+	for _, comp := range t.Components {
+		joins += strings.Count(comp.Literal, "|")
+	}
+	if joins != len(c.Parts)-1 {
+		return fmt.Sprintf("its components join %d times, its parts %d", joins, len(c.Parts)-1)
+	}
+	return ""
 }
 
 // azurermAdmits is the azurerm answer to [Substrate.SynthesizeIdentity].
