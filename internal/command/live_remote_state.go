@@ -49,11 +49,11 @@ import (
 //     gets a new lineage. A document that is unchanged is not rewritten.
 //   - A document that holds resources is a stock state somebody still owns.
 //     It is never overwritten.
-func publishOutputsState(ctx context.Context, config *configs.Config, outputs *projection.RootOutputStore) tfdiags.Diagnostics {
-	if config == nil || config.Module == nil || config.Module.Backend == nil || outputs == nil {
+func publishOutputsState(ctx context.Context, config *configs.Config, outputs *projection.RootOutputStore) (diags tfdiags.Diagnostics) {
+	if config == nil || config.Module == nil || config.Module.IgnoredBackend == nil || outputs == nil {
 		return nil
 	}
-	be := config.Module.Backend
+	be := config.Module.IgnoredBackend
 	if be.Type == "local" {
 		return nil
 	}
@@ -61,6 +61,17 @@ func publishOutputsState(ctx context.Context, config *configs.Config, outputs *p
 		return tfdiags.Diagnostics{}.Append(tfdiags.Sourceless(tfdiags.Warning,
 			"Outputs were not published to the backend",
 			fmt.Sprintf("The apply and its records are complete. The estate's outputs could not be published to its %q backend for terraform_remote_state and !terraform.state readers: %s", be.Type, detail)))
+	}
+
+	// The apply is done and its records are written. Whatever goes wrong in a
+	// backend client from here is a warning.
+	defer func() {
+		if r := recover(); r != nil {
+			diags = warn(fmt.Sprintf("the backend client failed unexpectedly: %v", r))
+		}
+	}()
+	if be.Eval == nil {
+		be.Eval = config.Module.StaticEvaluator
 	}
 
 	f, _ := backendInit.Backend(be.Type)
