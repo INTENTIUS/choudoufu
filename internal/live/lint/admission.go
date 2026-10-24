@@ -118,6 +118,11 @@ func admitted(resourceType string, schemas map[string]providers.Schema, signal *
 	if markerlessVetoed(resourceType) {
 		return false
 	}
+	if identity.AzureServerMintedTaggable(resourceType) {
+		// GitHub issue #2205: found again by its marker, or located by the
+		// record when the estate declares a record_store.
+		return true
+	}
 	if notImportableVetoed(resourceType) {
 		return false
 	}

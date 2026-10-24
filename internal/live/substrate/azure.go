@@ -106,6 +106,12 @@ func (azure) AddressCarrier(surface markers.Surface) (key, noun string) {
 // marker case-insensitively.
 const SweepResourceGraph Sweep = "resource-graph"
 
+// SweepDataPlane is the Azure data-plane listing (GitHub issue #2205): the
+// objects Resource Graph does not index (Key Vault keys, secrets and
+// certificates), listed from the vault's own endpoint. It runs beside
+// [SweepResourceGraph], never instead of it.
+const SweepDataPlane Sweep = "data-plane"
+
 func (azure) Sweep() Sweep { return SweepResourceGraph }
 
 // SweepFindsUnadmitted is true, from the sweep's design rather than a

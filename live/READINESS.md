@@ -129,9 +129,13 @@ Seventeen unadmitted azurerm types take part of their id from the create
 response, a UUID minted inside create, or an object looked up at apply
 (#2147): among them `azurerm_key_vault_key`, `azurerm_key_vault_secret`,
 `azurerm_key_vault_certificate` and
-`azurerm_sentinel_threat_intelligence_indicator`. Each is refused as
-unadmitted, where AWS finds a taggable server-assigned type by its marker
-and holds an untaggable minted one by its record.
+`azurerm_sentinel_threat_intelligence_indicator`. Each gets both of AWS's answers (#2205, the
+2026-10-23 ruling): with a record_store the type is record-located, and the
+five that carry the ARM tags map are also found by their marker without
+one (`identity.AzureServerMintedTypes`). An untaggable member with no live
+block is still refused. The Key Vault ones are not in Resource Graph;
+`discovery.DataPlaneSweep` lists them behind an interface tested with
+fakes, and its listing against a real vault is not run.
 
 A removed declaration-carried block is found again through its record,
 as on AWS: the Resource Graph pass runs the record-store removal leg
