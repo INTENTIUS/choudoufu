@@ -51,8 +51,23 @@ func (c OutputCommand) Execute(args *arguments.Output, view views.Output) int {
 		return 1
 	}
 
-	// Fetch data from state
-	outputs, diags := c.Outputs(ctx, args.State.StatePath, enc)
+	// Under a live block the answer is the record store's, not a state
+	// file's (choudoufu#2213).
+	outputs, handled, diags := c.liveOutputs(ctx, args.Name)
+	if handled {
+		// Everything the record-store read has to say goes to stderr: a
+		// Terragrunt dependency parses stdout as the JSON document.
+		c.View.DiagnosticsToStderr(diags)
+		if diags.HasErrors() {
+			return 1
+		}
+		diags = nil
+	} else {
+		// Fetch data from state
+		var stateDiags tfdiags.Diagnostics
+		outputs, stateDiags = c.Outputs(ctx, args.State.StatePath, enc)
+		diags = diags.Append(stateDiags)
+	}
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
 		return 1
