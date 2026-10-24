@@ -14,3 +14,5 @@ that you can clone and run.
 | [`examples/record-store-gcs`](record-store-gcs/CONTRACT.md) | What a record store GCS bucket must have, one per estate, and the IAM grant for an estate's identity |
 | [`examples/cross-estate-dependency`](cross-estate-dependency/) | Two estates, one reading a value off the other's live resource |
 | [`examples/live-mv-workbench`](live-mv-workbench/) | A notebook that splits a configuration by retagging, against the local emulator |
+| [`examples/demo-terragrunt`](demo-terragrunt/README.md) | A stock three-unit Terragrunt repo run with choudoufu as its binary, one joint plan across units |
+| [`examples/demo-atmos`](demo-atmos/README.md) | A stock three-component Atmos repo run with choudoufu as its command, one joint plan across components |
