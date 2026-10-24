@@ -685,7 +685,10 @@ worded like a resource's own non-static `for_each` refusal.
 module's resources into the root module, or give the module an estate of
 its own, with its own directory, its own `live` block, and its own
 `estate` name. Two estates are two independent runs, which is the
-separation an expanded child module is standing in for. Rewriting the
+separation an expanded child module is standing in for. (Two estates can
+also be applied in one run, when a root with no live block of its own calls
+each estate's directory as a module; see "A composed run" under Behavioral
+limits.) Rewriting the
 `count` or `for_each` expression to a literal or a value derived from
 variables, locals, `path` or `terraform` is the other way out, the same as
 it is for a resource's own `count` or `for_each`. For a statically-
@@ -6203,6 +6206,63 @@ class is unrecoverable, but because that fixture has nowhere to record it.
 If you need a non-default value for one of these with no `record_store`
 declared, a marker run will re-propose it on every plan, that is the cost,
 and it is visible rather than silent.
+
+**A composed run applies several estates in one plan and one apply, and is
+not all-or-nothing.** A root with no `live` block of its own that calls local
+directories carrying one is a composed root: `module "net" { source = "../net" }`
+beside `module "app" { source = "../app" }`. Each called directory keeps the
+`live` block or sidecar it has when it runs alone, and that block names the
+estate; the module call takes no `estate` argument. The run is one walk, so a
+`data "terraform_estate_outputs"` block that names an estate in the run is
+answered from that module's outputs in the walk, and a value only known after
+apply (a new VPC's id) reaches the other estate in the same apply. Everything
+that decides ownership stays per estate: each module gets its own estate
+name, discovery, record store and markers, worked out as if the module were a
+root, so a resource's `tofu-address` marker and its record key are the
+address it has in its own directory (`aws_vpc.main`, not
+`module.net.aws_vpc.main`), and a later run of one estate alone sees the same
+ownership. An estate's local record store is the `.tofu-records` directory
+beside its own files, not the root's.
+
+What a composed root may hold and what it may not:
+
+- It holds module calls, outputs and variables. A managed resource in the
+  root is refused ("A composed root holds module calls only"), because the
+  root has no estate to own it. Every module call must be a local directory
+  with a live block ("A module call in a composed root has no live block").
+- A module call takes no arguments, no `count`, `for_each` or `enabled`, and
+  no `providers` map. An estate's inputs are its own variables' defaults, so
+  its ownership is worked out from its own files; the language already
+  refuses the repeat and the handed-in provider.
+- Roles stay per estate. Each module's provider calls go through the provider
+  blocks in that module's directory, so the role on the net estate's
+  `assume_role` is the one that creates net's resources and no call is made
+  under a role covering both. This depends on the role being in the provider
+  block; an identity taken from the environment is one identity for every
+  estate.
+- The estates are applied together but not as one unit. A failed apply leaves
+  every resource that was applied applied and recorded under its own estate
+  (each record is written as its resource is applied), and a re-run plans
+  only what is left. Nothing is rolled back.
+- `-target`, `-exclude` and cone plans are refused. Plan one estate by running
+  its directory alone.
+- An estate in the run that reads another estate in the run is read from
+  module outputs, so the read is not "as of the producer's last apply" and
+  does not need the record store grant. Sensitive outputs are still refused.
+  A read of an estate outside the run goes through the first estate's record
+  store, because the run has one reader; keep such reads to estates sharing
+  that store. An estate reading its own name is refused.
+- The Kubernetes post-plan checks (the server-side dry run and the
+  field-granular boundary check) are not run for a composed run, and the
+  `undeclared_tagged = "untag"` verb's plan report is not shown. Reports
+  (omissions, unowned, foreign) are printed once per estate without the
+  estate's name on them.
+- Each module's providers are started separately for that module's reads,
+  so a composed run starts the providers of every estate once more than the
+  same estates run one at a time.
+  (`internal/command/live_compose.go`, `internal/tofu/inrun_estates.go`,
+  asserted by `internal/command/live_compose_test.go` and
+  `internal/tofu/inrun_estates_test.go`.)
 
 ## Exclusion cohorts
 

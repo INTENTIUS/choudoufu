@@ -148,6 +148,11 @@ type Live struct {
 	// See [LiveRecordStore].
 	RecordStore *LiveRecordStore
 
+	// Composed is set only on the Live a composed root runs under (GitHub
+	// issue #2059, [NewComposedLive]): the module calls whose directories
+	// carry a live block. It is empty for every decoded live block.
+	Composed []ComposedEstate
+
 	// Strict is the optional nested "strict" block: GitHub issue #365's
 	// profile toggles, each one of the principles this fork exists for
 	// turned into a setting whose default is today's behavior. Nil when the
