@@ -40,6 +40,10 @@ type jointUnit struct {
 	Seq     int                 `json:"seq"`
 	Vars    map[string]jointVar `json:"vars"`
 	Outputs []jointOutputDecl   `json:"outputs"`
+	// Out is the plan file the unit's "plan -out" asked for. Every plan of
+	// the session rewrites each unit's file, so all of them hold the last
+	// joint plan.
+	Out string `json:"out,omitempty"`
 }
 
 type jointVar struct {
@@ -64,15 +68,37 @@ type jointState struct {
 	ApplyOK  bool   `json:"apply_ok,omitempty"`
 	ApplyBy  string `json:"apply_by,omitempty"`
 	ApplyErr string `json:"apply_err,omitempty"`
+
+	// Root is the directory of the composed root, when it is not root/: a
+	// session rebuilt from a plan file lays the configuration out from the
+	// file's snapshot.
+	Root string `json:"root,omitempty"`
 }
 
 // jointStub is what a unit's "plan -out" file holds in place of a plan.
+// Session points at the session that wrote it, on the machine that wrote
+// it; Bundle carries the joint plan itself, so that the file can be applied
+// once that session is gone (another CI job, another machine).
 type jointStub struct {
 	Magic   int      `json:"choudoufu_joint_plan"`
 	Session string   `json:"session"`
 	Unit    string   `json:"unit"`
 	Serial  int      `json:"serial"`
 	Units   []string `json:"units"`
+
+	// Run is the id of the tool run that planned (the session's name), and
+	// Tool its kind.
+	Run    string       `json:"run,omitempty"`
+	Tool   string       `json:"tool,omitempty"`
+	Bundle *jointBundle `json:"bundle,omitempty"`
+}
+
+// rootDir is the directory of the session's composed root.
+func (s *jointSession) rootDir(st jointState) string {
+	if st.Root != "" {
+		return st.Root
+	}
+	return s.path("root")
 }
 
 func jointSessionsRoot() string {
@@ -205,6 +231,9 @@ func (s *jointSession) register(u jointUnit, name string) jointUnit {
 		taken[e.ID] = true
 		if e.Key == u.Key {
 			u.ID, u.Seq = e.ID, e.Seq
+			if u.Out == "" {
+				u.Out = e.Out
+			}
 		}
 	}
 	if u.ID == "" {

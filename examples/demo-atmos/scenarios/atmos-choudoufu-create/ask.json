@@ -68,16 +68,16 @@
     "status": "Recording your approval as a review on the pull request"
   },
   "merged": {
-    "prompt": "Merge and apply.",
+    "prompt": "Merge it and apply the plan I approved.",
     "action": null,
     "reply": null,
     "light": null,
     "paths": false,
     "ghost": false,
-    "status": "Merging; the workflow applies the components in order"
+    "status": "Fetching the stored plans after the merge"
   },
   "applying": {
-    "status": "Applying the components in order",
+    "status": "Deploying network, app and edge from their stored plans",
     "tips": [
       {
         "title": "Only the binary changes",
@@ -88,8 +88,8 @@
         }
       },
       {
-        "title": "Plan together, apply in order",
-        "body": "Atmos refuses plan files in a bulk apply, so the apply runs one component at a time. Each reads the real outputs of the one before it."
+        "title": "Stored plans, applied in order",
+        "body": "Atmos's deploy compares a fresh plan with each stored one before applying it. choudoufu stops any component whose plan has moved away from your review."
       }
     ]
   },
@@ -103,6 +103,15 @@
       "ghost": false
     },
     {
+      "prompt": "Is that what I signed off on?",
+      "action": null,
+      "reply": "Yes. Atmos warned that subnet b's id had changed, because it was unknown when you looked and real by then. choudoufu held everything else to your plan before each component applied.",
+      "light": null,
+      "paths": false,
+      "ghost": false,
+      "status": "Comparing what ran with the approved plan"
+    },
+    {
       "prompt": "Did anything stay locked?",
       "action": null,
       "reply": "Never. choudoufu holds no lock to leave behind, so there is nothing to force-unlock. Each record is written only if it is unchanged since it was read: resource-level locking at the cloud level.",
@@ -112,5 +121,5 @@
       "status": "Checking the record store"
     }
   ],
-  "closing": "1 plan across 3 components, 1 review, applied in order."
+  "closing": "1 plan across 3 components, and the one you approved is the one deployed."
 }

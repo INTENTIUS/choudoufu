@@ -281,3 +281,106 @@ func TestJointSentinelIsAPlainYAMLScalar(t *testing.T) {
 		t.Errorf("sentinel %q does not match its own pattern", s)
 	}
 }
+
+func TestJointRerunCommand(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"/usr/local/bin/terragrunt", "run", "--all", "--out-dir", "/w/plans", "--", "apply"}, "terragrunt run --all --out-dir /w/plans -- plan"},
+		{[]string{"atmos", "terraform", "deploy", "--affected", "--include-dependents", "--ci"}, "atmos terraform plan --affected --include-dependents --ci"},
+		{[]string{"terragrunt", "run", "--all", "--", "apply", "-auto-approve"}, "terragrunt run --all -- plan"},
+		{[]string{"terragrunt", "run", "--all", "--", "plan"}, ""},
+		{nil, ""},
+	} {
+		if got := jointRerunCommand(&jointTool{Args: tc.args}); got != tc.want {
+			t.Errorf("%v: got %q, want %q", tc.args, got, tc.want)
+		}
+	}
+}
+
+func TestJointInputDiff(t *testing.T) {
+	v := func(s string) jointVar { return jointVar{Type: json.RawMessage(`"string"`), Value: json.RawMessage(s)} }
+	reviewed := jointUnit{Vars: map[string]jointVar{
+		"cidr":      v(`"10.0.2.0/24"`),
+		"subnet_id": v(`"(known after apply from network.subnet_id)"`),
+		"port":      v(`8080`),
+	}}
+	same := jointUnit{Vars: map[string]jointVar{"cidr": v(`"10.0.2.0/24"`), "subnet_id": v(`"subnet-123"`), "port": v(`8080`)}}
+	if d := jointInputDiff(reviewed, same); len(d) != 0 {
+		t.Errorf("a placeholder filled in, nothing else moved: %v", d)
+	}
+	moved := jointUnit{Vars: map[string]jointVar{"cidr": v(`"10.9.9.0/24"`), "subnet_id": v(`"subnet-123"`), "port": v(`8081`)}}
+	if d := jointInputDiff(reviewed, moved); strings.Join(d, ",") != "cidr,port" {
+		t.Errorf("got %v, want cidr and port", d)
+	}
+	// Terragrunt gives an apply of a plan file no inputs at all.
+	if d := jointInputDiff(reviewed, jointUnit{}); len(d) != 0 {
+		t.Errorf("no inputs given: %v", d)
+	}
+}
+
+func TestJointSliceDiff(t *testing.T) {
+	doc := func(after, unknown string, actions string) map[string]any {
+		var m map[string]any
+		body := `{"resource_changes":[` +
+			`{"address":"terraform_data.worker","mode":"managed","change":{"actions":` + actions + `,"before":null,"after":` + after + `,"after_unknown":` + unknown + `}},` +
+			`{"address":"data.x.y","mode":"data","change":{"actions":["read"]}},` +
+			`{"address":"terraform_data.same","mode":"managed","change":{"actions":["no-op"],"before":{"input":1},"after":{"input":1},"after_unknown":{}}}]}`
+		if err := json.Unmarshal([]byte(body), &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	reviewed := doc(`{"input":{"cidr":"10.0.2.0/24"}}`, `{"id":true,"input":{"subnet":true}}`, `["create"]`)
+	filled := doc(`{"input":{"cidr":"10.0.2.0/24","subnet":"subnet-123"}}`, `{"id":true}`, `["create"]`)
+	if d := jointSliceDiff(reviewed, filled); len(d) != 0 {
+		t.Errorf("a value known after apply in the reviewed plan, known now: %v", d)
+	}
+	moved := doc(`{"input":{"cidr":"10.9.9.0/24","subnet":"subnet-123"}}`, `{"id":true}`, `["create"]`)
+	if d := jointSliceDiff(reviewed, moved); len(d) != 1 || !strings.Contains(d[0], "other values for input") || strings.Contains(d[0], "10.9") {
+		t.Errorf("a moved known value: %v", d)
+	}
+	gone := map[string]any{"resource_changes": []any{}}
+	if d := jointSliceDiff(reviewed, gone); len(d) != 1 || !strings.Contains(d[0], "in the reviewed plan, not in this one") {
+		t.Errorf("a change this plan no longer makes: %v", d)
+	}
+	upd := doc(`{"input":{"cidr":"10.0.2.0/24"}}`, `{"id":true,"input":{"subnet":true}}`, `["update"]`)
+	if d := jointSliceDiff(reviewed, upd); len(d) != 1 || !strings.Contains(d[0], "create in the reviewed plan, update in this one") {
+		t.Errorf("another action: %v", d)
+	}
+}
+
+func TestJointStubsCarryTheLastPlan(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	sess, err := openJointSession("terragrunt-7-abc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	net := sess.register(jointUnit{Key: "/net", Out: filepath.Join(dir, "network.tfplan")}, "network")
+	// The output -json path registers again with no plan file; the unit's
+	// plan file is kept.
+	sess.register(jointUnit{Key: "/net"}, "network")
+	sess.register(jointUnit{Key: "/app", Out: filepath.Join(dir, "app.tfplan")}, "app")
+	if us := sess.units(); us[0].Out != net.Out {
+		t.Fatalf("the plan file of network was lost: %+v", us)
+	}
+	big := strings.Repeat("x", 20000)
+	os.WriteFile(sess.path("joint.plan"), []byte("PK"+big), 0o600)
+	os.WriteFile(sess.path("doc-2.json"), []byte(`{"resource_changes":[]}`), 0o600)
+	sess.saveState(jointState{Serial: 2, OK: true, Units: []string{"network", "app"}})
+	if err := sess.writeStubs(&jointTool{Kind: "terragrunt"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"network.tfplan", "app.tfplan"} {
+		st, ok := readJointStub(filepath.Join(dir, f))
+		if !ok || st.Serial != 2 || len(st.Units) != 2 || st.Bundle == nil || string(st.Bundle.Plan) != "PK"+big || st.Run != "terragrunt-7-abc" || len(st.Bundle.Units) != 2 {
+			t.Errorf("%s does not carry the last joint plan: ok=%v serial=%d units=%v run=%q", f, ok, st.Serial, st.Units, st.Run)
+		}
+	}
+	sess.saveState(jointState{Serial: 3, OK: false})
+	if err := sess.writeStubs(&jointTool{Kind: "terragrunt"}); err == nil {
+		t.Errorf("plan files were written over a failed joint plan")
+	}
+}

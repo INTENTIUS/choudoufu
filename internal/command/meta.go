@@ -187,6 +187,13 @@ type Meta struct {
 	variableArgs []flags.RawFlag
 	input        bool
 
+	// jointPlanFile and jointRerun are set when an apply runs a joint plan
+	// (GitHub issue #2213): the unit's plan file the person gave the tool,
+	// and the tool's command that plans again. A refusal names those rather
+	// than the joint plan in the session's temporary directory.
+	jointPlanFile string
+	jointRerun    string
+
 	// The fields below are expected to be set by the command via
 	// command line flags. See the Apply command for an example.
 	//

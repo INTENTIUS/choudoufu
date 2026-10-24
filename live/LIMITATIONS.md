@@ -6326,7 +6326,12 @@ and Atmos refuses a plan file in a bulk apply, so an apply without the
 that choudoufu cannot carry as unknown: numbers, bools and objects that depend
 on another unit's value known only after apply. Units are found from the parent
 process's name and arguments, so a wrapper script around the tool is not
-recognised unless `CHOUDOUFU_JOINT_RUN` names a run id.
+recognised unless `CHOUDOUFU_JOINT_RUN` names a run id. The `plan -out` files
+carry the joint plan, so a pull request's plan applies at merge in another
+job; under Atmos's `deploy`, a component whose reviewed plan held a value known
+after apply cannot pass `planfiles.verify: fail`, because Atmos counts that
+value becoming known as drift, so `verify: warn` with `required: true` is the
+setting, and choudoufu's own comparison with the reviewed plan refuses.
 
 ## Exclusion cohorts
 

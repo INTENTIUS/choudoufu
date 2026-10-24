@@ -68,17 +68,21 @@
     "status": "Recording your approving review of the pull request"
   },
   "merged": {
-    "prompt": "Merge and apply.",
+    "prompt": "Merge it and apply the plan I approved.",
     "action": null,
     "reply": null,
     "light": null,
     "paths": false,
     "ghost": false,
-    "status": "Merging; the workflow plans again and applies the saved plan"
+    "status": "Fetching the pull request's plan files after the merge"
   },
   "applying": {
-    "status": "The saved plan is being applied to all three units",
+    "status": "Applying those plan files to all three units",
     "tips": [
+      {
+        "title": "No second plan at merge",
+        "body": "The merge applies the files the pull request saved. choudoufu reads the live system first and stops if it has moved since your review."
+      },
       {
         "title": "Mocks stay in the repo",
         "body": "Your dependency blocks keep their mock_outputs. With choudoufu the joint plan hands app the unknown id, so the mock is not used."
@@ -103,6 +107,15 @@
       "ghost": false
     },
     {
+      "prompt": "Is that what I signed off on?",
+      "action": null,
+      "reply": "Yes, file for file. In what you saw, the worker's subnet was known after apply, and that one value was filled in. Anything else differing would have stopped the apply.",
+      "light": null,
+      "paths": false,
+      "ghost": false,
+      "status": "Comparing what ran with the approved plan"
+    },
+    {
       "prompt": "Did anything stay locked?",
       "action": null,
       "reply": "No state lock was taken. choudoufu has no state file, so there is nothing to force-unlock. Each record is written only if it is unchanged since it was read.",
@@ -112,5 +125,5 @@
       "status": "Checking the record store"
     }
   ],
-  "closing": "3 units, 1 joint plan, 1 review, 1 apply from saved plan files."
+  "closing": "3 units and 1 joint plan; the plan you approved is the one that ran."
 }

@@ -10,7 +10,8 @@ workflow (`.forgejo/workflows/atmos-choudoufu.yml`) runs the Atmos CLI.
 
 ## What differs from a plain Atmos repo
 
-Two things, and no others in the Atmos configuration or the stack:
+Two things, and no others in the Atmos configuration or the stack (the
+planfile store and `ci` settings in `atmos.yaml` are Atmos's own):
 
 1. `components.terraform.command: choudoufu` in `atmos.yaml`.
 2. A `live` block in each component's `terraform {}` block, naming its estate
@@ -31,16 +32,27 @@ into the one document chant's `terraform report` reads for behold.
 
 ## The workflow
 
-- Pull request: `atmos terraform plan --affected --include-dependents`. That is
-  one plan across the components the change reaches. choudoufu joins the
-  per-component invocations (it finds them from the parent `atmos` process), so
-  a value that exists only after apply, such as a new subnet's id, is carried
-  into the component that reads it and shows as "known after apply".
+- Pull request: `atmos terraform plan --affected --include-dependents --ci`.
+  That is one plan across the components the change reaches. choudoufu joins
+  the per-component invocations (it finds them from the parent `atmos`
+  process), so a value that exists only after apply, such as a new subnet's id,
+  is carried into the component that reads it and shows as "known after
+  apply". Atmos keeps each component's plan in its planfile store
+  (`components.terraform.planfiles`, an S3 bucket on the demo's emulator),
+  keyed by the pull request's head commit.
 - Merge: the workflow checks for an approving review from someone other than
-  the author, then applies. Atmos refuses plan files with `--affected` and
-  `--all`, so the apply cannot be one apply: it runs `atmos terraform apply`
-  for network, then app, then edge, and each one reads the real outputs of the
-  one before it. One plan across components, applied in order.
+  the author, checks out the pull request's head commit, stops unless the
+  merge commit holds the same tree, and runs `atmos terraform deploy --affected
+  --include-dependents --ci`. For each component in order, Atmos takes the
+  stored plan, plans again and applies the fresh plan once it matches.
+- What is applied is what was reviewed. Atmos counts a value that was known
+  after apply in the stored plan and is known now (app's worker's subnet, once
+  network has applied) as drift, and no honest plan can make the two compare
+  equal, so `planfiles.verify` is `warn` and `planfiles.required` is `true`.
+  The refusing is choudoufu's: when Atmos shows it a component's stored plan,
+  it keeps that component's slice, and the apply of the fresh plan refuses,
+  with exit status 3, if it differs from the slice in anything but those
+  values. The refusal names the command that plans again.
 
 ## The contrast
 
@@ -55,6 +67,8 @@ plan fails. Here app's plan carries the id as unknown.
 - `--affected` plans what Atmos names, so `--include-dependents` is needed for
   components that read a changed one.
 - The apply is not all or nothing. If edge fails, network and app stay applied.
+- Atmos's stored plans are keyed by commit, so the merge job runs on the pull
+  request's head; a pull request that is behind `main` is planned again.
 - behold draws the lines between roots from `data "terraform_estate_outputs"`
   blocks; `!terraform.output` is not read by chant's report yet, so the reports
   of this repo carry no `reads`.
