@@ -92,6 +92,11 @@ type approvedPlan struct {
 	// estates whose outputs the plan read from their plans, output name to
 	// the canonical JSON value read. Nil when it read none that way.
 	EstateOutputsFromPlan map[string]map[string]string
+
+	// Rerun is the tool command that plans again, for a joint plan (GitHub
+	// issue #2213), whose own file lives in a temporary directory nobody
+	// should be told to plan into.
+	Rerun string
 }
 
 // readApprovedPlan opens a saved plan file for its approval content only.
@@ -272,7 +277,7 @@ func approvalGuard(approved *approvedPlan, refused *bool) func(*plans.Plan, *tof
 		return diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
 			summaryApprovalMismatch,
-			approvalMismatchDetail(approved.Path, diff),
+			approvalMismatchDetail(approved.Path, approved.Rerun, diff),
 		))
 	}
 }
@@ -282,7 +287,7 @@ func approvalGuard(approved *approvedPlan, refused *bool) func(*plans.Plan, *tof
 // A standalone function for [unmigrateRefusalDetail]'s reason: the wording is
 // the product here, so it has to be testable without a plan, a backend or a
 // provider.
-func approvalMismatchDetail(path string, diff approval.Difference) string {
+func approvalMismatchDetail(path, rerun string, diff approval.Difference) string {
 	var b strings.Builder
 	fmt.Fprintf(&b,
 		"This apply read the live system and planned against what it found, the way every live-markers run does. The result is not the plan %q describes, so the approval that file carries does not cover what this apply would do, and it is refused before anything changes.\n\n",
@@ -304,6 +309,12 @@ func approvalMismatchDetail(path string, diff approval.Difference) string {
 	}
 	b.WriteString(
 		"Three things produce this. The live system moved between the plan and the apply. Another apply landed in between, so what that file approved has already happened. Or the configuration changed since the file was written.\n\n")
+	if rerun != "" {
+		fmt.Fprintf(&b,
+			"The plan above is what the live system asks for now. Plan again with the command that made the reviewed plan, review that plan, and apply it:\n  %s\n\nExit status %d says exactly this: send it back to review. Nothing was applied.",
+			rerun, ExitApprovalRefused)
+		return b.String()
+	}
 	fmt.Fprintf(&b,
 		"The plan above is what the live system asks for now. Review it, and apply the artifact it produced:\n  choudoufu plan -out=%s\n  choudoufu apply %s\n\nExit status %d says exactly this: send it back to review. Nothing was applied.",
 		path, path, ExitApprovalRefused)

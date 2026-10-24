@@ -1,8 +1,10 @@
 # Stock Atmos CI. A pull request runs `atmos terraform plan --affected
-# --include-dependents`: one plan across the components the change reaches. A
-# merge applies network, app and edge one after another, because Atmos refuses
-# a plan file with --affected and --all; each apply reads its upstream's real
-# outputs. The component command is choudoufu (atmos.yaml).
+# --include-dependents --ci`: one plan across the components the change
+# reaches, each component's plan kept in Atmos's planfile store (atmos.yaml,
+# components.terraform.planfiles). A merge runs `atmos terraform deploy
+# --affected --include-dependents --ci`, which takes each component's stored
+# plan, plans again and applies only what matches it. The component command is
+# choudoufu (atmos.yaml).
 name: atmos-choudoufu-demo
 
 on:
@@ -29,6 +31,8 @@ env:
   # Where behold reads the run's report and index row (the same bucket and
   # prefix as the other demos). chant-report is chant's `terraform report`.
   CHANT_REPORTS: http://floci:4566/demo-reports/demo
+  # The report document of the reviewed plan, kept for the merge's report.
+  REVIEWED_REPORTS: http://floci:4566/demo-atmos-choudoufu-state/reviewed-plans
   FORGEJO_ACTIONS: "true"
 
 jobs:
@@ -44,13 +48,15 @@ jobs:
       - name: One plan across the components the change reaches
         run: |
           set -o pipefail
-          atmos terraform plan --affected --include-dependents --ref refs/remotes/origin/main 2>&1 | tee plan.txt
+          atmos terraform plan --affected --include-dependents --ref refs/remotes/origin/main --ci 2>&1 | tee plan.txt
       - name: Write the plan's report for behold
         env:
           PR: '${{ github.event.pull_request.number }}'
+          HEAD_SHA: '${{ github.event.pull_request.head.sha }}'
         run: |
           # The report reads one document for the run; composed-plan.mjs joins the components' slices of the joint plan.
           node .forgejo/composed-plan.mjs network app edge > "$RUNNER_TEMP/plan.json"
+          curl -fsS -o /dev/null -X PUT --data-binary @"$RUNNER_TEMP/plan.json" "$REVIEWED_REPORTS/$HEAD_SHA.json"
           chant-report --stage tf-plan --plan "$RUNNER_TEMP/plan.json" --pull-request "$PR" \
             --binary choudoufu --root-dir components/terraform --to "$CHANT_REPORTS"
       - name: Post the plan on the pull request
@@ -96,20 +102,27 @@ jobs:
               const ok = reviews.some((r) => r.state === "APPROVED" && !r.dismissed && r.user.login !== pr.user.login);
               if (!ok) { console.error("pull request " + pr.number + " has no approving review from someone other than its author"); process.exit(1); }
               console.log("pull request " + pr.number + " was approved by a reviewer");
+              require("fs").appendFileSync(process.env.GITHUB_ENV, "HEAD_SHA=" + pr.head.sha + "\n");
             })().catch((e) => { console.error(e.message); process.exit(1); });
           '
-      - name: The plan this merge applies, kept for the report
+      # Atmos keys a stored plan by the commit that planned it, the pull
+      # request's head. The deploy runs on that commit, and only when the merge
+      # commit holds the same tree, so the reviewed files are the merged files.
+      - name: Check out the reviewed commit
+        env:
+          MERGED: '${{ github.sha }}'
         run: |
-          atmos terraform plan --affected --include-dependents --sha '${{ github.event.before }}' >/dev/null
-          node .forgejo/composed-plan.mjs network app edge > "$RUNNER_TEMP/plan.json"
-      - name: Apply network, then app, then edge
+          git checkout -q "$HEAD_SHA"
+          git diff --quiet "$HEAD_SHA" "$MERGED" \
+            || { echo "the merged tree is not the reviewed tree of $HEAD_SHA; plan the pull request again" >&2; exit 1; }
+          curl -fsS -o "$RUNNER_TEMP/plan.json" "$REVIEWED_REPORTS/$HEAD_SHA.json"
+      - name: Deploy the reviewed plan to network, app and edge
         run: |
-          # One plan across the components was made on the pull request. Atmos refuses
-          # plan files with --affected and --all, so the apply runs per component, in
-          # order, and each one reads the real outputs of the one before it.
-          for c in network app edge; do
-            atmos terraform apply "$c" -s dev -auto-approve
-          done
+          # deploy takes each component's stored plan, plans again and applies.
+          # A value known after apply in the stored plan is known by now, which
+          # Atmos reports as drift under verify: warn; choudoufu then refuses
+          # (exit status 3) any difference from the stored plan beyond such values.
+          atmos terraform deploy --affected --include-dependents --sha '${{ github.event.before }}' --ci
       - name: Write the apply's report for behold
         run: |
           # A plan made after the apply: its prior_state holds the values the first plan left unknown.

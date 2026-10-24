@@ -397,12 +397,36 @@ them into one run:
   dependent's resource shows `(known after apply)` in the same plan and is
   resolved by the same apply. An output that is only partly unknown is returned
   as one such string.
-- `plan -out=<file>` writes a small stub that names the session and the unit.
-  `show -json <file>` is the unit's slice of the joint plan: the module's step
-  is taken off every address, and the outputs are the unit's own.
-  `apply <file>` applies the whole joint plan, in dependency order, once;
-  the other units' `apply <file>` find it done and report that. A failed
-  joint apply is reported by every unit's apply.
+- `plan -out=<file>` writes a file that names the session and the unit and
+  carries the joint plan itself: the plan file of the composed root (with its
+  configuration snapshot), its `show -json`, the units and their inputs, and
+  the root's lock file. Each later unit's plan rewrites every unit's file, so
+  all of them carry the last joint plan. `show -json <file>` is the unit's
+  slice of the plan the file carries: the module's step is taken off every
+  address, and the outputs are the unit's own. `apply <file>` applies the
+  whole joint plan, in dependency order, once; the other units' `apply <file>`
+  find it done and report that. A failed joint apply is reported by every
+  unit's apply.
+- The file is applied from what it carries, so a plan made on a pull request
+  is applied at merge in another job or on another machine, where the session
+  is gone: `terragrunt run --all --out-dir <dir> -- plan`, keep `<dir>`, then
+  `terragrunt run --all --out-dir <dir> -- apply`. The apply lays the
+  configuration out from the plan's snapshot, plans the live system again and
+  refuses, exit status 3, if the result is not the reviewed plan (#878's
+  check; a value that was known after apply in the reviewed plan is not
+  compared). The refusal names the tool's command that plans again. An input
+  the tool gives a unit at apply with another value than at plan is refused
+  the same way (Terragrunt gives none to an apply of a plan file).
+- Atmos's `deploy` with a planfile store shows the stored plan, makes a fresh
+  plan and applies the fresh one. When a stored file from another run is shown
+  inside a joint run, choudoufu keeps that unit's slice, and the apply of the
+  unit's fresh plan refuses, exit status 3, when its slice differs from the
+  reviewed one in anything but values that were known after apply. Atmos
+  verifies each component just before it applies it, after its upstream has
+  applied, and counts "known after apply" becoming a value as drift, so a
+  reviewed plan that carried an unknown cannot verify equal: use
+  `planfiles.verify: warn` with `planfiles.required: true`, and choudoufu's
+  check is the one that refuses.
 - `plan` prints the unit's own resources and the path of the whole plan.
 
 A unit run alone, a run of the tools without `--all` / `--affected`, a unit
@@ -419,8 +443,8 @@ What the tools' own models decide:
   a plan file apply one unit at a time: the tool starts a unit only when the
   units it depends on have exited, and Atmos does not accept a plan file in a
   bulk apply (`--from-plan` is refused with `--all` and `--affected`). So the
-  joint plan is the one plan, and a joint apply needs the stub files from
-  `plan -out` (`terragrunt run --all apply -- <file>`). Without them each unit
+  joint plan is the one plan, and a joint apply needs the files from
+  `plan -out` (`terragrunt run --all --out-dir <dir> -- apply`). Without them each unit
   applies on its own, in order, and reads its upstream unit's recorded
   output from the record store (`choudoufu output`), which is by then known.
 - Atmos calls `output -json` for a component with no inputs of its own, so a

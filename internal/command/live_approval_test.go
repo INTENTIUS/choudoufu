@@ -252,7 +252,7 @@ func TestApprovalMismatchDetail_saysWhatToDo(t *testing.T) {
 		Extra:   []approval.Row{{Address: "aws_subnet.crashed", Action: "Delete", Identity: "subnet-99"}},
 		Missing: []approval.Row{{Address: "aws_vpc.main", Action: "Update", Identity: "vpc-owned"}},
 	}
-	got := approvalMismatchDetail("approved.tfplan", diff)
+	got := approvalMismatchDetail("approved.tfplan", "", diff)
 	for _, want := range []string{
 		"aws_subnet.crashed  Delete  subnet-99",
 		"aws_vpc.main  Update  vpc-owned",

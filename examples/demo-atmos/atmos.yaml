@@ -12,12 +12,31 @@ components:
     command: choudoufu
     # Atmos writes backend.tf.json from the stack's backend section.
     auto_generate_backend_file: true
+    # Atmos's planfile store: `plan --ci` keeps each component's plan, and
+    # `deploy --ci` applies only what matches it. A plan that held a value
+    # known after apply (a new subnet's id) cannot compare equal once the
+    # value is known, so verify warns and choudoufu's own check refuses a
+    # plan that moved; required makes a missing stored plan stop the deploy.
+    planfiles:
+      verify: warn
+      required: true
+      default: demo
+      stores:
+        demo:
+          type: aws/s3
+          options:
+            bucket: demo-atmos-choudoufu-state
+            prefix: planfiles/
+            region: us-east-1
 
 stacks:
   base_path: "stacks"
   included_paths:
     - "deploy/**/*"
   name_template: "{{ .vars.stage }}"
+
+ci:
+  enabled: true
 
 logs:
   file: "/dev/stderr"

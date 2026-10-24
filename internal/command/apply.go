@@ -136,6 +136,9 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 		var approvalDiags tfdiags.Diagnostics
 		approved, approvalDiags = c.readApprovedPlan(ctx, args.PlanPath, liveCfg, enc)
 		diags = diags.Append(approvalDiags)
+		if approved != nil && c.jointPlanFile != "" {
+			approved.Path, approved.Rerun = c.jointPlanFile, c.jointRerun
+		}
 		if approvalDiags.HasErrors() {
 			view.Diagnostics(diags)
 			// A file for another estate is the same kind of answer as a

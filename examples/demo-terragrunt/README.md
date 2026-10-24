@@ -39,13 +39,18 @@ the joint plan.
 
 `.forgejo/workflows/terragrunt-choudoufu.yml` runs Terragrunt's own CLI.
 
-- On the pull request: `terragrunt run --all plan -- -out=tfplan`, posted as a
-  comment.
-- On the merge: `terragrunt run --all plan -- -out=tfplan` again, then
-  `terragrunt run --all apply -- tfplan`. The plan file made in the pull
-  request's job is not in the merge's job, so the merged commit is planned again.
-- Before the apply, the job checks for a person's approving review of the merged
-  pull request and stops without one.
+- On the pull request: `terragrunt run --all --out-dir <dir> -- plan`, posted
+  as a comment. `<dir>` holds one plan file per unit, and the job keeps it in
+  the demo's bucket under the pull request's head commit.
+- On the merge: the job checks for a person's approving review of the merged
+  pull request and stops without one, fetches that `<dir>`, and runs
+  `terragrunt run --all --out-dir <dir> -- apply`. Nothing is planned again
+  first: the plan applied is the plan reviewed on the pull request.
+- Each plan file carries the whole joint plan, so the merge's job needs nothing
+  else from the pull request's job. Before it changes anything, choudoufu plans
+  the live system again and refuses, with exit status 3, if the result is not
+  the reviewed plan (a value that was known after apply is not compared). The
+  refusal names the command that plans again.
 - After each stage, chant's `terraform report` writes what behold reads. That
   step is not part of running the infrastructure. `terragrunt-plan-json`
   (on the demo host) joins the units' `show -json` documents for it, and
@@ -61,8 +66,8 @@ Terragrunt asks network for its outputs, choudoufu answers from that plan. An
 output that exists only after apply is handed over as a placeholder string,
 which becomes a reference in the joint plan, so app's worker shows its subnet
 as `(known after apply)` and receives the real id in the same apply.
-`plan -out=tfplan` writes a small stub, and `apply tfplan` applies the whole
-joint plan once; the other units' applies report that it is done.
+Each unit's plan file carries the joint plan, and applying network's applies
+the whole joint plan once; the other units' applies report that it is done.
 
 ## Against stock Terragrunt
 
@@ -72,12 +77,15 @@ subnet, so the dependency block needs `mock_outputs` (and
 `mock_outputs_merge_strategy_with_state = "shallow"`, since network's state
 exists but lacks the new output) and the plan reviewed for app holds the mock.
 With choudoufu the blocks are the same, the mock is never used, and the plan
-shows the real thing: the id is unknown until apply.
+shows the real thing: the id is unknown until apply. Stock Terragrunt also
+cannot apply a saved `run --all` plan honestly, because the plan file of app
+holds the mock; here the saved plan holds `(known after apply)` and the one
+apply fills it in.
 
 ## Limits
 
 - The one-apply path needs saved plan files. `terragrunt run --all apply`
-  without `-- tfplan` applies the units one at a time, in order, each reading
+  without `--out-dir` applies the units one at a time, in order, each reading
   its upstream's recorded outputs.
 - Only a value that is a string can be carried as unknown through the
   dependency. A number, bool or object that depends on another unit's
@@ -87,7 +95,7 @@ shows the real thing: the id is unknown until apply.
 - A failed joint apply leaves what applied, applied; every unit's apply reports
   the failure, and a re-run plans only what is left.
 - `mock_outputs_allowed_terraform_commands` lists `show` because the report
-  step runs `terragrunt run -- show -json tfplan` in each unit.
+  step runs `terragrunt run -- show -json <plan file>` in each unit.
 
 ## The base
 

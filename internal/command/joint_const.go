@@ -52,6 +52,7 @@ type jointTool struct {
 	PID   int
 	ID    string
 	Phase string // "plan", "apply" or ""
+	Args  []string
 }
 
 // detectJointTool reports the multi-unit tool run this invocation belongs
@@ -104,7 +105,7 @@ func jointToolFromArgs(pid int, start string, argv []string) *jointTool {
 		return nil
 	}
 	sum := sha256.Sum256([]byte(start))
-	return &jointTool{Kind: kind, PID: pid, Phase: phase, ID: fmt.Sprintf("%s-%d-%s", kind, pid, hex.EncodeToString(sum[:4]))}
+	return &jointTool{Kind: kind, PID: pid, Phase: phase, Args: argv, ID: fmt.Sprintf("%s-%d-%s", kind, pid, hex.EncodeToString(sum[:4]))}
 }
 
 var jointUnsafeRE = regexp.MustCompile(`[^A-Za-z0-9_-]+`)

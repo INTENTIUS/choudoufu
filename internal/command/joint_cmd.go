@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -151,7 +152,7 @@ func (c *jointCommand) jointPlan(args []string) (int, bool) {
 		c.stderr("joint run unavailable (%s); planning this unit alone", err)
 		return 0, false
 	}
-	unit, ok := c.registerUnit(sess, tool, p.Vars.All())
+	unit, ok := c.registerUnit(sess, tool, p.Vars.All(), outPath)
 	if !ok {
 		return 0, false
 	}
@@ -166,9 +167,9 @@ func (c *jointCommand) jointPlan(args []string) (int, bool) {
 		return 1, true
 	}
 	if outPath != "" {
-		b, _ := json.Marshal(jointStub{Magic: 1, Session: sess.dir, Unit: unit.ID, Serial: st.Serial, Units: st.Units})
-		stub := string(b)
-		if err := os.WriteFile(outPath, []byte(stub), 0o644); err != nil {
+		// Every unit's plan file is written again, so each carries the
+		// joint plan as it stands after this unit joined it.
+		if err := sess.writeStubs(tool); err != nil {
 			c.stderr("writing %s: %s", outPath, err)
 			return 1, true
 		}
@@ -191,19 +192,38 @@ func (c *jointCommand) jointPlan(args []string) (int, bool) {
 // registerUnit records this unit in the session, from its own directory,
 // environment and flags. It reports false when the unit is not an estate (no
 // live block) or its configuration will not load, so the ordinary path
-// reports that in its own voice.
-func (c *jointCommand) registerUnit(sess *jointSession, tool *jointTool, vars arguments.Vars) (jointUnit, bool) {
+// reports that in its own voice. out is the plan file the unit asked for, or
+// "".
+func (c *jointCommand) registerUnit(sess *jointSession, tool *jointTool, vars arguments.Vars, out string) (jointUnit, bool) {
+	u, varFiles, ok := c.unitFromCwd(tool, vars)
+	if !ok {
+		return jointUnit{}, false
+	}
+	u.Out = out
+	unlock, err := sess.lock()
+	if err != nil {
+		c.stderr("%s", err)
+		return jointUnit{}, false
+	}
+	defer unlock()
+	return sess.register(u, jointUnitName(u.Dir, varFiles)), true
+}
+
+// unitFromCwd reads the unit in the working directory: the variable values
+// the tool gave it and the outputs it declares. It also returns the var files
+// named on the command line, which name an Atmos component.
+func (c *jointCommand) unitFromCwd(tool *jointTool, vars arguments.Vars) (jointUnit, []string, bool) {
 	m := c.meta
 	m.variableArgs = vars.All()
 	ctx := m.CommandContext()
 	mod, diags := m.loadSingleModule(ctx, ".", configs.SelectiveLoadAll)
 	if diags.HasErrors() || mod == nil || mod.Live == nil || mod.Live.IsComposed() {
 		jointDebugf("not joining: no live block or configuration did not load")
-		return jointUnit{}, false
+		return jointUnit{}, nil, false
 	}
 	vals, vdiags := m.collectVariableValues()
 	if vdiags.HasErrors() {
-		return jointUnit{}, false
+		return jointUnit{}, nil, false
 	}
 	u := jointUnit{Vars: map[string]jointVar{}}
 	for name, v := range mod.Variables {
@@ -213,16 +233,16 @@ func (c *jointCommand) registerUnit(sess *jointSession, tool *jointTool, vars ar
 		}
 		iv, d := raw.ParseVariableValue(v.ParsingMode)
 		if d.HasErrors() || iv == nil || !iv.Value.IsKnown() {
-			return jointUnit{}, false
+			return jointUnit{}, nil, false
 		}
 		val, err := convert.Convert(iv.Value, v.ConstraintType)
 		if err != nil {
-			return jointUnit{}, false
+			return jointUnit{}, nil, false
 		}
 		ty, _ := val.Type().MarshalJSON()
 		vb, err := ctyjson.Marshal(val, val.Type())
 		if err != nil {
-			return jointUnit{}, false
+			return jointUnit{}, nil, false
 		}
 		u.Vars[name] = jointVar{Type: ty, Value: vb}
 	}
@@ -238,7 +258,7 @@ func (c *jointCommand) registerUnit(sess *jointSession, tool *jointTool, vars ar
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
-		return jointUnit{}, false
+		return jointUnit{}, nil, false
 	}
 	if r, err := filepath.EvalSymlinks(cwd); err == nil {
 		cwd = r
@@ -256,13 +276,7 @@ func (c *jointCommand) registerUnit(sess *jointSession, tool *jointTool, vars ar
 			u.Key += "|" + filepath.Base(f)
 		}
 	}
-	unlock, err := sess.lock()
-	if err != nil {
-		c.stderr("%s", err)
-		return jointUnit{}, false
-	}
-	defer unlock()
-	return sess.register(u, jointUnitName(cwd, varFiles)), true
+	return u, varFiles, true
 }
 
 // ensurePlan plans the root over the units registered so far, unless the
@@ -292,12 +306,7 @@ func (c *jointCommand) ensurePlan(sess *jointSession, flags []string) (jointStat
 	}
 	next := jointState{Serial: st.Serial + 1, Hash: hash, Units: ids}
 
-	for _, e := range os.Environ() {
-		k, _, _ := strings.Cut(e, "=")
-		if strings.HasPrefix(k, "TF_VAR_") || strings.HasPrefix(k, "TF_CLI_ARGS") || k == "TF_DATA_DIR" || k == "TF_WORKSPACE" {
-			os.Unsetenv(k)
-		}
-	}
+	jointClearUnitEnv()
 	if err := os.Chdir(rootDir); err != nil {
 		return jointState{}, err
 	}
@@ -379,13 +388,17 @@ func readJointStub(path string) (jointStub, bool) {
 		return jointStub{}, false
 	}
 	defer f.Close()
-	buf := make([]byte, 4096)
-	n, _ := f.Read(buf)
-	var st jointStub
-	if !strings.HasPrefix(string(buf[:n]), `{"`+jointStubMagic+`":1,`) {
+	head := make([]byte, len(jointStubMagic)+8)
+	n, _ := io.ReadFull(f, head)
+	if !strings.HasPrefix(string(head[:n]), `{"`+jointStubMagic+`":1,`) {
 		return jointStub{}, false
 	}
-	if json.Unmarshal(buf[:n], &st) != nil {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return jointStub{}, false
+	}
+	var st jointStub
+	if json.Unmarshal(body, &st) != nil {
 		return jointStub{}, false
 	}
 	return st, true
@@ -410,13 +423,36 @@ func (c *jointCommand) jointShow(args []string) (int, bool) {
 	if !ok {
 		return 0, false
 	}
-	sess := &jointSession{dir: stub.Session}
-	st := sess.loadState()
-	if !st.OK {
-		c.stderr("the joint plan this file points to is gone or failed; plan again")
-		return 1, true
+	// The plan the file carries is the one shown. A file from before plan
+	// files carried their plan is read from its session.
+	var doc map[string]any
+	units := stub.Units
+	if stub.Bundle != nil && len(stub.Bundle.Doc) > 0 {
+		if err := json.Unmarshal(stub.Bundle.Doc, &doc); err != nil {
+			c.stderr("the joint plan in %s cannot be read: %s", path, err)
+			return 1, true
+		}
+	} else {
+		sess := &jointSession{dir: stub.Session}
+		st := sess.loadState()
+		if !st.OK {
+			c.stderr("the joint plan this file points to is gone or failed; plan again")
+			return 1, true
+		}
+		doc, units = sess.loadDoc(st.Serial), st.Units
 	}
-	slice := jointSliceDoc(sess.loadDoc(st.Serial), stub.Unit)
+	slice := jointSliceDoc(doc, stub.Unit)
+	// A reviewed plan shown inside another run (Atmos's deploy shows the
+	// stored plan before it plans afresh) is what that run's apply of the
+	// unit is held to.
+	if tool := detectJointTool(); tool != nil && stub.Bundle != nil && stub.Run != "" && stub.Run != tool.ID {
+		if sess, err := openJointSession(tool.ID); err == nil {
+			if err := sess.saveReviewed(stub.Unit, slice); err != nil {
+				c.stderr("keeping the reviewed plan of unit %s: %s", stub.Unit, err)
+				return 1, true
+			}
+		}
+	}
 	for _, a := range args {
 		if a == "-json" {
 			b, _ := json.MarshalIndent(slice, "", "  ")
@@ -425,7 +461,7 @@ func (c *jointCommand) jointShow(args []string) (int, bool) {
 		}
 	}
 	add, chg, del := jointCounts(slice)
-	fmt.Printf("Unit %s of the joint plan across %s\n\n", stub.Unit, strings.Join(st.Units, ", "))
+	fmt.Printf("Unit %s of the joint plan across %s\n\n", stub.Unit, strings.Join(units, ", "))
 	if rcs, ok := slice["resource_changes"].([]any); ok {
 		for _, rc := range rcs {
 			m, _ := rc.(map[string]any)
@@ -449,14 +485,43 @@ func (c *jointCommand) jointApply(args []string) (int, bool) {
 	if !ok {
 		return 0, false
 	}
-	if detectJointTool() == nil {
+	tool := detectJointTool()
+	if tool == nil {
 		c.stderr("%s is the plan file of a joint run across %s. It cannot be applied on its own: apply it from the same Terragrunt or Atmos run (run --all, --all, --affected), or set %s.", a.PlanPath, strings.Join(stub.Units, ", "), jointEnv)
 		return 1, true
 	}
-	sess := &jointSession{dir: stub.Session}
-	if _, err := os.Stat(sess.path("joint.plan")); err != nil {
-		c.stderr("the joint plan %s points to is gone; plan again", a.PlanPath)
-		return 1, true
+	stubPath := a.PlanPath
+	if abs, err := filepath.Abs(stubPath); err == nil {
+		stubPath = abs
+	}
+	rerun := jointRerunCommand(tool)
+	planAgain := "plan again"
+	if rerun != "" {
+		planAgain = "plan again with " + rerun
+	}
+
+	// A plan made by this same run (Atmos's deploy plans and applies each
+	// component) is applied from its session. Any other is applied from the
+	// joint plan the file carries, in a session rebuilt for this run.
+	var sess *jointSession
+	rebuilt := false
+	if stub.Run == "" || stub.Run == tool.ID {
+		sess = &jointSession{dir: stub.Session}
+		if _, err := os.Stat(sess.path("joint.plan")); err != nil {
+			c.stderr("the joint plan %s points to is gone; %s", a.PlanPath, planAgain)
+			return 1, true
+		}
+	} else {
+		if stub.Bundle == nil || len(stub.Bundle.Plan) == 0 {
+			c.stderr("%s does not carry its joint plan (it was written by an older choudoufu); %s", a.PlanPath, planAgain)
+			return 1, true
+		}
+		var err error
+		if sess, err = c.rebuildSession(stub, tool); err != nil {
+			c.stderr("%s", err)
+			return 1, true
+		}
+		rebuilt = true
 	}
 	unlock, err := sess.lock()
 	if err != nil {
@@ -474,12 +539,44 @@ func (c *jointCommand) jointApply(args []string) (int, bool) {
 		return 0, true
 	}
 	if !st.OK {
-		c.stderr("the joint plan failed; plan again")
+		c.stderr("the joint plan failed; %s", planAgain)
 		return 1, true
 	}
+	refuse := func(detail string) (int, bool) {
+		c.stderr("%s\n\nNothing was applied. Exit status %d says: send it back to review. %s.", detail, ExitApprovalRefused, strings.ToUpper(planAgain[:1])+planAgain[1:])
+		st.Applied, st.ApplyOK, st.ApplyBy = true, false, stub.Unit
+		st.ApplyErr = "refused: the reviewed plan does not cover this apply (the reason is above, in the run of unit " + stub.Unit + ")"
+		_ = sess.saveState(st)
+		return ExitApprovalRefused, true
+	}
+
+	if rebuilt {
+		// The inputs the tool gives this unit now are read from what its
+		// upstream units have published since the plan. If they moved, the
+		// reviewed plan was made on other inputs. (Terragrunt gives none to
+		// an apply of a plan file; the live plan below still covers it.)
+		if now, _, ok := c.unitFromCwd(tool, a.Vars.All()); ok {
+			for _, reviewed := range stub.Bundle.Units {
+				if reviewed.ID != stub.Unit {
+					continue
+				}
+				if diff := jointInputDiff(reviewed, now); len(diff) > 0 {
+					return refuse(fmt.Sprintf("Unit %s is given other values now than the reviewed plan was made with, for %s. An upstream unit has published other outputs since the plan, or the inputs changed.", stub.Unit, strings.Join(diff, ", ")))
+				}
+			}
+		}
+	} else if reviewed, ok := sess.loadReviewed(stub.Unit); ok {
+		if diff := jointSliceDiff(reviewed, jointSliceDoc(sess.loadDoc(st.Serial), stub.Unit)); len(diff) > 0 {
+			return refuse(fmt.Sprintf("The plan this run made for unit %s is not the reviewed plan of the unit:\n  %s\nValues that were known after apply in the reviewed plan are not compared.", stub.Unit, strings.Join(diff, "\n  ")))
+		}
+	}
+
 	orig, _ := os.Getwd()
 	defer os.Chdir(orig)
-	if err := os.Chdir(sess.path("root")); err != nil {
+	if rebuilt {
+		jointClearUnitEnv()
+	}
+	if err := os.Chdir(sess.rootDir(st)); err != nil {
 		c.stderr("%s", err)
 		return 1, true
 	}
@@ -487,6 +584,8 @@ func (c *jointCommand) jointApply(args []string) (int, bool) {
 	m.WorkingDir = workdir.NewDir(".")
 	m.inputVariableCache = nil
 	m.variableArgs = nil
+	m.jointPlanFile = stubPath
+	m.jointRerun = rerun
 	applyArgs := []string{"-input=false"}
 	if a.View.NoColor {
 		applyArgs = append(applyArgs, "-no-color")
@@ -544,7 +643,7 @@ func (c *jointCommand) jointOutput(args []string) (int, bool) {
 		unit = found[0]
 	} else {
 		var ok bool
-		unit, ok = c.registerUnit(sess, tool, nil)
+		unit, ok = c.registerUnit(sess, tool, nil, "")
 		if !ok {
 			return 0, false
 		}

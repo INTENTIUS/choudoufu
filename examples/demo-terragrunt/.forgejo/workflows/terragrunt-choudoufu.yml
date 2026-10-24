@@ -1,10 +1,11 @@
 name: terragrunt-choudoufu-demo
 
 # Terragrunt's own CLI, with choudoufu as its binary (root.hcl). No other tool
-# runs the infrastructure: a pull request runs `terragrunt run --all plan` and
-# posts it as a comment, and a merge runs `terragrunt run --all apply` once a
-# person has approved the pull request. The report steps only read the saved
-# plans for behold.
+# runs the infrastructure: a pull request runs `terragrunt run --all --out-dir
+# <dir> -- plan`, posts the plan as a comment and keeps <dir>; a merge, once a
+# person has approved the pull request, fetches that <dir> and runs `terragrunt
+# run --all --out-dir <dir> -- apply`. The plan applied is the plan reviewed.
+# The report steps only read the saved plans for behold.
 on:
   pull_request:
     branches:
@@ -29,6 +30,9 @@ env:
   # Where behold reads the run's report and index row (the same bucket and
   # prefix as the other demos). chant-report is chant's `terraform report`.
   CHANT_REPORTS: http://floci:4566/demo-reports/demo
+  # Where the pull request's plan files are kept for the merge, one archive per
+  # head commit of the pull request.
+  SAVED_PLANS: http://floci:4566/demo-terragrunt-choudoufu-state/saved-plans
   FORGEJO_ACTIONS: "true"
 
 jobs:
@@ -41,13 +45,18 @@ jobs:
       - name: Plan network, app and edge
         run: |
           set -o pipefail
-          terragrunt run --all plan -- -out=tfplan 2>&1 | tee "$RUNNER_TEMP/plan.txt"
+          terragrunt run --all --out-dir "$RUNNER_TEMP/plans" -- plan 2>&1 | tee "$RUNNER_TEMP/plan.txt"
+      - name: Keep the plan files for the merge
+        env:
+          HEAD_SHA: '${{ github.event.pull_request.head.sha }}'
+        run: |
+          tar -C "$RUNNER_TEMP/plans" -czf - . | curl -fsS -o /dev/null -X PUT --data-binary @- "$SAVED_PLANS/$HEAD_SHA.tar.gz"
       - name: Write the plan's report for behold
         env:
           PR: '${{ github.event.pull_request.number }}'
         run: |
           for u in network app edge; do
-            (cd "$u" && terragrunt run --log-level error -- show -json tfplan > "$RUNNER_TEMP/$u.json")
+            (cd "$u" && terragrunt run --log-level error -- show -json "$RUNNER_TEMP/plans/$u/tfplan.tfplan" > "$RUNNER_TEMP/$u.json")
           done
           terragrunt-plan-json --repo "$PWD" network="$RUNNER_TEMP/network.json" app="$RUNNER_TEMP/app.json" edge="$RUNNER_TEMP/edge.json" > "$RUNNER_TEMP/plan.json"
           chant-report --stage tf-plan --plan "$RUNNER_TEMP/plan.json" --pull-request "$PR" \
@@ -80,16 +89,21 @@ jobs:
           [ -n "$pr" ] || { echo "no pull request merged $SHA; nothing here applies it" >&2; exit 1; }
           curl -fsS -H "Authorization: token $TOKEN" "$API/pulls/$pr/reviews" | jq -e 'any(.[]; .state == "APPROVED")' >/dev/null \
             || { echo "pull request $pr has no approving review" >&2; exit 1; }
-      # The plan file Terragrunt applies is made in this job: a plan file from the
-      # pull request's job would not be here, and the merged commit is planned again.
-      - name: Plan, then apply network, app and edge
+          head="$(curl -fsS -H "Authorization: token $TOKEN" "$API/pulls/$pr" | jq -r '.head.sha')"
+          echo "HEAD_SHA=$head" >> "$GITHUB_ENV"
+      # The plan files are the ones the pull request's job made and posted. Each
+      # carries the whole joint plan; choudoufu plans the live system again and
+      # refuses (exit status 3) if it no longer matches them.
+      - name: Fetch the reviewed plan files
         run: |
-          terragrunt run --all plan -- -out=tfplan
+          mkdir -p "$RUNNER_TEMP/plans"
+          curl -fsS "$SAVED_PLANS/$HEAD_SHA.tar.gz" | tar -C "$RUNNER_TEMP/plans" -xzf -
           for u in network app edge; do
-            (cd "$u" && terragrunt run --log-level error -- show -json tfplan > "$RUNNER_TEMP/$u.json")
+            (cd "$u" && terragrunt run --log-level error -- show -json "$RUNNER_TEMP/plans/$u/tfplan.tfplan" > "$RUNNER_TEMP/$u.json")
           done
           terragrunt-plan-json --repo "$PWD" network="$RUNNER_TEMP/network.json" app="$RUNNER_TEMP/app.json" edge="$RUNNER_TEMP/edge.json" > "$RUNNER_TEMP/plan.json"
-          terragrunt run --all apply -- tfplan
+      - name: Apply the reviewed plan to network, app and edge
+        run: terragrunt run --all --out-dir "$RUNNER_TEMP/plans" -- apply
       - name: Write the apply's report for behold
         run: |
           # A plan made after the apply: its prior_state holds the values the first plan left unknown.
