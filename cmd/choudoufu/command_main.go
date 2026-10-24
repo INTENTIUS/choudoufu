@@ -121,6 +121,25 @@ func commandMain(
 		return makeMeta(ctx, wd, view, config, services, modulePkgFetcher, providerSrc, providerDevOverrides, unmanagedProviders), 0
 	}
 
+	// Terragrunt and Atmos run this binary once per unit. When a run of
+	// several units invokes it, plan, apply, show and output join those
+	// invocations into one joint run (GitHub issue #2213); every other
+	// invocation takes the ordinary path below, untouched.
+	switch subcommand {
+	case "plan", "apply", "show", "output":
+		if rest, ok := argsAfter(args, subcommand); ok {
+			m, ec := meta()
+			if ec != 0 {
+				return ec
+			}
+			if code, handled := command.JointIntercept(subcommand, m, rest); handled {
+				return code
+			}
+			first := m
+			meta = func() (command.Meta, int) { return first, 0 }
+		}
+	}
+
 	root := command.RootCommander(&help, &version, &chdirArg)
 	setupCompletion(&root)
 
@@ -356,4 +375,14 @@ func setupCompletion(root *command.Command) {
 		completer.Complete()
 		os.Exit(0)
 	}
+}
+
+// argsAfter returns the arguments that follow the subcommand's name.
+func argsAfter(args []string, subcommand string) ([]string, bool) {
+	for i, a := range args {
+		if a == subcommand {
+			return args[i+1:], true
+		}
+	}
+	return nil, false
 }
