@@ -107,12 +107,10 @@ terraform {
 	}
 }
 
-// TestRemovingTheBackendIsLoadBearing is the mutation the edit's second step
-// exists for. Adding the sidecar WITHOUT removing the backend does not
-// produce a module that loads: configs.Module.appendFile refuses both at
-// once. A version of this package that only added the sidecar would report
-// every backend-carrying estate as unreadable and no reviewer reading a
-// blocked count would see why.
+// TestSidecarBesideABackendIsIgnored: adding the sidecar WITHOUT removing the
+// backend loads, with the backend ignored and a warning (GitHub issue #2213,
+// which replaced the decoder's refusal). The edit still removes the backend,
+// so the migrated module does not carry a dead block.
 func TestRemovingTheBackendIsLoadBearing(t *testing.T) {
 	dir := write(t, map[string]string{
 		"versions.tf": "terraform {\n  backend \"s3\" {\n    bucket = \"tfstate\"\n  }\n}\n",
@@ -123,11 +121,11 @@ func TestRemovingTheBackendIsLoadBearing(t *testing.T) {
 		filepath.Join(dir, configs.LiveSidecarFilename): []byte(sidecar("example")),
 	}
 	res := check.LoadOverlay(context.Background(), dir, sidecarOnly)
-	if res.Config != nil {
-		t.Fatal("a module declaring both a backend and a live configuration loaded; the edit's backend removal would then be untested")
+	if res.Config == nil {
+		t.Fatalf("a module with a sidecar beside a backend did not load: %s", res.Diags.Error())
 	}
-	if !strings.Contains(res.Diags.Error(), "backend") {
-		t.Errorf("diagnostics do not mention the backend: %s", res.Diags.Error())
+	if res.Config.Module.Backend != nil {
+		t.Error("the ignored backend is still set on the module")
 	}
 
 	// And the computed plan does load.

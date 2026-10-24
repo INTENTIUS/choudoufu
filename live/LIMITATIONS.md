@@ -735,24 +735,21 @@ finding once the corpus showed it was the sole thing blocking every estate on
 the onboarding ladder's upper rungs, and leaving the block in place carries
 no risk to *this* run: it configures nothing this run touches.
 
-**Forwarding address.** This warning can only fire on a module with no
-`live` block: `internal/configs/module.go`'s decoder hard-refuses to load
-any module that has both, before lint runs, so the two never coexist in one
-module by the time this text is shown. A child module is the one place it
-fires under a `live` block, since a child may carry a backend block and may
-not carry a `live` block; stock ignores that block too ("Backend
-configuration ignored"). The warning is advisory under every entry point:
-`live-plan`, plain `plan` and plain `apply` all render it and carry on
-(`lint.HasErrors` at both lint gates, GitHub issue #1268, ruled 2026-09-21;
-pinned by `TestLintGateAgreesAcrossEntryPoints1268`). For a root module, that
-makes deletion optional for the run in front
-of the operator - live-plan, live-import and live-mv can all still name an
-estate with `-estate` instead of a block - but not in general. Every other
-command, apply included, has no `-estate` flag, so reaching it requires
-adding a `live` block, and a `live` block beside this one refuses to load at
-all ("Both a backend and a live configuration are present," GitHub issue
-#268). Delete the block now if a `live` block is coming; the alternative is
-hitting that load failure later instead of this warning now.
+**Beside a `live` block.** A `backend` block next to a `live` block is
+accepted and ignored with a warning ("Backend configuration ignored under live
+resource markers"), not refused (GitHub issue #2213, which supersedes the
+refusal ruled on #1170). That covers Terragrunt's `remote_state`/`generate`
+`backend.tf` and Atmos's `backend.tf.json`, which are rewritten on every run
+and so cannot be deleted. `Module.ignoreStateStoreUnderLive`
+(`internal/configs/module.go`) drops the block after primary and override
+files are merged, so no later reader sees it. A composed root's own backend
+block is ignored the same way, with the warning raised on `init` from
+`liveBackendGuard`. With a live block there is no backend, so `init
+-reconfigure` (Atmos passes it by default) is accepted as a no-op with a
+one-line warning; `init -migrate-state` (and `-force-copy`) is still refused,
+since moving a previous backend's state into a directory with no state is the
+leak the refusal exists for. This lint warning therefore fires only on a module
+with no `live` block, and on a child module.
 
 **Enforcement.** `RuleStateBackend`, `internal/live/lint/lint.go`
 (`checkStateBackends`), warning severity (`Rule.Severity`,
@@ -766,11 +763,9 @@ hitting that load failure later instead of this warning now.
 with remote locking attached. The same story as `backend-block` by a
 different syntax, including the demotion: GitHub issue #214.
 
-**Forwarding address.** The same story as `backend-block`, again: optional
-only while no `live` block is present, since the decoder refuses to load a
-module carrying both a `live` and a `cloud` block ("Both a cloud and a live
-configuration are present"). Delete this block now if a `live` block is
-coming.
+**Forwarding address.** The same story as `backend-block`, again: beside a
+`live` block the `cloud` block is ignored with a warning, not refused (GitHub
+issue #2213).
 
 **Enforcement.** `RuleStateBackend`, the same rule as `backend-block`, same
 warning severity. The two fixtures exist separately because they are two
@@ -6931,3 +6926,16 @@ from any artifact, so this roster is curated
 
 **Total.** 4 types.
 <!-- survey-gen:end residue-emulator -->
+
+## Workspaces
+
+Under a live block, plan and apply (plain and composed), `workspace new` and
+`workspace select <name>` refuse any workspace but the default, whether it came
+from `TF_WORKSPACE`, `.terraform/environment` or the command. The message names
+the way out: unset `TF_WORKSPACE`, run `workspace select default`, and for
+Atmos set `components.terraform.workspaces_enabled: false`. Records are not
+keyed by workspace, deliberately: the estate name is the unit of ownership and
+the `tofu-estate` marker on each resource, so a workspace key on the records
+would split one estate's records from the markers that are the authority, and
+two workspaces over one set of resources would both claim them. Per-environment
+separation is a distinct estate name in its own live block (GitHub issue #2213).

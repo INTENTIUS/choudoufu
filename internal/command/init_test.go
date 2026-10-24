@@ -3432,6 +3432,50 @@ func TestInit_liveRefusesBackendMigration(t *testing.T) {
 	}
 }
 
+// TestInit_liveAcceptsReconfigure pins GitHub issue #2213: -reconfigure
+// (Atmos passes it by default) is a no-op under a live block, with a note,
+// and a backend block beside the live block is ignored rather than refused.
+func TestInit_liveAcceptsReconfigure(t *testing.T) {
+	td := t.TempDir()
+	t.Chdir(td)
+
+	const liveConfig = `terraform {
+  live {
+    estate = "my-estate"
+  }
+}
+`
+	const backendJSON = `{"terraform":{"backend":{"s3":{"bucket":"b","key":"k","region":"us-east-1"}}}}`
+	if err := os.WriteFile("main.tf", []byte(liveConfig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile("backend.tf.json", []byte(backendJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	view, done := testView(t)
+	c := &InitCommand{
+		Meta: Meta{
+			WorkingDir:       workdir.NewDir("."),
+			testingOverrides: metaOverridesForProvider(testProvider()),
+			View:             view,
+		},
+	}
+	code := c.Run([]string{"-reconfigure"})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("init -reconfigure failed beside a live block (exit %d):\n%s", code, output.Stderr())
+	}
+	if combined := output.Stdout() + output.Stderr(); !strings.Contains(combined, "ignored") {
+		t.Errorf("no note that the backend/-reconfigure was ignored:\n%s", combined)
+	}
+	for _, name := range []string{"terraform.tfstate", "terraform.tfstate.backup"} {
+		if _, err := os.Stat(name); err == nil {
+			t.Errorf("init left %s behind", name)
+		}
+	}
+}
+
 // TestInit_liveWritesNoState is the plain case: a first init in a live
 // directory, no previous backend, no migration flags. It must leave no state
 // artifact behind either - the same claim the floci lifecycle test makes
