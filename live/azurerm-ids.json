@@ -7,19 +7,21 @@
     "schema_sha256": "e74450ee2895faa3d654f1324af6fa0e99f24ad2fe04fa3332a5efa7cfe158b3"
   },
   "counts": {
+    "composite": 14,
     "identity-schema": 196,
     "identity-schema/parent-id": 68,
     "identity-schema/template": 115,
     "identity-schema/unmapped": 13,
     "parent-id": 355,
+    "route/composite": 14,
     "route/identity-schema": 103,
     "route/parent-id": 351,
     "route/template": 317,
     "route/template-fallback": 78,
-    "route/unmapped": 248,
+    "route/unmapped": 234,
     "route/withheld": 9,
     "template": 320,
-    "unmapped": 235
+    "unmapped": 221
   },
   "types": [
     {
@@ -2370,7 +2372,7 @@
     },
     {
       "type": "azurerm_app_service_certificate_binding",
-      "class": "unmapped",
+      "class": "composite",
       "via": "Importer",
       "source": {
         "kind": "composite",
@@ -2378,9 +2380,58 @@
         "id_type": "CompositeResourceID",
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/composite_resource_id.go"
       },
+      "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/sites/{siteName}/hostNameBindings/{hostNameBindingName}|/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/certificates/{certificateName}",
+      "components": [
+        {
+          "attrs": [
+            "hostname_binding_id"
+          ],
+          "arm_id": true,
+          "segment": "hostNameBindingName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "|"
+        },
+        {
+          "attrs": [
+            "certificate_id"
+          ],
+          "arm_id": true,
+          "segment": "certificateName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "join": "|",
+        "create": "web/app_service_certificate_binding_resource.go:92-152",
+        "parts": [
+          {
+            "id_type": "HostNameBindingId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/web/2023-12-01/webapps",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/sites/{siteName}/hostNameBindings/{hostNameBindingName}",
+            "arguments": [
+              "hostname_binding_id"
+            ],
+            "validators": {
+              "hostname_binding_id": "webapps.ValidateHostNameBindingID."
+            }
+          },
+          {
+            "id_type": "CertificateId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/web/2023-12-01/certificates",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/certificates/{certificateName}",
+            "arguments": [
+              "certificate_id"
+            ],
+            "validators": {
+              "certificate_id": "certificates.ValidateCertificateID."
+            }
+          }
+        ]
+      },
       "read": "not-found",
-      "reason": "composite id (several ARM ids joined by |)",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_app_service_certificate_order",
@@ -4650,7 +4701,7 @@
     },
     {
       "type": "azurerm_automation_job_schedule",
-      "class": "unmapped",
+      "class": "composite",
       "via": "Importer",
       "source": {
         "kind": "composite",
@@ -4658,9 +4709,113 @@
         "id_type": "CompositeResourceID",
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/composite_resource_id.go"
       },
+      "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Automation/automationAccounts/{automationAccountName}/schedules/{scheduleName}|/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Automation/automationAccounts/{automationAccountName}/runbooks/{runbookName}",
+      "components": [
+        {
+          "literal": "/subscriptions/"
+        },
+        {
+          "cloud": "subscription-id",
+          "segment": "subscriptionId",
+          "rule": "subscription"
+        },
+        {
+          "literal": "/resourceGroups/"
+        },
+        {
+          "attrs": [
+            "resource_group_name"
+          ],
+          "segment": "resourceGroupName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "/providers/Microsoft.Automation/automationAccounts/"
+        },
+        {
+          "attrs": [
+            "automation_account_name"
+          ],
+          "segment": "automationAccountName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "/schedules/"
+        },
+        {
+          "attrs": [
+            "schedule_name"
+          ],
+          "segment": "scheduleName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "|/subscriptions/"
+        },
+        {
+          "cloud": "subscription-id",
+          "segment": "subscriptionId",
+          "rule": "subscription"
+        },
+        {
+          "literal": "/resourceGroups/"
+        },
+        {
+          "attrs": [
+            "resource_group_name"
+          ],
+          "segment": "resourceGroupName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "/providers/Microsoft.Automation/automationAccounts/"
+        },
+        {
+          "attrs": [
+            "automation_account_name"
+          ],
+          "segment": "automationAccountName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "/runbooks/"
+        },
+        {
+          "attrs": [
+            "runbook_name"
+          ],
+          "segment": "runbookName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "join": "|",
+        "create": "automation/automation_job_schedule_resource.go:109-175",
+        "parts": [
+          {
+            "id_type": "ScheduleId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/automation/2024-10-23/schedule",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Automation/automationAccounts/{automationAccountName}/schedules/{scheduleName}",
+            "arguments": [
+              "resource_group_name",
+              "automation_account_name",
+              "schedule_name"
+            ]
+          },
+          {
+            "id_type": "RunbookId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/automation/2024-10-23/runbook",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Automation/automationAccounts/{automationAccountName}/runbooks/{runbookName}",
+            "arguments": [
+              "resource_group_name",
+              "automation_account_name",
+              "runbook_name"
+            ]
+          }
+        ]
+      },
       "read": "not-found",
-      "reason": "composite id (several ARM ids joined by |)",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_automation_module",
@@ -9286,7 +9441,7 @@
     },
     {
       "type": "azurerm_communication_service_email_domain_association",
-      "class": "unmapped",
+      "class": "composite",
       "via": "IDValidationFunc",
       "source": {
         "kind": "composite",
@@ -9294,9 +9449,58 @@
         "id_type": "CompositeResourceID",
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/composite_resource_id.go"
       },
+      "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Communication/communicationServices/{communicationServiceName}|/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Communication/emailServices/{emailServiceName}/domains/{domainName}",
+      "components": [
+        {
+          "attrs": [
+            "communication_service_id"
+          ],
+          "arm_id": true,
+          "segment": "communicationServiceName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "|"
+        },
+        {
+          "attrs": [
+            "email_service_domain_id"
+          ],
+          "arm_id": true,
+          "segment": "domainName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "join": "|",
+        "create": "communication/communication_service_email_domain_association_resource.go:74-152",
+        "parts": [
+          {
+            "id_type": "CommunicationServiceId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/communication/2026-03-18/communicationservices",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Communication/communicationServices/{communicationServiceName}",
+            "arguments": [
+              "communication_service_id"
+            ],
+            "validators": {
+              "communication_service_id": "communicationservices.ValidateCommunicationServiceID."
+            }
+          },
+          {
+            "id_type": "DomainId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/communication/2026-03-18/domains",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Communication/emailServices/{emailServiceName}/domains/{domainName}",
+            "arguments": [
+              "email_service_domain_id"
+            ],
+            "validators": {
+              "email_service_domain_id": "domains.ValidateDomainID."
+            }
+          }
+        ]
+      },
       "read": "not-found",
-      "reason": "composite id (several ARM ids joined by |)",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_confidential_ledger",
@@ -32733,7 +32937,7 @@
     },
     {
       "type": "azurerm_nat_gateway_public_ip_association",
-      "class": "unmapped",
+      "class": "composite",
       "via": "Importer",
       "source": {
         "kind": "composite",
@@ -32741,13 +32945,62 @@
         "id_type": "CompositeResourceID",
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/composite_resource_id.go"
       },
+      "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/natGateways/{natGatewayName}|/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/publicIPAddresses/{publicIPAddressesName}",
+      "components": [
+        {
+          "attrs": [
+            "nat_gateway_id"
+          ],
+          "arm_id": true,
+          "segment": "natGatewayName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "|"
+        },
+        {
+          "attrs": [
+            "public_ip_address_id"
+          ],
+          "arm_id": true,
+          "segment": "publicIPAddressesName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "join": "|",
+        "create": "network/nat_gateway_public_ip_association_resource.go:65-141",
+        "parts": [
+          {
+            "id_type": "NatGatewayId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/network/2025-07-01/natgateways",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/natGateways/{natGatewayName}",
+            "arguments": [
+              "nat_gateway_id"
+            ],
+            "validators": {
+              "nat_gateway_id": "natgateways.ValidateNatGatewayID."
+            }
+          },
+          {
+            "id_type": "PublicIPAddressId",
+            "package": "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/publicIPAddresses/{publicIPAddressesName}",
+            "arguments": [
+              "public_ip_address_id"
+            ],
+            "validators": {
+              "public_ip_address_id": "commonids.ValidatePublicIPAddressID."
+            }
+          }
+        ]
+      },
       "read": "not-found",
-      "reason": "composite id (several ARM ids joined by |)",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_nat_gateway_public_ip_prefix_association",
-      "class": "unmapped",
+      "class": "composite",
       "via": "Importer",
       "source": {
         "kind": "composite",
@@ -32755,9 +33008,58 @@
         "id_type": "CompositeResourceID",
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/composite_resource_id.go"
       },
+      "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/natGateways/{natGatewayName}|/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/publicIPPrefixes/{publicIPPrefixName}",
+      "components": [
+        {
+          "attrs": [
+            "nat_gateway_id"
+          ],
+          "arm_id": true,
+          "segment": "natGatewayName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "|"
+        },
+        {
+          "attrs": [
+            "public_ip_prefix_id"
+          ],
+          "arm_id": true,
+          "segment": "publicIPPrefixName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "join": "|",
+        "create": "network/nat_gateway_public_ip_prefix_association_resource.go:65-140",
+        "parts": [
+          {
+            "id_type": "NatGatewayId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/network/2025-07-01/natgateways",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/natGateways/{natGatewayName}",
+            "arguments": [
+              "nat_gateway_id"
+            ],
+            "validators": {
+              "nat_gateway_id": "natgateways.ValidateNatGatewayID."
+            }
+          },
+          {
+            "id_type": "PublicIPPrefixId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/network/2025-07-01/publicipprefixes",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/publicIPPrefixes/{publicIPPrefixName}",
+            "arguments": [
+              "public_ip_prefix_id"
+            ],
+            "validators": {
+              "public_ip_prefix_id": "publicipprefixes.ValidatePublicIPPrefixID."
+            }
+          }
+        ]
+      },
       "read": "not-found",
-      "reason": "composite id (several ARM ids joined by |)",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_netapp_account",
@@ -33673,7 +33975,7 @@
     },
     {
       "type": "azurerm_network_interface_application_gateway_backend_address_pool_association",
-      "class": "unmapped",
+      "class": "composite",
       "via": "Importer",
       "source": {
         "kind": "composite",
@@ -33681,13 +33983,73 @@
         "id_type": "CompositeResourceID",
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/composite_resource_id.go"
       },
+      "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/networkInterfaces/{networkInterfaceName}/ipConfigurations/{ipConfigurationName}|/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/applicationGateways/{applicationGatewayName}/backendAddressPools/{backendAddressPoolName}",
+      "components": [
+        {
+          "attrs": [
+            "network_interface_id"
+          ],
+          "arm_id": true,
+          "segment": "networkInterfaceName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "/ipConfigurations/"
+        },
+        {
+          "attrs": [
+            "ip_configuration_name"
+          ],
+          "segment": "ipConfigurationName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "|"
+        },
+        {
+          "attrs": [
+            "backend_address_pool_id"
+          ],
+          "arm_id": true,
+          "segment": "backendAddressPoolName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "join": "|",
+        "create": "network/network_interface_application_gateway_backend_address_pool_association_resource.go:114-153",
+        "parts": [
+          {
+            "id_type": "NetworkInterfaceIPConfigurationId",
+            "package": "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/networkInterfaces/{networkInterfaceName}/ipConfigurations/{ipConfigurationName}",
+            "arguments": [
+              "network_interface_id",
+              "ip_configuration_name"
+            ],
+            "validators": {
+              "network_interface_id": "commonids.ValidateNetworkInterfaceID."
+            }
+          },
+          {
+            "id_type": "ApplicationGatewayBackendAddressPoolId",
+            "package": "github.com/hashicorp/terraform-provider-azurerm/internal/services/network/parse",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/applicationGateways/{applicationGatewayName}/backendAddressPools/{backendAddressPoolName}",
+            "arguments": [
+              "backend_address_pool_id"
+            ],
+            "validators": {
+              "backend_address_pool_id": "validate.BackendAddressPoolID."
+            }
+          }
+        ]
+      },
       "read": "not-found",
-      "reason": "composite id (several ARM ids joined by |)",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_network_interface_application_security_group_association",
-      "class": "unmapped",
+      "class": "composite",
       "via": "Importer",
       "source": {
         "kind": "composite",
@@ -33695,13 +34057,62 @@
         "id_type": "CompositeResourceID",
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/composite_resource_id.go"
       },
+      "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/networkInterfaces/{networkInterfaceName}|/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/applicationSecurityGroups/{applicationSecurityGroupName}",
+      "components": [
+        {
+          "attrs": [
+            "network_interface_id"
+          ],
+          "arm_id": true,
+          "segment": "networkInterfaceName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "|"
+        },
+        {
+          "attrs": [
+            "application_security_group_id"
+          ],
+          "arm_id": true,
+          "segment": "applicationSecurityGroupName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "join": "|",
+        "create": "network/network_interface_application_security_group_association_resource.go:70-126",
+        "parts": [
+          {
+            "id_type": "NetworkInterfaceId",
+            "package": "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/networkInterfaces/{networkInterfaceName}",
+            "arguments": [
+              "network_interface_id"
+            ],
+            "validators": {
+              "network_interface_id": "commonids.ValidateNetworkInterfaceID."
+            }
+          },
+          {
+            "id_type": "ApplicationSecurityGroupId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/network/2025-07-01/applicationsecuritygroups",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/applicationSecurityGroups/{applicationSecurityGroupName}",
+            "arguments": [
+              "application_security_group_id"
+            ],
+            "validators": {
+              "application_security_group_id": "applicationsecuritygroups.ValidateApplicationSecurityGroupID."
+            }
+          }
+        ]
+      },
       "read": "not-found",
-      "reason": "composite id (several ARM ids joined by |)",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_network_interface_backend_address_pool_association",
-      "class": "unmapped",
+      "class": "composite",
       "via": "Importer",
       "source": {
         "kind": "composite",
@@ -33709,13 +34120,73 @@
         "id_type": "CompositeResourceID",
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/composite_resource_id.go"
       },
+      "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/networkInterfaces/{networkInterfaceName}/ipConfigurations/{ipConfigurationName}|/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/loadBalancers/{loadBalancerName}/backendAddressPools/{backendAddressPoolName}",
+      "components": [
+        {
+          "attrs": [
+            "network_interface_id"
+          ],
+          "arm_id": true,
+          "segment": "networkInterfaceName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "/ipConfigurations/"
+        },
+        {
+          "attrs": [
+            "ip_configuration_name"
+          ],
+          "segment": "ipConfigurationName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "|"
+        },
+        {
+          "attrs": [
+            "backend_address_pool_id"
+          ],
+          "arm_id": true,
+          "segment": "backendAddressPoolName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "join": "|",
+        "create": "network/network_interface_backend_address_pool_association_resource.go:71-148",
+        "parts": [
+          {
+            "id_type": "NetworkInterfaceIPConfigurationId",
+            "package": "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/networkInterfaces/{networkInterfaceName}/ipConfigurations/{ipConfigurationName}",
+            "arguments": [
+              "network_interface_id",
+              "ip_configuration_name"
+            ],
+            "validators": {
+              "network_interface_id": "commonids.ValidateNetworkInterfaceID."
+            }
+          },
+          {
+            "id_type": "BackendAddressPoolId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/network/2025-07-01/loadbalancers",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/loadBalancers/{loadBalancerName}/backendAddressPools/{backendAddressPoolName}",
+            "arguments": [
+              "backend_address_pool_id"
+            ],
+            "validators": {
+              "backend_address_pool_id": "loadbalancers.ValidateBackendAddressPoolID."
+            }
+          }
+        ]
+      },
       "read": "not-found",
-      "reason": "composite id (several ARM ids joined by |)",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_network_interface_nat_rule_association",
-      "class": "unmapped",
+      "class": "composite",
       "via": "Importer",
       "source": {
         "kind": "composite",
@@ -33723,13 +34194,73 @@
         "id_type": "CompositeResourceID",
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/composite_resource_id.go"
       },
+      "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/networkInterfaces/{networkInterfaceName}/ipConfigurations/{ipConfigurationName}|/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/loadBalancers/{loadBalancerName}/inboundNatRules/{inboundNatRuleName}",
+      "components": [
+        {
+          "attrs": [
+            "network_interface_id"
+          ],
+          "arm_id": true,
+          "segment": "networkInterfaceName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "/ipConfigurations/"
+        },
+        {
+          "attrs": [
+            "ip_configuration_name"
+          ],
+          "segment": "ipConfigurationName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "|"
+        },
+        {
+          "attrs": [
+            "nat_rule_id"
+          ],
+          "arm_id": true,
+          "segment": "inboundNatRuleName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "join": "|",
+        "create": "network/network_interface_nat_rule_association_resource.go:72-152",
+        "parts": [
+          {
+            "id_type": "NetworkInterfaceIPConfigurationId",
+            "package": "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/networkInterfaces/{networkInterfaceName}/ipConfigurations/{ipConfigurationName}",
+            "arguments": [
+              "network_interface_id",
+              "ip_configuration_name"
+            ],
+            "validators": {
+              "network_interface_id": "commonids.ValidateNetworkInterfaceID."
+            }
+          },
+          {
+            "id_type": "InboundNatRuleId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/network/2025-07-01/loadbalancers",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/loadBalancers/{loadBalancerName}/inboundNatRules/{inboundNatRuleName}",
+            "arguments": [
+              "nat_rule_id"
+            ],
+            "validators": {
+              "nat_rule_id": "loadbalancers.ValidateInboundNatRuleID."
+            }
+          }
+        ]
+      },
       "read": "not-found",
-      "reason": "composite id (several ARM ids joined by |)",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_network_interface_security_group_association",
-      "class": "unmapped",
+      "class": "composite",
       "via": "Importer",
       "source": {
         "kind": "composite",
@@ -33737,9 +34268,58 @@
         "id_type": "CompositeResourceID",
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/composite_resource_id.go"
       },
+      "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/networkInterfaces/{networkInterfaceName}|/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/networkSecurityGroups/{networkSecurityGroupName}",
+      "components": [
+        {
+          "attrs": [
+            "network_interface_id"
+          ],
+          "arm_id": true,
+          "segment": "networkInterfaceName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "|"
+        },
+        {
+          "attrs": [
+            "network_security_group_id"
+          ],
+          "arm_id": true,
+          "segment": "networkSecurityGroupName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "join": "|",
+        "create": "network/network_interface_security_group_association_resource.go:64-111",
+        "parts": [
+          {
+            "id_type": "NetworkInterfaceId",
+            "package": "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/networkInterfaces/{networkInterfaceName}",
+            "arguments": [
+              "network_interface_id"
+            ],
+            "validators": {
+              "network_interface_id": "commonids.ValidateNetworkInterfaceID."
+            }
+          },
+          {
+            "id_type": "NetworkSecurityGroupId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/network/2025-07-01/networksecuritygroups",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/networkSecurityGroups/{networkSecurityGroupName}",
+            "arguments": [
+              "network_security_group_id"
+            ],
+            "validators": {
+              "network_security_group_id": "networksecuritygroups.ValidateNetworkSecurityGroupID."
+            }
+          }
+        ]
+      },
       "read": "not-found",
-      "reason": "composite id (several ARM ids joined by |)",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_network_manager",
@@ -37319,7 +37899,7 @@
     },
     {
       "type": "azurerm_postgresql_flexible_server_virtual_endpoint",
-      "class": "unmapped",
+      "class": "composite",
       "via": "IDValidationFunc",
       "source": {
         "kind": "composite",
@@ -37327,9 +37907,80 @@
         "id_type": "CompositeResourceID",
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/composite_resource_id.go"
       },
+      "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.DBforPostgreSQL/flexibleServers/{flexibleServerName}/virtualEndpoints/{virtualEndpointName}|/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.DBforPostgreSQL/flexibleServers/{flexibleServerName}/virtualEndpoints/{virtualEndpointName}",
+      "components": [
+        {
+          "attrs": [
+            "source_server_id"
+          ],
+          "arm_id": true,
+          "segment": "flexibleServerName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "/virtualEndpoints/"
+        },
+        {
+          "attrs": [
+            "name"
+          ],
+          "segment": "virtualEndpointName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "|"
+        },
+        {
+          "attrs": [
+            "replica_server_id"
+          ],
+          "arm_id": true,
+          "segment": "flexibleServerName",
+          "rule": "composite-part"
+        },
+        {
+          "literal": "/virtualEndpoints/"
+        },
+        {
+          "attrs": [
+            "name"
+          ],
+          "segment": "virtualEndpointName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "join": "|",
+        "create": "postgres/postgresql_flexible_server_virtual_endpoint_resource.go:117-151",
+        "parts": [
+          {
+            "id_type": "VirtualEndpointId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/virtualendpoints",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.DBforPostgreSQL/flexibleServers/{flexibleServerName}/virtualEndpoints/{virtualEndpointName}",
+            "arguments": [
+              "source_server_id",
+              "name"
+            ],
+            "validators": {
+              "source_server_id": "servers.ValidateFlexibleServerID."
+            }
+          },
+          {
+            "id_type": "VirtualEndpointId",
+            "package": "github.com/hashicorp/go-azure-sdk/resource-manager/postgresql/2025-08-01/virtualendpoints",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.DBforPostgreSQL/flexibleServers/{flexibleServerName}/virtualEndpoints/{virtualEndpointName}",
+            "arguments": [
+              "replica_server_id",
+              "name"
+            ],
+            "validators": {
+              "replica_server_id": "servers.ValidateFlexibleServerID."
+            }
+          }
+        ]
+      },
       "read": "not-found",
-      "reason": "composite id (several ARM ids joined by |)",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_powerbi_embedded",
@@ -50085,7 +50736,7 @@
     },
     {
       "type": "azurerm_subnet_nat_gateway_association",
-      "class": "unmapped",
+      "class": "composite",
       "via": "Importer",
       "source": {
         "kind": "resourceids",
@@ -50094,14 +50745,38 @@
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/subnet.go"
       },
       "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/virtualNetworks/{virtualNetworkName}/subnets/{subnetName}",
+      "components": [
+        {
+          "attrs": [
+            "subnet_id"
+          ],
+          "arm_id": true,
+          "segment": "subnetName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "create": "network/subnet_nat_gateway_association_resource.go:65-111",
+        "parts": [
+          {
+            "id_type": "SubnetId",
+            "package": "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/virtualNetworks/{virtualNetworkName}/subnets/{subnetName}",
+            "arguments": [
+              "subnet_id"
+            ],
+            "validators": {
+              "subnet_id": "commonids.ValidateSubnetID."
+            }
+          }
+        ]
+      },
       "read": "agrees",
-      "reason": "no argument for the resource group segment",
-      "detail": "segment \"resourceGroupName\"; tried resource_group_name",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_subnet_network_security_group_association",
-      "class": "unmapped",
+      "class": "composite",
       "via": "Importer",
       "source": {
         "kind": "resourceids",
@@ -50110,14 +50785,38 @@
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/subnet.go"
       },
       "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/virtualNetworks/{virtualNetworkName}/subnets/{subnetName}",
+      "components": [
+        {
+          "attrs": [
+            "subnet_id"
+          ],
+          "arm_id": true,
+          "segment": "subnetName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "create": "network/subnet_network_security_group_association_resource.go:66-152",
+        "parts": [
+          {
+            "id_type": "SubnetId",
+            "package": "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/virtualNetworks/{virtualNetworkName}/subnets/{subnetName}",
+            "arguments": [
+              "subnet_id"
+            ],
+            "validators": {
+              "subnet_id": "commonids.ValidateSubnetID."
+            }
+          }
+        ]
+      },
       "read": "agrees",
-      "reason": "no argument for the resource group segment",
-      "detail": "segment \"resourceGroupName\"; tried resource_group_name",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_subnet_route_table_association",
-      "class": "unmapped",
+      "class": "composite",
       "via": "Importer",
       "source": {
         "kind": "resourceids",
@@ -50126,10 +50825,34 @@
         "file": "vendor/github.com/hashicorp/go-azure-helpers/resourcemanager/commonids/subnet.go"
       },
       "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/virtualNetworks/{virtualNetworkName}/subnets/{subnetName}",
+      "components": [
+        {
+          "attrs": [
+            "subnet_id"
+          ],
+          "arm_id": true,
+          "segment": "subnetName",
+          "rule": "composite-part"
+        }
+      ],
+      "composite": {
+        "create": "network/subnet_route_table_association_resource.go:66-152",
+        "parts": [
+          {
+            "id_type": "SubnetId",
+            "package": "github.com/hashicorp/go-azure-helpers/resourcemanager/commonids",
+            "template": "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Network/virtualNetworks/{virtualNetworkName}/subnets/{subnetName}",
+            "arguments": [
+              "subnet_id"
+            ],
+            "validators": {
+              "subnet_id": "commonids.ValidateSubnetID."
+            }
+          }
+        ]
+      },
       "read": "agrees",
-      "reason": "no argument for the resource group segment",
-      "detail": "segment \"resourceGroupName\"; tried resource_group_name",
-      "route": "unmapped"
+      "route": "composite"
     },
     {
       "type": "azurerm_subnet_service_endpoint_storage_policy",
