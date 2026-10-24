@@ -1728,7 +1728,7 @@ func (r *liveRunner) WriteInstance(ctx context.Context, state *states.State, add
 // one identity resolution is given in live_plan.go, so a record and the
 // identity route read ARM_SUBSCRIPTION_ID through the same function.
 func liveRecordCloud() identity.CloudContext {
-	return identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv)}
+	return identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv), Environment: azsweep.EnvEnvironment(os.Getenv)}
 }
 
 // AfterApply implements [backendLocal.LiveRun]: the untag verb's
