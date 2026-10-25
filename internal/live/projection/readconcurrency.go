@@ -523,6 +523,9 @@ func (b *builder) readFor(ctx context.Context, w wanted) *readFetch {
 // A second arm (issue #692 increment 2) serves when the tag index could
 // not answer: the run's listing pass proves existence and identity, and
 // the record envelope attests ownership - see [builder.envelopeVouched].
+// A third (issue #2232) serves a declaration-carried record whose scope's
+// one listing shows exactly the values the cache holds - see
+// [builder.scopedListingVouched].
 //
 // So a cached entry is a CANDIDATE and the tag index is the oracle. The cache
 // is never trusted on its own: it supplies attributes for an object the cloud
@@ -554,15 +557,22 @@ func (b *builder) cacheHit(ctx context.Context, w wanted, prep readPrep) *readFe
 		return nil
 	}
 	vouch := "marker verified by the estate sweep"
-	if !b.opts.Ownership.verified(w.addr) {
-		if !b.envelopeVouched(ctx, w, prep) {
-			return nil
-		}
+	switch {
+	case b.opts.Ownership.verified(w.addr):
+	case b.envelopeVouched(ctx, w, prep):
 		vouch = "listed live this run, ownership record-attested"
 		if b.envelopeAdmitted == nil {
 			b.envelopeAdmitted = map[string]bool{}
 		}
 		b.envelopeAdmitted[w.addr.String()] = true
+	case b.scopedListingVouched(ctx, w, prep, obj):
+		// The third arm (issue #2232): the declaration is the ownership,
+		// and the scope's listing showed the same values the cache holds.
+		// No admission entry: checkOwnership treats the served object
+		// exactly as it would a read one.
+		vouch = "listed live this run by its scope's one listing, every listed value matching the cache"
+	default:
+		return nil
 	}
 	b.cacheHits++
 	log.Printf("[DEBUG] projection: state cache hit for %s, %s; no provider read", w.addr, vouch)
@@ -604,13 +614,14 @@ func (b *builder) cacheCandidate(w wanted, prep readPrep) (*states.ResourceInsta
 // increment 2's request-count half). The one side effect - registering an
 // envelope admission - stays with cacheHit, which always runs.
 func (b *builder) cacheWouldServe(ctx context.Context, w wanted, prep readPrep) bool {
-	if _, ok := b.cacheCandidate(w, prep); !ok {
+	obj, ok := b.cacheCandidate(w, prep)
+	if !ok {
 		return false
 	}
 	if b.opts.Ownership.verified(w.addr) {
 		return true
 	}
-	return b.envelopeVouched(ctx, w, prep)
+	return b.envelopeVouched(ctx, w, prep) || b.scopedListingVouched(ctx, w, prep, obj)
 }
 
 // envelopeVouched is issue #692 increment 2's second eligibility arm: the

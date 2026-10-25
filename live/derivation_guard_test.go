@@ -119,6 +119,16 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"misses a dependent the config graph does not show, and the guard's share limit is what bounds that.",
 		Data: 32, Code: 0,
 	},
+	"internal/live/projection/scopedlisting.go": {
+		Reason: "scopedListSpecs (issue #2232): the state cache's third vouch arm, one listing per parent scope compared " +
+			"value by value against the cache. aws_route53_record is the one entry. Two facts in it no schema states: " +
+			"which listed attributes the provider's read does not set from the live object (name is the FQDN on the " +
+			"list side and the declared spelling on the read side; id, allow_overwrite and timeouts are never read), " +
+			"and that an alias record names another resource's DNS name the zone listing does not vouch for. Both were " +
+			"read from hashicorp/aws 6.59.0's record.go and record_list.go (resourceRecordFlatten is shared by the read " +
+			"and the list). A type with no row reads exactly as before, so a missing row costs requests, never answers.",
+		Data: 1, Code: 0,
+	},
 	"internal/live/discovery/directread.go": {
 		Reason: "directReadTypes (issue #1046): the narrow, hand-verified registry of ServerAssigned types whose live " +
 			"ARN a service mints deterministically from configuration's own arguments alone, so a targeted Import+Read " +
@@ -809,7 +819,10 @@ const (
 	// internal/live/identity/azure_serverminted.go (17 / 0) and
 	// tools/azurerm-id-gen/composite.go (31 / 0). 88 new Data and 9 new Code
 	// literals, none moved.
-	typeLiteralDataTotal = 1358
+	// 1358 -> 1359 data, code unchanged, on 2026-10-24 (#2232):
+	// internal/live/projection/scopedlisting.go's scopedListSpecs row for
+	// aws_route53_record, one new Data literal, none moved.
+	typeLiteralDataTotal = 1359
 	typeLiteralCodeTotal = 140
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
