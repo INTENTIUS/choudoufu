@@ -56,7 +56,7 @@ import (
 
 // providerStringRoots are the directories scanned, relative to the module
 // root.
-var providerStringRoots = []string{"internal", "tools"}
+var providerStringRoots = []string{"internal", "pkg", "tools"}
 
 // providerStringExcludedDirs are subtrees the walk skips outright,
 // relative to the module root. internal/live/substrate is the seam this
@@ -109,7 +109,7 @@ var providerStringAllowed = map[string]providerStringException{
 	// --- the audit's five named categories ---
 
 	// identity/parent.go aws_ affinity.
-	"internal/live/identity/parent.go:tfServicePrefix": {Why: "the Terraform-prefix affinity fallback (issue #129) for when no ServiceOf is supplied: every logical type is non-aws_ by construction, so this is not a substrate dispatch, it is the one convention (\"aws_<service>_...\") the fallback can read at all"},
+	"pkg/identity/parent.go:tfServicePrefix": {Why: "the Terraform-prefix affinity fallback (issue #129) for when no ServiceOf is supplied: every logical type is non-aws_ by construction, so this is not a substrate dispatch, it is the one convention (\"aws_<service>_...\") the fallback can read at all"},
 
 	// discovery AWS-leg default adopters.
 	"internal/live/discovery/discovery.go:defaultAdopterSiblings":             {Why: "the aws_default_* adoption pairing (issue #302); the AWS provider's own naming convention for a default-object adopter, read only from the AWS discovery leg per the file-level exemption already recorded for this file in seams_test.go"},

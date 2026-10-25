@@ -26,12 +26,12 @@ ci:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "==> gofmt (fork-owned packages)"
-    out="$(gofmt -l internal/live cmd tools live internal/backend internal/builtin/providers/tf internal/command internal/configs internal/e2e internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/plugins internal/states/statemgr internal/tofu internal/tracing)"
+    out="$(gofmt -l internal/live pkg cmd tools live internal/backend internal/builtin/providers/tf internal/command internal/configs internal/e2e internal/engine/applying internal/plans internal/plugin internal/plugin6 internal/plugins internal/states/statemgr internal/tofu internal/tracing)"
     if [ -n "$out" ]; then echo "gofmt needed on:"; echo "$out"; exit 1; fi
     echo "==> build"
     go build ./cmd/choudoufu
     echo "==> fast test tier"
-    env -u PWD go test ./internal/live/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/backend/remote-state/azure/auth/ ./internal/configs/ ./internal/plans/ ./internal/plans/planfile/ ./internal/plugin/ ./internal/plugin6/ ./internal/plugins/ ./internal/states/statemgr/ ./internal/tracing/... ./internal/builtin/providers/tf/
+    env -u PWD go test ./internal/live/... ./pkg/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/backend/remote-state/azure/auth/ ./internal/configs/ ./internal/plans/ ./internal/plans/planfile/ ./internal/plugin/ ./internal/plugin6/ ./internal/plugins/ ./internal/states/statemgr/ ./internal/tracing/... ./internal/builtin/providers/tf/
     echo "==> examples/ci-pipelines tests"
     (cd examples/ci-pipelines && npm ci --no-audit --no-fund && npm test)
     echo "==> CI steps passed"

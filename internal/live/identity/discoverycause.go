@@ -212,9 +212,6 @@ func (c DiscoveryCause) Normalize() DiscoveryCause {
 	return c
 }
 
-// Describe renders a cloud property for an operator-facing sentence.
-func (c CloudValue) Describe() string { return c.describe() }
-
 // BlockDiscovery is one resource block's marker-only verdict: why every
 // instance of it needs discovery, and the subjects that cause is about. It is
 // [Resolution.Cause] and [Resolution.CauseArgs] lifted from the instance to

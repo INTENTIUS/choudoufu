@@ -4,7 +4,9 @@
 bin/
 modules-dev/
 /cost-project
-/pkg/
+# /pkg/ was Godep's output directory. pkg/identity is source (#2244).
+/pkg/*
+!/pkg/identity/
 website/.vagrant
 website/.bundle
 website/build

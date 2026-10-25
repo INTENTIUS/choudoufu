@@ -60,7 +60,7 @@ import (
 
 // surfaceSeamRoots are the directories scanned for seams, relative to the
 // module root.
-var surfaceSeamRoots = []string{"internal", "cmd", "tools"}
+var surfaceSeamRoots = []string{"internal", "pkg", "cmd", "tools"}
 
 // surfaceSeamExemption records a seam that handles some surfaces and not
 // others on purpose. Handles is exactly the set the guard measures: an
