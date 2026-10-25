@@ -186,6 +186,16 @@ type Options struct {
 	// visible rather than silent.
 	RecordStore *RecordStore
 
+	// KeyedRecordsOnly reads [Options.RecordStore] by key and never lists
+	// it: [builder.discoverOrphanedRecords] is skipped, so a record-backed
+	// instance whose block was deleted is not found and not proposed for
+	// destruction. It is for a run that plans a cone and reports on the
+	// cone alone - live-plan -resource (GitHub issue #2245) - where a
+	// listing of the whole namespace is the estate-wide read the run exists
+	// to avoid, and a removal outside the cone is not its question. False,
+	// the default, is every plan that can apply.
+	KeyedRecordsOnly bool
+
 	// DataResults is GitHub issue #179's data-read phase output
 	// (internal/command's liveDataReads, the same map
 	// identity.Context.DataResults takes and [identity.DataLookupFor]
@@ -756,7 +766,9 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 		declaredRecordBacked[r.Addr.String()] = true
 		b.materializeRecord(ctx, r.Addr, false)
 	}
-	b.discoverOrphanedRecords(ctx, declaredRecordBacked)
+	if !b.opts.KeyedRecordsOnly {
+		b.discoverOrphanedRecords(ctx, declaredRecordBacked)
+	}
 
 	// GitHub issue #270's located instances run before the concrete ones so
 	// that a parent-derived formula naming a located parent finds it in

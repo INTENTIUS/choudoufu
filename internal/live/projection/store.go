@@ -65,6 +65,46 @@ func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 	return openBuiltStore(ctx, store, rs, estate)
 }
 
+// NewKeyedRecordStore builds the same store [NewRecordStore] does for a run
+// that reads records by key and never lists the namespace: live-plan
+// -resource (GitHub issue #2245). Two steps of [openBuiltStore] list, and
+// neither runs here.
+//
+//   - The provisioning handshake writes the sentinel and reads it back
+//     through List. This reads the sentinel by key instead, and writes
+//     nothing. A store with no sentinel is refused: it is either an estate
+//     no run has provisioned or a store that reads as empty, and #693 is
+//     why neither is planned against. A full plan provisions it.
+//   - The run cache loads the whole namespace on the first read. This keeps
+//     the cache's per-key memo and turns the bulk load off (an empty
+//     prefix), so a run that asks about three records reads three.
+//
+// The first-contact contract is not asserted either, since it runs only on
+// the run that creates the sentinel, and this one never does.
+func NewKeyedRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *configs.LiveRetry, estate, moduleDir string, opts ...RecordStoreOption) (staterecord.Store, error) {
+	var o recordStoreOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	store, err := newRecordStore(ctx, rs, rt, estate, moduleDir, o)
+	if err != nil || store == nil {
+		return store, err
+	}
+	counted, err := wrapForTripLog(store)
+	if err != nil {
+		return nil, err
+	}
+	key := SentinelKey(recordStoreKeyPrefix(rs, estate))
+	_, _, exists, err := counted.Get(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("record_store: reading the sentinel at %q: %w", key, err)
+	}
+	if !exists {
+		return nil, &StoreRefusal{Err: fmt.Errorf("record_store: this store holds no sentinel at %q, so a run that reads records by key cannot tell an estate that was never recorded from a store that reads as empty; refusing rather than reporting every record-backed resource as missing (issue #693). An ordinary plan under the estate's full role provisions the sentinel once", key)}
+	}
+	return staterecord.NewRunCache(counted, ""), nil
+}
+
 // StoreRefusal marks a failure to open the record store as a REFUSAL: the
 // store was reached and something about it is wrong in a way no retry and no
 // other command will get past. A bucket that fails its contract on first

@@ -91,7 +91,7 @@ func ComponentsFromValue(t TypeIdentity, val cty.Value) (importID string, values
 			case c.Default != "":
 				segment = c.Literal + c.Default
 				if len(c.Attrs) > 0 {
-					if a := c.identityAttrFor(c.Attrs[0]); a != "" {
+					if a := c.IdentityAttrFor(c.Attrs[0]); a != "" {
 						values[a] = c.Default
 					}
 				}
@@ -461,7 +461,7 @@ func componentFromValue(c Component, val cty.Value) (segment, attrName, rendered
 		if !ok {
 			return "", "", "", false, true, false
 		}
-		return c.Literal + idSeg, c.identityAttrFor(name), longFormAttrValue(c, name, rendered), true, false, false
+		return c.Literal + idSeg, c.IdentityAttrFor(name), longFormAttrValue(c, name, rendered), true, false, false
 	}
 	return "", "", "", false, false, false
 }
@@ -583,7 +583,7 @@ func RewriteIdentityValues(typeName string, values map[string]string) map[string
 			continue
 		}
 		for _, arg := range c.Attrs {
-			name := c.identityAttrFor(arg)
+			name := c.IdentityAttrFor(arg)
 			v, has := values[name]
 			if !has {
 				continue

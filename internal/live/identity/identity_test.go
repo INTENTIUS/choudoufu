@@ -755,7 +755,7 @@ func TestCloudComponentsHaveAnEmptyContextAnswer(t *testing.T) {
 			if comp.Cloud == CloudNone {
 				continue
 			}
-			if _, ok := empty.value(comp.Cloud); ok {
+			if _, ok := empty.Value(comp.Cloud); ok {
 				t.Errorf("%s: the zero CloudContext claims to know its %s", typeName, comp.Cloud)
 			}
 			if missing, ok := (&resolver{}).missingCloudComponent(entry, nil, instScope{}, addrs.AbsResourceInstance{}, cloudScopeKey{}); !ok || missing.Cloud == CloudNone {

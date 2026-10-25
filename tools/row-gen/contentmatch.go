@@ -159,7 +159,7 @@ func contentMatchSet(rows []contentMatchRow) map[string]bool {
 // contentMatchTableRel is the generated roster's home, beside the identity
 // table and the markerless roster for the same reason both of those sit
 // there: internal/live/discovery's content-match leg reads it at run time.
-const contentMatchTableRel = "internal/live/identity/contentmatch_generated.go"
+const contentMatchTableRel = "pkg/identity/contentmatch_generated.go"
 
 // renderContentMatchFile renders internal/live/identity's content-match
 // roster.

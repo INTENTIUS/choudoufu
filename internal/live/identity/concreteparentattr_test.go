@@ -434,7 +434,7 @@ func TestSynthesizedParentAttributeStillRefused(t *testing.T) {
 
 // TestConcreteBranchIsUnreachableForIdentityAttributes is decision (1) as a
 // test rather than as a comment. The new branch lives inside
-// parentPart's `if !entry.hasIdentityAttr(attrName)` block, so a genuine
+// parentPart's `if !entry.HasIdentityAttr(attrName)` block, so a genuine
 // identity attribute of a concrete parent cannot reach it and still takes
 // the concrete shortcut: it stays a literal, resolves offline, and needs no
 // live read. If that ever stopped holding, every type that works today
@@ -451,10 +451,10 @@ func TestConcreteBranchIsUnreachableForIdentityAttributes(t *testing.T) {
 	if !ok {
 		t.Fatal("aws_ecs_cluster is not in DefaultTable; this test can see nothing")
 	}
-	if !entry.hasIdentityAttr("name") {
+	if !entry.HasIdentityAttr("name") {
 		t.Fatal("aws_ecs_cluster no longer carries name in IdentityAttrs; this test can see nothing")
 	}
-	if entry.hasIdentityAttr("arn") {
+	if entry.HasIdentityAttr("arn") {
 		t.Fatal("aws_ecs_cluster now carries arn in IdentityAttrs; the fixture no longer exercises the non-identity path")
 	}
 

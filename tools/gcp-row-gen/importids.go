@@ -17,7 +17,7 @@ import (
 
 // ImportIDsGoRel is the generated import-ID tables (INTENTIUS/choudoufu#2139
 // items 3 and 7).
-const ImportIDsGoRel = "internal/live/identity/importids_generated_google.go"
+const ImportIDsGoRel = "pkg/identity/importids_generated_google.go"
 
 // AssetVerdict is how a labelled type's Cloud Asset Inventory name becomes
 // an import ID.
