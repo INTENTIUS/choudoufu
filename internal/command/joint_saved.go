@@ -236,6 +236,11 @@ func jointRerunCommand(tool *jointTool) string {
 func jointInputDiff(reviewed, now jointUnit) []string {
 	var out []string
 	for name, rv := range reviewed.Vars {
+		// A wired input was planned from its upstream's planned output; the
+		// tool's value now is that output applied.
+		if _, wired := reviewed.Wired[name]; wired {
+			continue
+		}
 		if bytes.Contains(rv.Value, []byte("(known after apply from ")) {
 			continue
 		}

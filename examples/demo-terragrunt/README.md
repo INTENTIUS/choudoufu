@@ -5,7 +5,7 @@ the binary, and a `live` block in each unit. Nothing else about the layout
 moved.
 
 ```
-root.hcl                 terraform_binary = "choudoufu"; a generated provider and backend
+root.hcl                 terraform_binary = "choudoufu"; a generated provider; remote_state
 network/terragrunt.hcl   include "root", inputs
 network/main.tf          the unit's resources
 network/live.tf          the live block: estate name and record store
@@ -23,17 +23,25 @@ edge/                    the same files; dependency blocks on app and network
   in its own file so the unit's other files are the ones a plain repo would have.
 
 Everything else is stock: `include`, `inputs`, `dependency` blocks with
-`mock_outputs`, a generated provider and a generated `backend.tf`.
-choudoufu ignores that backend for state (an estate keeps records, not a state
-file) and says so with a warning; after an apply it writes the unit's outputs
-to the key the backend names.
+`mock_outputs`, a generated provider, and the S3 backend declared with a
+`remote_state` block, as Terragrunt's state backend docs show it. Terragrunt
+runs with its defaults, including reading a dependency's outputs straight from
+that backend's state (the default since v1.2.0). choudoufu ignores the backend
+for state (an estate keeps records, not a state file) and says so with a
+warning; after an apply it writes the unit's outputs to the key the backend
+names, which is what Terragrunt then reads.
 
-One choice follows from how Terragrunt reads dependencies. The backend is a
-`generate` block, not a `remote_state` block. With `remote_state`, Terragrunt
-reads a dependency's outputs straight from that state and never runs
-`output -json`, and a value that exists only after apply is not in the state
-yet. With `generate`, Terragrunt asks the binary, and choudoufu answers from
-the joint plan.
+What differs from the docs' example, and why:
+
+- The provider's `access_key`, `secret_key`, `skip_*` and `s3_use_path_style`,
+  and the backend's `use_path_style`, are for the floci emulator the demo runs
+  against. The endpoints come from the environment.
+- `mock_outputs` with `mock_outputs_merge_strategy_with_state = "shallow"` is
+  how Terragrunt's docs have a plan read an output its dependency has not
+  applied yet, which the create act adds. Stock Terragrunt plans on the mock;
+  with choudoufu the mock is never used.
+- `mock_outputs_allowed_terraform_commands` lists `show` because the workflow's
+  report step runs `terragrunt run -- show -json <plan file>` in each unit.
 
 ## The workflow
 
@@ -61,11 +69,23 @@ the joint plan.
 Terragrunt starts choudoufu once per unit, in dependency order. choudoufu finds
 that the invocations share one `terragrunt run --all` parent and joins them:
 each unit registers with its inputs, and the plan is made over the units
-registered so far, so the plan after the last unit covers all three. When
-Terragrunt asks network for its outputs, choudoufu answers from that plan. An
-output that exists only after apply is handed over as a placeholder string,
-which becomes a reference in the joint plan, so app's worker shows its subnet
-as `(known after apply)` and receives the real id in the same apply.
+registered so far, so the plan after the last unit covers all three.
+
+Terragrunt hands app network's outputs as it read them from network's state,
+which holds what was last applied (8080 in the edit act, the mock for
+`subnet_b_id` in the create act). choudoufu does not plan on those values. It
+reads the unit's own `terragrunt.hcl` and its include, and an input written as
+`dependency.network.outputs.<output>` (or an expression of such reads and
+OpenTofu's functions, like edge's `[dependency.network.outputs.subnet_a_cidr]`)
+becomes a reference to network's module in the joint plan. So app plans with
+network's planned port, 8090, and app's worker shows its subnet as
+`(known after apply)` and receives the real id in the same apply.
+
+A read choudoufu cannot trace to the input it feeds (an input that also calls
+`get_env`, a `read_terragrunt_config`) keeps Terragrunt's value. That value is
+right only while the upstream's outputs do not change, so if the joint plan
+changes them, the plan fails and names the read.
+
 Each unit's plan file carries the joint plan, and applying network's applies
 the whole joint plan once; the other units' applies report that it is done.
 
@@ -87,9 +107,9 @@ apply fills it in.
 - The one-apply path needs saved plan files. `terragrunt run --all apply`
   without `--out-dir` applies the units one at a time, in order, each reading
   its upstream's recorded outputs.
-- Only a value that is a string can be carried as unknown through the
-  dependency. A number, bool or object that depends on another unit's
-  after-apply value cannot.
+- A dependency read is taken from the joint plan when choudoufu can trace it
+  to an input (above). One it cannot trace stops a plan that changes what it
+  reads.
 - The joint run is found from the parent process's name and arguments, so a
   wrapper script around `terragrunt` is not recognised.
 - A failed joint apply leaves what applied, applied; every unit's apply reports

@@ -175,6 +175,7 @@ func liveBeginComposed(
 			adoptionOnly:     adoptionOnly,
 		}
 		sub.resolver = &projection.NodeResolver{}
+		sub.publishWorkspace = jointPublishWorkspaces[ce.Call]
 		sub.nodeResolve = nodeResolveEnabled()
 		router.by[ce.Call] = sub.resolver
 		est := &composedEstate{call: ce.Call, live: ce.Live, runner: sub}

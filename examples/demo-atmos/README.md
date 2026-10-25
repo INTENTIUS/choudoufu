@@ -5,7 +5,7 @@ A stock Atmos repo: three components (`network`, `app`, `edge`) under
 component, and `!terraform.output` between them. app reads network's outputs
 (`subnet_a_id`, `vpc_id`, `http_proxy_port`, and `subnet_b_id` in the create
 act); edge reads app's `listener_port` and network's subnet ranges.
-`settings.depends_on` orders them. The demo's Forgejo
+`dependencies.components` orders them. The demo's Forgejo
 workflow (`.forgejo/workflows/atmos-choudoufu.yml`) runs the Atmos CLI.
 
 ## What differs from a plain Atmos repo
@@ -25,6 +25,10 @@ default, and Atmos writes `backend.tf.json` from the stack's S3 backend section
 choudoufu one). choudoufu ignores that backend, and after each apply publishes
 the component's outputs to it, so `!terraform.state` and `terraform_remote_state`
 readers keep working.
+
+Also not about choudoufu: the stack's S3 backend sets `use_path_style` and the
+`skip_*` flags, and each component's provider names the emulator's keys,
+because the demo runs against the floci emulator.
 
 Not part of the Atmos repo's own configuration: the workflow's report step
 (`.forgejo/composed-plan.mjs`) joins the components' slices of the joint plan
@@ -50,7 +54,8 @@ into the one document chant's `terraform report` reads for behold.
 - Each component applies exactly as reviewed. Atmos counts a value that was known
   after apply in the stored plan and is known now (app's worker's subnet, once
   network has applied) as drift, and no honest plan can make the two compare
-  equal, so `planfiles.verify` is `warn` and `planfiles.required` is `true`.
+  equal, so `planfiles.verify` is `warn` and `planfiles.required` is `true`
+  (Atmos docs: components/terraform/planfiles, "Drift Verification").
   choudoufu does the refusing. When Atmos shows it a component's stored plan,
   it keeps that component's slice, and the apply of the fresh plan refuses
   with exit status 3 if it differs from the slice in anything but those
@@ -62,10 +67,37 @@ In a stock Atmos repo, `!terraform.output network subnet_b_id` reads network's
 applied state. Before network has applied, app gets a default or a mock, or the
 plan fails. Here app's plan carries the id as unknown.
 
+## `!terraform.state`
+
+The demo reads outputs with `!terraform.output`. `!terraform.state` works the
+same way under choudoufu, with no other change to the repo:
+
+- Atmos reads `!terraform.state` straight from the component's S3 backend,
+  without running choudoufu. What is there is the outputs document choudoufu
+  publishes after each apply, so Atmos hands app network's last-applied
+  outputs: 8080 in the edit act, and nothing (`null`) for `subnet_b_id` in the
+  create act, since network has not applied it.
+- choudoufu does not plan on those values. It reads the stack the way Atmos
+  resolves it (`atmos describe stacks` with functions and templates left
+  unprocessed), and a var that is `!terraform.state <component> <output>` or
+  `!terraform.output <component> <output>`, with a plain output name or a
+  path such as `.<output>.key` or `.<output>[0]`, becomes a reference to that
+  component's module in the joint plan. Both acts plan as they do with
+  `!terraform.output`: app with network's planned port, and the worker's
+  subnet as known after apply.
+- After the deploy, each component's outputs are published to its own key
+  under the stack's workspace (`network/dev/terraform.tfstate`), so the next
+  `!terraform.state` read sees them.
+- A read choudoufu cannot trace to one var (a yq expression with `//` or
+  quotes, `!store`, a template calling `atmos.Component`, a function nested
+  inside a list or map) keeps Atmos's value. That value is right only while the
+  upstream's outputs do not change, so if the joint plan changes them, the
+  plan fails and names the read.
+
 ## Limits
 
-- The unknown is carried as a string, so only a string output can be unknown at
-  plan (a number or a boolean cannot).
+- An output read is taken from the joint plan when choudoufu can trace it to a
+  var (above). One it cannot trace stops a plan that changes what it reads.
 - `--affected` plans what Atmos names, so `--include-dependents` is needed for
   components that read a changed one.
 - The apply is not all or nothing. If edge fails, network and app stay applied.

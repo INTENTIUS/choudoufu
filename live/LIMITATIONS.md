@@ -6322,9 +6322,12 @@ composed root written by choudoufu (OUTPUTS.md, "Joint runs"), so the limits
 of a composed run apply to it (not all-or-nothing on apply, no `-target`).
 The tools start a unit's apply only after the units it depends on have exited,
 and Atmos refuses a plan file in a bulk apply, so an apply without the
-`plan -out` files is one apply per unit, in order. Parts of the tools' output
-that choudoufu cannot carry as unknown: numbers, bools and objects that depend
-on another unit's value known only after apply. Units are found from the parent
+`plan -out` files is one apply per unit, in order. An input read from another
+unit's outputs is taken from the joint plan when choudoufu can trace it in the
+tool's configuration (a `dependency.<name>.outputs.<output>` expression,
+`!terraform.state` or `!terraform.output` with a plain path); a read it cannot
+trace keeps the tool's last-applied value, and a joint plan that changes what
+such a read reads fails. Units are found from the parent
 process's name and arguments, so a wrapper script around the tool is not
 recognised unless `CHOUDOUFU_JOINT_RUN` names a run id. The `plan -out` files
 carry the joint plan, so a pull request's plan applies at merge in another

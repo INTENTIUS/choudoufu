@@ -389,14 +389,39 @@ them into one run:
   It is planned again as each unit registers, so the plan after the last unit
   is one plan across all of them. Each unit is still its own estate, with its
   own record store and markers.
+- An input the tool read from another unit's outputs is taken from the joint
+  plan, not from the tool (#2231). Terragrunt (v1.2.0 and later, by default,
+  with a `remote_state` backend) and Atmos's `!terraform.state` read a
+  dependency's outputs straight from its state document, which holds what was
+  last applied (choudoufu publishes it after each apply, below). So choudoufu
+  reads the tool's own wiring: the unit's `terragrunt.hcl` with its includes
+  and `dependency` blocks, or the component's `vars` as
+  `atmos describe stacks --process-functions=false --process-templates=false`
+  resolves them. An input that is `dependency.<name>.outputs.<output>`, or an
+  expression of such reads and OpenTofu's built-in functions, and an Atmos var
+  that is `!terraform.state` or `!terraform.output` with a plain output name or
+  path (`.<output>.key`, `.<output>[0]`), becomes an expression over the
+  upstream module's output in the composed root
+  (`module.network.subnet_b_id`). The value is the planned one, of any type,
+  and unknown where the upstream's is, so the dependent's resource shows
+  `(known after apply)` and is resolved by the same apply. A mock the tool
+  substituted for an output not applied yet is never used. An upstream that is
+  not in the run keeps the tool's value: nothing in the run changes it.
+- A read of another unit's outputs that choudoufu cannot trace to the input it
+  feeds (a Terragrunt input that also calls `get_env` or reads a local, a
+  `read_terragrunt_config`, an Atmos var with a yq default, `!store`, a template
+  calling `atmos.Component`, a configuration choudoufu cannot read) keeps the
+  tool's value, which is right only while the upstream's outputs do not
+  change. After the joint plan, every such read is checked: if the plan
+  changes, adds or leaves unknown any output it may read, the joint plan fails
+  and names the read.
 - `output -json` in a unit's directory during the plan answers from that joint
-  plan. An output that is known is returned as it is. An output that is not
-  known until apply is returned as the string `(known after apply from <unit>.<output>)`.
-  The tool puts that string into the dependent unit's input, and the joint
-  root turns it into a reference to the upstream module's output, so the
-  dependent's resource shows `(known after apply)` in the same plan and is
-  resolved by the same apply. An output that is only partly unknown is returned
-  as one such string.
+  plan, for a tool that asks the binary (Terragrunt without `remote_state` or
+  with `--no-dependency-fetch-output-from-state`, Atmos's `!terraform.output`).
+  An output that is known is returned as it is. An output that is not known
+  until apply is returned as the string `(known after apply from <unit>.<output>)`;
+  an input holding it that was not wired as above becomes a reference to the
+  upstream module's output in the root.
 - `plan -out=<file>` writes a file that names the session and the unit and
   carries the joint plan itself: the plan file of the composed root (with its
   configuration snapshot), its `show -json`, the units and their inputs, and
@@ -456,11 +481,15 @@ What the tools' own models decide:
   joint plan fails the plan of every unit that waits for it, and each
   unit's invocation prints the error. A unit that does not load at all (a syntax
   error) plans alone and reports its own error.
-- An input that is a number, a bool or an object whose attribute is unknown
-  cannot be carried: the placeholder is a string. Strings, and strings inside
-  lists and objects, are carried.
+- After the joint apply each unit's outputs are published to its own
+  backend location under the workspace its tool selected for it (Atmos's
+  per-stack workspace), as a run of that unit alone would.
+- An input that the wiring above does not cover and that is a number, a bool
+  or an object whose attribute is unknown cannot be carried: the placeholder
+  is a string.
 
-(`internal/command/joint_*.go`, asserted by `internal/command/joint_test.go`.
+(`internal/command/joint_*.go`, asserted by `internal/command/joint_test.go`
+and `internal/command/joint_wiring_test.go`.
 `CHOUDOUFU_JOINT_DEBUG=1` says why an invocation was not joined.)
 
 ## Demonstrated

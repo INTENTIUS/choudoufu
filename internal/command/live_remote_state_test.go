@@ -136,7 +136,7 @@ func TestWriteOutputsStateRespectsLockAndResources(t *testing.T) {
 }
 
 func TestPublishOutputsStateNoBackend(t *testing.T) {
-	if d := publishOutputsState(context.Background(), nil, nil); len(d) != 0 {
+	if d := publishOutputsState(context.Background(), nil, nil, ""); len(d) != 0 {
 		t.Fatal(d)
 	}
 }

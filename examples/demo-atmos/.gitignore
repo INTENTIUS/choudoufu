@@ -4,4 +4,3 @@
 *.planfile
 *.terraform.tfvars.json
 backend.tf.json
-.tofu-records
