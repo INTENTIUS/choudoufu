@@ -36,22 +36,23 @@ aws resourcegroupstaggingapi get-resources \
 kubectl get configmaps,services -A -l tofu-estate=prod-networking
 ```
 
-## What changes from a state file
+## Stock backends and the live backend
 
 ![What a state file holds, and where each part goes](../../../assets/diagram-split.svg)
 
-| | `terraform.tfstate` | choudoufu |
+| | Stock backend | choudoufu live backend |
 |---|---|---|
+| What it keeps | a state file per root | a record per resource |
 | Permission unit | one file | one resource |
 | To narrow access | split the state | write a policy |
-| Two applies at once | a lock | [a conditional write per record](locking/) |
-| Losing it | you lose what you own | a slower plan |
+| Two applies at once | a lock on the whole state | [no lock, a conditional write per record](locking/) |
+| Losing the state file | you lose what you own | a slower plan, since it is a [cache](cache/) |
 
-## Two runs, and two estates
+## Two runs, and many roots
 
-[Resource-level locking](locking/) covers two applies to one estate.
-[One plan, one apply, across estates](across-estates/) covers one run over
-several.
+[Resource-level concurrency](locking/) covers two applies to one estate.
+[One plan, one apply, across roots](across-estates/) covers one run over
+several roots, with Terragrunt, Atmos or a composed root.
 
 ## Upstream
 

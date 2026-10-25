@@ -30,8 +30,8 @@ export const FROM: { id: string; label: string; blurb: string; room: string }[] 
 	},
 	{
 		id: 'terragrunt',
-		label: 'Terragrunt',
-		blurb: 'Units with their own state',
+		label: 'Terragrunt or Atmos',
+		blurb: 'Roots with their own state',
 		room: 'terragrunt'
 	},
 	{
@@ -82,19 +82,20 @@ export const ROOMS: Room[] = [
 	},
 	{
 		id: 'terragrunt',
-		title: 'From Terragrunt',
-		lede: 'You run Terragrunt units.',
+		title: 'From Terragrunt or Atmos',
+		lede: 'You run Terragrunt units or Atmos components.',
 		works: [
-			"live-import reads each unit's state, pulled with tofu state pull",
-			'Other estates are read live',
+			'Units or components that read each other join one plan',
+			'A new ID reaches its readers as known after apply, not as a mock',
+			'The reviewed plan is the one applied',
 		],
 		differs: [
-			'estate.chdf.hcl, the live backend, replaces the generated backend block.',
+			'Swap the binary (terraform_binary or command) and add a live block to each unit or component.',
 		],
-		first: migrate,
-		howto: [migrate, { label: 'Day 2', href: '/docs/use/day2/' }],
-		explain: [whatItIs],
-		reference: [{ label: 'Reading another estate', href: repo('live/OUTPUTS.md') }, reference],
+		first: { label: 'One plan, one apply, across roots', href: '/how-it-works/across-estates/' },
+		howto: [{ label: 'Under Terragrunt', href: '/docs/use/terragrunt/' }, { label: 'Under Atmos', href: '/docs/use/atmos/' }, migrate],
+		explain: [{ label: 'Resource-level concurrency', href: '/how-it-works/locking/' }, whatItIs],
+		reference: [{ label: 'Terragrunt example', href: repo('examples/demo-terragrunt/README.md') }, { label: 'Atmos example', href: repo('examples/demo-atmos/README.md') }, reference],
 	},
 	{
 		id: 'terragucci',
