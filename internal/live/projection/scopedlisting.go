@@ -321,7 +321,9 @@ func scopedAttrString(obj cty.Value, attr string) string {
 		return ""
 	}
 	v := obj.GetAttr(attr)
-	if v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
+	if v.IsMarked() || v.IsNull() || !v.IsKnown() || v.Type() != cty.String {
+		// A marked value is refused, not unmarked: it reads as "", which
+		// matches no identity and so reads.
 		return ""
 	}
 	return v.AsString()
@@ -363,6 +365,11 @@ func firstDifference(listed, cached cty.Value, ignore map[string]bool) (string, 
 // its read writes one where its list writes the other. Anything unknown
 // is unequal, which reads.
 func looseEqual(a, b cty.Value) bool {
+	if a.IsMarked() || b.IsMarked() {
+		// The callers unmark deeply first; a mark here is refused, which
+		// reads.
+		return false
+	}
 	if zeroish(a) && zeroish(b) {
 		return true
 	}
@@ -407,7 +414,7 @@ func looseEqual(a, b cty.Value) bool {
 		return true
 	}
 	eq := a.Equals(b)
-	return eq.IsKnown() && eq.True()
+	return eq.IsKnown() && !eq.IsMarked() && eq.True()
 }
 
 // zeroish reports a null, or a known zero value: "", 0, false, or an empty
@@ -416,7 +423,7 @@ func zeroish(v cty.Value) bool {
 	if v == cty.NilVal || v.IsNull() {
 		return true
 	}
-	if !v.IsKnown() {
+	if !v.IsKnown() || v.IsMarked() {
 		return false
 	}
 	ty := v.Type()
@@ -424,7 +431,8 @@ func zeroish(v cty.Value) bool {
 	case ty == cty.String:
 		return v.AsString() == ""
 	case ty == cty.Number:
-		return v.Equals(cty.Zero).True()
+		z := v.Equals(cty.Zero)
+		return !z.IsMarked() && z.True()
 	case ty == cty.Bool:
 		return v.False()
 	case ty.IsListType() || ty.IsSetType() || ty.IsMapType() || ty.IsTupleType():
