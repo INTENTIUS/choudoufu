@@ -73,6 +73,5 @@ but values that were known after apply.
   `!store`, a template calling `atmos.Component`, or a function nested in a list
   or map keeps Atmos's value.
 
-Shared limits are on [One plan, one apply, across roots](/choudoufu/how-it-works/across-estates/),
-and a worked example is
+A worked example is
 [`examples/demo-atmos`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/demo-atmos/README.md).

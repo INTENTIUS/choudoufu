@@ -42,7 +42,6 @@ kubectl get configmaps,services -A -l tofu-estate=prod-networking
 
 | | Stock backend | choudoufu live backend |
 |---|---|---|
-| What it keeps | a state file per root | a record per resource |
 | Permission unit | one file | one resource |
 | To narrow access | split the state | write a policy |
 | Two applies at once | a lock on the whole state | [no lock, a conditional write per record](locking/) |
