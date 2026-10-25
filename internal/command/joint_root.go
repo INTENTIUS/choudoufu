@@ -27,6 +27,10 @@ func renderJointRoot(rootDir string, units []jointUnit) (string, error) {
 	for i := range units {
 		byID[units[i].ID] = &units[i]
 	}
+	resolved, err := jointResolve(units)
+	if err != nil {
+		return "", err
+	}
 	var b strings.Builder
 	for _, u := range units {
 		src, err := jointRel(rootDir, u.Dir)
@@ -40,6 +44,12 @@ func renderJointRoot(rootDir string, units []jointUnit) (string, error) {
 		}
 		sort.Strings(names)
 		for _, n := range names {
+			// An input read from another unit's outputs is that unit's
+			// planned output, not the value the tool read (#2231).
+			if expr, ok := resolved.exprs[u.ID][n]; ok {
+				fmt.Fprintf(&b, "  %s = %s\n", n, expr)
+				continue
+			}
 			v := u.Vars[n]
 			ty, err := ctyjson.UnmarshalType(v.Type)
 			if err != nil {

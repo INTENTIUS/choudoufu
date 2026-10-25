@@ -49,7 +49,11 @@ import (
 //     gets a new lineage. A document that is unchanged is not rewritten.
 //   - A document that holds resources is a stock state somebody still owns.
 //     It is never overwritten.
-func publishOutputsState(ctx context.Context, config *configs.Config, outputs *projection.RootOutputStore) (diags tfdiags.Diagnostics) {
+//
+// workspace, when set, is the workspace to publish under in place of this
+// run's: a unit of a joint run publishes where its tool's own run of it
+// would have (#2231).
+func publishOutputsState(ctx context.Context, config *configs.Config, outputs *projection.RootOutputStore, workspace string) (diags tfdiags.Diagnostics) {
 	if config == nil || config.Module == nil || config.Module.IgnoredBackend == nil || outputs == nil {
 		return nil
 	}
@@ -91,7 +95,10 @@ func publishOutputsState(ctx context.Context, config *configs.Config, outputs *p
 	if cfgDiags := b.Configure(ctx, val); cfgDiags.HasErrors() {
 		return warn(cfgDiags.Err().Error())
 	}
-	mgr, err := b.StateMgr(ctx, currentWorkspaceName())
+	if workspace == "" {
+		workspace = currentWorkspaceName()
+	}
+	mgr, err := b.StateMgr(ctx, workspace)
 	if err != nil {
 		return warn(err.Error())
 	}

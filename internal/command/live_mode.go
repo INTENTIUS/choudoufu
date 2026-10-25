@@ -718,6 +718,11 @@ func liveRejections(surface liveSurface, op *arguments.Operation, state *argumen
 // liveRunner is the live pipeline, wearing the interface the local
 // backend calls it through. One runner serves one operation.
 type liveRunner struct {
+	// publishWorkspace is the workspace a composed estate's outputs are
+	// published under: the one its tool selected for it when it joined a
+	// joint run (#2231). "" means this run's own workspace.
+	publishWorkspace string
+
 	// estateOutputs is the command's terraform_estate_outputs holder
 	// (GitHub issue #1371), opened over this run's record store in
 	// PriorState. Nil only in a test that builds a runner by hand.
@@ -1732,7 +1737,7 @@ func (r *liveRunner) WriteBack(ctx context.Context, finalState *states.State, sc
 
 	// choudoufu#2213: only once the records are written, and only warnings.
 	if !diags.HasErrors() {
-		diags = diags.Append(publishOutputsState(ctx, r.liveConfig, r.rootOutputStore))
+		diags = diags.Append(publishOutputsState(ctx, r.liveConfig, r.rootOutputStore, r.publishWorkspace))
 	}
 	return diags
 }

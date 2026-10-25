@@ -1,5 +1,5 @@
 # One stack, three components. Values move between components with
-# !terraform.output, as in any Atmos repo; depends_on orders them.
+# !terraform.output, as in any Atmos repo; dependencies.components orders them.
 vars:
   stage: dev
 
@@ -22,21 +22,18 @@ components:
         http_proxy_port: 8080
         subnet_a_cidr: 10.0.1.0/24
     app:
-      settings:
-        depends_on:
-          1:
-            component: network
+      dependencies:
+        components:
+          - name: network
       vars:
         vpc_id: !terraform.output network vpc_id
         subnet_a_id: !terraform.output network subnet_a_id
         http_proxy_port: !terraform.output network http_proxy_port
     edge:
-      settings:
-        depends_on:
-          1:
-            component: network
-          2:
-            component: app
+      dependencies:
+        components:
+          - name: network
+          - name: app
       vars:
         listener_port: !terraform.output app listener_port
         subnet_a_cidr: !terraform.output network subnet_a_cidr

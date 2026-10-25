@@ -20,6 +20,7 @@ import (
 	"github.com/zclconf/go-cty/cty/convert"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
+	"github.com/intentius/choudoufu/internal/backend"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/command/workdir"
@@ -55,6 +56,10 @@ import (
 // A run of one unit, a tool this does not recognise, or any flag the joint
 // plan cannot honour (-target, -destroy, -refresh-only, -json, ...) takes the
 // ordinary path unchanged.
+
+// jointPublishWorkspaces is, for the joint apply in progress, the workspace
+// of each unit (by module call) whose tool selected a non-default one.
+var jointPublishWorkspaces map[string]string
 
 type jointCommand struct {
 	cli.Command
@@ -200,6 +205,7 @@ func (c *jointCommand) registerUnit(sess *jointSession, tool *jointTool, vars ar
 		return jointUnit{}, false
 	}
 	u.Out = out
+	jointWireUnit(sess, tool, &u, varFiles)
 	unlock, err := sess.lock()
 	if err != nil {
 		c.stderr("%s", err)
@@ -265,6 +271,9 @@ func (c *jointCommand) unitFromCwd(tool *jointTool, vars arguments.Vars) (jointU
 	}
 	u.Dir = cwd
 	u.Key = cwd
+	if ws := currentWorkspaceName(); ws != backend.DefaultStateName {
+		u.Workspace = ws
+	}
 	var varFiles []string
 	for _, f := range vars.All() {
 		if f.Name == "-var-file" {
@@ -340,6 +349,18 @@ func (c *jointCommand) ensurePlan(sess *jointSession, flags []string) (jointStat
 		return next, nil
 	}
 	_ = os.WriteFile(sess.path(fmt.Sprintf("doc-%d.json", next.Serial)), []byte(doc), 0o600)
+	// An input the tool read from an upstream's last-applied outputs, in a
+	// way not traced to the input, is right only if this plan leaves those
+	// outputs as they are (#2231).
+	if resolved, err := jointResolve(units); err == nil {
+		var parsed map[string]any
+		_ = json.Unmarshal([]byte(doc), &parsed)
+		if lines := jointUnsureCheck(units, resolved.unsure, parsed); len(lines) > 0 {
+			next.Err = jointUnsureMessage(jointKindOf(units), lines)
+			_ = sess.saveState(next)
+			return next, nil
+		}
+	}
 	next.OK = true
 	_ = sess.saveState(next)
 	return next, nil
@@ -589,6 +610,12 @@ func (c *jointCommand) jointApply(args []string) (int, bool) {
 	applyArgs := []string{"-input=false"}
 	if a.View.NoColor {
 		applyArgs = append(applyArgs, "-no-color")
+	}
+	jointPublishWorkspaces = map[string]string{}
+	for _, u := range sess.units() {
+		if u.Workspace != "" {
+			jointPublishWorkspaces[u.ID] = u.Workspace
+		}
 	}
 	fmt.Printf("Applying the joint plan across %d units: %s\n\n", len(st.Units), strings.Join(st.Units, ", "))
 	code := (&ApplyCommand{Meta: m}).Run(append(applyArgs, sess.path("joint.plan")))

@@ -13,10 +13,11 @@ components:
     # Atmos writes backend.tf.json from the stack's backend section.
     auto_generate_backend_file: true
     # Atmos's planfile store: `plan --ci` keeps each component's plan, and
-    # `deploy --ci` applies only what matches it. A plan that held a value
-    # known after apply (a new subnet's id) cannot compare equal once the
-    # value is known, so verify warns and choudoufu's own check refuses a
-    # plan that moved; required makes a missing stored plan stop the deploy.
+    # `deploy --ci` verifies a fresh plan against it before applying. A
+    # component whose stored plan read an upstream that the same deploy
+    # applies first (app's port, a new subnet's id) cannot compare equal, so
+    # verify warns; choudoufu refuses a fresh plan that moved from the stored
+    # one. required makes a missing stored plan stop the deploy.
     planfiles:
       verify: warn
       required: true
@@ -37,7 +38,3 @@ stacks:
 
 ci:
   enabled: true
-
-logs:
-  file: "/dev/stderr"
-  level: Info

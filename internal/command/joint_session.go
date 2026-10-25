@@ -44,6 +44,18 @@ type jointUnit struct {
 	// the session rewrites each unit's file, so all of them hold the last
 	// joint plan.
 	Out string `json:"out,omitempty"`
+
+	// Ref is the tool's name for the unit, which other units' wiring
+	// names: the Terragrunt unit directory, or an Atmos stack and component.
+	Ref string `json:"ref,omitempty"`
+	// Wired are the inputs read from other units' outputs, which the
+	// composed root takes from the joint plan in place of Vars (#2231).
+	Wired map[string]jointWire `json:"wired,omitempty"`
+	// Unsure are reads of other units' outputs not traced to an input.
+	Unsure []jointUnsure `json:"unsure,omitempty"`
+	// Workspace is the non-default workspace the tool selected for the
+	// unit, under which its outputs are published after the joint apply.
+	Workspace string `json:"workspace,omitempty"`
 }
 
 type jointVar struct {
