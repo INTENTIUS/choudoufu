@@ -37,7 +37,9 @@ writes an output only when everything it reads is planned.
 - The scope holds the deleted and refactored addresses, so their removals
   are proposed rather than withheld.
 - The cache-vouch listing narrows to the cone's types. The marker sweep
-  stays estate-wide.
+  stays estate-wide. To read one resource without the sweep or a listing of
+  the record store, use `live-plan -resource=ADDR`
+  ([PLAN-RESOURCE.md](PLAN-RESOURCE.md)).
 - `-out FILE` writes `FILE.cone.json`, the cone's address set. `apply FILE`
   replans that cone and refuses with exit 3 when its plan covers a
   different set. A plan file without one applies as before.

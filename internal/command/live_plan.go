@@ -202,7 +202,9 @@ func (c *LivePlanCommand) Execute(args *arguments.LivePlan) int {
 	// stdout ahead of the document and a consumer piping stdout into a
 	// JSON parser failed on the first one. See [views.View.StdoutOnStderr].
 	renderView := c.View
-	if jsonRequested {
+	if jsonRequested || args.Resource != nil {
+		// GitHub issue #2245: -resource's stdout is the drift stream, so it
+		// takes the same route.
 		renderView = c.View.StdoutOnStderr()
 	}
 	view := views.NewPlan(&renderOpts, renderView)
@@ -260,7 +262,7 @@ func (c *LivePlanCommand) Execute(args *arguments.LivePlan) int {
 			view.Diagnostics(diags)
 			return 1
 		}
-		if !jsonRequested {
+		if !jsonRequested && args.Resource == nil {
 			// The plan command's own Execute, handed the plan half of this
 			// command's arguments: live-plan's option set is the plan
 			// command's plus -estate, and -estate was refused just above.
@@ -318,6 +320,16 @@ func (c *LivePlanCommand) Execute(args *arguments.LivePlan) int {
 			view.Diagnostics(diags)
 			return 1
 		}
+	}
+
+	// GitHub issue #2245: -resource plans one resource's cone on this
+	// pipeline, on both routes, and prints drift records. It is its own
+	// branch from here: see live_plan_resource.go.
+	if args.Resource != nil {
+		diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
+		diags = diags.Append(c.liveStateFileNote())
+		diags = diags.Append(c.checkAWSProviderVersionSkew())
+		return c.executeResource(ctx, args, estateFlag, renderView, diags)
 	}
 
 	// GitHub issue #894. The surface below is [surfaceEstateFlag] on both
@@ -642,7 +654,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// #1376, before which both kinds were a log line.
 	var hintStore staterecord.Store
 	if config.Module != nil && config.Module.Live != nil {
-		store, storeDiags := openRecordStoreAsOneMoreSource(ctx, projection.NewRecordStore, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, "live-plan")
+		store, storeDiags := openRecordStoreAsOneMoreSource(ctx, livePlanRecordStoreOpener, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, "live-plan")
 		diags = diags.Append(storeDiags)
 		if storeDiags.HasErrors() {
 			diags = diags.Append(provs.close(ctx))
@@ -1214,6 +1226,12 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	}
 	return 0, true, diags
 }
+
+// livePlanRecordStoreOpener opens the record store for livePlan's own
+// pipeline. A package variable for one reason: GitHub issue #2245's test
+// runs the whole-estate plan over a fake store as its control, to show the
+// fake sees the List the -resource path must not make.
+var livePlanRecordStoreOpener recordStoreOpener = projection.NewRecordStore
 
 // ---------------------------------------------------------------------------
 // Discovery and foreign classification
@@ -4521,6 +4539,13 @@ Options:
                           assigned by the provider are not looked for, the
                           plan proposes creating them, and no markers are
                           stamped.
+
+  -resource=address       Plan one managed resource or resource instance
+                          and what it reads, with no estate-wide marker
+                          sweep and no record-store listing, and print one
+                          drift record per instance as NDJSON instead of a
+                          plan. The last line counts what the run read.
+                          See live/PLAN-RESOURCE.md.
 
   -target=resource        Limit the planning operation to only the given
                           module, resource, or resource instance and all of
