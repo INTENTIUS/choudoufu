@@ -75,6 +75,19 @@ var citationRe = regexp.MustCompile(`\[([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Z
 type pkgSymbols struct {
 	names   map[string]bool
 	members map[string]bool // "Type.Member" (method or struct field)
+
+	// aliases maps a type alias declared as another package's type
+	// (`type X = pkg.Y`) to that type, so "X.Member" can be checked against
+	// Y's own members. internal/live/identity re-declares pkg/identity's
+	// types this way (GitHub issue #2244), and a field cited through the
+	// alias is a field of the target type.
+	aliases map[string]aliasTarget
+}
+
+// aliasTarget is the type a cross-package alias names.
+type aliasTarget struct {
+	importPath string
+	typeName   string
 }
 
 func (s *pkgSymbols) has(symbolPath string) bool {
@@ -109,7 +122,7 @@ func loadPackageSymbols(dir string) (*pkgSymbols, error) {
 	if err != nil {
 		return nil, err
 	}
-	syms := &pkgSymbols{names: map[string]bool{}, members: map[string]bool{}}
+	syms := &pkgSymbols{names: map[string]bool{}, members: map[string]bool{}, aliases: map[string]aliasTarget{}}
 	fset := token.NewFileSet()
 	found := false
 	for _, e := range entries {
@@ -121,6 +134,7 @@ func loadPackageSymbols(dir string) (*pkgSymbols, error) {
 		if err != nil {
 			return nil, err
 		}
+		imports := fileImports(f)
 		for _, decl := range f.Decls {
 			switch d := decl.(type) {
 			case *ast.FuncDecl:
@@ -137,6 +151,15 @@ func loadPackageSymbols(dir string) (*pkgSymbols, error) {
 					switch s := spec.(type) {
 					case *ast.TypeSpec:
 						syms.names[s.Name.Name] = true
+						if s.Assign.IsValid() {
+							if sel, ok := s.Type.(*ast.SelectorExpr); ok {
+								if pkgIdent, ok := sel.X.(*ast.Ident); ok {
+									if importPath, ok := imports[pkgIdent.Name]; ok {
+										syms.aliases[s.Name.Name] = aliasTarget{importPath: importPath, typeName: sel.Sel.Name}
+									}
+								}
+							}
+						}
 						switch t := s.Type.(type) {
 						case *ast.StructType:
 							if t.Fields != nil {
@@ -177,6 +200,48 @@ func loadPackageSymbols(dir string) (*pkgSymbols, error) {
 }
 
 // citation is one resolved (or unresolved) doc-link found in the tree.
+// fileImports maps each import's local identifier in f to its import path.
+func fileImports(f *ast.File) map[string]string {
+	imports := map[string]string{}
+	for _, imp := range f.Imports {
+		p, err := strconv.Unquote(imp.Path.Value)
+		if err != nil {
+			continue
+		}
+		local := path.Base(p)
+		if imp.Name != nil {
+			local = imp.Name.Name
+		}
+		imports[local] = p
+	}
+	return imports
+}
+
+// resolves reports whether symbolPath exists in the package at importPath,
+// following a "Type.Member" citation through a type alias to the aliased
+// type's own package when Type is an alias of another package's type. Only
+// aliases into this module are followed, and only a bounded number of hops,
+// so an alias cycle or an alias of a type outside the module is a miss
+// rather than a pass.
+func resolves(load func(importPath string) *pkgSymbols, importPath, symbolPath string) bool {
+	for hop := 0; hop < 8; hop++ {
+		syms := load(importPath)
+		if syms.has(symbolPath) {
+			return true
+		}
+		typeName, member, ok := strings.Cut(symbolPath, ".")
+		if !ok {
+			return false
+		}
+		target, ok := syms.aliases[typeName]
+		if !ok || !strings.HasPrefix(target.importPath, modulePath+"/") {
+			return false
+		}
+		importPath, symbolPath = target.importPath, target.typeName+"."+member
+	}
+	return false
+}
+
 type citation struct {
 	file       string // repo-relative
 	raw        string // the bracket's full content, e.g. "lint.RuleStateBackend"
@@ -229,18 +294,7 @@ func TestGodocCitationsResolve(t *testing.T) {
 		}
 		relFile = filepath.ToSlash(relFile)
 
-		imports := map[string]string{} // local identifier -> import path
-		for _, imp := range astf.Imports {
-			p, err := strconv.Unquote(imp.Path.Value)
-			if err != nil {
-				continue
-			}
-			local := path.Base(p)
-			if imp.Name != nil {
-				local = imp.Name.Name
-			}
-			imports[local] = p
-		}
+		imports := fileImports(astf) // local identifier -> import path
 
 		for _, cg := range astf.Comments {
 			text := cg.Text()
@@ -282,23 +336,26 @@ func TestGodocCitationsResolve(t *testing.T) {
 	for _, c := range citations {
 		distinct[c.importPath+"."+c.symbolPath] = true
 
-		syms, cached := pkgCache[c.importPath]
-		if !cached {
-			rel := strings.TrimPrefix(c.importPath, modulePath+"/")
-			dir := filepath.Join(root, filepath.FromSlash(rel))
-			var err error
-			syms, err = loadPackageSymbols(dir)
-			if err != nil {
-				// A package this module's own go.mod claims to have, that
-				// this scan cannot load, is a scanner defect, not a
-				// citation defect - fail loudly rather than skip it, which
-				// is exactly the blind-scanner shape CLAUDE.md warns about.
-				t.Fatalf("%s: [%s] cites package %q, which this scanner could not load from %s: %v",
-					c.file, c.raw, c.importPath, dir, err)
+		load := func(importPath string) *pkgSymbols {
+			syms, cached := pkgCache[importPath]
+			if !cached {
+				rel := strings.TrimPrefix(importPath, modulePath+"/")
+				dir := filepath.Join(root, filepath.FromSlash(rel))
+				var err error
+				syms, err = loadPackageSymbols(dir)
+				if err != nil {
+					// A package this module's own go.mod claims to have, that
+					// this scan cannot load, is a scanner defect, not a
+					// citation defect - fail loudly rather than skip it, which
+					// is exactly the blind-scanner shape CLAUDE.md warns about.
+					t.Fatalf("%s: [%s] cites package %q, which this scanner could not load from %s: %v",
+						c.file, c.raw, importPath, dir, err)
+				}
+				pkgCache[importPath] = syms
 			}
-			pkgCache[c.importPath] = syms
+			return syms
 		}
-		if !syms.has(c.symbolPath) {
+		if !resolves(load, c.importPath, c.symbolPath) {
 			misses = append(misses, fmt.Sprintf("%s: [%s] - package %q has no %q",
 				c.file, c.raw, c.importPath, c.symbolPath))
 		}
