@@ -5436,6 +5436,18 @@ The entries above are lint matters. Each has a fixture directory and an
 asserted rule. The limits below are runtime behaviors of the implemented
 mode, documented here and asserted by the integration tests named in each.
 
+**A cached Route 53 record is served from its zone's listing only in the
+plain case.** On `-refresh=false` (#2232) a record whose zone listing holds
+exactly its identity with the cached values is served without a read.
+These read instead, every plan, and cost what they cost before: an alias
+record; a record whose declared `name` is not the FQDN the listing reports
+(a relative name, upper case, a trailing dot); a `zone_id` written as
+`/hostedzone/Z...`; any zone whose listing failed or whose provider
+predates the `aws_route53_record` list resource (hashicorp/aws 6.29.0). A
+zone is listed whole, so one holding many records the estate does not
+declare pays a page per 300 record sets for the listing.
+(`internal/live/projection/scopedlisting.go`, `scopedlisting_test.go`.)
+
 **`terraform_remote_state` is read from its own backend before resolution
 needs it, with backend credentials assumed present.** #179 stage 3 gives it
 the same eligibility and read pipeline stage 1 gives an ordinary provider

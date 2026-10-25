@@ -535,6 +535,22 @@ run's sweep, or the record store attests ownership while this run's own
 listing proves the instance exists.
 [Claim 3](smoke/claims/staleness-costs-reads.md) measures the saving.
 
+`aws_route53_record` has a third way in (#2232). It carries no marker, and
+its identity is its declaration: zone, name, type, and the set identifier
+of a weighted, latency, geolocation or failover record. A plan lists each
+hosted zone a cached record names once, through the record's own provider
+configuration and the provider's `aws_route53_record` list resource
+(hashicorp/aws 6.29.0 and later), and serves a record only when that
+listing holds exactly one object with its identity and every listed value
+equals the cached one. A record changed out of band differs, so it is
+read and the plan shows the drift. A listing error, a provider without the
+list resource, a record missing from its zone, two listed objects with one
+identity, or an alias record all fall back to the read. On floci at
+`aff3fbd4ce`, 60 records in one zone planned with `-refresh=false` in 7
+requests where they took 126, with byte-identical plan output;
+[what you pay](costs/what-you-pay.md#route-53-records-one-listing-per-zone)
+has the measurement.
+
 ### Knobs
 
 `CHOUDOUFU_STATE_CACHE` names a different path for the file, or the

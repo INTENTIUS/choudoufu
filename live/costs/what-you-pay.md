@@ -178,6 +178,48 @@ stock's 13s at 10,069 objects. These are emulator seconds and this page does
 not treat them as a cost claim ([below](#and-an-emulator-cannot-answer-this-question)),
 but the ratio is worth stating rather than omitting.
 
+### Route 53 records: one listing per zone
+
+`aws_route53_record` carries no marker, so neither cache vouch above reaches
+it, and before #2232 every declared record was read on every plan,
+`-refresh=false` included. Each read is two Route 53 requests through the
+pinned provider (`GetHostedZone` and a `ListResourceRecordSets` for that
+record), and Route 53 allows five requests per second per account. Now a
+plan lists each zone once through the provider's `aws_route53_record` list
+resource and serves every record whose listed values match the cache
+([STORAGE.md](../STORAGE.md#the-cache) has the rule).
+
+Measured on the pinned floci image, hashicorp/aws 6.59.0, one hosted zone,
+`plan -refresh=false` with `reads` at its "selective" default. Before is
+`042bc40664`, after is `aff3fbd4ce`. Requests are `HTTP Request Sent` lines
+in the run's `TF_LOG=debug` stream. Two runs per cell, no variance:
+
+| Records in the zone | before | after | records served from the cache |
+|---|---|---|---|
+| 20 (18 simple, 2 weighted) | 46 | **7** | 0 -> 20 |
+| 60 (58 simple, 2 weighted) | 126 | **7** | 0 -> 60 |
+
+Before, 40 and 120 of those requests were the per-record reads. After, they
+are one `ListResourceRecordSets` listing. Each pair of plan outputs is
+byte-identical (sha1 `718703c0` at 20 records). The default plan is
+unchanged: 45 requests from both binaries, identical output, no record
+served.
+
+The drift check was run the same way. With one record's value and a
+weighted record's TTL changed through the Route 53 API, both binaries
+planned the same two in-place updates with byte-identical output; after
+the change the two drifted records were read (11 requests) and the other 18
+served. With a record also deleted out of band, both planned the same
+create (17 requests against 50).
+
+What floci cannot answer here: it returns every zone in one page, so the
+"one listing" is one request on the emulator. Real Route 53 pages
+`ListResourceRecordSets` at up to 300 record sets, so a zone costs one
+request per 300 record sets in it, declared or not, and a large zone that
+declares few records can pay more for its listing than its reads would
+have. Throttling is absent on floci by construction. Neither has been
+measured on real AWS.
+
 ## Planning one estate in an account full of other estates
 
 Hold the estate still and grow the ACCOUNT around it. Stock is indifferent by

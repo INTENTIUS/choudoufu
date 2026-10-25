@@ -39,6 +39,14 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.31.0 (Unreleased)
 
+- Added: a `-refresh=false` plan with `reads = "selective"` serves cached
+  `aws_route53_record` instances from one listing per hosted zone (GitHub
+  issue #2232). The listing goes through the record's own provider
+  configuration and the provider's `aws_route53_record` list resource, and
+  a record is served only when the listing holds exactly its zone, name,
+  type and set identifier with values equal to the cache's; anything else
+  is read. On floci, 60 records in one zone planned in 7 requests instead
+  of 126, with identical output. Default plans are unchanged.
 - Added: the 14 azurerm composite and association types derive their id as
   azurerm builds it (GitHub issue #2204). Eleven join two ARM ids with `|`
   (`commonids.CompositeResourceID`) and the three
