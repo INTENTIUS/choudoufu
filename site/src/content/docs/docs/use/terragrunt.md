@@ -63,9 +63,6 @@ that directory. The first unit's apply applies it once.
 - A `dependency` read is taken from the joint plan when it feeds an input
   directly, or through OpenTofu functions. An input that also calls `get_env`,
   or a value read through `read_terragrunt_config`, keeps Terragrunt's value.
-- If your pipeline runs `show -json` on the plan files, add `show` to
-  `mock_outputs_allowed_terraform_commands`.
 
-Shared limits are on [One plan, one apply, across roots](/choudoufu/how-it-works/across-estates/),
-and a worked example is
+A worked example is
 [`examples/demo-terragrunt`](https://github.com/INTENTIUS/choudoufu/blob/main/examples/demo-terragrunt/README.md).

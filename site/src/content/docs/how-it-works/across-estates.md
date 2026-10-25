@@ -8,8 +8,7 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-Teams split an estate into roots so that one state lock covers less. On stock
-backends each root then plans alone, and a root that reads another plans on
+On stock backends each root plans alone, and a root that reads another plans on
 that root's last applied outputs, or on a mock when the value does not exist
 before the apply. The choudoufu live backend joins the roots in one plan.
 
@@ -36,17 +35,16 @@ in place of the tool's mock or last applied value. A changed value arrives as
 planned, and a value that exists only after apply arrives as known after apply. The plan made
 after the last unit covers them all.
 
-Each saved plan file carries the joint plan. Before an apply changes anything,
-choudoufu plans the live system again and refuses, with exit status 3, if the
-result is not the reviewed plan. A value that was known after apply is not
-compared.
+Each saved plan file carries the joint plan, and its apply
+[refuses](../locking/#what-refused-means) a plan that no longer matches. A value
+that was known after apply is not compared.
 
 A `backend` block beside a `live` block is ignored with a warning, whether you
 wrote it or the tool generated it. After an apply, choudoufu writes the root's
 non-sensitive outputs where that backend points. Readers that use
 `terraform_remote_state` or Atmos's `!terraform.state` keep working.
 
-## Limits shared by every way in
+## Shared limits
 
 - A read choudoufu cannot trace to the input it feeds keeps the tool's value.
   If the joint plan changes what it reads, the plan fails and names the read.
