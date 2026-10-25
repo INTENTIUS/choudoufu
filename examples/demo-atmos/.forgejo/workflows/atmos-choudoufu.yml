@@ -1,9 +1,10 @@
 # Stock Atmos CI. A pull request runs `atmos terraform plan --affected
 # --include-dependents --ci`: one plan across the components the change
 # reaches, each component's plan kept in Atmos's planfile store (atmos.yaml,
-# components.terraform.planfiles). A merge runs `atmos terraform deploy
-# --affected --include-dependents --ci`, which takes each component's stored
-# plan, plans again and applies only what matches it. The component command is
+# components.terraform.planfiles), keyed by the pull request's head commit. The
+# repo merges fast-forward only, so the merge pushes that commit, and `atmos
+# terraform deploy --affected --include-dependents --ci` applies network, app
+# and edge in turn, each from its stored plan. The component command is
 # choudoufu (atmos.yaml).
 name: atmos-choudoufu-demo
 
@@ -108,31 +109,27 @@ jobs:
               const ok = reviews.some((r) => r.state === "APPROVED" && !r.dismissed && r.user.login !== pr.user.login);
               if (!ok) { console.error("pull request " + pr.number + " has no approving review from someone other than its author"); process.exit(1); }
               console.log("pull request " + pr.number + " was approved by a reviewer");
-              require("fs").appendFileSync(process.env.GITHUB_ENV, "HEAD_SHA=" + pr.head.sha + "\n");
             })().catch((e) => { console.error(e.message); process.exit(1); });
           '
-      # Atmos keys a stored plan by the commit that planned it, the pull
-      # request's head. The deploy runs on that commit, and only when the merge
-      # commit holds the same tree, so the reviewed files are the merged files.
-      - name: Check out the reviewed commit
+      # The repo merges fast-forward only, so the pushed commit is the pull
+      # request's head: the commit Atmos keyed each stored plan by.
+      - name: Fetch the reviewed plan's report
         env:
-          MERGED: '${{ github.sha }}'
+          SHA: '${{ github.sha }}'
         run: |
-          git checkout -q "$HEAD_SHA"
-          git diff --quiet "$HEAD_SHA" "$MERGED" \
-            || { echo "the merged tree is not the reviewed tree of $HEAD_SHA; plan the pull request again" >&2; exit 1; }
           node -e '
             fetch(process.argv[1]).then(async (r) => {
               if (!r.ok) { console.error("no reviewed report at " + process.argv[1], r.status); process.exit(1); }
               require("fs").writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer()));
             });
-          ' "$REVIEWED_REPORTS/$HEAD_SHA.json" "$RUNNER_TEMP/plan.json"
+          ' "$REVIEWED_REPORTS/$SHA.json" "$RUNNER_TEMP/plan.json"
       - name: Deploy the reviewed plan to network, app and edge
         run: |
-          # deploy takes each component's stored plan, plans again and applies.
-          # A value known after apply in the stored plan is known by now, which
-          # Atmos reports as drift under verify: warn; choudoufu then refuses
-          # (exit status 3) any difference from the stored plan beyond such values.
+          # For network, then app, then edge, deploy takes the component's stored
+          # plan, plans again and applies that component. A value known after
+          # apply in the stored plan is known by then, which Atmos reports as
+          # drift under verify: warn; choudoufu refuses (exit status 3) any
+          # difference from the stored plan beyond such values.
           atmos terraform deploy --affected --include-dependents --sha '${{ github.event.before }}' --ci
       - name: Write the apply's report for behold
         run: |

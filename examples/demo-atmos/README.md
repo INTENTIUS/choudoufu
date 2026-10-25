@@ -40,18 +40,20 @@ into the one document chant's `terraform report` reads for behold.
   apply". Atmos keeps each component's plan in its planfile store
   (`components.terraform.planfiles`, an S3 bucket on the demo's emulator),
   keyed by the pull request's head commit.
-- Merge: the workflow checks for an approving review from someone other than
-  the author, checks out the pull request's head commit, stops unless the
-  merge commit holds the same tree, and runs `atmos terraform deploy --affected
-  --include-dependents --ci`. For each component in order, Atmos takes the
-  stored plan, plans again and applies the fresh plan once it matches.
-- What is applied is what was reviewed. Atmos counts a value that was known
+- Merge: the repo merges fast-forward only, so the merge pushes the pull
+  request's head commit, which is the key of the stored plans. The workflow
+  checks for an approving review from someone other than the author and runs
+  `atmos terraform deploy --affected --include-dependents --ci`. The deploy
+  applies network, then app, then edge, each in its own apply. For each one it
+  takes the stored plan, plans again and applies the fresh plan once it
+  matches.
+- Each component applies exactly as reviewed. Atmos counts a value that was known
   after apply in the stored plan and is known now (app's worker's subnet, once
   network has applied) as drift, and no honest plan can make the two compare
   equal, so `planfiles.verify` is `warn` and `planfiles.required` is `true`.
-  The refusing is choudoufu's: when Atmos shows it a component's stored plan,
-  it keeps that component's slice, and the apply of the fresh plan refuses,
-  with exit status 3, if it differs from the slice in anything but those
+  choudoufu does the refusing. When Atmos shows it a component's stored plan,
+  it keeps that component's slice, and the apply of the fresh plan refuses
+  with exit status 3 if it differs from the slice in anything but those
   values. The refusal names the command that plans again.
 
 ## The contrast
@@ -67,11 +69,11 @@ plan fails. Here app's plan carries the id as unknown.
 - `--affected` plans what Atmos names, so `--include-dependents` is needed for
   components that read a changed one.
 - The apply is not all or nothing. If edge fails, network and app stay applied.
-- Atmos's stored plans are keyed by commit, so the merge job runs on the pull
-  request's head; a pull request that is behind `main` is planned again.
-- behold draws the lines between roots from `data "terraform_estate_outputs"`
-  blocks; `!terraform.output` is not read by chant's report yet, so the reports
-  of this repo carry no `reads`.
+- Atmos's stored plans are keyed by commit, which is why the repo merges
+  fast-forward only. A pull request that is behind `main` is rebased and
+  planned again before it merges.
+- Atmos's deploy applies the components in turn, each in its own apply, so app
+  reads network's real outputs when its turn comes.
 
 ## The scenarios
 
