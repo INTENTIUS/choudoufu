@@ -37,7 +37,30 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
 
-## choudoufu v0.31.0 (Unreleased)
+## choudoufu v0.32.0 (Unreleased)
+
+## choudoufu v0.31.0 (2026-10-24)
+
+Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.31.0.json`](live/history/v0.31.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.30.0.json live/history/v0.31.0.json`):
+
+### Board movement
+
+- Core estates: 23/23 clear -> 23/23 clear (0)
+- All estates: 24/25 clear -> 24/25 clear (0)
+
+### Newly cleared
+
+- none
+
+### Regressed
+
+- none
+
+### Readiness
+
+- `azure` (azurerm 5.10.0) and `google` readiness added to the snapshot.
 
 - Added: a `-refresh=false` plan with `reads = "selective"` serves cached
   `aws_route53_record` instances from one listing per hosted zone (GitHub
