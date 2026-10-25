@@ -1,16 +1,25 @@
 ---
-title: Resource-level locking
-description: Two applies meet at one record, and one of them wins.
+title: Resource-level concurrency
+description: Stock backends lock a whole state file. The live backend has no lock and refuses a conflicting write to one resource.
 prompt: >-
   Read https://intentius.io/choudoufu/how-it-works/locking/ and say how our CI
   serializes applies to one estate. Change no files.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-A plain backend locks a whole state for the length of a run. choudoufu keeps
-one record per resource and writes each one conditionally. This is resource-level
-locking at the cloud level: the conditional write to the cloud's object store
-is the lock, so nothing is ever left locked.
+| | Stock backends | choudoufu live backend |
+|---|---|---|
+| What is stored | A state file per root | A record per resource, in a store you own |
+| What two applies contend for | The lock on the whole state | One record, only when both change it |
+| What serializes them | A lock, taken for the length of a run | A conditional write per record, with no lock |
+| What a dead run can leave | A held lock, cleared with `force-unlock` | Nothing, so `force-unlock` is rejected |
+
+On a stock backend the apply boundary is the state file, so everything in it is
+locked together. Two applies that change different resources still contend for
+that one lock, and the second waits or fails. The choudoufu live backend keeps one record per resource and writes
+each one only if it is unchanged since the run read it. An apply writes only
+the records it changed, so two applies to different resources both land, and the
+store refuses a conflicting write to one resource's record.
 
 ## The write
 
@@ -20,7 +29,7 @@ run read it (`If-Match` with the version it read). Azure Blob Storage takes the
 same two headers. GCS sends `ifGenerationMatch`, and a Kubernetes Secret is
 written conditionally on its `resourceVersion`.
 
-Two applies therefore never hold a lock. The store picks one winner per record.
+Neither apply holds a lock. The store picks one winner per record.
 
 ## What the loser sees
 
@@ -37,14 +46,8 @@ whatever is still left to do.
 A run that fails or loses part way does not undo the records it already wrote.
 Every write stands alone, so nothing rolls back across records.
 
-Two runs that change different resources both proceed. An apply writes only the
-records it changed, so they never meet.
-
 Since a record holds identity and what the cloud cannot return, two plain applies
 that change an attribute the provider reads back are last writer wins at the
 cloud API. `choudoufu apply <planfile>` re-reads the live system and exits 3 if
 a value in its changes moved since approval. Keep one apply at a time per estate
 in CI anyway.
-
-A dead run leaves nothing held. `force-unlock` has no lock to release, so the
-command rejects it.

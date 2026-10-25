@@ -30,7 +30,9 @@ prompt: >-
 ## The live backend
 
 The live backend takes the place of the `backend` block. Write it in
-`estate.chdf.hcl` at the root, or in a `live` block inside `terraform`.
+`estate.chdf.hcl` at the root, or in a `live` block inside `terraform`. A
+`backend` block left beside it is ignored with a warning. Unless it is
+`local`, an apply writes the estate's non-sensitive outputs where it points.
 
 ```hcl
 estate = "prod-networking"

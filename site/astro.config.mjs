@@ -86,7 +86,7 @@ export default defineConfig({
 				baseUrl: 'https://github.com/INTENTIUS/choudoufu/edit/main/site/',
 			},
 			// The groups from #2092: Start here, AWS, Kubernetes, GCP, Azure, How it works, Use,
-			// Reference. A group joins this list when its first page is written.
+			// Reference, and Across roots since #2213. A group joins this list when its first page is written.
 			// Every group but Start here starts collapsed.
 			sidebar: [
 				// The room pages under /for/ (src/pages/for/[id].astro), in the order of
@@ -97,7 +97,7 @@ export default defineConfig({
 					label: 'Start here',
 					items: [
 						{ label: 'From a state file', link: '/for/state-file/' },
-						{ label: 'From Terragrunt', link: '/for/terragrunt/' },
+						{ label: 'From Terragrunt or Atmos', link: '/for/terragrunt/' },
 						{ label: 'From terragucci', link: '/for/terragucci/' },
 						{ label: 'Starting new', link: '/for/new/' },
 						{ label: 'On AWS', link: '/for/aws/' },
@@ -165,9 +165,19 @@ export default defineConfig({
 						{ label: 'What it is', slug: 'how-it-works' },
 						{ label: 'Identity', slug: 'how-it-works/identity' },
 						{ label: 'Records', slug: 'how-it-works/values' },
-						{ label: 'Resource-level locking', slug: 'how-it-works/locking' },
-						{ label: 'Across estates', slug: 'how-it-works/across-estates' },
+						{ label: 'Resource-level concurrency', slug: 'how-it-works/locking' },
 						{ label: 'The cache', slug: 'how-it-works/cache' },
+					],
+				},
+				// One section for every way to run several roots as one plan: the
+				// shared page, then what differs under each orchestrator.
+				{
+					label: 'Across roots',
+					collapsed: true,
+					items: [
+						{ label: 'One plan, one apply', slug: 'how-it-works/across-estates' },
+						{ label: 'Under Terragrunt', slug: 'docs/use/terragrunt' },
+						{ label: 'Under Atmos', slug: 'docs/use/atmos' },
 					],
 				},
 				{
