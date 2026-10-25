@@ -644,6 +644,11 @@ type builder struct {
 	// read only on the sequential materialize goroutine, like cacheHits.
 	envelopeAdmitted map[string]bool
 
+	// scopedListings is the cache-hit rule's third arm's memo (GitHub
+	// issue #2232): one listing per provider configuration and scope, a
+	// hosted zone for aws_route53_record. See scopedlisting.go.
+	scopedListings scopedListings
+
 	// refusedMarkedAtKey names the instances [builder.overwritesMarkedAtKey]
 	// refused, which [builder.pendingDisplaced] reads to withhold the
 	// displaced warning discovery left waiting on them.
