@@ -233,3 +233,38 @@ func TestJointAtmosWiring(t *testing.T) {
 		t.Fatal("found a component for another stack's var file")
 	}
 }
+
+// "output" inside a joint run answers for a unit its plan registered, found
+// from another copy of the unit in .terragrunt-cache too, and never
+// registers one: the tool gives "output" no inputs (#2231, run 218).
+func TestJointRegisteredUnit(t *testing.T) {
+	sess := &jointSession{dir: t.TempDir()}
+	if err := os.MkdirAll(sess.path("units"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	root := tgCanonical(t.TempDir())
+	plan := filepath.Join(root, "network", ".terragrunt-cache", "a", "b")
+	other := filepath.Join(root, "network", ".terragrunt-cache", "c", "d")
+	for _, d := range []string{plan, other, filepath.Join(root, "app")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sess.register(jointUnit{Key: plan, Dir: plan, Ref: filepath.Join(root, "network"), Vars: map[string]jointVar{"port": {Value: []byte("8090")}}}, "network")
+	tg := &jointTool{Kind: "terragrunt"}
+	for _, dir := range []string{plan, other} {
+		u, ok := jointRegisteredUnit(sess, tg, dir)
+		if !ok || u.ID != "network" || len(u.Vars) != 1 {
+			t.Fatalf("%s: got %+v %v", dir, u, ok)
+		}
+	}
+	if _, ok := jointRegisteredUnit(sess, tg, filepath.Join(root, "app")); ok {
+		t.Fatal("found a unit that never registered")
+	}
+	if _, ok := jointRegisteredUnit(sess, &jointTool{Kind: "atmos"}, other); ok {
+		t.Fatal("matched an Atmos component by Terragrunt unit directory")
+	}
+	if n := len(sess.units()); n != 1 {
+		t.Fatalf("%d units registered, want 1", n)
+	}
+}

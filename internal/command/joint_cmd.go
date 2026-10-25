@@ -627,6 +627,29 @@ func (c *jointCommand) jointApply(args []string) (int, bool) {
 	return code, true
 }
 
+// jointRegisteredUnit finds the unit registered for a directory: the same
+// working directory, or for Terragrunt the same unit directory (another copy
+// in its .terragrunt-cache).
+func jointRegisteredUnit(sess *jointSession, tool *jointTool, dir string) (jointUnit, bool) {
+	if r, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = r
+	}
+	ref := ""
+	if tool.Kind == "terragrunt" {
+		ref = tgCanonical(jointTerragruntDir(dir))
+	}
+	var found []jointUnit
+	for _, u := range sess.units() {
+		if u.Dir == dir || (ref != "" && u.Ref == ref) {
+			found = append(found, u)
+		}
+	}
+	if len(found) != 1 {
+		return jointUnit{}, false
+	}
+	return found[0], true
+}
+
 func (c *jointCommand) jointOutput(args []string) (int, bool) {
 	jsonOut := false
 	for _, a := range args {
@@ -650,30 +673,16 @@ func (c *jointCommand) jointOutput(args []string) (int, bool) {
 		return 0, false
 	}
 	orig, _ := os.Getwd()
-	var unit jointUnit
-	if tool.Kind == "atmos" {
-		// Atmos gives "output" no inputs, so a component is only in the
-		// joint plan once Atmos has planned it.
-		cwd := orig
-		if r, err := filepath.EvalSymlinks(cwd); err == nil {
-			cwd = r
-		}
-		var found []jointUnit
-		for _, u := range sess.units() {
-			if u.Dir == cwd {
-				found = append(found, u)
-			}
-		}
-		if len(found) != 1 {
-			return 0, false
-		}
-		unit = found[0]
-	} else {
-		var ok bool
-		unit, ok = c.registerUnit(sess, tool, nil, "")
-		if !ok {
-			return 0, false
-		}
+	// The tool gives "output" none of the unit's inputs (Atmos never does,
+	// and Terragrunt does not when its direct state read falls back to the
+	// binary), so the unit is answered for only once its plan has
+	// registered it with them. Registering it here would replace its inputs
+	// with none. A unit not registered yet takes the ordinary path, which
+	// answers from the record store: nothing in this run has planned it.
+	unit, ok := jointRegisteredUnit(sess, tool, orig)
+	if !ok {
+		jointDebugf("output: this unit has not joined the plan; answering from the record store")
+		return 0, false
 	}
 	st, err := c.ensurePlan(sess, []string{"-input=false", "-no-color"})
 	_ = os.Chdir(orig)

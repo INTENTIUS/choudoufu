@@ -66,8 +66,11 @@ func detectJointTool() *jointTool {
 	default:
 		return &jointTool{Kind: "env", ID: "env-" + jointSafe(v), Phase: "plan"}
 	}
+	// A tool can itself be pid 1 (a container whose entrypoint execs
+	// terragrunt), so only a missing parent is ruled out here; the parent's
+	// command line decides.
 	ppid := os.Getppid()
-	if ppid <= 1 {
+	if ppid < 1 {
 		return nil
 	}
 	args, start, err := jointParentProcess(ppid)
