@@ -38,7 +38,7 @@
     {
       "prompt": "Why is app's plan a guess?",
       "action": null,
-      "reply": "With stock Atmos, !terraform.output reads applied state, and subnet b is not applied yet. App would get a default or a mock, or the plan would fail. choudoufu plans the three together, so the worker shows its subnet as known after apply.",
+      "reply": "With stock Atmos, !terraform.output reads applied state, and subnet b is not applied yet. App would get a default or a mock, or the plan would fail. choudoufu plans the three as one plan, so the worker shows its subnet as known after apply.",
       "light": [
         "app/aws_network_interface.worker"
       ],
@@ -68,7 +68,7 @@
     "status": "Recording your approval as a review on the pull request"
   },
   "merged": {
-    "prompt": "Merge it and apply the plan I approved.",
+    "prompt": "Merge it. Apply network, app and edge in order, each exactly as I reviewed it.",
     "action": null,
     "reply": null,
     "light": null,

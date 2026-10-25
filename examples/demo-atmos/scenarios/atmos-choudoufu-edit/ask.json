@@ -34,7 +34,7 @@
     "status": "Recording your approval as a review on the pull request"
   },
   "merged": {
-    "prompt": "Merge it and apply the plan I approved.",
+    "prompt": "Merge it. Apply network, app and edge in order, each exactly as I reviewed it.",
     "action": null,
     "reply": null,
     "light": null,
