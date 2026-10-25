@@ -442,7 +442,7 @@ provider's plain key-value resource qualifies structurally: client-named
 (admission path 1), holds a string, stays a leaf. Nothing AWS-specific
 exists in the machinery.
 
-The demo and the enforcement are AWS-only today. The estate's receipt is
+The demo and the enforcement cover AWS today. The estate's receipt is
 an `aws_ssm_parameter`, and the leaf rule's recognition is hardcoded to
 that type with a literal `/tofu-receipts/` name. On another cloud you can
 follow this spec, but the leaf rule will not protect you, and its absence

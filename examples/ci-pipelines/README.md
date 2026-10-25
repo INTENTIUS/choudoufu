@@ -15,7 +15,7 @@ require: `live-check`, `live-plan`, `live-apply`, `live-adopt`, `live-discover`,
 
 ## Substrate
 
-AWS-only. `terraform/main.tf`'s estate deliberately includes an
+This example runs on AWS. `terraform/main.tf`'s estate deliberately includes an
 `aws_iam_role`, and IAM is one of three services (with Route53 and S3) whose
 tagging call choudoufu does not print a paste-ready `live-adopt` command for
 - the estate demonstrates the honest half of adoption, an unmarked resource
