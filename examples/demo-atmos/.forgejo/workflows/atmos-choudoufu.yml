@@ -32,6 +32,8 @@ env:
   # prefix as the other demos). chant-report is chant's `terraform report`.
   CHANT_REPORTS: http://floci:4566/demo-reports/demo
   # The report document of the reviewed plan, kept for the merge's report.
+  # Atmos's planfile store (atmos.yaml) is in the same bucket, addressed
+  # virtual-hosted through demo-records like choudoufu's record store.
   REVIEWED_REPORTS: http://floci:4566/demo-atmos-choudoufu-state/reviewed-plans
   FORGEJO_ACTIONS: "true"
 
@@ -56,7 +58,11 @@ jobs:
         run: |
           # The report reads one document for the run; composed-plan.mjs joins the components' slices of the joint plan.
           node .forgejo/composed-plan.mjs network app edge > "$RUNNER_TEMP/plan.json"
-          curl -fsS -o /dev/null -X PUT --data-binary @"$RUNNER_TEMP/plan.json" "$REVIEWED_REPORTS/$HEAD_SHA.json"
+          # The job image has node and no curl.
+          node -e '
+            const body = require("fs").readFileSync(process.argv[1]);
+            fetch(process.argv[2], { method: "PUT", body }).then((r) => { if (!r.ok) { console.error("keeping the reviewed report failed", r.status); process.exit(1); } });
+          ' "$RUNNER_TEMP/plan.json" "$REVIEWED_REPORTS/$HEAD_SHA.json"
           chant-report --stage tf-plan --plan "$RUNNER_TEMP/plan.json" --pull-request "$PR" \
             --binary choudoufu --root-dir components/terraform --to "$CHANT_REPORTS"
       - name: Post the plan on the pull request
@@ -115,7 +121,12 @@ jobs:
           git checkout -q "$HEAD_SHA"
           git diff --quiet "$HEAD_SHA" "$MERGED" \
             || { echo "the merged tree is not the reviewed tree of $HEAD_SHA; plan the pull request again" >&2; exit 1; }
-          curl -fsS -o "$RUNNER_TEMP/plan.json" "$REVIEWED_REPORTS/$HEAD_SHA.json"
+          node -e '
+            fetch(process.argv[1]).then(async (r) => {
+              if (!r.ok) { console.error("no reviewed report at " + process.argv[1], r.status); process.exit(1); }
+              require("fs").writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer()));
+            });
+          ' "$REVIEWED_REPORTS/$HEAD_SHA.json" "$RUNNER_TEMP/plan.json"
       - name: Deploy the reviewed plan to network, app and edge
         run: |
           # deploy takes each component's stored plan, plans again and applies.
