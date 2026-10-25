@@ -1016,7 +1016,11 @@ func (m *Module) ignoreStateStoreUnderLive(diags *hcl.Diagnostics) {
 			Severity: hcl.DiagWarning,
 			Summary:  "Backend configuration ignored under live resource markers",
 			Detail:   fmt.Sprintf("This module has a live block (at %s), so its state cache is local and its records are in record_store; the backend block at %s configures nothing this run uses and is ignored. A generated backend.tf or backend.tf.json can stay where it is; an apply writes this estate's non-sensitive outputs to the location it names, for terraform_remote_state readers.", m.Live.DeclRange, m.Backend.DeclRange),
-			Subject:  &m.Backend.DeclRange,
+			// No Subject: the warning names the block's place in its detail
+			// and prints no source excerpt. The excerpt of an Atmos-generated
+			// backend.tf.json is a line ending in "{", and Atmos reads the
+			// JSON of "show -json" from the first "{" of the output it
+			// captured, which holds this warning when it runs init first.
 		})
 		m.IgnoredBackend = m.Backend
 		m.Backend = nil
