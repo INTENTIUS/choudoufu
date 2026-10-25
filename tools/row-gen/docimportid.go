@@ -78,7 +78,7 @@ import (
 
 // docImportIDTableRel is the generated grammar's home, beside
 // idnotwhole_generated.go for the reason that file's own constant states.
-const docImportIDTableRel = "internal/live/identity/docimportid_generated.go"
+const docImportIDTableRel = "pkg/identity/docimportid_generated.go"
 
 // docImportIDRow is one type's documented import-ID grammar.
 type docImportIDRow struct {

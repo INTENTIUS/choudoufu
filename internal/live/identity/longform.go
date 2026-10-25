@@ -98,21 +98,21 @@ func (r *resolver) longFormValue(comp Component, addr addrs.AbsResourceInstance,
 			"%s sets %s from %s, which is not known until apply. %s, which reads the value's text, so the id cannot be "+
 				"built until the value exists and this fork will not guess its form (#2144). Write the parent's name "+
 				"rather than its id, or a literal, to resolve it now.",
-			addr.String(), attr.Name, parent, comp.LongForm.describe())
+			addr.String(), attr.Name, parent, comp.LongForm.Describe())
 		return nil, false
 	}
 	if comp.LongForm == LongFormEnsurePrefix {
 		if len(comp.Qualifiers) != 1 {
 			r.errorf(attr.Range, "Rewritten identity argument not composable",
 				"%s sets %s to %q. %s, and this fork did not read which prefix, so the instance is refused rather than given an id (#2145).",
-				addr.String(), attr.Name, v, comp.LongForm.describe())
+				addr.String(), attr.Name, v, comp.LongForm.Describe())
 			return nil, false
 		}
 		if v == "" || v == comp.Qualifiers[0] {
 			r.errorf(attr.Range, "Rewritten identity argument not composable",
 				"%s sets %s to %q. %s (%q), which leaves nothing after it, and a parent id with an empty segment names no "+
 					"object, so the instance is refused rather than given one (#2145).",
-				addr.String(), attr.Name, v, comp.LongForm.describe(), comp.Qualifiers[0])
+				addr.String(), attr.Name, v, comp.LongForm.Describe(), comp.Qualifiers[0])
 			return nil, false
 		}
 		// The value itself is unchanged: [ensuredPrefix] adds the prefix
@@ -123,7 +123,7 @@ func (r *resolver) longFormValue(comp Component, addr addrs.AbsResourceInstance,
 		if len(comp.Qualifiers) != 1 {
 			r.errorf(attr.Range, "Rewritten identity argument not composable",
 				"%s sets %s to %q. %s, and this fork did not read which prefix, so the instance is refused rather than given an id (#2145).",
-				addr.String(), attr.Name, v, comp.LongForm.describe())
+				addr.String(), attr.Name, v, comp.LongForm.Describe())
 			return nil, false
 		}
 		short := strings.TrimPrefix(v, comp.Qualifiers[0])
@@ -131,7 +131,7 @@ func (r *resolver) longFormValue(comp Component, addr addrs.AbsResourceInstance,
 			r.errorf(attr.Range, "Rewritten identity argument not composable",
 				"%s sets %s to %q. %s (%q), which leaves nothing of this value, and an id with an empty segment names no "+
 					"object, so the instance is refused rather than given one (#2145).",
-				addr.String(), attr.Name, v, comp.LongForm.describe(), comp.Qualifiers[0])
+				addr.String(), attr.Name, v, comp.LongForm.Describe(), comp.Qualifiers[0])
 			return nil, false
 		}
 		return []Part{{Literal: short}}, true
@@ -144,7 +144,7 @@ func (r *resolver) longFormValue(comp Component, addr addrs.AbsResourceInstance,
 		r.errorf(attr.Range, "Rewritten identity argument not composable",
 			"%s sets %s to %q. %s, which leaves nothing of this value, and an id with an empty segment names no "+
 				"object, so the instance is refused rather than given one (#2144).",
-			addr.String(), attr.Name, v, comp.LongForm.describe())
+			addr.String(), attr.Name, v, comp.LongForm.Describe())
 		return nil, false
 	}
 	return []Part{{Literal: short}}, true
@@ -209,7 +209,7 @@ func (r *resolver) composeOne(entry TypeIdentity, segs []segment, q int, v strin
 	refuse := func(why string) ([]segment, bool) {
 		r.errorf(sg.rng, "Rewritten identity argument not composable",
 			"%s sets %s to %q. %s, and %s, so the instance is refused by name rather than given an id (#2144).",
-			addr.String(), sg.arg, v, comp.LongForm.describe(), why)
+			addr.String(), sg.arg, v, comp.LongForm.Describe(), why)
 		return nil, false
 	}
 	res := append([]segment(nil), segs...)
@@ -322,7 +322,7 @@ func setCaptured(entry TypeIdentity, res []segment, q int, m, names []string) {
 			was, _ := literal(res[j].parts)
 			res[j].parts = []Part{{Literal: m[k]}}
 			if res[j].attr == "" && was != m[k] {
-				res[j].attr = entry.Components[res[j].comp].identityAttrFor(name)
+				res[j].attr = entry.Components[res[j].comp].IdentityAttrFor(name)
 			}
 		}
 	}

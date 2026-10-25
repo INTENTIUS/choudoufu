@@ -684,7 +684,7 @@ func (r *resolver) deriveScopeContextNames(typeName string) []string {
 	if !ok {
 		return nil
 	}
-	named := entry.namedAttrs()
+	named := entry.NamedAttrs()
 
 	required, optional := identityAttrs(schema.IdentitySchema)
 	var out []string
@@ -1529,7 +1529,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 					fail(sibBefore, "")
 					continue
 				}
-				emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, "")
+				emit(i, comp.IdentityAttrFor(attr.Name), attr.Name, got, "")
 				continue
 			}
 			v, _ := r.cloudValueFor(comp.Cloud, cloudScope)
@@ -1539,12 +1539,12 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				v = forIDValue(string(comp.Cloud), v, false)
 			}
 			got := []Part{{Literal: v}}
-			emit(i, comp.identityAttrFor(""), "", got, "")
+			emit(i, comp.IdentityAttrFor(""), "", got, "")
 			continue
 		}
 		if len(comp.Attrs) == 0 {
 			got := []Part{{Literal: comp.Literal}}
-			emit(i, comp.identityAttrFor(""), "", got, "")
+			emit(i, comp.IdentityAttrFor(""), "", got, "")
 			continue
 		}
 		attr, conflict := r.firstApplicablePresent(comp, attrs, scope, addr)
@@ -1581,7 +1581,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 			if name, ok := r.armDefaultName(entry, i, cloudScope); ok {
 				// The name azapi gives an azapi_resource that omits it
 				// ([resolver.armDefaultName]).
-				emit(i, comp.identityAttrFor(comp.Attrs[0]), comp.Attrs[0], []Part{{Literal: name}}, "")
+				emit(i, comp.IdentityAttrFor(comp.Attrs[0]), comp.Attrs[0], []Part{{Literal: name}}, "")
 				continue
 			}
 			if comp.OmitIfAbsent {
@@ -1605,7 +1605,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 					v = forIDValue(comp.Attrs[0], v, true)
 				}
 				got := []Part{{Literal: v}}
-				emit(i, comp.identityAttrFor(comp.Attrs[0]), comp.Attrs[0], got, "")
+				emit(i, comp.IdentityAttrFor(comp.Attrs[0]), comp.Attrs[0], got, "")
 				continue
 			}
 			if comp.ServerAssignedIfAbsent {
@@ -1759,7 +1759,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 				fail(sibBefore, attr.Name)
 				continue
 			}
-			emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, "")
+			emit(i, comp.IdentityAttrFor(attr.Name), attr.Name, got, "")
 			continue
 		}
 		diagMark := len(r.diags)
@@ -1873,7 +1873,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 		// is punctuation in the import-ID STRING, not part of the identity
 		// ATTRIBUTE's value, so it is carried as the segment's prefix and
 		// added to parts only.
-		emit(i, comp.identityAttrFor(attr.Name), attr.Name, got, ensuredPrefix(comp, got))
+		emit(i, comp.IdentityAttrFor(attr.Name), attr.Name, got, ensuredPrefix(comp, got))
 	}
 	if !failed {
 		if group, ok := emptyAtLeastOneOf(entry.Components, segs); ok {
@@ -2174,7 +2174,7 @@ func (r *resolver) cloudValueFor(which CloudValue, cs cloudScopeKey) (string, bo
 	if which == CloudEnvironment {
 		return r.azureEnvironment(cs)
 	}
-	return r.cloud.value(which)
+	return r.cloud.Value(which)
 }
 
 // azureEnvironment answers [CloudEnvironment] (GitHub issue #2206): the
@@ -2196,7 +2196,7 @@ func (r *resolver) azureEnvironment(cs cloudScopeKey) (string, bool) {
 	if !r.providerLeavesUnset(cs.provider, "environment") {
 		return "", false
 	}
-	env, ok := r.cloud.value(CloudEnvironment)
+	env, ok := r.cloud.Value(CloudEnvironment)
 	if !ok {
 		return "", false
 	}
@@ -2242,7 +2242,7 @@ func (r *resolver) cloudComponentAttr(comp Component, attrs hcl.Attributes, scop
 func cloudReason(entry TypeIdentity, missing CloudValue) string {
 	return fmt.Sprintf(
 		"an %s imports by %s, which embeds the %s, and that is a property of the cloud this run is pointed at rather than of the configuration; nothing has told this run what it is, so the identity cannot be built here.",
-		entry.Type, entry.ImportSyntax, missing.describe(),
+		entry.Type, entry.ImportSyntax, missing.Describe(),
 	)
 }
 
@@ -3301,7 +3301,7 @@ func (r *resolver) parentPart(parent addrs.AbsResourceInstance, attrName string,
 		return got, true
 	}
 
-	if !entry.hasIdentityAttr(attrName) {
+	if !entry.HasIdentityAttr(attrName) {
 		// attrName is not part of parent's cloud identity at all - but it
 		// may still be an ordinary argument parent's own block sets
 		// literally, which is fully static and has nothing to do with

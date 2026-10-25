@@ -49,7 +49,7 @@ const (
 	artifactRel   = "live/iam-reference.json"
 	tagVerbsRel   = "live/tag-verbs.json"
 	mappingRel    = "live/mapping.json"
-	admissionRel  = "internal/live/identity/table_generated.go"
+	admissionRel  = "pkg/identity/table_generated.go"
 	indexURL      = "https://servicereference.us-east-1.amazonaws.com/"
 	fetchParallel = 8
 )

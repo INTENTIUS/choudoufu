@@ -249,14 +249,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"declares. The collection-to-type pairing is a fact of Key Vault's data plane that no azurerm schema states.",
 		Data: 0, Code: 6,
 	},
-	"internal/live/identity/azure_recordcarried.go": {
+	"pkg/identity/azure_recordcarried.go": {
 		Reason: "AzureRecordCarriedTypes (maintainer ruling of 2026-10-23 on #2201, items 2 and 8; built by #2203): the 37 " +
 			"azurerm parent-id settings objects admitted as record-carried BY DECLARATION, because each stores its " +
 			"parent's ARM id as its own and has no tags argument, so no marker can name it. A declaration, not a " +
 			"derivation: moving a type in or out of the list is a ruling.",
 		Data: 37, Code: 0,
 	},
-	"internal/live/identity/azure_serverminted.go": {
+	"pkg/identity/azure_serverminted.go": {
 		Reason: "AzureServerMintedTypes (issue #2205, ruling of 2026-10-23 on #2201 item 4): the 17 azurerm types whose id " +
 			"the server mints, held by hand because no committed artifact says per type which ids the server supplies; " +
 			"the classification is #2147's trace of azurerm 5.10.0's Create functions. " +
@@ -270,7 +270,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"the id types and the schema at generation time, and a failed check refuses the type with its reason.",
 		Data: 31, Code: 0,
 	},
-	"internal/live/identity/docimportid.go": {
+	"pkg/identity/docimportid.go": {
 		Reason: "VariadicTrailingImportIDTypes: aws_security_group_rule alone, the one type today whose documented " +
 			"import grammar (\"SOURCE[_SOURCE]*\") ends in a variadic tail AND whose provider-side importer has " +
 			"been verified, from hashicorp/terraform-provider-aws's own resourceSecurityGroupRuleImport source " +
@@ -296,7 +296,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"the one thing that cannot be derived.",
 		Data: 2, Code: 0,
 	},
-	"internal/live/identity/parent.go": {
+	"pkg/identity/parent.go": {
 		Reason: "parentReadRemovable, parentListRecovered and foldParentTypes: hand-curated maps whose growth rule is written " +
 			"into their own doc comments as \"one provider-behavior verification at a time\". The fact recorded is what a " +
 			"live GetBucketPolicy- or GetRolePolicy-style read means when it finds nothing, which is provider behaviour " +
@@ -846,17 +846,17 @@ const (
 // past this guard. So the exempt set is exact rather than a rule: a fourth
 // generated file, or a hand-written one that grows the header, fails here.
 var generatedTypeLiteralFiles = []string{
-	"internal/live/identity/contentmatch_generated.go",
-	"internal/live/identity/discoverablefallback_generated.go",
-	"internal/live/identity/docimportid_generated.go",
-	"internal/live/identity/idnotwhole_generated.go",
-	"internal/live/identity/importids_generated_google.go",       // tools/gcp-row-gen
-	"internal/live/identity/identityimports_generated_google.go", // tools/gcp-row-gen
-	"internal/live/substrate/google_unrecorded_generated.go",     // tools/gcp-row-gen
-	"internal/live/identity/markerless_generated.go",
-	"internal/live/identity/notimportable_generated.go",
-	"internal/live/identity/table_generated.go",
-	"internal/live/identity/table_generated_google.go", // tools/gcp-row-gen
+	"pkg/identity/contentmatch_generated.go",
+	"pkg/identity/discoverablefallback_generated.go",
+	"pkg/identity/docimportid_generated.go",
+	"pkg/identity/idnotwhole_generated.go",
+	"pkg/identity/importids_generated_google.go",             // tools/gcp-row-gen
+	"pkg/identity/identityimports_generated_google.go",       // tools/gcp-row-gen
+	"internal/live/substrate/google_unrecorded_generated.go", // tools/gcp-row-gen
+	"pkg/identity/markerless_generated.go",
+	"pkg/identity/notimportable_generated.go",
+	"pkg/identity/table_generated.go",
+	"pkg/identity/table_generated_google.go", // tools/gcp-row-gen
 }
 
 // providerTypeLiteral matches a string literal that is exactly a provider

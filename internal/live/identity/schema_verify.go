@@ -314,7 +314,7 @@ func checkIdentity(entry TypeIdentity, schema providers.Schema) []Finding {
 
 	var findings []Finding
 
-	named := entry.namedAttrs()
+	named := entry.NamedAttrs()
 	var unnamed []string
 	for _, name := range required {
 		if !named[name] {
@@ -325,11 +325,11 @@ func checkIdentity(entry TypeIdentity, schema providers.Schema) []Finding {
 		findings = append(findings, Finding{
 			Type:       entry.Type,
 			Kind:       FindingUnnamedIdentityAttr,
-			TableSide:  entry.claim(),
+			TableSide:  entry.Claim(),
 			SchemaSide: strings.Join(required, " + "),
 			Detail: fmt.Sprintf(
 				"The provider requires %s to import a %s, and the identity table's entry for that type never names %s: it identifies the type by %s. The table is building a different string than the one the provider calls this type's identity.",
-				joinQuoted(required, " and "), entry.Type, joinQuoted(unnamed, " or "), entry.claim(),
+				joinQuoted(required, " and "), entry.Type, joinQuoted(unnamed, " or "), entry.Claim(),
 			),
 		})
 	}
@@ -482,68 +482,6 @@ func (v Verification) Summary() string {
 		len(v.IdentityImportable),
 		len(v.Derivable), byConfig, newly, v.Report.Counts.NeedsConfigSignal,
 	)
-}
-
-// identityAttrs splits an identity schema's attributes into the ones the
-// provider requires for import and the ones it accepts optionally, each
-// sorted. The optional ones are context the provider can supply itself
-// (account_id, region) or alternatives among which it needs no particular
-// one, so only the required ones are what configuration has to name.
-func identityAttrs(body *configschema.Object) (required, optional []string) {
-	if body == nil {
-		return nil, nil
-	}
-	for name, attr := range body.Attributes {
-		switch {
-		case attr.Required:
-			required = append(required, name)
-		default:
-			optional = append(optional, name)
-		}
-	}
-	sort.Strings(required)
-	sort.Strings(optional)
-	return required, optional
-}
-
-// namedAttrs is every attribute name this entry mentions, on either side:
-// the arguments its components read and the attributes it hands out as
-// identity sources. It is the set an identity schema's attribute has to
-// land in for the entry to be talking about the same identity.
-func (t TypeIdentity) namedAttrs() map[string]bool {
-	out := make(map[string]bool)
-	for _, c := range t.Components {
-		for _, a := range c.Attrs {
-			out[a] = true
-		}
-	}
-	for _, a := range t.IdentityAttrs {
-		out[a] = true
-	}
-	return out
-}
-
-// claim renders what this entry says identifies the type, for a message
-// that has to show both sides.
-func (t TypeIdentity) claim() string {
-	if t.ServerAssigned {
-		if len(t.IdentityAttrs) > 0 {
-			return fmt.Sprintf("a server-assigned %s", strings.Join(t.IdentityAttrs, "/"))
-		}
-		return "a server-assigned identity"
-	}
-	parts := make([]string, 0, len(t.Components))
-	for _, c := range t.Components {
-		switch {
-		case c.Cloud != CloudNone:
-			parts = append(parts, "the run's "+c.Cloud.describe())
-		case len(c.Attrs) == 0:
-			parts = append(parts, fmt.Sprintf("%q", c.Literal))
-		default:
-			parts = append(parts, strings.Join(c.Attrs, "|"))
-		}
-	}
-	return strings.Join(parts, " + ")
 }
 
 // componentSchemaBlock is the configschema.Block a component's Attrs are
