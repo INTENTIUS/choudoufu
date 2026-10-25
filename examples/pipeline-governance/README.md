@@ -17,7 +17,7 @@ are written against them rather than against a description of them.
 
 ## Substrate
 
-AWS-only, because it governs `examples/ci-pipelines`, which is AWS-only, and
+This example runs on AWS, because it governs `examples/ci-pipelines`, which runs on AWS, and
 these policies exist to keep that project's own credentials from leaking or
 going unused: the three role ARNs on GitHub, the three static key pairs on
 Forgejo, `AWS_REGION` everywhere. A Kubernetes CI pipeline authenticates

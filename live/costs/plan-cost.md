@@ -864,7 +864,7 @@ passes through once.
   [#1039](https://github.com/INTENTIUS/choudoufu/issues/1039) were fixed at
   `c0632fa3b7` (508, 510, 510 at 79, 301 and 745 instances). Only this estate
   was measured, and it declares thirteen types.
-- **AWS only.** Nothing here says anything about another provider.
+- **Measured on AWS.** Nothing here says anything about another provider.
 - **Every call-count table on this page measures a full-sweep run.** None of
   those tables has been re-measured under the narrowing; what has is the
   79-instance fixture's headline, 157 against 710 (186 since #692, #1082), and [the real-AWS pair

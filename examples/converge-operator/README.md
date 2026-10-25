@@ -17,7 +17,7 @@ still pins 0.63.0, unrelated to this repin.
 
 ## Substrate
 
-AWS-only. The drift this demo introduces comes from the AWS CLI
+This demo runs on AWS. The drift it introduces comes from the AWS CLI
 (`aws logs delete-log-group`) against the two `aws_cloudwatch_log_group`
 resources in `terraform/main.tf`; the loop it is demonstrating, `chant
 operator` ticking a `ConvergeOp` on its own interval, is not provider-specific,
