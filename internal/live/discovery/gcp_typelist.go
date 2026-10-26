@@ -11,14 +11,16 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // The GCP leg's per-type lists (INTENTIUS/choudoufu#2264). A declared
-// instance of a covered type ([gcpsweep.Covered]: the labelled google types
-// whose identity the API assigns) is bound from its type's own list,
+// instance of a covered type ([gcpsweep.Covered]: the server-assigned types
+// written by hand, and every type derived from its Asset name and service)
+// is bound from its type's own list,
 // read from the service's own store, rather than from the Cloud Asset
 // Inventory index, which lags a create. Two applies that each created one
 // such object are then both seen by the next plan, which names the
@@ -61,7 +63,7 @@ func (l gcpTypeLists) covers(demand gcpDemand, a gcpsweep.Asset) bool {
 		return false
 	}
 	t, _ := gcpsweep.Covered(typeName)
-	return a.AssetType == t.AssetType
+	return t.Names(a)
 }
 
 // typeLists lists every covered type the demand holds, at each scope its
@@ -151,6 +153,14 @@ func (g GCPAssetSweep) typeScopes(ctx context.Context, req Request, decl *declar
 	for _, entries := range []map[string]*declaredEntry{decl.types[t.Type], decl.recordBacked[t.Type]} {
 		for _, entry := range entries {
 			addr := entry.res.Addr
+			if t.Derived {
+				scope, why := g.derivedScope(ctx, req, addr, t)
+				if why != "" {
+					return nil, why
+				}
+				seen[scope] = true
+				continue
+			}
 			project, set, ok := configuredGoogleArg(ctx, req.Config, addr, "project")
 			switch {
 			case set && !ok:
@@ -186,9 +196,61 @@ func (g GCPAssetSweep) typeScopes(ctx context.Context, req Request, decl *declar
 		if out[i].Project != out[j].Project {
 			return out[i].Project < out[j].Project
 		}
-		return out[i].Location < out[j].Location
+		if out[i].Location != out[j].Location {
+			return out[i].Location < out[j].Location
+		}
+		return out[i].Collection+"?"+out[i].Query < out[j].Collection+"?"+out[j].Query
 	})
 	return out, ""
+}
+
+// derivedScope is where one declared instance of a derived type
+// ([gcpsweep.TypeList.Derived]) is listed: its type's collection with every
+// variable filled from the instance's block, or why one cannot be.
+//
+// project, region and zone are the block's own argument, else the provider
+// block's, as hashicorp/google defaults them; a self link or full name counts
+// by its last segment. location is the block's own `location` only: the
+// provider defaults it per resource (some to the provider's region, some to
+// "global", some not at all), and a list made in the wrong location would
+// read as "no object" for the instance. Any other variable is the parent
+// object's argument of the same name (a crypto key's key_ring, a map entry's
+// map), which has to be known from configuration alone; one that refers to
+// another resource's attribute is not, and the type is bound from the index
+// with a warning, as before.
+func (g GCPAssetSweep) derivedScope(ctx context.Context, req Request, addr addrs.AbsResourceInstance, t gcpsweep.TypeList) (gcpsweep.ListScope, string) {
+	why := ""
+	vars := func(name string) (string, bool) {
+		v, set, ok := configuredGoogleArg(ctx, req.Config, addr, name)
+		if set && !ok {
+			if why == "" {
+				why = fmt.Sprintf("%s's %s is not known from configuration alone", addr, name)
+			}
+			return "", false
+		}
+		if set && gcpsweep.ScopeVars[name] {
+			v = v[strings.LastIndex(v, "/")+1:]
+		}
+		if !set {
+			switch name {
+			case "project":
+				v = g.Project
+			case "region":
+				v = g.Region
+			case "zone":
+				v = g.Zone
+			}
+		}
+		return v, v != ""
+	}
+	scope, err := t.Scope(vars)
+	if why != "" {
+		return gcpsweep.ListScope{}, why
+	}
+	if err != nil {
+		return gcpsweep.ListScope{}, fmt.Sprintf("%s's list path %s cannot be filled for %s: %s", t.Type, t.Path, addr, err)
+	}
+	return scope, ""
 }
 
 // gcpTypeListWarning is the warning for a covered type bound from the

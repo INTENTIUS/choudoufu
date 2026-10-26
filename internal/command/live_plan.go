@@ -4779,6 +4779,9 @@ func (p *projectionProviders) assetSearchLeg(ctx context.Context, sub substrate.
 		if r, hasRegion := client.Client.(interface{ Region() string }); hasRegion {
 			leg.Region = r.Region()
 		}
+		if z, hasZone := client.Client.(interface{ Zone() string }); hasZone {
+			leg.Zone = z.Zone()
+		}
 	}
 	if err != nil {
 		// GitHub issue #2134, item 2: no client is a named warning and a leg

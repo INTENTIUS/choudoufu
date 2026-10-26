@@ -40,6 +40,10 @@ import (
 // google_assured_workloads_workload lists under an organization, not a
 // project. They bind through Asset Inventory as before, and the collision
 // claim does not cover them.
+//
+// Every other covered type is derived (servicelist.go): its Asset name's
+// parent collection, listed at a service in [Services], the rule plunge's
+// gcplist uses, so the two repos list the same types.
 
 // TypeLister lists one covered type's objects carrying an estate's label,
 // all pages read, or an error and no objects. [Client] serves it; a test
@@ -58,13 +62,24 @@ type ListScope struct {
 	// Location is the region or location the type's list is under, or ""
 	// for a type listed per project ([TypeList.Location] is "").
 	Location string
+	// Collection is a derived type's list path with every variable filled
+	// ([TypeList.Scope]), and Query its encoded query, if any. "" for a
+	// hand-written type, whose path is filled from Project and Location;
+	// for a derived type it is filled the same way when the path needs no
+	// other variable.
+	Collection string
+	Query      string
 }
 
 func (s ListScope) String() string {
-	if s.Location == "" {
-		return "project " + s.Project
+	out := "project " + s.Project
+	if s.Location != "" {
+		out += " location " + s.Location
 	}
-	return "project " + s.Project + " location " + s.Location
+	if s.Collection != "" {
+		out += " (" + s.Collection + ")"
+	}
+	return out
 }
 
 // TypeList is how one covered type is listed.
@@ -98,6 +113,16 @@ type TypeList struct {
 	Permission string
 	// Endpoint is the provider's base path for the type's product.
 	Endpoint Endpoint
+
+	// Derived is set for a type listed by the rule in servicelist.go (its
+	// Asset name's parent collection, at a service in [Services]) rather
+	// than by a row of [typeLists]. Asset is its Asset name template, Query
+	// any query parameters its list takes (Cloud Storage's project), and
+	// Consistency Google's statement of the list's consistency, if any.
+	Derived     bool
+	Asset       string
+	Query       map[string]string
+	Consistency string
 }
 
 // Endpoint is one hashicorp/google product's base path: the provider block
@@ -185,17 +210,26 @@ var NotCovered = map[string]string{
 	"google_assured_workloads_workload": "its list is under an organization, and the sweep's scope is a project",
 }
 
-// Covered returns how typeName is listed, and whether it is covered.
+// Covered returns how typeName is listed, and whether it is covered: a
+// hand-written row of [typeLists], else a type derived from its Asset name
+// and its service (servicelist.go).
 func Covered(typeName string) (TypeList, bool) {
-	t, ok := typeLists[typeName]
-	t.Type = typeName
+	if t, ok := typeLists[typeName]; ok {
+		t.Type = typeName
+		return t, true
+	}
+	t, ok := derivedLists[typeName]
 	return t, ok
 }
 
-// CoveredTypes is every covered type, sorted.
+// CoveredTypes is every covered type, sorted: the hand-written ones and the
+// derived ones.
 func CoveredTypes() []string {
-	out := make([]string, 0, len(typeLists))
+	out := make([]string, 0, len(typeLists)+len(derivedLists))
 	for t := range typeLists {
+		out = append(out, t)
+	}
+	for t := range derivedLists {
 		out = append(out, t)
 	}
 	sort.Strings(out)
@@ -225,6 +259,9 @@ func (c *Client) ListType(ctx context.Context, typeName string, scope ListScope,
 	}
 	if c.http == nil {
 		return nil, fmt.Errorf("listing %s: this client has no HTTP transport", typeName)
+	}
+	if t.Derived {
+		return c.listDerived(ctx, t, scope, estate)
 	}
 	base := c.attrs.endpointFor(t.Endpoint)
 	base = strings.NewReplacer("{{region}}", location, "{{location}}", location).Replace(base)
@@ -284,9 +321,11 @@ func Filter(estate string) string {
 	return "labels." + markers.TagEstate + "=" + estate
 }
 
-// listItem is the fields every covered type's list item has in common.
+// listItem is the fields every covered type's list item has in common. A
+// Compute Engine item's name is bare and its selfLink carries its path.
 type listItem struct {
 	Name       string            `json:"name"`
+	SelfLink   string            `json:"selfLink"`
 	Labels     map[string]string `json:"labels"`
 	CreateTime string            `json:"createTime"`
 	UpdateTime string            `json:"updateTime"`
@@ -356,7 +395,8 @@ func typeListEndpoints() []Endpoint {
 	seen := map[string]bool{}
 	var out []Endpoint
 	for _, name := range CoveredTypes() {
-		e := typeLists[name].Endpoint
+		t, _ := Covered(name)
+		e := t.Endpoint
 		if seen[e.Arg] {
 			continue
 		}

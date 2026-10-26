@@ -125,6 +125,10 @@ func New(ctx context.Context, a Attrs) (*Client, error) {
 // a type whose block names none is made under ([TypeList.Location]).
 func (c *Client) Region() string { return c.attrs.Region }
 
+// Zone is the provider block's zone, the zone hashicorp/google puts a zonal
+// resource in when its block names none.
+func (c *Client) Zone() string { return c.attrs.Zone }
+
 // Project is the provider block's project, the one project this client is
 // set to search when the configuration names no other: what a [Coverage]
 // built from provider blocks keys the client by. "" when the block and

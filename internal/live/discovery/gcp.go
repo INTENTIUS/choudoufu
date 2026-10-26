@@ -84,11 +84,12 @@ type GCPAssetSweep struct {
 	Unlabelled map[string]bool
 	Labelled   map[string]bool
 	// Lister lists the covered types through their own services
-	// (gcp_typelist.go), and Region is the provider block's region, the
-	// location of an instance whose block names none. A nil Lister binds
-	// every type from the Asset search alone.
+	// (gcp_typelist.go), and Region and Zone are the provider block's
+	// region and zone, the location of an instance whose block names none.
+	// A nil Lister binds every type from the Asset search alone.
 	Lister gcpsweep.TypeLister
 	Region string
+	Zone   string
 }
 
 // Leg is [substrate.SweepAssetSearch].
