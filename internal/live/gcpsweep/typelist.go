@@ -34,12 +34,12 @@ import (
 // assigns at create time (live/gcp-survey.json's "server-assigned" verdict)
 // and whose list is scoped by project and location: those are the types the
 // collision claim is about. A client-named type needs no list for it, since
-// the API refuses a second create of the same name. Two server-assigned
-// types are not covered: google_dialogflow_cx_intent lists under its agent,
-// which is another resource's attribute at plan time, and
-// google_assured_workloads_workload lists under an organization, not a
-// project. They bind through Asset Inventory as before, and the collision
-// claim does not cover them.
+// the API refuses a second create of the same name. One server-assigned
+// type is not covered: google_dialogflow_cx_intent lists under its agent,
+// which is another resource's attribute at plan time, so it binds through
+// Asset Inventory as before, and the collision claim does not cover it.
+// google_assured_workloads_workload, which lists under an organization, is
+// listed with the types that have no Asset name (handwrittenlist.go).
 //
 // Every other covered type is derived (servicelist.go): its Asset name's
 // parent collection, listed at a service in [Services], the rule plunge's
@@ -123,6 +123,16 @@ type TypeList struct {
 	Asset       string
 	Query       map[string]string
 	Consistency string
+
+	// For a type with no Asset name (handwrittenlist.go): AssetHost is the
+	// host its documented Asset name carries when that is not Service
+	// (Cloud SQL's is cloudsql.googleapis.com), NameByLocation names each
+	// listed object from its own location field (GKE, listed at
+	// locations/-), and Import is its import ID's shape, the type's
+	// ImportSyntax in pkg/identity.
+	AssetHost      string
+	NameByLocation bool
+	Import         string
 }
 
 // Endpoint is one hashicorp/google product's base path: the provider block
@@ -204,10 +214,11 @@ var typeLists = map[string]TypeList{
 
 // NotCovered is each labelled server-assigned google type with no per-type
 // lister, and why. It binds through Asset Inventory alone, and the
-// collision claim does not cover it.
+// collision claim does not cover it. google_assured_workloads_workload left
+// this list in INTENTIUS/choudoufu#2274: its list is under the organization
+// its own required argument names (handwrittenlist.go).
 var NotCovered = map[string]string{
-	"google_dialogflow_cx_intent":       "its list is under its agent (parent), which is another resource's attribute at plan time",
-	"google_assured_workloads_workload": "its list is under an organization, and the sweep's scope is a project",
+	"google_dialogflow_cx_intent": "its list is under its agent (parent), which is another resource's attribute at plan time",
 }
 
 // Covered returns how typeName is listed, and whether it is covered: a
@@ -329,6 +340,14 @@ type listItem struct {
 	Labels     map[string]string `json:"labels"`
 	CreateTime string            `json:"createTime"`
 	UpdateTime string            `json:"updateTime"`
+	// Location is a GKE cluster's own location. ResourceLabels (GKE) and
+	// Settings.UserLabels (Cloud SQL) are where those two APIs keep the
+	// labels; listPage moves them into Labels.
+	Location       string            `json:"location"`
+	ResourceLabels map[string]string `json:"resourceLabels"`
+	Settings       struct {
+		UserLabels map[string]string `json:"userLabels"`
+	} `json:"settings"`
 }
 
 // listPage GETs one page and returns its items and next page token. A
@@ -366,6 +385,16 @@ func (c *Client) listPage(ctx context.Context, u, field, project string) ([]list
 	if raw, ok := page[field]; ok {
 		if err := json.Unmarshal(raw, &items); err != nil {
 			return nil, "", fmt.Errorf("reading %s from the list response from %s: %w", field, u, err)
+		}
+	}
+	for i := range items {
+		if len(items[i].Labels) > 0 {
+			continue
+		}
+		if len(items[i].ResourceLabels) > 0 {
+			items[i].Labels = items[i].ResourceLabels
+		} else if len(items[i].Settings.UserLabels) > 0 {
+			items[i].Labels = items[i].Settings.UserLabels
 		}
 	}
 	var next string
