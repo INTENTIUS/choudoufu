@@ -32,6 +32,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/foreign"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
@@ -4771,12 +4772,21 @@ func (p *projectionProviders) assetSearchLeg(ctx context.Context, sub substrate.
 		}
 	}
 	leg := discovery.GCPAssetSweep{Searcher: client.Client, Project: client.Project}
+	// INTENTIUS/choudoufu#2264: the same credential lists the covered
+	// server-assigned types through their own services.
+	if lister, ok := client.Client.(gcpsweep.TypeLister); ok && err == nil {
+		leg.Lister = lister
+		if r, hasRegion := client.Client.(interface{ Region() string }); hasRegion {
+			leg.Region = r.Region()
+		}
+	}
 	if err != nil {
 		// GitHub issue #2134, item 2: no client is a named warning and a leg
 		// that searches nothing, never no leg at all, so the unlabelled
 		// types the configuration declares are still filed as
 		// TYPE_NOT_TAGGABLE gaps below.
 		leg.Searcher = nil
+		leg.Lister = nil
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryGCPSweepIncomplete,
 			fmt.Sprintf("No Cloud Asset Inventory client could be built from provider configuration %s, so no labelled GCP resource owned by this estate is searched this run; a deleted block is still removed from its record: %s.", addr, err)))
 	}

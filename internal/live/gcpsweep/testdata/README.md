@@ -201,3 +201,15 @@ Source: https://cloud.google.com/apis/design/errors#handling_errors
   answered with `{"accessToken":"...","expireTime":"2099-01-01T00:00:00Z"}`.
   `{root}` is `iam_credentials_custom_endpoint` with `v1/` removed.
   Source: https://cloud.google.com/iam/docs/reference/credentials/rest/v1/projects.serviceAccounts/generateAccessToken.
+
+## Per-type lists (#2264)
+
+`typelist_test.go` serves each covered type's list method at the path the
+provider's create call posts to, under the product's custom endpoint: for
+example `GET /v1/projects/p1/locations/us-central1/indexEndpoints`. The
+response is the method's documented list shape, an array field named for
+the collection (`indexEndpoints`, `datasets`, `schemas`, `jobs`,
+`namespaces`, `keys`, `domains`) of objects with `name` (the full resource
+name, no host) and `labels`, and `nextPageToken` while more pages remain.
+A method that takes a filter is sent `filter=labels.tofu-estate=<estate>`,
+and the label is checked again on what comes back.

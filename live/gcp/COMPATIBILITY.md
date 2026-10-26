@@ -146,6 +146,47 @@ label and no declared address"): the label is matched, never decoded, so
 the plan cannot know which address to destroy it at. A deleted block's
 record proposes that removal instead.
 
+### Two creates of one server-assigned object
+
+Most google types are named by their configuration, and the API refuses a
+second create of the same name, so two concurrent applies cannot both
+create one. A labelled type whose identity the API assigns at create time
+can be created twice, and the next plan has to see both objects to name
+the collision ([CONCURRENCY.md](../CONCURRENCY.md)). The index can miss the
+newer one, so these types are listed through their own service, which reads
+the store the create wrote to, and both objects carrying one address label
+are a marker collision that refuses the plan. These types back the
+collision claim:
+
+| Type | Listed through |
+|---|---|
+| `google_active_directory_domain` | Managed Microsoft AD `domains.list` (`locations/global`) |
+| `google_document_ai_schema` | Document AI `schemas.list` |
+| `google_recaptcha_enterprise_key` | reCAPTCHA Enterprise `keys.list` |
+| `google_service_directory_namespace` | Service Directory `namespaces.list` |
+| `google_transcoder_job` | Transcoder `jobs.list` |
+| `google_vertex_ai_dataset` | Vertex AI `datasets.list` |
+| `google_vertex_ai_index` | Vertex AI `indexes.list` |
+| `google_vertex_ai_index_endpoint` | Vertex AI `indexEndpoints.list` |
+| `google_vertex_ai_reasoning_engine` | Vertex AI `reasoningEngines.list` |
+| `google_vertex_ai_tensorboard` | Vertex AI `tensorboards.list` |
+
+Each list is made in the project and location every declared instance
+names: its block's own `project`, `region` or `location`, else the provider
+block's project and, for Vertex AI, its region. The provider's
+`*_custom_endpoint` argument for the product, or its environment variable,
+is honoured. The principal needs the type's list permission
+(`aiplatform.indexEndpoints.list` and so on) and the service enabled. When
+a list cannot be made (a location written as another resource's attribute,
+a denied or disabled service), the plan warns "GCP type list incomplete"
+and binds that type from the index, as every other type is bound.
+
+Two server-assigned labelled types are bound from the index only and do
+not back the claim: `google_dialogflow_cx_intent`, listed under its agent,
+which is another resource's attribute at plan time, and
+`google_assured_workloads_workload`, listed under an organization rather
+than a project.
+
 ### Known differences
 
 hashicorp/google reads `labels` and `terraform_labels` non-authoritatively:

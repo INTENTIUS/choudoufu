@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -82,6 +83,12 @@ type GCPAssetSweep struct {
 	// not be read.
 	Unlabelled map[string]bool
 	Labelled   map[string]bool
+	// Lister lists the covered types through their own services
+	// (gcp_typelist.go), and Region is the provider block's region, the
+	// location of an instance whose block names none. A nil Lister binds
+	// every type from the Asset search alone.
+	Lister gcpsweep.TypeLister
+	Region string
 }
 
 // Leg is [substrate.SweepAssetSearch].
@@ -136,7 +143,7 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummaryGCPSweepIncomplete,
 			fmt.Sprintf("No GCP project is known for estate %q: the google provider block names none, GOOGLE_PROJECT and its siblings are unset, and no resource in the configuration names one. Nothing was searched, so a resource whose block was deleted is not reported until a run knows where to look.", req.Estate)))
 		res.SweepGaps = append(res.SweepGaps, SweepGap{TypeName: gcpGapType, Reason: SweepGapListFailed, Detail: "no GCP project to search"})
-		return diags.Append(demand.unsearched(decl, res, "no GCP project is known to search"))
+		return diags.Append(demand.unsearched(decl, res, "no GCP project is known to search", nil))
 	}
 
 	cov := gcpsweep.Coverage{}
@@ -162,6 +169,45 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 	// until every project is searched: whether they join the set depends
 	// on whether the set carries slots at all.
 	pending := map[*countBlock][]gcpsweep.Asset{}
+	lists, listDiags := g.typeLists(ctx, req, decl, demand)
+	diags = diags.Append(listDiags)
+	file := func(a gcpsweep.Asset) {
+		display := a.AssetType + " " + a.Name
+		if hold, ok := substrate.ControllerHeld(substrate.HoldEvidence{Labels: a.Labels, AssetType: a.AssetType}); ok {
+			res.ControllerHeld = append(res.ControllerHeld, ControllerHeldResource{
+				TypeName:    a.AssetType,
+				ImportID:    a.Name,
+				DisplayName: display,
+				Kind:        a.AssetType,
+				Controller:  hold.Controller,
+				HeldBy:      hold.HeldBy,
+			})
+			return
+		}
+		address := a.Labels[markers.TagAddress]
+		if entry, ok := demand.entries[address]; ok {
+			entry.addClaimant(gcpClaimant(a, entry.res.Type(), address, entry.escaped))
+			return
+		}
+		if addr, isDeclared := declared.instances[address]; isDeclared {
+			diags = diags.Append(gcpDeclaredHit(ctx, req, decl, res, a, address, addr))
+			return
+		}
+		block, hasBlock := markers.GoogleAddressBlock(address)
+		if cb, ok := demand.counts[block]; hasBlock && ok {
+			pending[cb] = append(pending[cb], a)
+			return
+		}
+		withheld := fmt.Sprintf("Its tofu-address label %q encodes no address this configuration declares, and a GCP address label is matched, never decoded, so nothing here says which block made it. It is reported and left alone; the estate's record for that block, when there is one, is what proposes its removal.", address)
+		if address == "" {
+			withheld = "It carries no tofu-address label, so nothing says which block made it. It is reported and left alone."
+		} else if hasBlock {
+			if blockAddr, known := declared.blocks[block]; known {
+				withheld = gcpStaleInstanceWithheld(address, blockAddr.String())
+			}
+		}
+		fileOrphan(a, address, withheld)
+	}
 	var failed []string
 	for _, pr := range gcpsweep.Sweep(ctx, cov, projects, req.Estate) {
 		if pr.Err != nil {
@@ -180,42 +226,16 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 			Declared:  len(declared.instances),
 		})
 		for _, a := range pr.Assets {
-			display := a.AssetType + " " + a.Name
-			if hold, ok := substrate.ControllerHeld(substrate.HoldEvidence{Labels: a.Labels, AssetType: a.AssetType}); ok {
-				res.ControllerHeld = append(res.ControllerHeld, ControllerHeldResource{
-					TypeName:    a.AssetType,
-					ImportID:    a.Name,
-					DisplayName: display,
-					Kind:        a.AssetType,
-					Controller:  hold.Controller,
-					HeldBy:      hold.HeldBy,
-				})
+			// A hit a per-type list read is that list's to file: the list
+			// reads the service's own store, and the index may lag it.
+			if lists.covers(demand, a) {
 				continue
 			}
-			address := a.Labels[markers.TagAddress]
-			if entry, ok := demand.entries[address]; ok {
-				entry.addClaimant(gcpClaimant(a, entry.res.Type(), address, entry.escaped))
-				continue
-			}
-			if addr, isDeclared := declared.instances[address]; isDeclared {
-				diags = diags.Append(gcpDeclaredHit(ctx, req, decl, res, a, address, addr))
-				continue
-			}
-			block, hasBlock := markers.GoogleAddressBlock(address)
-			if cb, ok := demand.counts[block]; hasBlock && ok {
-				pending[cb] = append(pending[cb], a)
-				continue
-			}
-			withheld := fmt.Sprintf("Its tofu-address label %q encodes no address this configuration declares, and a GCP address label is matched, never decoded, so nothing here says which block made it. It is reported and left alone; the estate's record for that block, when there is one, is what proposes its removal.", address)
-			if address == "" {
-				withheld = "It carries no tofu-address label, so nothing says which block made it. It is reported and left alone."
-			} else if hasBlock {
-				if blockAddr, known := declared.blocks[block]; known {
-					withheld = gcpStaleInstanceWithheld(address, blockAddr.String())
-				}
-			}
-			fileOrphan(a, address, withheld)
+			file(a)
 		}
+	}
+	for _, a := range lists.hits {
+		file(a)
 	}
 
 	// A count set whose members carry tofu-slot takes every hit naming its
@@ -246,7 +266,7 @@ func (g GCPAssetSweep) sweep(ctx context.Context, req Request, decl *declared, r
 	}
 
 	if len(failed) > 0 {
-		diags = diags.Append(demand.unsearched(decl, res, "project "+strings.Join(failed, ", ")+" could not be searched"))
+		diags = diags.Append(demand.unsearched(decl, res, "project "+strings.Join(failed, ", ")+" could not be searched", lists.listed))
 	}
 	return diags
 }
@@ -355,9 +375,15 @@ func (g GCPAssetSweep) googleDemand(decl *declared) gcpDemand {
 // the search never reached is not absent, and calling it unbound would
 // plan a create of something that may exist. The config-driven scan's
 // refusal for a type nothing lists is the same answer.
-func (d gcpDemand) unsearched(decl *declared, res *Result, why string) tfdiags.Diagnostics {
+//
+// A type in listed was read from its own service's list, which does not
+// depend on the search, and is not refused.
+func (d gcpDemand) unsearched(decl *declared, res *Result, why string, listed map[string]bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	for _, typeName := range d.types {
+		if listed[typeName] {
+			continue
+		}
 		decl.unscanned[typeName] = true
 		diags = diags.Append(problemDiag(res, Problem{
 			Kind:     ProblemTypeNotListable,
@@ -627,24 +653,41 @@ func GCPSweepProjectsIn(ctx context.Context, cfg *configs.Config, providerProjec
 // configuredGoogleProject is addr's own `project` argument, read from
 // configuration with its count.index or each.key and each.value bound.
 func configuredGoogleProject(ctx context.Context, cfg *configs.Config, addr addrs.AbsResourceInstance) (string, bool) {
-	modCfg, ok := identity.ConfigForModule(cfg, addr.Module)
-	if !ok || modCfg == nil || modCfg.Module == nil {
-		return "", false
+	v, _, ok := configuredGoogleArg(ctx, cfg, addr, "project")
+	return v, ok
+}
+
+// configuredGoogleArg is addr's own argument name, read from configuration
+// with its count.index or each.key and each.value bound. set reports
+// whether the block writes the argument at all, so a caller can tell an
+// argument left to the provider's default (set false) from one written as
+// something configuration alone cannot answer (set true, ok false).
+func configuredGoogleArg(ctx context.Context, cfg *configs.Config, addr addrs.AbsResourceInstance, name string) (value string, set, ok bool) {
+	modCfg, found := identity.ConfigForModule(cfg, addr.Module)
+	if !found || modCfg == nil || modCfg.Module == nil {
+		return "", false, false
 	}
 	rc := modCfg.Module.ResourceByAddr(addr.Resource.Resource)
 	if rc == nil || rc.Config == nil {
-		return "", false
+		return "", false, false
+	}
+	content, _, hclDiags := rc.Config.PartialContent(&hcl.BodySchema{Attributes: []hcl.AttributeSchema{{Name: name}}})
+	if hclDiags.HasErrors() {
+		return "", true, false
+	}
+	if _, written := content.Attributes[name]; !written {
+		return "", false, false
 	}
 	var rep instances.RepetitionData
 	switch k := addr.Resource.Key.(type) {
 	case addrs.IntKey:
 		if rc.Count == nil {
-			return "", false
+			return "", true, false
 		}
 		rep.CountIndex = cty.NumberIntVal(int64(k))
 	case addrs.StringKey:
 		if rc.ForEach == nil {
-			return "", false
+			return "", true, false
 		}
 		rep.EachKey = cty.StringVal(string(k))
 		if elems, ok := staticeval.ForEachElements(ctx, modCfg.Module, rc.ForEach); ok {
@@ -653,8 +696,8 @@ func configuredGoogleProject(ctx context.Context, cfg *configs.Config, addr addr
 			}
 		}
 	}
-	project, why := staticeval.ArgumentScoped(ctx, modCfg.Module, rc, "project", rep)
-	return project, why == ""
+	v, why := staticeval.ArgumentScoped(ctx, modCfg.Module, rc, name, rep)
+	return v, true, why == ""
 }
 
 // dropGCPHitsTheRecordsRemove drops a GCP leg's withheld orphan when a
