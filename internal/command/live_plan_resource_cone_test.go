@@ -23,6 +23,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -66,6 +68,26 @@ func assertConeObserved(t *testing.T, stdout, addr string) {
 	}
 }
 
+// provisionConeSentinel writes the record store sentinel that an ordinary
+// plan under the estate's full role provisions once (#693). -resource reads
+// records by key and refuses a store with no sentinel, so each test puts one
+// in the default local store (".tofu-records" beside the module, in the
+// working directory) before it runs.
+func provisionConeSentinel(t *testing.T, estate string) {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := staterecord.NewLocalStore(filepath.Join(wd, ".tofu-records"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.PutIfAbsent(context.Background(), projection.SentinelKey(projection.RecordKeyPrefix(estate)), []byte("sentinel")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // coneLegKubernetes replaces the label-list leg's builder with one over
 // cluster, recording the leg the command built.
 func coneLegKubernetes(t *testing.T, cluster kubesweep.Sweeper, types []string) *[]discovery.KubernetesSweep {
@@ -96,6 +118,7 @@ func coneLegKubernetes(t *testing.T, cluster kubesweep.Sweeper, types []string) 
 // it as observed.
 func TestLivePlanResource_kubernetesConeLegBindsARefusedInstance(t *testing.T) {
 	writeRefusedHookupDir(t, true)
+	provisionConeSentinel(t, "smoke-k8s")
 	cluster := refusedHookupCluster()
 	built := coneLegKubernetes(t, cluster, []string{"kubernetes_config_map"})
 	m, done := refusedHookupMeta(t, refusedHookupProvider())
@@ -176,6 +199,7 @@ func TestLivePlanResource_gcpConeLegSearchesByAddress(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(td, "main.tf"), []byte(coneGCPRoot), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	provisionConeSentinel(t, coneGCPEstate)
 	const endpointID = "projects/proj-a/locations/us-central1/indexEndpoints/site-key"
 	addr := "google_vertex_ai_index_endpoint.site"
 	instance, diags := addrs.ParseAbsResourceInstanceStr(addr)
@@ -328,6 +352,7 @@ func TestLivePlanResource_azureConeLegNarrowsByType(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(td, "main.tf"), []byte(coneAzureRoot), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	provisionConeSentinel(t, coneAzureEstate)
 	addr := "azurerm_app_service_managed_certificate.cert"
 	tags := map[string]string{markers.TagEstate: coneAzureEstate, markers.TagAddress: markers.EscapeAddress(addr)}
 	graph := &coneAzureGraph{resources: []azsweep.Resource{{
