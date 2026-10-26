@@ -82,6 +82,11 @@ type GCPAssetSweep struct {
 	// not be read.
 	Unlabelled map[string]bool
 	Labelled   map[string]bool
+	// Cone, when non-nil, runs the leg for live-plan -resource's cone
+	// (GitHub issue #2260): only these types are listed, each listing is a
+	// scan rather than a sweep, and nothing undeclared is filed as an
+	// orphan. See conelegs.go.
+	Cone map[string]bool
 }
 
 // Leg is [substrate.SweepAssetSearch].
@@ -107,6 +112,9 @@ func (g GCPAssetSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.Diagno
 	// a fact about the configuration, not about what the index answers.
 	if _, collisions := declaredGoogleAddresses(in.Request.Resolutions); collisions.HasErrors() {
 		return collisions
+	}
+	if g.Cone != nil {
+		return g.sweepCone(ctx, in)
 	}
 	diags := g.sweep(ctx, in.Request, in.decl, in.Result)
 	unlabelledNotSwept(in.Request, g.Unlabelled, in.Result)

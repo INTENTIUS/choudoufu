@@ -266,6 +266,15 @@ type Request struct {
 	// off" rule [Request.CloudControl] follows.
 	Tagging *cloudcontrol.Client
 
+	// TaggingTypeFilters narrows the tag index's one GetResources call to
+	// these Resource Groups Tagging API resource types ("service" or
+	// "service:resourcetype", see [TaggingTypeFilters]). Nil asks for every
+	// type, which is what every caller before this field existed did. A
+	// caller that sets it must not also set TaggingSweep: the sweep reads
+	// the index as the whole estate (GitHub issue #2260, live-plan
+	// -resource's cone).
+	TaggingTypeFilters []string
+
 	// ServiceTags is GitHub issue #1131's per-service tag-read leg: the
 	// fourth route to an ownership marker, for an object Cloud Control
 	// enumerates and neither Cloud Control nor the Resource Groups Tagging
