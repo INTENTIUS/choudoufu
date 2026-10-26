@@ -61,6 +61,8 @@ type jointUnit struct {
 type jointVar struct {
 	Type  json.RawMessage `json:"type"`
 	Value json.RawMessage `json:"value"`
+	// Sensitive is the unit's own variable declaring sensitive = true.
+	Sensitive bool `json:"sensitive,omitempty"`
 }
 
 type jointOutputDecl struct {
