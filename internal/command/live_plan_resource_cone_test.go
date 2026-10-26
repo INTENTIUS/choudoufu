@@ -282,8 +282,10 @@ func TestLivePlanResource_gcpConeLegSearchesByAddress(t *testing.T) {
 	if searches != 0 {
 		t.Errorf("the cone leg ran %d estate-wide search(es); it searches by address only", searches)
 	}
-	if len(addresses) == 0 || addresses[0] != addr {
-		t.Errorf("address searches %v, want one for %s", addresses, addr)
+	// SearchAddress takes the tofu-address label's value, which is the
+	// address in GCP's label encoding, as the leg's demand is keyed.
+	if want := markers.GoogleAddressValue(instance); len(addresses) == 0 || addresses[0] != want {
+		t.Errorf("address searches %v, want one for %s (%s)", addresses, want, addr)
 	}
 	assertConeObserved(t, out.Stdout(), addr)
 }
@@ -318,13 +320,12 @@ const (
 	coneAzureCertID = "/subscriptions/" + coneAzureSub + "/resourceGroups/cone-rg/providers/Microsoft.Web/certificates/cert-minted"
 )
 
+// coneAzureRoot declares no live block, and the test names the estate with
+// -estate. A live block always has a record store (the local one is implied,
+// #364), and with one the type resolves record-located (#2205's first
+// answer), so the record finds it and no leg is built. Marker discovery by
+// Resource Graph is the answer for an estate with no record store.
 const coneAzureRoot = `
-terraform {
-  live {
-    estate = "` + coneAzureEstate + `"
-  }
-}
-
 provider "azurerm" {
   subscription_id = "` + coneAzureSub + `"
   features {
@@ -352,7 +353,6 @@ func TestLivePlanResource_azureConeLegNarrowsByType(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(td, "main.tf"), []byte(coneAzureRoot), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	provisionConeSentinel(t, coneAzureEstate)
 	addr := "azurerm_app_service_managed_certificate.cert"
 	tags := map[string]string{markers.TagEstate: coneAzureEstate, markers.TagAddress: markers.EscapeAddress(addr)}
 	graph := &coneAzureGraph{resources: []azsweep.Resource{{
@@ -397,7 +397,7 @@ func TestLivePlanResource_azureConeLegNarrowsByType(t *testing.T) {
 			},
 		}},
 	}
-	code := (&LivePlanCommand{Meta: m}).Run([]string{"-no-color", "-resource=" + addr})
+	code := (&LivePlanCommand{Meta: m}).Run([]string{"-no-color", "-estate=" + coneAzureEstate, "-resource=" + addr})
 	out := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
