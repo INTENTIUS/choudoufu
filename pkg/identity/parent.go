@@ -332,8 +332,7 @@ func ParentListRecovered(typeName string, parents map[string]bool, service Servi
 // This is the one hand-curated fact this file allows itself for the shape,
 // the same discipline [parentReadRemovable] holds itself to: a type belongs
 // here only once someone has checked, component by component against
-// live/survey-full.json or the provider's documented Import section (see
-// internal/live/identity/table.go's "Fold-children" section comment), that
+// live/survey-full.json or the provider's documented Import section, that
 // the child's Components are exactly the parent's own and nothing more. A
 // fold-child needing even one further argument the parent's identity does
 // not supply (aws_api_gateway_integration_response's own status_code,
