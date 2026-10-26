@@ -102,6 +102,12 @@ func (e *UncoveredProjectError) Error() string {
 // package's typed errors when it is one, and returns it unchanged
 // otherwise.
 func classify(project string, creds Credentials, err error) error {
+	return classifyFor(project, creds, err, Service, Permission)
+}
+
+// classifyFor is [classify] for a call on service that needs permission:
+// the per-type listers' calls, each on its own type's service.
+func classifyFor(project string, creds Credentials, err error, service, permission string) error {
 	var gerr *googleapi.Error
 	if !errors.As(err, &gerr) || gerr.Code != http.StatusForbidden {
 		return err
@@ -111,20 +117,20 @@ func classify(project string, creds Credentials, err error) error {
 		if i.reason == "SERVICE_DISABLED" {
 			svc := i.metadata["service"]
 			if svc == "" {
-				svc = Service
+				svc = service
 			}
 			return &ServiceDisabledError{Project: project, Service: svc, ActivationURL: i.metadata["activationUrl"], Err: err}
 		}
 	}
 	for _, item := range gerr.Errors {
 		if item.Reason == "accessNotConfigured" {
-			return &ServiceDisabledError{Project: project, Service: Service, Err: err}
+			return &ServiceDisabledError{Project: project, Service: service, Err: err}
 		}
 	}
 	if strings.Contains(gerr.Message, "has not been used in project") || strings.Contains(gerr.Message, "it is disabled") {
-		return &ServiceDisabledError{Project: project, Service: Service, Err: err}
+		return &ServiceDisabledError{Project: project, Service: service, Err: err}
 	}
-	perm := Permission
+	perm := permission
 	for _, i := range info {
 		if p := i.metadata["permission"]; p != "" {
 			perm = p
