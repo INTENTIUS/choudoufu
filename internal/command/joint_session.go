@@ -63,6 +63,10 @@ type jointVar struct {
 	Value json.RawMessage `json:"value"`
 	// Sensitive is the unit's own variable declaring sensitive = true.
 	Sensitive bool `json:"sensitive,omitempty"`
+	// Withheld is set on another unit's sensitive input in a unit's plan
+	// file, whose Value is then null: only the input's own unit's plan file
+	// carries it, and an apply puts it back from there (#2270).
+	Withheld bool `json:"withheld,omitempty"`
 }
 
 type jointOutputDecl struct {

@@ -6,15 +6,39 @@
 package command
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2/ext/typeexpr"
 	"github.com/zclconf/go-cty/cty"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
+
+// jointSensitiveVarsFile is the variables file of the composed root that
+// holds its sensitive inputs (INTENTIUS/choudoufu#2270). It is not part of
+// the root's configuration, so the plan's configuration snapshot never
+// holds one of these values.
+const jointSensitiveVarsFile = "joint-sensitive.auto.tfvars.json"
+
+// jointSensitiveInput is one input a unit declares sensitive, passed to the
+// composed root as a root variable of its own: Unit and Var name it in the
+// unit, Value is its value.
+type jointSensitiveInput struct {
+	Unit  string
+	Var   string
+	Type  cty.Type
+	Value json.RawMessage
+}
+
+// jointSensitiveVarName is the composed root's variable for input name of
+// unit, beside the root's "<unit>__<output>" outputs.
+func jointSensitiveVarName(unit, name string) string {
+	return unit + "__" + name
+}
 
 // renderJointRoot writes the text of the composed root that joins units
 // (GitHub issue #2213): one module call per unit, each carrying the inputs
@@ -23,19 +47,27 @@ import (
 // placeholder of another unit's output ("known after apply") becomes a
 // reference to that module's output, which is what carries the unknown.
 func renderJointRoot(rootDir string, units []jointUnit) (string, error) {
+	text, _, err := renderJointRootInputs(rootDir, units)
+	return text, err
+}
+
+// renderJointRootInputs is [renderJointRoot] with the sensitive inputs the
+// root takes as variables, by root variable name.
+func renderJointRootInputs(rootDir string, units []jointUnit) (string, map[string]jointSensitiveInput, error) {
 	byID := map[string]*jointUnit{}
 	for i := range units {
 		byID[units[i].ID] = &units[i]
 	}
 	resolved, err := jointResolve(units)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	var b strings.Builder
+	inputs := map[string]jointSensitiveInput{}
 	for _, u := range units {
 		src, err := jointRel(rootDir, u.Dir)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		fmt.Fprintf(&b, "module %q {\n  source = %q\n", u.ID, src)
 		names := make([]string, 0, len(u.Vars))
@@ -53,21 +85,31 @@ func renderJointRoot(rootDir string, units []jointUnit) (string, error) {
 			v := u.Vars[n]
 			ty, err := ctyjson.UnmarshalType(v.Type)
 			if err != nil {
-				return "", fmt.Errorf("unit %s, variable %s: %w", u.ID, n, err)
+				return "", nil, fmt.Errorf("unit %s, variable %s: %w", u.ID, n, err)
 			}
 			val, err := ctyjson.Unmarshal(v.Value, ty)
 			if err != nil {
-				return "", fmt.Errorf("unit %s, variable %s: %w", u.ID, n, err)
+				return "", nil, fmt.Errorf("unit %s, variable %s: %w", u.ID, n, err)
 			}
 			expr, err := jointHCL(val, byID)
 			if err != nil {
-				return "", fmt.Errorf("unit %s, variable %s: %w", u.ID, n, err)
+				return "", nil, fmt.Errorf("unit %s, variable %s: %w", u.ID, n, err)
 			}
 			if v.Sensitive {
-				// The unit declares it sensitive (#2219). Its module marks
-				// it once it arrives; wrapped here too, it is no constant in
-				// the joint plan's configuration (show -json gives no
-				// constant_value for a call), which the plan files carry.
+				// The unit declares it sensitive (#2219). A value that reads
+				// no other unit's output is a sensitive root variable of its
+				// own, set from jointSensitiveVarsFile, so neither the
+				// configuration snapshot nor the configuration in show -json
+				// holds it, and each unit's plan file can leave out the
+				// others' values (#2270). A value that reads another unit's
+				// output is an expression over that module and stays in the
+				// configuration, wrapped in sensitive().
+				if plain, perr := jointHCL(val, nil); perr == nil && plain == expr {
+					rv := jointSensitiveVarName(u.ID, n)
+					inputs[rv] = jointSensitiveInput{Unit: u.ID, Var: n, Type: ty, Value: v.Value}
+					fmt.Fprintf(&b, "  %s = var.%s\n", n, rv)
+					continue
+				}
 				expr = "sensitive(" + expr + ")"
 			}
 			fmt.Fprintf(&b, "  %s = %s\n", n, expr)
@@ -83,7 +125,15 @@ func renderJointRoot(rootDir string, units []jointUnit) (string, error) {
 			b.WriteString("}\n\n")
 		}
 	}
-	return b.String(), nil
+	rvs := make([]string, 0, len(inputs))
+	for rv := range inputs {
+		rvs = append(rvs, rv)
+	}
+	sort.Strings(rvs)
+	for _, rv := range rvs {
+		fmt.Fprintf(&b, "variable %q {\n  type      = %s\n  sensitive = true\n}\n\n", rv, typeexpr.TypeString(inputs[rv].Type))
+	}
+	return b.String(), inputs, nil
 }
 
 // jointRel is the module source for a unit directory, relative to the root.
@@ -223,7 +273,7 @@ func jointEscape(s string) string {
 // writeJointRoot lays out the root directory for units and reports whether
 // the text of its configuration changed.
 func writeJointRoot(rootDir string, units []jointUnit) (string, bool, error) {
-	text, err := renderJointRoot(rootDir, units)
+	text, inputs, err := renderJointRootInputs(rootDir, units)
 	if err != nil {
 		return "", false, err
 	}
@@ -237,6 +287,25 @@ func writeJointRoot(rootDir string, units []jointUnit) (string, bool, error) {
 		if err := os.WriteFile(main, []byte(text), 0o600); err != nil {
 			return "", false, err
 		}
+	}
+	// The sensitive inputs' values (#2270). What is returned is hashed to
+	// tell a new joint plan from the last one, so it covers them too.
+	varsPath := filepath.Join(rootDir, jointSensitiveVarsFile)
+	if len(inputs) == 0 {
+		_ = os.Remove(varsPath)
+	} else {
+		vals := make(map[string]json.RawMessage, len(inputs))
+		for rv, in := range inputs {
+			vals[rv] = in.Value
+		}
+		body, err := json.Marshal(vals)
+		if err != nil {
+			return "", false, err
+		}
+		if err := os.WriteFile(varsPath, body, 0o600); err != nil {
+			return "", false, err
+		}
+		text += "\n" + string(body)
 	}
 	if err := os.WriteFile(filepath.Join(rootDir, jointRootMarker), nil, 0o600); err != nil {
 		return "", false, err

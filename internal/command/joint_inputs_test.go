@@ -100,27 +100,52 @@ func TestRenderJointRootChangedInputOnlyItsModule(t *testing.T) {
 }
 
 // TestRenderJointRootSensitiveInput is #2219's sensitive item over the
-// joint root: an input whose unit declares the variable sensitive = true
-// reaches that unit's module wrapped in sensitive(), so the joint plan's
-// configuration holds no constant of it, and a plain input is unchanged.
+// joint root, as #2270 changed it: an input whose unit declares the variable
+// sensitive = true reaches that unit's module as a sensitive root variable
+// of its own, whose value is in the root's variables file and nowhere in its
+// configuration, and a plain input is unchanged.
 func TestRenderJointRootSensitiveInput(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "root")
 	secret := jointVarOf(t, cty.StringVal("hunter2"))
 	secret.Sensitive = true
 	units := []jointUnit{{ID: "db", Dir: filepath.Join(filepath.Dir(root), "db"), Seq: 1,
 		Vars: map[string]jointVar{"password": secret, "name": jointVarOf(t, cty.StringVal("orders"))}}}
-	text, err := renderJointRoot(root, units)
+	text, inputs, err := renderJointRootInputs(root, units)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(text, `password = sensitive("hunter2")`) {
-		t.Errorf("the sensitive input is not wrapped:\n%s", text)
+	if !strings.Contains(text, `password = var.db__password`) {
+		t.Errorf("the sensitive input is not the root variable:\n%s", text)
 	}
-	if !strings.Contains(text, `name = "orders"`) || strings.Contains(text, `sensitive("orders")`) {
+	if !strings.Contains(text, "variable \"db__password\" {") || !strings.Contains(text, "sensitive = true") {
+		t.Errorf("the root declares no sensitive db__password variable:\n%s", text)
+	}
+	if !strings.Contains(text, `name = "orders"`) || strings.Contains(text, "var.db__name") {
 		t.Errorf("the plain input was changed:\n%s", text)
 	}
-	if strings.Count(text, "hunter2") != 1 {
-		t.Errorf("the sensitive value appears outside its own argument:\n%s", text)
+	if strings.Contains(text, "hunter2") {
+		t.Errorf("the sensitive value is in the root's configuration:\n%s", text)
+	}
+	if in, ok := inputs["db__password"]; !ok || in.Unit != "db" || in.Var != "password" || string(in.Value) != `"hunter2"` {
+		t.Errorf("inputs = %+v, want db__password carrying \"hunter2\"", inputs)
+	}
+
+	hashed, _, err := writeJointRoot(root, units)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(root, jointSensitiveVarsFile))
+	if err != nil {
+		t.Fatalf("the root's variables file: %v", err)
+	}
+	if string(body) != `{"db__password":"hunter2"}` {
+		t.Errorf("%s = %s", jointSensitiveVarsFile, body)
+	}
+	if info, err := os.Stat(filepath.Join(root, jointSensitiveVarsFile)); err == nil && info.Mode().Perm() != 0o600 {
+		t.Errorf("%s is %v, want 0600", jointSensitiveVarsFile, info.Mode().Perm())
+	}
+	if !strings.Contains(hashed, "hunter2") {
+		t.Error("the text writeJointRoot returns for the plan hash does not cover the sensitive value, so a changed secret would not re-plan")
 	}
 }
 

@@ -388,9 +388,12 @@ them into one run:
   `*.auto.tfvars`, `-var`, `-var-file`), and the outputs it declares.
 - The composed root of "Composed runs" above is written over the units in the
   session, one module call per unit carrying that unit's inputs, and planned.
-  An input whose variable the unit declares `sensitive = true` is passed
-  wrapped in `sensitive()`, so the joint plan's configuration holds no
-  constant of it.
+  An input whose variable the unit declares `sensitive = true` is a sensitive
+  variable of the root (`<unit>__<variable>`), set from a variables file
+  beside it (`joint-sensitive.auto.tfvars.json`, mode 0600), so the root's
+  configuration and its snapshot in the plan hold no constant of it. One that
+  reads another unit's output is an expression over that module, wrapped in
+  `sensitive()`.
   It is planned again as each unit registers, so the plan after the last unit
   is one plan across all of them. Each unit is still its own estate, with its
   own record store and markers.
@@ -458,6 +461,21 @@ them into one run:
   `planfiles.verify: warn` with `planfiles.required: true`, and choudoufu's
   check is the one that refuses.
 - `plan` prints the unit's own resources and the path of the whole plan.
+- What holds input values, sensitive ones included (#2270). The session is a
+  directory under the temporary directory (`choudoufu-joint-<uid>`), mode
+  0700, with every file in it 0600. The next joint run on the machine removes
+  a session whose directory was last modified more than a day before. Its `units/<unit>.json` and the root's variables file hold each
+  unit's inputs in clear, as a stock plan file holds its variables. Each
+  unit's `-out` file is written 0600 and holds that unit's own sensitive
+  inputs, but none of another unit's: their values are left out of the
+  carried plan's variables, out of its `show -json` and out of the units'
+  inputs (marked withheld). An `apply <file>` where the session is gone reads
+  each other unit's sensitive inputs back from that unit's own plan file,
+  looked for where it lies relative to this one as it did at plan time
+  (Terragrunt's `--out-dir` keeps that layout) and then at the path it was
+  planned to, and refuses, naming the unit, when one is not there or is from
+  another plan. The carried plan still holds the planned values of every
+  unit's resources, sensitive attributes included, as any plan file does.
 
 A unit run alone, a run of the tools without `--all` / `--affected`, a unit
 without a live block, and any plan that uses `-target`, `-destroy`,
