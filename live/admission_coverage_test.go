@@ -34,7 +34,7 @@ import (
 // TestRejectedLedgerIsDisjointFromAdmitted (tools/row-gen) already forbids a
 // type appearing in both. Nothing forbade a type appearing in neither, and
 // the population that does is not small: naming one of them in a
-// configuration is a hard resolve error at internal/live/identity/table.go's
+// configuration is a hard resolve error at internal/live/identity's
 // Resolve, with no ledger entry anywhere saying why. Seven WAF Classic types
 // sat there for the whole life of the fork (#246) and were found only by a
 // hand sweep.

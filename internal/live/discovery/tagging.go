@@ -55,7 +55,7 @@ import (
 // by the classic and v2 CFN services, distinguishable only by counting the
 // id's own "/"-separated parts - AWS's documented ARN grammar, not a guess.
 // [arnJoinTable] states each of these outcomes explicitly rather than
-// deriving them, the same way internal/live/identity/table.go states each
+// deriving them, the same way pkg/identity's DefaultTable states each
 // type's Components by hand instead of inferring them from a schema.
 
 // arnJoinEntry is what one (ARN service, ARN resource-type segment) pair

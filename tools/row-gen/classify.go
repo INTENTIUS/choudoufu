@@ -44,8 +44,8 @@ const (
 	// pastable: the child's own composite Components (the parent's tuple,
 	// plus any further argument like status_code the parent alone does not
 	// supply) still need a human's separator and shape choice, the way
-	// internal/live/identity/table.go's "Fold-children (issue #68)" section
-	// comment documents for the first slice.
+	// pkg/identity/parent.go's foldParentTypes comment documents for the
+	// first slice.
 	bucketFoldChild bucket = "fold-child"
 	// bucketComposite: a composite identity (two or more parts) whose
 	// separator AND argument order this run recovered from pinned evidence
