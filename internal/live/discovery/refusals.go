@@ -312,6 +312,10 @@ var refusals = []Refusal{
 		What:    "GitHub issue #1119: the GCP leg could not search one project for the estate's label: the Cloud Asset API is not enabled there, the credential lacks cloudasset.assets.searchAllResources, a page failed part way, or no project is known. A gap in coverage, never a wrong plan.",
 	},
 	{
+		Summary: SummaryGCPTypeListIncomplete,
+		What:    "INTENTIUS/choudoufu#2264: a declared google type is listed through its own service so that two objects claiming one address are both seen, and this run could not make that list: a scope the configuration cannot name, or a list call that failed (a disabled service, a missing permission). Its declared instances are bound from the Cloud Asset Inventory index instead, which can lag a create, so a second object from a concurrent apply may not be reported as a collision until a later plan.",
+	},
+	{
 		Summary: SummaryGCPAddressCollision,
 		What:    "GitHub issue #1121's address ruling: two declared google instances whose tofu-address label values are equal, or two blocks whose block parts are, are refused by name, since the label is matched and never decoded and a collision would bind one block's object to the other. At 130 bits a part it does not happen in practice.",
 	},
@@ -368,7 +372,7 @@ func SeverityForRefusal(summary string) Severity {
 	if kind, ok := problemKindForSummary(summary); ok {
 		return kind.Severity()
 	}
-	if summary == SummaryIncompleteSweep || summary == SummaryGCPSweepIncomplete || summary == SummaryGCPOrphanUnaddressed || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable || summary == SummaryFieldGranularOrphanUnclassified || summary == SummaryFieldGranularOrphansPending || summary == SummaryFieldHandoverFailed || summary == SummaryFieldSharedWithStock || resourceGraphIncomplete(summary) {
+	if summary == SummaryIncompleteSweep || summary == SummaryGCPSweepIncomplete || summary == SummaryGCPTypeListIncomplete || summary == SummaryGCPOrphanUnaddressed || summary == SummaryKubernetesSweepUnavailable || summary == SummaryKubernetesSweepDenied || summary == SummaryKubernetesKindUnverified || summary == SummaryKubernetesDryRunUnavailable || summary == SummaryKubernetesDeleteHeld || summary == SummaryHelmNotInManifest || summary == SummaryFieldOwnedByEstate || summary == SummaryFieldOwnersUnavailable || summary == SummaryFieldGranularOrphanUnclassified || summary == SummaryFieldGranularOrphansPending || summary == SummaryFieldHandoverFailed || summary == SummaryFieldSharedWithStock || resourceGraphIncomplete(summary) {
 		// A gap in coverage, never a wrong plan: the run in front of the
 		// operator is correct and simply did not see everything. The held
 		// delete (GitHub issue #1184) is the same severity for a different

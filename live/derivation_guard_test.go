@@ -129,6 +129,23 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"and the list). A type with no row reads exactly as before, so a missing row costs requests, never answers.",
 		Data: 1, Code: 0,
 	},
+	"internal/live/gcpsweep/typelist.go": {
+		Reason: "typeLists and NotCovered (INTENTIUS/choudoufu#2264): the per-type GCP list for each labelled " +
+			"server-assigned google type, so two creates of one object are both seen. Every other covered type is " +
+			"derived in servicelist.go from pkg/identity's GoogleAssetImports Asset name (its parent collection is " +
+			"the list call) and a per-host Services row, and that file names no type. These ten cannot take that " +
+			"rule: google_vertex_ai_dataset, google_vertex_ai_tensorboard, google_service_directory_namespace and " +
+			"google_recaptcha_enterprise_key have no GoogleAssetImports row (tools/gcp-row-gen records why in " +
+			"importids_generated_google.go); google_transcoder_job and google_active_directory_domain have Asset " +
+			"\"{{name}}\", which has no parent collection to list; google_vertex_ai_index, _index_endpoint, " +
+			"_reasoning_engine and google_document_ai_schema are on regional hosts ({{region}}-aiplatform, " +
+			"{{location}}-documentai) that a Services Root cannot spell, and adding their hosts would also move the " +
+			"covered set off the list plunge shares (testdata/covered-types.txt). Each row is the provider's own " +
+			"create collection and the API reference's list field, read at hashicorp/google 8.6.0. NotCovered's two " +
+			"rows are the server-assigned types with no project-scoped list (a parent agent; an organization). " +
+			"Code is 0: Covered and CoveredTypes are keyed lookups.",
+		Data: 12, Code: 0,
+	},
 	"internal/live/discovery/directread.go": {
 		Reason: "directReadTypes (issue #1046): the narrow, hand-verified registry of ServerAssigned types whose live " +
 			"ARN a service mints deterministically from configuration's own arguments alone, so a targeted Import+Read " +
@@ -822,7 +839,11 @@ const (
 	// 1358 -> 1359 data, code unchanged, on 2026-10-24 (#2232):
 	// internal/live/projection/scopedlisting.go's scopedListSpecs row for
 	// aws_route53_record, one new Data literal, none moved.
-	typeLiteralDataTotal = 1359
+	// 1359 -> 1371 data, code unchanged, on 2026-10-25 (#2264):
+	// internal/live/gcpsweep/typelist.go (12 / 0), the ten hand-listed
+	// server-assigned GCP types and NotCovered's two, never registered when
+	// the file landed. 12 new Data literals, none moved.
+	typeLiteralDataTotal = 1371
 	typeLiteralCodeTotal = 140
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
