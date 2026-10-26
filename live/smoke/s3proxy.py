@@ -45,6 +45,19 @@ stall    "<substring> <seconds>"
          emulator can finish each GET before the next begins and read as
          sequential. Claim 29.
 
+gate     "<substring> <n>"
+         A request of any method whose path or body contains <substring>
+         waits until <n> such requests have arrived, and then all of them
+         are forwarded at once. Each arrival is logged to <work-dir>/gated
+         as "<seq>", counted from 1 since the scenario last deleted that
+         file. A gated request that is still waiting after 60 seconds is
+         forwarded anyway, so a run that never reaches <n> ends on the
+         scenario's own check of <work-dir>/gated rather than a hang. It is
+         how two creates are made to race: an EC2 query-API call carries
+         its Action in the body, and a create sent only after its plan is
+         proof that the plan was made before either create landed. Claim 2
+         (two-creates-one-address).
+
 release  "<seq> <seq> ..." or "drop"
          Held PUTs are forwarded one at a time in that order, each completing
          its round trip before the next starts, which is what makes a race
@@ -203,6 +216,27 @@ def hold(path, body):
         time.sleep(0.02)
 
 
+GATE_WAIT_SECS = 60
+
+
+def gate(path, body):
+    """Blocks a request the gate names until enough of them have arrived."""
+    parts = read("gate").split()
+    if len(parts) != 2:
+        return
+    sub, want = parts[0], int(parts[1])
+    if sub not in path and sub.encode() not in body:
+        return
+    with lock:
+        seq = len(read("gated").splitlines()) + 1
+        open(os.path.join(work, "gated"), "a").write("%d\n" % seq)
+    deadline = time.time() + GATE_WAIT_SECS
+    while time.time() < deadline:
+        if len(read("gated").splitlines()) >= want:
+            return
+        time.sleep(0.02)
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -212,6 +246,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def relay(self):
         path, _, query = self.path.partition("?")
         body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        gate(path, body)
         seq = 0
         if self.command == "PUT":
             seq = hold(path, body)
