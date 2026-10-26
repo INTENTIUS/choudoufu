@@ -313,7 +313,7 @@ var refusals = []Refusal{
 	},
 	{
 		Summary: SummaryGCPTypeListIncomplete,
-		What:    "INTENTIUS/choudoufu#2264: a declared google type is listed through its own service so that two objects claiming one address are both seen, and this run could not make that list: a scope the configuration cannot name, or a list call that failed (a disabled service, a missing permission). Its declared instances are bound from the Cloud Asset Inventory index instead, which can lag a create, so a second object from a concurrent apply may not be reported as a collision until a later plan.",
+		What:    "INTENTIUS/choudoufu#2264: a declared google type is listed through its own service so that two objects claiming one address are both seen, and this run could not make that list: a scope the configuration cannot name, or a list call that failed (a disabled service, a missing permission). Its declared instances are bound from the Cloud Asset Inventory index instead, which can lag a create, so a second object from a concurrent apply may not be reported as a collision until a later plan. The plan itself stands; this is a gap in coverage. To clear it, write the instance's project and location (and any parent, such as a crypto key's key_ring) as literals in its block or the provider block, enable the type's service in each project the estate names, and grant the principal the type's list permission (live/gcp/COMPATIBILITY.md lists them).",
 	},
 	{
 		Summary: SummaryGCPAddressCollision,
