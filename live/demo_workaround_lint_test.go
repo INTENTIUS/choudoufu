@@ -74,6 +74,32 @@ var terragruntDemoWorkarounds = []demoWorkaround{
 	},
 }
 
+// atmosDemoWorkarounds are the ones demo-atmos carried before it was rebuilt
+// in 747cff8: init without -reconfigure, no generated backend file, and the
+// default workspace pinned or workspaces turned off.
+var atmosDemoWorkarounds = []demoWorkaround{
+	{
+		name: "init_run_reconfigure: false",
+		exts: []string{".yaml", ".yml"},
+		re:   regexp.MustCompile(`(?m)^\s*init_run_reconfigure\s*:\s*false\b`),
+	},
+	{
+		name: "auto_generate_backend_file: false",
+		exts: []string{".yaml", ".yml"},
+		re:   regexp.MustCompile(`(?m)^\s*auto_generate_backend_file\s*:\s*false\b`),
+	},
+	{
+		name: "a pinned metadata.terraform_workspace",
+		exts: []string{".yaml", ".yml"},
+		re:   regexp.MustCompile(`(?m)^\s*terraform_workspace(_pattern|_template)?\s*:`),
+	},
+	{
+		name: "workspaces_enabled: false",
+		exts: []string{".yaml", ".yml"},
+		re:   regexp.MustCompile(`(?m)^\s*workspaces_enabled\s*:\s*false\b`),
+	},
+}
+
 // demoCommentLine matches a line that is only a comment in HCL, YAML or JS.
 var demoCommentLine = regexp.MustCompile(`^\s*(#|//)`)
 
@@ -214,6 +240,35 @@ func TestTerragruntDemoCarriesNoWorkaround(t *testing.T) {
 	}
 }
 
+const atmosDemoDir = "../examples/demo-atmos"
+
+// TestAtmosDemoCarriesNoWorkaround is the lint over examples/demo-atmos, its
+// scenario trees included.
+func TestAtmosDemoCarriesNoWorkaround(t *testing.T) {
+	rules := append(append([]demoWorkaround{}, demoCommonWorkarounds...), atmosDemoWorkarounds...)
+	for _, f := range lintDemoTree(t, atmosDemoDir, rules) {
+		t.Errorf("examples/demo-atmos: %s", f)
+	}
+
+	atmosYAML := filepath.Join(atmosDemoDir, "atmos.yaml")
+	demoMustContain(t, atmosYAML, regexp.MustCompile(`(?m)^\s*command\s*:\s*"?choudoufu"?\s*$`), "components.terraform.command: choudoufu")
+	demoMustContain(t, atmosYAML, regexp.MustCompile(`(?m)^\s*auto_generate_backend_file\s*:\s*true\b`), "auto_generate_backend_file: true")
+
+	// Three components, each with a live block in its own directory.
+	for _, c := range []string{"network", "app", "edge"} {
+		dir := filepath.Join(atmosDemoDir, "components", "terraform", c)
+		live := false
+		for _, f := range demoFiles(t, dir, []string{".tf"}) {
+			if filepath.Dir(f) == dir && demoLiveBlock.MatchString(demoCode(t, f)) {
+				live = true
+			}
+		}
+		if !live {
+			t.Errorf("component %s has no live block", c)
+		}
+	}
+}
+
 // TestDemoWorkaroundLintCatchesEachWorkaround proves each rule can fail: a
 // tree holding one workaround yields a finding for it, and the same text in a
 // comment yields none.
@@ -222,11 +277,15 @@ func TestDemoWorkaroundLintCatchesEachWorkaround(t *testing.T) {
 		file, text string
 		rules      []demoWorkaround
 	}{
-		"estate outputs":    {"main.tf", "data \"terraform_estate_outputs\" \"net\" {\n  estate = \"net\"\n}\n", demoCommonWorkarounds},
-		"generated backend": {"root.hcl", "generate \"backend\" {\n  path = \"backend.tf\"\n}\n", terragruntDemoWorkarounds},
-		"no-fetch flag":     {"run.sh", "terragrunt run --all --no-dependency-fetch-output-from-state -- plan\n", terragruntDemoWorkarounds},
-		"no-fetch env":      {"ci.yml", "env:\n  TG_NO_DEPENDENCY_FETCH_OUTPUT_FROM_STATE: \"true\"\n", terragruntDemoWorkarounds},
-		"no-fetch attr":     {"terragrunt.hcl", "dependency \"n\" {\n  config_path = \"../n\"\n  dependency_fetch_output_from_state = false\n}\n", terragruntDemoWorkarounds},
+		"estate outputs":           {"main.tf", "data \"terraform_estate_outputs\" \"net\" {\n  estate = \"net\"\n}\n", demoCommonWorkarounds},
+		"generated backend":        {"root.hcl", "generate \"backend\" {\n  path = \"backend.tf\"\n}\n", terragruntDemoWorkarounds},
+		"no-fetch flag":            {"run.sh", "terragrunt run --all --no-dependency-fetch-output-from-state -- plan\n", terragruntDemoWorkarounds},
+		"no-fetch env":             {"ci.yml", "env:\n  TG_NO_DEPENDENCY_FETCH_OUTPUT_FROM_STATE: \"true\"\n", terragruntDemoWorkarounds},
+		"init without reconfigure": {"atmos.yaml", "components:\n  terraform:\n    init_run_reconfigure: false\n", atmosDemoWorkarounds},
+		"no backend file":          {"atmos.yaml", "components:\n  terraform:\n    auto_generate_backend_file: false\n", atmosDemoWorkarounds},
+		"pinned workspace":         {"dev.yaml", "components:\n  terraform:\n    app:\n      metadata:\n        terraform_workspace: default\n", atmosDemoWorkarounds},
+		"workspaces off":           {"atmos.yaml", "components:\n  terraform:\n    workspaces_enabled: false\n", atmosDemoWorkarounds},
+		"no-fetch attr":            {"terragrunt.hcl", "dependency \"n\" {\n  config_path = \"../n\"\n  dependency_fetch_output_from_state = false\n}\n", terragruntDemoWorkarounds},
 	}
 	for name, s := range samples {
 		t.Run(name, func(t *testing.T) {
