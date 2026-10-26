@@ -151,7 +151,7 @@ var typeOverridesDevtools = map[string]typeOverride{
 	},
 	"aws_codepipeline_custom_action_type": {
 		Reasons: []string{
-			`category is a required string the provider validates against a fixed enum (validate: "expected category to be one of [...]"); provider_name is this type's own identity argument (internal/live/identity/table.go), but the generic pass's tofu-<cohort>-<type> placeholder exceeds the provider's documented 35-character limit (validate: "expected length of provider_name to be in the range (1 - 35)"); version is a required string the provider validates is 1-9 characters (validate: "expected length of version to be in the range (1 - 9)")`,
+			`category is a required string the provider validates against a fixed enum (validate: "expected category to be one of [...]"); provider_name is this type's own identity argument (pkg/identity/table.go), but the generic pass's tofu-<cohort>-<type> placeholder exceeds the provider's documented 35-character limit (validate: "expected length of provider_name to be in the range (1 - 35)"); version is a required string the provider validates is 1-9 characters (validate: "expected length of version to be in the range (1 - 9)")`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("category", exprTokens(`"Build"`))
@@ -161,7 +161,7 @@ var typeOverridesDevtools = map[string]typeOverride{
 	},
 	"aws_codedeploy_deployment_group": {
 		Reasons: []string{
-			`app_name is a required string, but this type's identity is a two-attribute composite (internal/live/identity/table.go's Components: attr("app_name"), sep(":"), attr("deployment_group_name")), so identityArgName's own-identity convention does not fire (it only names a single-component identity's argument) and the generic pass left app_name as its own tofu-<cohort>-<type> placeholder instead of the sibling aws_codedeploy_app.app's real name - not a validate error (both are plain strings), but a plan-then-apply-time one (apply: "ApplicationDoesNotExistException: Application does not exist: ..."), so this override wires the cross-resource reference issue #56 asks for by hand.`,
+			`app_name is a required string, but this type's identity is a two-attribute composite (pkg/identity/table.go's Components: attr("app_name"), sep(":"), attr("deployment_group_name")), so identityArgName's own-identity convention does not fire (it only names a single-component identity's argument) and the generic pass left app_name as its own tofu-<cohort>-<type> placeholder instead of the sibling aws_codedeploy_app.app's real name - not a validate error (both are plain strings), but a plan-then-apply-time one (apply: "ApplicationDoesNotExistException: Application does not exist: ..."), so this override wires the cross-resource reference issue #56 asks for by hand.`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			if app, ok := g.byType["aws_codedeploy_app"]; ok {

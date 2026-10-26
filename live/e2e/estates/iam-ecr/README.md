@@ -9,7 +9,7 @@ this one repeats the shape of).
 
 This cohort exercises every type `tools/row-gen`'s IAM and ECR batch
 proposed and this batch ratified into `internal/live/lint/admission.go` and
-`internal/live/identity/table.go`, plus one addition (`aws_iam_group`): the
+`pkg/identity/table.go`, plus one addition (`aws_iam_group`): the
 ECS/EKS batch (issue #65) ratified its own deferral here rather than
 opening a second cohort for one already-settled type — see "Issue #26" and
 "Rejected, and deliberately absent" below for the history, and
@@ -217,7 +217,7 @@ the identity evidence changes with either.
 ```
 # Coverage: the registry-ratified IAM half of the second registry-backed
 # batch (#40's admission strategy, #44's row-gen tool, issue #26). See
-# internal/live/identity/table.go's "Registry-ratified ... second batch"
+# pkg/identity/table.go's "Registry-ratified ... second batch"
 # comment for the per-type evidence, and for the row-gen proposals this
 # batch rejected or deferred (aws_iam_access_key, aws_iam_policy,
 # aws_iam_saml_provider, aws_iam_virtual_mfa_device, aws_iam_group).
@@ -290,7 +290,7 @@ the identity evidence changes with either.
 ```
 # Coverage: the registry-ratified ECR half of the second registry-backed
 # batch (#40's admission strategy, #44's row-gen tool, issue #26). See
-# internal/live/identity/table.go's "Registry-ratified ... second batch"
+# pkg/identity/table.go's "Registry-ratified ... second batch"
 # comment for the per-type evidence.
 ```
 

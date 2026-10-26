@@ -222,7 +222,7 @@ want_identity "$TRIO_WANT"
 # still have passed.
 for bad in "$PAIR_DECLARED" "$TRIO_DECLARED"; do
   grep -qF "$bad" <<< "$PLAN_OUT" \
-    && fail "the run rendered \"$bad\", which is the order the configuration DECLARES rather than canonical sorted order. Nothing on the wire would have rejected it: the provider puts the tail in a set. See Component.PerElement in internal/live/identity/table.go and perElementParts in internal/live/identity/perelement.go."
+    && fail "the run rendered \"$bad\", which is the order the configuration DECLARES rather than canonical sorted order. Nothing on the wire would have rejected it: the provider puts the tail in a set. See Component.PerElement in pkg/identity/table.go and perElementParts in internal/live/identity/perelement.go."
 done
 log "  declared-order strings absent; the tail is sorted, not copied"
 

@@ -8,9 +8,9 @@ proof-of-mechanism cohort, and `live/e2e/estates/lambda/README.md` for the
 first registry-backed cohort this one follows).
 
 This cohort exercises every type this batch ratified into
-`internal/live/lint/admission.go` and `internal/live/identity/table.go`.
+`internal/live/lint/admission.go` and `pkg/identity/table.go`.
 `tools/row-gen` proposed 18 types in the RDS service section; 17 are
-ratified below, 1 is rejected — see `internal/live/identity/table.go` for
+ratified below, 1 is rejected — see `pkg/identity/table.go` for
 the full per-type evidence, including five corrections where row-gen's own
 classification (evidence-only or needs-hand-separator) undersold a
 concrete, documented import grammar the provider's own Import section

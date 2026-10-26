@@ -15,7 +15,7 @@
 // deterministic placeholder values, cross-resource references where a
 // required argument names another resource in the same run, estate tags
 // where the type is taggable, and identity arguments named from
-// internal/live/identity/table.go. Everything the wire schema alone cannot
+// pkg/identity/table.go. Everything the wire schema alone cannot
 // settle - a provider-side "one of X or Y" requirement, an enum member, a
 // JSON-shaped string - is the small, explicit typeOverrides table in
 // overrides.go, not a guess.
