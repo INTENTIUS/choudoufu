@@ -146,3 +146,19 @@ Options it cannot honour are refused: `-target`, `-exclude`, `-destroy`,
 
 What the run costs against a real estate has not been measured. The
 maintainer runs the estate check.
+
+## The estate check
+
+`live/plan-resource-check.sh` is the maintainer's check on a real estate
+(GitHub issue #2245). From the estate's root:
+
+```
+CHOUDOUFU=/path/to/choudoufu live/plan-resource-check.sh ADDR [-estate=NAME]
+```
+
+It asks for "run" at the terminal, reads ADDR with `-resource`, then makes
+one full `live-plan -out` and reads ADDR's action from `show -json`. It
+prints a `reads:` verdict (recordListCalls and sweepCalls both 0), a
+`status:` verdict (the drift record's status against the full plan's
+action for ADDR) and the `settle:` line, and keeps both runs' output in the
+directory it names.
