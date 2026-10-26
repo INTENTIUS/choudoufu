@@ -10,9 +10,9 @@ prompt: >-
 Terraform and OpenTofu lock the state file because the apply boundary is the
 state file, so everything in it is locked together. Teams split state into
 roots to shrink what one lock covers. choudoufu moves the boundary to each
-resource. It keeps one record per resource in a store you own and writes each
-record only if it is unchanged since the run read it. That prevents state
-corruption with no lock to take or release.
+resource. It keeps one record per resource in a [record store](../values/). A
+run's write to a record fails if another run wrote that record
+first. That prevents state corruption without a lock.
 
 ## Two applies, one estate
 
@@ -53,9 +53,10 @@ written conditionally on its `resourceVersion`.
 A run that fails or loses part way does not undo the records it already wrote.
 Every write stands alone, so nothing rolls back across records.
 
-A record holds identity and what the cloud cannot return. Two plain applies
-without a saved plan that change an attribute the provider reads back are last
-writer wins at the cloud API. Keep one apply at a time per estate in CI anyway.
+A record holds only what a read of the resource leaves out, such as a generated
+password. An attribute the provider reads back has no record, so two plain
+applies that change it without a saved plan are last writer wins at the cloud
+API. Keep one apply at a time per estate in CI anyway.
 
 ## Across states
 

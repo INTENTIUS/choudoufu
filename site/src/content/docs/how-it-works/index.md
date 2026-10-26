@@ -21,8 +21,8 @@ A marker is a tag or label holding the estate name. The block address sits
 beside it: a tag, a label, or on Kubernetes the
 `choudoufu.intentius.io/tofu-address` annotation ([Identity](identity/)).
 
-A record holds what the live resource cannot return, such as a generated
-password ([Records](values/)).
+A record holds what a read of the live resource leaves out, such as a
+generated password ([Records](values/)).
 
 ## The marker says what you own
 
