@@ -63,6 +63,15 @@ type Searcher interface {
 	Search(ctx context.Context, subscription, estate string) ([]Resource, error)
 }
 
+// TypeSearcher is [Searcher] narrowed by ARM type: every resource in
+// subscription carrying the estate's tag whose type is one of armTypes
+// (compared case-insensitively). live-plan -resource asks it for the cone's
+// types alone, where the estate sweep asks [Searcher.Search] for everything
+// (GitHub issue #2260).
+type TypeSearcher interface {
+	SearchTypes(ctx context.Context, subscription, estate string, armTypes []string) ([]Resource, error)
+}
+
 // APIVersion is the Resource Graph API version every query is sent at.
 const APIVersion = "2022-10-01"
 
@@ -157,6 +166,25 @@ func Query(estate string) string {
 	}, "\n")
 }
 
+// TypesQuery is [Query] narrowed to armTypes: the same estate-tag match,
+// keeping only rows whose type is one of them. An empty armTypes is the
+// plain [Query].
+func TypesQuery(estate string, armTypes []string) string {
+	q := Query(estate)
+	if len(armTypes) == 0 {
+		return q
+	}
+	quoted := make([]string, len(armTypes))
+	for i, t := range armTypes {
+		quoted[i] = kqlString(strings.ToLower(t))
+	}
+	lines := strings.Split(q, "\n")
+	// Before the projection, which is the last line.
+	last := lines[len(lines)-1]
+	lines = append(lines[:len(lines)-1], "| where type in~ ("+strings.Join(quoted, ", ")+")", last)
+	return strings.Join(lines, "\n")
+}
+
 // kqlString is s as a single-quoted KQL string literal, with backslash
 // and quote escaped.
 func kqlString(s string) string {
@@ -212,12 +240,36 @@ type row struct {
 // too widely can never read another estate's resource as this one's. A
 // row repeated (by id, case-insensitively) is kept once.
 func (c *Client) Search(ctx context.Context, subscription, estate string) ([]Resource, error) {
+	return c.search(ctx, subscription, estate, Query(estate))
+}
+
+// SearchTypes implements [TypeSearcher]: [Client.Search] with [TypesQuery],
+// and every row checked again against armTypes as well as the estate.
+func (c *Client) SearchTypes(ctx context.Context, subscription, estate string, armTypes []string) ([]Resource, error) {
+	all, err := c.search(ctx, subscription, estate, TypesQuery(estate, armTypes))
+	if err != nil || len(armTypes) == 0 {
+		return all, err
+	}
+	keep := make(map[string]bool, len(armTypes))
+	for _, t := range armTypes {
+		keep[strings.ToLower(t)] = true
+	}
+	out := all[:0]
+	for _, r := range all {
+		if keep[strings.ToLower(r.Type)] {
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+func (c *Client) search(ctx context.Context, subscription, estate, query string) ([]Resource, error) {
 	var out []Resource
 	seen := map[string]bool{}
 	pages, rows := 0, 0
 	token := ""
 	for {
-		resp, err := c.page(ctx, subscription, estate, token)
+		resp, err := c.page(ctx, subscription, query, token)
 		if err != nil {
 			if pages > 0 {
 				return nil, &PartialError{Subscription: subscription, PagesRead: pages, RowsRead: rows, Err: err}
@@ -306,10 +358,10 @@ func truncated(raw json.RawMessage) bool {
 
 // page sends one page's query, waiting out 429s as the service's headers
 // say, and classifies any other failure.
-func (c *Client) page(ctx context.Context, subscription, estate, token string) (*queryResponse, error) {
+func (c *Client) page(ctx context.Context, subscription, query, token string) (*queryResponse, error) {
 	body, err := json.Marshal(queryRequest{
 		Subscriptions: []string{subscription},
-		Query:         Query(estate),
+		Query:         query,
 		Options:       queryOptions{Top: PageSize, SkipToken: token, ResultFormat: "objectArray"},
 	})
 	if err != nil {

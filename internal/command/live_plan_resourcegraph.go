@@ -171,6 +171,16 @@ func (s memoSearcher) Search(ctx context.Context, subscription, estate string) (
 	return append([]azsweep.Resource(nil), a.resources...), a.err
 }
 
+// SearchTypes passes live-plan -resource's narrowed query through to the
+// client, unmemoized: each cone asks it once (GitHub issue #2260).
+func (s memoSearcher) SearchTypes(ctx context.Context, subscription, estate string, armTypes []string) ([]azsweep.Resource, error) {
+	narrow, ok := s.inner.(azsweep.TypeSearcher)
+	if !ok {
+		return nil, fmt.Errorf("the Resource Graph client for subscription %s cannot narrow its query by type", subscription)
+	}
+	return narrow.SearchTypes(ctx, subscription, estate, armTypes)
+}
+
 // azureUntaggableTypes is [untaggableARMTypes] over this run's
 // configuration, with each provider's schemas as the provider manager
 // answers them. Every pass is handed the same list; [discovery.Merge]

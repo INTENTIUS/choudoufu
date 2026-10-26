@@ -7,7 +7,7 @@ proof-of-mechanism cohort, and `live/e2e/estates/messaging/README.md` for
 the most recent registry-backed cohort this one follows).
 
 This cohort exercises every type this batch ratified into
-`internal/live/lint/admission.go` and `internal/live/identity/table.go`.
+`internal/live/lint/admission.go` and `pkg/identity/table.go`.
 It does not repeat `aws_ecs_cluster`, already covered by `live/e2e/estate/`,
 or `aws_iam_group`, which this same batch ratifies but lands in the
 `iam-ecr` cohort instead — see that cohort's own README.

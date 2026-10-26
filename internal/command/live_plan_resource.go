@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/discovery"
@@ -53,9 +55,11 @@ import (
 //     namespace ([projection.Options.KeyedRecordsOnly]). Every read is a Get
 //     of a key the cone names.
 //   - Marker discovery runs for the cone's needs-discovery instances only,
-//     with no sweep leg, no estate-wide tag-index call and no unclaimed
-//     inventory ([liveResourceDiscover]). A -target plan keeps the sweep
-//     estate-wide (live/PLAN-CONE.md).
+//     with no estate sweep and no unclaimed inventory
+//     ([liveResourceDiscover]). The tag index is read for the cone's types
+//     alone, and an Azure, GCP or Kubernetes instance is found by its
+//     family's leg run for the cone's types (GitHub issue #2260). A
+//     -target plan keeps the sweep estate-wide (live/PLAN-CONE.md).
 //   - Nothing estate-wide that only a whole plan uses runs: the policy's
 //     account reconciliation, the foreign classification, the guided-sweep
 //     hint, root outputs, the lookalike guard and the Kubernetes dry run.
@@ -63,11 +67,59 @@ import (
 // The run never writes. It refuses -out, so nothing it plans can be
 // applied, which is what makes leaving the removal legs out safe: a
 // removal outside the cone is not this run's question.
+//
+// Records stream: an instance the projection settles (unclaimed, pending,
+// not observed) is written once the projection is built, and a planned
+// instance as the plan walk plans it ([liveDriftStream]). A later line for
+// the same address replaces an earlier one, which is how chant reads the
+// stream (DriftRecordLine), so the final pass writes again only an
+// instance whose record changed.
 
 // liveResourceRecordStoreOpener opens the record store for this path. A
 // package variable so a test can hand the path a fake store and see what it
 // reads; see [TestLivePlanResource_readsNoListAndSweepsNothing].
 var liveResourceRecordStoreOpener recordStoreOpener = projection.NewKeyedRecordStore
+
+// liveResourceTaggingTransport carries the cone's tag-index calls. Nil is
+// http.DefaultTransport; a test hands the path a fake that answers
+// GetResources and records the filters it was sent.
+var liveResourceTaggingTransport http.RoundTripper
+
+// liveDriftRecordWritten, when set, is called after each drift-record line
+// is written, with its address. A test uses it to see a record reach stdout
+// before the plan finishes.
+var liveDriftRecordWritten func(address string)
+
+// liveResourceTagCalls counts the tag index's GetResources requests, one
+// per page, for the drift-settle line's tagIndexCalls.
+type liveResourceTagCalls struct {
+	inner http.RoundTripper
+
+	mu    sync.Mutex
+	calls int
+}
+
+func (t *liveResourceTagCalls) RoundTrip(r *http.Request) (*http.Response, error) {
+	if strings.HasSuffix(r.Header.Get("X-Amz-Target"), ".GetResources") {
+		t.mu.Lock()
+		t.calls++
+		t.mu.Unlock()
+	}
+	inner := t.inner
+	if inner == nil {
+		inner = http.DefaultTransport
+	}
+	return inner.RoundTrip(r)
+}
+
+func (t *liveResourceTagCalls) count() int {
+	if t == nil {
+		return 0
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.calls
+}
 
 // errLiveResourceList is what [liveResourceStore] answers a List with.
 var errLiveResourceList = errors.New("live-plan -resource reads the record store by key only, and something on its path asked to list it; this is a defect, report it (GitHub issue #2245)")
@@ -269,7 +321,10 @@ func (c *LivePlanCommand) livePlanResource(ctx context.Context, args *arguments.
 	if err != nil {
 		return 1, diags.Append(err)
 	}
-	coreOpts.Hooks = view.Hooks()
+	// The stream is a hook on the plan walk, so a planned instance's record
+	// is written as the walk plans it.
+	stream := newLiveDriftStream(drift)
+	coreOpts.Hooks = append(view.Hooks(), stream)
 	coreOpts.Encryption = enc
 
 	// The node seam, wired as livePlan wires it: the resolver is also the
@@ -396,8 +451,9 @@ func (c *LivePlanCommand) livePlanResource(ctx context.Context, args *arguments.
 	deposedRecords := collectDeposedRecords(ctx, recordStoreForReads, config, inScope, nodeRefused)
 
 	scan := &liveResourceScan{}
+	tagCalls := &liveResourceTagCalls{inner: liveResourceTaggingTransport}
 	merged := resolutions.All()
-	disco, discoProvider, undeclaredProviders, discoDiags := liveResourceDiscover(ctx, config, resolutions, nodeRefused, estate, provs, pol, hintStore, recordShrinkStore, deposedRecords, scope, scan.progress)
+	disco, discoProvider, undeclaredProviders, discoDiags := liveResourceDiscover(ctx, config, resolutions, nodeRefused, estate, provs, pol, hintStore, recordShrinkStore, deposedRecords, scope, scan.progress, tagCalls)
 	diags = diags.Append(discoDiags)
 	if discoDiags.HasErrors() {
 		return 1, diags.Append(provs.close(ctx))
@@ -462,6 +518,21 @@ func (c *LivePlanCommand) livePlanResource(ctx context.Context, args *arguments.
 		return 1, diags
 	}
 
+	bound := liveBoundReport(projResult, merged, liveNeedsDiscoverySet(resolutions))
+	observedAt := time.Now().UTC()
+	stream.begin(liveDriftInput{
+		Member:     member,
+		Command:    observedFor,
+		ObservedAt: observedAt,
+		Expected:   expected,
+		Projection: projResult,
+		Bound:      bound,
+		Schemas:    schemas,
+	})
+	// What the projection already answered is not the plan's to change, so
+	// it is written before the plan starts.
+	stream.emitSettled()
+
 	plan, planDiags := tfCtx.Plan(ctx, config, projResult.State, &tofu.PlanOpts{
 		Mode:         plans.NormalMode,
 		SkipRefresh:  true,
@@ -473,21 +544,20 @@ func (c *LivePlanCommand) livePlanResource(ctx context.Context, args *arguments.
 		return 1, diags
 	}
 
-	bound := liveBoundReport(projResult, merged, liveNeedsDiscoverySet(resolutions))
 	records := liveDriftRecords(liveDriftInput{
 		Member:     member,
 		Command:    observedFor,
-		ObservedAt: time.Now().UTC(),
+		ObservedAt: observedAt,
 		Expected:   expected,
 		Projection: projResult,
 		Bound:      bound,
 		Plan:       plan,
 		Schemas:    schemas,
 	})
+	stream.finish(records)
 	counts := map[string]int{}
 	changed := false
 	for _, r := range records {
-		drift.Record(r)
 		counts[r.Status]++
 		switch r.Status {
 		case "drifted", "pending", "missing":
@@ -509,6 +579,7 @@ func (c *LivePlanCommand) livePlanResource(ctx context.Context, args *arguments.
 			SweepCalls:      scan.sweeps,
 			ScanTypes:       scan.typeNames(),
 			ScanListCalls:   scan.scans,
+			TagIndexCalls:   tagCalls.count(),
 		},
 	})
 	if lists > 0 || scan.sweeps > 0 {
@@ -586,13 +657,21 @@ func liveAddrStrings(in []addrs.AbsResourceInstance) []string {
 // of the cone's needs-discovery instances, and nothing else. Against
 // [liveDiscover] it drops
 //
-//   - the sweep (Request.Sweep off, an empty Sweepers list, no record
-//     removal leg), so no type the cone does not wait on is listed;
-//   - the tag-index client (Request.Tagging), whose one GetResources call is
-//     filtered by estate and so reads the whole estate;
+//   - the estate sweep (Request.Sweep off, no record removal leg), so no
+//     type the cone does not wait on is listed;
 //   - the unclaimed inventory (CollectUnclaimed off), so each list stays
 //     filtered to this estate's marker where the provider can filter;
 //   - the guided-sweep hint, which only narrows a sweep.
+//
+// and narrows two things to the cone's types (GitHub issue #2260):
+//
+//   - the tag index (Request.Tagging), whose one GetResources call is
+//     filtered to the cone's types ([discovery.TaggingTypeFilters]) as well
+//     as the estate's tag, so a type whose list call drops its tags still
+//     binds; its calls are counted in tagCalls;
+//   - the Azure, GCP and Kubernetes legs, run for the cone's types alone
+//     ([liveResourceConeLegs]), which is how those families find a
+//     server-assigned instance: their providers list little or nothing.
 //
 // The Cloud Control fallback and the per-service tag reader stay: they
 // answer for one type the cone waits on, not for the estate.
@@ -601,7 +680,7 @@ func liveAddrStrings(in []addrs.AbsResourceInstance) []string {
 // nothing. Every pass is scoped to the run's [identity.Scope], which is
 // what keeps the demand to the cone while the declared set stays whole, so
 // a listed object another block declares is never read as an orphan.
-func liveResourceDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, nodeRefused map[string]bool, estate string, provs *projectionProviders, pol *policy.Policy, hintStore staterecord.Store, recordShrinkStore *projection.RecordStore, deposedRecords map[string]map[string]projection.DeposedRecord, scope identity.Scope, progress discovery.ProgressFunc) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
+func liveResourceDiscover(ctx context.Context, config *configs.Config, resolutions *identity.Result, nodeRefused map[string]bool, estate string, provs *projectionProviders, pol *policy.Policy, hintStore staterecord.Store, recordShrinkStore *projection.RecordStore, deposedRecords map[string]map[string]projection.DeposedRecord, scope identity.Scope, progress discovery.ProgressFunc, tagCalls *liveResourceTagCalls) (*discovery.Result, addrs.AbsProviderConfig, map[string]addrs.AbsProviderConfig, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	var noProvider addrs.AbsProviderConfig
 
@@ -618,6 +697,27 @@ func liveResourceDiscover(ctx context.Context, config *configs.Config, resolutio
 	diags = diags.Append(needsDiags)
 	if needsDiags.HasErrors() || len(passProviders) == 0 {
 		return nil, noProvider, nil, diags
+	}
+
+	// The cone's types: what the tag index and the family legs are narrowed
+	// to.
+	coneTypes := map[string]bool{}
+	for _, r := range needs {
+		coneTypes[r.Addr.Resource.Resource.Type] = true
+	}
+	coneTypeNames := make([]string, 0, len(coneTypes))
+	for t := range coneTypes {
+		coneTypeNames = append(coneTypeNames, t)
+	}
+	sort.Strings(coneTypeNames)
+
+	for _, providerAddr := range passProviders {
+		if sub, known := substrate.ForProvider(providerAddr.Provider.Type); known && sub.Sweep() == substrate.SweepResourceGraph {
+			// One Resource Graph query per subscription for the run, as
+			// liveDiscover arranges it.
+			provs.beginResourceGraphSweep()
+			break
+		}
 	}
 
 	one := func(providerAddr, scopeProvider addrs.AbsProviderConfig) (*discovery.Result, tfdiags.Diagnostics) {
@@ -648,6 +748,11 @@ func liveResourceDiscover(ctx context.Context, config *configs.Config, resolutio
 			KeyPrefix:               recordKeyPrefixFor(config, estate),
 		}
 		sub, known := substrate.ForProvider(providerAddr.Provider.Type)
+		if known && sub.Sweep() != substrate.SweepTaggingIndex {
+			legs, legDiags := liveResourceConeLegs(ctx, provs, sub, providerAddr, coneTypes)
+			diags = diags.Append(legDiags)
+			req.Sweepers = legs
+		}
 		if ep, on := cloudControlTarget(); on && known && sub.Sweep() == substrate.SweepTaggingIndex {
 			if roster, err := registry.Embedded(); err == nil {
 				req.Roster = roster
@@ -662,6 +767,20 @@ func liveResourceDiscover(ctx context.Context, config *configs.Config, resolutio
 				svc := newServiceTagsReader(cfg.Region, ep, creds)
 				req.ServiceTags = svc
 				req.ServiceList = svc
+				// The tag index, for the cone's types alone. A type the
+				// index cannot be narrowed to is left out of the call
+				// rather than widen it to the estate, and binds through its
+				// own list call or not at all.
+				filters, unfiltered := discovery.TaggingTypeFilters(roster, coneTypeNames)
+				if len(unfiltered) > 0 {
+					log.Printf("[DEBUG] live-plan -resource: no tag-index filter for %s; the index is not read for them", strings.Join(unfiltered, ", "))
+				}
+				if len(filters) > 0 {
+					tcfg := cfg
+					tcfg.RoundTripper = tagCalls
+					req.Tagging = cloudcontrol.NewTagging(tcfg)
+					req.TaggingTypeFilters = filters
+				}
 			}
 		}
 		res, discoDiags := discovery.Discover(ctx, req)
@@ -691,6 +810,33 @@ func liveResourceDiscover(ctx context.Context, config *configs.Config, resolutio
 	return merged, passProviders[0], providerOf, diags
 }
 
+// liveResourceConeLegs is the Azure, GCP or Kubernetes leg one provider
+// configuration's family is served by, built as the estate sweep builds it
+// ([sweepLegBuilders]) and narrowed to the cone's types (its Cone field,
+// see internal/live/discovery/conelegs.go). The Key Vault data-plane leg is
+// not built: no data-plane type is server-assigned. A family with no leg,
+// or one whose leg could not be built, runs none, and the instance binds
+// through the provider's own list call or reads not-observed.
+func liveResourceConeLegs(ctx context.Context, provs *projectionProviders, sub substrate.Substrate, providerAddr addrs.AbsProviderConfig, cone map[string]bool) ([]discovery.Sweeper, tfdiags.Diagnostics) {
+	build, ok := sweepLegBuilders[sub.Sweep()]
+	if !ok || len(cone) == 0 {
+		return []discovery.Sweeper{}, nil
+	}
+	leg, _, diags := build(ctx, provs, sub, providerAddr)
+	switch l := leg.(type) {
+	case discovery.KubernetesSweep:
+		l.Cone = cone
+		return []discovery.Sweeper{l}, diags
+	case discovery.GCPAssetSweep:
+		l.Cone = cone
+		return []discovery.Sweeper{l}, diags
+	case discovery.ResourceGraphSweep:
+		l.Cone = cone
+		return []discovery.Sweeper{l}, diags
+	}
+	return []discovery.Sweeper{}, diags
+}
+
 // liveDriftInput is what [liveDriftRecords] reads.
 type liveDriftInput struct {
 	Member     string
@@ -718,58 +864,14 @@ type liveDriftInput struct {
 //   - an expected instance the plan never reached is not-observed,
 //     not-reached, which is what drift-settle owes every silent address.
 func liveDriftRecords(in liveDriftInput) []views.LiveDriftRecord {
-	observedAt := in.ObservedAt.Format(time.RFC3339)
-	omitted := map[string]projection.Omission{}
-	unowned := map[string]projection.Unowned{}
-	if in.Projection != nil {
-		for _, o := range in.Projection.Omitted {
-			omitted[o.Addr.String()] = o
-		}
-		for _, u := range in.Projection.Unowned {
-			unowned[u.Addr.String()] = u
-		}
-	}
-	bound := map[string]views.LivePlanBound{}
-	for _, b := range in.Bound {
-		bound[b.Addr] = b
-	}
-
+	ix := newLiveDriftIndex(in)
 	out := make([]views.LiveDriftRecord, 0, len(in.Expected))
 	for _, addr := range in.Expected {
-		key := addr.String()
-		rec := views.LiveDriftRecord{
-			Member:     in.Member,
-			Engine:     "choudoufu",
-			Address:    key,
-			ObservedAt: observedAt,
-			Read:       "plan",
-			Evidence:   views.LiveDriftEvidence{Tool: "choudoufu", Version: tfversion.Fork, Command: in.Command},
-		}
-		if b, ok := bound[key]; ok {
-			rec.Ownership = &views.LiveDriftOwnership{Verdict: "owned", By: string(b.Source)}
-		}
-
-		if o, ok := omitted[key]; ok {
-			rec.Evidence.EngineCode = string(o.Reason)
-			switch o.Reason {
-			case projection.ReasonUnowned:
-				rec.Read = "ownership"
-				rec.Status = "unclaimed"
-				own := &views.LiveDriftOwnership{Verdict: "adoptable", MarkerOnObject: boolPtr(false)}
-				if u, ok := unowned[key]; ok && u.Estate != "" {
-					own = &views.LiveDriftOwnership{Verdict: "foreign", By: "marker", MarkerOnObject: boolPtr(true), OwnedBy: u.Estate}
-				}
-				rec.Ownership = own
-			case projection.ReasonAbsent:
-				rec.Status = "pending"
-			default:
-				rec.Status = "not-observed"
-				rec.Unobserved = &views.LiveDriftUnobserved{Reason: liveDriftUnobservedReason(o.Reason), Detail: o.Detail}
-			}
+		if rec, ok := ix.settled(in, addr); ok {
 			out = append(out, rec)
 			continue
 		}
-
+		rec := ix.base(in, addr)
 		var change *plans.ResourceInstanceChangeSrc
 		if in.Plan != nil && in.Plan.Changes != nil {
 			change = in.Plan.Changes.ResourceInstance(addr)
@@ -780,21 +882,104 @@ func liveDriftRecords(in liveDriftInput) []views.LiveDriftRecord {
 			out = append(out, rec)
 			continue
 		}
-		rec.Evidence.EngineCode = strings.ToLower(change.Action.String())
-		switch change.Action {
-		case plans.NoOp:
-			rec.Status = "in-sync"
-		case plans.Create:
-			rec.Status = "pending"
-		case plans.Delete:
-			rec.Status = "drifted"
-		default:
-			rec.Status = "drifted"
-			rec.Attributes = liveDriftAttributes(change, in.Schemas)
-		}
+		liveDriftApplyAction(&rec, change.Action, func() []views.LiveDriftAttribute {
+			return liveDriftAttributes(change, in.Schemas)
+		})
 		out = append(out, rec)
 	}
 	return out
+}
+
+// liveDriftIndex is a cone's projection answers by address, which every
+// record is read against.
+type liveDriftIndex struct {
+	observedAt string
+	omitted    map[string]projection.Omission
+	unowned    map[string]projection.Unowned
+	bound      map[string]views.LivePlanBound
+}
+
+func newLiveDriftIndex(in liveDriftInput) liveDriftIndex {
+	ix := liveDriftIndex{
+		observedAt: in.ObservedAt.Format(time.RFC3339),
+		omitted:    map[string]projection.Omission{},
+		unowned:    map[string]projection.Unowned{},
+		bound:      map[string]views.LivePlanBound{},
+	}
+	if in.Projection != nil {
+		for _, o := range in.Projection.Omitted {
+			ix.omitted[o.Addr.String()] = o
+		}
+		for _, u := range in.Projection.Unowned {
+			ix.unowned[u.Addr.String()] = u
+		}
+	}
+	for _, b := range in.Bound {
+		ix.bound[b.Addr] = b
+	}
+	return ix
+}
+
+// base is addr's record with everything but the status.
+func (ix liveDriftIndex) base(in liveDriftInput, addr addrs.AbsResourceInstance) views.LiveDriftRecord {
+	key := addr.String()
+	rec := views.LiveDriftRecord{
+		Member:     in.Member,
+		Engine:     "choudoufu",
+		Address:    key,
+		ObservedAt: ix.observedAt,
+		Read:       "plan",
+		Evidence:   views.LiveDriftEvidence{Tool: "choudoufu", Version: tfversion.Fork, Command: in.Command},
+	}
+	if b, ok := ix.bound[key]; ok {
+		rec.Ownership = &views.LiveDriftOwnership{Verdict: "owned", By: string(b.Source)}
+	}
+	return rec
+}
+
+// settled is addr's record when the projection already answered for it
+// (an omission), which no plan changes; false for an instance the plan
+// decides.
+func (ix liveDriftIndex) settled(in liveDriftInput, addr addrs.AbsResourceInstance) (views.LiveDriftRecord, bool) {
+	key := addr.String()
+	o, ok := ix.omitted[key]
+	if !ok {
+		return views.LiveDriftRecord{}, false
+	}
+	rec := ix.base(in, addr)
+	rec.Evidence.EngineCode = string(o.Reason)
+	switch o.Reason {
+	case projection.ReasonUnowned:
+		rec.Read = "ownership"
+		rec.Status = "unclaimed"
+		own := &views.LiveDriftOwnership{Verdict: "adoptable", MarkerOnObject: boolPtr(false)}
+		if u, ok := ix.unowned[key]; ok && u.Estate != "" {
+			own = &views.LiveDriftOwnership{Verdict: "foreign", By: "marker", MarkerOnObject: boolPtr(true), OwnedBy: u.Estate}
+		}
+		rec.Ownership = own
+	case projection.ReasonAbsent:
+		rec.Status = "pending"
+	default:
+		rec.Status = "not-observed"
+		rec.Unobserved = &views.LiveDriftUnobserved{Reason: liveDriftUnobservedReason(o.Reason), Detail: o.Detail}
+	}
+	return rec, true
+}
+
+// liveDriftApplyAction sets rec's status from the plan's action for it.
+func liveDriftApplyAction(rec *views.LiveDriftRecord, action plans.Action, attributes func() []views.LiveDriftAttribute) {
+	rec.Evidence.EngineCode = strings.ToLower(action.String())
+	switch action {
+	case plans.NoOp:
+		rec.Status = "in-sync"
+	case plans.Create:
+		rec.Status = "pending"
+	case plans.Delete:
+		rec.Status = "drifted"
+	default:
+		rec.Status = "drifted"
+		rec.Attributes = attributes()
+	}
 }
 
 func boolPtr(b bool) *bool { return &b }
@@ -829,8 +1014,17 @@ func liveDriftAttributes(change *plans.ResourceInstanceChangeSrc, schemas *tofu.
 		log.Printf("[WARN] live-plan -resource: decoding the planned change of %s: %s", change.Addr, err)
 		return nil
 	}
-	before, beforeMarks := decoded.Before.UnmarkDeepWithPaths()
-	after, afterMarks := decoded.After.UnmarkDeepWithPaths()
+	return liveDriftAttributesOf(decoded.Before, decoded.After, schema.Block)
+}
+
+// liveDriftAttributesOf is [liveDriftAttributes] over the two values
+// themselves, which is what the plan walk's hook has ([liveDriftStream]).
+func liveDriftAttributesOf(beforeVal, afterVal cty.Value, block *configschema.Block) []views.LiveDriftAttribute {
+	if block == nil || beforeVal == cty.NilVal || afterVal == cty.NilVal {
+		return nil
+	}
+	before, beforeMarks := beforeVal.UnmarkDeepWithPaths()
+	after, afterMarks := afterVal.UnmarkDeepWithPaths()
 	if before.IsNull() || !before.IsKnown() || after.IsNull() || !after.IsKnown() || !before.Type().IsObjectType() || !after.Type().IsObjectType() {
 		return nil
 	}
@@ -843,7 +1037,7 @@ func liveDriftAttributes(change *plans.ResourceInstanceChangeSrc, schemas *tofu.
 			sensitive[step.Name] = true
 		}
 	}
-	for name, attr := range schema.Block.Attributes {
+	for name, attr := range block.Attributes {
 		if attr.Sensitive {
 			sensitive[name] = true
 		}

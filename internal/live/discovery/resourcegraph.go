@@ -143,6 +143,11 @@ type ResourceGraphSweep struct {
 	// files a resource.
 	Self   addrs.AbsProviderConfig
 	Family []FamilyConfig
+	// Cone, when non-nil, runs the leg for live-plan -resource's cone
+	// (GitHub issue #2260): only these types are listed, each listing is a
+	// scan rather than a sweep, and nothing undeclared is filed as an
+	// orphan. See conelegs.go.
+	Cone map[string]bool
 }
 
 // FamilyConfig is one Azure provider configuration of the run and the
@@ -166,6 +171,9 @@ func (ResourceGraphSweep) Leg() substrate.Sweep { return substrate.SweepResource
 
 // Sweep runs the leg.
 func (g ResourceGraphSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.Diagnostics {
+	if g.Cone != nil {
+		return g.sweepCone(ctx, in)
+	}
 	var diags tfdiags.Diagnostics
 	req, res, decl := in.Request, in.Result, in.decl
 	untaggable := g.recordUntaggable(res)

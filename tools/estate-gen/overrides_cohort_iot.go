@@ -43,7 +43,7 @@ var typeOverridesIot = map[string]typeOverride{
 	},
 	"aws_iot_provisioning_template": {
 		Reasons: []string{
-			`"name" is this type's own identity argument (internal/live/identity/table.go), but the generic pass's tofu-<cohort>-<type> placeholder ("tofu-iot-cohort-provisioning-template", 37 characters) exceeds the provider's documented 36-character limit (validate: "expected length of name to be in the range (1 - 36)"); "template_body" is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "\"template_body\" contains an invalid JSON") - the generic placeholder string is neither short enough nor JSON.`,
+			`"name" is this type's own identity argument (pkg/identity/table.go), but the generic pass's tofu-<cohort>-<type> placeholder ("tofu-iot-cohort-provisioning-template", 37 characters) exceeds the provider's documented 36-character limit (validate: "expected length of name to be in the range (1 - 36)"); "template_body" is a required string the schema does not constrain, but the provider validates it is well-formed JSON (validate: "\"template_body\" contains an invalid JSON") - the generic placeholder string is neither short enough nor JSON.`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu-%s-provtmpl"`, g.cohort)))
@@ -71,7 +71,7 @@ var typeOverridesIot = map[string]typeOverride{
 	},
 	"aws_iot_topic_rule": {
 		Reasons: []string{
-			`"name" is this type's own identity argument (internal/live/identity/table.go), but the generic pass's tofu-<cohort>-<type> placeholder uses hyphens, and the provider validates topic rule names against ^[0-9A-Za-z_]+$ (validate: "Name must match the pattern ^[0-9A-Za-z_]+$") - hyphens are not in that set, unlike every other client-named IoT type in this cohort.`,
+			`"name" is this type's own identity argument (pkg/identity/table.go), but the generic pass's tofu-<cohort>-<type> placeholder uses hyphens, and the provider validates topic rule names against ^[0-9A-Za-z_]+$ (validate: "Name must match the pattern ^[0-9A-Za-z_]+$") - hyphens are not in that set, unlike every other client-named IoT type in this cohort.`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			body.SetAttributeRaw("name", exprTokens(fmt.Sprintf(`"tofu_%s_topic_rule"`, strings.ReplaceAll(g.cohort, "-", "_"))))

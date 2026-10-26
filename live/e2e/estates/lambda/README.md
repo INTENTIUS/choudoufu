@@ -7,7 +7,7 @@ one follows).
 
 This is the first cohort with real resources: it exercises every type
 `tools/row-gen`'s Lambda batch proposed and this batch ratified into
-`internal/live/lint/admission.go` and `internal/live/identity/table.go`.
+`internal/live/lint/admission.go` and `pkg/identity/table.go`.
 
 ## Coverage map
 
@@ -160,7 +160,7 @@ From `lambda.tf`:
 > admission strategy, #44's row-gen tool). Every resource below is one of
 > the five types this batch ratified into admittedTypesV0
 > (internal/live/lint/admission.go) and DefaultTable
-> (internal/live/identity/table.go) — see table.go's "Registry-ratified"
+> (pkg/identity/table.go) — see table.go's "Registry-ratified"
 > section comment for the per-type evidence, and for the two row-gen
 > proposals (aws_lambda_alias, aws_lambda_layer_version_permission) this
 > batch rejected and left out of both tables.

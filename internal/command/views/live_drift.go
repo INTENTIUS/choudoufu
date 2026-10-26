@@ -8,6 +8,7 @@ package views
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 )
 
 // The drift stream is live-plan -resource's output (GitHub issue #2245):
@@ -124,6 +125,10 @@ type LiveDriftReads struct {
 	SweepCalls      int      `json:"sweepCalls"`
 	ScanTypes       []string `json:"scanTypes"`
 	ScanListCalls   int      `json:"scanListCalls"`
+	// TagIndexCalls counts the Resource Groups Tagging API GetResources
+	// requests the cone's tag index made (one per page), filtered to the
+	// cone's types and the estate's tag (GitHub issue #2260).
+	TagIndexCalls int `json:"tagIndexCalls"`
 }
 
 // LiveDrift renders the drift stream. It satisfies [LivePlan] so the
@@ -132,6 +137,10 @@ type LiveDriftReads struct {
 // would leave stdout neither one thing nor the other.
 type LiveDrift struct {
 	view *View
+
+	// mu keeps lines whole: records are written from the plan walk's own
+	// goroutines as each instance is planned (GitHub issue #2260).
+	mu sync.Mutex
 }
 
 var _ LivePlan = (*LiveDrift)(nil)
@@ -171,6 +180,8 @@ func (v *LiveDrift) Settle(s LiveDriftSettle) bool {
 }
 
 func (v *LiveDrift) line(x any) bool {
+	v.mu.Lock()
+	defer v.mu.Unlock()
 	b, err := json.Marshal(x)
 	if err != nil {
 		_, _ = v.view.streams.Eprintln(fmt.Sprintf("\nError marshalling JSON: %s", err))
