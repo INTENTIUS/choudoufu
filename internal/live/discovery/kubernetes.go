@@ -103,6 +103,11 @@ type KubernetesSweep struct {
 	// ([FieldGranularTypeOf]), whose orphans the field-manager leg finds
 	// (GitHub issue #1863; kubernetes_fieldorphans.go). Empty lists none.
 	FieldGranular []FieldGranularType
+	// Cone, when non-nil, runs the leg for live-plan -resource's cone
+	// (GitHub issue #2260): only these types are listed, each listing is a
+	// scan rather than a sweep, and nothing undeclared is filed as an
+	// orphan. See conelegs.go.
+	Cone map[string]bool
 }
 
 // Leg is [substrate.SweepLabelList].
@@ -110,6 +115,9 @@ func (KubernetesSweep) Leg() substrate.Sweep { return substrate.SweepLabelList }
 
 // Sweep runs the leg.
 func (k KubernetesSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.Diagnostics {
+	if k.Cone != nil {
+		return k.sweepCone(ctx, in)
+	}
 	return k.sweep(ctx, in.Request, in.Result)
 }
 

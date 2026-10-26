@@ -8,10 +8,12 @@ package gcpsweep
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
 	cloudasset "google.golang.org/api/cloudasset/v1"
+	htransport "google.golang.org/api/transport/http"
 
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
@@ -82,6 +84,9 @@ type Client struct {
 	svc   *cloudasset.Service
 	attrs Attrs
 	creds Credentials
+	// http is the authenticated transport the per-type listers call their
+	// services through ([Client.ListType]).
+	http *http.Client
 }
 
 // New builds a client from a provider block's arguments, with the
@@ -105,8 +110,24 @@ func New(ctx context.Context, a Attrs) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("building the Cloud Asset client (%s): %w", a.Auth(), err)
 	}
-	return &Client{svc: svc, attrs: a, creds: a.Auth()}, nil
+	authOpts, err := a.authOptions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hc, _, err := htransport.NewClient(ctx, authOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("building the per-type list client (%s): %w", a.Auth(), err)
+	}
+	return &Client{svc: svc, attrs: a, creds: a.Auth(), http: hc}, nil
 }
+
+// Region is the provider block's region, the location a per-type list of
+// a type whose block names none is made under ([TypeList.Location]).
+func (c *Client) Region() string { return c.attrs.Region }
+
+// Zone is the provider block's zone, the zone hashicorp/google puts a zonal
+// resource in when its block names none.
+func (c *Client) Zone() string { return c.attrs.Zone }
 
 // Project is the provider block's project, the one project this client is
 // set to search when the configuration names no other: what a [Coverage]

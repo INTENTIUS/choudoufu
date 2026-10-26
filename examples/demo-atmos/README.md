@@ -34,6 +34,15 @@ Not part of the Atmos repo's own configuration: the workflow's report step
 (`.forgejo/composed-plan.mjs`) joins the components' slices of the joint plan
 into the one document chant's `terraform report` reads for behold.
 
+`live/demo_workaround_lint_test.go` (`TestAtmosDemoCarriesNoWorkaround`) fails
+if the tree, its scenario trees included, gains a workaround this demo once
+needed: `init_run_reconfigure: false`, `auto_generate_backend_file: false`, a
+pinned `metadata.terraform_workspace`, `workspaces_enabled: false`,
+`terraform_estate_outputs`, or a composed root (a module call to a directory
+with a `live` block). It also checks that `atmos.yaml` keeps `command:
+choudoufu` and the generated backend file, and that each component has a `live`
+block. It catches workarounds seen so far; a new kind is left to review.
+
 ## The workflow
 
 - Pull request: `atmos terraform plan --affected --include-dependents --ci`.

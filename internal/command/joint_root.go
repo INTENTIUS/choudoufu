@@ -63,6 +63,13 @@ func renderJointRoot(rootDir string, units []jointUnit) (string, error) {
 			if err != nil {
 				return "", fmt.Errorf("unit %s, variable %s: %w", u.ID, n, err)
 			}
+			if v.Sensitive {
+				// The unit declares it sensitive (#2219). Its module marks
+				// it once it arrives; wrapped here too, it is no constant in
+				// the joint plan's configuration (show -json gives no
+				// constant_value for a call), which the plan files carry.
+				expr = "sensitive(" + expr + ")"
+			}
 			fmt.Fprintf(&b, "  %s = %s\n", n, expr)
 		}
 		b.WriteString("}\n\n")

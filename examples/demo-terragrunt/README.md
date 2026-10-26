@@ -43,6 +43,16 @@ What differs from the docs' example, and why:
 - `mock_outputs_allowed_terraform_commands` lists `show` because the workflow's
   report step runs `terragrunt run -- show -json <plan file>` in each unit.
 
+`live/demo_workaround_lint_test.go` (`TestTerragruntDemoCarriesNoWorkaround`)
+fails if the tree, its scenario trees included, gains a workaround this demo
+once needed: a `generate "backend"` block in place of `remote_state`,
+`--no-dependency-fetch-output-from-state` or its `TG_` variable,
+`dependency_fetch_output_from_state = false`, `terraform_estate_outputs`, or a
+composed root (a module call to a directory with a `live` block). It also
+checks that `root.hcl` sets `terraform_binary = "choudoufu"` and keeps the
+`remote_state` block. It catches workarounds seen so far; a new kind is left
+to review.
+
 ## The workflow
 
 `.forgejo/workflows/terragrunt-choudoufu.yml` runs Terragrunt's own CLI.

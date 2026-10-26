@@ -2913,6 +2913,7 @@ refused, and each says so in its own entry.
 | - | - | discovery | Force refused over another estate's field | error | `internal/live/discovery` | "Force refused over another estate's field" |
 | - | - | discovery | GCP resource carries this estate's label and no declared address | warning | `internal/live/discovery` | "GCP resource carries this estate's label and no declared address" |
 | - | - | discovery | GCP sweep incomplete | warning | `internal/live/discovery` | "GCP sweep incomplete" |
+| - | - | discovery | GCP type list incomplete | warning | `internal/live/discovery` | "GCP type list incomplete" |
 | - | - | discovery | Incomplete sweep for undeclared resources | warning | `internal/live/discovery` | "Incomplete sweep for undeclared resources" |
 | - | - | discovery | Indistinguishable instances without per-instance markers | error | `internal/live/discovery` | "Indistinguishable instances without per-instance markers" |
 | - | - | discovery | Invalid estate name | error | `internal/live/discovery` | "Invalid estate name" |
@@ -3172,7 +3173,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**312 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**313 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -3565,6 +3566,14 @@ reserved for the limits wing's fixture directories, and
 #### GCP sweep incomplete
 
 **What.** GitHub issue #1119: the GCP leg could not search one project for the estate's label: the Cloud Asset API is not enabled there, the credential lacks cloudasset.assets.searchAllResources, a page failed part way, or no project is known. A gap in coverage, never a wrong plan.
+
+**Where.** The discovery pass, raised by `internal/live/discovery`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### GCP type list incomplete
+
+**What.** INTENTIUS/choudoufu#2264: a declared google type is listed through its own service so that two objects claiming one address are both seen, and this run could not make that list: a scope the configuration cannot name, or a list call that failed (a disabled service, a missing permission). Its declared instances are bound from the Cloud Asset Inventory index instead, which can lag a create, so a second object from a concurrent apply may not be reported as a collision until a later plan. The plan itself stands; this is a gap in coverage. To clear it, write the instance's project and location (and any parent, such as a crypto key's key_ring) as literals in its block or the provider block, enable the type's service in each project the estate names, and grant the principal the type's list permission (live/gcp/COMPATIBILITY.md lists them).
 
 **Where.** The discovery pass, raised by `internal/live/discovery`.
 

@@ -15,7 +15,7 @@ import (
 // Registered by init below; see contributing/LIVE-TABLES.md.
 var typeOverridesStreaming = map[string]typeOverride{
 	// Streaming and app integration batch (issue #65). Five of this
-	// cohort's types are server-assigned in internal/live/identity/table.go
+	// cohort's types are server-assigned in pkg/identity/table.go
 	// (no Components at all), so the generic pass's identityArgName never
 	// fires for their own "name" argument, which is itself a plain Required
 	// string in the real provider schema even though the type's *identity*

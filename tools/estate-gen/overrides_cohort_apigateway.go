@@ -16,7 +16,7 @@ import (
 var typeOverridesApigateway = map[string]typeOverride{
 	"aws_api_gateway_base_path_mapping": {
 		Reasons: []string{
-			`domain_name is not a parentRef candidate: it is one of two components of this type's own composite identity (domain_name + base_path, internal/live/identity/table.go), and "domain_name" is one of the argument names more than one admitted type self-identifies by - both API Gateway generations self-identify their own domain name types by it (issue #231) - so parentRef correctly refuses to guess which one this v1 type means, rather than making the same alphabetic-tiebreak mistake aws_apigatewayv2_routing_rule's own override below documents. This type is unambiguously v1 by its own name, unlike routing_rule; wired to the v1 aws_api_gateway_domain_name this cohort renders instead of the generic placeholder the refusal leaves behind, which names no domain aws_api_gateway_base_path_mapping's real API call would find. stage_name is Optional in the wire schema, so the required-only pass never visits it; the seed-derived example reference that used to supply it is skipped once a type carries any override entry (this file's own header comment on seedFromExample's suppression rule), so this override sets it by hand too, matching what the documented example wired it to.`,
+			`domain_name is not a parentRef candidate: it is one of two components of this type's own composite identity (domain_name + base_path, pkg/identity/table.go), and "domain_name" is one of the argument names more than one admitted type self-identifies by - both API Gateway generations self-identify their own domain name types by it (issue #231) - so parentRef correctly refuses to guess which one this v1 type means, rather than making the same alphabetic-tiebreak mistake aws_apigatewayv2_routing_rule's own override below documents. This type is unambiguously v1 by its own name, unlike routing_rule; wired to the v1 aws_api_gateway_domain_name this cohort renders instead of the generic placeholder the refusal leaves behind, which names no domain aws_api_gateway_base_path_mapping's real API call would find. stage_name is Optional in the wire schema, so the required-only pass never visits it; the seed-derived example reference that used to supply it is skipped once a type carries any override entry (this file's own header comment on seedFromExample's suppression rule), so this override sets it by hand too, matching what the documented example wired it to.`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			if domain, ok := g.byType["aws_api_gateway_domain_name"]; ok {
@@ -65,7 +65,7 @@ var typeOverridesApigateway = map[string]typeOverride{
 	// The three fold-children below (issue #68) all key on the same
 	// (rest_api_id, resource_id, http_method) triple aws_api_gateway_method
 	// above already does, since each duplicates the method's own composite
-	// identity verbatim (internal/live/identity/table.go's "Fold-children"
+	// identity verbatim (pkg/identity/table.go's "Fold-children"
 	// section comment) - parentRef mis-wires rest_api_id the same way as
 	// aws_api_gateway_documentation_version above (its only same-named
 	// candidate is aws_api_gateway_rest_api_policy.app, whose own identity

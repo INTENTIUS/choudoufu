@@ -101,6 +101,9 @@ import (
 type markerIndex struct {
 	client *cloudcontrol.Client
 	estate string
+	// typeFilters is [Request.TaggingTypeFilters]: nil for the estate-wide
+	// index, the cone's types for live-plan -resource.
+	typeFilters []string
 
 	once   sync.Once
 	tagged []cloudcontrol.TaggedResource
@@ -211,7 +214,7 @@ func newMarkerIndex(req Request) *markerIndex {
 	if req.Tagging == nil {
 		return nil
 	}
-	return &markerIndex{client: req.Tagging, estate: req.Estate}
+	return &markerIndex{client: req.Tagging, estate: req.Estate, typeFilters: req.TaggingTypeFilters}
 }
 
 // resources returns the estate's tagged resources, making the one
@@ -226,7 +229,7 @@ func (m *markerIndex) resources(ctx context.Context) ([]cloudcontrol.TaggedResou
 }
 
 func (m *markerIndex) fetch(ctx context.Context) {
-	m.tagged, m.err = m.client.GetResources(ctx, nil, []cloudcontrol.TagFilter{
+	m.tagged, m.err = m.client.GetResources(ctx, m.typeFilters, []cloudcontrol.TagFilter{
 		{Key: TagEstate, Values: []string{m.estate}},
 	})
 	if m.err != nil {

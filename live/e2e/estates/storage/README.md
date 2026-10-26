@@ -17,7 +17,7 @@ this cohort spans three CloudFormation services (EFS, FSx, Backup), and
 against the cohort name (`cohort.go`'s `defaultCohortTypes`).
 
 This cohort exercises every type this batch ratified into
-`internal/live/lint/admission.go` and `internal/live/identity/table.go`.
+`internal/live/lint/admission.go` and `pkg/identity/table.go`.
 
 ## Coverage map
 

@@ -27,7 +27,7 @@ into the pinned universe with no test-file edits.
 This cohort exists to prove the mechanism, not to ratify a type. It
 deliberately declares no resources: adding one here would mean adding a new
 managed resource type to the admission table and the identity table for
-real (`internal/live/lint/admission.go`, `internal/live/identity/table.go`),
+real (`internal/live/lint/admission.go`, `pkg/identity/table.go`),
 which is registry-expansion work belonging to whichever issue ratifies the
 next real batch, not to the mechanism that lets that batch land later
 without editing a test file. A future cohort with real resources replaces

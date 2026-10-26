@@ -54,9 +54,11 @@ const (
 //
 // # Atomicity and its limit: single-operator only
 //
-// [LocalStore.PutIfAbsent] is a single O_CREATE|O_EXCL open — atomic on
-// its own, no locking needed, exactly like a real filesystem's create
-// primitive already guarantees. [LocalStore.PutIfVersion] and
+// [LocalStore.PutIfAbsent] writes the payload to a temp file beside the
+// record and hard-links it to the record's name. The link fails if the name
+// exists, so it is atomic on its own with no locking needed, and a reader
+// sees either no file or the whole payload (GitHub issue #2259).
+// [LocalStore.PutIfVersion] and
 // [LocalStore.Delete] are a read, a compare, and a write (or removal);
 // nothing in POSIX makes that sequence atomic by itself, so each one holds
 // a sidecar "<file>.lock" file — itself an O_CREATE|O_EXCL create — for the
@@ -203,8 +205,7 @@ func writeAtomic(path string, payload []byte) error {
 }
 
 // acquireFileLock takes lockPath as a mutual-exclusion primitive (a bare
-// O_CREATE|O_EXCL create, same mechanism [LocalStore.PutIfAbsent] uses for
-// its own atomicity), retrying until it succeeds, ctx is canceled, or it
+// O_CREATE|O_EXCL create), retrying until it succeeds, ctx is canceled, or it
 // finds and breaks a lock old enough to belong to a crashed holder. The
 // returned release removes the lockfile.
 func acquireFileLock(ctx context.Context, lockPath string) (release func() error, err error) {
@@ -238,9 +239,14 @@ func (s *LocalStore) Get(_ context.Context, key string) ([]byte, string, bool, e
 	return readRecord(path)
 }
 
-// PutIfAbsent implements [Store]. It is a single O_CREATE|O_EXCL open, so
-// unlike [LocalStore.PutIfVersion] it needs no lockfile of its own: the
-// filesystem's own create primitive is already the atomicity.
+// PutIfAbsent implements [Store]. The payload goes to a temp file in the
+// record's directory first and is then hard-linked to the record's name.
+// os.Link refuses an existing name, the same create-if-absent primitive as
+// an O_CREATE|O_EXCL open, but the name only ever appears with the whole
+// payload behind it. The old O_EXCL open followed by a write let a
+// concurrent Get, or the losing writer's own conflict read, see an empty
+// file (GitHub issue #2259; the fix is plunge's, INTENTIUS/plunge#2). It
+// needs no lockfile of its own.
 func (s *LocalStore) PutIfAbsent(_ context.Context, key string, payload []byte) (string, error) {
 	path, err := s.pathFor(key)
 	if err != nil {
@@ -249,8 +255,24 @@ func (s *LocalStore) PutIfAbsent(_ context.Context, key string, payload []byte) 
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return "", fmt.Errorf("staterecord: local: creating the directory for %q: %w", key, err)
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // path derives from a validated key
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+tmpInfix+"*")
 	if err != nil {
+		return "", fmt.Errorf("staterecord: local: creating %q: %w", key, err)
+	}
+	tmpPath := tmp.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
+	_, werr := tmp.Write(payload)
+	cerr := tmp.Close()
+	if werr != nil {
+		return "", fmt.Errorf("staterecord: local: writing %q: %w", key, werr)
+	}
+	if cerr != nil {
+		return "", fmt.Errorf("staterecord: local: closing %q: %w", key, cerr)
+	}
+	if err := os.Chmod(tmpPath, 0o600); err != nil {
+		return "", fmt.Errorf("staterecord: local: writing %q: %w", key, err)
+	}
+	if err := os.Link(tmpPath, path); err != nil {
 		if errors.Is(err, os.ErrExist) {
 			_, actual, exists, gerr := readRecord(path)
 			if gerr != nil {
@@ -263,16 +285,6 @@ func (s *LocalStore) PutIfAbsent(_ context.Context, key string, payload []byte) 
 			return "", &VersionConflictError{Key: key, ExpectedVersion: "", ActualVersion: av}
 		}
 		return "", fmt.Errorf("staterecord: local: creating %q: %w", key, err)
-	}
-	_, werr := f.Write(payload)
-	cerr := f.Close()
-	if werr != nil {
-		_ = os.Remove(path)
-		return "", fmt.Errorf("staterecord: local: writing %q: %w", key, werr)
-	}
-	if cerr != nil {
-		_ = os.Remove(path)
-		return "", fmt.Errorf("staterecord: local: closing %q: %w", key, cerr)
 	}
 	return contentVersion(payload), nil
 }

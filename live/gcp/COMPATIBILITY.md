@@ -146,6 +146,84 @@ label and no declared address"): the label is matched, never decoded, so
 the plan cannot know which address to destroy it at. A deleted block's
 record proposes that removal instead.
 
+### Two creates of one server-assigned object
+
+Most google types are named by their configuration, and the API refuses a
+second create of the same name, so two concurrent applies cannot both
+create one. A labelled type whose identity the API assigns at create time
+can be created twice, and the next plan has to see both objects to name
+the collision ([CONCURRENCY.md](../CONCURRENCY.md)). The index can miss the
+newer one, so these types are listed through their own service, which reads
+the store the create wrote to, and both objects carrying one address label
+are a marker collision that refuses the plan. These types back the
+collision claim:
+
+| Type | Listed through |
+|---|---|
+| `google_active_directory_domain` | Managed Microsoft AD `domains.list` (`locations/global`) |
+| `google_document_ai_schema` | Document AI `schemas.list` |
+| `google_recaptcha_enterprise_key` | reCAPTCHA Enterprise `keys.list` |
+| `google_service_directory_namespace` | Service Directory `namespaces.list` |
+| `google_transcoder_job` | Transcoder `jobs.list` |
+| `google_vertex_ai_dataset` | Vertex AI `datasets.list` |
+| `google_vertex_ai_index` | Vertex AI `indexes.list` |
+| `google_vertex_ai_index_endpoint` | Vertex AI `indexEndpoints.list` |
+| `google_vertex_ai_reasoning_engine` | Vertex AI `reasoningEngines.list` |
+| `google_vertex_ai_tensorboard` | Vertex AI `tensorboards.list` |
+
+Each list is made in the project and location every declared instance
+names: its block's own `project`, `region` or `location`, else the provider
+block's project and, for Vertex AI, its region. The provider's
+`*_custom_endpoint` argument for the product, or its environment variable,
+is honoured. The principal needs the type's list permission
+(`aiplatform.indexEndpoints.list` and so on) and the service enabled. When
+a list cannot be made (a location written as another resource's attribute,
+a denied or disabled service), the plan warns "GCP type list incomplete"
+and binds that type from the index, as every other type is bound.
+
+Two server-assigned labelled types are bound from the index only and do
+not back the claim: `google_dialogflow_cx_intent`, listed under its agent,
+which is another resource's attribute at plan time, and
+`google_assured_workloads_workload`, listed under an organization rather
+than a project.
+
+### Every other type listed through its own service
+
+The same per-type listing covers 143 more labelled types, chosen by the
+rule plunge's `pkg/backend/plunge/gcplist` uses (INTENTIUS/plunge#15's
+ruling: consistent per-service listers for every covered type, the same in
+both repos). A type is covered when `pkg/identity.GoogleAssetImports` gives
+its Asset name and its service is one of the 28 in
+`internal/live/gcpsweep/servicelist.go`: Compute Engine, Cloud Storage,
+Pub/Sub, Cloud Run, Cloud Functions, Secret Manager, Artifact Registry,
+Cloud KMS, Cloud DNS, Memorystore for Redis and Memcached, Filestore,
+Spanner, AlloyDB, API Gateway, Eventarc, Certificate Manager, CA Service,
+Cloud Deploy, Network Services, Network Security, Network Connectivity,
+Dataproc, Cloud Workstations, Datastream, Dataproc Metastore, Managed
+Service for Apache Kafka and Parameter Manager. The list is the Asset
+name's parent collection (`projects/{{project}}/topics` for a topic,
+`projects/{{project}}/zones/{{zone}}/disks` for a disk, `b?project=` for
+buckets), read to the last page and kept by the estate's label client
+side. The 153 types both repos list are in
+`internal/live/gcpsweep/testdata/covered-types.txt`, and plunge carries an
+identical copy that its own test reads.
+
+Where such a list is made comes from the instance's block: `project`,
+`region` and `zone` fall back to the provider block's, as the provider
+defaults them, and a self link counts by its last segment. `location` is
+the block's own only, since the provider's default for it differs by type.
+A parent the path is under (a crypto key's `key_ring`, a map entry's `map`)
+is the block's argument of that name and has to be known from
+configuration alone. When one of these cannot be read, or the list fails,
+the plan warns "GCP type list incomplete" and binds the type from the
+index, as above. The principal needs the service enabled and its list
+permission for the collection (`pubsub.topics.list`, `compute.disks.list`,
+`storage.buckets.list` and so on).
+
+Cloud Storage documents bucket listing as strongly consistent. The other
+services publish no list consistency model; their lists read the service's
+own store, which is what a create race on floci-gcp checks.
+
 ### Known differences
 
 hashicorp/google reads `labels` and `terraform_labels` non-authoritatively:

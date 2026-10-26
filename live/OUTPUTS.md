@@ -275,7 +275,9 @@ the outputs as they always did (choudoufu#2213).
 - The values are the ones `output` returns: read from the record store, so a
   sensitive output and one not wholly known are never published, and a scoped
   apply does not blank outputs it did not evaluate. A whole destroy leaves a
-  document with no outputs.
+  document with no outputs. Each publish warns "Sensitive outputs were not
+  published to the backend", naming every output declared `sensitive = true`,
+  so a reader missing one is told which.
 - No backend block, a `local` one, or no record store: nothing happens.
 - The write goes through the backend's own state manager, so its locking is
   used (the S3 lockfile or DynamoDB table; gcs and azurerm locks), and the lock
@@ -386,6 +388,9 @@ them into one run:
   `*.auto.tfvars`, `-var`, `-var-file`), and the outputs it declares.
 - The composed root of "Composed runs" above is written over the units in the
   session, one module call per unit carrying that unit's inputs, and planned.
+  An input whose variable the unit declares `sensitive = true` is passed
+  wrapped in `sensitive()`, so the joint plan's configuration holds no
+  constant of it.
   It is planned again as each unit registers, so the plan after the last unit
   is one plan across all of them. Each unit is still its own estate, with its
   own record store and markers.

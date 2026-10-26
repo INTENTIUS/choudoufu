@@ -157,7 +157,7 @@ var typeOverridesConnectEuc = map[string]typeOverride{
 	},
 	// WorkSpacesWeb's eight *_association fold-children (issue #68's
 	// fold-child admission path merged mid-batch; see the batch banner
-	// comment in internal/live/identity/table.go for why none of the
+	// comment in pkg/identity/table.go for why none of the
 	// eight actually needs that path's own machinery). Both arguments are
 	// ARNs of server-assigned siblings, so gen.go's identityArgName-based
 	// auto-wiring never fires (the same reason aws_eip_association's own

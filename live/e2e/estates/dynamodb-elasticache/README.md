@@ -8,7 +8,7 @@ for the proof-of-mechanism cohort, and `live/e2e/estates/messaging/README.md`
 for the third registry-backed cohort this one follows).
 
 This cohort exercises every type this batch ratified into
-`internal/live/lint/admission.go` and `internal/live/identity/table.go`.
+`internal/live/lint/admission.go` and `pkg/identity/table.go`.
 
 ## Coverage map
 
