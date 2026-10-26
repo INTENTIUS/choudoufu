@@ -8,15 +8,19 @@ package projection
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tofu"
 )
 
@@ -303,5 +307,102 @@ func TestOptionalComputedProbeKeepsAnEchoOut(t *testing.T) {
 	}
 	if prior["insecure_value"] != nil {
 		t.Errorf("projected insecure_value = %#v, want null: the provider only echoed the probe, so the first read stands", prior["insecure_value"])
+	}
+}
+
+// TestOptionalComputedProbeRefusesASensitiveConfiguredValue: insecure_value
+// set from a `sensitive = true` variable reaches the probe as a marked value.
+// cty panics on a marked receiver and the probe never unmarks one, so the
+// attribute is not probed: there is one read, the first read stands with
+// insecure_value null, and nothing errors.
+func TestOptionalComputedProbeRefusesASensitiveConfiguredValue(t *testing.T) {
+	dir := t.TempDir()
+	const src = `
+terraform {
+  live {
+    estate = "ssm-2269-sensitive"
+  }
+}
+
+variable "v" {
+  type      = string
+  sensitive = true
+  default   = "v2"
+}
+
+resource "stub_parameter" "p" {
+  name           = "/p"
+  type           = "String"
+  insecure_value = var.v
+}
+`
+	if err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte(src), 0o600); err != nil {
+		t.Fatalf("writing fixture: %s", err)
+	}
+	cfg := loadConfig(t, dir)
+	addr := mustAddr(t, `stub_parameter.p`)
+	ctx := context.Background()
+	p := stubParameterProvider("v1")
+	reads := 0
+	read := p.ReadResourceFn
+	p.ReadResourceFn = func(r providers.ReadResourceRequest) providers.ReadResourceResponse {
+		reads++
+		return read(r)
+	}
+	provAddr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("stub")}
+	res, diags := BuildWith(ctx, cfg, []identity.Resolution{
+		{Addr: addr, Class: identity.ClassConcrete, ImportID: "/p", IdentityValues: map[string]string{"name": "/p"}},
+	}, SingleProvider(provAddr, p), Options{RecordStore: NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("ssm-2269-sensitive"))})
+	assertNoErrors(t, diags)
+	assertMaterialized(t, res, []string{`stub_parameter.p`})
+	if reads != 1 {
+		t.Errorf("%d reads of stub_parameter.p, want 1: a marked configured value is not probed", reads)
+	}
+	ri := res.State.ResourceInstance(addr)
+	if ri == nil || ri.Current == nil {
+		t.Fatal("stub_parameter.p is not in the projection")
+	}
+	var prior map[string]interface{}
+	if err := json.Unmarshal(ri.Current.AttrsJSON, &prior); err != nil {
+		t.Fatalf("the projected prior is not valid JSON: %s", err)
+	}
+	if prior["insecure_value"] != nil {
+		t.Errorf("projected insecure_value = %#v, want null: the probe declined, so the first read stands", prior["insecure_value"])
+	}
+}
+
+// TestOptionalComputedProbeDeclinesAMarkedSecondRead: the probe's second read
+// hands back the probed attribute marked (configuration marks restored by
+// readImported). probeOptionalComputed must return the first read rather
+// than unmark the value to compare it against the sentinel.
+func TestOptionalComputedProbeDeclinesAMarkedSecondRead(t *testing.T) {
+	ctx := context.Background()
+	schema := stubParameterSchema()
+	ty := schema.Block.ImpliedType()
+	p := stubParameterProvider("v1")
+	stubAttrs := map[string]cty.Value{}
+	for name, aty := range ty.AttributeTypes() {
+		stubAttrs[name] = cty.NullVal(aty)
+	}
+	stubAttrs["id"] = cty.StringVal("/p")
+	stub := states.ResourceInstanceObject{Status: states.ObjectReady, Value: cty.ObjectVal(stubAttrs)}
+
+	firstAttrs := map[string]cty.Value{}
+	for k, v := range stubAttrs {
+		firstAttrs[k] = v
+	}
+	firstAttrs["name"] = cty.StringVal("/p")
+	firstAttrs["type"] = cty.StringVal("String")
+	firstAttrs["version"] = cty.NumberIntVal(1)
+	firstAttrs["value"] = cty.StringVal("v1")
+	first := &states.ResourceInstanceObject{Status: states.ObjectReady, Value: cty.ObjectVal(firstAttrs)}
+
+	configMarks := []cty.PathValueMarks{{
+		Path:  cty.GetAttrPath("insecure_value"),
+		Marks: cty.NewValueMarks(marks.Sensitive),
+	}}
+	got := probeOptionalComputed(ctx, p, schema, "stub_parameter", "/p", stub, nil, configMarks, nil, []string{"insecure_value"}, first)
+	if got != first {
+		t.Fatalf("the probe kept a second read whose insecure_value was marked; want the first read back unchanged")
 	}
 }

@@ -44,6 +44,15 @@ import (
 // attribute that only echoed the sentinel put back to null. When every probed
 // attribute echoes the sentinel, or the second read fails, the first read
 // stands and nothing changes.
+//
+// A marked value never takes part. cty panics on a marked receiver, and a
+// sensitive input variable is the ordinary way to produce one; unmarking it
+// to compare against the sentinel would put a sensitive value on a path this
+// probe does not otherwise guard. So an attribute that is Sensitive in the
+// schema, or whose configured value is marked, is not probed, and a second
+// read that hands back a marked probed attribute (configuration marks it as
+// [readImported] restores them) declines the probe, leaving the first read to
+// stand as it did before #2269.
 
 // optionalComputedProbeKey is the reserved [readPrep.attrsSeed] key that
 // carries the probed attribute names (a list of strings) to [readImported].
@@ -57,9 +66,9 @@ const optionalComputedProbeSentinel = "\x00choudoufu-optional-computed-probe"
 
 // configuredOptionalComputedProbe names the attributes the probe is for:
 // flat, top-level, non-write-only string attributes that are Optional and
-// Computed, are not an identity attribute or a marker carrier
-// ([residueSeedNeverSeeds]), and are set by configuration to a known,
-// non-null value. seeded is the seed the read already carries; a name in it
+// Computed, are not Sensitive, are not an identity attribute or a marker
+// carrier ([residueSeedNeverSeeds]), and are set by configuration to a known,
+// non-null, unmarked value. seeded is the seed the read already carries; a name in it
 // (a residue record's value, #2261) needs no probe.
 func configuredOptionalComputedProbe(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.Module, rc *configs.Resource, schema providers.Schema, dataSchemas map[string]providers.Schema, seeded map[string]cty.Value) []string {
 	if eval == nil || rc == nil || schema.Block == nil {
@@ -73,7 +82,7 @@ func configuredOptionalComputedProbe(ctx context.Context, eval *configs.StaticEv
 	}
 	var names []string
 	for name, attr := range schema.Block.Attributes {
-		if attr == nil || !attr.Optional || !attr.Computed || attr.WriteOnly || attr.NestedType != nil || !attr.Type.Equals(cty.String) {
+		if attr == nil || !attr.Optional || !attr.Computed || attr.Sensitive || attr.WriteOnly || attr.NestedType != nil || !attr.Type.Equals(cty.String) {
 			continue
 		}
 		if identityAttrs[name] || residueSeedNeverSeeds[name] {
@@ -82,8 +91,10 @@ func configuredOptionalComputedProbe(ctx context.Context, eval *configs.StaticEv
 		if _, ok := seeded[name]; ok {
 			continue
 		}
-		val, _, ok := configuredAttrSeed(ctx, eval, ident, rc, attr, name, dataSchemas)
-		if !ok || val == cty.NilVal || val.IsNull() || !val.IsWhollyKnown() {
+		// configuredAttrSeed strips the value's marks into pvms; any mark at
+		// all means the configured value is sensitive, and it is not probed.
+		val, pvms, ok := configuredAttrSeed(ctx, eval, ident, rc, attr, name, dataSchemas)
+		if !ok || len(pvms) > 0 || val == cty.NilVal || val.IsNull() || val.IsMarked() || !val.IsWhollyKnown() {
 			continue
 		}
 		names = append(names, name)
@@ -123,12 +134,12 @@ func takeOptionalComputedProbe(seed map[string]cty.Value) (names []string, rest 
 			rest[k] = sv
 		}
 	}
-	if v.IsNull() || !v.IsKnown() || !v.Type().IsListType() || !v.Type().ElementType().Equals(cty.String) {
+	if v.IsNull() || !v.IsKnown() || v.IsMarked() || !v.Type().IsListType() || !v.Type().ElementType().Equals(cty.String) {
 		return nil, rest, false
 	}
 	for it := v.ElementIterator(); it.Next(); {
 		_, ev := it.Element()
-		if !ev.IsNull() && ev.IsKnown() {
+		if !ev.IsNull() && ev.IsKnown() && !ev.IsMarked() {
 			names = append(names, ev.AsString())
 		}
 	}
@@ -165,11 +176,15 @@ func probeOptionalComputed(ctx context.Context, provider providers.Interface, sc
 		log.Printf("[TRACE] projection: the Optional+Computed probe read of %s %q did not materialize; keeping the first read", typeName, importID)
 		return first
 	}
-	secondVal, _ := second.Value.UnmarkDeep()
 	read := false
 	restore := map[string]cty.Value{}
 	for _, n := range probed {
-		v := secondVal.GetAttr(n)
+		v := second.Value.GetAttr(n)
+		if v.IsMarked() {
+			// Refused, never unmarked: see the file comment.
+			log.Printf("[TRACE] projection: the Optional+Computed probe read of %s %q holds %s marked; keeping the first read", typeName, importID, n)
+			return first
+		}
 		if v.IsKnown() && !v.IsNull() && v.AsString() == optionalComputedProbeSentinel {
 			restore[n] = cty.NullVal(cty.String)
 			continue
