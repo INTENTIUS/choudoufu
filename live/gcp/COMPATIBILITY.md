@@ -182,11 +182,26 @@ a list cannot be made (a location written as another resource's attribute,
 a denied or disabled service), the plan warns "GCP type list incomplete"
 and binds that type from the index, as every other type is bound.
 
-Two server-assigned labelled types are bound from the index only and are
-not what the race tests: `google_dialogflow_cx_intent`, listed under its agent,
-which is another resource's attribute at plan time, and
-`google_assured_workloads_workload`, listed under an organization rather
-than a project.
+One server-assigned labelled type is bound from the index only and is not
+what the race tests: `google_dialogflow_cx_intent`, listed under its agent,
+which is another resource's attribute at plan time.
+`google_assured_workloads_workload` is listed under its organization, below.
+
+### Types with no Asset name
+
+Three labelled types have no Asset name in `pkg/identity`, so the rule
+below does not derive them, and each is written out in
+`internal/live/gcpsweep/handwrittenlist.go` (INTENTIUS/choudoufu#2274,
+paired with plunge#19, whose `gcplist/handwritten.go` lists the same
+three). Each binds, consistency unmeasured. A listed object is named by its
+documented Asset name, and its import ID is that name's path, which is the
+type's import syntax.
+
+| Type | Listed through | Binds |
+|---|---|---|
+| `google_sql_database_instance` | Cloud SQL Admin `instances.list` (`projects/{{project}}/instances`), labels from `settings.userLabels` | binds, consistency unmeasured |
+| `google_container_cluster` | GKE `clusters.list` at `projects/{{project}}/locations/-/clusters` (every location), labels from `resourceLabels` | binds, consistency unmeasured |
+| `google_assured_workloads_workload` | Assured Workloads `workloads.list` at `organizations/{{organization}}/locations/{{location}}/workloads`, from the block's own `organization` and `location` | binds, consistency unmeasured |
 
 ### Every other type listed through its own service
 
@@ -205,7 +220,7 @@ Service for Apache Kafka and Parameter Manager. The list is the Asset
 name's parent collection (`projects/{{project}}/topics` for a topic,
 `projects/{{project}}/zones/{{zone}}/disks` for a disk, `b?project=` for
 buckets), read to the last page and kept by the estate's label client
-side. The 153 types both repos list are in
+side. With the three above, the 156 types both repos list are in
 `internal/live/gcpsweep/testdata/covered-types.txt`, and plunge carries an
 identical copy that its own test reads.
 

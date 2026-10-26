@@ -422,6 +422,11 @@ func (d gcpDemand) unsearched(decl *declared, res *Result, why string, listed ma
 // the Cloud Storage JSON API's and IAM's form.
 func gcpClaimant(a gcpsweep.Asset, typeName, address, escaped string) claimant {
 	importID, ok := identity.GoogleAssetImportID(typeName, a.Name)
+	if !ok {
+		// A covered type with no Asset name in pkg/identity
+		// (INTENTIUS/choudoufu#2274): its import ID is its Asset name's path.
+		importID, ok = gcpsweep.HandwrittenImportID(typeName, a.Name)
+	}
 	c := claimant{
 		importID:     importID,
 		identityAttr: "id",
