@@ -250,16 +250,39 @@ func (b *builder) fillResidueFor(ctx context.Context, addr addrs.AbsResourceInst
 // caller enforces this by only merging in a name absent from its own seed
 // map, not by anything here.
 //
-// This does not widen WHICH attributes are safe to seed beyond
-// [residueConfigSourced]'s own population - the residue record may hold
-// other, provider-blind attributes (aws_lambda_function.filename and its
-// like) that [fillResidueFor] already handles correctly post-read, and
-// this function deliberately leaves those to it rather than seeding them
-// too. Feeding a non-null value into a Read the provider genuinely never
-// consults for that attribute would very likely be harmless (the provider
-// would just leave the seed untouched, same as an empty stub), but that
-// claim is not exercised or asserted anywhere in this change, so it is not
-// made here.
+// # Optional+Computed residue (GitHub issue #2261)
+//
+// A recorded attribute that configuration can set but that is also
+// Computed is seeded here too, from the record alone. [classifyResidue]
+// only records such an attribute when a bare-identity read left it empty
+// and a read given the applied value echoed it back, so the record is the
+// last-applied value a state file's PriorState would carry. Leaving it to
+// the post-read fill is not equivalent for a provider whose Read decides
+// WHERE to put what it read by looking at the prior.
+//
+// hashicorp/aws's aws_ssm_parameter is the confirmed case (chant#4470).
+// Its Read writes the parameter's value into insecure_value only when the
+// prior already has insecure_value set, and into the sensitive value
+// otherwise. Read from a bare import stub, it put "v1" into value; the
+// post-read fill then put the recorded "v1" back into insecure_value, so
+// the prior carried the value twice. The provider's CustomizeDiff then
+// chains: insecure_value changed, so value is marked computed; value's
+// prior "v1" now differs from that computed value, so insecure_value is
+// marked computed as well, and the plan read `insecure_value = "v1" ->
+// (known after apply)`. At apply, terraform-plugin-sdk/v2's
+// ApplyResourceChange removes unknowns from the planned value before
+// diffing it against the prior, so an Optional+Computed attribute planned
+// unknown reads as unset and produces no diff. Update's HasChangesExcept
+// was false, no PutParameter was sent, and the apply reported one change.
+// A state-backed run never sees this, because its prior carries
+// insecure_value into the read and value stays null.
+//
+// A Computed-only residue attribute (aws_nat_gateway's
+// regional_nat_gateway_address) is still left to the post-read fill:
+// nothing configures it, so no plan compares it with configuration. A
+// marker-carrying attribute ([residueSeedNeverSeeds]) is never seeded,
+// because ownership is decided on what the cloud said, and a sensitive one
+// is not seeded under `secrets = "refuse"`, for [fillResidue]'s reason.
 //
 // Every failure is silent and best-effort, matching [fillResidueFor]'s own
 // stance for the identical store: this run's own later call to
@@ -316,6 +339,7 @@ func (b *builder) residueSeedFor(ctx context.Context, w wanted, schema providers
 		return nil
 	}
 	configSourced := residueConfigSourced(schema)
+	refusesSecrets := !strict.StoresSecrets(identity.SecretsFor(b.cfg))
 	var out map[string]cty.Value
 	for name, val := range attrs {
 		if isResiduePathKey(name) {
@@ -346,7 +370,7 @@ func (b *builder) residueSeedFor(ctx context.Context, w wanted, schema providers
 			out[name] = val
 			continue
 		}
-		if !configSourced[name] {
+		if !configSourced[name] && !residueSeedOptionalComputed(schema.Block.Attributes[name], name, refusesSecrets) {
 			continue
 		}
 		if out == nil {
@@ -355,6 +379,37 @@ func (b *builder) residueSeedFor(ctx context.Context, w wanted, schema providers
 		out[name] = val
 	}
 	return out
+}
+
+// residueSeedNeverSeeds names the attributes that carry this fork's
+// ownership marker or a provider's tag merge. [builder.residueSeedFor]
+// never seeds them into a read's prior, whatever their schema says: the
+// marker is what answers "does this estate own this", and that answer has
+// to come from the cloud.
+var residueSeedNeverSeeds = map[string]bool{
+	"tags":             true,
+	"tags_all":         true,
+	"labels":           true,
+	"effective_labels": true,
+	"terraform_labels": true,
+}
+
+// residueSeedOptionalComputed reports whether a recorded attribute outside
+// [residueConfigSourced]'s population is still seeded before the read: a
+// flat, top-level attribute that configuration can set (Optional) and the
+// provider may also compute. See [builder.residueSeedFor]'s "Optional+Computed
+// residue" section (GitHub issue #2261).
+func residueSeedOptionalComputed(attr *configschema.Attribute, name string, refusesSecrets bool) bool {
+	if attr == nil || attr.WriteOnly || attr.NestedType != nil || residueSeedNeverSeeds[name] {
+		return false
+	}
+	if !attr.Optional || !attr.Computed {
+		return false
+	}
+	if attr.Sensitive && refusesSecrets {
+		return false
+	}
+	return true
 }
 
 // residueIdentityStale reports whether w's record-envelope identity - the
