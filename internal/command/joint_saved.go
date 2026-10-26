@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plans/planfile"
 )
 
@@ -64,17 +65,27 @@ func (s *jointSession) writeStubs(tool *jointTool) error {
 	}
 	lock, _ := os.ReadFile(filepath.Join(s.rootDir(st), ".terraform.lock.hcl"))
 	units := s.units()
-	b := &jointBundle{Plan: plan, Doc: doc, Units: units, Lock: lock}
+	_, inputs, err := renderJointRootInputs(s.rootDir(st), units)
+	if err != nil {
+		return err
+	}
 	for _, u := range units {
 		if u.Out == "" {
 			continue
+		}
+		b, err := jointBundleFor(u.ID, plan, doc, units, lock, inputs)
+		if err != nil {
+			return err
 		}
 		body, err := json.Marshal(jointStub{Magic: 1, Session: s.dir, Unit: u.ID, Serial: st.Serial, Units: st.Units, Run: filepath.Base(s.dir), Tool: tool.Kind, Bundle: b})
 		if err != nil {
 			return err
 		}
+		// 0600: the file carries the joint plan, which holds planned values
+		// of every unit's resources, sensitive ones included, as a stock
+		// plan file does (#2270).
 		tmp := u.Out + ".choudoufu-tmp"
-		if err := os.WriteFile(tmp, body, 0o644); err != nil {
+		if err := os.WriteFile(tmp, body, 0o600); err != nil {
 			return err
 		}
 		if err := os.Rename(tmp, u.Out); err != nil {
@@ -84,9 +95,165 @@ func (s *jointSession) writeStubs(tool *jointTool) error {
 	return nil
 }
 
+// jointBundleFor is the bundle unit's plan file carries: the joint plan
+// with every other unit's sensitive inputs left out (#2270). inputs are the
+// composed root's sensitive input variables ([renderJointRootInputs]). The
+// plan's values for those variables are dropped, show -json's variables
+// lose them, and the units' Vars hold null for them, marked Withheld. The
+// unit's own sensitive inputs stay, so the file of each unit is where its
+// values are found again at apply ([jointRestoreWithheld]).
+func jointBundleFor(unit string, plan, doc []byte, units []jointUnit, lock []byte, inputs map[string]jointSensitiveInput) (*jointBundle, error) {
+	withheld := map[string]bool{}
+	for rv, in := range inputs {
+		if in.Unit != unit {
+			withheld[rv] = true
+		}
+	}
+	if len(withheld) == 0 {
+		return &jointBundle{Plan: plan, Doc: doc, Units: units, Lock: lock}, nil
+	}
+	stripped, err := planfile.RewriteVariableValues(plan, func(vv map[string]plans.DynamicValue) {
+		for rv := range withheld {
+			delete(vv, rv)
+		}
+	})
+	if err != nil {
+		return nil, fmt.Errorf("leaving other units' sensitive inputs out of the plan file of unit %s: %w", unit, err)
+	}
+	var parsed map[string]json.RawMessage
+	if err := json.Unmarshal(doc, &parsed); err == nil {
+		var vars map[string]json.RawMessage
+		if err := json.Unmarshal(parsed["variables"], &vars); err == nil {
+			for rv := range withheld {
+				delete(vars, rv)
+			}
+			if vb, err := json.Marshal(vars); err == nil {
+				parsed["variables"] = vb
+				if db, err := json.Marshal(parsed); err == nil {
+					doc = db
+				}
+			}
+		}
+	}
+	out := make([]jointUnit, len(units))
+	for i, u := range units {
+		out[i] = u
+		if u.ID == unit {
+			continue
+		}
+		vars := make(map[string]jointVar, len(u.Vars))
+		for n, v := range u.Vars {
+			if withheld[jointSensitiveVarName(u.ID, n)] {
+				v.Value, v.Withheld = json.RawMessage("null"), true
+			}
+			vars[n] = v
+		}
+		out[i].Vars = vars
+	}
+	return &jointBundle{Plan: stripped, Doc: doc, Units: out, Lock: lock}, nil
+}
+
+// jointRestoreWithheld puts back into stub's bundle the sensitive inputs of
+// the other units, which their own plan files carry (#2270). Each unit's
+// file is looked for where it lies relative to this one as at plan time
+// (Terragrunt's --out-dir keeps that layout), then at the path it was
+// planned to. A file found must be of the same tool run and joint plan.
+func jointRestoreWithheld(stub jointStub, stubPath string) error {
+	b := stub.Bundle
+	var self jointUnit
+	for _, u := range b.Units {
+		if u.ID == stub.Unit {
+			self = u
+		}
+	}
+	values := map[string]plans.DynamicValue{}
+	for i, u := range b.Units {
+		var names []string
+		for n, v := range u.Vars {
+			if v.Withheld {
+				names = append(names, n)
+			}
+		}
+		if len(names) == 0 {
+			continue
+		}
+		sort.Strings(names)
+		other, where, err := jointFindUnitFile(stub, stubPath, self, u)
+		if err != nil {
+			return fmt.Errorf("unit %s's sensitive inputs (%s) are kept only in its own plan file, and %s. Apply with every unit's plan file where it was planned (for Terragrunt, the same --out-dir layout)", u.ID, strings.Join(names, ", "), err)
+		}
+		vv, err := planfile.ReadVariableValues(other.Bundle.Plan)
+		if err != nil {
+			return fmt.Errorf("reading the plan file of unit %s at %s: %w", u.ID, where, err)
+		}
+		var theirs jointUnit
+		for _, ou := range other.Bundle.Units {
+			if ou.ID == u.ID {
+				theirs = ou
+			}
+		}
+		vars := make(map[string]jointVar, len(u.Vars))
+		for n, v := range u.Vars {
+			vars[n] = v
+		}
+		for _, n := range names {
+			rv := jointSensitiveVarName(u.ID, n)
+			dv, ok := vv[rv]
+			tv, tok := theirs.Vars[n]
+			if !ok || !tok || tv.Withheld {
+				return fmt.Errorf("the plan file of unit %s at %s does not carry its sensitive input %s", u.ID, where, n)
+			}
+			values[rv] = dv
+			vars[n] = tv
+		}
+		b.Units[i].Vars = vars
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	plan, err := planfile.RewriteVariableValues(b.Plan, func(vv map[string]plans.DynamicValue) {
+		for rv, dv := range values {
+			vv[rv] = dv
+		}
+	})
+	if err != nil {
+		return err
+	}
+	b.Plan = plan
+	return nil
+}
+
+// jointFindUnitFile finds the plan file of unit u for an apply of the file
+// at stubPath, which is self's.
+func jointFindUnitFile(stub jointStub, stubPath string, self, u jointUnit) (jointStub, string, error) {
+	var candidates []string
+	if self.Out != "" && u.Out != "" {
+		if rel, err := filepath.Rel(filepath.Dir(self.Out), u.Out); err == nil {
+			candidates = append(candidates, filepath.Join(filepath.Dir(stubPath), rel))
+		}
+	}
+	if u.Out != "" {
+		candidates = append(candidates, u.Out)
+	}
+	if len(candidates) == 0 {
+		return jointStub{}, "", fmt.Errorf("the unit asked for no plan file")
+	}
+	for _, c := range candidates {
+		other, ok := readJointStub(c)
+		if !ok || other.Bundle == nil || other.Unit != u.ID {
+			continue
+		}
+		if other.Run != stub.Run || other.Serial != stub.Serial {
+			continue
+		}
+		return other, c, nil
+	}
+	return jointStub{}, "", fmt.Errorf("no plan file of this joint plan for it was found at %s", strings.Join(candidates, " or "))
+}
+
 // rebuildSession makes a session for this apply run out of a plan file whose
 // own session is not here. Every unit's apply in the run finds the same one.
-func (c *jointCommand) rebuildSession(stub jointStub, tool *jointTool) (*jointSession, error) {
+func (c *jointCommand) rebuildSession(stub jointStub, stubPath string, tool *jointTool) (*jointSession, error) {
 	sess, err := openJointSession(tool.ID + "-from-" + stub.Run)
 	if err != nil {
 		return nil, err
@@ -98,6 +265,9 @@ func (c *jointCommand) rebuildSession(stub jointStub, tool *jointTool) (*jointSe
 	defer unlock()
 	if st := sess.loadState(); st.OK {
 		return sess, nil
+	}
+	if err := jointRestoreWithheld(stub, stubPath); err != nil {
+		return nil, err
 	}
 	b := stub.Bundle
 	planPath := sess.path("joint.plan")
