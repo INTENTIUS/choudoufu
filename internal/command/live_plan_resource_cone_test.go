@@ -23,6 +23,8 @@ import (
 	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -66,6 +68,26 @@ func assertConeObserved(t *testing.T, stdout, addr string) {
 	}
 }
 
+// provisionConeSentinel writes the record store sentinel that an ordinary
+// plan under the estate's full role provisions once (#693). -resource reads
+// records by key and refuses a store with no sentinel, so each test puts one
+// in the default local store (".tofu-records" beside the module, in the
+// working directory) before it runs.
+func provisionConeSentinel(t *testing.T, estate string) {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := staterecord.NewLocalStore(filepath.Join(wd, ".tofu-records"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.PutIfAbsent(context.Background(), projection.SentinelKey(projection.RecordKeyPrefix(estate)), []byte("sentinel")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // coneLegKubernetes replaces the label-list leg's builder with one over
 // cluster, recording the leg the command built.
 func coneLegKubernetes(t *testing.T, cluster kubesweep.Sweeper, types []string) *[]discovery.KubernetesSweep {
@@ -96,6 +118,7 @@ func coneLegKubernetes(t *testing.T, cluster kubesweep.Sweeper, types []string) 
 // it as observed.
 func TestLivePlanResource_kubernetesConeLegBindsARefusedInstance(t *testing.T) {
 	writeRefusedHookupDir(t, true)
+	provisionConeSentinel(t, "smoke-k8s")
 	cluster := refusedHookupCluster()
 	built := coneLegKubernetes(t, cluster, []string{"kubernetes_config_map"})
 	m, done := refusedHookupMeta(t, refusedHookupProvider())
@@ -176,6 +199,7 @@ func TestLivePlanResource_gcpConeLegSearchesByAddress(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(td, "main.tf"), []byte(coneGCPRoot), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	provisionConeSentinel(t, coneGCPEstate)
 	const endpointID = "projects/proj-a/locations/us-central1/indexEndpoints/site-key"
 	addr := "google_vertex_ai_index_endpoint.site"
 	instance, diags := addrs.ParseAbsResourceInstanceStr(addr)
@@ -258,8 +282,10 @@ func TestLivePlanResource_gcpConeLegSearchesByAddress(t *testing.T) {
 	if searches != 0 {
 		t.Errorf("the cone leg ran %d estate-wide search(es); it searches by address only", searches)
 	}
-	if len(addresses) == 0 || addresses[0] != addr {
-		t.Errorf("address searches %v, want one for %s", addresses, addr)
+	// SearchAddress takes the tofu-address label's value, which is the
+	// address in GCP's label encoding, as the leg's demand is keyed.
+	if want := markers.GoogleAddressValue(instance); len(addresses) == 0 || addresses[0] != want {
+		t.Errorf("address searches %v, want one for %s (%s)", addresses, want, addr)
 	}
 	assertConeObserved(t, out.Stdout(), addr)
 }
@@ -294,13 +320,12 @@ const (
 	coneAzureCertID = "/subscriptions/" + coneAzureSub + "/resourceGroups/cone-rg/providers/Microsoft.Web/certificates/cert-minted"
 )
 
+// coneAzureRoot declares no live block, and the test names the estate with
+// -estate. A live block always has a record store (the local one is implied,
+// #364), and with one the type resolves record-located (#2205's first
+// answer), so the record finds it and no leg is built. Marker discovery by
+// Resource Graph is the answer for an estate with no record store.
 const coneAzureRoot = `
-terraform {
-  live {
-    estate = "` + coneAzureEstate + `"
-  }
-}
-
 provider "azurerm" {
   subscription_id = "` + coneAzureSub + `"
   features {
@@ -372,7 +397,7 @@ func TestLivePlanResource_azureConeLegNarrowsByType(t *testing.T) {
 			},
 		}},
 	}
-	code := (&LivePlanCommand{Meta: m}).Run([]string{"-no-color", "-resource=" + addr})
+	code := (&LivePlanCommand{Meta: m}).Run([]string{"-no-color", "-estate=" + coneAzureEstate, "-resource=" + addr})
 	out := done(t)
 	if code != 0 {
 		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", code, out.Stdout(), out.Stderr())
