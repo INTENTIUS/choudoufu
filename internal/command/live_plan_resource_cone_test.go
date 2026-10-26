@@ -55,7 +55,7 @@ func coneRecord(t *testing.T, stdout, addr string) (map[string]any, map[string]a
 
 // assertConeObserved is what every family's test asks of the record: the
 // instance was bound and read (in-sync, or drifted where the fake's plan
-// differs), and the run made no sweep call.
+// differs), and the run made no record list call and no sweep call (#2260).
 func assertConeObserved(t *testing.T, stdout, addr string) {
 	t.Helper()
 	rec, settle := coneRecord(t, stdout, addr)
@@ -63,6 +63,9 @@ func assertConeObserved(t *testing.T, stdout, addr string) {
 		t.Errorf("%s status %v, want in-sync or drifted: the cone leg should have found its object (record %v)", addr, status, rec)
 	}
 	reads, _ := settle["reads"].(map[string]any)
+	if reads["recordListCalls"] != float64(0) {
+		t.Errorf("drift-settle recordListCalls = %v, want 0: -resource reads records by key, never by listing", reads["recordListCalls"])
+	}
 	if reads["sweepCalls"] != float64(0) {
 		t.Errorf("drift-settle sweepCalls = %v, want 0: a cone leg's listings are scans", reads["sweepCalls"])
 	}
