@@ -110,7 +110,40 @@ func publishOutputsState(ctx context.Context, config *configs.Config, outputs *p
 	if werr := writeOutputsState(ctx, mgr, values); werr != nil {
 		return warn(werr.Error())
 	}
-	return nil
+	return sensitiveOutputsLeftOut(config.Module, be.Type)
+}
+
+// SummarySensitiveOutputsNotPublished is the warning naming each sensitive
+// root output the published document leaves out (#2217).
+const SummarySensitiveOutputsNotPublished = "Sensitive outputs were not published to the backend"
+
+// sensitiveOutputsLeftOut is the warning naming every root output declared
+// `sensitive = true`, which the published document never carries: the record
+// store does not hold a sensitive value, and a state file read without the
+// binary is no place to put one. A reader of the document that expects one of
+// them gets no such attribute, so the warning says which, by name, in sorted
+// order. No sensitive output is no warning.
+func sensitiveOutputsLeftOut(mod *configs.Module, backendType string) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if mod == nil {
+		return diags
+	}
+	var names []string
+	for name, o := range mod.Outputs {
+		if o != nil && o.Sensitive {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return diags
+	}
+	sort.Strings(names)
+	quoted := make([]string, len(names))
+	for i, n := range names {
+		quoted[i] = fmt.Sprintf("%q", n)
+	}
+	return diags.Append(tfdiags.Sourceless(tfdiags.Warning, SummarySensitiveOutputsNotPublished,
+		fmt.Sprintf("The outputs document published to the %q backend leaves out %d sensitive output(s): %s. A terraform_remote_state or !terraform.state reader gets no value for them; read them with `choudoufu output` instead.", backendType, len(names), strings.Join(quoted, ", "))))
 }
 
 // recordedOutputsOf reads every declared root output the record store holds.
