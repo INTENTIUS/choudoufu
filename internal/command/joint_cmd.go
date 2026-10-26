@@ -538,7 +538,7 @@ func (c *jointCommand) jointApply(args []string) (int, bool) {
 			return 1, true
 		}
 		var err error
-		if sess, err = c.rebuildSession(stub, tool); err != nil {
+		if sess, err = c.rebuildSession(stub, stubPath, tool); err != nil {
 			c.stderr("%s", err)
 			return 1, true
 		}

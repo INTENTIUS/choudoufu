@@ -141,10 +141,25 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"_reasoning_engine and google_document_ai_schema are on regional hosts ({{region}}-aiplatform, " +
 			"{{location}}-documentai) that a Services Root cannot spell, and adding their hosts would also move the " +
 			"covered set off the list plunge shares (testdata/covered-types.txt). Each row is the provider's own " +
-			"create collection and the API reference's list field, read at hashicorp/google 8.6.0. NotCovered's two " +
-			"rows are the server-assigned types with no project-scoped list (a parent agent; an organization). " +
+			"create collection and the API reference's list field, read at hashicorp/google 8.6.0. NotCovered's one " +
+			"row is the server-assigned type with no list it can scope at plan time (its parent agent); " +
+			"google_assured_workloads_workload left it for handwrittenlist.go in INTENTIUS/choudoufu#2274. " +
 			"Code is 0: Covered and CoveredTypes are keyed lookups.",
-		Data: 12, Code: 0,
+		Data: 11, Code: 0,
+	},
+	"internal/live/gcpsweep/handwrittenlist.go": {
+		Reason: "handwrittenLists (INTENTIUS/choudoufu#2274, paired with INTENTIUS/plunge#19's gcplist/handwritten.go, " +
+			"which lists the same three): the covered types servicelist.go's rule cannot derive because pkg/identity " +
+			"holds no GoogleAssetImports row for them. google_sql_database_instance and google_container_cluster have " +
+			"ratified Components rows and no Asset template; google_assured_workloads_workload has no row because " +
+			"its documented Asset name //assuredworkloads.googleapis.com/{WORKLOAD} carries none of its import " +
+			"format's parts (importids_generated_google.go records that). A row would not be enough either: what each " +
+			"entry carries is a fact of its own list API that no committed artifact states, read from the API " +
+			"reference and the Asset names page - Cloud SQL's Asset host is cloudsql.googleapis.com while its list " +
+			"is at sqladmin, GKE is listed at locations/- and names each cluster from its own location field, and " +
+			"Assured Workloads lists under the organization its required argument names. Code is 0: " +
+			"HandwrittenImportID is a keyed lookup.",
+		Data: 3, Code: 0,
 	},
 	"internal/live/discovery/directread.go": {
 		Reason: "directReadTypes (issue #1046): the narrow, hand-verified registry of ServerAssigned types whose live " +
@@ -843,7 +858,12 @@ const (
 	// internal/live/gcpsweep/typelist.go (12 / 0), the ten hand-listed
 	// server-assigned GCP types and NotCovered's two, never registered when
 	// the file landed. 12 new Data literals, none moved.
-	typeLiteralDataTotal = 1371
+	// 1371 -> 1373 data, code unchanged, on 2026-10-26 (#2274):
+	// internal/live/gcpsweep/handwrittenlist.go (3 / 0), Cloud SQL, GKE
+	// clusters and Assured Workloads listed per type, never registered when
+	// the file landed; google_assured_workloads_workload moved there out of
+	// typelist.go's NotCovered (12 -> 11). 2 new Data literals, 1 moved.
+	typeLiteralDataTotal = 1373
 	typeLiteralCodeTotal = 140
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

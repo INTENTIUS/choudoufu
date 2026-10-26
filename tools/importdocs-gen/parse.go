@@ -15,7 +15,7 @@ import (
 
 // candidateSeparators is the closed set of join characters this tool will
 // ever report. It is not a guess space: it is exactly the set already live
-// in internal/live/identity/table.go's DefaultTable ("/", ":", "_", ",")
+// in pkg/identity's DefaultTable ("/", ":", "_", ",")
 // plus Cloud Control's own "|" (issue #44's non-goals note names both sets).
 // A character outside this set never becomes a Separator value, however
 // confidently a doc's prose might use one - conservatism the issue asks for

@@ -51,13 +51,28 @@ reach them.
   table has no row for is left out of the call rather than widen it to the
   estate. The calls are counted in `tagIndexCalls`.
 - On Azure, GCP and Kubernetes a server-assigned instance is found by the
-  family's own leg, run for the cone's types alone (GitHub issue #2260):
-  Kubernetes lists the cone's kinds, label-filtered to the estate; GCP
-  searches Cloud Asset Inventory for each instance's own `tofu-address`
-  label; Azure sends the Resource Graph query narrowed to the cone types'
-  ARM types. Each of those listings is a scan of the type, counted in
-  `scanTypes` and `scanListCalls`, and nothing they list is filed as an
-  orphan.
+  family's own leg, run for the cone's types alone (GitHub issue #2260),
+  and the provider is not asked to list those types:
+  - Kubernetes lists the kinds the cone's types manage, label-filtered to
+    the estate, and binds the instance to the object its address
+    annotation names. A Kubernetes instance never needs discovery, so the
+    leg is for one whose name the static evaluator refused (it reads
+    another resource), which joins the cone as the estate sweep binds it
+    (INTENTIUS/choudoufu#2267). When a kind cannot be listed, the type is
+    refused as not listable rather than planned as a create
+    (INTENTIUS/choudoufu#2266).
+  - GCP searches Cloud Asset Inventory for each instance's own
+    `tofu-address` label and never sends the estate-wide search.
+  - Azure sends the Resource Graph query narrowed to the cone types' ARM
+    types and never sends the estate query.
+
+  Each leg reports its listings as scans, never as a sweep, and files
+  nothing it lists as an orphan. Those are the discovery-level tests in
+  `internal/live/discovery/conelegs_test.go`; the command-level tests in
+  `internal/command/live_plan_resource_cone_test.go` run `live-plan
+  -resource` for each family against a fake provider and a fake cluster,
+  Cloud Asset Inventory or Resource Graph client, and check that the leg
+  is built, sends no estate-wide query and the instance reads as observed.
 - The policy's account reconciliation, the foreign classification, the
   guided-sweep hint, root outputs, the lookalike guard and the Kubernetes
   dry run do not run. None of them is about one resource's drift.

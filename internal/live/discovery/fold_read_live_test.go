@@ -25,8 +25,7 @@ import (
 // gets real removal-sweep coverage this batch: aws_api_gateway_integration,
 // whose identity duplicates its parent aws_api_gateway_method's own
 // rest_api_id/resource_id/http_method triple verbatim (see
-// internal/live/identity/table.go's "Fold-children (issue #68)" section
-// comment and internal/live/identity/parent.go's foldParentTypes).
+// pkg/identity/parent.go's foldParentTypes).
 //
 //	TF_FLOCI_TEST=1 go test ./internal/live/discovery/ -run TestFoldChildReadSweepAgainstFloci -v
 //

@@ -89,7 +89,7 @@ func TestModuleTraversalAgainstFloci(t *testing.T) {
 	// --- 3. A plain plan recovers the estate ------------------------------
 	//
 	// This is also the discovery proof: aws_eip's identity is server-assigned
-	// (internal/live/identity/table.go), so nothing in configuration names
+	// (pkg/identity's DefaultTable), so nothing in configuration names
 	// this instance and the only way a plan can recover it without proposing
 	// a duplicate create is to list every EIP in the account and match this
 	// one's tofu-address tag - "module.wrapped.aws_eip.app" - against the

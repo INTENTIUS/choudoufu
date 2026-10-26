@@ -7,8 +7,8 @@
 // resource type parsed from the provider's own Import documentation
 // (issue #52, dispatched from #55: the source that kills both the 114
 // hand-authored composite separators and the manual "rule-1" check the
-// Lambda pilot paid by hand - see internal/live/identity/table.go's
-// "Registry-ratified" comment for what that check found by hand,
+// Lambda pilot paid by hand - see the identity table's
+// "Registry-ratified" comment, from before the table moved to pkg/identity, for what that check found by hand,
 // aws_lambda_alias and aws_lambda_layer_version_permission).
 //
 // For every TF type in live/survey-full.json's whole-provider roster, it

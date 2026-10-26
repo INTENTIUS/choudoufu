@@ -685,7 +685,14 @@ func liveResourceDiscover(ctx context.Context, config *configs.Config, resolutio
 	var noProvider addrs.AbsProviderConfig
 
 	needs := liveInScopeResolutions(resolutions.NeedsDiscovery(), scope)
-	if len(needs) == 0 {
+	// INTENTIUS/choudoufu#2267: a Kubernetes instance never needs discovery
+	// (its identity is the block's own name and namespace, or the static
+	// evaluator refuses it), so the cone's Kubernetes leg ran only for an
+	// instance whose name configuration cannot evaluate: one in nodeRefused,
+	// which the leg binds by its address annotation, as the estate sweep
+	// does. Those instances join the cone here.
+	refused := liveResourceRefusedLabelList(config, nodeRefused, scope)
+	if len(needs) == 0 && len(refused) == 0 {
 		return nil, noProvider, nil, diags
 	}
 	recordBacked, recordDiags := liveRecordBackedNeedsDiscoveryAddrs(ctx, recordShrinkStore, needs)
@@ -693,7 +700,7 @@ func liveResourceDiscover(ctx context.Context, config *configs.Config, resolutio
 	if recordDiags.HasErrors() {
 		return nil, noProvider, nil, diags
 	}
-	passProviders, needsDiags := liveNeedsDiscoveryProviders(config, needs)
+	passProviders, needsDiags := liveNeedsDiscoveryProviders(config, append(append([]identity.Resolution{}, needs...), refused...))
 	diags = diags.Append(needsDiags)
 	if needsDiags.HasErrors() || len(passProviders) == 0 {
 		return nil, noProvider, nil, diags
@@ -703,6 +710,9 @@ func liveResourceDiscover(ctx context.Context, config *configs.Config, resolutio
 	// to.
 	coneTypes := map[string]bool{}
 	for _, r := range needs {
+		coneTypes[r.Addr.Resource.Resource.Type] = true
+	}
+	for _, r := range refused {
 		coneTypes[r.Addr.Resource.Resource.Type] = true
 	}
 	coneTypeNames := make([]string, 0, len(coneTypes))
@@ -808,6 +818,44 @@ func liveResourceDiscover(ctx context.Context, config *configs.Config, resolutio
 	merged, providerOf, mergeDiags := discovery.Merge(estate, passes, strict.RecreatesOnProviderChange(identity.ProviderChangeFor(config)))
 	diags = diags.Append(mergeDiags)
 	return merged, passProviders[0], providerOf, diags
+}
+
+// liveResourceRefusedLabelList is the in-scope instances of nodeRefused
+// whose provider configuration is served by the Kubernetes label-list leg,
+// as bare resolutions carrying only their address, in address order. They
+// join -resource's cone for [liveResourceDiscover] (INTENTIUS/choudoufu#2267).
+func liveResourceRefusedLabelList(config *configs.Config, nodeRefused map[string]bool, scope identity.Scope) []identity.Resolution {
+	keys := make([]string, 0, len(nodeRefused))
+	for key, ok := range nodeRefused {
+		if ok {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	var out []identity.Resolution
+	for _, key := range keys {
+		addr, diags := addrs.ParseAbsResourceInstanceStr(key)
+		if diags.HasErrors() || addr.Resource.Resource.Mode != addrs.ManagedResourceMode {
+			continue
+		}
+		if scope != nil && !scope(addr.ConfigResource()) {
+			continue
+		}
+		modCfg, ok := identity.ConfigForModule(config, addr.Module)
+		if !ok || modCfg.Module == nil {
+			continue
+		}
+		rc, ok := modCfg.Module.ManagedResources[addr.Resource.Resource.String()]
+		if !ok {
+			continue
+		}
+		pa := providerConfigAddr(modCfg, rc)
+		if sub, known := substrate.ForProvider(pa.Provider.Type); !known || sub.Sweep() != substrate.SweepLabelList {
+			continue
+		}
+		out = append(out, identity.Resolution{Addr: addr})
+	}
+	return out
 }
 
 // liveResourceConeLegs is the Azure, GCP or Kubernetes leg one provider

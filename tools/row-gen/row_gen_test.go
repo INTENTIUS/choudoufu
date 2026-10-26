@@ -12,7 +12,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 )
 
-// handServerAssigned is internal/live/identity/table.go's own
+// handServerAssigned is the identity table's own
 // serverAssigned(...) cohort, transcribed by hand for this pin. Every one of
 // these 17 types must classify server-assigned from the committed registry
 // evidence alone - the issue's golden-test requirement.

@@ -155,8 +155,9 @@ can be created twice, and the next plan has to see both objects to name
 the collision ([CONCURRENCY.md](../CONCURRENCY.md)). The index can miss the
 newer one, so these types are listed through their own service, which reads
 the store the create wrote to, and both objects carrying one address label
-are a marker collision that refuses the plan. These types back the
-collision claim:
+are a marker collision that refuses the plan. These types are what the
+race tests. Each one binds, consistency unmeasured: none of these services
+publishes a list consistency model, and no race has been run against them.
 
 | Type | Listed through |
 |---|---|
@@ -181,17 +182,32 @@ a list cannot be made (a location written as another resource's attribute,
 a denied or disabled service), the plan warns "GCP type list incomplete"
 and binds that type from the index, as every other type is bound.
 
-Two server-assigned labelled types are bound from the index only and do
-not back the claim: `google_dialogflow_cx_intent`, listed under its agent,
-which is another resource's attribute at plan time, and
-`google_assured_workloads_workload`, listed under an organization rather
-than a project.
+One server-assigned labelled type is bound from the index only and is not
+what the race tests: `google_dialogflow_cx_intent`, listed under its agent,
+which is another resource's attribute at plan time.
+`google_assured_workloads_workload` is listed under its organization, below.
+
+### Types with no Asset name
+
+Three labelled types have no Asset name in `pkg/identity`, so the rule
+below does not derive them, and each is written out in
+`internal/live/gcpsweep/handwrittenlist.go` (INTENTIUS/choudoufu#2274,
+paired with plunge#19, whose `gcplist/handwritten.go` lists the same
+three). Each binds, consistency unmeasured. A listed object is named by its
+documented Asset name, and its import ID is that name's path, which is the
+type's import syntax.
+
+| Type | Listed through | Binds |
+|---|---|---|
+| `google_sql_database_instance` | Cloud SQL Admin `instances.list` (`projects/{{project}}/instances`), labels from `settings.userLabels` | binds, consistency unmeasured |
+| `google_container_cluster` | GKE `clusters.list` at `projects/{{project}}/locations/-/clusters` (every location), labels from `resourceLabels` | binds, consistency unmeasured |
+| `google_assured_workloads_workload` | Assured Workloads `workloads.list` at `organizations/{{organization}}/locations/{{location}}/workloads`, from the block's own `organization` and `location` | binds, consistency unmeasured |
 
 ### Every other type listed through its own service
 
 The same per-type listing covers 143 more labelled types, chosen by the
 rule plunge's `pkg/backend/plunge/gcplist` uses (INTENTIUS/plunge#15's
-ruling: consistent per-service listers for every covered type, the same in
+ruling: per-service listers for every covered type, the same in
 both repos). A type is covered when `pkg/identity.GoogleAssetImports` gives
 its Asset name and its service is one of the 28 in
 `internal/live/gcpsweep/servicelist.go`: Compute Engine, Cloud Storage,
@@ -204,7 +220,7 @@ Service for Apache Kafka and Parameter Manager. The list is the Asset
 name's parent collection (`projects/{{project}}/topics` for a topic,
 `projects/{{project}}/zones/{{zone}}/disks` for a disk, `b?project=` for
 buckets), read to the last page and kept by the estate's label client
-side. The 153 types both repos list are in
+side. With the three above, the 156 types both repos list are in
 `internal/live/gcpsweep/testdata/covered-types.txt`, and plunge carries an
 identical copy that its own test reads.
 
@@ -220,9 +236,12 @@ index, as above. The principal needs the service enabled and its list
 permission for the collection (`pubsub.topics.list`, `compute.disks.list`,
 `storage.buckets.list` and so on).
 
-Cloud Storage documents bucket listing as strongly consistent. The other
-services publish no list consistency model; their lists read the service's
-own store, which is what a create race on floci-gcp checks.
+Consistency is claimed for Cloud Storage only, which documents bucket
+listing as strongly consistent. Every other service in the table binds,
+consistency unmeasured: it publishes no list consistency model, and its
+list is kept by the estate's label client side rather than filtered by the
+API. Its list reads the service's own store, which is what a create race
+on floci-gcp tests.
 
 ### Known differences
 

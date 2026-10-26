@@ -148,6 +148,13 @@ func deriveTypeLists() map[string]TypeList {
 			out[tf] = t
 		}
 	}
+	// The covered types with no Asset name (handwrittenlist.go) are listed
+	// the same way, from their written-out path.
+	for tf, t := range handwrittenLists {
+		t.Type = tf
+		t.Derived = true
+		out[tf] = t
+	}
 	return out
 }
 
@@ -311,6 +318,13 @@ func (t TypeList) Scope(vars func(name string) (string, bool)) (ListScope, error
 // except a bucket, whose Asset name is its bare name. plunge gcplist's
 // objectName is the same rule.
 func (t TypeList) objectName(it listItem, coll string) string {
+	if t.NameByLocation {
+		// GKE, listed at locations/-: each cluster names its own location.
+		if it.Name == "" || it.Location == "" {
+			return ""
+		}
+		return strings.TrimSuffix(coll, "/locations/-/clusters") + "/locations/" + it.Location + "/clusters/" + it.Name
+	}
 	if strings.Contains(it.Name, "/") {
 		return strings.TrimPrefix(strings.TrimPrefix(it.Name, "//"+t.Service+"/"), "/")
 	}
@@ -333,7 +347,7 @@ func (t TypeList) Names(a Asset) bool {
 	if !t.Derived {
 		return a.AssetType == t.AssetType
 	}
-	_, ok := identity.GoogleAssetImportID(t.Type, a.Name)
+	_, ok := importIDOf(t, a.Name)
 	return ok
 }
 
@@ -356,7 +370,13 @@ func (c *Client) listDerived(ctx context.Context, t TypeList, scope ListScope, e
 		}
 		scope = filled
 	}
-	listURL := strings.TrimRight(c.attrs.endpointFor(t.Endpoint), "/") + "/" + scope.Collection
+	base := c.attrs.endpointFor(t.Endpoint)
+	base = strings.NewReplacer("{{region}}", scope.Location, "{{location}}", scope.Location).Replace(base)
+	listURL := strings.TrimRight(base, "/") + "/" + scope.Collection
+	host := t.Service
+	if t.AssetHost != "" {
+		host = t.AssetHost
+	}
 	permission := t.Permission
 	var out []Asset
 	pages, results := 0, 0
@@ -385,11 +405,15 @@ func (c *Client) listDerived(ctx context.Context, t TypeList, scope ListScope, e
 			if name == "" || it.Labels[markers.TagEstate] != estate {
 				continue
 			}
+			location := scope.Location
+			if t.NameByLocation {
+				location = it.Location
+			}
 			out = append(out, Asset{
 				AssetType:  t.AssetType,
-				Name:       "//" + t.Service + "/" + name,
+				Name:       "//" + host + "/" + name,
 				Project:    "projects/" + scope.Project,
-				Location:   scope.Location,
+				Location:   location,
 				Labels:     it.Labels,
 				CreateTime: it.CreateTime,
 				UpdateTime: it.UpdateTime,

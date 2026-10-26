@@ -358,11 +358,15 @@ func TestJointStubsCarryTheLastPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	net := sess.register(jointUnit{Key: "/net", Out: filepath.Join(dir, "network.tfplan")}, "network")
+	// Each unit has the directory unitFromCwd always sets: writeStubs renders
+	// the composed root again to learn its sensitive inputs (#2270), and a
+	// module source is relative to that directory.
+	netDir, appDir := filepath.Join(dir, "net"), filepath.Join(dir, "app")
+	net := sess.register(jointUnit{Key: "/net", Dir: netDir, Out: filepath.Join(dir, "network.tfplan")}, "network")
 	// The output -json path registers again with no plan file; the unit's
 	// plan file is kept.
-	sess.register(jointUnit{Key: "/net"}, "network")
-	sess.register(jointUnit{Key: "/app", Out: filepath.Join(dir, "app.tfplan")}, "app")
+	sess.register(jointUnit{Key: "/net", Dir: netDir}, "network")
+	sess.register(jointUnit{Key: "/app", Dir: appDir, Out: filepath.Join(dir, "app.tfplan")}, "app")
 	if us := sess.units(); us[0].Out != net.Out {
 		t.Fatalf("the plan file of network was lost: %+v", us)
 	}
