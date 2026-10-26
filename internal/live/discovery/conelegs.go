@@ -140,8 +140,71 @@ func (k KubernetesSweep) sweepCone(ctx context.Context, in *SweepInput) tfdiags.
 		return nil
 	}
 	mark := markCone(in.Result)
+	bindings, gaps := len(in.Result.Bindings), len(in.Result.SweepGaps)
 	diags := narrowed.sweep(ctx, in.Request, in.Result)
 	mark.settle(in, k.Cone)
+	if in.decl != nil {
+		diags = diags.Append(k.claimCone(in, bindings, gaps))
+	}
+	return diags
+}
+
+// claimCone hands [bind] what the Kubernetes cone leg found for the cone's
+// declared needs-discovery instances (INTENTIUS/choudoufu#2266). The leg
+// [KubernetesSweep.ScansDeclared] the cone's types, so the config-driven scan
+// did not list them, and an instance with no claimant would read as absent:
+// each binding the leg made for such an instance (by its address annotation)
+// becomes that instance's claimant instead, and bind binds it as it binds any
+// other. A cone type whose kinds the leg could not all list (a gap filed from
+// gaps on, or no scan at all) is left unscanned with a problem that says so,
+// so the plan proposes no create for an object that may exist. bindings and
+// gaps are the lengths of [Result.Bindings] and [Result.SweepGaps] before the
+// leg ran.
+func (k KubernetesSweep) claimCone(in *SweepInput, bindings, gaps int) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	res, decl := in.Result, in.decl
+	kept := res.Bindings[:bindings]
+	for _, b := range res.Bindings[bindings:] {
+		entry, ok := decl.entryFor(b.TypeName, EscapeAddress(b.Addr.String()))
+		if !ok || !k.Cone[b.TypeName] {
+			kept = append(kept, b)
+			continue
+		}
+		entry.addClaimant(claimant{
+			importID:       b.ImportID,
+			identityAttr:   b.IdentityAttr,
+			identityValues: b.IdentityValues,
+			displayName:    b.DisplayName,
+			marker:         b.Marker,
+			escaped:        entry.escaped,
+		})
+	}
+	res.Bindings = kept
+
+	scanned := map[string]bool{}
+	for _, s := range res.Scans {
+		if k.Cone[s.TypeName] && s.Source == SourceKubernetes {
+			scanned[s.TypeName] = true
+		}
+	}
+	for _, g := range res.SweepGaps[gaps:] {
+		if k.Cone[g.TypeName] {
+			scanned[g.TypeName] = false
+		}
+	}
+	for _, typeName := range sortedConeTypes(k.Cone) {
+		if !k.ScansDeclared(typeName) || len(decl.types[typeName]) == 0 || scanned[typeName] {
+			continue
+		}
+		decl.unscanned[typeName] = true
+		diags = diags.Append(problemDiag(res, Problem{
+			Kind:     ProblemTypeNotListable,
+			TypeName: typeName,
+			Detail: fmt.Sprintf(
+				"The %d declared instance(s) of %s are found by the Kubernetes leg's label-selected list of the kinds the type manages, and the cluster did not list all of them this run (see the sweep gaps), so this run cannot tell which exist. Fix the list and plan again.",
+				len(decl.types[typeName]), typeName),
+		}))
+	}
 	return diags
 }
 

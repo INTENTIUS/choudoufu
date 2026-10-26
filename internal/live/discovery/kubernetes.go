@@ -8,6 +8,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -112,6 +113,24 @@ type KubernetesSweep struct {
 
 // Leg is [substrate.SweepLabelList].
 func (KubernetesSweep) Leg() substrate.Sweep { return substrate.SweepLabelList }
+
+// ScansDeclared reports whether this leg, rather than the config-driven
+// scan, finds the declared needs-discovery instances of typeName. Only the
+// cone leg does (INTENTIUS/choudoufu#2266): live-plan -resource finds a cone
+// instance through the leg's label-selected list of the type's kinds, so
+// leaving the type with the config-driven scan would refuse it as unlistable
+// before the leg ran whenever the provider cannot list it. A type the leg
+// does not list (outside Types and not the manifest type) stays with the
+// config-driven scan.
+func (k KubernetesSweep) ScansDeclared(typeName string) bool {
+	if !k.Cone[typeName] || k.Client == nil {
+		return false
+	}
+	if k.ManifestType != "" && typeName == k.ManifestType {
+		return true
+	}
+	return slices.Contains(k.Types, typeName)
+}
 
 // Sweep runs the leg.
 func (k KubernetesSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.Diagnostics {
