@@ -250,7 +250,7 @@ func (c *jointCommand) unitFromCwd(tool *jointTool, vars arguments.Vars) (jointU
 		if err != nil {
 			return jointUnit{}, nil, false
 		}
-		u.Vars[name] = jointVar{Type: ty, Value: vb}
+		u.Vars[name] = jointVar{Type: ty, Value: vb, Sensitive: v.Sensitive}
 	}
 	outNames := make([]string, 0, len(mod.Outputs))
 	for n, o := range mod.Outputs {
