@@ -51,6 +51,14 @@
 // to propose destroying only that instance's live resource, untouched by
 // the other; see live/e2e/estate-module-keyed/ for the fixture this flag
 // built.
+//
+// -live-block (INTENTIUS/choudoufu#2268) declares the estate in a "live"
+// block in versions.tf instead of the estate.chdf.hcl sidecar. The two
+// module fixtures carry it, since a floci-driven test applies each with
+// plain "choudoufu plan"/"choudoufu apply"; their GENERATED.md records the
+// command that regenerates them, and TestModuleFixturesMatchTheGenerator
+// (fixtures_test.go) diffs that command's output against the committed
+// files.
 package main
 
 import (
@@ -101,6 +109,7 @@ func main() {
 	fmtBin := flag.String("fmt-bin", defaultFmtBin, "binary that formats the generated *.tf files (terraform, tofu or choudoufu)")
 	moduleWrap := flag.Bool("module-wrap", false, "wrap the cohort's resources in one static module call (module \"wrapped\") instead of writing them at the estate root, to exercise issue #59's traversal")
 	all := flag.Bool("all", false, "render every cohort in internal/live/cohorts into -out/<cohort>, one provider-schema acquisition for the whole set; -cohort and -types are refused with it (issue #699)")
+	liveBlock := flag.Bool("live-block", false, "write the estate as a \"live\" block in versions.tf instead of the estate.chdf.hcl sidecar, as the floci-driven module fixtures live/e2e/estate-module and live/e2e/estate-module-keyed carry it (INTENTIUS/choudoufu#2268); refused with -all and -count")
 	moduleKeys := flag.String("module-keys", "", "comma-separated instance keys; requires -module-wrap, and switches it from a static module call to a for_each over these keys (issue #59, 59c). Two keys is the common case for the sibling-stability e2e fixture.")
 	flag.Parse()
 
@@ -115,6 +124,10 @@ func main() {
 	}
 
 	if *all {
+		if *liveBlock {
+			fmt.Fprintln(os.Stderr, "estate-gen: -all renders the flat cohorts with their sidecar; -live-block is for one named fixture")
+			os.Exit(1)
+		}
 		if err := runAll(*cohort, *types, *out, *count, *moduleWrap, keys, *initBin, *fmtBin); err != nil {
 			fmt.Fprintf(os.Stderr, "estate-gen: %v\n", err)
 			os.Exit(1)
@@ -122,7 +135,7 @@ func main() {
 		return
 	}
 
-	if err := run(*cohort, *types, *out, *count, *initBin, *fmtBin, *moduleWrap, keys); err != nil {
+	if err := run(*cohort, *types, *out, *count, *initBin, *fmtBin, *moduleWrap, keys, *liveBlock); err != nil {
 		fmt.Fprintf(os.Stderr, "estate-gen: %v\n", err)
 		os.Exit(1)
 	}
@@ -190,9 +203,12 @@ func runAll(cohort, typesFlag, out string, count int, moduleWrap bool, moduleKey
 	return nil
 }
 
-func run(cohort, typesFlag, out string, count int, initBin, fmtBin string, moduleWrap bool, moduleKeys []string) error {
+func run(cohort, typesFlag, out string, count int, initBin, fmtBin string, moduleWrap bool, moduleKeys []string, liveBlock bool) error {
 	if cohort == "" {
 		return fmt.Errorf("-cohort is required")
+	}
+	if liveBlock && count > 0 {
+		return fmt.Errorf("-live-block is for the module fixtures; a -count estate writes no estate declaration")
 	}
 	if len(moduleKeys) > 0 && !moduleWrap {
 		return fmt.Errorf("-module-keys requires -module-wrap")
@@ -260,6 +276,7 @@ func run(cohort, typesFlag, out string, count int, initBin, fmtBin string, modul
 		return nil
 	}
 
+	g.liveBlock = liveBlock
 	if err := writeCohort(out, cohort, requested, g, moduleWrap, moduleKeys); err != nil {
 		return err
 	}
@@ -546,11 +563,19 @@ func writeCohort(out, cohort string, requested []string, g *generator, moduleWra
 		}
 	}
 
-	if err := write("versions.tf", versionsTF(cohort)); err != nil {
-		return err
-	}
-	if err := write(configs.LiveSidecarFilename, estateSidecarHCL(cohort)); err != nil {
-		return err
+	if g.liveBlock {
+		// The estate is declared once: a live block beside a sidecar is a
+		// configuration error (internal/configs/module.go).
+		if err := write("versions.tf", liveVersionsTF(cohort, moduleWrap, len(moduleKeys) > 0)); err != nil {
+			return err
+		}
+	} else {
+		if err := write("versions.tf", versionsTF(cohort)); err != nil {
+			return err
+		}
+		if err := write(configs.LiveSidecarFilename, estateSidecarHCL(cohort)); err != nil {
+			return err
+		}
 	}
 	if err := write(contentPrefix+"locals.tf", localsTF(cohort)); err != nil {
 		return err

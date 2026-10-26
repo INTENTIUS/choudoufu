@@ -118,6 +118,15 @@ type generator struct {
 	// ([moduleWrapKeyedMainTF]/[wrappedVariablesTF]), the ordinary idiom
 	// for any value that must vary per module instance.
 	moduleKeyVar string
+
+	// liveBlock is -live-block (INTENTIUS/choudoufu#2268): versions.tf
+	// carries a "live" block naming the estate, in place of the
+	// estate.chdf.hcl sidecar, for the module fixtures a floci-driven test
+	// applies with plain "choudoufu plan"/"choudoufu apply"
+	// (live/e2e/estate-module, live/e2e/estate-module-keyed). Off for every
+	// other run, since stock terraform, which validates the generated
+	// cohorts, does not know the block.
+	liveBlock bool
 }
 
 // tofuAddressLiteral is the tofu-address value [render] writes into a
