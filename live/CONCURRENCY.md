@@ -17,6 +17,13 @@ resolve one of four ways.
 No race orphans a resource silently. Each case is a clean re-plan or a named
 collision.
 
+The second race needs the next plan's list to show both objects. On AWS the
+list is Cloud Control's, read from each service's own store. On GCP the
+server-assigned labelled types are listed through their own services, and
+[gcp/COMPATIBILITY.md](gcp/COMPATIBILITY.md#two-creates-of-one-server-assigned-object)
+names the ones that back this row; two others are bound from the Cloud
+Asset Inventory index, which can miss the newer object, and do not.
+
 A lock does not help with a crash mid-apply: a resource created and not yet
 recorded is orphaned either way. Under markers the tag rode the create call,
 so the resource is found again with nothing to unlock.

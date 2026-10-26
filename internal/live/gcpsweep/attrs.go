@@ -53,6 +53,11 @@ type Attrs struct {
 	CloudAssetEndpoint     string
 	IAMCredentialsEndpoint string
 
+	// Endpoints are the *_custom_endpoint arguments of the products the
+	// per-type listers call ([TypeList.Endpoint]), by argument name, each
+	// a base path as the provider writes it. An unset one is absent.
+	Endpoints map[string]string
+
 	// ExternalCredentials is whether the block declares an
 	// external_credentials block (workload identity federation through
 	// the provider's own exchange). The sweep does not perform that
@@ -169,6 +174,14 @@ func ProviderAttrs(val cty.Value, ok bool) Attrs {
 	a.UniverseDomain = str("universe_domain")
 	a.CloudAssetEndpoint = str("cloud_asset_custom_endpoint")
 	a.IAMCredentialsEndpoint = str("iam_credentials_custom_endpoint")
+	for _, e := range typeListEndpoints() {
+		if v := str(e.Arg); v != "" {
+			if a.Endpoints == nil {
+				a.Endpoints = map[string]string{}
+			}
+			a.Endpoints[e.Arg] = v
+		}
+	}
 	if val.Type().HasAttribute("external_credentials") {
 		// A nested block of at most one: a list of zero or one object.
 		// A mark on it is a declared block all the same.
@@ -208,6 +221,9 @@ func EnvNames() []string {
 	for _, d := range envDefaults {
 		out = append(out, d.names...)
 	}
+	for _, e := range typeListEndpoints() {
+		out = append(out, e.Env)
+	}
 	return out
 }
 
@@ -234,6 +250,19 @@ func (a Attrs) WithEnv(getenv func(string) string) Attrs {
 				*p = v
 				break
 			}
+		}
+	}
+	for _, e := range typeListEndpoints() {
+		if a.Endpoints[e.Arg] != "" || marked[e.Arg] {
+			continue
+		}
+		if v := getenv(e.Env); v != "" {
+			endpoints := make(map[string]string, len(a.Endpoints)+1)
+			for k, v := range a.Endpoints {
+				endpoints[k] = v
+			}
+			endpoints[e.Arg] = v
+			a.Endpoints = endpoints
 		}
 	}
 	if !a.UserProjectOverride && !marked["user_project_override"] {

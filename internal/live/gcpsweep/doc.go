@@ -50,6 +50,16 @@
 // impersonate_service_account. The provider's environment fallbacks apply
 // to any argument the block leaves unset ([Attrs.WithEnv]).
 //
+// # Per-type lists
+//
+// The index lags a create, so it cannot show the second of two objects two
+// concurrent applies made of a type whose identity the API assigns.
+// [Client.ListType] lists each such labelled type ([CoveredTypes]) through
+// its own service's list method instead, under the provider's base path
+// for the product, and keeps what carries the estate's label exactly. It
+// fails the way [Client.Search] does, with the type's own service and
+// permission named (typelist.go).
+//
 // # The fakes' shapes
 //
 // testdata/README.md writes down the exact request [Client.Search] sends

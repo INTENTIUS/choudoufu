@@ -104,9 +104,13 @@ var refusedMarks = map[string]bool{
 }
 
 func (a Attrs) refusedMarks() []string {
+	listEndpoint := map[string]bool{}
+	for _, e := range typeListEndpoints() {
+		listEndpoint[e.Arg] = true
+	}
 	var out []string
 	for _, m := range a.Marked {
-		if refusedMarks[m] {
+		if refusedMarks[m] || listEndpoint[m] {
 			out = append(out, m)
 		}
 	}
@@ -118,6 +122,20 @@ func (a Attrs) refusedMarks() []string {
 // universe. ctx bounds only the building; an impersonated token source
 // mints its tokens on the context of the call that needs one.
 func (a Attrs) clientOptions(ctx context.Context) ([]option.ClientOption, error) {
+	opts, err := a.authOptions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if a.CloudAssetEndpoint != "" {
+		opts = append(opts, option.WithEndpoint(serviceRoot(a.CloudAssetEndpoint)))
+	}
+	return opts, nil
+}
+
+// authOptions is [Attrs.clientOptions] without the Cloud Asset endpoint:
+// the credential, scopes and universe every client this package builds
+// authenticates with, the per-type listers' among them.
+func (a Attrs) authOptions(ctx context.Context) ([]option.ClientOption, error) {
 	creds := a.Auth()
 	var base []option.ClientOption
 	switch creds.Source {
@@ -161,9 +179,6 @@ func (a Attrs) clientOptions(ctx context.Context) ([]option.ClientOption, error)
 		if a.UniverseDomain != "" {
 			opts = append(opts, option.WithUniverseDomain(a.UniverseDomain))
 		}
-	}
-	if a.CloudAssetEndpoint != "" {
-		opts = append(opts, option.WithEndpoint(serviceRoot(a.CloudAssetEndpoint)))
 	}
 	return opts, nil
 }
