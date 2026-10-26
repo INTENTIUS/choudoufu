@@ -10,9 +10,9 @@ prompt: >-
 Terraform and OpenTofu lock the state file because the apply boundary is the
 state file, so everything in it is locked together. Teams split state into
 roots to shrink what one lock covers. choudoufu moves the boundary to each
-resource. It keeps one record per resource in a store you own and writes each
-record only if it is unchanged since the run read it. That prevents state
-corruption with no lock to take or release.
+resource. It keeps one record per resource, in object storage or a local
+directory. A run's write to a record fails if another run wrote that record
+first. That prevents state corruption without a lock.
 
 ## Two applies, one estate
 
