@@ -189,6 +189,13 @@ func TestEveryRegisteredRefusalHasAStatedSeverity(t *testing.T) {
 			if SeverityForRefusal(r.Summary) != SeverityWarning {
 				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
 			}
+		case r.Summary == SummaryGCPTypeListIncomplete:
+			// INTENTIUS/choudoufu#2264: a covered type's own list could not
+			// be made, so its instances were bound from the Asset index as
+			// before; the collision check did not cover it this run.
+			if SeverityForRefusal(r.Summary) != SeverityWarning {
+				t.Errorf("%q must be a warning, SeverityForRefusal says %v", r.Summary, SeverityForRefusal(r.Summary))
+			}
 		case r.Summary == SummaryHelmNotInManifest:
 			// GitHub issue #1738 item 4: a finding the sweep reports and
 			// acts on by proposing nothing, so the plan stands.
