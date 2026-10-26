@@ -227,6 +227,11 @@ func (g ResourceGraphSweep) sweepCone(ctx context.Context, in *SweepInput) tfdia
 				Detail: "no ARM type is known for this type, so the Resource Graph query cannot be narrowed to it; live-plan -resource does not widen it to the whole estate"})
 			continue
 		}
+		if strings.EqualFold(arm, "Microsoft.Resources/resourceGroups") {
+			// Resource Graph lists a resource group under its container
+			// type, which is how [azsweep.Query]'s union names it.
+			arm = "microsoft.resources/subscriptions/resourcegroups"
+		}
 		armTypes = append(armTypes, strings.ToLower(arm))
 	}
 	if len(armTypes) == 0 {

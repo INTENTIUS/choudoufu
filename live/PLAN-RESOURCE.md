@@ -39,11 +39,25 @@ reach them.
   list the namespace for record-backed resources whose block was deleted.
 - Marker discovery runs only when an instance in the cone has a
   server-assigned identity, and lists only that instance's type, filtered
-  to the estate's marker where the provider can filter. There is no sweep
-  leg, no estate-wide tag-index call (the Resource Groups Tagging API call
-  a full plan makes once) and no unclaimed inventory. The Cloud Control
-  fallback and the per-service tag reader stay, since they answer for one
-  type.
+  to the estate's marker where the provider can filter. There is no estate
+  sweep and no unclaimed inventory. The Cloud Control fallback and the
+  per-service tag reader stay, since they answer for one type.
+- On AWS the tag index (the Resource Groups Tagging API call a full plan
+  makes once for the whole estate) is read for the cone's types alone: one
+  `GetResources` call filtered to those types (`ec2:vpc`, `iam:role` and so
+  on, read backwards out of discovery's ARN join table) and to the estate's
+  `tofu-estate` tag. That is how a type whose list call drops its tags
+  (iam:ListRoles returns none) still reads its marker. A cone type the join
+  table has no row for is left out of the call rather than widen it to the
+  estate. The calls are counted in `tagIndexCalls`.
+- On Azure, GCP and Kubernetes a server-assigned instance is found by the
+  family's own leg, run for the cone's types alone (GitHub issue #2260):
+  Kubernetes lists the cone's kinds, label-filtered to the estate; GCP
+  searches Cloud Asset Inventory for each instance's own `tofu-address`
+  label; Azure sends the Resource Graph query narrowed to the cone types'
+  ARM types. Each of those listings is a scan of the type, counted in
+  `scanTypes` and `scanListCalls`, and nothing they list is filed as an
+  orphan.
 - The policy's account reconciliation, the foreign classification, the
   guided-sweep hint, root outputs, the lookalike guard and the Kubernetes
   dry run do not run. None of them is about one resource's drift.
@@ -59,12 +73,22 @@ not this run's question.
 
 ## The stream
 
+Records stream. An instance the projection already answered for
+(unclaimed, pending, not observed) is written once the projection is
+built, before the plan starts, and a planned instance is written as the
+plan walk plans it, from the walk's own PostDiff hook. When the finished
+plan says something different for an address, a second line for it
+follows; chant's reader takes the later line for the same (member,
+address, read) (`DriftRecordLine` in chant `packages/core/src/
+drift-record.ts`). An expected instance the plan never reached is written
+after the plan.
+
 Three kinds of line, each with a `type`:
 
 ```
 {"type":"drift-start","drift":"v1","member":"live-unit","engine":"choudoufu","read":"plan","resource":"aws_vpc.main","expected":["aws_vpc.main"]}
 {"type":"drift-record","member":"live-unit","engine":"choudoufu","address":"aws_vpc.main","node":null,"observedAt":"2026-10-25T09:00:00Z","read":"plan","status":"in-sync","ownership":{"verdict":"owned","by":"marker"},"evidence":{"tool":"choudoufu","version":"...","command":"live-plan -resource=aws_vpc.main","engineCode":"noop"}}
-{"type":"drift-settle","drift":"v1","member":"live-unit","engine":"choudoufu","read":"plan","counts":{"in-sync":1},"reads":{"recordsRead":3,"recordKeys":2,"recordListCalls":0,"sweepCalls":0,"scanTypes":["aws_vpc"],"scanListCalls":1}}
+{"type":"drift-settle","drift":"v1","member":"live-unit","engine":"choudoufu","read":"plan","counts":{"in-sync":1},"reads":{"recordsRead":3,"recordKeys":2,"recordListCalls":0,"sweepCalls":0,"scanTypes":["aws_vpc"],"scanListCalls":1,"tagIndexCalls":0}}
 ```
 
 A record line carries the `DriftRecord` fields under the names chant's
@@ -100,6 +124,7 @@ planned action. Drifted attributes carry names only, never values, and
 | `sweepCalls` | types the estate-wide sweep listed. Always 0 |
 | `scanTypes` | the types the cone's own discovery listed |
 | `scanListCalls` | how many type listings that was |
+| `tagIndexCalls` | `GetResources` requests the cone's tag index made, one per page |
 
 A List reaching the store is refused, and a non-zero `recordListCalls` or
 `sweepCalls` fails the run with an error naming the count, so a regression
@@ -114,16 +139,6 @@ asserts neither was reached.
 
 - It does not find what nothing declares: no orphan, no foreign object, no
   record of a deleted block.
-- A type whose list call drops tags relies on the tag index to read its
-  marker, and that index is not read here. Such a needs-discovery instance
-  reports `not-observed` with `no-binding` where a full plan would bind it.
-- Azure, GCP and Kubernetes find a server-assigned identity through their
-  sweep legs, which this path does not build. A needs-discovery instance of
-  those families is looked for through the provider's own list protocol, and
-  is `not-observed` when the provider cannot list it. Client-named instances
-  of every family are read as usual.
-- The records stream at the end of the plan, not one by one as each read
-  returns.
 
 Options it cannot honour are refused: `-target`, `-exclude`, `-destroy`,
 `-refresh-only`, `-replace`, `-out`, `-cone`, `-adoption-only` and `-filter`.
