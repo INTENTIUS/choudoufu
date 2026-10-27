@@ -177,6 +177,7 @@ var lintRuleTargetScope = map[Rule]struct {
 	RuleStrictProviderChange:      {ruleWholeConfig, "same block"},
 	RuleStrictMarkers:             {ruleWholeConfig, "the markers selection is a declaration about the estate, malformed on every run whatever this one touches; checkStrictMarkers runs once over the whole tree, outside checkConfig"},
 	RuleStrictMarkersUnrecordable: {ruleWholeConfig, "same selection, and its unit is a TYPE rather than a block"},
+	RuleIgnoreTags:                {ruleWholeConfig, "a provider block's ignore_tags; names no resource, and it hides the markers of every resource the provider serves whatever this run targets"},
 	RuleGCPMultiProject:           {ruleWholeConfig, "the projects the estate spans, read off every google provider block and resource; a narrowed run plans fewer blocks of the same estate, whose fence is the same whatever this run targets"},
 }
 
