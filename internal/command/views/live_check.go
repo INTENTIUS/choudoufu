@@ -64,8 +64,9 @@ type LiveCheckReport struct {
 	// OnlyBackendRemains is true when the configuration is not blocked and
 	// the only warning is the state-backend rule: the sole remaining
 	// friction is a backend or cloud block, which choudoufu ignores rather
-	// than reads. Deleting it is still the recommended edit - so the
-	// configuration says what actually happens - though it is not required.
+	// than reads. Since GitHub issue #2213 it stays beside a live block, and
+	// since #2293 an s3, gcs or azurerm backend is where the records go, so
+	// the verdict says to keep it.
 	//
 	// Before #214 demoted state-backend from a fatal finding to a warning,
 	// this named the "one edit from moving" case (#175): 11 of 145 real
@@ -283,24 +284,16 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 		}
 	} else if rep.OnlyBackendRemains {
 		// #215: the estate is clean, but the only warning below is its
-		// backend or cloud block. That block is inert under live resource
-		// markers rather than merely superfluous, and the rule's own detail
-		// text (internal/live/lint/lint.go, checkStateBackends) already
-		// recommends deleting it; nothing else in this report surfaces that
-		// recommendation, so it is worth this one dedicated sentence rather
-		// than folding into the generic clean verdict below.
-		//
-		// #268: "not required" is only true of this check, which runs with
-		// no live block by design. Plan and apply both need one, and a live
-		// block beside this one refuses to load at all - so the wording
-		// below says when deletion stops being optional, rather than
-		// leaving a blanket "not required" that only holds here.
+		// backend or cloud block. Since #2213 the block stays beside a live
+		// block, ignored for state, and since #2293 it is where records go
+		// and where live-import reads the old state, so this sentence says
+		// to keep it. Before #2213 it said to delete it, because a live
+		// block beside one refused to load (#268).
 		fmt.Fprintf(&b, "\n%s already moves under live resource markers.\n", rep.Dir)
-		fmt.Fprintf(&b, "The only warning below is its backend or cloud block: this check ran with no live\n")
-		fmt.Fprintf(&b, "block, so the block is ignored. Deleting it is the recommended edit, and it is not\n")
-		fmt.Fprintf(&b, "required for a check like this one - but it is required the moment a live block is\n")
-		fmt.Fprintf(&b, "added, which plan and apply both need: a live block beside this one refuses to\n")
-		fmt.Fprintf(&b, "load. Delete it now rather than at that point.\n")
+		fmt.Fprintf(&b, "The only warning below is its backend or cloud block, which this check does not read.\n")
+		fmt.Fprintf(&b, "Keep it when you add a live block: it is ignored for state, live-import reads the old\n")
+		fmt.Fprintf(&b, "state from it, and an s3, gcs or azurerm backend holds the records unless the live\n")
+		fmt.Fprintf(&b, "block names a record_store.\n")
 		fmt.Fprintf(&b, "%d managed resource instance(s) resolved.\n", rep.Instances)
 	} else {
 		fmt.Fprintf(&b, "\nNothing in %s is refused by the two checks below.\n", rep.Dir)

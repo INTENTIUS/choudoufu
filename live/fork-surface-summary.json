@@ -3,9 +3,9 @@
   "fork_point_short": "2b6193043d",
   "fork_point_subject": "Bump version v1.13.0",
   "fork_point_url": "https://github.com/opentofu/opentofu/commit/2b6193043d500dcfef1f3b4f4819b938b667099f",
-  "measured_at_head": "9a74c68893ed7aaed73224f7d17e7ebc8abe820a",
-  "measured_at_head_short": "9a74c68893",
-  "generated_at": "2026-10-27T22:32:59Z",
+  "measured_at_head": "cc7f48502e1408837549fa5c6997434ce23faf47",
+  "measured_at_head_short": "cc7f48502e",
+  "generated_at": "2026-10-27T22:37:03Z",
   "base_opentofu_version": "1.13.0",
   "named_roots": [
     "internal/live/",
