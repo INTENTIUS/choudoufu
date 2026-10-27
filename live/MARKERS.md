@@ -1252,7 +1252,9 @@ and a fourth tier of continuation would just move the same question further
 out without answering it. Four tags is deliberately generous headroom
 against the 50-tag-per-resource AWS limit (minus whatever tags the
 configuration's `tags` block already uses) while staying a small, fixed
-number instead of a knob a configuration can turn.
+number instead of a knob a configuration can turn. A block whose own tags,
+`default_tags` and markers together pass 50 is refused at lint
+(`aws-tag-count`, live/LIMITATIONS.md).
 
 A resource whose address fits in 256 characters (the overwhelming common
 case, and every marker written before this addition existed) carries only

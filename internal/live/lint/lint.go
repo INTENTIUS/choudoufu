@@ -98,7 +98,7 @@ type Context struct {
 // [RuleUnadmittedType], [RuleMarkerlessType], [RuleCountIndex],
 // [RuleIgnoreChanges], [RuleGenerateName], [RuleForEachKey],
 // [RuleOverlongAddress], [RuleReceiptLeaf], [RuleReceiptValue],
-// [RuleReceiptSecret], [RuleARMTagLimit], [RuleGCPLabelCount] and
+// [RuleReceiptSecret], [RuleARMTagLimit], [RuleAWSTagCount], [RuleGCPLabelCount] and
 // [RuleGCPEstateLabel], plus [CheckResidueAttributes]' warning. Every other
 // rule is about the configuration, a module call or the live block itself,
 // and none of those is an [addrs.ConfigResource] for a scope to answer
@@ -304,6 +304,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkForEachKeys(ctx, cfg, path, scope, issues)
 	checkOverlongAddresses(ctx, mod, modInst, scope, issues)
 	checkARMTagLimit(ctx, cfg, modInst, schemas, scope, issues)
+	checkAWSTagCount(ctx, cfg, modInst, schemas, scope, issues)
 	checkReceiptLeafRule(mod, path, scope, issues)
 	checkReceiptValueRule(mod, path, scope, issues)
 	checkReceiptSecretRule(mod, path, scope, issues)

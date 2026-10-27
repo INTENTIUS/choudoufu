@@ -65,6 +65,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | Rule | Summary | Severity | Documented at | Fixture |
 |---|---|---|---|---|
 | `arm-tag-limit` | Azure resource has no room for its ownership markers | warning | "arm-tag-limit" | `live/e2e/limits/arm-tag-limit/` |
+| `aws-tag-count` | AWS resource has no room for its ownership markers | error | "aws-tag-count" | `live/e2e/limits/aws-tag-count/` |
 | `child-live-config` | Live configuration in a child module is not consulted | error | "child-live-config" | `live/e2e/limits/child-live-config/` |
 | `child-module` | This module call cannot be expanded under live resource markers | error | "child-module" | `live/e2e/limits/child-module/` |
 | `count-index` | count.index is not available in resource arguments | error | "count-index-in-tag" | `live/e2e/limits/count-index-in-tag/` |
@@ -100,7 +101,7 @@ under it, fails the render instead of going unnoticed (GitHub issue #698).
 | `unadmitted-type` | Resource type is outside the live-markers subset | error | "unadmitted-type" | `live/e2e/limits/unadmitted-type/` |
 | `undeclared-provider-alias` | Provider configuration is not declared | error | "undeclared-provider-alias" | `live/e2e/limits/undeclared-provider-alias/` |
 
-**35 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 32 of the 35 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
+**36 lint rules**, from `internal/live/lint`'s own rule table. The entries below this table are hand-written and stay that way - a rule's Construct / Why banned / Forwarding address / Enforcement treatment is prose nobody should generate - but the roster of them is not, so a rule added with no entry, or an entry whose fixture directory was renamed, fails `just limits` rather than sitting here unnoticed. **Fixture** is `live/e2e/limits/<heading>/` for each heading the rule cites in this document, checked to exist when this table was rendered; 33 of the 36 rules have one. The remaining 3 cite `live/RECEIPTS.md`, which specifies them alongside the pattern they guard and has no fixture directory here. **Documented at** drops this document's own filename, so a bare quoted heading is a section below. **Severity** is read the way "Every refusal, enumerated" reads it: `error` unless marked `warning`.
 <!-- limits-gen:end lint-roster -->
 
 ### local-exec
@@ -2419,7 +2420,7 @@ writes `tofu-estate` and `tofu-address` into the labels map in the create
 call, and `tofu-slot` too on a count block. A configuration stock creates
 with 62 to 64 labels would fail its create only because of the markers, so
 it is refused by name before the plan rather than left to the API. AWS has
-the same gap at its 50-tag cap, unguarded today.
+the same cap at 50 tags; see aws-tag-count.
 
 **What is counted.** The union of the block's own `labels` keys, its
 provider block's `default_labels` keys (a resource key overrides a default
@@ -2440,6 +2441,52 @@ before the markers (61 on a count block), or set
 per block, honouring `-target` and `-exclude`. Fixture at
 `live/e2e/limits/gcp-label-count/`, which lint also refuses as
 `unadmitted-type` without provider schemas.
+
+### aws-tag-count
+
+**Construct.** An aws resource whose tags and its provider's `default_tags`
+come to more than 50 once this run adds its ownership markers:
+
+```hcl
+provider "aws" {
+  default_tags {
+    tags = { CostCenter = "platform", Environment = "prod", Team = "infra" }
+  }
+}
+
+resource "aws_s3_bucket" "crowded" {
+  bucket = "example"
+  tags   = { for i in range(46) : "tag-${i}" => "x" }
+}
+```
+
+**Why banned.** AWS refuses more than 50 user tags on one resource. The stamp
+writes `tofu-estate` and `tofu-address`, one continuation tag for each further
+256 characters of the address, and `tofu-slot` on a count block. Every
+resource in the terraform-aws-modules collection is written with
+`count = var.create ? 1 : 0`, so three markers is their ordinary case. A
+configuration stock creates with 48 to 50 tags would fail its create only
+because of the markers, so it is refused by name before the plan rather than
+left to the API (GitHub issue #2131).
+
+**What is counted.** The union of the block's own `tags` keys, the keys of
+its provider block's `default_tags { tags }` (a resource key overrides a
+default of the same name, so it counts once), and the markers. A key whose
+value is not known until apply is counted: the key takes a slot whatever its
+value. A `merge()` call is the union of its arguments. Only a map whose keys
+cannot be read from configuration alone is skipped, so `tags = var.tags` with
+no default is not counted. With provider schemas, a type whose tags map
+carries no marker is not counted. `awscc` writes tags as a list and is not
+counted.
+
+**Forwarding address.** Remove tags until the block and `default_tags` carry
+at most 48 together before the markers (47 on a count block), or move
+cost-allocation keys the module repeats into `default_tags` so they count
+once.
+
+**Enforcement.** `RuleAWSTagCount`, `internal/live/lint/aws_tag_count.go`
+(`checkAWSTagCount`), one refusal per block, honouring `-target` and
+`-exclude`. Fixture at `live/e2e/limits/aws-tag-count/`.
 
 ### gcp-estate-label
 
@@ -3047,6 +3094,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | identity | for_each key cannot be recorded as a marker | error | `internal/live/identity` | live/MARKERS.md, "Ownership semantics" |
 | 0 | 0 | identity | for_each over a resource that is not keyed | error | `internal/live/identity` | "for_each over a resource that is not keyed" |
 | - | - | lint | arm-tag-limit | warning | `internal/live/lint` | "arm-tag-limit" |
+| - | - | lint | aws-tag-count | error | `internal/live/lint` | "aws-tag-count" |
 | 0 | 0 | lint | child-live-config | error | `internal/live/lint` | "child-live-config" |
 | 0 | 0 | lint | for-each-key | error | `internal/live/lint` | "foreach-invalid-key" |
 | - | - | lint | gcp-estate-label | error | `internal/live/lint` | "gcp-estate-label" |
@@ -3173,7 +3221,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**313 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**314 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
