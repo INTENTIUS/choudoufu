@@ -41,6 +41,7 @@ import (
 	"sort"
 
 	"github.com/intentius/choudoufu/internal/live/check"
+	"github.com/intentius/choudoufu/internal/live/offlineplan"
 	"github.com/intentius/choudoufu/internal/live/onboard"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -59,6 +60,8 @@ func measureOnboarded(
 	dir string,
 	varFiles []string,
 	schemas map[string]providers.Schema,
+	provRows []entryProvider,
+	second *secondPass,
 	published check.Report,
 	causes *causeCatalog,
 	r *run,
@@ -89,9 +92,15 @@ func measureOnboarded(
 	default:
 		t.Edited++
 		load := check.LoadOverlay(ctx, dir, plan.Overlay, varFiles...)
-		rep := check.Analyze(ctx, load.Config, check.Context{Schemas: schemas})
+		// The onboarded configuration is a different configuration, so the
+		// second pass (GitHub issue #2297) runs again on it.
+		actx := check.Context{Schemas: schemas}
+		var outcome offlineplan.Outcome
+		actx.ManagedResults, outcome = second.managed(ctx, load.Config, schemas, provRows)
+		rep := check.Analyze(ctx, load.Config, actx)
 		rep.Load = load
 		e.Onboarded = formOf(rep, causes, r.Layers)
+		e.Onboarded.SecondPass = string(outcome)
 
 		if opts.verbose && opts.only != "" {
 			for _, f := range rep.Findings {
@@ -183,6 +192,8 @@ type formResult struct {
 	Instances int            `json:"instances"`
 	Shadowed  int            `json:"shadowed"`
 	Reads     int            `json:"reads,omitempty"`
+
+	SecondPass string `json:"second_pass,omitempty"`
 
 	Warnings map[string]int            `json:"warnings,omitempty"`
 	Causes   map[string]map[string]int `json:"causes,omitempty"`
