@@ -3,7 +3,7 @@
   "index": {
     "scopeKey": "cloud/aws/000000000000/9bd41033bb42",
     "version": "20261026T120000Z-e2f92b265a4d.json",
-    "digest": "sha256:e2f92b265a4dd604e013b3f55eafe5cf317ea1f5b7c54b4c5187120d0dcfe10d"
+    "digest": "e2f92b265a4dd604e013b3f55eafe5cf317ea1f5b7c54b4c5187120d0dcfe10d"
   },
   "select": [
     {

@@ -7,15 +7,18 @@ package adoption
 // epic:engine-consolidation and not run in the unit that added it.
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
 
 const (
 	fixtureIndex   = "testdata/chant-index-v1.json"
-	fixtureAdopt   = "testdata/adopt-v1.json"
+	fixtureAdopt   = "testdata/chant-adopt-v1.json"
 	fixtureNode    = "aws/000000000000/us-east-1/AWS::S3::Bucket/web-logs"
 	fixtureVersion = "20261026T120000Z-e2f92b265a4d.json"
 	fixtureKey     = "cloud/aws/000000000000/9bd41033bb42"
@@ -166,11 +169,11 @@ func TestResolveRefusals(t *testing.T) {
 	_, err = Resolve(f, v)
 	wantErr(t, err, "holds no node aws/000000000000/us-east-1/AWS::S3::Bucket/gone")
 
-	// The digest is read with or without its prefix.
+	// The digest is read with or without its prefix (chant's fixture has none).
 	f = base()
-	f.Index.Digest = strings.TrimPrefix(f.Index.Digest, "sha256:")
+	f.Index.Digest = "sha256:" + f.Index.Digest
 	if _, err := Resolve(f, v); err != nil {
-		t.Errorf("a digest without sha256: should resolve: %s", err)
+		t.Errorf("a digest with sha256: should resolve: %s", err)
 	}
 }
 
@@ -183,7 +186,7 @@ func TestParseRefusals(t *testing.T) {
 	}{
 		{"version", `"adopt": "v1"`, `"adopt": "v2"`, `version "v2" is not v1`},
 		{"unknown field", `"adopt": "v1",`, `"adopt": "v1", "extra": true,`, "unknown field"},
-		{"digest not hex", `"digest": "sha256:e2f9`, `"digest": "sha256:zzf9`, "is not sha256 hex"},
+		{"digest not hex", `"digest": "e2f9`, `"digest": "zzf9`, "is not sha256 hex"},
 		{"version name", fixtureVersion, "latest.json", "is not <yyyymmddThhmmssZ>"},
 		{"version not the digest's", fixtureVersion, "20261026T120000Z-000000000000.json", "first 12 hex"},
 		{"no address", `"as": "aws_s3_bucket.web_logs",`, `"as": "",`, "names no address"},
@@ -265,5 +268,58 @@ func TestEncodeSegment(t *testing.T) {
 	}
 	if _, err := encodeSegment(""); err == nil {
 		t.Error("an empty segment is refused")
+	}
+}
+
+// The Go types read exactly the fields chant's JSON Schema defines
+// (#/$defs/AdoptionFile and its two parts, vendored with its sha in
+// testdata/CHANT_SOURCE), with the same required fields, and refuse any other
+// field as the schema's additionalProperties: false does.
+func TestTypesMatchChantsSchema(t *testing.T) {
+	t.Parallel()
+	var schema struct {
+		Defs map[string]struct {
+			Properties           map[string]json.RawMessage `json:"properties"`
+			Required             []string                   `json:"required"`
+			AdditionalProperties *bool                      `json:"additionalProperties"`
+		} `json:"$defs"`
+	}
+	if err := json.Unmarshal(readFixture(t, "testdata/chant-graph.schema.json"), &schema); err != nil {
+		t.Fatal(err)
+	}
+	for def, typ := range map[string]reflect.Type{
+		"AdoptionFile":      reflect.TypeOf(File{}),
+		"AdoptionIndexRef":  reflect.TypeOf(IndexRef{}),
+		"AdoptionSelection": reflect.TypeOf(Selection{}),
+	} {
+		d, ok := schema.Defs[def]
+		if !ok {
+			t.Errorf("chant's schema has no $defs/%s", def)
+			continue
+		}
+		if d.AdditionalProperties == nil || *d.AdditionalProperties {
+			t.Errorf("%s: chant's schema allows other properties; Parse refuses them", def)
+		}
+		var props, goFields, required, goRequired []string
+		for p := range d.Properties {
+			props = append(props, p)
+		}
+		required = append(required, d.Required...)
+		for i := 0; i < typ.NumField(); i++ {
+			name, opts, _ := strings.Cut(typ.Field(i).Tag.Get("json"), ",")
+			goFields = append(goFields, name)
+			if opts != "omitempty" {
+				goRequired = append(goRequired, name)
+			}
+		}
+		for _, l := range [][]string{props, goFields, required, goRequired} {
+			sort.Strings(l)
+		}
+		if !reflect.DeepEqual(props, goFields) {
+			t.Errorf("%s: chant's schema has properties %v, the Go type %v", def, props, goFields)
+		}
+		if !reflect.DeepEqual(required, goRequired) {
+			t.Errorf("%s: chant's schema requires %v, the Go type %v", def, required, goRequired)
+		}
 	}
 }
