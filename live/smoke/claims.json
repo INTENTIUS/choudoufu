@@ -4,15 +4,16 @@
     "twelve words (#1817); its page under live/smoke/claims/ gives its proofs. Proof is per provider (#1112): each providers.<name> cell",
     "carries a status, an optional note and a list of proofs. A proof is a scenario that runs on that provider (scenario, command, minutes,",
     "needs_go, needs_emulator, real_service, break_mode, evidence, an optional note), some steps of another claim's scenario on the same",
-    "provider (proven_by, that scenario's command, a note naming the steps), or a gauntlet stage (stage \"<estate>:<stage id>\", resolved",
-    "against live/gauntlet.json, and a note saying what it asserts). A scenario's header states its cell: \"# CLAIM N (provider) - <title>. ~M min.\".",
+    "provider (proven_by, that scenario's command, a note naming the steps), a gauntlet stage (stage \"<estate>:<stage id>\", resolved",
+    "against live/gauntlet.json, and a note saying what it asserts), or a Go test (#2288: go_test, go_package, gate, command, a note; see below). A scenario's header states its cell: \"# CLAIM N (provider) - <title>. ~M min.\".",
     "demos lists the scenarios that prove no claim; they carry no CLAIM header and belong to no cell.",
-    "status is proven (every proof names a dated run: an evidence file with a date, a last_run, steps of such a scenario, or a gauntlet stage that reads pass) or n/a (the substrate has no such concept).",
+    "status is proven (every proof names a dated run: an evidence file with a date, a last_run, steps of such a scenario, a gauntlet stage that reads pass, or a recorded Go test run; a Go test proof with no recorded run yet is waiting, and stands beside the cell's dated proofs without counting as one) or n/a (the substrate has no such concept).",
+    "go_test names a test in go_package (\"./pkg/x\"; a subtest is Test/Sub). With no gate it runs in CI's fast tier, its command is the go test that runs exactly it, and its dated run is a CI run at a recorded commit; with a gate (the environment variable it skips without) its command is the just recipe that sets that variable, and its dated run is a maintainer run with its log. `go run ./tools/gotest-record` writes both under live/smoke/evidence/go-test/, and nothing else does.",
     "A promise with no proof is a GitHub issue, never a claim.",
     "last_run on a scenario proof is the last result measured for it, carried until a newer run replaces it: status, claim, commit, date (YYYY-MM-DD) and version. live/claims_last_run_test.go holds each entry to this file's history at 958bcf7f2d.",
     "substrate lists the providers the promise applies to: every cell that is not n/a.",
     "retired lists numbers that are no longer claims of their own; a number is never reused. One with claim and provider lives in that claim's cell;",
-    "demo: true is a scenario that is now a demo; covered_by names the proof that shows the same thing; merged_into is a whole claim nested in the named one;",
+    "demo: true is a scenario that is now a demo; covered_by names the proof that shows the same thing (a scenario, a stage or a Go test); merged_into is a whole claim nested in the named one;",
     "reserved: true is a number held back with no claim behind it.",
     "real_service: true marks a proof that runs against the provider's real account, maintainer-run (SMOKE_REAL_AWS=1 for aws).",
     "needs_emulator: true marks a Kubernetes proof that also brings up the pinned floci emulator for an S3-backed record store.",
@@ -35,7 +36,7 @@
       "slug": "backend-sets-itself-up",
       "claim": 2,
       "provider": "aws",
-      "covered_by": "two-writers-one-record"
+      "covered_by": "a-killed-apply-hides-nothing"
     },
     {
       "id": 8,
@@ -142,25 +143,29 @@
       "id": 30,
       "slug": "a-waiver-names-what-it-waives",
       "claim": 29,
-      "provider": "aws"
+      "provider": "aws",
+      "covered_by": "TestAWaiverWarnsOnEveryRunOfAnEstate"
     },
     {
       "id": 31,
       "slug": "a-bulk-read-is-complete-or-it-fails",
       "claim": 29,
-      "provider": "aws"
+      "provider": "aws",
+      "covered_by": "TestS3GetAllIsCompleteOrItFails"
     },
     {
       "id": 32,
       "slug": "two-writers-one-record",
       "claim": 2,
-      "provider": "aws"
+      "provider": "aws",
+      "covered_by": "TestS3StoreConformance/PutIfVersionWithStaleVersionConflicts"
     },
     {
       "id": 33,
       "slug": "cas-holds-under-every-sse-flavour",
       "claim": 2,
-      "provider": "aws"
+      "provider": "aws",
+      "covered_by": "TestS3StoreCASUnderEverySSEFlavour"
     },
     {
       "id": 34,
@@ -397,30 +402,24 @@
               }
             },
             {
-              "scenario": "live/smoke/scenarios/two-writers-one-record.sh",
-              "command": "just smoke two-writers-one-record",
-              "minutes": 3,
-              "needs_go": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the record store's PutObject carries no If-Match (go build -overlay, so it needs Go and cannot break a release binary) and passes only when both racing applies are caught reporting success over one record",
-              "last_run": {
-                "status": "proven",
-                "claim": 2,
-                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
-                "date": "2026-10-11",
-                "version": "v0.26.0"
-              }
+              "go_test": "TestS3StoreConformance/PutIfVersionWithStaleVersionConflicts",
+              "go_package": "./pkg/staterecord",
+              "command": "go test ./pkg/staterecord -run '^TestS3StoreConformance$/^PutIfVersionWithStaleVersionConflicts$'",
+              "note": "Two writers on one record, at the store: once one writer's conditional PUT has moved the record, the other's PUT carrying the version it read is refused with a version conflict, against an in-process S3 that enforces If-Match and If-None-Match as S3 does. A PutObject with no If-Match, the corruption the two-writers-one-record scenario's BREAK arm built until #2288, fails it. plunge's TestPlungeS3StoreConformance runs the same suite on floci."
             },
             {
-              "scenario": "live/smoke/scenarios/cas-holds-under-every-sse-flavour.sh",
-              "command": "just smoke cas-holds-under-every-sse-flavour",
-              "minutes": 6,
-              "needs_go": true,
+              "go_test": "TestWriteBackVersionConflict",
+              "go_package": "./internal/live/projection",
+              "command": "go test ./internal/live/projection -run '^TestWriteBackVersionConflict$'",
+              "note": "The loser of the race at the write-back: a record that moved after this run's plan read it is not overwritten, and the run stops on an error naming both versions."
+            },
+            {
+              "go_test": "TestS3StoreCASUnderEverySSEFlavour",
+              "go_package": "./pkg/staterecord",
+              "gate": "CHOUDOUFU_SSE_BUCKETS",
+              "command": "just test-sse",
               "real_service": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the store checks every ETag against the payload's MD5 (go build -overlay) and passes only when that binary works under SSE-S3 and fails, on that check and nothing else, under all three KMS flavours",
-              "evidence": [
-                "live/smoke/evidence/cas-holds-under-every-sse-flavour.lastrun.json"
-              ],
-              "note": "Real AWS, maintainer-run with SMOKE_REAL_AWS=1; it creates four buckets and a KMS key and removes them."
+              "note": "Real AWS, maintainer-run with SMOKE_REAL_AWS=1, and only when pkg/staterecord/s3.go changes (#2288 ruling Q3): the conditional-write suite on four real buckets, SSE-S3, SSE-KMS under the AWS-managed key and under a customer managed key, and DSSE-KMS. Under the three KMS flavours the ETag is not the payload's MD5, and the store must treat it as opaque. Its last run, as step 2 of the retired scenario cas-holds-under-every-sse-flavour, is live/smoke/evidence/cas-holds-under-every-sse-flavour.lastrun.json (2026-09-19)."
             }
           ],
           "note": ""
@@ -431,7 +430,14 @@
             {
               "proven_by": 29,
               "command": "just smoke k8s-records-in-the-cluster",
-              "note": "Steps 3 and 10 of claim 29's Kubernetes scenario (#1392, #1441). Step 3 kills an apply with SIGKILL and the next run carries on, with nothing lock-shaped in the records namespace. Step 10 parks two writers' first requests and releases them one at a time: twelve rounds, each landing exactly one write and refusing the other with a VersionConflictError naming both resourceVersions. BREAK=1 swaps each write for the stock backend's read-then-update and requires both writes to land; step 3's control plants a Lease and a lock-named Secret and requires its check to fail."
+              "note": "Step 3 of claim 29's Kubernetes scenario (#1392): an apply killed with SIGKILL, the very next run carries on, and nothing lock-shaped is left in the records namespace. Step 3's BREAK control plants a Lease and a lock-named Secret and requires its check to fail."
+            },
+            {
+              "go_test": "TestKubernetesTwoWritersOneRecord",
+              "go_package": "./pkg/staterecord",
+              "gate": "CHOUDOUFU_K8S_RECORD_KUBECONFIG",
+              "command": "just test-kind",
+              "note": "Two writers parked on the wire over one resourceVersion and released one at a time on a real API server (#1441): twelve rounds, update against update and create against create, each landing exactly one write and refusing the other with a VersionConflictError naming both versions, with no trace of the loser's payload. CHOUDOUFU_K8S_RECORD_RACE_BREAK=1 swaps each write for the stock backend's read-then-update, and the test must then fail with both writes landed. Step 10 of k8s-records-in-the-cluster until #2288."
             }
           ],
           "note": ""
@@ -951,18 +957,10 @@
           "status": "proven",
           "proofs": [
             {
-              "scenario": "live/smoke/scenarios/a-name-prefix-shares-no-keys.sh",
-              "command": "just smoke a-name-prefix-shares-no-keys",
-              "minutes": 1,
-              "needs_go": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout with the namespace delimiter dropped (go build -overlay, so it needs Go and cannot break a release binary) and passes only when the wire shows the run fetching its neighbour's record",
-              "last_run": {
-                "status": "proven",
-                "claim": 28,
-                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
-                "date": "2026-10-11",
-                "version": "v0.26.0"
-              }
+              "go_test": "TestS3StoreConformance/NeighbourNamespacesShareNoListingOrBulkRead",
+              "go_package": "./pkg/staterecord",
+              "command": "go test ./pkg/staterecord -run '^TestS3StoreConformance$/^NeighbourNamespacesShareNoListingOrBulkRead$'",
+              "note": "Estates prod and prod-eu in one bucket: neither one's listing nor its bulk read returns a key of the other's, because every namespace ends in its delimiter. The same case runs on every store in CI, and dropping the delimiter, the corruption the a-name-prefix-shares-no-keys scenario's BREAK arm built until #2288, fails it on each."
             },
             {
               "scenario": "live/smoke/scenarios/one-bucket-many-estates.sh",
@@ -1042,46 +1040,64 @@
           "status": "proven",
           "proofs": [
             {
-              "scenario": "live/smoke/scenarios/a-wrong-bucket-is-refused.sh",
-              "command": "just smoke a-wrong-bucket-is-refused",
-              "minutes": 2,
-              "needs_go": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout with CheckBucketContract reporting no findings (go build -overlay, so it needs Go and cannot break a release binary), runs one arm against a bucket whose versioning is Suspended, and passes only when that arm's own check catches the apply going through; the scenario's own five arms are the corruptions, one per setting plus a lifecycle that expires nothing and one that expires records",
-              "last_run": {
-                "status": "proven",
-                "claim": 29,
-                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
-                "date": "2026-10-11",
-                "version": "v0.26.0"
-              }
+              "go_test": "TestBucketContract",
+              "go_package": "./pkg/staterecord",
+              "command": "go test ./pkg/staterecord -run '^TestBucketContract$'",
+              "note": "Versioning, a lifecycle rule expiring noncurrent versions, and the public-access block are each asserted, and a bucket missing one, or a setting that cannot be read, is a finding naming it. CheckBucketContract reporting no findings, the a-wrong-bucket-is-refused scenario's BREAK arm until #2288, fails it."
             },
             {
-              "scenario": "live/smoke/scenarios/a-waiver-names-what-it-waives.sh",
-              "command": "just smoke a-waiver-names-what-it-waives",
-              "minutes": 2,
-              "needs_go": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the waiver warning is emitted on an estate's first run only (go build -overlay, so it needs Go and cannot break a release binary) and passes only when run two is caught proceeding in silence",
-              "last_run": {
-                "status": "proven",
-                "claim": 29,
-                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
-                "date": "2026-10-11",
-                "version": "v0.26.0"
-              }
+              "go_test": "TestABadBucketIsRefusedOnEveryFirstContactUntilItIsFixed",
+              "go_package": "./internal/live/projection",
+              "command": "go test ./internal/live/projection -run '^TestABadBucketIsRefusedOnEveryFirstContactUntilItIsFixed$'",
+              "note": "A bucket that fails its contract is refused on the estate's first contact, by name, and again on every first contact until it is fixed; nothing is written to it."
             },
             {
-              "scenario": "live/smoke/scenarios/a-bulk-read-is-complete-or-it-fails.sh",
-              "command": "just smoke a-bulk-read-is-complete-or-it-fails",
-              "minutes": 2,
-              "needs_go": true,
-              "break_mode": "BREAK=1 rebuilds choudoufu from this checkout so the bulk read is the one that stood before issue #1355 - the fan-out swallows a failed GET and the map it builds leaves that key out (go build -overlay, so it needs Go and cannot break a release binary) - and passes only when the plan is caught proposing to create a resource that exists. BREAK_CROSSCHECK=1 is step 5's own control: it rebuilds choudoufu without the plan-time call to refuseListedButReadAsAbsent (go build -overlay again) and passes only when, with one record listed and answered 404, the plan is caught proposing to create that instance and apply -destroy is caught reporting 1 destroyed of two with exit 0 and the record still in the bucket, which is GitHub issue #1355's output",
-              "last_run": {
-                "status": "proven",
-                "claim": 29,
-                "commit": "958bcf7f2dc7fd956ecccce8bcc017a9ef81c04a",
-                "date": "2026-10-11",
-                "version": "v0.26.0"
-              }
+              "go_test": "TestBeforeApplyAssertsTheBucketContract",
+              "go_package": "./internal/command",
+              "command": "go test ./internal/command -run '^TestBeforeApplyAssertsTheBucketContract$'",
+              "note": "Every apply asserts the contract before it writes: a failing setting refuses the apply naming the setting and the bucket, and a setting that could not be read is refused like one that failed."
+            },
+            {
+              "go_test": "TestAWaiverReachesOnlyWhatItNames",
+              "go_package": "./pkg/staterecord",
+              "command": "go test ./pkg/staterecord -run '^TestAWaiverReachesOnlyWhatItNames$'",
+              "note": "allow_insecure waives the settings it names and no others: the assertions it does not name still refuse."
+            },
+            {
+              "go_test": "TestFirstContactHonoursTheWaiver",
+              "go_package": "./internal/live/projection",
+              "command": "go test ./internal/live/projection -run '^TestFirstContactHonoursTheWaiver$'",
+              "note": "First contact under a waiver goes ahead past the waived setting alone."
+            },
+            {
+              "go_test": "TestAWaiverWarnsOnEveryRunOfAnEstate",
+              "go_package": "./internal/command",
+              "command": "go test ./internal/command -run '^TestAWaiverWarnsOnEveryRunOfAnEstate$'",
+              "note": "A waiver names what it waives on every run: a first apply, a plan once the state cache exists, and a second apply each print the warning once. The a-waiver-names-what-it-waives scenario's BREAK patch, the warning emitted only while the state cache is absent, fails it on run two (#2288)."
+            },
+            {
+              "go_test": "TestS3GetAllIsCompleteOrItFails",
+              "go_package": "./pkg/staterecord",
+              "command": "go test ./pkg/staterecord -run '^TestS3GetAllIsCompleteOrItFails$'",
+              "note": "The bulk read is a LIST and a fan-out of GETs, and one failed GET fails the whole read: it never returns a map short of a key the listing named (#1355)."
+            },
+            {
+              "go_test": "TestBoundedFanOutNeverReportsSuccessForWorkItDidNotDo",
+              "go_package": "./pkg/staterecord",
+              "command": "go test ./pkg/staterecord -run '^TestBoundedFanOutNeverReportsSuccessForWorkItDidNotDo$'",
+              "note": "The fan-out under the bulk read reports success only for work it did. The pre-#1355 fan-out that swallowed a failed GET, the a-bulk-read-is-complete-or-it-fails scenario's BREAK arm until #2288, fails it."
+            },
+            {
+              "go_test": "TestARecordTheListNamesAndTheReadDoesNotIsRefused",
+              "go_package": "./internal/live/projection",
+              "command": "go test ./internal/live/projection -run '^TestARecordTheListNamesAndTheReadDoesNotIsRefused$'",
+              "note": "A declared record the store's listing names and its read answers as absent is refused at the plan, naming the key, rather than planned as not created yet."
+            },
+            {
+              "go_test": "TestADestroyOverAStoreThatListsARecordItReadsAsAbsentFails",
+              "go_package": "./internal/live/projection",
+              "command": "go test ./internal/live/projection -run '^TestADestroyOverAStoreThatListsARecordItReadsAsAbsentFails$'",
+              "note": "The same contradiction on the path a destroy takes, through the run cache: the build an `apply -destroy` plans from fails, naming the key, where it would otherwise leave the instance out and report one of two destroyed as a success (#1355). It pins the one refuseListedButReadAsAbsent call, which the scenario's BREAK_CROSSCHECK arm removed until #2288."
             }
           ],
           "note": ""
@@ -1094,16 +1110,67 @@
               "command": "just smoke k8s-records-in-the-cluster",
               "minutes": 20,
               "needs_go": true,
-              "break_mode": "BREAK=1 takes the three fences away and requires what they refused to go through: the plan role is given cluster-wide secret reads and must then read the other estate's records, the admission policy is removed and the cross-estate write into a record Secret must then land, and the scoped identity whose first contact the cluster contract passed is given cluster-wide secret reads, after which the same first contact must be refused on read_isolation. A fourth control covers step 10: each racing write becomes the stock backend's read-then-update and all twelve rounds must then end with both writes landed and no conflict named. Steps 11 and 12 each rebuild choudoufu with go build -overlay, as the waiver and bulk-read proofs do on the bucket: a binary whose waiver warning is emitted on an estate's first run only must have its second run refused by step 11's check for naming no waiver, and a binary whose paged listing keeps its first page and drops the error on a later one must be caught by step 12's check exiting 0 with a plan that creates all six resources that exist. Steps 1, 2, 3, 8 and 9 each have a control that runs the step's own check function against a world built to fail it and requires the failure by name: the suite skipped and the suite short one case, the record Secrets stripped of their annotation and then their label, a planted Lease and a lock-named Secret, the Role short one verb given that verb so the same apply goes through and leaves records behind, and a write between the two resourceVersion dumps and a dump of a namespace holding no record; the listings behind steps 3, 8 and 9 are also run through a kubeconfig that reaches no server and must fail rather than read as empty",
+              "break_mode": "BREAK=1 takes the three fences away and requires what they refused to go through: the plan role is given cluster-wide secret reads and must then read the other estate's records, the admission policy is removed and the cross-estate write into a record Secret must then land, and the scoped identity whose first contact the cluster contract passed is given cluster-wide secret reads, after which the same first contact must be refused on read_isolation. Step 11 rebuilds choudoufu with go build -overlay: a binary whose waiver warning is emitted on an estate's first run only must have its second run refused by step 11's check for naming no waiver. Steps 2, 3, 8 and 9 each have a control that runs the step's own check function against a world built to fail it and requires the failure by name: the record Secrets stripped of their annotation and then their label, a planted Lease and a lock-named Secret, the Role short one verb given that verb so the same apply goes through and leaves records behind, and a write between the two resourceVersion dumps and a dump of a namespace holding no record; the listings behind steps 3, 8 and 9 are also run through a kubeconfig that reaches no server and must fail rather than read as empty",
               "evidence": [
                 "live/smoke/evidence/k8s-records-in-the-cluster.lastrun.json"
               ],
-              "note": "Steps 6 to 8 and 11 to 12 are this claim: the store checks the records namespace, its RBAC scope, encryption at rest and the estate boundary once, on an estate's first contact, before it writes a record, and refuses each broken assertion by name; a Role one verb short is refused at first contact, naming the verb, with nothing left behind; a waiver names what it waives on every run and `choudoufu live-cluster` ignores it; a listing that fails after its first page fails the plan and never reads as a short estate. Steps 2 to 5 and 9 are claim 28's, and steps 3 and 10 claim 2's."
+              "note": "Steps 6, 8 and 11 are this claim: the store checks the records namespace, its RBAC scope, encryption at rest and the estate boundary once, on an estate's first contact, before it writes a record; a Role one verb short is refused at first contact, naming the verb, with nothing left behind; a waiver names what it waives on every run and `choudoufu live-cluster` ignores it. Steps 2 to 5 and 9 are claim 28's, and step 3 claim 2's. Steps 1, 7, 10 and 12 are Go tests since #2288; the evidence file is the run of 2026-09-21, which still carried them."
             },
             {
               "proven_by": 1,
               "command": "just smoke k8s-a-deleted-namespace-is-gone",
               "note": "Step 7 of claim 1's Kubernetes scenario (#1765): the record store's namespace deleted under a converged estate is refused by name on the plan and on the apply, and nothing is written."
+            },
+            {
+              "go_test": "TestKubernetesStoreConformance",
+              "go_package": "./pkg/staterecord",
+              "gate": "CHOUDOUFU_K8S_RECORD_KUBECONFIG",
+              "command": "just test-kind",
+              "note": "The shared Store contract on a real API server: the conditional create, update and delete, the absent-key answers and the listing rules, the cases LocalStore and S3Store are held to. client-go's fake clientset assigns no resourceVersion, so this is the run that means anything. Step 1 of k8s-records-in-the-cluster until #2288."
+            },
+            {
+              "go_test": "TestClusterContractNamespaceAccessNamesTheVerbsItLacks",
+              "go_package": "./pkg/staterecord",
+              "command": "go test ./pkg/staterecord -run '^TestClusterContractNamespaceAccessNamesTheVerbsItLacks$'",
+              "note": "The namespace_access assertion refuses an identity short of the store's verbs, naming the verbs it lacks. With the four below, step 7 of k8s-records-in-the-cluster until #2288."
+            },
+            {
+              "go_test": "TestClusterContractReadIsolationRefusesAReadableForeignNamespace",
+              "go_package": "./pkg/staterecord",
+              "command": "go test ./pkg/staterecord -run '^TestClusterContractReadIsolationRefusesAReadableForeignNamespace$'",
+              "note": "read_isolation refuses an identity that can read another estate's records namespace, naming that namespace."
+            },
+            {
+              "go_test": "TestClusterContractEncryptionAtRest",
+              "go_package": "./pkg/staterecord",
+              "command": "go test ./pkg/staterecord -run '^TestClusterContractEncryptionAtRest$'",
+              "note": "encryption_at_rest refuses a cluster whose Secrets are not encrypted at rest, and one that cannot say is reported as not checked, never as a pass."
+            },
+            {
+              "go_test": "TestClusterContractEstateBoundary",
+              "go_package": "./pkg/staterecord",
+              "command": "go test ./pkg/staterecord -run '^TestClusterContractEstateBoundary$'",
+              "note": "estate_boundary refuses each way the boundary policy can be installed without being in force, an unbound policy among them."
+            },
+            {
+              "go_test": "TestClusterContractReportsAnAbsentNamespaceInTheStoresOwnWords",
+              "go_package": "./pkg/staterecord",
+              "command": "go test ./pkg/staterecord -run '^TestClusterContractReportsAnAbsentNamespaceInTheStoresOwnWords$'",
+              "note": "An absent records namespace is refused in the same words, and with the same kubectl line, as the store's own NamespaceMissingError."
+            },
+            {
+              "go_test": "TestKubernetesListReadsEveryPageOnARealAPIServer",
+              "go_package": "./pkg/staterecord",
+              "gate": "CHOUDOUFU_K8S_RECORD_KUBECONFIG",
+              "command": "just test-kind",
+              "note": "The store's listing reads every page of a paged LIST on a real API server. With the test below, step 12 of k8s-records-in-the-cluster until #2288."
+            },
+            {
+              "go_test": "TestKubernetesAnExpiredContinueTokenFailsTheListingOnARealAPIServer",
+              "go_package": "./pkg/staterecord",
+              "gate": "CHOUDOUFU_K8S_RECORD_KUBECONFIG",
+              "command": "just test-kind",
+              "note": "A listing whose second page is answered 410 Expired fails whole, List and GetAll alike, and never returns the first page as the estate."
             }
           ],
           "note": ""

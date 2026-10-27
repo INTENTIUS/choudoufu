@@ -6,7 +6,8 @@
 # "Two runs change different resources"; GitHub issues #1938 and #2255).
 #
 # A draft until its first green run on both arms (drafts/README.md). The
-# same-record half of the record-store claim is two-writers-one-record; this
+# same-record half of the record-store claim is a Go test since #2288
+# (TestS3StoreConformance/PutIfVersionWithStaleVersionConflicts); this
 # is the disjoint half, unit-tested until now by
 # internal/live/projection/writeback_changedonly_1938_test.go and
 # writeinstance_disjoint_1944_test.go.
@@ -150,7 +151,7 @@ write_config "$SMOKE_WORK/a" from-a-left seed-right
 write_config "$SMOKE_WORK/b" seed-left from-b-right
 cmd "(apply in a &) ; (apply in b &)"
 # `&& rc=0 || rc=$?`, never `; echo $?`: smoke.sh runs under set -e
-# (two-writers-one-record, #1590/#1646).
+# (#1590/#1646).
 ( cd "$SMOKE_WORK/a" && { AWS_ENDPOINT_URL="$URL_A" "$RUN_BIN" apply -auto-approve -input=false -no-color > "$SMOKE_WORK/a.out" 2>&1 && rc=0 || rc=$?; echo "$rc" > "$SMOKE_WORK/a.rc"; } ) &
 PID_A=$!
 ( cd "$SMOKE_WORK/b" && { AWS_ENDPOINT_URL="$URL_B" "$RUN_BIN" apply -auto-approve -input=false -no-color > "$SMOKE_WORK/b.out" 2>&1 && rc=0 || rc=$?; echo "$rc" > "$SMOKE_WORK/b.rc"; } ) &

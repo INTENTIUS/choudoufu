@@ -125,7 +125,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"identity.NoSourceCreateFor":          {notAPass, "reads the strict profile"},
 	"identity.SecretsFor":                 {notAPass, "reads the strict profile's secrets setting, to decide whether this run keeps a state cache at all (#1375). That is a fact about the run, not about any resource, so no target set narrows it"},
 	"projection.NewMarkerIndex":           {notAPass, "indexes resolutions already in hand"},
-	"projection.NewRecordStore":           {notAPass, "opens a store"},
+	"liveRecordStoreOpener":               {notAPass, "opens a store (projection.NewRecordStore, a variable for #2288's test)"},
 	"projection.NewRecordEnvelopeStore":   {notAPass, "wraps a store"},
 	"projection.NewRootOutputStore":       {notAPass, "wraps a store"},
 	"projection.RecordStoreKeyPrefix":     {notAPass, "computes a key prefix"},

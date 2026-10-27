@@ -16,16 +16,16 @@ Each scenario runs from the repository root and ends on a `PASS` line; its
 
 ## On AWS
 
-### a-name-prefix-shares-no-keys
+### TestS3StoreConformance/NeighbourNamespacesShareNoListingOrBulkRead
 
-    just smoke a-name-prefix-shares-no-keys
-    BREAK=1 just smoke a-name-prefix-shares-no-keys
+    go test ./pkg/staterecord -run '^TestS3StoreConformance$/^NeighbourNamespacesShareNoListingOrBulkRead$'
 
-Two estates whose names prefix one another (`smoke-prod`,
-`smoke-prod-eu`) share a bucket, and the trailing slash on the key prefix
-keeps each listing to its own estate. `BREAK=1` rebuilds choudoufu without
-the slash (needs Go), and the wire must show one estate fetching the
-other's record.
+Two estates whose names prefix one another (`prod`, `prod-eu`) share a
+bucket, and the delimiter that ends every namespace keeps each listing and
+each bulk read to its own estate. The same case runs against every store
+in CI, and dropping the delimiter, which `just smoke
+a-name-prefix-shares-no-keys`'s `BREAK=1` did until #2288, fails it on
+each. Callers build list prefixes through `NamespacePrefix`.
 
 ### one-bucket-many-estates
 

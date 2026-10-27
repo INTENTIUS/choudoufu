@@ -315,7 +315,7 @@ fence, each a claim with a BREAK control, then a lane.
 | 7, identity is a tag | `carve-by-retag.sh` and others | `k8s-greenfield.sh` | `az-identity-is-a-tag` | strips the label; the replan must restore it |
 | 1, no silent orphans | `no-silent-orphans.sh` | `k8s-no-silent-orphans.sh` | `az-no-silent-orphans` | strips the orphan's label; the replan must leave it |
 | 13, the tag is the boundary | `the-tag-is-the-boundary.sh` | `k8s-the-label-is-the-boundary.sh` | `az-the-tag-is-the-boundary` | removes the policy; the denied write must go through |
-| 29, the store refuses what it can't trust | `a-wrong-bucket-is-refused.sh` | `k8s-records-in-the-cluster.sh` | none: the draft was deleted under #2288, since `TestAzureBlobStoreConformance` holds the store | removes the fences |
+| 29, the store refuses what it can't trust | Go tests (`TestBucketContract` and others, #2288) | `k8s-records-in-the-cluster.sh` | none: the draft was deleted under #2288, since `TestAzureBlobStoreConformance` holds the store | removes the fences |
 
 Fixed (`live/smoke_claims_test.go`): the platform's name joins
 `provider_order` in `live/smoke/claims.json`; every claim gets a cell for it

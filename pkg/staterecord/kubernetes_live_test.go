@@ -29,10 +29,13 @@ import (
 //
 // # Where this runs for real
 //
-// `just smoke k8s-records-in-the-cluster` (live/smoke/scenarios/), which
-// creates a kind cluster, creates the records namespace, sets this variable
-// and runs `go test -run TestKubernetesStore`. That scenario is claim 29 in
-// live/smoke/claims.json and is what the claim's evidence is read from.
+// `just test-kind` (scripts/test-kind.sh), which creates a kind cluster with
+// a scratch name, creates the records namespace, sets this variable and
+// runs `go test -run '^TestKubernetes' -v`. Since GitHub issue #2288 these
+// tests are go_test proofs of claims 2 and 29 in live/smoke/claims.json
+// (until then steps 1, 10 and 12 of the smoke scenario
+// k8s-records-in-the-cluster ran them), and `go run ./tools/gotest-record
+// -log` records the recipe's log as their dated run.
 //
 // A skip here is not a pass. A `go test ./pkg/staterecord/` with no
 // cluster measures the unit tests over the fake clientset and nothing about
@@ -41,8 +44,8 @@ import (
 const kubeconfigEnvVar = "CHOUDOUFU_K8S_RECORD_KUBECONFIG"
 
 // namespaceEnvVar names the Kubernetes namespace the suite writes its Secrets
-// into. The store never creates one (see [NamespaceMissingError]), so the
-// scenario does, the way a cluster admin would.
+// into. The store never creates one (see [NamespaceMissingError]), so
+// `just test-kind` does, the way a cluster admin would.
 const namespaceEnvVar = "CHOUDOUFU_K8S_RECORD_NAMESPACE"
 
 // liveKubernetesSecrets builds the Secret client the live tests use, or
@@ -52,7 +55,7 @@ const namespaceEnvVar = "CHOUDOUFU_K8S_RECORD_NAMESPACE"
 func liveKubernetesSecrets(t *testing.T) (corev1client.SecretInterface, kubernetes.Interface, string) {
 	t.Helper()
 	k8stest.Gate(t, "Kubernetes record store")
-	path := k8stest.RequireEnv(t, kubeconfigEnvVar, "This test needs a real Kubernetes API server, because client-go's fake clientset assigns no resourceVersion and every version assertion here would be vacuous against it. `just smoke k8s-records-in-the-cluster` creates a kind cluster and runs it.")
+	path := k8stest.RequireEnv(t, kubeconfigEnvVar, "This test needs a real Kubernetes API server, because client-go's fake clientset assigns no resourceVersion and every version assertion here would be vacuous against it. `just test-kind` creates a kind cluster and runs it.")
 	ns := k8stest.RequireEnv(t, namespaceEnvVar, "The store never creates a namespace, so the caller has to name one it created.")
 	cfg, err := clientcmd.BuildConfigFromFlags("", path)
 	if err != nil {
@@ -63,7 +66,7 @@ func liveKubernetesSecrets(t *testing.T) (corev1client.SecretInterface, kubernet
 		t.Fatalf("building a client: %v", err)
 	}
 	if _, err := clientset.CoreV1().Namespaces().Get(context.Background(), ns, metav1.GetOptions{}); err != nil {
-		t.Fatalf("namespace %q: %v. The scenario creates it; this test does not, because the store does not either.", ns, err)
+		t.Fatalf("namespace %q: %v. `just test-kind` creates it; this test does not, because the store does not either.", ns, err)
 	}
 	return clientset.CoreV1().Secrets(ns), clientset, ns
 }

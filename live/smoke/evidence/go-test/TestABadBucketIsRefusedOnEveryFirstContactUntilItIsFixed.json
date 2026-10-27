@@ -1,0 +1,8 @@
+{
+  "test": "TestABadBucketIsRefusedOnEveryFirstContactUntilItIsFixed",
+  "package": "./internal/live/projection",
+  "status": "pass",
+  "commit": "289d16bad4cb3910600e0a9e60be85452eae47eb",
+  "date": "2026-10-27",
+  "ci_run": "https://github.com/INTENTIUS/choudoufu/actions/runs/40461112119"
+}
