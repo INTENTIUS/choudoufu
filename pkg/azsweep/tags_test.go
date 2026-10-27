@@ -36,7 +36,7 @@ func TestTaggerMergesOntoTheScope(t *testing.T) {
 	defer srv.Close()
 
 	cred := &fakeCred{}
-	tg := NewTaggerWith(Endpoints{ResourceManager: srv.URL + "/", Audience: "https://management.core.windows.net/"}, cred, srv.Client())
+	tg := newTaggerWith(Endpoints{ResourceManager: srv.URL + "/", Audience: "https://management.core.windows.net/"}, cred, srv.Client())
 	markers := map[string]string{"tofu-estate": "prod", "tofu-address": "azurerm_app_service_managed_certificate.c"}
 	if err := tg.MergeTags(t.Context(), id, markers); err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func TestTaggerReportsARMErrors(t *testing.T) {
 		_, _ = w.Write([]byte(`{"error":{"code":"RequestDisallowedByPolicy","message":"Resource 'c' was disallowed by policy."}}`))
 	}))
 	defer srv.Close()
-	tg := NewTaggerWith(Endpoints{ResourceManager: srv.URL, Audience: "https://management.core.windows.net/"}, &fakeCred{}, srv.Client())
+	tg := newTaggerWith(Endpoints{ResourceManager: srv.URL, Audience: "https://management.core.windows.net/"}, &fakeCred{}, srv.Client())
 	err := tg.MergeTags(t.Context(), "/subscriptions/"+sub1+"/resourceGroups/rg/providers/Microsoft.Web/certificates/c", map[string]string{"tofu-estate": "prod"})
 	if err == nil {
 		t.Fatal("a 403 read as success")
@@ -126,7 +126,7 @@ func TestTaggerNeverReplacesTheOperatorsTags(t *testing.T) {
 		_, _ = w.Write([]byte(`{}`))
 	}))
 	defer srv.Close()
-	tg := NewTaggerWith(Endpoints{ResourceManager: srv.URL, Audience: "https://management.core.windows.net/"}, &fakeCred{}, srv.Client())
+	tg := newTaggerWith(Endpoints{ResourceManager: srv.URL, Audience: "https://management.core.windows.net/"}, &fakeCred{}, srv.Client())
 	if err := tg.MergeTags(t.Context(), id, map[string]string{"tofu-estate": "prod", "tofu-address": "azurerm_app_service_managed_certificate.c"}); err != nil {
 		t.Fatal(err)
 	}

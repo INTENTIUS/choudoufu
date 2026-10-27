@@ -20,7 +20,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
-	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/markerkeys"
 )
 
 // Resource is one resource or resource group Resource Graph holds with
@@ -99,28 +99,35 @@ type Client struct {
 	scope    string
 	cred     azcore.TokenCredential
 	http     *http.Client
-	// subscription is the provider block's subscription_id, "" for a
-	// [NewWith] client until a caller says.
+	// subscription is the provider block's subscription_id, "" when the
+	// caller names none.
 	subscription string
 	creds        Credentials
+	keys         markerkeys.Keys
 	// sleep waits d or until ctx ends; tests replace it to record the
 	// waits instead of taking them.
 	sleep func(ctx context.Context, d time.Duration) error
 }
 
-// NewWith builds a client over an already-made credential, for tests and
-// for a caller that has one. hc nil is http.DefaultClient.
-func NewWith(ep Endpoints, cred azcore.TokenCredential, hc *http.Client) *Client {
-	if hc == nil {
-		hc = http.DefaultClient
+// New builds a client over the caller's credential, endpoints and HTTP
+// client ([Config]). No token is requested until [Client.Search].
+func New(cfg Config) (*Client, error) {
+	if err := cfg.Markers.Validate(); err != nil {
+		return nil, err
+	}
+	if cfg.Credential == nil {
+		return nil, fmt.Errorf("the Azure estate sweep was given no credential; the caller builds the credential it calls with")
 	}
 	return &Client{
-		endpoint: strings.TrimSuffix(ep.ResourceManager, "/"),
-		scope:    scope(ep.Audience),
-		cred:     cred,
-		http:     hc,
-		sleep:    sleepCtx,
-	}
+		endpoint:     strings.TrimSuffix(cfg.Endpoints.ResourceManager, "/"),
+		scope:        scope(cfg.Endpoints.Audience),
+		cred:         cfg.Credential,
+		http:         cfg.httpClient(),
+		subscription: cfg.Subscription,
+		creds:        cfg.Credentials,
+		keys:         cfg.Markers,
+		sleep:        sleepCtx,
+	}, nil
 }
 
 // Subscription is the provider block's subscription_id, the one
@@ -153,7 +160,7 @@ func (c *Client) Credentials() Credentials { return c.creds }
 //
 // id is projected, which Resource Graph requires for $skipToken paging
 // (without it the result is truncated at one page).
-func Query(estate string) string {
+func Query(keys markerkeys.Keys, estate string) string {
 	return strings.Join([]string{
 		"resources",
 		"| union (resourcecontainers | where type =~ 'microsoft.resources/subscriptions/resourcegroups')",
@@ -161,7 +168,7 @@ func Query(estate string) string {
 		"| extend markerTag = tags",
 		"| mv-expand markerTag",
 		"| extend markerKey = tostring(bag_keys(markerTag)[0])",
-		"| where markerKey =~ " + kqlString(markers.TagEstate) + " and tostring(markerTag[markerKey]) == " + kqlString(estate),
+		"| where markerKey =~ " + kqlString(keys.Owner) + " and tostring(markerTag[markerKey]) == " + kqlString(keys.OwnerValue(estate)),
 		"| project id, type, name, resourceGroup, subscriptionId, location, tags, managedBy",
 	}, "\n")
 }
@@ -169,8 +176,8 @@ func Query(estate string) string {
 // TypesQuery is [Query] narrowed to armTypes: the same estate-tag match,
 // keeping only rows whose type is one of them. An empty armTypes is the
 // plain [Query].
-func TypesQuery(estate string, armTypes []string) string {
-	q := Query(estate)
+func TypesQuery(keys markerkeys.Keys, estate string, armTypes []string) string {
+	q := Query(keys, estate)
 	if len(armTypes) == 0 {
 		return q
 	}
@@ -240,13 +247,13 @@ type row struct {
 // too widely can never read another estate's resource as this one's. A
 // row repeated (by id, case-insensitively) is kept once.
 func (c *Client) Search(ctx context.Context, subscription, estate string) ([]Resource, error) {
-	return c.search(ctx, subscription, estate, Query(estate))
+	return c.search(ctx, subscription, estate, Query(c.keys, estate))
 }
 
 // SearchTypes implements [TypeSearcher]: [Client.Search] with [TypesQuery],
 // and every row checked again against armTypes as well as the estate.
 func (c *Client) SearchTypes(ctx context.Context, subscription, estate string, armTypes []string) ([]Resource, error) {
-	all, err := c.search(ctx, subscription, estate, TypesQuery(estate, armTypes))
+	all, err := c.search(ctx, subscription, estate, TypesQuery(c.keys, estate, armTypes))
 	if err != nil || len(armTypes) == 0 {
 		return all, err
 	}
@@ -283,7 +290,7 @@ func (c *Client) search(ctx context.Context, subscription, estate, query string)
 				continue
 			}
 			tags := stringTags(r.Tags)
-			if v, ok := EstateTag(tags); !ok || v != estate {
+			if v, ok := OwnerTag(c.keys, tags); !ok || v != c.keys.OwnerValue(estate) {
 				continue
 			}
 			key := strings.ToLower(r.ID)
@@ -318,15 +325,16 @@ func (c *Client) search(ctx context.Context, subscription, estate, query string)
 	}
 }
 
-// EstateTag is the tofu-estate tag's value in tags, its key matched
-// case-insensitively (#1122): ARM tag keys are case-insensitive, so
-// Tofu-Estate is the marker as surely as tofu-estate is.
-func EstateTag(tags map[string]string) (string, bool) {
-	if v, ok := tags[markers.TagEstate]; ok {
+// OwnerTag is the owner tag's value in tags (keys.Owner: choudoufu's
+// tofu-estate), its key matched case-insensitively (#1122): ARM tag keys
+// are case-insensitive, so Tofu-Estate is the marker as surely as
+// tofu-estate is.
+func OwnerTag(keys markerkeys.Keys, tags map[string]string) (string, bool) {
+	if v, ok := tags[keys.Owner]; ok {
 		return v, true
 	}
 	for k, v := range tags {
-		if strings.EqualFold(k, markers.TagEstate) {
+		if strings.EqualFold(k, keys.Owner) {
 			return v, true
 		}
 	}

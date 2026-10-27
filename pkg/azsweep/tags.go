@@ -12,13 +12,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
-	"github.com/intentius/choudoufu/internal/httpclient"
 )
 
 // TagsAPIVersion is the Microsoft.Resources api-version the post-create
@@ -41,31 +39,15 @@ type Tagger struct {
 	creds    Credentials
 }
 
-// NewTagger builds a Tagger from a provider block's arguments, with the
-// provider's environment fallbacks applied, through the same credential
-// chain [New] uses.
-func NewTagger(ctx context.Context, a Attrs) (*Tagger, error) {
-	a = a.WithEnv(os.Getenv)
-	cred, ep, creds, err := a.credential(ctx, "the post-create marker write")
-	if err != nil {
-		return nil, err
-	}
-	t := NewTaggerWith(ep, cred, httpclient.New(ctx))
-	t.creds = creds
-	return t, nil
-}
-
-// NewTaggerWith builds a Tagger over an already-made credential, for tests
-// and for a caller that has one. hc nil is http.DefaultClient.
-func NewTaggerWith(ep Endpoints, cred azcore.TokenCredential, hc *http.Client) *Tagger {
-	if hc == nil {
-		hc = http.DefaultClient
-	}
+// NewTagger builds a Tagger over the caller's credential, endpoints and
+// HTTP client ([Config]; its Markers are not read).
+func NewTagger(cfg Config) *Tagger {
 	return &Tagger{
-		endpoint: strings.TrimSuffix(ep.ResourceManager, "/"),
-		scope:    scope(ep.Audience),
-		cred:     cred,
-		http:     hc,
+		endpoint: strings.TrimSuffix(cfg.Endpoints.ResourceManager, "/"),
+		scope:    scope(cfg.Endpoints.Audience),
+		cred:     cfg.Credential,
+		http:     cfg.httpClient(),
+		creds:    cfg.Credentials,
 	}
 }
 

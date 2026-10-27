@@ -19,11 +19,9 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/lang/marks"
 )
 
 const (
@@ -89,7 +87,7 @@ func newTestClient(t *testing.T, answer func(n int, q sentQuery, w http.Response
 	s := &server{t: t, answer: answer}
 	ts := httptest.NewServer(s)
 	t.Cleanup(ts.Close)
-	c := NewWith(Endpoints{ResourceManager: ts.URL + "/", Audience: "https://management.core.windows.net/"}, &fakeCred{}, ts.Client())
+	c := newWith(Endpoints{ResourceManager: ts.URL + "/", Audience: "https://management.core.windows.net/"}, &fakeCred{}, ts.Client())
 	var waits []time.Duration
 	c.sleep = func(_ context.Context, d time.Duration) error {
 		waits = append(waits, d)
@@ -174,7 +172,7 @@ func TestSearchPagesAndMatchesTheKeyCaseInsensitively(t *testing.T) {
 		t.Fatalf("sent %d requests, want 2", len(s.sent))
 	}
 	for i, q := range s.sent {
-		if !reflect.DeepEqual(q.Subscriptions, []string{sub1}) || q.Options.Top != PageSize || q.Options.ResultFormat != "objectArray" || q.Query != Query("est") {
+		if !reflect.DeepEqual(q.Subscriptions, []string{sub1}) || q.Options.Top != PageSize || q.Options.ResultFormat != "objectArray" || q.Query != Query(testKeys, "est") {
 			t.Errorf("request %d = %+v", i, q)
 		}
 	}
@@ -184,7 +182,7 @@ func TestSearchPagesAndMatchesTheKeyCaseInsensitively(t *testing.T) {
 }
 
 func TestQueryReadsTheKeyCaseInsensitively(t *testing.T) {
-	q := Query("o'brien")
+	q := Query(testKeys, "o'brien")
 	for _, want := range []string{
 		"mv-expand markerTag",
 		"where markerKey =~ 'tofu-estate'",
@@ -203,7 +201,7 @@ func TestQueryReadsTheKeyCaseInsensitively(t *testing.T) {
 	}
 }
 
-func TestEstateTag(t *testing.T) {
+func TestOwnerTag(t *testing.T) {
 	for name, tc := range map[string]struct {
 		tags map[string]string
 		want string
@@ -216,9 +214,9 @@ func TestEstateTag(t *testing.T) {
 		"nil":         {nil, "", false},
 		"similar key": {map[string]string{"tofu-estates": "d"}, "", false},
 	} {
-		got, ok := EstateTag(tc.tags)
+		got, ok := OwnerTag(testKeys, tc.tags)
 		if got != tc.want || ok != tc.ok {
-			t.Errorf("%s: EstateTag = %q, %v; want %q, %v", name, got, ok, tc.want, tc.ok)
+			t.Errorf("%s: OwnerTag = %q, %v; want %q, %v", name, got, ok, tc.want, tc.ok)
 		}
 	}
 }
@@ -384,7 +382,7 @@ func TestProviderAttrs(t *testing.T) {
 			"subscription_id": cty.StringVal(sub1),
 			"tenant_id":       cty.StringVal("tenant"),
 			"client_id":       cty.StringVal("app"),
-			"client_secret":   cty.StringVal("s3cret").Mark(marks.Sensitive),
+			"client_secret":   cty.StringVal("s3cret").Mark(testSensitive),
 			"use_cli":         cty.False,
 			"use_msi":         cty.NullVal(cty.Bool),
 			"environment":     cty.StringVal("china"),
@@ -400,14 +398,14 @@ func TestProviderAttrs(t *testing.T) {
 	})
 	t.Run("marked identity is refused", func(t *testing.T) {
 		val := cty.ObjectVal(map[string]cty.Value{
-			"subscription_id": cty.StringVal(sub1).Mark(marks.Sensitive),
+			"subscription_id": cty.StringVal(sub1).Mark(testSensitive),
 		})
 		a := ProviderAttrs(ProviderAzureRM, val, true)
 		if a.SubscriptionID != "" || !reflect.DeepEqual(a.Marked, []string{"subscription_id"}) {
 			t.Fatalf("attrs = %+v", a)
 		}
-		if _, err := New(context.Background(), a); err == nil || !strings.Contains(err.Error(), "subscription_id") {
-			t.Errorf("New = %v, want a refusal naming subscription_id", err)
+		if got := a.RefusedMarks(); !reflect.DeepEqual(got, []string{"subscription_id"}) {
+			t.Errorf("RefusedMarks = %v, want subscription_id; a credential built from these arguments is refused by name (internal/live/sweepconfig)", got)
 		}
 	})
 	t.Run("azapi endpoint block", func(t *testing.T) {
@@ -424,20 +422,9 @@ func TestProviderAttrs(t *testing.T) {
 		if a.ResourceManagerEndpoint != "https://arm.example/" || a.ResourceManagerAudience != "https://arm.example/" || a.ADOServiceConnectionID != "conn" {
 			t.Errorf("attrs = %+v", a)
 		}
-		cfg, err := a.cloudConfig(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-		rm := cfg.Services[cloud.ResourceManager]
-		if rm.Endpoint != "https://arm.example/" || rm.Audience != "https://arm.example/" || cfg.ActiveDirectoryAuthorityHost != cloud.AzurePublic.ActiveDirectoryAuthorityHost {
-			t.Errorf("cloud = %+v", cfg)
-		}
-		if cloud.AzurePublic.Services[cloud.ResourceManager].Endpoint == "https://arm.example/" {
-			t.Errorf("the override wrote through to azcore's AzurePublic")
-		}
 		marked := cty.ObjectVal(map[string]cty.Value{"endpoint": cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{
 			"resource_manager_endpoint": cty.StringVal("x"), "resource_manager_audience": cty.NullVal(cty.String), "active_directory_authority_host": cty.NullVal(cty.String),
-		}).Mark(marks.Sensitive)})})
+		}).Mark(testSensitive)})})
 		if a := ProviderAttrs(ProviderAzAPI, marked, true); !reflect.DeepEqual(a.Marked, []string{"endpoint"}) {
 			t.Errorf("marked endpoint attrs = %+v", a)
 		}
@@ -516,48 +503,6 @@ func TestClassify(t *testing.T) {
 		if got := Summary(classify(sub1, Credentials{}, tc.status, []byte(tc.body))); got != tc.want {
 			t.Errorf("%s: Summary = %q, want %q", name, got, tc.want)
 		}
-	}
-}
-
-// TestAzAPICustomEnvironment: azapi's environment = "custom" is a cloud of
-// its three endpoint values alone, as azapi 2.13.0 builds it
-// (provider.go:635-658), and a missing one is refused by name rather than
-// filled from the public cloud (GitHub issue #2133, the endpoint lock).
-func TestAzAPICustomEnvironment(t *testing.T) {
-	env := map[string]string{
-		"ARM_ENVIRONMENT":                     "custom",
-		"ARM_RESOURCE_MANAGER_ENDPOINT":       "https://localhost:45770",
-		"ARM_RESOURCE_MANAGER_AUDIENCE":       "https://localhost:45770/",
-		"ARM_ACTIVE_DIRECTORY_AUTHORITY_HOST": "https://localhost:45770/",
-		"ARM_DISABLE_INSTANCE_DISCOVERY":      "TRUE",
-	}
-	a := Attrs{Provider: ProviderAzAPI}.WithEnv(func(k string) string { return env[k] })
-	cfg, err := a.cloudConfig(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	rm := cfg.Services[cloud.ResourceManager]
-	if rm.Endpoint != "https://localhost:45770" || rm.Audience != "https://localhost:45770/" || cfg.ActiveDirectoryAuthorityHost != "https://localhost:45770/" || len(cfg.Services) != 1 {
-		t.Errorf("cloud = %+v", cfg)
-	}
-	if !on(a.DisableInstanceDiscovery, false) || !a.authConfig(cfg).DisableInstanceDiscovery {
-		t.Errorf("ARM_DISABLE_INSTANCE_DISCOVERY=TRUE did not turn discovery off: %v", a.DisableInstanceDiscovery)
-	}
-
-	delete(env, "ARM_ACTIVE_DIRECTORY_AUTHORITY_HOST")
-	a = Attrs{Provider: ProviderAzAPI}.WithEnv(func(k string) string { return env[k] })
-	if _, err := a.cloudConfig(context.Background()); err == nil || !strings.Contains(err.Error(), "active_directory_authority_host") {
-		t.Errorf("custom without its authority = %v, want a refusal naming active_directory_authority_host", err)
-	}
-	// azurerm has no "custom": go-azure-sdk's environments.FromName refuses it.
-	rmAttrs := Attrs{Provider: ProviderAzureRM}.WithEnv(func(k string) string { return env[k] })
-	if _, err := rmAttrs.cloudConfig(context.Background()); err == nil {
-		t.Error(`azurerm with environment "custom" and no metadata_host built a cloud`)
-	}
-	// The block's own disable_instance_discovery wins over the environment.
-	val := cty.ObjectVal(map[string]cty.Value{"disable_instance_discovery": cty.False})
-	if b := ProviderAttrs(ProviderAzAPI, val, true).WithEnv(func(k string) string { return env[k] }); on(b.DisableInstanceDiscovery, true) {
-		t.Error("ARM_DISABLE_INSTANCE_DISCOVERY overrode the block's disable_instance_discovery = false")
 	}
 }
 

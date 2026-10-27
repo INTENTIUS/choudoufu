@@ -6,16 +6,12 @@
 package azsweep
 
 import (
-	"context"
-	"fmt"
-	"os"
+	"net/http"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 
-	"github.com/intentius/choudoufu/internal/backend/remote-state/azure/auth"
-	"github.com/intentius/choudoufu/internal/httpclient"
+	"github.com/intentius/choudoufu/pkg/markerkeys"
 )
 
 // Credentials is how a client was told to authenticate, so that a failure
@@ -24,7 +20,7 @@ import (
 type Credentials struct {
 	// Method is the credential chain's choice, in its own words: "Client
 	// Secret Auth", "Azure CLI Auth", "Managed Service Identity Auth".
-	// Empty for a [NewWith] client, which was handed a credential.
+	// Empty when the caller names none ([Config.Credentials]).
 	Method string
 	// TenantID and ClientID are the block's, when it names them.
 	TenantID string
@@ -57,139 +53,44 @@ type Endpoints struct {
 	Audience string
 }
 
-// cloudConfig is the cloud the block names, in the precedence the
-// providers apply: azurerm's metadata_host over environment, and azapi's
-// endpoint block over environment, field by field. azapi's environment
-// "custom" is a cloud of its three endpoint values alone, each required
-// (azapi 2.13.0 provider.go:635-658); azurerm has no "custom" and refuses
-// it, as go-azure-sdk's environments.FromName does.
-func (a Attrs) cloudConfig(ctx context.Context) (cloud.Configuration, error) {
-	var cfg cloud.Configuration
-	var err error
-	if a.MetadataHost != "" {
-		cfg, err = auth.CloudConfigFromMetadataHost(ctx, a.MetadataHost)
-	} else if a.providerName() == ProviderAzAPI && strings.EqualFold(a.Environment, "custom") {
-		var missing []string
-		for _, f := range []struct{ name, val string }{
-			{"active_directory_authority_host", a.ActiveDirectoryAuthorityHost},
-			{"resource_manager_endpoint", a.ResourceManagerEndpoint},
-			{"resource_manager_audience", a.ResourceManagerAudience},
-		} {
-			if f.val == "" {
-				missing = append(missing, f.name)
-			}
-		}
-		if len(missing) > 0 {
-			return cloud.Configuration{}, fmt.Errorf("environment \"custom\" needs %s", strings.Join(missing, ", "))
-		}
-		cfg = cloud.Configuration{
-			ActiveDirectoryAuthorityHost: a.ActiveDirectoryAuthorityHost,
-			Services:                     map[cloud.ServiceName]cloud.ServiceConfiguration{cloud.ResourceManager: {}},
-		}
-	} else {
-		cfg, _, err = auth.CloudConfigFromAddresses(ctx, a.Environment, "")
-	}
-	if err != nil {
-		return cloud.Configuration{}, err
-	}
-	rm := cfg.Services[cloud.ResourceManager]
-	if a.ResourceManagerEndpoint != "" {
-		rm.Endpoint = a.ResourceManagerEndpoint
-	}
-	if a.ResourceManagerAudience != "" {
-		rm.Audience = a.ResourceManagerAudience
-	}
-	services := map[cloud.ServiceName]cloud.ServiceConfiguration{}
-	for k, v := range cfg.Services {
-		services[k] = v
-	}
-	services[cloud.ResourceManager] = rm
-	cfg.Services = services
-	if a.ActiveDirectoryAuthorityHost != "" {
-		cfg.ActiveDirectoryAuthorityHost = a.ActiveDirectoryAuthorityHost
-	}
-	return cfg, nil
+// Config is what the caller supplies a [Client], [Tagger] or
+// [KeyVaultClient] (GitHub issue #2281): the marker vocabulary, the
+// credential, where it calls and the HTTP client. The package builds no
+// credential of its own and reads no environment to find one; choudoufu
+// passes what OpenTofu's azurerm backend credential chain builds, plunge an
+// azidentity credential.
+type Config struct {
+	// Markers names the owner tag key a search matches. Only [New] reads
+	// it.
+	Markers markerkeys.Keys
+	// Credential is what every token is requested from.
+	Credential azcore.TokenCredential
+	// Endpoints are the ARM base URL and token audience; the Key Vault
+	// listing reads neither, since a vault's URL names its own cloud.
+	Endpoints Endpoints
+	// HTTPClient carries every call; nil is http.DefaultClient.
+	HTTPClient *http.Client
+	// Credentials is what diagnostics name the credential as.
+	Credentials Credentials
+	// Subscription is the provider block's subscription_id, the one a
+	// [Coverage] built from provider blocks keys the client by.
+	Subscription string
 }
 
-// authConfig is the block's arguments as the azurerm state backend's
-// credential chain takes them. That chain is the one this repository
-// already ships for azurerm's connection arguments, and it tries what the
-// provider tries, in nearly its order: client certificate, client secret,
-// Azure DevOps OIDC, OIDC, managed identity, AKS workload identity, then
-// the Azure CLI.
-func (a Attrs) authConfig(cfg cloud.Configuration) *auth.Config {
-	return &auth.Config{
-		ADOAuthConfig:      auth.ADOAuthConfig{ADOServiceConnectionId: a.ADOServiceConnectionID},
-		AzureCLIAuthConfig: auth.AzureCLIAuthConfig{CLIAuthEnabled: on(a.UseCLI, true)},
-		ClientSecretCredentialAuthConfig: auth.ClientSecretCredentialAuthConfig{
-			ClientID:             a.ClientID,
-			ClientIDFilePath:     a.ClientIDFilePath,
-			ClientSecret:         a.ClientSecret,
-			ClientSecretFilePath: a.ClientSecretFilePath,
-		},
-		ClientCertificateAuthConfig: auth.ClientCertificateAuthConfig{
-			ClientCertificate:         a.ClientCertificate,
-			ClientCertificatePassword: a.ClientCertificatePassword,
-			ClientCertificatePath:     a.ClientCertificatePath,
-		},
-		OIDCAuthConfig: auth.OIDCAuthConfig{
-			UseOIDC:           on(a.UseOIDC, false),
-			OIDCToken:         a.OIDCToken,
-			OIDCTokenFilePath: a.OIDCTokenFilePath,
-			OIDCRequestURL:    a.OIDCRequestURL,
-			OIDCRequestToken:  a.OIDCRequestToken,
-		},
-		MSIAuthConfig: auth.MSIAuthConfig{UseMsi: on(a.UseMSI, false), Endpoint: a.MSIEndpoint},
-		StorageAddresses: auth.StorageAddresses{
-			CloudConfig:    cfg,
-			SubscriptionID: a.SubscriptionID,
-			TenantID:       a.TenantID,
-		},
-		WorkloadIdentityAuthConfig: auth.WorkloadIdentityAuthConfig{UseAKSWorkloadIdentity: on(a.UseAKSWorkloadIdentity, false)},
-		DisableInstanceDiscovery:   on(a.DisableInstanceDiscovery, false),
+func (c Config) httpClient() *http.Client {
+	if c.HTTPClient == nil {
+		return http.DefaultClient
 	}
+	return c.HTTPClient
 }
 
-// New builds a client from a provider block's arguments, with the
-// provider's environment fallbacks applied ([Attrs.WithEnv]). The
-// credential chain picks its method now, so a configuration that names no
-// usable credential fails here rather than per subscription; no token is
-// requested until [Client.Search].
-func New(ctx context.Context, a Attrs) (*Client, error) {
-	a = a.WithEnv(os.Getenv)
-	cred, ep, creds, err := a.credential(ctx, "the estate sweep")
-	if err != nil {
-		return nil, err
-	}
-	c := NewWith(ep, cred, httpclient.New(ctx))
-	c.subscription = a.SubscriptionID
-	c.creds = creds
-	return c, nil
-}
+// ProviderName is the block's provider, azurerm when unset: what errors
+// about the block name it as.
+func (a Attrs) ProviderName() string { return a.providerName() }
 
-// credential is the credential chain [New] and [NewTagger] share, for
-// arguments that already have the environment applied ([Attrs.WithEnv]);
-// who names the caller in the errors.
-func (a Attrs) credential(ctx context.Context, who string) (azcore.TokenCredential, Endpoints, Credentials, error) {
-	if refused := a.refusedMarks(); len(refused) > 0 {
-		return nil, Endpoints{}, Credentials{}, fmt.Errorf("the %s provider block sets %s from a sensitive value, which %s does not read; set it from a non-sensitive value so %s calls as and where the provider does", a.providerName(), strings.Join(refused, " and "), who, who)
-	}
-	cfg, err := a.cloudConfig(ctx)
-	if err != nil {
-		return nil, Endpoints{}, Credentials{}, fmt.Errorf("the %s provider block's cloud: %w", a.providerName(), err)
-	}
-	ac := a.authConfig(cfg)
-	method, err := auth.GetAuthMethod(ctx, ac)
-	if err != nil {
-		return nil, Endpoints{}, Credentials{}, fmt.Errorf("the %s provider block names no credential %s can use: %w", a.providerName(), who, err)
-	}
-	cred, err := method.Construct(ctx, ac)
-	if err != nil {
-		return nil, Endpoints{}, Credentials{}, fmt.Errorf("building the %s credential (%s): %w", a.providerName(), method.Name(), err)
-	}
-	rm := cfg.Services[cloud.ResourceManager]
-	return cred, Endpoints{ResourceManager: rm.Endpoint, Audience: rm.Audience}, Credentials{Method: method.Name(), TenantID: a.TenantID, ClientID: a.ClientID}, nil
-}
+// RefusedMarks are the arguments a credential built from a is refused
+// over: set from a marked value the caller did not read.
+func (a Attrs) RefusedMarks() []string { return a.refusedMarks() }
 
 func (a Attrs) providerName() string {
 	if a.Provider == "" {

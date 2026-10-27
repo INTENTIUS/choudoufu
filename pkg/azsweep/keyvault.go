@@ -12,13 +12,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 
-	"github.com/intentius/choudoufu/internal/httpclient"
 )
 
 // This file is the Key Vault data-plane listing of GitHub issue #2205.
@@ -57,25 +55,11 @@ type KeyVaultClient struct {
 	creds Credentials
 }
 
-// NewKeyVault builds a client from a provider block's arguments, with the
-// provider's environment fallbacks applied: the credential chain
-// [New] uses, so the listing calls as the provider does.
-func NewKeyVault(ctx context.Context, a Attrs) (*KeyVaultClient, error) {
-	a = a.WithEnv(os.Getenv)
-	cred, _, creds, err := a.credential(ctx, "the Key Vault listing")
-	if err != nil {
-		return nil, err
-	}
-	return &KeyVaultClient{cred: cred, http: httpclient.New(ctx), creds: creds}, nil
-}
-
-// NewKeyVaultWith builds a client over an already-made credential, for tests
-// and for a caller that has one. hc nil is http.DefaultClient.
-func NewKeyVaultWith(cred azcore.TokenCredential, hc *http.Client) *KeyVaultClient {
-	if hc == nil {
-		hc = http.DefaultClient
-	}
-	return &KeyVaultClient{cred: cred, http: hc}
+// NewKeyVault builds a client over the caller's credential and HTTP
+// client ([Config]; its Markers and Endpoints are not read, since a
+// vault's URL names its own cloud).
+func NewKeyVault(cfg Config) *KeyVaultClient {
+	return &KeyVaultClient{cred: cfg.Credential, http: cfg.httpClient(), creds: cfg.Credentials}
 }
 
 // keyVaultScope is the token scope for a vault base URL: the vault resource

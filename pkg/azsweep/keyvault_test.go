@@ -54,7 +54,7 @@ func TestKeyVaultListPagesAndBuildsRequests(t *testing.T) {
 	defer srv.Close()
 
 	cred := &fakeCred{}
-	items, err := NewKeyVaultWith(cred, srv.Client()).List(context.Background(), srv.URL+"/", "secrets")
+	items, err := newKeyVaultWith(cred, srv.Client()).List(context.Background(), srv.URL+"/", "secrets")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestKeyVaultListKeysUseKID(t *testing.T) {
 		fmt.Fprint(w, `{"value":[{"kid":"https://v.vault.azure.net/keys/k1","tags":{"x":"y"}}]}`)
 	}))
 	defer srv.Close()
-	items, err := NewKeyVaultWith(&fakeCred{}, srv.Client()).List(context.Background(), srv.URL, "keys")
+	items, err := newKeyVaultWith(&fakeCred{}, srv.Client()).List(context.Background(), srv.URL, "keys")
 	if err != nil || len(items) != 1 || items[0].Name != "k1" || items[0].ID != "https://v.vault.azure.net/keys/k1" {
 		t.Fatalf("items %+v, err %v", items, err)
 	}
@@ -89,10 +89,10 @@ func TestKeyVaultListKeysUseKID(t *testing.T) {
 
 func TestKeyVaultListRefusals(t *testing.T) {
 	ctx := context.Background()
-	if _, err := NewKeyVaultWith(&fakeCred{}, nil).List(ctx, "https://v.vault.azure.net", "hsm"); err == nil {
+	if _, err := newKeyVaultWith(&fakeCred{}, nil).List(ctx, "https://v.vault.azure.net", "hsm"); err == nil {
 		t.Error("an unknown collection was listed")
 	}
-	if _, err := NewKeyVaultWith(&fakeCred{}, nil).List(ctx, "not a url", "keys"); err == nil {
+	if _, err := newKeyVaultWith(&fakeCred{}, nil).List(ctx, "not a url", "keys"); err == nil {
 		t.Error("a bad vault URL was listed")
 	}
 
@@ -101,7 +101,7 @@ func TestKeyVaultListRefusals(t *testing.T) {
 			fmt.Fprint(w, `{"value":[],"nextLink":"https://evil.example/keys?x=1"}`)
 		}))
 		defer srv.Close()
-		if _, err := NewKeyVaultWith(&fakeCred{}, srv.Client()).List(ctx, srv.URL, "keys"); err == nil || !strings.Contains(err.Error(), "not on") {
+		if _, err := newKeyVaultWith(&fakeCred{}, srv.Client()).List(ctx, srv.URL, "keys"); err == nil || !strings.Contains(err.Error(), "not on") {
 			t.Errorf("err = %v", err)
 		}
 	})
@@ -111,7 +111,7 @@ func TestKeyVaultListRefusals(t *testing.T) {
 			fmt.Fprintf(w, `{"value":[],"nextLink":"%s/keys?loop=1"}`, srv.URL)
 		}))
 		defer srv.Close()
-		if _, err := NewKeyVaultWith(&fakeCred{}, srv.Client()).List(ctx, srv.URL, "keys"); err == nil || !strings.Contains(err.Error(), "again") {
+		if _, err := newKeyVaultWith(&fakeCred{}, srv.Client()).List(ctx, srv.URL, "keys"); err == nil || !strings.Contains(err.Error(), "again") {
 			t.Errorf("err = %v", err)
 		}
 	})
@@ -126,7 +126,7 @@ func TestKeyVaultListRefusals(t *testing.T) {
 			fmt.Fprintf(w, `{"value":[{"kid":"%s/keys/a"}],"nextLink":"%s/keys?p=2"}`, srv.URL, srv.URL)
 		}))
 		defer srv.Close()
-		items, err := NewKeyVaultWith(&fakeCred{}, srv.Client()).List(ctx, srv.URL, "keys")
+		items, err := newKeyVaultWith(&fakeCred{}, srv.Client()).List(ctx, srv.URL, "keys")
 		if err == nil || items != nil || !strings.Contains(err.Error(), "403") && !strings.Contains(err.Error(), "no list permission") {
 			t.Errorf("items %v, err %v", items, err)
 		}
@@ -143,7 +143,7 @@ func TestKeyVaultListRefusals(t *testing.T) {
 			fmt.Fprint(w, `{"value":[{"kid":"https://v/keys/a"}]}`)
 		}))
 		defer srv.Close()
-		items, err := NewKeyVaultWith(&fakeCred{}, srv.Client()).List(ctx, srv.URL, "keys")
+		items, err := newKeyVaultWith(&fakeCred{}, srv.Client()).List(ctx, srv.URL, "keys")
 		if err != nil || len(items) != 1 || n != 2 {
 			t.Errorf("items %v, err %v, calls %d", items, err, n)
 		}
