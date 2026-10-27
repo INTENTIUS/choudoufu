@@ -263,6 +263,12 @@ const (
 	// gcp_label_count.go.
 	RuleGCPLabelCount Rule = "gcp-label-count"
 
+	// RuleAWSTagCount covers an aws resource whose tags come to more than
+	// AWS's 50 once this run adds its ownership markers: a create stock
+	// would make that fails only because of the markers (GitHub issue
+	// #2131). See aws_tag_count.go.
+	RuleAWSTagCount Rule = "aws-tag-count"
+
 	// RuleGCPEstateLabel covers a google resource whose labels would carry
 	// the tofu-estate marker when the live block's estate name is not a
 	// legal GCP label value: longer than 63 characters, which the estate
@@ -504,6 +510,10 @@ var ruleInfo = map[Rule]struct {
 	RuleGCPLabelCount: {
 		summary: "GCP resource has no room for its ownership markers",
 		docsRef: `live/LIMITATIONS.md, "gcp-label-count"`,
+	},
+	RuleAWSTagCount: {
+		summary: "AWS resource has no room for its ownership markers",
+		docsRef: `live/LIMITATIONS.md, "aws-tag-count"`,
 	},
 	RuleGCPEstateLabel: {
 		summary: "Estate name is not a legal GCP label value",

@@ -152,6 +152,7 @@ var lintRuleTargetScope = map[Rule]struct {
 	RuleReceiptSecret:   {ruleScoped, "same block, same run"},
 	RuleARMTagLimit:     {ruleScoped, "a create this run will not make cannot overflow; TestARMTagLimitHonoursTheTargetScope pins it, outside the shared fixture"},
 	RuleGCPLabelCount:   {ruleScoped, "a create this run will not make cannot overflow; TestGCPLabelCountHonoursTheTargetScope pins it, outside the shared fixture"},
+	RuleAWSTagCount:     {ruleScoped, "a create this run will not make cannot overflow; aws_s3_bucket is admitted, so the pair sits in the shared fixture"},
 	RuleGCPEstateLabel:  {ruleScoped, "the node stamp refuses per instance, and a block this run leaves out is never stamped; TestGCPEstateLabelHonoursTheTargetScope pins it, outside the shared fixture"},
 
 	// ---- names a block, and still does not narrow ------------------
@@ -192,7 +193,7 @@ func scopedRuleSet() []Rule {
 }
 
 // scopedRules are the members of [scopedRuleSet] this fixture actually
-// trips. Five of the fifteen are absent. Two ride the identical
+// trips. Five of the sixteen are absent. Two ride the identical
 // `continue` in checkManagedResources that RuleProvisioner,
 // RuleLogicalResource, RuleUnadmittedType, RuleCountIndex and
 // RuleIgnoreChanges are pinned on here: RuleMarkerlessType (whose #1203
@@ -216,6 +217,7 @@ var scopedRules = []Rule{
 	RuleReceiptValue,
 	RuleReceiptSecret,
 	RuleReceiptLeaf,
+	RuleAWSTagCount,
 }
 
 // unscopedRules are the rules that must keep firing over a block the run
