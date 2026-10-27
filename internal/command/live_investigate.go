@@ -465,6 +465,12 @@ type McpCommand struct {
 
 // McpCommander is mcp's entry in the new CLI's command tree.
 func McpCommander() Command {
+	return mcpCommander(nil, nil)
+}
+
+// mcpCommander builds the command over the given streams (nil for the
+// process's), so Run keeps the streams set on its McpCommand.
+func mcpCommander(stdin io.Reader, stdout io.Writer) Command {
 	cmd := Command{
 		Name:  "mcp",
 		Short: (&McpCommand{}).Synopsis(),
@@ -472,13 +478,13 @@ func McpCommander() Command {
 	args := arguments.BindMcp(&cmd.CommandLine)
 	applyLegacyHelp(&cmd, (&McpCommand{}).Help())
 	cmd.Run = func(meta Meta) int {
-		return (&McpCommand{Meta: meta}).Execute(args)
+		return (&McpCommand{Meta: meta, stdin: stdin, stdout: stdout}).Execute(args)
 	}
 	return cmd
 }
 
 func (c *McpCommand) Run(rawArgs []string) int {
-	return RunCommand(McpCommander(), c.Meta, rawArgs)
+	return RunCommand(mcpCommander(c.stdin, c.stdout), c.Meta, rawArgs)
 }
 
 func (c *McpCommand) Execute(args *arguments.Mcp) int {
