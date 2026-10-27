@@ -3,14 +3,14 @@
   "fork_point": "2b6193043d500dcfef1f3b4f4819b938b667099f",
   "fork_point_short": "2b6193043d",
   "fork_point_subject": "Bump version v1.13.0",
-  "measured_at_head": "8b36aab84cf179b10c5a18699dc671a3c4e3c6bc",
-  "generated_at": "2026-10-27T07:51:52Z",
+  "measured_at_head": "4b3ea15c5a835539cdeb90c851b550b83e581dec",
+  "generated_at": "2026-10-27T22:23:54Z",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 25,
     "internal/live/": 1862,
-    "live/": 671,
-    "other": 1700,
+    "live/": 673,
+    "other": 1711,
     "site/": 93,
     "tools/": 574
   },
@@ -9853,11 +9853,19 @@
         "status": "A"
       },
       {
+        "path": "live/smoke/evidence/go-test/TestADestroyOverAStoreThatListsARecordItReadsAsAbsentFails.json",
+        "status": "A"
+      },
+      {
         "path": "live/smoke/evidence/go-test/TestARecordTheListNamesAndTheReadDoesNotIsRefused.json",
         "status": "A"
       },
       {
         "path": "live/smoke/evidence/go-test/TestAWaiverReachesOnlyWhatItNames.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestAWaiverWarnsOnEveryRunOfAnEstate.json",
         "status": "A"
       },
       {
@@ -12539,6 +12547,14 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_record_store_report.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_record_store_report_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_recordbacked_test.go",
         "status": "A"
       },
@@ -13043,6 +13059,30 @@
         "status": "A"
       },
       {
+        "path": "internal/command/testdata/live-record-store-azurerm/estate.chdf.hcl",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-record-store-azurerm/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-record-store-gcs/estate.chdf.hcl",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-record-store-gcs/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-record-store-s3/estate.chdf.hcl",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-record-store-s3/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/command/testdata/live-resolve-acm-direct-fixed/main.tf",
         "status": "A"
       },
@@ -13243,6 +13283,10 @@
         "status": "A"
       },
       {
+        "path": "internal/command/views/live_setup.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/views/live_summary.go",
         "status": "A"
       },
@@ -13360,6 +13404,14 @@
       },
       {
         "path": "internal/configs/live_composed.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/live_derive.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/live_derive_test.go",
         "status": "A"
       },
       {
