@@ -1,0 +1,153 @@
+{
+  "schema": 1,
+  "store": "azblob",
+  "description": "chant#4558 shared bucket fixtures, Azure Blob. Each case is the ARM documents the check reads (blobServices/default, managementPolicies/default, the storage account, the container) as ARM returns them, or {\"error\": {\"status\"}} for a failed read. expect lists one verdict per setting in order: blob_versioning, lifecycle_management, public_access. namespaces are blob-name prefixes inside the container; a lifecycle prefixMatch starts with the container name.",
+  "cases": [
+    {
+      "name": "correct",
+      "account": "stateprod",
+      "resourceGroup": "state-rg",
+      "container": "tfstate",
+      "namespaces": ["records/prod"],
+      "input": {
+        "blobServices": { "properties": { "isVersioningEnabled": true } },
+        "managementPolicy": { "properties": { "policy": { "rules": [{ "name": "previous-versions", "enabled": true, "type": "Lifecycle", "definition": { "filters": { "blobTypes": ["blockBlob"] }, "actions": { "version": { "delete": { "daysAfterCreationGreaterThan": 30 } } } } }] } } },
+        "account": { "properties": { "allowBlobPublicAccess": false } },
+        "container": { "properties": { "publicAccess": "None" } }
+      },
+      "expect": [
+        { "setting": "blob_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle_management", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "bare-account",
+      "account": "stateprod",
+      "resourceGroup": "state-rg",
+      "container": "tfstate",
+      "namespaces": ["records/prod"],
+      "input": {
+        "blobServices": { "properties": {} },
+        "managementPolicy": { "error": { "status": 404, "code": "ManagementPolicyNotFound" } },
+        "account": { "properties": {} }
+      },
+      "expect": [
+        { "setting": "blob_versioning", "verdict": "fail", "unwaivable": false },
+        { "setting": "lifecycle_management", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access", "verdict": "fail", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "rule-deletes-current-blobs",
+      "account": "stateprod",
+      "resourceGroup": "state-rg",
+      "container": "tfstate",
+      "namespaces": ["records/prod"],
+      "input": {
+        "blobServices": { "properties": { "isVersioningEnabled": true } },
+        "managementPolicy": {
+          "properties": {
+            "policy": {
+              "rules": [
+                { "name": "cleanup", "enabled": true, "type": "Lifecycle", "definition": { "filters": { "blobTypes": ["blockBlob"] }, "actions": { "baseBlob": { "delete": { "daysAfterModificationGreaterThan": 90 } }, "version": { "delete": { "daysAfterCreationGreaterThan": 30 } } } } }
+              ]
+            }
+          }
+        },
+        "account": { "properties": { "allowBlobPublicAccess": false } }
+      },
+      "expect": [
+        { "setting": "blob_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle_management", "verdict": "fail", "unwaivable": true },
+        { "setting": "public_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "prefix-rule-contains-namespace",
+      "account": "stateprod",
+      "resourceGroup": "state-rg",
+      "container": "tfstate",
+      "namespaces": ["records/prod"],
+      "input": {
+        "blobServices": { "properties": { "isVersioningEnabled": true } },
+        "managementPolicy": { "properties": { "policy": { "rules": [{ "name": "records", "enabled": true, "type": "Lifecycle", "definition": { "filters": { "blobTypes": ["blockBlob"], "prefixMatch": ["tfstate/records/"] }, "actions": { "version": { "delete": { "daysAfterCreationGreaterThan": 14 } } } } }] } } },
+        "account": { "properties": { "allowBlobPublicAccess": false } }
+      },
+      "expect": [
+        { "setting": "blob_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle_management", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "prefix-rule-elsewhere",
+      "account": "stateprod",
+      "resourceGroup": "state-rg",
+      "container": "tfstate",
+      "namespaces": ["records/prod"],
+      "input": {
+        "blobServices": { "properties": { "isVersioningEnabled": true } },
+        "managementPolicy": { "properties": { "policy": { "rules": [{ "name": "logs", "enabled": true, "type": "Lifecycle", "definition": { "filters": { "blobTypes": ["blockBlob"], "prefixMatch": ["logs/"] }, "actions": { "version": { "delete": { "daysAfterCreationGreaterThan": 30 } } } } }] } } },
+        "account": { "properties": { "allowBlobPublicAccess": false } }
+      },
+      "expect": [
+        { "setting": "blob_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle_management", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "disabled-rule-not-credited",
+      "account": "stateprod",
+      "resourceGroup": "state-rg",
+      "container": "tfstate",
+      "namespaces": ["records/prod"],
+      "input": {
+        "blobServices": { "properties": { "isVersioningEnabled": true } },
+        "managementPolicy": { "properties": { "policy": { "rules": [{ "name": "previous-versions", "enabled": false, "type": "Lifecycle", "definition": { "filters": { "blobTypes": ["blockBlob"] }, "actions": { "version": { "delete": { "daysAfterCreationGreaterThan": 30 } } } } }] } } },
+        "account": { "properties": { "allowBlobPublicAccess": false } }
+      },
+      "expect": [
+        { "setting": "blob_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle_management", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "management-policy-read-denied",
+      "account": "stateprod",
+      "resourceGroup": "state-rg",
+      "container": "tfstate",
+      "namespaces": ["records/prod"],
+      "input": {
+        "blobServices": { "properties": { "isVersioningEnabled": true } },
+        "managementPolicy": { "error": { "status": 403, "code": "AuthorizationFailed" } },
+        "account": { "properties": { "allowBlobPublicAccess": false } }
+      },
+      "expect": [
+        { "setting": "blob_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle_management", "verdict": "unreadable", "unwaivable": false },
+        { "setting": "public_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "account-allows-public-container-already-public",
+      "account": "stateprod",
+      "resourceGroup": "state-rg",
+      "container": "tfstate",
+      "namespaces": ["records/prod"],
+      "input": {
+        "blobServices": { "properties": { "isVersioningEnabled": true } },
+        "managementPolicy": { "properties": { "policy": { "rules": [{ "name": "previous-versions", "enabled": true, "type": "Lifecycle", "definition": { "filters": { "blobTypes": ["blockBlob"] }, "actions": { "version": { "delete": { "daysAfterCreationGreaterThan": 30 } } } } }] } } },
+        "account": { "properties": { "allowBlobPublicAccess": true } },
+        "container": { "properties": { "publicAccess": "Blob" } }
+      },
+      "expect": [
+        { "setting": "blob_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle_management", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access", "verdict": "fail", "unwaivable": false }
+      ]
+    }
+  ]
+}
