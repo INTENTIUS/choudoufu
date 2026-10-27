@@ -359,7 +359,7 @@ func TestAdopt_nonAWSNeedsTheType(t *testing.T) {
 	if sub != "azure" || scope != "sub" {
 		t.Errorf("nodeSubstrate = %q, %q", sub, scope)
 	}
-	id, why := adoptImportID("azure", scope, "azurerm_storage_account", "", node, nil)
+	id, why := adoptImportID("azure", scope, "azurerm_storage_account", "", false, node, nil)
 	if why != "" || id != node.NativeID {
 		t.Errorf("azure import id = %q (%s), want the ARM id as listed", id, why)
 	}

@@ -150,6 +150,10 @@ var providerStringAllowed = map[string]providerStringException{
 	"tools/estate-plan/main.go:nonAWS": {Why: "live/survey-full.json describes exactly one provider (AWS); a type's prefix is checked against \"aws\" to report what estate-plan cannot mark, the survey's own scope, not a dispatch between substrates"},
 	"tools/estate-plan/main.go:anyAWS": {Why: "the same single-provider survey scope as nonAWS, asked the other way"},
 
+	// live-import -adopt (#2287).
+	"internal/live/liveimport/adopt.go:adoptOne":      {Why: "switches on the first segment of a behold index node id (<substrate>/<scopeId>/..., chant#4536's adoption schema), whose vocabulary is aws/azure/gcp/kubernetes: it names the inventory API the node was listed from, not a provider, and azure and gcp are not this package's spellings (azurerm, google). Each inventory has its own type join (Cloud Control types for aws, a type the selection names for the rest), which is a choice about the adoption file's format, not a marker-surface dispatch"},
+	"internal/live/liveimport/adopt.go:adoptImportID": {Why: "the same index-id substrate segment as adoptOne, picking the translation from each inventory's native id (a Cloud Control identifier, a Cloud Asset name, an ARM id, a namespace/name) to a Terraform import id; kubernetes_manifest is the one Kubernetes type whose import id is not the native id"},
+
 	"tools/gauntlet/livecert.go:PlanLiveCertWrites":   {Why: "target selects the live-cert harness (the floci emulator or a real AWS account, issue #1150/#1151), not a marker-surface dispatch; live-cert has no Kubernetes leg"},
 	"tools/gauntlet/livecert.go:RunLiveCert":          {Why: "same target selection as PlanLiveCertWrites, validated once at the entry point"},
 	"tools/gauntlet/scalerecord.go:validScaleTargets": {Why: "the same live-cert target enum (\"floci\", \"aws\") as livecert.go, declared as a set for validation"},

@@ -335,6 +335,24 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"and not schema.",
 		Data: 5, Code: 0,
 	},
+	"pkg/identity/cloudcontrol_hand.go": {
+		Reason: "ccHands (issue #2286, moved from plunge's ccid_hand.go, plunge#15/#19/#31): the multi-part Cloud Control " +
+			"identifiers whose Terraform import id is not the parts joined by the type's Components (aws_eip's " +
+			"PublicIp|AllocationId imports by the allocation id alone, aws_ecs_service cuts names out of two ARNs). " +
+			"Keyed by CloudFormation type, each naming its Terraform type; the build is the provider's own importer " +
+			"grammar read against the registry's primary identifier order, which no schema states. A type missing " +
+			"here falls back to the generic Components join, and CloudControlTranslation refuses where that does not fit.",
+		Data: 10, Code: 0,
+	},
+	"pkg/identity/cloudcontrol_single.go": {
+		Reason: "ccSinglePropRows, ccSingleBuilds and ccSingleUncovered (issue #2286, moved from plunge's ccid_single.go, " +
+			"plunge#28): the single-part Cloud Control identifiers that are not the Terraform id, found by plunge#28's " +
+			"audit comparing every covered type's CloudFormation primary identifier against its import id row. Which " +
+			"model property holds the id (Id where the listing gives an ARN, an ARN where it gives a name), and which " +
+			"ids need an account the model lacks, are provider importer facts no schema carries. Every type not listed " +
+			"takes the identifier as the id, repaired by shape; the tables are rows only and no function branches on a type.",
+		Data: 82, Code: 0,
+	},
 	"internal/live/lint/receipt_leaf.go": {
 		Reason: "receiptType: live/RECEIPTS.md defines a receipt AS an aws_ssm_parameter under /tofu-receipts/. This is a " +
 			"protocol constant this fork authored, not a claim about a provider type, and changing it changes the protocol.",
@@ -863,7 +881,16 @@ const (
 	// clusters and Assured Workloads listed per type, never registered when
 	// the file landed; google_assured_workloads_workload moved there out of
 	// typelist.go's NotCovered (12 -> 11). 2 new Data literals, 1 moved.
-	typeLiteralDataTotal = 1373
+	// 1373 -> 1465 data, code unchanged, on 2026-10-26 (#2286):
+	// pkg/identity/cloudcontrol_hand.go (10 / 0) and
+	// cloudcontrol_single.go (82 / 0), plunge's Cloud Control id tables
+	// moved into pkg/identity and never registered when they landed. The
+	// single-part property rows were built inside a func literal (73 read
+	// as in-function); they are now the package-level ccSinglePropRows,
+	// table rows either way. adopt.go's one kubernetes_manifest comparison
+	// (#2287) became markers.ManifestSurface on the schema, so Code stays.
+	// 92 new Data literals, none moved.
+	typeLiteralDataTotal = 1465
 	typeLiteralCodeTotal = 140
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

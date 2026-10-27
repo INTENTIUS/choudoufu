@@ -185,8 +185,11 @@ func probeOptionalComputed(ctx context.Context, provider providers.Interface, sc
 	read := false
 	restore := map[string]cty.Value{}
 	for _, n := range probed {
+		// secondVal is unmarked deep, so v carries no mark; the IsMarked
+		// test says so where marksafe can see it, and a marked v would
+		// count as a read rather than reach AsString.
 		v := secondVal.GetAttr(n)
-		if v.IsKnown() && !v.IsNull() && v.AsString() == optionalComputedProbeSentinel {
+		if v.IsKnown() && !v.IsNull() && !v.IsMarked() && v.AsString() == optionalComputedProbeSentinel {
 			restore[n] = cty.NullVal(cty.String)
 			continue
 		}

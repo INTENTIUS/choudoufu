@@ -52,6 +52,15 @@ var guardedPackages = []string{
 	// text file and lookups over it. It reads no configuration value and
 	// no cloud object, so it is held to zero.
 	"armtypes",
+	// GitHub issue #2280's investigations and MCP server: decoded JSON
+	// from chant and behold, live marker reads as strings, and git ranges.
+	// It imports no cty at all, so it is held to zero: it has nothing to
+	// defer.
+	"investigate",
+	// GitHub issue #2285's live-graph walks configuration expressions for
+	// references and reads literal count/for_each to name instances. It
+	// evaluates CONFIGURATION, which is this population exactly.
+	"livegraph",
 	// GitHub issue #1956's live-cone parses the root module's source text
 	// and evaluates only a module call's literal source, so it is held to
 	// zero.
@@ -175,6 +184,10 @@ var guardedPackages = []string{
 	"recordtrips",
 	"providerversion",
 	"refusalscan",
+	// GitHub issue #2286's adoption file: a JSON document of cloud ids and
+	// addresses, decoded into Go structs and strings. It imports no cty at
+	// all, so it is held to zero: it has nothing to defer.
+	"pkg/adoption",
 	"pkg/registry",
 	"slots",
 	"stamp",

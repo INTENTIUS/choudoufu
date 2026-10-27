@@ -15,6 +15,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
+	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
@@ -260,12 +261,6 @@ func adoptOne(ctx context.Context, req AdoptRequest, roster *registry.Roster, e 
 		}
 	}
 
-	importID, why := adoptImportID(sub, scopeID, tfType, cfnType, node, roster)
-	if why != "" {
-		return refuse("%s", why)
-	}
-	ref.ImportID = importID
-
 	providerAddr := configProviderAddr(req.Config, tfType, "")
 	provider, err := req.Providers.ConfiguredProvider(ctx, providerAddr)
 	if err != nil {
@@ -275,6 +270,12 @@ func adoptOne(ctx context.Context, req AdoptRequest, roster *registry.Roster, e 
 	if err != nil {
 		return refuse("%s.", err)
 	}
+
+	importID, why := adoptImportID(sub, scopeID, tfType, cfnType, markers.ManifestSurface(schema.Block), node, roster)
+	if why != "" {
+		return refuse("%s", why)
+	}
+	ref.ImportID = importID
 
 	imp := provider.ImportResourceState(ctx, providers.ImportResourceStateRequest{
 		TypeName: tfType,
@@ -358,7 +359,10 @@ func nodeSubstrate(id string) (sub, scopeID string) {
 }
 
 // adoptImportID is the Terraform import id of node, or why there is none.
-func adoptImportID(sub, scopeID, tfType, cfnType string, node *adoption.Node, roster *registry.Roster) (string, string) {
+// manifest is whether tfType's schema is the manifest surface
+// (markers.ManifestSurface), the one Kubernetes type that imports by
+// apiVersion and kind as well as namespace and name.
+func adoptImportID(sub, scopeID, tfType, cfnType string, manifest bool, node *adoption.Node, roster *registry.Roster) (string, string) {
 	native := node.NativeID
 	if native == "" {
 		return "", fmt.Sprintf("The index node %s carries no native id to import it by.", node.ID)
@@ -390,7 +394,7 @@ func adoptImportID(sub, scopeID, tfType, cfnType string, node *adoption.Node, ro
 		// The ARM id as the inventory returned it, never a lowercased copy.
 		return native, ""
 	case "kubernetes":
-		if tfType == "kubernetes_manifest" {
+		if manifest {
 			apiVersion, kind := splitKubernetesListedType(node.ListedType)
 			ns, name, found := strings.Cut(native, "/")
 			if !found {
