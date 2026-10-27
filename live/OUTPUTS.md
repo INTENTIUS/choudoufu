@@ -376,7 +376,8 @@ Both tools run the binary once per unit, in dependency order: `init`, then
 or a generated `-var-file` (Atmos), and `output -json` in a dependency's
 directory to read what it publishes. When the invocations come from one
 `terragrunt run --all` or one `atmos terraform ... --all` / `--affected`
-(found from the parent process: its name and its arguments), choudoufu joins
+(found from the parent process: its name and its arguments, read from
+`/proc` on Linux, so an image without `ps` works, and from `ps` elsewhere), choudoufu joins
 them into one run:
 
 - Each unit that has a live block registers itself in a session shared by

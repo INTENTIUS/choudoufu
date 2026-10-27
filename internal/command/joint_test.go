@@ -269,3 +269,41 @@ func TestJointStubAndSession(t *testing.T) {
 		u()
 	}
 }
+
+func TestJointArgvFromCmdline(t *testing.T) {
+	got := jointArgvFromCmdline([]byte("/usr/bin/terragrunt\x00run\x00--all\x00plan\x00"))
+	want := []string{"/usr/bin/terragrunt", "run", "--all", "plan"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if got := jointArgvFromCmdline(nil); len(got) != 0 {
+		t.Fatalf("empty cmdline gave %q", got)
+	}
+	if got := jointArgvFromCmdline([]byte("\x00\x00")); len(got) != 0 {
+		t.Fatalf("all-NUL cmdline gave %q", got)
+	}
+}
+
+func TestJointStartFromStat(t *testing.T) {
+	// Fields after comm: state ppid pgrp session tty_nr tpgid flags minflt
+	// cminflt majflt cmajflt utime stime cutime cstime priority nice
+	// num_threads itrealvalue starttime ...
+	rest := " S 1 42 42 0 -1 4194560 100 0 0 0 5 3 0 0 20 0 8 0 987654 1000 200"
+	for _, comm := range []string{"terragrunt", "my proc (x) y", "a)b"} {
+		line := "42 (" + comm + ")" + rest
+		got, ok := jointStartFromStat(line)
+		if !ok || got != "987654" {
+			t.Fatalf("comm %q: got %q, %v", comm, got, ok)
+		}
+	}
+	for _, bad := range []string{"", "42 (x", "42 (x) S 1 2"} {
+		if _, ok := jointStartFromStat(bad); ok {
+			t.Fatalf("%q should not parse", bad)
+		}
+	}
+	argv := jointArgvFromCmdline([]byte("terragrunt\x00run\x00--all\x00apply\x00"))
+	tool := jointToolFromArgs(42, "987654", argv)
+	if tool == nil || tool.Kind != "terragrunt" || tool.Phase != "apply" || !strings.HasPrefix(tool.ID, "terragrunt-42-") {
+		t.Fatalf("unexpected tool %+v", tool)
+	}
+}

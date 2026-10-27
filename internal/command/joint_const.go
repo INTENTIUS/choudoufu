@@ -6,6 +6,7 @@
 package command
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -71,6 +72,10 @@ func detectJointTool() *jointTool {
 	if ppid <= 1 {
 		return nil
 	}
+	if argv, start, ok := jointParentFromProc(ppid); ok {
+		jointDebugf("parent %d (from /proc): %s", ppid, strings.Join(argv, " "))
+		return jointToolFromArgs(ppid, start, argv)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	args, err := exec.CommandContext(ctx, "ps", "-o", "args=", "-p", strconv.Itoa(ppid)).Output()
@@ -81,6 +86,56 @@ func detectJointTool() *jointTool {
 	jointDebugf("parent %d: %s", ppid, strings.TrimSpace(string(args)))
 	start, _ := exec.CommandContext(ctx, "ps", "-o", "lstart=", "-p", strconv.Itoa(ppid)).Output()
 	return jointToolFromArgs(ppid, strings.TrimSpace(string(start)), strings.Fields(string(args)))
+}
+
+// jointParentFromProc reads the parent's arguments and start time from /proc,
+// which exists on Linux even in images without procps. ok is false when /proc
+// is not there or cannot be read, and the caller falls back to ps.
+func jointParentFromProc(pid int) (argv []string, start string, ok bool) {
+	dir := "/proc/" + strconv.Itoa(pid)
+	cmdline, err := os.ReadFile(dir + "/cmdline")
+	if err != nil {
+		return nil, "", false
+	}
+	argv = jointArgvFromCmdline(cmdline)
+	if len(argv) == 0 {
+		return nil, "", false
+	}
+	stat, err := os.ReadFile(dir + "/stat")
+	if err != nil {
+		return nil, "", false
+	}
+	start, ok = jointStartFromStat(string(stat))
+	if !ok {
+		return nil, "", false
+	}
+	return argv, start, true
+}
+
+// jointArgvFromCmdline splits the NUL-separated content of /proc/<pid>/cmdline.
+func jointArgvFromCmdline(b []byte) []string {
+	b = bytes.TrimRight(b, "\x00")
+	if len(b) == 0 {
+		return nil
+	}
+	return strings.Split(string(b), "\x00")
+}
+
+// jointStartFromStat returns field 22 (starttime, in clock ticks since boot)
+// of a /proc/<pid>/stat line. The comm field is in parentheses and may hold
+// spaces and parentheses, so the fields are counted after the last ')'.
+func jointStartFromStat(line string) (string, bool) {
+	i := strings.LastIndex(line, ")")
+	if i < 0 {
+		return "", false
+	}
+	// Fields after the comm start at field 3 (state), so starttime is the
+	// 20th of them.
+	f := strings.Fields(line[i+1:])
+	if len(f) < 20 {
+		return "", false
+	}
+	return f[19], true
 }
 
 func jointToolFromArgs(pid int, start string, argv []string) *jointTool {
