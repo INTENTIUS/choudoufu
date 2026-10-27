@@ -17,7 +17,7 @@ import (
 
 	"google.golang.org/api/googleapi"
 
-	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/markerkeys"
 )
 
 // The per-type listers (INTENTIUS/choudoufu#2264, after the maintainer's
@@ -278,6 +278,9 @@ func (c *Client) ListType(ctx context.Context, typeName string, scope ListScope,
 	base = strings.NewReplacer("{{region}}", location, "{{location}}", location).Replace(base)
 	path := strings.NewReplacer("{{project}}", url.PathEscape(scope.Project), "{{location}}", url.PathEscape(location)).Replace(t.Path)
 	listURL := strings.TrimRight(base, "/") + "/" + path
+	if err := c.attrs.publicCall(t.Service, listURL); err != nil {
+		return nil, err
+	}
 
 	var out []Asset
 	pages, results := 0, 0
@@ -286,7 +289,7 @@ func (c *Client) ListType(ctx context.Context, typeName string, scope ListScope,
 		q := url.Values{}
 		q.Set("pageSize", fmt.Sprint(listPageSize))
 		if t.Filter {
-			q.Set("filter", Filter(estate))
+			q.Set("filter", Filter(c.keys, estate))
 		}
 		if token != "" {
 			q.Set("pageToken", token)
@@ -302,7 +305,7 @@ func (c *Client) ListType(ctx context.Context, typeName string, scope ListScope,
 		pages++
 		results += len(items)
 		for _, it := range items {
-			if it.Name == "" || it.Labels[markers.TagEstate] != estate {
+			if it.Name == "" || it.Labels[c.keys.Owner] != c.keys.OwnerValue(estate) {
 				continue
 			}
 			out = append(out, Asset{
@@ -327,9 +330,9 @@ func (c *Client) ListType(ctx context.Context, typeName string, scope ListScope,
 }
 
 // Filter is the AIP-160 filter a list that takes one is sent: the estate's
-// label, exactly.
-func Filter(estate string) string {
-	return "labels." + markers.TagEstate + "=" + estate
+// owner label under keys, exactly.
+func Filter(keys markerkeys.Keys, estate string) string {
+	return "labels." + keys.Owner + "=" + keys.OwnerValue(estate)
 }
 
 // listItem is the fields every covered type's list item has in common. A

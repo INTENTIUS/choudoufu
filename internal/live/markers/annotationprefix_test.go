@@ -3,13 +3,13 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-package staterecord
+package markers
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // TestAnnotationKeysShareOnePrefix pins GitHub issue #1639's choice of key:
@@ -24,10 +24,10 @@ func TestAnnotationKeysShareOnePrefix(t *testing.T) {
 		}
 		return key[:i]
 	}
-	if got, want := prefix(markers.AddressAnnotation), prefix(KubernetesRecordKeyAnnotation); got != want {
-		t.Fatalf("markers.AddressAnnotation's prefix is %q, the record store's is %q", got, want)
+	if got, want := prefix(AddressAnnotation), prefix(staterecord.KubernetesRecordKeyAnnotation); got != want {
+		t.Fatalf("AddressAnnotation's prefix is %q, the record store's is %q", got, want)
 	}
-	if markers.AddressAnnotation != prefix(KubernetesRecordKeyAnnotation)+"/"+markers.TagAddress {
-		t.Errorf("markers.AddressAnnotation = %q, want the record store's prefix and the AWS marker's own name, %q", markers.AddressAnnotation, markers.TagAddress)
+	if AddressAnnotation != prefix(staterecord.KubernetesRecordKeyAnnotation)+"/"+TagAddress {
+		t.Errorf("AddressAnnotation = %q, want the record store's prefix and the AWS marker's own name, %q", AddressAnnotation, TagAddress)
 	}
 }

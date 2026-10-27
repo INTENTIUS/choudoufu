@@ -13,9 +13,9 @@ import (
 	"strings"
 
 	cloudasset "google.golang.org/api/cloudasset/v1"
-	htransport "google.golang.org/api/transport/http"
+	"google.golang.org/api/option"
 
-	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/markerkeys"
 )
 
 // Asset is one resource the Asset Inventory index holds with this estate's
@@ -84,41 +84,55 @@ type Client struct {
 	svc   *cloudasset.Service
 	attrs Attrs
 	creds Credentials
+	keys  markerkeys.Keys
 	// http is the authenticated transport the per-type listers call their
 	// services through ([Client.ListType]).
 	http *http.Client
 }
 
+// Config is what the caller supplies a [Client] (GitHub issue #2281): the
+// marker vocabulary and the authenticated HTTP client. The package builds
+// no credential of its own.
+type Config struct {
+	// Markers names the owner and address label keys a search matches.
+	Markers markerkeys.Keys
+	// HTTPClient carries every call, the Cloud Asset search and each
+	// per-type list, already authenticated as the caller decided. Nothing
+	// here reads a credentials file, searches for Application Default
+	// Credentials or asks the metadata server. [HTTPClient] builds one the
+	// way hashicorp/google's provider does; a caller with its own rule
+	// passes its own.
+	HTTPClient *http.Client
+	// Credentials is what diagnostics name the credential as.
+	Credentials Credentials
+}
+
 // New builds a client from a provider block's arguments, with the
-// provider's environment fallbacks applied ([Attrs.WithEnv]). Nothing is
-// called until [Client.Search], except that a credentials file is read
-// and Application Default Credentials are looked up now, so a missing
-// credential fails here rather than per project.
-func New(ctx context.Context, a Attrs) (*Client, error) {
+// provider's environment fallbacks applied ([Attrs.WithEnv]), over the
+// caller's HTTP client. Nothing is called until [Client.Search].
+func New(ctx context.Context, a Attrs, cfg Config) (*Client, error) {
 	a = a.WithEnv(os.Getenv)
 	if refused := a.refusedMarks(); len(refused) > 0 {
 		return nil, fmt.Errorf("the google provider block sets %s from a sensitive value, which the estate sweep does not read; set it from a non-sensitive value so the sweep calls as and where the provider does", strings.Join(refused, " and "))
 	}
-	if a.ExternalCredentials {
-		return nil, fmt.Errorf("the google provider block authenticates through an external_credentials block, which the estate sweep cannot use; configure credentials, access_token or Application Default Credentials for it")
-	}
-	opts, err := a.clientOptions(ctx)
-	if err != nil {
+	if err := cfg.Markers.Validate(); err != nil {
 		return nil, err
+	}
+	if cfg.HTTPClient == nil {
+		return nil, fmt.Errorf("the GCP estate sweep was given no HTTP client; the caller builds the credential it calls with (gcpsweep.HTTPClient builds the provider's)")
+	}
+	opts := []option.ClientOption{option.WithHTTPClient(cfg.HTTPClient)}
+	if a.UniverseDomain != "" {
+		opts = append(opts, option.WithUniverseDomain(a.UniverseDomain))
+	}
+	if a.CloudAssetEndpoint != "" {
+		opts = append(opts, option.WithEndpoint(serviceRoot(a.CloudAssetEndpoint)))
 	}
 	svc, err := cloudasset.NewService(ctx, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("building the Cloud Asset client (%s): %w", a.Auth(), err)
+		return nil, fmt.Errorf("building the Cloud Asset client (%s): %w", cfg.Credentials, err)
 	}
-	authOpts, err := a.authOptions(ctx)
-	if err != nil {
-		return nil, err
-	}
-	hc, _, err := htransport.NewClient(ctx, authOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("building the per-type list client (%s): %w", a.Auth(), err)
-	}
-	return &Client{svc: svc, attrs: a, creds: a.Auth(), http: hc}, nil
+	return &Client{svc: svc, attrs: a, creds: cfg.Credentials, keys: cfg.Markers, http: cfg.HTTPClient}, nil
 }
 
 // Region is the provider block's region, the location a per-type list of
@@ -129,6 +143,12 @@ func (c *Client) Region() string { return c.attrs.Region }
 // resource in when its block names none.
 func (c *Client) Zone() string { return c.attrs.Zone }
 
+// ProviderScope is the provider block's project, region and zone, the
+// defaults a list scope falls back to ([ProviderScope.Default]).
+func (c *Client) ProviderScope() ProviderScope {
+	return ProviderScope{Project: c.attrs.Project, Region: c.attrs.Region, Zone: c.attrs.Zone}
+}
+
 // Project is the provider block's project, the one project this client is
 // set to search when the configuration names no other: what a [Coverage]
 // built from provider blocks keys the client by. "" when the block and
@@ -138,25 +158,28 @@ func (c *Client) Project() string { return c.attrs.Project }
 // Credentials is how this client authenticates.
 func (c *Client) Credentials() Credentials { return c.creds }
 
-// Query is the search query for estate's label.
-func Query(estate string) string {
-	return "labels." + markers.TagEstate + "=" + estate
+// Query is the search query for estate's owner label under keys.
+func Query(keys markerkeys.Keys, estate string) string {
+	return "labels." + keys.Owner + "=" + keys.OwnerValue(estate)
 }
 
-// AddressQuery is the search query for estate's label and one
-// tofu-address label value together. Both terms are exact matches, joined
-// with AND as the search syntax spells a conjunction.
-func AddressQuery(estate, address string) string {
-	return Query(estate) + " AND labels." + markers.TagAddress + "=" + address
+// AddressQuery is the search query for estate's owner label and one
+// address label value together, under keys. Both terms are exact matches,
+// joined with AND as the search syntax spells a conjunction.
+func AddressQuery(keys markerkeys.Keys, estate, address string) string {
+	return Query(keys, estate) + " AND labels." + keys.Address + "=" + keys.AddressValue(address)
 }
+
+// Markers is the marker vocabulary this client searches with.
+func (c *Client) Markers() markerkeys.Keys { return c.keys }
 
 // SearchAddress is [Client.Search] narrowed by one more label term: every
 // resource in project whose tofu-estate is exactly estate and whose
 // tofu-address is exactly address. Results are checked against both labels
 // again, for the reason Search checks the estate.
 func (c *Client) SearchAddress(ctx context.Context, project, estate, address string) ([]Asset, error) {
-	return c.search(ctx, project, AddressQuery(estate, address), func(labels map[string]string) bool {
-		return labels[markers.TagEstate] == estate && labels[markers.TagAddress] == address
+	return c.search(ctx, project, AddressQuery(c.keys, estate, address), func(labels map[string]string) bool {
+		return labels[c.keys.Owner] == c.keys.OwnerValue(estate) && labels[c.keys.Address] == c.keys.AddressValue(address)
 	})
 }
 
@@ -171,14 +194,17 @@ func (c *Client) SearchAddress(ctx context.Context, project, estate, address str
 // on what came back, so that a token match can never read a neighbouring
 // estate's resource as this one's.
 func (c *Client) Search(ctx context.Context, project, estate string) ([]Asset, error) {
-	return c.search(ctx, project, Query(estate), func(labels map[string]string) bool {
-		return labels[markers.TagEstate] == estate
+	return c.search(ctx, project, Query(c.keys, estate), func(labels map[string]string) bool {
+		return labels[c.keys.Owner] == c.keys.OwnerValue(estate)
 	})
 }
 
 // search pages one query through project, keeping the results keep
 // accepts by their labels.
 func (c *Client) search(ctx context.Context, project, query string, keep func(map[string]string) bool) ([]Asset, error) {
+	if err := c.attrs.publicCall(Service, c.attrs.CloudAssetEndpoint); err != nil {
+		return nil, err
+	}
 	var out []Asset
 	pages, results := 0, 0
 	token := ""

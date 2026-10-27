@@ -59,7 +59,7 @@ func newListFake(t *testing.T, typeName, path string, bodies ...fakeResponse) (*
 	f := &fakeList{t: t, path: path, bodies: bodies}
 	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
-	c, err := New(context.Background(), Attrs{AccessToken: "tok", Project: "p1", Region: "us-central1",
+	c, err := newProviderClient(context.Background(), Attrs{AccessToken: "tok", Project: "p1", Region: "us-central1",
 		Endpoints: map[string]string{tl.Endpoint.Arg: srv.URL + "/v1/"}})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -188,7 +188,7 @@ func TestTypeListEndpoints(t *testing.T) {
 	if got := block.WithEnv(func(string) string { return "http://env/v1/" }).endpointFor(tl.Endpoint); got != "http://block/v1/" {
 		t.Errorf("the block's own endpoint lost to the environment: %q", got)
 	}
-	if _, err := New(context.Background(), Attrs{AccessToken: "t", Marked: []string{"vertex_ai_custom_endpoint"}}); err == nil {
+	if _, err := newProviderClient(context.Background(), Attrs{AccessToken: "t", Marked: []string{"vertex_ai_custom_endpoint"}}); err == nil {
 		t.Error("a marked list endpoint did not refuse the client")
 	}
 }

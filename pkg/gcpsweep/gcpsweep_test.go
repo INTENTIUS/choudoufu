@@ -26,7 +26,6 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/lang/marks"
 )
 
 // The response bodies below are the shapes testdata/README.md documents,
@@ -189,7 +188,7 @@ func newFake(t *testing.T, responses ...fakeResponse) (*fakeAsset, *Client) {
 	f := &fakeAsset{t: t, responses: responses}
 	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
-	c, err := New(context.Background(), Attrs{AccessToken: "tok", Project: "p1", CloudAssetEndpoint: srv.URL + "/v1/"})
+	c, err := newProviderClient(context.Background(), Attrs{AccessToken: "tok", Project: "p1", CloudAssetEndpoint: srv.URL + "/v1/"})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -354,7 +353,7 @@ func TestSearchQuotaProjectHeader(t *testing.T) {
 		{AccessToken: "tok", UserProjectOverride: true, CloudAssetEndpoint: srv.URL},
 		{AccessToken: "tok", UserProjectOverride: true, BillingProject: "billing", CloudAssetEndpoint: srv.URL},
 	} {
-		c, err := New(context.Background(), a)
+		c, err := newProviderClient(context.Background(), a)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -573,7 +572,10 @@ func TestCredentialsReachTheRequest(t *testing.T) {
 			}
 			a := tc.attrs(srv.URL, dir)
 			a.CloudAssetEndpoint = srv.URL + "/v1/"
-			c, err := New(context.Background(), a)
+			// The fake is on loopback, so HTTPClient would take the
+			// emulator rule (TestLocalEndpointsNeverReadACredential);
+			// this table is the provider's own chain, for real-cloud use.
+			c, err := newClientWith(context.Background(), a, a.WithEnv(os.Getenv).providerHTTPClient)
 			if err != nil {
 				t.Fatalf("New: %v", err)
 			}
@@ -600,7 +602,7 @@ func TestNewRefuses(t *testing.T) {
 		"external_credentials beside a token": {AccessToken: "t", ImpersonateServiceAccount: "sa@p.iam.gserviceaccount.com", ExternalCredentials: true},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if c, err := New(context.Background(), a); err == nil {
+			if c, err := newProviderClient(context.Background(), a); err == nil {
 				t.Errorf("New built %+v, want a refusal", c)
 			}
 		})
@@ -609,13 +611,13 @@ func TestNewRefuses(t *testing.T) {
 
 func TestProviderAttrs(t *testing.T) {
 	val := cty.ObjectVal(map[string]cty.Value{
-		"credentials":                           cty.StringVal(`{"type":"authorized_user"}`).Mark(marks.Sensitive),
-		"access_token":                          cty.StringVal("tok").Mark(marks.Sensitive),
-		"impersonate_service_account":           cty.StringVal("sa@p.iam.gserviceaccount.com").Mark(marks.Sensitive),
+		"credentials":                           cty.StringVal(`{"type":"authorized_user"}`).Mark(testSensitive),
+		"access_token":                          cty.StringVal("tok").Mark(testSensitive),
+		"impersonate_service_account":           cty.StringVal("sa@p.iam.gserviceaccount.com").Mark(testSensitive),
 		"impersonate_service_account_delegates": cty.ListVal([]cty.Value{cty.StringVal("d@p.iam.gserviceaccount.com")}),
 		"scopes":                                cty.NullVal(cty.List(cty.String)),
 		"project":                               cty.StringVal("p1"),
-		"region":                                cty.StringVal("us-central1").Mark(marks.Sensitive),
+		"region":                                cty.StringVal("us-central1").Mark(testSensitive),
 		"zone":                                  cty.UnknownVal(cty.String),
 		"billing_project":                       cty.StringVal("bill"),
 		"user_project_override":                 cty.True,
@@ -638,7 +640,7 @@ func TestProviderAttrs(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got  %+v\nwant %+v", got, want)
 	}
-	if _, err := New(context.Background(), got); err == nil || !strings.Contains(err.Error(), "impersonate_service_account") {
+	if _, err := newProviderClient(context.Background(), got); err == nil || !strings.Contains(err.Error(), "impersonate_service_account") {
 		t.Errorf("a marked impersonate_service_account should refuse the client by name, got %v", err)
 	}
 
@@ -672,7 +674,7 @@ func TestServiceRoot(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-	if got := Query("est"); got != "labels.tofu-estate=est" {
+	if got := Query(testKeys, "est"); got != "labels.tofu-estate=est" {
 		t.Errorf("Query = %q", got)
 	}
 }

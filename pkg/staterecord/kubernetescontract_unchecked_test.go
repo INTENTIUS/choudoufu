@@ -19,8 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
-
-	k8sassets "github.com/intentius/choudoufu/live/kubernetes"
 )
 
 // The places the cluster contract answered "fine" about something it had not
@@ -450,7 +448,7 @@ var virtualEstateCheck = regexp.MustCompile(`authorizer\.group\('([^']+)'\)\.res
 // from drifting away from the policy that reads it. Nothing else can: the
 // resource is virtual, so no cluster and no schema would ever notice.
 func TestEstateGrantTripleIsTheOneTheShippedPolicyAsksFor(t *testing.T) {
-	checks := virtualEstateCheck.FindAllStringSubmatch(string(k8sassets.EstateBoundaryYAML()), -1)
+	checks := virtualEstateCheck.FindAllStringSubmatch(string(EstateBoundaryYAML()), -1)
 	if len(checks) == 0 {
 		t.Fatal("the shipped estate boundary makes no authorizer check at all")
 	}

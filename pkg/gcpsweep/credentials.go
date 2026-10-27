@@ -9,14 +9,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
 	iamcredentials "google.golang.org/api/iamcredentials/v1"
 	"google.golang.org/api/option"
+	htransport "google.golang.org/api/transport/http"
 )
 
 // CredentialSource is which of the provider block's credential arguments a
@@ -34,6 +39,14 @@ const (
 	// credential, so the environment's own (GOOGLE_APPLICATION_CREDENTIALS,
 	// gcloud's application-default login, the metadata server) is used.
 	SourceADC CredentialSource = "application default credentials"
+	// SourceNone is no credential at all: the block points at local
+	// endpoints and names no access_token, so the calls go unauthenticated
+	// rather than through a credential that fetches its token from Google
+	// ([HTTPClient]).
+	SourceNone CredentialSource = "no credential (the provider's custom endpoints are local)"
+	// SourceCaller is a client whose credential the caller built and
+	// handed over in [Config].
+	SourceCaller CredentialSource = "the caller's client"
 )
 
 // Credentials is how a client was told to authenticate, so that a failure
@@ -103,6 +116,12 @@ var refusedMarks = map[string]bool{
 	"universe_domain":                       true,
 }
 
+// RefusedMarks are the arguments a client built from a is refused over:
+// set from a marked value, and each one changes who the calls are made as
+// or where they go. A caller building its own client checks them as [New]
+// does.
+func (a Attrs) RefusedMarks() []string { return a.refusedMarks() }
+
 func (a Attrs) refusedMarks() []string {
 	listEndpoint := map[string]bool{}
 	for _, e := range typeListEndpoints() {
@@ -117,24 +136,156 @@ func (a Attrs) refusedMarks() []string {
 	return out
 }
 
-// clientOptions builds the Cloud Asset client's options from a: the
-// credential [Attrs.Auth] chose, the scopes, the endpoint and the
-// universe. ctx bounds only the building; an impersonated token source
-// mints its tokens on the context of the call that needs one.
-func (a Attrs) clientOptions(ctx context.Context) ([]option.ClientOption, error) {
-	opts, err := a.authOptions(ctx)
-	if err != nil {
-		return nil, err
+// HTTPClient builds the HTTP client a [Config] carries, authenticated the
+// way hashicorp/google's provider would be from a, with the environment
+// fallbacks applied ([Attrs.WithEnv]): [Attrs.Auth]'s precedence, the
+// scopes, the universe and impersonation through IAM Credentials. It is a
+// helper for a caller that wants the provider's own rule; [New] never
+// calls it.
+//
+// It never reaches Google's public auth endpoints for a block pointed at
+// local endpoints ([Attrs.Local]): a credentials file mints its tokens at
+// the token_uri it names, and Application Default Credentials look in
+// GOOGLE_APPLICATION_CREDENTIALS, gcloud's login and the metadata server,
+// none of which may be reached for an emulator run. For such a block an
+// access_token is sent as given, and with none the calls carry no
+// credential at all (an emulator takes an anonymous call); impersonation
+// mints only through a local iam_credentials_custom_endpoint. Anything else
+// is refused rather than fallen back from.
+func HTTPClient(ctx context.Context, a Attrs) (*http.Client, Credentials, error) {
+	a = a.WithEnv(os.Getenv)
+	if refused := a.refusedMarks(); len(refused) > 0 {
+		return nil, Credentials{}, fmt.Errorf("the google provider block sets %s from a sensitive value, which the estate sweep does not read; set it from a non-sensitive value so the sweep calls as and where the provider does", strings.Join(refused, " and "))
 	}
-	if a.CloudAssetEndpoint != "" {
-		opts = append(opts, option.WithEndpoint(serviceRoot(a.CloudAssetEndpoint)))
+	if a.ExternalCredentials {
+		return nil, Credentials{}, fmt.Errorf("the google provider block authenticates through an external_credentials block, which the estate sweep cannot use; configure credentials, access_token or Application Default Credentials for it")
 	}
-	return opts, nil
+	if a.Local() {
+		return a.localHTTPClient(ctx)
+	}
+	return a.providerHTTPClient(ctx)
 }
 
-// authOptions is [Attrs.clientOptions] without the Cloud Asset endpoint:
-// the credential, scopes and universe every client this package builds
-// authenticates with, the per-type listers' among them.
+// providerHTTPClient is [HTTPClient] for a block whose endpoints are not
+// local: the provider's own credential chain, unchanged.
+func (a Attrs) providerHTTPClient(ctx context.Context) (*http.Client, Credentials, error) {
+	opts, err := a.authOptions(ctx)
+	if err != nil {
+		return nil, Credentials{}, err
+	}
+	hc, _, err := htransport.NewClient(ctx, opts...)
+	if err != nil {
+		return nil, Credentials{}, fmt.Errorf("building the GCP HTTP client (%s): %w", a.Auth(), err)
+	}
+	return hc, a.Auth(), nil
+}
+
+// customEndpoints is every custom endpoint a names, by argument name.
+func (a Attrs) customEndpoints() map[string]string {
+	out := map[string]string{}
+	for k, v := range a.Endpoints {
+		if v != "" {
+			out[k] = v
+		}
+	}
+	if a.CloudAssetEndpoint != "" {
+		out["cloud_asset_custom_endpoint"] = a.CloudAssetEndpoint
+	}
+	if a.IAMCredentialsEndpoint != "" {
+		out["iam_credentials_custom_endpoint"] = a.IAMCredentialsEndpoint
+	}
+	return out
+}
+
+// Local reports whether a points any custom endpoint at a loopback host:
+// an emulator run. Every call a client built from a makes then has to stay
+// on local endpoints, its credential's token fetches included.
+func (a Attrs) Local() bool {
+	for _, v := range a.customEndpoints() {
+		if IsLoopback(v) {
+			return true
+		}
+	}
+	return false
+}
+
+// IsLoopback reports whether raw, a URL or a bare host[:port], names
+// localhost or a loopback address.
+func IsLoopback(raw string) bool {
+	s := strings.TrimSpace(raw)
+	if !strings.Contains(s, "://") {
+		s = "http://" + s
+	}
+	host := s
+	if u, err := url.Parse(s); err == nil && u.Host != "" {
+		host = u.Host
+	}
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.TrimSuffix(strings.Trim(host, "[]"), ".")
+	if strings.EqualFold(host, "localhost") || strings.HasSuffix(strings.ToLower(host), ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// publicCall refuses a call to target, service's URL, from a client whose
+// block points at local endpoints when target is not local itself: the
+// block named an emulator for some products and left this one at Google's
+// default, and the call would leave the machine. "" is the service's
+// default endpoint.
+func (a Attrs) publicCall(service, target string) error {
+	if !a.Local() || (target != "" && IsLoopback(target)) {
+		return nil
+	}
+	var local []string
+	for k, v := range a.customEndpoints() {
+		if IsLoopback(v) {
+			local = append(local, k)
+		}
+	}
+	sort.Strings(local)
+	where := target
+	if where == "" {
+		where = "its default endpoint"
+	}
+	return fmt.Errorf("not calling %s at %s: the google provider block points %s at a local endpoint, so this run is an emulator run and no call may reach a public endpoint; set the custom endpoint for %s too", service, where, strings.Join(local, ", "), service)
+}
+
+// localHTTPClient is [HTTPClient] for a block pointed at local endpoints:
+// a static access_token, else no credential, and impersonation only
+// through a local IAM Credentials endpoint. No credentials file is read
+// and Application Default Credentials are never looked up.
+func (a Attrs) localHTTPClient(ctx context.Context) (*http.Client, Credentials, error) {
+	creds := Credentials{Source: SourceNone, Impersonate: a.ImpersonateServiceAccount}
+	base := &http.Client{}
+	if a.AccessToken != "" {
+		token, err := readPathOrContents(a.AccessToken)
+		if err != nil {
+			return nil, Credentials{}, fmt.Errorf("reading access_token: %w", err)
+		}
+		creds.Source = SourceAccessToken
+		base = oauth2.NewClient(ctx, oauth2.StaticTokenSource(&oauth2.Token{AccessToken: strings.TrimSpace(token)}))
+	}
+	if creds.Impersonate == "" {
+		return base, creds, nil
+	}
+	creds.Delegates = append([]string(nil), a.ImpersonateDelegates...)
+	if a.IAMCredentialsEndpoint == "" || !IsLoopback(a.IAMCredentialsEndpoint) {
+		return nil, Credentials{}, fmt.Errorf("the google provider block impersonates %s and points its other endpoints at local hosts, but iam_credentials_custom_endpoint is not local, so the impersonated token would be minted by Google; point it at the emulator too", creds.Impersonate)
+	}
+	iam, err := iamcredentials.NewService(ctx, option.WithHTTPClient(base), option.WithEndpoint(serviceRoot(a.IAMCredentialsEndpoint)))
+	if err != nil {
+		return nil, Credentials{}, fmt.Errorf("building the IAM Credentials client to impersonate %s: %w", creds.Impersonate, err)
+	}
+	ts := oauth2.ReuseTokenSource(nil, impersonated{iam: iam, target: creds.Impersonate, delegates: creds.Delegates, scopes: a.scopes()})
+	return &http.Client{Transport: &oauth2.Transport{Source: ts, Base: http.DefaultTransport}}, creds, nil
+}
+
+// authOptions is the credential, scopes and universe [HTTPClient] builds
+// its client from for a block whose endpoints are not local.
 func (a Attrs) authOptions(ctx context.Context) ([]option.ClientOption, error) {
 	creds := a.Auth()
 	var base []option.ClientOption

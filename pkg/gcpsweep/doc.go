@@ -5,10 +5,16 @@
 
 // Package gcpsweep is the GCP estate sweep's client (GitHub issue #1119,
 // the GCP platform epic): which live resources in a set of projects carry
-// this estate's tofu-estate label, so that one whose block the
+// this estate's owner label, so that one whose block the
 // configuration no longer declares can be proposed for removal, exactly as
 // the AWS tagging sweep and the Kubernetes label list do on their
 // substrates.
+//
+// The package is public and engine-neutral (GitHub issue #2281): the
+// caller names the owner and address label keys ([Config.Markers];
+// choudoufu's are tofu-estate and tofu-address, which the examples below
+// use) and hands over the authenticated HTTP client every call goes
+// through ([Config.HTTPClient]). It builds no credential of its own.
 //
 // # What a sweep is here
 //
@@ -48,7 +54,14 @@
 // a client will authenticate with: access_token, then credentials, then
 // Application Default Credentials, each optionally impersonating
 // impersonate_service_account. The provider's environment fallbacks apply
-// to any argument the block leaves unset ([Attrs.WithEnv]).
+// to any argument the block leaves unset ([Attrs.WithEnv]). [HTTPClient]
+// builds a client by that precedence for a caller that wants the
+// provider's rule, except that a block pointed at a loopback endpoint (an
+// emulator run, [Attrs.Local]) never authenticates through a credentials
+// file or Application Default Credentials, which would fetch a token from
+// Google: an access_token is sent as given, and with none the calls carry
+// no credential. Such a client also refuses any call whose own endpoint
+// was left at Google's public default.
 //
 // # Per-type lists
 //

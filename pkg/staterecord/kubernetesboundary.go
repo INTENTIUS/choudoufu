@@ -18,8 +18,6 @@ import (
 	admissionv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-
-	k8sassets "github.com/intentius/choudoufu/live/kubernetes"
 )
 
 // What "installed" has to mean for the estate boundary. GitHub issue #1448,
@@ -44,7 +42,7 @@ import (
 // on how the CEL is written, and they are spelled out here.
 //
 // The CEL is compared against live/kubernetes/estate-boundary.yaml itself,
-// embedded through [k8sassets.EstateBoundaryYAML]. Proving an arbitrary
+// embedded through [EstateBoundaryYAML]. Proving an arbitrary
 // expression equivalent to the shipped one is not something this package can
 // do, and pinning today's expressions into Go would put a second copy of
 // them one edit away from disagreeing with the file a cluster admin applies
@@ -110,7 +108,7 @@ func ShippedEstateBoundaryPolicy() (*admissionv1.ValidatingAdmissionPolicy, erro
 // this package's own readers cannot copy it needlessly.
 func shippedEstateBoundaryPolicy() (*admissionv1.ValidatingAdmissionPolicy, error) {
 	shippedPolicyOnce.Do(func() {
-		shippedPolicy, shippedPolicyErr = parseShippedEstateBoundaryPolicy(k8sassets.EstateBoundaryYAML())
+		shippedPolicy, shippedPolicyErr = parseShippedEstateBoundaryPolicy(EstateBoundaryYAML())
 	})
 	return shippedPolicy, shippedPolicyErr
 }

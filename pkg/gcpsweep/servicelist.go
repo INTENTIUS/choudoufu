@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/pkg/identity"
 )
 
@@ -274,6 +273,35 @@ func (t TypeList) Placeholders() []string {
 // ("projects/p", ".../zones/z") counts by its last segment.
 var ScopeVars = map[string]bool{"project": true, "region": true, "zone": true, "location": true}
 
+// ProviderScope is the provider block's project, region and zone: what a
+// list scope's variable falls back to when the resource's own block names
+// none ([ProviderScope.Default]).
+type ProviderScope struct {
+	Project string
+	Region  string
+	Zone    string
+}
+
+// Default is the value the scope variable name takes when the resource's
+// block leaves it unset. project, region and zone are the provider block's,
+// as hashicorp/google defaults them. location is the provider block's
+// region: a block with no location is listed in the provider's region, the
+// one rule both engines apply (GitHub issue #2273, ruled 2026-10-26: plunge
+// already fell back this way, and the google provider places a regional
+// resource with no location there). Any other variable has no provider
+// default, and "" is returned.
+func (p ProviderScope) Default(name string) string {
+	switch name {
+	case "project":
+		return p.Project
+	case "region", "location":
+		return p.Region
+	case "zone":
+		return p.Zone
+	}
+	return ""
+}
+
 // Scope fills a derived type's list path and query from vars, or names the
 // variables it has no value for. The scope's Location is the region, zone or
 // location the path is under, if any.
@@ -373,6 +401,9 @@ func (c *Client) listDerived(ctx context.Context, t TypeList, scope ListScope, e
 	base := c.attrs.endpointFor(t.Endpoint)
 	base = strings.NewReplacer("{{region}}", scope.Location, "{{location}}", scope.Location).Replace(base)
 	listURL := strings.TrimRight(base, "/") + "/" + scope.Collection
+	if err := c.attrs.publicCall(t.Service, listURL); err != nil {
+		return nil, err
+	}
 	host := t.Service
 	if t.AssetHost != "" {
 		host = t.AssetHost
@@ -402,7 +433,7 @@ func (c *Client) listDerived(ctx context.Context, t TypeList, scope ListScope, e
 		results += len(items)
 		for _, it := range items {
 			name := t.objectName(it, scope.Collection)
-			if name == "" || it.Labels[markers.TagEstate] != estate {
+			if name == "" || it.Labels[c.keys.Owner] != c.keys.OwnerValue(estate) {
 				continue
 			}
 			location := scope.Location
