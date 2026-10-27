@@ -7,6 +7,7 @@ modules-dev/
 # /pkg/ was Godep's output directory. Its public packages are source
 # (#2244, #2281).
 /pkg/*
+!/pkg/adoption/
 !/pkg/azsweep/
 !/pkg/cloudcontrol/
 !/pkg/gcpsweep/

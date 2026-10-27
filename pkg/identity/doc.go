@@ -51,6 +51,15 @@
 // schema representation it holds. [Schema] and [Schemas] are plain
 // implementations for a caller that builds them by hand.
 //
+// # Cloud Control identifiers
+//
+// [CloudControlTranslation] turns a Cloud Control identifier (and, for some
+// types, its resource model) into the Terraform id the type is imported by,
+// from the type's row or a written-out rule (GitHub issue #2286, moved from
+// plunge). The one value it cannot read from the listing, the AWS account ID
+// aws_budgets_budget_action's id starts with, comes in from the engine
+// through an [AccountSource]; this package still calls no cloud.
+//
 // What stays in internal/live/identity, because it reads configuration or
 // OpenTofu's provider types: resolution of instances, the config-side
 // naming signal, schema-based row synthesis, and the table verification

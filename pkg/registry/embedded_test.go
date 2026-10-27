@@ -67,3 +67,31 @@ func TestEmbeddedRosterAnswersForMultiplex(t *testing.T) {
 		t.Fatalf("EnumerationSource(aws_prometheus_workspace) = %q, want AWS::APS::Workspace", cfnType)
 	}
 }
+
+// TestEmbeddedAmbiguousReverseJoins pins the reverse join's ambiguity in the
+// committed mapping (GitHub issue #2286): 19 CFN types map to more than one
+// TF type through TFTypesForCFNType's rows, which is why an adoption file
+// names the engine type for them. A change in the count means the mapping
+// moved; update the number and TFTypesForCFNType's comment together.
+func TestEmbeddedAmbiguousReverseJoins(t *testing.T) {
+	r, err := Embedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ambiguous := 0
+	for cfnType := range r.tfTypeFor {
+		if len(r.TFTypesForCFNType(cfnType)) > 1 {
+			ambiguous++
+		}
+	}
+	if ambiguous != 19 {
+		t.Errorf("%d CFN types map to more than one TF type, want 19 (TFTypesForCFNType's comment says 19)", ambiguous)
+	}
+	got := r.TFTypesForCFNType("AWS::ElasticLoadBalancingV2::LoadBalancer")
+	if want := []string{"aws_alb", "aws_lb"}; !equalStrings(got, want) {
+		t.Errorf("TFTypesForCFNType(AWS::ElasticLoadBalancingV2::LoadBalancer) = %v, want %v", got, want)
+	}
+	if got := r.TFTypesForCFNType("AWS::FSx::FileSystem"); len(got) != 4 {
+		t.Errorf("TFTypesForCFNType(AWS::FSx::FileSystem) = %v, want four types", got)
+	}
+}

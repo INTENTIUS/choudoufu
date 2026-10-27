@@ -1,0 +1,68 @@
+{
+  "index": "v1",
+  "stamp": {
+    "source": {
+      "kind": "cloud",
+      "name": "behold-lister",
+      "version": "0.0.0"
+    },
+    "scope": {
+      "kind": "cloud",
+      "substrate": "aws",
+      "scopeId": "000000000000",
+      "locations": [
+        "us-east-1"
+      ],
+      "types": [
+        "AWS::S3::Bucket",
+        "AWS::SQS::Queue"
+      ]
+    },
+    "scopeKey": "cloud/aws/000000000000/9bd41033bb42",
+    "observedAt": "2026-10-26T12:00:00Z",
+    "completedAt": "2026-10-26T12:00:04Z",
+    "digest": "e2f92b265a4dd604e013b3f55eafe5cf317ea1f5b7c54b4c5187120d0dcfe10d"
+  },
+  "coverage": [
+    {
+      "listedType": "AWS::S3::Bucket",
+      "location": "us-east-1",
+      "verdict": "listed"
+    },
+    {
+      "listedType": "AWS::SQS::Queue",
+      "location": "us-east-1",
+      "verdict": "read-failed",
+      "detail": "ListResources returned UnsupportedOperation"
+    }
+  ],
+  "graph": {
+    "version": 1,
+    "nodes": [
+      {
+        "id": "aws/000000000000/us-east-1/AWS::S3::Bucket/web-logs",
+        "kind": "AWS::S3::Bucket",
+        "lexicon": "aws",
+        "attrs": {
+          "BucketName": "web-logs"
+        },
+        "physicalId": "web-logs"
+      }
+    ],
+    "edges": [],
+    "groups": {
+      "byLexicon": {
+        "aws": [
+          "aws/000000000000/us-east-1/AWS::S3::Bucket/web-logs"
+        ]
+      }
+    }
+  },
+  "notes": [
+    {
+      "kind": "no-catalog",
+      "message": "no reference catalog for AWS::SQS::Queue",
+      "listedType": "AWS::SQS::Queue"
+    }
+  ]
+}

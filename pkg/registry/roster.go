@@ -278,9 +278,13 @@ func (r *Roster) CloudControlType(tfType string) (cfnType string, ok bool) {
 // wants the TF type it names (the ARN join, issue #51: an ARN's service and
 // resource segments join to a CFN type first, and only then to a TF type).
 // nil for a CFN type nothing maps to. A result with more than one entry
-// means the CFN type's TF mapping is not unique in the committed artifact;
-// today's live/mapping.json never produces one, but a caller doing a reverse
-// join must still treat it as ambiguous rather than picking the first.
+// means the CFN type's TF mapping is not unique: in the committed
+// pkg/registry/mapping.json 19 CFN types map to more than one TF type
+// (AWS::ElasticLoadBalancingV2::LoadBalancer to aws_alb and aws_lb,
+// AWS::FSx::FileSystem to four, GitHub issue #2286). A caller doing a
+// reverse join treats such a result as ambiguous rather than picking the
+// first; an adoption file names the engine type for those
+// (pkg/adoption, Selection.EngineType).
 func (r *Roster) TFTypesForCFNType(cfnType string) []string {
 	if r == nil || len(r.tfTypeFor[cfnType]) == 0 {
 		return nil
