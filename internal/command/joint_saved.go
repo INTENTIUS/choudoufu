@@ -57,6 +57,11 @@ type jointBundle struct {
 	// one does not match its hash.
 	Scrubbed  bool                 `json:"scrubbed,omitempty"`
 	Sensitive []jointSensitiveHash `json:"sensitive,omitempty"`
+	// KeyFrom is "env" when the hashes are under the key in
+	// CHOUDOUFU_PLAN_HMAC_KEY, and empty when under the planning session's
+	// key file. KeyCheck is [jointKeyCheck] of that key. Neither is the key.
+	KeyFrom  string `json:"keyFrom,omitempty"`
+	KeyCheck string `json:"keyCheck,omitempty"`
 }
 
 // jointSensitiveHash is one sensitive planned value a joint plan file left
@@ -118,7 +123,7 @@ func (s *jointSession) writeStubs(tool *jointTool) error {
 	}
 	// The sensitive planned values are dropped from what every plan file
 	// carries, each kept as an HMAC under the session's key (#2277).
-	key, err := s.sensitiveKey()
+	key, keyFrom, err := s.sensitiveKey()
 	if err != nil {
 		return fmt.Errorf("making the key of this session's sensitive value hashes: %w", err)
 	}
@@ -135,6 +140,7 @@ func (s *jointSession) writeStubs(tool *jointTool) error {
 			return err
 		}
 		b.Scrubbed, b.Sensitive = true, hashes
+		b.KeyFrom, b.KeyCheck = keyFrom, jointKeyCheck(key)
 		body, err := json.Marshal(jointStub{Magic: 1, Session: s.dir, Unit: u.ID, Serial: st.Serial, Units: st.Units, Run: filepath.Base(s.dir), Tool: tool.Kind, Bundle: b})
 		if err != nil {
 			return err
@@ -734,7 +740,7 @@ func jointCappedLines(lines []string) string {
 // jointMissingKeyDetail is the refusal when the key of a plan file's hashes
 // is not on this machine: the session that planned is gone, or was on
 // another machine.
-func jointMissingKeyDetail(planPath, session string, hashes []jointSensitiveHash, err error) string {
+func jointMissingKeyDetail(planPath, session, keyFrom string, hashes []jointSensitiveHash, err error) string {
 	var lines []string
 	for _, h := range hashes {
 		if h.HMAC != "" {
@@ -742,7 +748,10 @@ func jointMissingKeyDetail(planPath, session string, hashes []jointSensitiveHash
 		}
 	}
 	sort.Strings(lines)
-	return fmt.Sprintf("%s leaves out the sensitive values it planned and keeps an HMAC of each, under a key that only the session that planned holds (%s). That key is not here (%s), so these values cannot be checked against what this apply plans:\n%s\nThe key never goes into a plan file, so that a short secret cannot be guessed from the file. Plan and apply where the planning session is still on the machine, or plan again in this job.", planPath, session, err, jointCappedLines(lines))
+	if keyFrom == jointKeyFromEnv {
+		return fmt.Sprintf("%s leaves out the sensitive values it planned and keeps an HMAC of each, under the key in %s when it planned. That key is not usable here (%s), so these values cannot be checked against what this apply plans:\n%s\nSet %s to the same secret the plan was made with, or plan again in this job.", planPath, jointKeyEnv, err, jointCappedLines(lines), jointKeyEnv)
+	}
+	return fmt.Sprintf("%s leaves out the sensitive values it planned and keeps an HMAC of each, under a key that only the session that planned holds (%s). That key is not here (%s), so these values cannot be checked against what this apply plans:\n%s\nThe key never goes into a plan file, so that a short secret cannot be guessed from the file. Plan and apply where the planning session is still on the machine, set %s to one secret in both the plan and the apply job, or plan again in this job.", planPath, session, err, jointCappedLines(lines), jointKeyEnv)
 }
 
 // jointHasHashes reports whether any hash needs the key.
@@ -974,8 +983,10 @@ func (s *jointSession) saveReviewed(unit string, slice map[string]any) error {
 // scrubbed plan file (#2277): the unit's hashes, and the session that holds
 // their key.
 type jointReviewedSensitive struct {
-	Session string               `json:"session"`
-	Hashes  []jointSensitiveHash `json:"hashes,omitempty"`
+	Session  string               `json:"session"`
+	Hashes   []jointSensitiveHash `json:"hashes,omitempty"`
+	KeyFrom  string               `json:"keyFrom,omitempty"`
+	KeyCheck string               `json:"keyCheck,omitempty"`
 }
 
 func (s *jointSession) saveReviewedSensitive(unit string, rs jointReviewedSensitive) error {

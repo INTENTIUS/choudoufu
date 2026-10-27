@@ -27,6 +27,11 @@ env:
   AWS_ACCESS_KEY_ID: test
   AWS_SECRET_ACCESS_KEY: test
   AWS_REGION: us-east-1
+  # The key of the HMACs a plan file keeps of its sensitive planned values
+  # (#2277), shared by the pull request's job and the merge's. Unset, the key
+  # stays in the planning job's session, and a merge job applying a plan with
+  # a known sensitive value refuses.
+  CHOUDOUFU_PLAN_HMAC_KEY: '${{ secrets.CHOUDOUFU_PLAN_HMAC_KEY }}'
   # Where behold reads the run's report and index row (the same bucket and
   # prefix as the other demos). chant-report is chant's `terraform report`.
   CHANT_REPORTS: http://floci:4566/demo-reports/demo

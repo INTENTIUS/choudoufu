@@ -55,6 +55,14 @@ terragrunt run --all --out-dir plans -- apply
 Every plan file carries the whole joint plan, so the merge's job needs only
 that directory. The first unit's apply applies it once.
 
+The plan files hold no sensitive planned value, only an HMAC of each, and
+the apply checks what it plans again against them. When the pull request
+and the merge run in different jobs, set `CHOUDOUFU_PLAN_HMAC_KEY` in both
+to one CI secret (hex or base64 of at least 32 bytes, such as the output of
+`openssl rand -hex 32`). Without it, the key stays in the planning job's
+temporary directory, and a merge job that applies a plan with a known
+sensitive value refuses.
+
 ## Limits
 
 - One apply needs the saved plan files. `run --all apply` without `--out-dir`

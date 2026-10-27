@@ -374,7 +374,7 @@ func TestJointApplyRefusesChangedSensitiveValue(t *testing.T) {
 	if !diags.HasErrors() || !refused || !strings.Contains(diags.Err().Error(), "unit db: module.db.test_thing.a") {
 		t.Errorf("apply without the key = %v, want a refusal naming unit db and module.db.test_thing.a", diags.Err())
 	}
-	detail := jointMissingKeyDetail("/out/db/tfplan", "/tmp/choudoufu-joint-501/run-1", hashes, os.ErrNotExist)
+	detail := jointMissingKeyDetail("/out/db/tfplan", "/tmp/choudoufu-joint-501/run-1", "", hashes, os.ErrNotExist)
 	if !strings.Contains(detail, "unit db: module.db.test_thing.a (sensitive after password)") || !strings.Contains(detail, "/tmp/choudoufu-joint-501/run-1") {
 		t.Errorf("missing-key refusal does not name the unit, address and session:\n%s", detail)
 	}
@@ -382,12 +382,13 @@ func TestJointApplyRefusesChangedSensitiveValue(t *testing.T) {
 
 // TestJointSessionKey: the key is made once, 0600, in the session.
 func TestJointSessionKey(t *testing.T) {
+	t.Setenv(jointKeyEnv, "")
 	s := &jointSession{dir: t.TempDir()}
-	a, err := s.sensitiveKey()
-	if err != nil {
-		t.Fatal(err)
+	a, from, err := s.sensitiveKey()
+	if err != nil || from != "" {
+		t.Fatal(err, from)
 	}
-	b, err := s.sensitiveKey()
+	b, _, err := s.sensitiveKey()
 	if err != nil {
 		t.Fatal(err)
 	}

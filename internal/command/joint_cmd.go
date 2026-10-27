@@ -475,7 +475,7 @@ func (c *jointCommand) jointShow(args []string) (int, bool) {
 			// The slice holds null for its sensitive values (#2277); the
 			// unit's hashes are what the apply checks them by.
 			if stub.Bundle.Scrubbed {
-				rs := jointReviewedSensitive{Session: stub.Session}
+				rs := jointReviewedSensitive{Session: stub.Session, KeyFrom: stub.Bundle.KeyFrom, KeyCheck: stub.Bundle.KeyCheck}
 				for _, h := range stub.Bundle.Sensitive {
 					if h.Unit == stub.Unit {
 						rs.Hashes = append(rs.Hashes, h)
@@ -608,9 +608,9 @@ func (c *jointCommand) jointApply(args []string) (int, bool) {
 		if stub.Bundle.Scrubbed {
 			sensitive := &jointSensitiveCheck{Hashes: stub.Bundle.Sensitive}
 			if jointHasHashes(stub.Bundle.Sensitive) {
-				key, err := jointReadKey(stub.Session)
+				key, err := jointReadKey(stub.Session, stub.Bundle.KeyFrom, stub.Bundle.KeyCheck)
 				if err != nil {
-					return refuse(jointMissingKeyDetail(a.PlanPath, stub.Session, stub.Bundle.Sensitive, err))
+					return refuse(jointMissingKeyDetail(a.PlanPath, stub.Session, stub.Bundle.KeyFrom, stub.Bundle.Sensitive, err))
 				}
 				sensitive.Key = key
 			}
@@ -624,8 +624,8 @@ func (c *jointCommand) jointApply(args []string) (int, bool) {
 			var key []byte
 			if jointHasHashes(rs.Hashes) {
 				var err error
-				if key, err = jointReadKey(rs.Session); err != nil {
-					return refuse(jointMissingKeyDetail("The reviewed plan of unit "+stub.Unit, rs.Session, rs.Hashes, err))
+				if key, err = jointReadKey(rs.Session, rs.KeyFrom, rs.KeyCheck); err != nil {
+					return refuse(jointMissingKeyDetail("The reviewed plan of unit "+stub.Unit, rs.Session, rs.KeyFrom, rs.Hashes, err))
 				}
 			}
 			fresh, schemaFor, err := jointReadPlanWithSchemas(sess.path("joint.plan"))
