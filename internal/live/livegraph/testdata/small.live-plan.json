@@ -1,0 +1,24 @@
+{
+  "estate": "web",
+  "choudoufu_version": "",
+  "upstream_version": "1.13.0",
+  "observed_at": "2026-10-26T12:00:00Z",
+  "bound": [
+    {"addr": "aws_s3_bucket.logs", "type": "aws_s3_bucket", "identity": "web-logs", "source": "record"},
+    {"addr": "module.app[0].aws_eip.pool[1]", "type": "aws_eip", "identity": "eipalloc-0abc", "source": "marker"},
+    {"addr": "module.app[0].aws_instance.web", "type": "aws_instance", "identity": "i-0123", "source": "derived"}
+  ],
+  "omissions": [
+    {"addr": "aws_sqs_queue.foo[0]", "reason": "ABSENT", "detail": "not found"},
+    {"addr": "aws_sqs_queue.bar[0]", "reason": "NEEDS_DISCOVERY", "detail": "the server assigns its identity"}
+  ],
+  "unowned": [
+    {"addr": "aws_subnet.app", "type": "aws_subnet", "identity": "subnet-0aa", "tofu_estate": "billing"}
+  ],
+  "foreign": [],
+  "adoptable": [
+    {"addr": "aws_sqs_queue.bar[0]", "type": "aws_sqs_queue", "identity": "https://sqs.us-east-1.amazonaws.com/000000000000/bar-0",
+     "matched": [{"attribute": "name", "value": "bar-0"}], "adopt_tofu_estate": "web", "adopt_tofu_address": "aws_sqs_queue.bar[0]"}
+  ],
+  "swept": ["aws_sqs_queue"]
+}

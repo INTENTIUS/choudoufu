@@ -39,6 +39,8 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.32.0 (Unreleased)
 
+- New: `choudoufu live-graph DIR -json [-from-plan=<file>] [-history]` prints the estate's graph as one JSON document in chant's engine graph shape (INTENTIUS/chant#4520): a node per resource and data block, keyed by address, and per instance a literal `count`/`for_each` or the live plan names; reference edges found without a provider schema, all `grain: "block"`; one node per estate the configuration reads. Facts (ownership, markers, ownedBy, import id, observedAt) come only from a `live-plan -json` document; `-history` adds each record's version ids and times. It writes nothing, starts no provider and prints no argument value (#2285). `live-plan -json` now carries `observed_at`, when its live read started.
+
 ## choudoufu v0.31.0 (2026-10-24)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.31.0.json`](live/history/v0.31.0.json).

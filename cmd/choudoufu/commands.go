@@ -400,6 +400,15 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #2285: the estate's graph as one JSON document, in
+		// chant#4520's engine graph shape. It reads configuration (and a
+		// live-plan document when given one) and prints.
+		"live-graph": func() (cli.Command, error) {
+			return &command.LiveGraphCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		"providers lock": func() (cli.Command, error) {
 			return &command.ProvidersLockCommand{
 				Meta: meta,

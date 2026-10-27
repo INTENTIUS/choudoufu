@@ -660,6 +660,12 @@ type LivePlanDocument struct {
 	// comparing behaviour across snapshots needs to know both.
 	UpstreamVersion string `json:"upstream_version"`
 
+	// ObservedAt is when this run's live read started, RFC 3339 in UTC.
+	// live-graph -from-plan (GitHub issue #2285) stamps the facts it takes
+	// from this document with it, and an older document without it leaves
+	// them unstamped.
+	ObservedAt string `json:"observed_at,omitempty"`
+
 	// Bound is every declared instance the plan admitted into prior state,
 	// and how - see [LivePlanBound].
 	Bound []LivePlanBound `json:"bound"`

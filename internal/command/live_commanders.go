@@ -18,7 +18,7 @@ import (
 // static and built here, not from the legacy map, so a command registered
 // only in the map is "no command named" under the default CLI. The test
 // TestNewCLIDispatchesLiveCommands walks RootCommander and fails if any of
-// the fourteen is missing.
+// the fifteen is missing.
 func LiveCommanders() []Command {
 	return []Command{
 		LiveAffectedCommander(),
@@ -26,6 +26,7 @@ func LiveCommanders() []Command {
 		LiveCheckCommander(),
 		LiveClusterCommander(),
 		LiveConeCommander(),
+		LiveGraphCommander(),
 		LiveHistoryCommander(),
 		LiveImportCommander(),
 		LiveLsCommander(),

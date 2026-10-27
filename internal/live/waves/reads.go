@@ -42,25 +42,41 @@ func LoadRoot(ctx context.Context, name, dir string) (Root, error) {
 	if err != nil {
 		return Root{}, fmt.Errorf("root %s: %w", name, err)
 	}
-	estate := ""
-	if cfg.Module.Live != nil && cfg.Module.Live.Estate != "" {
-		estate = cfg.Module.Live.Estate
-	} else {
-		declared := discovery.DeclaredEstateNames(ctx, cfg)
-		switch len(declared) {
-		case 1:
-			estate = declared[0]
-		case 0:
-			return Root{}, fmt.Errorf("root %s names no estate: declare one in a live block or an estate.chdf.hcl sidecar", name)
-		default:
-			return Root{}, fmt.Errorf("root %s stamps %d estates (%s): declare the one it owns in a live block or an estate.chdf.hcl sidecar", name, len(declared), strings.Join(declared, ", "))
-		}
+	estate, err := EstateOf(ctx, cfg)
+	if err != nil {
+		return Root{}, fmt.Errorf("root %s %w", name, err)
 	}
 	reads, err := ReadsOf(cfg)
 	if err != nil {
 		return Root{}, fmt.Errorf("root %s: %w", name, err)
 	}
 	return Root{Root: name, Estate: estate, Reads: reads}, nil
+}
+
+// EstateOf is the estate cfg owns: the live block's (or estate.chdf.hcl's)
+// estate argument, and otherwise the one tofu-estate value the
+// configuration stamps. A configuration that names none, or several, is an
+// error whose text follows the root's name ("names no estate: ...").
+func EstateOf(ctx context.Context, cfg *configs.Config) (string, error) {
+	if cfg.Module.Live != nil && cfg.Module.Live.Estate != "" {
+		return cfg.Module.Live.Estate, nil
+	}
+	declared := discovery.DeclaredEstateNames(ctx, cfg)
+	switch len(declared) {
+	case 1:
+		return declared[0], nil
+	case 0:
+		return "", fmt.Errorf("names no estate: declare one in a live block or an estate.chdf.hcl sidecar")
+	default:
+		return "", fmt.Errorf("stamps %d estates (%s): declare the one it owns in a live block or an estate.chdf.hcl sidecar", len(declared), strings.Join(declared, ", "))
+	}
+}
+
+// LoadTree builds dir's static module tree as [LoadRoot] does: no provider,
+// no init for a module called by a local path. live-graph (#2285) reads
+// its blocks and references from it.
+func LoadTree(ctx context.Context, dir string) (*configs.Config, error) {
+	return loadTree(ctx, dir)
 }
 
 // loadTree builds dir's static module tree without a provider and without
@@ -179,7 +195,7 @@ func readsInModule(cfg *configs.Config, out *[]Read) error {
 		if !cfg.Path.IsRoot() {
 			from = cfg.Path.String() + "." + from
 		}
-		estates, err := dataSourceReads(rc)
+		estates, err := DataSourceReads(rc)
 		if err != nil {
 			return fmt.Errorf("%s: %w", from, err)
 		}
@@ -200,8 +216,10 @@ func readsInModule(cfg *configs.Config, out *[]Read) error {
 	return nil
 }
 
-// dataSourceReads is the estates one data source reads.
-func dataSourceReads(rc *configs.Resource) ([]string, error) {
+// DataSourceReads is the estates one data source reads, by the rules
+// [ReadsOf] lists. live-graph (#2285) calls it per block so that one read
+// it cannot resolve is a gap on that block, not a failed graph.
+func DataSourceReads(rc *configs.Resource) ([]string, error) {
 	var estates []string
 	if rc.Type == EstateOutputsTypeName {
 		content, _, _ := rc.Config.PartialContent(&hcl.BodySchema{
@@ -311,7 +329,7 @@ func EstateOutputReadsIn(ctx context.Context, dir string) ([]string, error) {
 			if rc.Type != EstateOutputsTypeName {
 				continue
 			}
-			estates, err := dataSourceReads(rc)
+			estates, err := DataSourceReads(rc)
 			if err != nil {
 				walkErr = fmt.Errorf("%s: %w", rc.Addr().String(), err)
 				return

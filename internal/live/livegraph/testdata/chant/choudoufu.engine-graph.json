@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "meta": {
+    "engineGraph": {
+      "format": 1,
+      "engine": {
+        "name": "choudoufu",
+        "version": "0.33.0"
+      },
+      "scope": {
+        "kind": "estate",
+        "estate": "web"
+      },
+      "observedAt": "2026-10-26T12:00:00Z",
+      "markerScheme": {
+        "ownerKey": "tofu-estate",
+        "addressKey": "tofu-address",
+        "continuationKeys": [
+          "tofu-slot"
+        ],
+        "encoding": {
+          "tags": "escaped",
+          "labels": "escaped"
+        }
+      },
+      "gaps": [
+        {
+          "address": "aws_iam_role.legacy",
+          "reason": "unsupported-kind",
+          "detail": "no lister for this type on this provider"
+        }
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "id": "aws_s3_bucket.logs",
+      "kind": "aws_s3_bucket",
+      "lexicon": "terraform",
+      "attrs": {
+        "address": "aws_s3_bucket.logs"
+      },
+      "physicalId": "web-logs",
+      "facts": {
+        "ownership": "bound",
+        "ownedBy": "record",
+        "cloudIds": [
+          {
+            "kind": "import-id",
+            "value": "web-logs"
+          },
+          {
+            "kind": "arn",
+            "value": "arn:aws:s3:::web-logs"
+          }
+        ],
+        "recordVersions": {
+          "kept": true,
+          "versions": [
+            {
+              "id": "3sL4kqtJlcpXroDTDmJ.rmSpXd3dIbrHY",
+              "writtenAt": "2026-10-26T11:58:02Z",
+              "current": true,
+              "deleted": false
+            },
+            {
+              "id": "2bE8x0l1BqzDmoPTmD7M7bGqFrsTFTQS",
+              "writtenAt": "2026-10-20T09:14:40Z",
+              "current": false,
+              "deleted": false
+            }
+          ]
+        },
+        "observedAt": "2026-10-26T12:00:00Z"
+      }
+    },
+    {
+      "id": "module.app.aws_eip.pool",
+      "kind": "aws_eip",
+      "lexicon": "terraform",
+      "attrs": {
+        "address": "module.app.aws_eip.pool"
+      }
+    },
+    {
+      "id": "module.app.aws_instance.web",
+      "kind": "aws_instance",
+      "lexicon": "terraform",
+      "attrs": {
+        "address": "module.app.aws_instance.web"
+      }
+    },
+    {
+      "id": "module.app[0].aws_eip.pool[1]",
+      "kind": "aws_eip",
+      "lexicon": "terraform",
+      "attrs": {
+        "address": "module.app[0].aws_eip.pool[1]"
+      },
+      "physicalId": "eipalloc-0abc",
+      "instanceOf": "module.app.aws_eip.pool",
+      "instanceKey": "[1]",
+      "instanceScope": "module.app[0]",
+      "facts": {
+        "ownership": "bound",
+        "ownedBy": "marker",
+        "markers": {
+          "owner": "web",
+          "address": "module.app[0].aws_eip.pool[1]",
+          "encoding": "escaped",
+          "source": "live"
+        },
+        "cloudIds": [
+          {
+            "kind": "import-id",
+            "value": "eipalloc-0abc"
+          }
+        ],
+        "observedAt": "2026-10-26T12:00:00Z"
+      }
+    },
+    {
+      "id": "aws_sqs_queue.jobs",
+      "kind": "aws_sqs_queue",
+      "lexicon": "terraform",
+      "attrs": {
+        "address": "aws_sqs_queue.jobs"
+      },
+      "facts": {
+        "ownership": "foreign",
+        "markers": {
+          "owner": "billing",
+          "encoding": "escaped",
+          "source": "live"
+        },
+        "observedAt": "2026-10-26T12:00:00Z"
+      }
+    },
+    {
+      "id": "aws_sns_topic.alerts",
+      "kind": "aws_sns_topic",
+      "lexicon": "terraform",
+      "attrs": {
+        "address": "aws_sns_topic.alerts"
+      },
+      "facts": {
+        "ownership": "pending",
+        "observedAt": "2026-10-26T12:00:00Z"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "module.app[0].aws_eip.pool[1]",
+      "to": "module.app.aws_instance.web",
+      "kind": "ref",
+      "viaAttr": "dependencies",
+      "grain": "block"
+    },
+    {
+      "from": "module.app.aws_instance.web",
+      "to": "aws_s3_bucket.logs",
+      "kind": "ref",
+      "viaAttr": "dependencies",
+      "grain": "block"
+    }
+  ],
+  "groups": {}
+}

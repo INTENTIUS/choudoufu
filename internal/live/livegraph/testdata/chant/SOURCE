@@ -1,0 +1,8 @@
+Copied from INTENTIUS/chant integration/consolidation-graph at dba9edb8b5
+(chant#4527, merge dba9edb8b):
+
+  graph.schema.json            packages/core/src/graph-schema/graph.schema.json
+  choudoufu.engine-graph.json  packages/core/src/graph-schema/fixtures/choudoufu.engine-graph.json
+
+Do not edit by hand. Copy again when chant regenerates them
+(npm run generate:graph-schema).
