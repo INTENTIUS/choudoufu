@@ -23,6 +23,8 @@ prompt: >-
 | `live-plan` | The live plan; [`-filter`](https://github.com/INTENTIUS/choudoufu/blob/main/live/REPORT-FILTER.md) narrows it |
 | `live-history <address>` | A record's versions, newest first |
 | `live-graph DIR -json` | The estate's graph as one JSON document, for chant and behold |
+| `investigate [name]` | Answers a named, read-only question; no name lists them |
+| `mcp` | The investigations, behold's graph and chant's Ops over MCP |
 | `live-ls -estate=<name>` | Lists an estate |
 | `live-bucket -bucket <name>` | Checks a bucket |
 | `live-cluster` | Checks a cluster record store |
