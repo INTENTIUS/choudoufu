@@ -10,7 +10,7 @@ against the current HEAD. Edit the text around the generated markers, never
 inside them.
 
 <!-- forkdiff-gen:begin fork-surface -->
-Counted at choudoufu commit `9a74c68893` on 2026-10-27T22:32:59Z, against stock OpenTofu `1.13.0` at fork point [`2b6193043d`](https://github.com/opentofu/opentofu/commit/2b6193043d500dcfef1f3b4f4819b938b667099f) ("Bump version v1.13.0").
+Counted at choudoufu commit `cc7f48502e` on 2026-10-27T22:37:03Z, against stock OpenTofu `1.13.0` at fork point [`2b6193043d`](https://github.com/opentofu/opentofu/commit/2b6193043d500dcfef1f3b4f4819b938b667099f) ("Bump version v1.13.0").
 
 4949 files diverge. 3233 of them sit under the 5 fork-owned roots below; the other 1716 are outside those roots, each named with its own reason in [`live/forkdiff_test.go`](forkdiff_test.go). A further 1145 files, not counted here, change only the Go module import path from `github.com/opentofu/opentofu` to `github.com/intentius/choudoufu`.
 
