@@ -46,7 +46,7 @@ import (
 // defaultImage is the emulator every test in this tier runs against:
 // lex00/floci, not upstream floci/floci — the fork carries lex00/floci#24
 // (iam:GetRole/GetUser/GetPolicy now return Tags, which retired the
-// standing unowned-role residue live/e2e/run.sh's floci-tier tests used to
+// standing unowned-role residue the retired live/e2e/run.sh's floci-tier tests used to
 // tolerate) and lex00/floci#25 (ecr:CreateRepository no longer needs a
 // Docker daemon), neither merged upstream yet. Pinned by digest rather than
 // `:latest` so a later push to the fork's main cannot silently change what
@@ -62,7 +62,7 @@ import (
 // CapabilityGate/ServiceCapabilityGate's skips meaning anything for it - see
 // that tool's own doc comment for the probe/merge workflow.
 // The pin's single source of truth is live/floci-image (#98), which
-// live/e2e/run.sh and the Makefile read too; this harness reads it at
+// the e2e harnesses and the Makefile read too; this harness reads it at
 // runtime rather than carrying a const copy that drifts.
 const imageFileRel = "live/floci-image"
 

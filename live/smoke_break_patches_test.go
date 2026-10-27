@@ -91,12 +91,14 @@ func TestEveryBreakPatchStillMatchesItsSource(t *testing.T) {
 			}
 		}
 	}
-	// The scenarios that patch source today are the six
-	// bucket-store proofs of claims 2, 28 and 29 (claims 29, 31, 32, 33, 36
-	// and 38 until #1817), and claim 2's saved-plan proof from #1504, which
-	// patches the approval check. Fewer than that means the extraction above
-	// stopped seeing them.
-	if patched < 7 {
-		t.Errorf("only %d BREAK patch(es) were found and run; there were seven when this line was last changed", patched)
+	// The scenarios that patch source today are a-killed-apply-hides-nothing,
+	// apply-what-was-approved (claim 15's approval check, #1504) and claim
+	// 28's real-AWS a-read-only-role-can-plan. GitHub issue #2288 removed the
+	// four bucket-store scenarios whose patches a Go test in CI already failed
+	// on, and one-bucket-many-estates' BREAK_UNTAGGED arm, which
+	// TestS3StoreTagsEveryObjectItWrites holds. Fewer than three means the
+	// extraction above stopped seeing them.
+	if patched < 3 {
+		t.Errorf("only %d BREAK patch(es) were found and run; there were three when this line was last changed", patched)
 	}
 }

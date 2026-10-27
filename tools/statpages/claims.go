@@ -6,7 +6,11 @@
 package statpages
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -49,6 +53,9 @@ type claimProof struct {
 	Evidence      []string `json:"evidence"`
 	ProvenBy      int      `json:"proven_by"`
 	Stage         string   `json:"stage"`
+	GoTest        string   `json:"go_test"`
+	GoPackage     string   `json:"go_package"`
+	Gate          string   `json:"gate"`
 	LastRun       *struct {
 		Status string `json:"status"`
 		Commit string `json:"commit"`
@@ -149,6 +156,25 @@ func proofLine(root string, a gauntletArtifact, pr claimProof, source []claimPro
 			}
 		}
 		return line, nil
+	case pr.GoTest != "":
+		line := fmt.Sprintf("Go test `%s` in `%s`", pr.GoTest, pr.GoPackage)
+		if pr.Gate == "" {
+			line += ", runs in CI"
+		} else {
+			line += fmt.Sprintf(" via `%s`", pr.Command)
+			if pr.RealService {
+				line += ", real AWS"
+			}
+			line += ", maintainer-run"
+		}
+		rec, err := ReadGoTestRecord(root, pr.GoTest)
+		if err != nil {
+			return "", err
+		}
+		if rec == nil {
+			return line + ", waiting for its first recorded run", nil
+		}
+		return line + ", " + measured{Date: rec.Date, Commit: rec.Commit}.String(), nil
 	case pr.Stage != "":
 		line := fmt.Sprintf("gauntlet stage `%s`", pr.Stage)
 		estate, stage, _ := strings.Cut(pr.Stage, ":")
@@ -188,4 +214,45 @@ func scenarioRun(root string, pr claimProof) (*measured, error) {
 		}
 	}
 	return newest, nil
+}
+
+// GoTestEvidenceDir holds the dated runs of the claims' Go test proofs, one
+// file per test, written only by `go run ./tools/gotest-record`.
+const GoTestEvidenceDir = "live/smoke/evidence/go-test"
+
+// GoTestRecord is one recorded run of a Go test proof (GitHub issue #2288).
+// A test that runs in CI's fast tier is recorded from a CI run at a commit
+// (CIRun); a test behind an environment gate is recorded from a maintainer's
+// run, whose `go test -v` log is kept beside it (Log).
+type GoTestRecord struct {
+	Test    string `json:"test"`
+	Package string `json:"package"`
+	Status  string `json:"status"`
+	Commit  string `json:"commit"`
+	Date    string `json:"date"`
+	CIRun   string `json:"ci_run,omitempty"`
+	Log     string `json:"log,omitempty"`
+}
+
+// GoTestEvidenceRel is where a Go test proof's run is recorded. A subtest's
+// slash becomes "--", so every test is one file name.
+func GoTestEvidenceRel(test string) string {
+	return GoTestEvidenceDir + "/" + strings.ReplaceAll(test, "/", "--") + ".json"
+}
+
+// ReadGoTestRecord reads a Go test proof's recorded run, or nil when none
+// is on record yet: such a proof is waiting for its first recorded run.
+func ReadGoTestRecord(root, test string) (*GoTestRecord, error) {
+	rel := GoTestEvidenceRel(test)
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(rel))); errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	var rec GoTestRecord
+	if err := readJSON(root, rel, &rec); err != nil {
+		return nil, err
+	}
+	if rec.Test != test || rec.Status != "pass" || rec.Date == "" {
+		return nil, fmt.Errorf("%s records test %q with status %q on %q; it must record a pass of %s", rel, rec.Test, rec.Status, rec.Date, test)
+	}
+	return &rec, nil
 }

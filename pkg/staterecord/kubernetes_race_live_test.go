@@ -28,9 +28,10 @@ import (
 // Claim 2 on the Kubernetes record store: two writers, one record, the
 // loser named and nothing clobbered (GitHub issue #1441).
 //
-// The bucket store proves this in live/smoke/scenarios/two-writers-one-record.sh,
-// where a proxy in front of S3 holds each writer's PutObject until both have
-// arrived. Until this file the Kubernetes store had only
+// On the bucket store the same race was the smoke scenario
+// two-writers-one-record, where a proxy in front of S3 held each writer's
+// PutObject until both had arrived; since GitHub issue #2288 that cell is
+// held by TestS3StoreConformance's stale-version case. Until this file the Kubernetes store had only
 // [TestKubernetesStoreVersionIsTheResourceVersion], which runs one writer
 // after the other: it shows that a stale version is refused, and says
 // nothing about two writes that are genuinely in flight at once.
@@ -53,8 +54,11 @@ import (
 //
 // # Where it runs
 //
-// `just smoke k8s-records-in-the-cluster`, step 10, against the kind cluster
-// that scenario creates. There is no useful fake: client-go's fake clientset
+// `just test-kind`, against the kind cluster that recipe creates; it is the
+// go_test proof of claim 2 on Kubernetes since GitHub issue #2288, which
+// moved it out of step 10 of the smoke scenario k8s-records-in-the-cluster.
+// Run it once more with CHOUDOUFU_K8S_RECORD_RACE_BREAK=1 for the control.
+// There is no useful fake: client-go's fake clientset
 // assigns no metadata.resourceVersion, so every conflict here would be
 // vacuous against it, and a fake has no wire to park a request on.
 
@@ -392,7 +396,7 @@ func (c *raceTally) add(o raceTally) {
 // covers a conditional delete against a stale version.
 func TestKubernetesTwoWritersOneRecord(t *testing.T) {
 	k8stest.Gate(t, "Kubernetes record store race")
-	kubeconfig := k8stest.RequireEnv(t, kubeconfigEnvVar, "This test needs a real Kubernetes API server: client-go's fake clientset assigns no resourceVersion, and a fake has no wire to hold a request on, so every round here would be vacuous against it. `just smoke k8s-records-in-the-cluster` creates a kind cluster and runs it.")
+	kubeconfig := k8stest.RequireEnv(t, kubeconfigEnvVar, "This test needs a real Kubernetes API server: client-go's fake clientset assigns no resourceVersion, and a fake has no wire to hold a request on, so every round here would be vacuous against it. `just test-kind` creates a kind cluster and runs it.")
 	ns := k8stest.RequireEnv(t, namespaceEnvVar, "The store never creates a namespace, so the caller has to name one it created.")
 	broken := os.Getenv(raceBreakEnvVar) == "1"
 	mode := "conditional-write"
@@ -416,14 +420,13 @@ func TestKubernetesTwoWritersOneRecord(t *testing.T) {
 	}
 	judgeSecrets := plainClient.CoreV1().Secrets(ns)
 	if _, err := plainClient.CoreV1().Namespaces().Get(context.Background(), ns, metav1.GetOptions{}); err != nil {
-		t.Fatalf("namespace %q: %v. The scenario creates it; this test does not, because the store does not either.", ns, err)
+		t.Fatalf("namespace %q: %v. `just test-kind` creates it; this test does not, because the store does not either.", ns, err)
 	}
-	// Nothing is deleted at the end on purpose. The scenario's step reads
-	// this namespace after the test and requires the race's own record
-	// Secrets to be in it, because a listing of an empty namespace would
-	// report "nothing lock-shaped here" without having seen a single object
-	// the race wrote. The namespace belongs to one run of that scenario and
-	// goes when its kind cluster does.
+	// Nothing is deleted at the end on purpose: a listing of this namespace
+	// after the test, which the smoke scenario's step 10 made until #2288,
+	// needs the race's own record Secrets in it to say anything about
+	// whether one of them is lock-shaped. The namespace belongs to one run
+	// and goes when its kind cluster does.
 	judge, err := NewKubernetesStore(KubernetesConfig{Secrets: judgeSecrets, Namespace: ns, KeyPrefix: prefix, Estate: "race"})
 	if err != nil {
 		t.Fatalf("NewKubernetesStore for the judge: %v", err)

@@ -265,7 +265,7 @@ and `TestTableCoversFixtureTypes` require `admittedTypesV0` and
 `DefaultTable` to cover exactly the union of `live/e2e/estate/` and every
 `estates/*` cohort, this one included.
 
-`live/e2e/run.sh` and the gated `internal/live/discovery` floci
+`live/e2e/run.sh` (retired under #2288) and the gated `internal/live/discovery` floci
 integration test still stand up only the demo estate (confirmed by
 inspection: neither mentions `estates/` or "cohort"). Wiring cohort
 estates into the gated apply-against-floci tier is separate follow-on

@@ -31,6 +31,11 @@ the claim text that comes back with each first run. A promotion adds a `## On Az
 `## On GCP` section in step 3, and the `az-` or `gcp-` prefix plays the
 part `k8s-` does in step 4.
 
+The Azure and GCP record-store drafts (`az-records-in-a-storage-account`,
+`gcp-records-in-a-bucket`) were deleted under #2288: the stores they ran are
+the shared layer, held by `TestAzureBlobStoreConformance` and
+`TestGCSStoreConformance` in CI and plunge's emulator conformance legs.
+
 The scenario lints read drafts as well as scenarios (#1876), so a draft is
 held to them before it is promoted: no bare `kubectl` in a `k8s-*` draft
 (`bash live/smoke/selftest-bounds.sh --only kubectl-roster`), no bare `wait`

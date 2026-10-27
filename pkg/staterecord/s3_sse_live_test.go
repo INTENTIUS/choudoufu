@@ -24,15 +24,16 @@ import (
 // sseBucketsEnvVar names the real buckets [TestS3StoreCASUnderEverySSEFlavour]
 // runs against: a comma-separated list of flavour=bucket, or
 // flavour=bucket=key-arn where the bucket's default encryption names a
-// customer managed key. The flavours are the keys of sseFlavours. The smoke
-// scenario cas-holds-under-every-sse-flavour creates the buckets, sets this,
-// and runs the test.
+// customer managed key. The flavours are the keys of sseFlavours.
+// `just test-sse` (scripts/test-sse.sh) creates the buckets, sets this, and
+// runs the test; it is claim 2's go_test proof on real AWS (GitHub issue
+// #2288), maintainer-run when pkg/staterecord/s3.go changes.
 //
 // The key ARN is not decoration. Without it the check that the sse-kms-cmk
 // bucket is not quietly running under the AWS-managed key could not fire:
 // HeadObject answers with the key's ARN, never with the alias
 // "alias/aws/s3", so a check for that string was a check that could not fail
-// (#1379). The scenario knows which key it configured, so it says so, and
+// (#1379). The recipe knows which key it configured, so it says so, and
 // what is compared is the key AWS reports against the key that was asked
 // for.
 const sseBucketsEnvVar = "CHOUDOUFU_SSE_BUCKETS"
@@ -81,7 +82,7 @@ var sseFlavours = map[string]sseFlavour{
 func TestS3StoreCASUnderEverySSEFlavour(t *testing.T) {
 	raw := strings.TrimSpace(os.Getenv(sseBucketsEnvVar))
 	if raw == "" {
-		t.Skipf("%s is not set. This test needs real S3 buckets, one per SSE flavour, and is maintainer-run: `just smoke cas-holds-under-every-sse-flavour` creates them and runs it. A skip here is not a pass.", sseBucketsEnvVar)
+		t.Skipf("%s is not set. This test needs real S3 buckets, one per SSE flavour, and is maintainer-run: `SMOKE_REAL_AWS=1 just test-sse` creates them and runs it. A skip here is not a pass.", sseBucketsEnvVar)
 	}
 	ctx := context.Background()
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx)

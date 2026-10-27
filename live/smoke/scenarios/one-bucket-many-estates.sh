@@ -15,11 +15,13 @@
 #                       read Deny, a mis-scoped prefix reads b's record
 #   BREAK_FIRST_WRITE=1 the write conditioned on s3:ExistingObjectTag; a new
 #                       estate's first write must be denied (claim 34's)
-#   BREAK_UNTAGGED=1    a binary whose S3 store sends no tags; its first
-#                       write must be denied (claim 36's; needs Go)
 #
-# Each arm stops after its control. The two new arms run before either
-# estate applies, so each meets an empty bucket.
+# Claim 36's old control, BREAK_UNTAGGED=1 (a binary whose S3 store sends no
+# tags), is gone (#2288): that the store tags every object it writes is
+# TestS3StoreTagsEveryObjectItWrites in pkg/staterecord, which runs in CI.
+#
+# Each arm stops after its control. BREAK_FIRST_WRITE runs before either
+# estate applies, so it meets an empty bucket.
 
 SMOKE_WORK="$SMOKE_WORKROOT/manyestates"
 mkdir -p "$SMOKE_WORK"; export SMOKE_WORK
@@ -93,51 +95,6 @@ if [ "${BREAK_FIRST_WRITE:-0}" = "1" ]; then
   [ "$LEFT" = "0" ] || fail "manyestates" "the denied estate still wrote $LEFT object(s)"
   flat <<< "$N_OUT" | grep -oE 'AccessDenied[^.]*' | head -1 | mask | evidence
   proof "caught - the estate could not write its first object. Nothing about that policy looks wrong until a new estate meets it, which is why the published one conditions the create on s3:RequestObjectTag."
-  exit 0
-fi
-
-if [ "${BREAK_UNTAGGED:-0}" = "1" ]; then
-  step "BREAK_UNTAGGED control - a store that does not tag must not be able to write"
-  explain \
-    "The corruption is in the binary: the S3 store stops sending tags." \
-    "Built with go build -overlay, so the source tree is never touched." \
-    "If that binary can still write under the published policy, then" \
-    "tagging is a convention the policy does not enforce."
-  [ -z "${CHOUDOUFU_BIN:-}${CHOUDOUFU_VERSION:-}" ] \
-    || fail "manyestates" "BREAK_UNTAGGED=1 rebuilds choudoufu from this checkout; it cannot break CHOUDOUFU_BIN or CHOUDOUFU_VERSION"
-  command -v go >/dev/null 2>&1 || fail "manyestates" "BREAK_UNTAGGED=1 needs Go to build the broken binary"
-  SRC="$ROOT/pkg/staterecord/s3.go"
-  mkdir -p "$SMOKE_WORK/break"
-  python3 - "$SRC" "$SMOKE_WORK/break/s3.go" <<'PYEOF'
-import sys
-src = open(sys.argv[1]).read()
-# The argument order is whatever S3Store.PutIfVersion has today. It was
-# swapped once (#1383, base tags win) and this patch, which spelled the
-# arguments out, went stale without anyone noticing, because nothing runs a
-# real-AWS BREAK arm but a person. live/smoke_break_patches_test.go now runs
-# this block on every gate.
-old = '); tagging != "" {\n\t\tinput.Tagging = aws.String(tagging)\n'
-assert src.count(old) == 1, "the break patch no longer matches S3Store.PutIfVersion"
-open(sys.argv[2], "w").write(src.replace(old, '); false && tagging != "" {\n\t\tinput.Tagging = aws.String(tagging)\n'))
-PYEOF
-  [ -s "$SMOKE_WORK/break/s3.go" ] || fail "manyestates" "the break patch did not apply, so this arm would pass by testing the real binary"
-  printf '{"Replace":{"%s":"%s"}}\n' "$SRC" "$SMOKE_WORK/break/s3.go" > "$SMOKE_WORK/break/overlay.json"
-  cmd "go build -overlay overlay.json ./cmd/choudoufu   # PutObject with no Tagging"
-  ( cd "$ROOT" && go build -overlay "$SMOKE_WORK/break/overlay.json" -o "$SMOKE_WORK/break/choudoufu" ./cmd/choudoufu ) \
-    || fail "manyestates" "the broken binary did not build"
-  UNTAGGED_BIN="$SMOKE_WORK/break/choudoufu"
-  ROLE_N="$(role_name smoke-untagged-estate)" || fail "manyestates" "could not name the untagged estate's role"
-  role_with_policy "$ROLE_N" "$("$POLICY_RENDERER" smoke-new "$BUCKET")" "$BUCKET" || fail "manyestates" "could not create the untagged estate's role"
-  write_bucket_estate "$SMOKE_WORK/new" smoke-new "$BUCKET" v1
-  logged one-bucket-many-estates-untagged-init "manyestates" "init failed in new" -- in_dir "$SMOKE_WORK/new" "$UNTAGGED_BIN" init -input=false -no-color
-  cmd "choudoufu apply -auto-approve   # the untagged binary, as the estate's role"
-  N_OUT="$(cd "$SMOKE_WORK/new" && as_role "$ROLE_N" "$UNTAGGED_BIN" apply -auto-approve -input=false -no-color 2>&1)" \
-    && fail "manyestates" "a binary that sends no tags applied under the published policy, so the policy does not enforce tagging: $N_OUT"
-  denied "$(flat <<< "$N_OUT")" || fail "manyestates" "the untagged apply failed, but not on a denial: $N_OUT"
-  LEFT="$(awsl s3api list-objects-v2 --bucket "$BUCKET" --prefix tofu- --query 'length(Contents || `[]`)' --output text)"
-  [ "$LEFT" = "0" ] || fail "manyestates" "the untagged binary still wrote $LEFT object(s)"
-  flat <<< "$N_OUT" | grep -oE 'AccessDenied[^"]*s3:PutObject' | head -1 | mask | evidence
-  proof "caught - without its tags the store cannot write a single object. Under this policy tagging is not a convention."
   exit 0
 fi
 

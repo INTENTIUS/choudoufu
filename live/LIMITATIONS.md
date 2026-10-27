@@ -2759,8 +2759,8 @@ prove the provider does not manage them. The next cold replan fills those
 back in and the perpetual diff stops. `aws_lambda_function.filename`,
 `source_code_hash` and `publish` are the founding cases, and
 `aws_route53_record.allow_overwrite` is the one
-`live/e2e/corpus-crossing/run.sh` used to pin as a defect and now pins as a
-before-and-after. The value stored is what the APPLY produced and never
+`live/e2e/corpus-crossing/run.sh` used to pin, first as a defect and then as a
+before-and-after (that script was deleted under #2288). The value stored is what the APPLY produced and never
 what the configuration declares, so editing the zip still plans; the record
 never overwrites a value the provider gave, so real drift still plans; and
 the write-only and sensitive classes above are excluded by name, because a
@@ -6971,7 +6971,7 @@ excluding types already counted under "Deprecated or EOL services" above.
 
 Types wireable against real AWS but not provable against the floci
 emulator today (issue #26). Two are already admitted and carry standing
-e2e residue (`live/e2e/run.sh`'s `RESIDUE_UNOWNED` and `RESIDUE_CHANGED`),
+e2e residue (the retired `live/e2e/run.sh`'s `RESIDUE_UNOWNED` and `RESIDUE_CHANGED`),
 three were kept out of a wiring slice entirely because the emulator gap
 leaves nothing to prove admission against. Which floci behavior blocks
 which type is read off the harness and the admission table, not derivable

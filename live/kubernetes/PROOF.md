@@ -129,11 +129,13 @@ is a rename there (#1541); `day2_replace` runs on kind since #1641, and
 says how every other stage reads on the kind substrate.
 
 Four estates run in the lane. `reference-k8s` is a hand-written shape kept
-in this repository. `corpus-quickpizza` is Grafana Labs' own published
+in this repository. `corpus-quickpizza` was Grafana Labs' own published
 deployment root for their QuickPizza demo application at a pinned tag: 26
-objects over eight kinds, real images, no cloud provider. It is crossed
+objects over eight kinds, real images, no cloud provider. It was crossed
 with the same deltas every AWS estate gets for its emulator, and one more
-for the Grafana Cloud token the run does not have.
+for the Grafana Cloud token the run does not have. It was retired under
+[#2288](https://github.com/INTENTIUS/choudoufu/issues/2288), together
+with `corpus-govuk-cluster-services`.
 
 `reference-k8s-stateful`
 ([#1175](https://github.com/INTENTIUS/choudoufu/issues/1175)) was the third,

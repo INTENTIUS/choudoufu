@@ -1,12 +1,12 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec",
-  "banner": "Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 2 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-21T20:52:35Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "46 of 48 estates have a recorded run duration, totaling 13h40m19.8s, but not from one sweep: 13m37.7s across 2 estate(s) at commit `01d69a5a75`; 8h32m40.9s across 18 estate(s) at commit `2f02038dd1`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 2 estate(s) with no recorded duration yet.",
-  "script_banner": "**44 of 48 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 20 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-govuk-cluster-services, corpus-hongbomiao-labelbox, corpus-iam-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-quickpizza, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-ec2-vpc, reference-eks, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-argo-cd, reference-k8s-helm-cloudnative-pg, reference-k8s-helm-external-secrets, reference-k8s-helm-ingress-nginx, reference-k8s-helm-keda, reference-k8s-helm-kyverno, reference-k8s-helm-metallb, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads, reference-k8s-yaml-rollouts, terralith-scale. 2 more cannot be checked from this checkout: corpus-k8s-infra-gcp-gcve, reference-gcp.",
-  "provider_banner": "Estates were last measured against different hashicorp/aws versions: 20 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 17 against `3.2.1` (current pin), 3 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "banner": "Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 1 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-21T20:52:35Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
+  "runtime_banner": "43 of 45 estates have a recorded run duration, totaling 13h8m43.4s, but not from one sweep: 13m37.7s across 2 estate(s) at commit `01d69a5a75`; 8h1m4.5s across 15 estate(s) at commit `2f02038dd1`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 2 estate(s) with no recorded duration yet.",
+  "script_banner": "**43 of 45 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 18 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-azapi-role-assignment, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-hongbomiao-labelbox, corpus-iam-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-azure, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-argo-cd, reference-k8s-helm-cloudnative-pg, reference-k8s-helm-external-secrets, reference-k8s-helm-ingress-nginx, reference-k8s-helm-keda, reference-k8s-helm-kyverno, reference-k8s-helm-metallb, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads, reference-k8s-yaml-rollouts, terralith-scale. 2 more cannot be checked from this checkout: corpus-k8s-infra-gcp-gcve, reference-gcp.",
+  "provider_banner": "Estates were last measured against different hashicorp/aws versions: 19 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 16 against `3.2.1` (current pin), 1 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
-  "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 46 estates measured so far, 46 recorded running on it.",
+  "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 43 estates measured so far, 43 recorded running on it.",
   "stage_count": 17,
   "stages": [
     {
@@ -3610,6 +3610,8 @@
       "last_run_note": "Last run at commit `01d69a5a75` on 2026-10-21T20:45:04Z, exit code 0, against floci-az image `ghcr.io/lex00/floci-az@sha256:c56ce3e2fb0da9a554cfb6794df912b371c27b1448c979ff2fd4d54cb8d47cd9`. Total run time 3m3.5s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4037,160 +4039,6 @@
       ]
     },
     {
-      "name": "corpus-govuk-cluster-services",
-      "set": "growing",
-      "lane": "kubernetes",
-      "substrate": "kind",
-      "clear": true,
-      "source": "alphagov/govuk-infrastructure terraform/deployments/cluster-services (commit c02504fa4abb439234669e9ea9b662bdb35209e9), GOV.UK's own in-cluster platform services root for its EKS clusters, split into a live slice (namespaces, dex client Secrets, kubernetes_labels and kubernetes_annotations with force) and a recorded stock half of Helm, kubectl and AWS blocks; the first published root driving the field-granular types",
-      "url": "https://github.com/alphagov/govuk-infrastructure.git",
-      "pin": "c02504fa4abb439234669e9ea9b662bdb35209e9",
-      "script": "live/e2e/corpus-govuk-cluster-services/run.sh",
-      "protocol": "gauntlet",
-      "cells": [
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "not run"
-      ],
-      "runtime_total": "13m21.9s",
-      "runtime_cells": "cold_deploy 2m11s, migrate 14s, test_plan 16s, test_apply 18s, drift_reconverge 40s, day2_rename 25s, day2_remove 37s, day2_count 1m14s, day2_replace 1m2s, day2_crash 4m24s, day2_teardown 25s, plan_approval 37s, greenfield 38s, strict 19s, no_local_state 1s",
-      "last_run_note": "Last run at commit `2f02038dd1` on 2026-10-12T23:27:30Z, exit code 0, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 13m21.9s.",
-      "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
-      "provider_note": "Provider: hashicorp/kubernetes `3.3.0`. **Stale**: the current pin is `3.2.1`.",
-      "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (4 files differ from the versions that run measured (`live/e2e/lib/floci-az.sh`, `live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
-      "stage_rows": [
-        {
-          "id": "cold_deploy",
-          "title": "Cold deploy",
-          "verdict": "pass",
-          "duration": "2m11s",
-          "detail": "38 instances from plain terraform on the published root's live slice (2 namespaces, one in the local gatekeeper module; 15 dex-client Secrets over 3 namespaces; kubernetes_labels.argocd_secret x3 on three of those Secrets; kubernetes_annotations.rm_default_storageclass with force = true; 17 random_* values), split mechanically by split.py from the stock half (data aws_caller_identity x2, data aws_eks_cluster_auth x1, data aws_iam_policy_document x5, data aws_region x1, data tfe_outputs x2, module constraint_templates x1, module constraints x1, module renovate_irsa x1, module secure_s3_bucket_tempo x1, module tag_image_iam_role x1, module tempo_iam_role x1, provider aws x1, provider helm x1, provider kubectl x1, provider kubernetes x1, resource aws_iam_policy x3, resource aws_iam_role_policy_attachment x1, resource aws_s3_bucket x1, resource aws_s3_bucket_cors_configuration x1, resource aws_s3_bucket_lifecycle_configuration x1, resource aws_s3_bucket_logging x1, resource aws_s3_bucket_object_lock_configuration x1, resource aws_s3_bucket_ownership_controls x1, resource aws_s3_bucket_policy x1, resource aws_s3_bucket_public_access_block x1, resource aws_s3_bucket_replication_configuration x1, resource aws_s3_bucket_server_side_encryption_configuration x1, resource aws_s3_bucket_versioning x1, resource helm_release x14, resource kubectl_manifest x3, resource terraform_data x1, resource time_sleep x2, terraform x1 - recorded beside the root at terraform/deployments/cluster-services-platform, not applied: its charts need IRSA, an AWS load balancer controller and public DNS), against kind v1.37.0; a real terraform.tfstate with 38 instances and zero tofu-estate labels. Stock's force = true took storageclass.kubernetes.io/is-default-class on kind's standard StorageClass from the platform's own manager [kubectl-client-side-apply] (true -\u003e false, now [Terraform]); app.kubernetes.io/part-of=argocd on the three dex-client-argocd Secrets owned by Terraform; the identical root cold-deployed by stock on a second cluster as every later stage's oracle"
-        },
-        {
-          "id": "migrate",
-          "title": "Migrate",
-          "verdict": "pass",
-          "duration": "14s",
-          "detail": "21 resource(s) newly stamped, 0 already stamped, 17 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 0 failed, 0 skipped: 17 namespaces and Secrets stamped tofu-estate=corpus-govuk-cluster-services (read back with kubectl), the 4 field-granular instances handed over by field manager rather than labelled (1 kubernetes_annotations, 3 kubernetes_labels, each reported as Handed ... from \"Terraform\"), the 17 random_* values seeded into the record store; field manager choudoufu:corpus-govuk-cluster-services owns the StorageClass's storageclass.kubernetes.io/is-default-class annotation (false) and app.kubernetes.io/part-of on all three dex-client-argocd Secrets, read off managedFields with no Terraform entry left; the annotations instance's record carries handover_from = Terraform, the migration evidence #1869's later plans read"
-        },
-        {
-          "id": "test_plan",
-          "title": "Replan from nothing",
-          "verdict": "pass",
-          "duration": "16s",
-          "detail": "the plan with no state file is empty; both namespaces, six of the fifteen Secrets (argocd and grafana in each namespace) and the patched StorageClass confirmed present by name with kubectl; field manager choudoufu:corpus-govuk-cluster-services owns the StorageClass's storageclass.kubernetes.io/is-default-class annotation (false) and app.kubernetes.io/part-of on all three dex-client-argocd Secrets, read off managedFields with no Terraform entry left"
-        },
-        {
-          "id": "test_apply",
-          "title": "No-op apply",
-          "verdict": "pass",
-          "duration": "18s",
-          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=corpus-govuk-cluster-services unchanged at 17 across namespaces, Secrets and ConfigMaps, counted with kubectl; field manager choudoufu:corpus-govuk-cluster-services owns the StorageClass's storageclass.kubernetes.io/is-default-class annotation (false) and app.kubernetes.io/part-of on all three dex-client-argocd Secrets, read off managedFields with no Terraform entry left"
-        },
-        {
-          "id": "drift_reconverge",
-          "title": "Drift and reconverge",
-          "verdict": "pass",
-          "duration": "40s",
-          "detail": "the monitoring/dex-client-grafana Secret's clientID tampered with kubectl patch; choudoufu proposed exactly kubernetes_secret_v1.dex_client[\"monitoring-grafana\"] (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1, the value reads back as the record store's random_bytes value and the replan is empty; field manager choudoufu:corpus-govuk-cluster-services owns the StorageClass's storageclass.kubernetes.io/is-default-class annotation (false) and app.kubernetes.io/part-of on all three dex-client-argocd Secrets, read off managedFields with no Terraform entry left, untouched by the Secret's own whole-object write. BREAK=1 tampers dex-client-prometheus too and the single-object assertion correctly fails"
-        },
-        {
-          "id": "day2_rename",
-          "title": "Rename",
-          "verdict": "pass",
-          "duration": "25s",
-          "detail": "moved block: kubernetes_namespace_v1.monitoring -\u003e .monitoring_namespace, with dex_client's depends_on following, no add and no destroy, one in-place change confined to the address annotation rewrite (0 add, 1 change, 0 destroy) - the marker rewritten in place, the same shape the other kind estates assert; the namespace and the five Secrets in it untouched and still labelled; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation; field manager choudoufu:corpus-govuk-cluster-services owns the StorageClass's storageclass.kubernetes.io/is-default-class annotation (false) and app.kubernetes.io/part-of on all three dex-client-argocd Secrets, read off managedFields with no Terraform entry left. BREAK=1 renames the namespace's own metadata.name and the assertion correctly fails"
-        },
-        {
-          "id": "day2_remove",
-          "title": "Remove a block",
-          "verdict": "pass",
-          "duration": "37s",
-          "detail": "deleting kubernetes_annotations.rm_default_storageclass's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's field-manager orphan address kubernetes_annotations.orphan_storageclass_standard - an object the estate never owned, found by the fields choudoufu:corpus-govuk-cluster-services held on it, not by a label - applied cleanly; the standard StorageClass still exists, choudoufu:corpus-govuk-cluster-services no longer owns storageclass.kubernetes.io/is-default-class (owners now []), and the annotation reads '', the same end state stock's destroy of the same block left on the oracle cluster; the next plan is empty and the labelled count unchanged at 17; field manager choudoufu:corpus-govuk-cluster-services owns app.kubernetes.io/part-of on all three dex-client-argocd Secrets, read off managedFields with no Terraform entry left. BREAK_REMOVE=1 keeps the block and no destroy is proposed"
-        },
-        {
-          "id": "day2_count",
-          "title": "Change count",
-          "verdict": "pass",
-          "duration": "1m14s",
-          "detail": "a two-instance count ConfigMap added beside the published root in the monitoring namespace (the live slice's only count block is eph_account's, 0 outside an ephemeral env): scaling 2 to 1 destroyed exactly shard-1, planned at kubernetes_config_map_v1.shard[1] (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map_v1.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape; field manager choudoufu:corpus-govuk-cluster-services owns app.kubernetes.io/part-of on all three dex-client-argocd Secrets, read off managedFields with no Terraform entry left. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
-        },
-        {
-          "id": "day2_replace",
-          "title": "Replace with create_before_destroy",
-          "verdict": "pass",
-          "duration": "1m2s",
-          "detail": "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -\u003e cfg-b) plans as stock's replace: 'kubernetes_config_map.hashed must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line 64) before cfg-a's deposed destroy starts (line 65), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
-        },
-        {
-          "id": "day2_crash",
-          "title": "Crash mid-apply",
-          "verdict": "pass",
-          "duration": "4m24s",
-          "detail": "a Secret and a ConfigMap added beside the published root in the monitoring namespace, the second reading the first's name: the apply creating both was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_secret_v1.crash_first's create committed; kubectl confirms crash-first exists carrying tofu-estate=corpus-govuk-cluster-services and crash-second does not. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, kubernetes_config_map_v1.crash_second created) and nothing for crash-first, which it bound by its label and its namespace and name, matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object and the plan after it is empty. The record's contribution is read, not counted: the interrupted apply wrote exactly one record (envelopes 37 -\u003e 38) carrying residue wait_for_service_account_token, and taking it out of the store turns the recovery plan from Plan: 1 to add, 0 to change, 0 to destroy into Plan: 1 to add, 1 to change, 0 to destroy, proposing wait_for_service_account_token back; putting it back restores the exact remainder; field manager choudoufu:corpus-govuk-cluster-services owns app.kubernetes.io/part-of on all three dex-client-argocd Secrets, read off managedFields with no Terraform entry left. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails The create_before_destroy rename window is interrupted too (#1768): a kubernetes_config_map renamed under create_before_destroy was killed by the engine's own hook the instant the new object's create committed, at -parallelism=1, leaving both objects carrying the block's address annotation and the record holding the old one as the address's deposed object. The verdict is the end state stock's replace leaves, not the plan's wording: after one more apply exactly the new object remains, the old one is gone, the record's deposed entry is cleared and the replan is empty. Both of the rerun's paths reached it - orphan leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at 'orphan_monitoring_crash-rename-a'; deposed leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at '(deposed object'; the same configuration through the orphan destroy, and the name read from another block's attribute (#1539's shape) through the deposed record (#1683), where stock's plan reads the same deposed-object destroy."
-        },
-        {
-          "id": "day2_teardown",
-          "title": "Teardown",
-          "verdict": "pass",
-          "duration": "25s",
-          "detail": "apply -destroy removed exactly the 41 remaining instances in one apply (21 labelled objects, the three kubernetes_labels writes and 17 random values), the monitoring and gatekeeper-system namespaces gone, no dex-client Secret left in the stand-in namespaces, no object of the estate's kinds carrying tofu-estate=corpus-govuk-cluster-services (kubectl, every namespace), and kind's standard StorageClass, never the estate's, still there; stock's destroy of the same estate on the oracle cluster also removed exactly the 41 its state held"
-        },
-        {
-          "id": "plan_approval",
-          "title": "Plan, review, apply",
-          "verdict": "pass",
-          "duration": "37s",
-          "detail": "plan -out wrote one update (the monitoring namespace gains reviewed=yes); the world then moved out of band (a stray label on the gatekeeper-system namespace, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied; with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster in the unchanged case; field manager choudoufu:corpus-govuk-cluster-services owns the StorageClass's storageclass.kubernetes.io/is-default-class annotation (false) and app.kubernetes.io/part-of on all three dex-client-argocd Secrets, read off managedFields with no Terraform entry left. BREAK_APPROVAL=1 expects success after the move and correctly fails"
-        },
-        {
-          "id": "greenfield",
-          "title": "Greenfield apply",
-          "verdict": "pass",
-          "duration": "38s",
-          "detail": "the split root applied fresh with a live block and no terraform.tfstate: 38 instances, the 17 namespaces and Secrets labelled tofu-estate=corpus-govuk-cluster-services (kubectl), the record store holding 37 record envelope(s); force = true took storageclass.kubernetes.io/is-default-class on kind's standard StorageClass from the platform's own manager [kubectl-annotate] with no refusal, since that manager is not an estate's; field manager choudoufu:corpus-govuk-cluster-services owns the StorageClass's storageclass.kubernetes.io/is-default-class annotation (false) and app.kubernetes.io/part-of on all three dex-client-argocd Secrets, read off managedFields with no Terraform entry left; replanned empty with and without the cache. The cluster's inventory (both namespaces and the gatekeeper labels, every dex-client Secret's keys and type in all three namespaces, app.kubernetes.io/part-of on the three argocd Secrets, the StorageClass's default-class annotation) matches stock's cold deploy on the same cluster object by object, the estate label never compared. BREAK=1 drops the StorageClass from the expected inventory and the match correctly fails"
-        },
-        {
-          "id": "strict",
-          "title": "Strict profile (not a headline stage)",
-          "verdict": "pass",
-          "duration": "19s",
-          "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map_v1) against a scratch estate carrying the root's own random_password shape (dex_secret's): exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
-        },
-        {
-          "id": "no_local_state",
-          "title": "Plan with no local state (not a headline stage)",
-          "verdict": "not run",
-          "duration": "1s",
-          "detail": "the published root keeps 17 random_* values that live only in the local record store, so a plan with that store deleted regenerates them and rewrites the dex-client Secrets built from them; a lost record_store \"local\" is not survivable for this root by construction, and the stage waits for a cluster record store"
-        },
-        {
-          "id": "day2_endpoints",
-          "title": "Endpoints with an unset optional identity field (planned)",
-          "verdict": "not run"
-        },
-        {
-          "id": "record_store_gcs",
-          "title": "Records in a GCS bucket (planned)",
-          "verdict": "not run"
-        }
-      ]
-    },
-    {
       "name": "corpus-k8s-infra-gcp-gcve",
       "set": "growing",
       "lane": "gcp",
@@ -4346,7 +4194,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (4 files differ from the versions that run measured (`live/e2e/lib/floci-az.sh`, `live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/corpus-k8s-metrics-server/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (4 files differ from the versions that run measured (`live/e2e/lib/floci-az.sh`, `live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4612,160 +4460,6 @@
       ]
     },
     {
-      "name": "corpus-quickpizza",
-      "set": "growing",
-      "lane": "kubernetes",
-      "substrate": "kind",
-      "clear": true,
-      "source": "grafana/quickpizza deployments/terraform (tag v0.15.28), Grafana Labs' QuickPizza demo application's own Kubernetes deployment root: a namespace, seven Deployments with their Services, a Postgres StatefulSet, ConfigMaps, Secrets, a ServiceAccount and a ClusterRoleBinding; the kubernetes lane's first published estate",
-      "url": "https://github.com/grafana/quickpizza.git",
-      "pin": "v0.15.28",
-      "script": "live/e2e/corpus-quickpizza/run.sh",
-      "protocol": "gauntlet",
-      "cells": [
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass",
-        "pass"
-      ],
-      "runtime_total": "17m2.2s",
-      "runtime_cells": "cold_deploy 4m3s, migrate 8s, test_plan 12s, test_apply 12s, drift_reconverge 25s, day2_rename 25s, day2_remove 36s, day2_count 1m15s, day2_replace 1m20s, day2_crash 4m7s, day2_teardown 39s, plan_approval 35s, greenfield 1m52s, strict 28s, no_local_state 38s",
-      "last_run_note": "Last run at commit `2f02038dd1` on 2026-10-12T23:27:30Z, exit code 0, against substrate image `kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5`. Total run time 17m2.2s.",
-      "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
-      "provider_note": "Provider: hashicorp/kubernetes `3.3.0`. **Stale**: the current pin is `3.2.1`.",
-      "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (4 files differ from the versions that run measured (`live/e2e/lib/floci-az.sh`, `live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
-      "stage_rows": [
-        {
-          "id": "cold_deploy",
-          "title": "Cold deploy",
-          "verdict": "pass",
-          "duration": "4m3s",
-          "detail": "26 objects (namespace, 7 Deployments, 8 Services, a StatefulSet, 2 ConfigMaps, 3 Secrets, a ServiceAccount, a ClusterRoleBinding) from plain terraform on the unmodified published root plus its deltas (kubeconfig lines dropped, placeholder Grafana Cloud values, Alloy's rollout not awaited), against kind v1.37.0; a real terraform.tfstate with 26 instances, zero tofu-estate labels, 9 pod(s) Running (Alloy errors on the placeholder Grafana Cloud token, by design); the identical root cold-deployed by stock on a second cluster as every later stage's oracle"
-        },
-        {
-          "id": "migrate",
-          "title": "Migrate",
-          "verdict": "pass",
-          "duration": "8s",
-          "detail": "26 of 26 stamped, 0 skipped, from the stock state file; every object carries tofu-estate=corpus-quickpizza, read back with kubectl across the estate's eight kinds"
-        },
-        {
-          "id": "test_plan",
-          "title": "Replan from nothing",
-          "verdict": "pass",
-          "duration": "12s",
-          "detail": "the plan with no state file is empty; a representative set of identities (the namespace, two Deployments, the StatefulSet, a Service, a ConfigMap, a Secret, the ServiceAccount, the ClusterRoleBinding) confirmed present by NAMESPACE/NAME with kubectl"
-        },
-        {
-          "id": "test_apply",
-          "title": "No-op apply",
-          "verdict": "pass",
-          "duration": "12s",
-          "detail": "no-op apply (0 added, 0 changed, 0 destroyed); objects carrying tofu-estate=corpus-quickpizza unchanged at 26 across eight kinds, counted with kubectl"
-        },
-        {
-          "id": "drift_reconverge",
-          "title": "Drift and reconverge",
-          "verdict": "pass",
-          "duration": "25s",
-          "detail": "the alloy-config ConfigMap tampered with kubectl patch; choudoufu proposed exactly kubernetes_config_map_v1.alloy_config (0 add, 1 change, 0 destroy), matching stock's own plan on the oracle cluster for the same tamper; apply changed 1 and the config reads back as the file the root ships. BREAK=1 tampers postgres-init-script too and the single-object assertion correctly fails"
-        },
-        {
-          "id": "day2_rename",
-          "title": "Rename",
-          "verdict": "pass",
-          "duration": "25s",
-          "detail": "moved block: kubernetes_service_account_v1.alloy -\u003e .collector, with the ClusterRoleBinding's subject and the Deployment's service_account_name references following, no add and no destroy, one in-place change confined to the address annotation rewrite (0 add, 1 change, 0 destroy) - the marker rewritten in place, the same shape the AWS lanes assert for a rename, not literal zero churn; the live object untouched and still labelled; stock's plan for the same moved block on the oracle cluster is zero churn, since stock never writes this annotation. The moved-block half only: live-mv also has a Kubernetes leg since #1639, not exercised by this stage. BREAK=1 renames the object's own metadata.name and the marker-rewritten-in-place assertion correctly fails"
-        },
-        {
-          "id": "day2_remove",
-          "title": "Remove a block",
-          "verdict": "pass",
-          "duration": "36s",
-          "detail": "deleting kubernetes_cluster_role_binding_v1.alloy's block proposed exactly one destroy (0 add, 0 change, 1 destroy) at the sweep's orphan address kubernetes_cluster_role_binding_v1.alloy - a cluster-scoped object found by its label, which carries no address - applied cleanly, the object gone (kubectl get clusterrolebinding: NotFound), the next plan empty; stock's plan for the same removal on the oracle cluster is also exactly one destroy; the Deployments' ReplicaSets and Pods and the StatefulSet's Pod and PVC, which carry no estate label, were never proposed. BREAK_REMOVE=1 keeps the block and no destroy is proposed"
-        },
-        {
-          "id": "day2_count",
-          "title": "Change count",
-          "verdict": "pass",
-          "duration": "1m15s",
-          "detail": "a two-instance count ConfigMap added beside the published root (the estate's own shape has no count block): scaling 2 to 1 destroyed exactly shard-1, planned at the sweep's orphan address kubernetes_config_map_v1.shard[1] since the label carries no index (shard-0 untouched, both read with kubectl); back to 2 created exactly kubernetes_config_map_v1.shard[1] under the same name; the next plan is empty; stock's plans for the same two changes on the oracle cluster have the identical shape. BREAK_COUNT=1 asserts the lower index was destroyed and correctly fails"
-        },
-        {
-          "id": "day2_replace",
-          "title": "Replace with create_before_destroy",
-          "verdict": "pass",
-          "duration": "1m20s",
-          "detail": "a create_before_destroy ConfigMap whose content-hashed name changes (cfg-a -\u003e cfg-b) plans as stock's replace: 'kubernetes_config_map.hashed must be replaced', +/- create replacement and then destroy, 1 add and 1 destroy, with no orphan destroy beside it, because cfg-a carries the block's address annotation and the sweep binds it (#1640). At -parallelism=1 the apply log shows cfg-b's creation complete (line 64) before cfg-a's deposed destroy starts (line 65), the same order stock's apply shows on the oracle cluster; kubectl confirms cfg-b alone remains, carrying the annotation, and the next plan is empty (#1541). The block is removed from both roots afterwards. BREAK_REPLACE=1 recreates cfg-a carrying the block's annotation and the next plan correctly proposes destroying it"
-        },
-        {
-          "id": "day2_crash",
-          "title": "Crash mid-apply",
-          "verdict": "pass",
-          "duration": "4m7s",
-          "detail": "a pair of ConfigMaps added beside the published root (the estate's own shape has no two objects with an edge between them to be caught halfway through): the apply creating both was interrupted by a real SIGTERM (exit 1), delivered by the engine itself inside the -parallelism=1 graph walker the instant kubernetes_config_map_v1.crash_first's create committed (internal/command/apply_e2etesting_crash.go); crash_second reads crash_first's name, so the walker cannot have reached it - kubectl confirms crash-first exists carrying tofu-estate=corpus-quickpizza and crash-second does not. The next plan proposed exactly the remainder (Plan: 1 to add, 0 to change, 0 to destroy, kubernetes_config_map_v1.crash_second created) and proposed nothing at all for crash-first, which it bound by its label and its namespace and name - not a second create the API server would refuse, not an orphan sweep - matching stock's own plan from the same position on the oracle cluster; the recovery apply added exactly one object, both read back with kubectl, and the plan after it is empty. The record store's contribution is read, not counted: the interrupted apply wrote exactly one record (files 23 -\u003e 24) for kubernetes_secret_v1.crash_first carrying residue wait_for_service_account_token, and taking that one file out of the store and replanning from the identical position turns the recovery plan from Plan: 1 to add, 0 to change, 0 to destroy into Plan: 1 to add, 1 to change, 0 to destroy, proposing wait_for_service_account_token back on the object the crash left behind; putting it back restores the exact-remainder plan. The pair's first object is a Secret and not a ConfigMap for that reason (#1235): a kubernetes_config_map(_v1) records nothing, which is the whole of the 25 -\u003e 25 #1188 measured here. BREAK_CRASH=1 asserts nothing is proposed and correctly fails; BREAK_CRASH_UNBOUND=1 strips the label off crash-first and the same recovery check correctly fails The create_before_destroy rename window is interrupted too (#1768): a kubernetes_config_map renamed under create_before_destroy was killed by the engine's own hook the instant the new object's create committed, at -parallelism=1, leaving both objects carrying the block's address annotation and the record holding the old one as the address's deposed object. The verdict is the end state stock's replace leaves, not the plan's wording: after one more apply exactly the new object remains, the old one is gone, the record's deposed entry is cleared and the replan is empty. Both of the rerun's paths reached it - orphan leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at 'orphan_quickpizza_crash-rename-a'; deposed leg: Plan: 0 to add, 0 to change, 1 to destroy, the destroy at '(deposed object'; the same configuration through the orphan destroy, and the name read from another block's attribute (#1539's shape) through the deposed record (#1683), where stock's plan reads the same deposed-object destroy."
-        },
-        {
-          "id": "day2_teardown",
-          "title": "Teardown",
-          "verdict": "pass",
-          "duration": "39s",
-          "detail": "apply -destroy removed exactly the 29 remaining objects in one apply, in an order the API server accepted (the namespace last), the namespace gone and no object of any of the estate's eight kinds carrying tofu-estate=corpus-quickpizza (kubectl, every namespace); stock's destroy of the same estate on the oracle cluster also removed exactly the 29 its state held"
-        },
-        {
-          "id": "plan_approval",
-          "title": "Plan, review, apply",
-          "verdict": "pass",
-          "duration": "35s",
-          "detail": "plan -out wrote one update (the namespace gains reviewed=yes); the world then moved out of band (a stray label on the catalog Service, kubectl, never choudoufu) and apply of the saved plan refused with \"The approved plan no longer matches the live system\" at exit 3, nothing applied; with the label removed the identical file applied, 0 added, 1 changed, 0 destroyed, and reviewed=yes reads back; stock's own planfile applied on the oracle cluster in the unchanged case. BREAK_APPROVAL=1 expects success after the move and correctly fails"
-        },
-        {
-          "id": "greenfield",
-          "title": "Greenfield apply",
-          "verdict": "pass",
-          "duration": "1m52s",
-          "detail": "the published root applied fresh with a live block and no terraform.tfstate: 26 objects, every one labelled tofu-estate=corpus-quickpizza (kubectl, eight kinds); the record store held 22 record envelope(s) - envelopes counted by their own address field, not files, so guided discovery's hint at tofu-hints/corpus-quickpizza and any root output in the same store are not mistaken for records (#1291); replanned empty with and without the cache. Deleting the whole record store and the cache and replanning - the reading six AWS estates take here and no Kubernetes estate took - proposed Plan: 0 to add, 18 to change, 0 to destroy: nothing created, nothing destroyed, nothing swept as an orphan, every object still bound by its label and its namespace and name, and 18 in-place update(s) putting back the residue the store held (wait_for_load_balancer wait_for_rollout wait_for_service_account_token); one apply reconverged and the plan after it is empty, so a lost store costs an apply here and not an object (#1188, #1235). The cluster's inventory (ConfigMap and Secret keys, every Service's ports and selector, every Deployment's replicas, containers and service account, the StatefulSet's containers and claim, the ClusterRoleBinding's role and subjects, the namespace) matches stock's cold deploy on the same cluster object by object, labels never compared. BREAK=1 drops the StatefulSet from the expected inventory and the match correctly fails"
-        },
-        {
-          "id": "strict",
-          "title": "Strict profile (not a headline stage)",
-          "verdict": "pass",
-          "duration": "28s",
-          "detail": "every strict toggle on (secrets = refuse, no_source_create = refuse, marker_repair = never with a markers \"record\" selection naming kubernetes_config_map_v1) against a scratch estate carrying random_password.db: exactly one refusal, Logical resource is not admitted under strict { secrets = \"refuse\" }; the other two toggles are on and silent. BREAK_STRICT=1 turns secrets back to \"store\" and the refusal disappears"
-        },
-        {
-          "id": "no_local_state",
-          "title": "Plan with no local state (not a headline stage)",
-          "verdict": "pass",
-          "duration": "38s",
-          "detail": "with the local record store and the state cache both deleted - a fresh clone with only the cluster left - the plan created, destroyed and replaced nothing: every declared object found by its tofu-estate label and its namespace and name, 18 in-place update(s) putting back the residue the store held. The empty plan before the deletion was served from a cache written by a no-op apply (0 instance(s) answered by a cache hit). plan_calls_no_local_state=117 plan_calls_cache_serving=117 ratio=1.00x (Kubernetes API requests counted on the wire through live/smoke/k8sproxy.py); stock in this position has no plan at all, only one import block per object. The store and cache were put back for the stages after this one. BREAK_NO_LOCAL_STATE=1 strips configmap quickpizza/alloy-config's label and the check correctly fails"
-        },
-        {
-          "id": "day2_endpoints",
-          "title": "Endpoints with an unset optional identity field (planned)",
-          "verdict": "not run"
-        },
-        {
-          "id": "record_store_gcs",
-          "title": "Records in a GCS bucket (planned)",
-          "verdict": "not run"
-        }
-      ]
-    },
-    {
       "name": "reference-azure",
       "set": "growing",
       "lane": "azure",
@@ -4796,6 +4490,8 @@
       "last_run_note": "Last run at commit `01d69a5a75` on 2026-10-21T20:52:35Z, exit code 0, against floci-az image `ghcr.io/lex00/floci-az@sha256:c56ce3e2fb0da9a554cfb6794df912b371c27b1448c979ff2fd4d54cb8d47cd9`. Total run time 10m34.2s.",
       "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
+      "script_stale": "changed",
+      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (2 files differ from the versions that run measured (`live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",
@@ -4901,132 +4597,6 @@
           "verdict": "pass",
           "duration": "3s",
           "detail": "with the state cache deleted - a fresh clone with only the account left, the records being blobs in refazrecords/green and no local record directory existing at all - the plan (No changes. Your infrastructure matches the configuration) created, destroyed and replaced nothing: the nine resources that take tags found by their markers, the subnet and the NSG rule through their records in the container. In-place updates: none. The empty plan before the deletion was served from a cache a no-op apply wrote. plan_calls_no_local_state=14 plan_calls_cache_serving=15 ratio=0.93x (both plan -refresh=false, azurerm requests counted from TF_LOG=DEBUG); stock in this position has no plan at all, only one import block per resource. BREAK_NO_LOCAL_STATE=1 strips the VNet's markers and the check correctly fails"
-        },
-        {
-          "id": "day2_endpoints",
-          "title": "Endpoints with an unset optional identity field (planned)",
-          "verdict": "not run"
-        },
-        {
-          "id": "record_store_gcs",
-          "title": "Records in a GCS bucket (planned)",
-          "verdict": "not run"
-        }
-      ]
-    },
-    {
-      "name": "reference-eks",
-      "set": "growing",
-      "lane": "reference",
-      "substrate": "floci-eks",
-      "clear": false,
-      "source": "hand-written reference shape kept in this repository (live/e2e/reference-eks/estate.sh): VPC, EKS cluster, one managed node group, an access entry and a pod identity association, with provider \"kubernetes\" configured from aws_eks_cluster.this and an exec token, and a four-object cluster leg; one estate across AWS and the cluster it creates (#1113), certified on real AWS by live/live-cert/reference-eks.sh",
-      "script": "live/e2e/reference-eks/run.sh",
-      "protocol": "gauntlet",
-      "cells": [
-        "pass",
-        "FAIL",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run",
-        "not run"
-      ],
-      "runtime_total": "1m12.3s",
-      "runtime_cells": "cold_deploy 50s, migrate 22s",
-      "last_run_note": "Last run at commit `2f02038dd1` on 2026-10-12T21:11:03Z, exit code 1, against emulator image `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144`. **Stale**: the current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`. Total run time 1m12.3s.",
-      "oracle_note": "Oracle: stock terraform `1.15.8`, stock tofu `1.12.5`. **Stale**: the current pin is terraform `1.16.1`, tofu `1.13.0`.",
-      "provider_note": "Provider: hashicorp/aws `6.63.0` (matches the current pin). Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
-      "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
-      "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-eks/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (4 files differ from the versions that run measured (`live/e2e/lib/floci-az.sh`, `live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
-      "stage_rows": [
-        {
-          "id": "cold_deploy",
-          "title": "Cold deploy",
-          "verdict": "pass",
-          "duration": "50s",
-          "detail": "21 resources from stock terraform (15 AWS, 6 cluster objects) against floci-eks; cluster refeks-eks is ACTIVE and its k3s container floci-refeks13540-eks-refeks-eks holds the cluster leg, read with kubectl; zero tofu-estate labels; the kubernetes provider was configured from aws_eks_cluster.this with an exec token as written; access entry and pod identity association not created (eks_access_api=false: floci has no pod identity create, and the pinned image is not checked for access-entry create)"
-        },
-        {
-          "id": "migrate",
-          "title": "Migrate",
-          "verdict": "FAIL",
-          "duration": "22s",
-          "detail": "live-import -approve did not finish with 0 failed and 0 skipped: 14 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 1 failed, 6 skipped"
-        },
-        {
-          "id": "test_plan",
-          "title": "Replan from nothing",
-          "verdict": "not run"
-        },
-        {
-          "id": "test_apply",
-          "title": "No-op apply",
-          "verdict": "not run"
-        },
-        {
-          "id": "drift_reconverge",
-          "title": "Drift and reconverge",
-          "verdict": "not run"
-        },
-        {
-          "id": "day2_rename",
-          "title": "Rename",
-          "verdict": "not run"
-        },
-        {
-          "id": "day2_remove",
-          "title": "Remove a block",
-          "verdict": "not run"
-        },
-        {
-          "id": "day2_count",
-          "title": "Change count",
-          "verdict": "not run"
-        },
-        {
-          "id": "day2_replace",
-          "title": "Replace with create_before_destroy",
-          "verdict": "not run"
-        },
-        {
-          "id": "day2_crash",
-          "title": "Crash mid-apply",
-          "verdict": "not run"
-        },
-        {
-          "id": "day2_teardown",
-          "title": "Teardown",
-          "verdict": "not run"
-        },
-        {
-          "id": "plan_approval",
-          "title": "Plan, review, apply",
-          "verdict": "not run"
-        },
-        {
-          "id": "greenfield",
-          "title": "Greenfield apply",
-          "verdict": "not run"
-        },
-        {
-          "id": "strict",
-          "title": "Strict profile (not a headline stage)",
-          "verdict": "not run"
-        },
-        {
-          "id": "no_local_state",
-          "title": "Plan with no local state (not a headline stage)",
-          "verdict": "not run"
         },
         {
           "id": "day2_endpoints",
@@ -7017,7 +6587,7 @@
       "provider_note": "Provider: hashicorp/kubernetes `3.2.1` (matches the current pin).",
       "engine_note": "Engine: OpenTofu base `1.13.0` (matches the current base).",
       "script_stale": "changed",
-      "script_note": "**Stale**: since the run recorded above, the shared protocol library `live/e2e/lib` that this script sources has changed (4 files differ from the versions that run measured (`live/e2e/lib/floci-az.sh`, `live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
+      "script_note": "**Stale**: since the run recorded above, this estate's own files have changed (`live/e2e/reference-k8s-workloads/run.sh` differs from the version that run measured), and the shared protocol library `live/e2e/lib` that this script sources has changed (4 files differ from the versions that run measured (`live/e2e/lib/floci-az.sh`, `live/e2e/lib/gauntlet.sh`, `live/e2e/lib/gcp-provider-endpoints.txt`, `live/e2e/lib/gcp.sh`)). Every verdict in the table above was measured against the earlier version, so a stage those edits fixed still reads `fail` here, and a stage they broke still reads `pass`; only a re-run of this estate settles it (#1264, #1292).",
       "stage_rows": [
         {
           "id": "cold_deploy",

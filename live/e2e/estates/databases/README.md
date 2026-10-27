@@ -169,7 +169,7 @@ A real `terraform apply` was run by hand against the pinned floci image
 first without and then with the host's Docker socket mounted into the
 floci container (`-v /var/run/docker.sock:/var/run/docker.sock`) —
 `aws_opensearch_domain`'s own real behavior (below) needs it, and neither
-`live/e2e/run.sh` nor any earlier batch's own verification mounts it, so
+`live/e2e/run.sh` (retired under #2288) nor any earlier batch's own verification mounts it, so
 this batch's own attempt is the first to notice the gap. This cohort's
 coverage is genuinely mixed, wider than any earlier batch's own floci
 findings:
@@ -202,7 +202,7 @@ DNS, so floci's own internal health probe against
 started, and the provider's availability waiter spins forever. A genuine
 floci-image gap, not a configuration problem this batch's override can
 fix — and without the socket mount at all (the invocation every earlier
-batch, and `live/e2e/run.sh` itself, actually uses) domain creation never
+batch, and `live/e2e/run.sh` (retired under #2288) itself, actually uses) domain creation never
 even reaches the point of trying: `Creating DockerClient for host:
 unix:///var/run/docker.sock` fails outright
 (`java.net.SocketException: No such file or directory`).

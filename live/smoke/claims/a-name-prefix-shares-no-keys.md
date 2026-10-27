@@ -16,23 +16,22 @@ Each scenario runs from the repository root and ends on a `PASS` line; its
 
 ## On AWS
 
-### a-name-prefix-shares-no-keys
+### TestS3StoreConformance/NeighbourNamespacesShareNoListingOrBulkRead
 
-    just smoke a-name-prefix-shares-no-keys
-    BREAK=1 just smoke a-name-prefix-shares-no-keys
+    go test ./pkg/staterecord -run '^TestS3StoreConformance$/^NeighbourNamespacesShareNoListingOrBulkRead$'
 
-Two estates whose names prefix one another (`smoke-prod`,
-`smoke-prod-eu`) share a bucket, and the trailing slash on the key prefix
-keeps each listing to its own estate. `BREAK=1` rebuilds choudoufu without
-the slash (needs Go), and the wire must show one estate fetching the
-other's record.
+Two estates whose names prefix one another (`prod`, `prod-eu`) share a
+bucket, and the delimiter that ends every namespace keeps each listing and
+each bulk read to its own estate. The same case runs against every store
+in CI, and dropping the delimiter, which `just smoke
+a-name-prefix-shares-no-keys`'s `BREAK=1` did until #2288, fails it on
+each. Callers build list prefixes through `NamespacePrefix`.
 
 ### one-bucket-many-estates
 
     SMOKE_REAL_AWS=1 just smoke one-bucket-many-estates
     SMOKE_REAL_AWS=1 BREAK=1 just smoke one-bucket-many-estates
     SMOKE_REAL_AWS=1 BREAK_FIRST_WRITE=1 just smoke one-bucket-many-estates
-    SMOKE_REAL_AWS=1 BREAK_UNTAGGED=1 just smoke one-bucket-many-estates
 
 Real AWS, maintainer-run with `SMOKE_REAL_AWS=1`. Two new estates' first
 writes go through the published policy, whose create condition is
@@ -46,8 +45,9 @@ under the estate's own prefix, is refused to it by name.
 `BREAK=1` widens the prefix and removes one Deny at a time, and each time
 the neighbour's record must read back. `BREAK_FIRST_WRITE=1` swaps the
 create condition to `s3:ExistingObjectTag`, and a new estate's first
-create must be denied. `BREAK_UNTAGGED=1` builds a binary that sends no
-tags (needs Go), and its first write must be denied.
+create must be denied. That the store tags every object it writes is
+`TestS3StoreTagsEveryObjectItWrites` (pkg/staterecord, in CI), which
+replaced this scenario's `BREAK_UNTAGGED` arm (#2288).
 
 ### a-read-only-role-can-plan
 

@@ -73,7 +73,7 @@ Docker and takes about two minutes.
 
 ```
 just smoke roundtrip    # stock estate -> live-import -> no state file -> back to stock
-just smoke full         # the comprehensive 15-step harness
+just smoke             # lists every scenario and the claim it proves
 ```
 
 Or paste this to a coding agent:

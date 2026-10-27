@@ -37,7 +37,7 @@ existence proof.
 ## Gating
 
 Nothing here runs against a live or emulated cloud. The pin tests above are
-plain Go tests and always run. `live/e2e/run.sh` and the
+plain Go tests and always run. `live/e2e/run.sh` (retired under #2288) and the
 `internal/live/discovery` floci-gated live test still stand up only the
 demo estate — this cohort does not change the default tier's runtime, and
 wiring cohort estates into the gated live run is separate follow-on work.

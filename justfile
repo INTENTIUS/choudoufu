@@ -8,6 +8,22 @@ build:
 test:
     go test ./...
 
+# The kind-gated pkg/staterecord tests (GitHub issue #2288): a kind cluster
+# with a scratch name (refused if one of that name exists, and only that
+# one deleted), a records namespace, CHOUDOUFU_K8S_RECORD_KUBECONFIG and
+# CHOUDOUFU_K8S_RECORD_NAMESPACE set, then go test -run '^TestKubernetes'.
+# Needs Docker, kind, kubectl and Go. Maintainer-run at release; read the
+# TEST-KIND verdict line, then record with `go run ./tools/gotest-record -log`.
+test-kind:
+    bash scripts/test-kind.sh
+
+# TestS3StoreCASUnderEverySSEFlavour on four real S3 buckets, one per SSE
+# flavour (GitHub issue #2288). REAL AWS, maintainer-run with
+# SMOKE_REAL_AWS=1, and only when pkg/staterecord/s3.go changes. Creates
+# and removes the buckets and a KMS key. Read the TEST-SSE verdict line.
+test-sse:
+    bash scripts/test-sse.sh
+
 # Prints (never runs) the exact command that turns on heavy/paid runs for
 # Exactly what .github/workflows/ci.yml's `fast` job runs, in order, so a red
 # main is something you find here rather than on GitHub. `env -u PWD` is
@@ -49,10 +65,6 @@ test-floci:
 # Issue #64's estate-scale benchmark against floci. ESTATE_BENCH_N=<n> just bench-estate sets the size (default 200).
 bench-estate:
     make bench-estate
-
-# The demo: real estate on a local emulator, state file deleted mid-run, plans stay exact. Needs Docker, ~2 minutes, exit 0 = every claim held.
-demo:
-    bash live/e2e/run.sh --expect 5
 
 # The smoke stack (issue #713): docker compose (pinned floci + the stock
 # opentofu oracle), scenario-per-invocation, versioned. `just smoke` lists
