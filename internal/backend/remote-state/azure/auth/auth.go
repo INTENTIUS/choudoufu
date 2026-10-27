@@ -24,7 +24,7 @@ type Config struct {
 	WorkloadIdentityAuthConfig
 
 	// DisableInstanceDiscovery is azapi's disable_instance_discovery, set
-	// by a caller that mirrors an azapi provider block (pkg/azsweep).
+	// by a caller that mirrors an azapi provider block (internal/live/sweepconfig).
 	// The stock backend has no such argument and leaves it false; a
 	// loopback authority turns discovery off regardless
 	// ([instanceDiscoveryOff]).
