@@ -135,6 +135,17 @@ type smokeProof struct {
 	// only while that row's stage reads pass (proven_cell_ci_test.go). Note
 	// says what the stage asserts that the claim needs.
 	Stage string `json:"stage"`
+	// GoTest cites a Go test as the proof (GitHub issue #2288): the test's
+	// name, a subtest written Test/Sub, in the package GoPackage ("./pkg/x").
+	// Gate is empty for a test CI's fast tier runs on every commit, whose
+	// dated run is a CI run at a recorded commit; for a test that skips
+	// without an environment variable it names that variable, Command is the
+	// recipe that sets it, and its dated run is a maintainer run with its
+	// log. Either run is recorded by tools/gotest-record under
+	// live/smoke/evidence/go-test/ (smoke_claims_gotest_test.go).
+	GoTest    string `json:"go_test"`
+	GoPackage string `json:"go_package"`
+	Gate      string `json:"gate"`
 	// LastRun is the last result measured for a scenario proof, carried
 	// until a newer run replaces it, the way live/gauntlet.json carries a
 	// row's last_run. A release never resets it; a page that renders it
@@ -412,14 +423,22 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 		for p, cell := range c.Providers {
 			for _, pr := range cell.Proofs {
 				if pr.Scenario != "" {
-					if pr.Stage != "" {
-						t.Errorf("claim %d (%s): %s is a scenario and also cites stage %s; say one", c.ID, p, pr.Scenario, pr.Stage)
+					if pr.Stage != "" || pr.GoTest != "" {
+						t.Errorf("claim %d (%s): %s is a scenario and also cites stage %q or Go test %q; say one", c.ID, p, pr.Scenario, pr.Stage, pr.GoTest)
+					}
+					continue
+				}
+				if pr.GoTest != "" {
+					// smoke_claims_gotest_test.go holds the rest of a Go
+					// test proof.
+					if pr.Stage != "" || pr.ProvenBy != 0 {
+						t.Errorf("claim %d (%s): Go test %s also cites stage %q or proven_by %d; say one", c.ID, p, pr.GoTest, pr.Stage, pr.ProvenBy)
 					}
 					continue
 				}
 				switch {
 				case pr.ProvenBy == 0 && pr.Stage == "":
-					t.Errorf("claim %d (%s): a proof with no scenario, no proven_by and no stage proves nothing", c.ID, p)
+					t.Errorf("claim %d (%s): a proof with no scenario, no proven_by, no stage and no Go test proves nothing", c.ID, p)
 				case pr.ProvenBy != 0 && pr.Stage != "":
 					t.Errorf("claim %d (%s): a proof is proven_by %d and also cites stage %s; say one", c.ID, p, pr.ProvenBy, pr.Stage)
 				}
@@ -436,9 +455,19 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 		}
 	}
 	// A retired number covered by another proof: its own scenario is gone,
-	// and what it showed is shown by a registered scenario or a gauntlet
-	// stage. A stage citation must name a row and stage that exist; whether
+	// and what it showed is shown by a registered scenario, a gauntlet stage
+	// or a Go test proof (#2288). A stage citation must name a row and stage that exist; whether
 	// it passes is the cell's business, not the pointer's.
+	goTests := map[string]bool{}
+	for _, c := range f.Claims {
+		for _, cell := range c.Providers {
+			for _, pr := range cell.Proofs {
+				if pr.GoTest != "" {
+					goTests[pr.GoTest] = true
+				}
+			}
+		}
+	}
 	if len(coveredBy) > 0 {
 		rows := readGauntletStageRows(t)
 		for _, r := range coveredBy {
@@ -448,6 +477,12 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 			if strings.Contains(r.CoveredBy, ":") {
 				if problem, exists := stageCitationProblem(rows, r.CoveredBy); !exists {
 					t.Errorf("retired claim %d (%s): covered_by %s", r.ID, r.Slug, problem)
+				}
+				continue
+			}
+			if strings.HasPrefix(r.CoveredBy, "Test") {
+				if !goTests[r.CoveredBy] {
+					t.Errorf("retired claim %d (%s) is covered_by %q, which is the Go test proof of no cell in %s", r.ID, r.Slug, r.CoveredBy, smokeClaimsPath)
 				}
 				continue
 			}
@@ -987,6 +1022,15 @@ func TestSmokeClaimsPages(t *testing.T) {
 			}
 			sections++
 			for _, pr := range cell.Proofs {
+				if pr.GoTest != "" {
+					if !strings.Contains(body, pr.GoTest) {
+						t.Errorf("%s/%s.md: the \"## On %s\" section never names the Go test `%s` its cell cites", siteClaimsPages, c.Slug, smokeProviderNames[p], pr.GoTest)
+					}
+					if pr.Gate != "" && !strings.Contains(body, pr.Command) {
+						t.Errorf("%s/%s.md: the \"## On %s\" section never tells the reader to run `%s`, the recipe behind %s's gate", siteClaimsPages, c.Slug, smokeProviderNames[p], pr.Command, pr.GoTest)
+					}
+					continue
+				}
 				if pr.Stage != "" {
 					if !strings.Contains(body, pr.Stage) {
 						t.Errorf("%s/%s.md: the \"## On %s\" section never names the gauntlet stage `%s` its cell cites", siteClaimsPages, c.Slug, smokeProviderNames[p], pr.Stage)

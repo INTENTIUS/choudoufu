@@ -89,7 +89,7 @@ var (
 	Claims = Page{
 		Path: "live/CLAIMS.md", Tool: "claims-gen",
 		Command: "go run ./tools/gauntlet render",
-		Inputs:  []string{ClaimsRel, GauntletArtifactRel, "live/smoke/evidence/*.json"},
+		Inputs:  []string{ClaimsRel, GauntletArtifactRel, "live/smoke/evidence/*.json", GoTestEvidenceDir + "/*.json"},
 		spans:   claimsSpans,
 	}
 	IAMReference = Page{
