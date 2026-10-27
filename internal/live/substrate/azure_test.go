@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/live/sweepconfig"
 	"github.com/intentius/choudoufu/pkg/azsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -161,7 +162,7 @@ func TestAzureScaleSetHoldIsTheAKSTag(t *testing.T) {
 	if h, ok := Azure.ControllerHeld(HoldEvidence{ARMTags: tagged}); !ok || h.Controller != "AKS" {
 		t.Errorf("a scale set with an aks-managed- tag: %+v, %v; want held by AKS", h, ok)
 	}
-	q := strings.ToLower(azsweep.Query("prod"))
+	q := strings.ToLower(azsweep.Query(sweepconfig.Markers, "prod"))
 	if strings.Contains(q, "computeresources") {
 		t.Errorf("the sweep now reads computeresources, where scale set instances live; ControllerHeld's doc comment says they are never listed:\n%s", q)
 	}

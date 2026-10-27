@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/sweepconfig"
 	"github.com/intentius/choudoufu/pkg/azsweep"
 	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/projection"
@@ -100,7 +101,7 @@ var markerWriters = map[substrate.Write]func(*projectionProviders, addrs.AbsProv
 		p.mu.Unlock()
 		attrs := azsweep.ProviderAttrs(addr.Provider.Type, val, ok)
 		return projection.ARMTagsWriter{Tagger: &lazyARMTagger{build: func(ctx context.Context) (projection.ARMTagger, error) {
-			return azsweep.NewTagger(ctx, attrs)
+			return sweepconfig.AzureTagger(ctx, attrs)
 		}}}
 	},
 }

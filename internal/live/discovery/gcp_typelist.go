@@ -141,8 +141,8 @@ func (d gcpDemand) coveredTypes() []string {
 // typeScopes is every scope t's declared instances name, each once and
 // sorted, or why one of them names none. An instance's project is its
 // block's own `project`, else the provider block's; its location is its
-// block's own location argument, else the provider block's region where
-// the provider defaults that argument to it (Vertex AI's region).
+// block's own location argument, else the provider block's region
+// (gcpsweep.ProviderScope.Default, GitHub issue #2273).
 func (g GCPAssetSweep) typeScopes(ctx context.Context, req Request, decl *declared, demand gcpDemand, t gcpsweep.TypeList) ([]gcpsweep.ListScope, string) {
 	for _, cb := range demand.counts {
 		if cb.typeName == t.Type && len(cb.entries) == 0 {
@@ -178,8 +178,11 @@ func (g GCPAssetSweep) typeScopes(ctx context.Context, req Request, decl *declar
 				switch {
 				case lset && !lok:
 					return nil, fmt.Sprintf("%s's %s is not known from configuration alone", addr, t.Location)
-				case !lset && t.Location == "region":
-					location = g.Region
+				case !lset:
+					// GitHub issue #2273: a block with no location is
+					// listed in the provider's region, one rule for both
+					// engines (gcpsweep.ProviderScope.Default).
+					location = g.providerScope().Default(t.Location)
 				}
 				if location == "" {
 					return nil, fmt.Sprintf("no %s is known for %s: neither its block nor the provider block names one", t.Location, addr)
@@ -210,10 +213,10 @@ func (g GCPAssetSweep) typeScopes(ctx context.Context, req Request, decl *declar
 //
 // project, region and zone are the block's own argument, else the provider
 // block's, as hashicorp/google defaults them; a self link or full name counts
-// by its last segment. location is the block's own `location` only: the
-// provider defaults it per resource (some to the provider's region, some to
-// "global", some not at all), and a list made in the wrong location would
-// read as "no object" for the instance. Any other variable is the parent
+// by its last segment. location is the block's own `location`, else the
+// provider block's region (GitHub issue #2273, ruled 2026-10-26: plunge's
+// rule, so both engines list a block with no location under one scope;
+// gcpsweep.ProviderScope.Default is that one rule). Any other variable is the parent
 // object's argument of the same name (a crypto key's key_ring, a map entry's
 // map), which has to be known from configuration alone; one that refers to
 // another resource's attribute is not, and the type is bound from the index
@@ -232,14 +235,7 @@ func (g GCPAssetSweep) derivedScope(ctx context.Context, req Request, addr addrs
 			v = v[strings.LastIndex(v, "/")+1:]
 		}
 		if !set {
-			switch name {
-			case "project":
-				v = g.Project
-			case "region":
-				v = g.Region
-			case "zone":
-				v = g.Zone
-			}
+			v = g.providerScope().Default(name)
 		}
 		return v, v != ""
 	}
@@ -251,6 +247,12 @@ func (g GCPAssetSweep) derivedScope(ctx context.Context, req Request, addr addrs
 		return gcpsweep.ListScope{}, fmt.Sprintf("%s's list path %s cannot be filled for %s: %s", t.Type, t.Path, addr, err)
 	}
 	return scope, ""
+}
+
+// providerScope is the provider block's project, region and zone, the
+// defaults a list scope falls back to.
+func (g GCPAssetSweep) providerScope() gcpsweep.ProviderScope {
+	return gcpsweep.ProviderScope{Project: g.Project, Region: g.Region, Zone: g.Zone}
 }
 
 // gcpTypeListWarning is the warning for a covered type bound from the

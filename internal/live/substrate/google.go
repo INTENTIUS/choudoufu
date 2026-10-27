@@ -14,6 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/sweepconfig"
 	"github.com/intentius/choudoufu/pkg/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -220,7 +221,7 @@ func (google) MarkerNoun(surface markers.Surface) string {
 // client is a nil [Sweeper], never an [AssetSearchSweeper] holding a nil
 // client.
 func (google) NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error) {
-	client, err := gcpsweep.New(context.Background(), gcpsweep.ProviderAttrs(providerConfig, ok))
+	client, err := sweepconfig.GCPSweep(context.Background(), gcpsweep.ProviderAttrs(providerConfig, ok))
 	if err != nil {
 		return nil, err
 	}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/armtypes"
+	"github.com/intentius/choudoufu/internal/live/sweepconfig"
 	"github.com/intentius/choudoufu/pkg/azsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -149,7 +150,7 @@ func (azure) Unrecorded(string) Unrecorded { return UnrecordedParentOwned }
 // 11). On an error the client is a nil [Sweeper], never a
 // [ResourceGraphSweeper] holding a nil client.
 func (azure) NewSweeper(providerConfig cty.Value, ok bool) (Sweeper, error) {
-	client, err := azsweep.New(context.Background(), AzureSweepAttrs(providerConfig, ok))
+	client, err := sweepconfig.AzureSweep(context.Background(), AzureSweepAttrs(providerConfig, ok))
 	if err != nil {
 		return nil, err
 	}

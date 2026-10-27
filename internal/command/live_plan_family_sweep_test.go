@@ -15,6 +15,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/sweepconfig"
 	"github.com/intentius/choudoufu/pkg/azsweep"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -66,7 +67,7 @@ func (g *famGraph) Search(_ context.Context, sub, estate string) ([]azsweep.Reso
 	g.asked[strings.ToLower(sub)]++
 	var out []azsweep.Resource
 	for _, r := range g.bySub[strings.ToLower(sub)] {
-		if v, ok := azsweep.EstateTag(r.Tags); ok && v == estate {
+		if v, ok := azsweep.OwnerTag(sweepconfig.Markers, r.Tags); ok && v == estate {
 			out = append(out, r)
 		}
 	}
