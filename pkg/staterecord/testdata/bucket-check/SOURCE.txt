@@ -1,0 +1,9 @@
+Vendored, unmodified, from INTENTIUS/chant
+  packages/core/src/bucket-check/fixtures/{s3,gcs,azure}.json
+at 0efd96d6dd23ef04563c50423bc3095386db35db (integration/ci-products, chant#4558).
+
+These are the shared bucket fixtures: each case is the store's API answer and
+the verdict choudoufu live-bucket -json gives per setting. chant's bucket
+check and choudoufu's (pkg/staterecord) must agree on every case;
+pkg/staterecord/sharedfixtures_test.go holds choudoufu to them. Refresh by
+copying the three files again and updating the sha here and in that test.
