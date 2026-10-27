@@ -10,9 +10,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/servicetags"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // GitHub issue #1477: the per-service list leg, for a declared type no

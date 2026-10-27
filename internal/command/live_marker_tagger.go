@@ -11,12 +11,12 @@ import (
 	"sync"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/live/sweepconfig"
 	"github.com/intentius/choudoufu/pkg/azsweep"
 	"github.com/intentius/choudoufu/pkg/cloudcontrol"
-	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/pkg/registry"
-	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
 // GitHub issue #1084: the post-create marker write's two inputs, supplied

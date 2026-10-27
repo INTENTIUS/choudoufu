@@ -37,8 +37,8 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
-	"github.com/intentius/choudoufu/pkg/registry"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // parentReadSweep is the leg's entry point, called once per [Discover] pass

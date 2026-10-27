@@ -14,9 +14,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/intentius/choudoufu/pkg/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // This file is guided discovery's hint riding the estate's record store

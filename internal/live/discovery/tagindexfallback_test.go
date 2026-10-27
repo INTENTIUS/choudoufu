@@ -10,8 +10,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // GitHub issue #1321: in us-east-1 a served-but-empty tag index for a

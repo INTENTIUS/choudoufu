@@ -12,9 +12,9 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/pkg/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/gcpsweep"
 )
 
 // The GCP leg's per-type lists (INTENTIUS/choudoufu#2264). A declared

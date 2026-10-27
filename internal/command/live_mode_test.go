@@ -18,11 +18,11 @@ import (
 	"github.com/intentius/choudoufu/internal/command/workdir"
 	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/pkg/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/states/statefile"
 	"github.com/intentius/choudoufu/internal/terminal"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // These tests drive plain "choudoufu plan" and plain "choudoufu apply" over a

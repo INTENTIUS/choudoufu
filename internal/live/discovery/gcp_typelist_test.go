@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/pkg/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/gcpsweep"
 )
 
 // fakeTypeLister is a [gcpsweep.TypeLister] serving fixed objects per type

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 

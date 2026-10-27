@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // TestCloudControlAccessDeniedSweepGapsGroup is GitHub issue #1052: a

@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // GitHub issue #605: the estate-wide sweep's list calls go out concurrently.

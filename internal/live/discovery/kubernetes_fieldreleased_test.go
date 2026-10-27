@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // TestReleasedFieldGranularWriteIsNoOrphan is corpus-govuk-cluster-

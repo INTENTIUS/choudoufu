@@ -16,7 +16,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-
 )
 
 // TagsAPIVersion is the Microsoft.Resources api-version the post-create

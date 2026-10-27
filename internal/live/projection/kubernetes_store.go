@@ -14,8 +14,8 @@ import (
 	restclient "k8s.io/client-go/rest"
 
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/managedk8s"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 

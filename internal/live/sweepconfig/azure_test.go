@@ -109,4 +109,3 @@ func TestAzAPICustomEnvironment(t *testing.T) {
 		t.Error("ARM_DISABLE_INSTANCE_DISCOVERY overrode the block's disable_instance_discovery = false")
 	}
 }
-

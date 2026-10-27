@@ -13,8 +13,8 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
-	"github.com/intentius/choudoufu/pkg/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // GitHub issue #1120's first Azure lane run: corpus-azapi-role-assignment's

@@ -185,8 +185,8 @@ explain \
 kc create namespace "$RECORDS_NS" >/dev/null || fail "k8srec" "could not create the records namespace"
 kc create namespace "$BOB_NS" >/dev/null || fail "k8srec" "could not create Bob's records namespace"
 # CONFORMANCE_CASES is how many cases the shared Store contract suite has:
-# one t.Run per case in runConformance, pkg/staterecord/
-# conformance_test.go. It is written here, once, and compared EXACTLY rather
+# one t.Run per case in RunConformance, pkg/staterecord/
+# staterecordtest/conformance.go. It is written here, once, and compared EXACTLY rather
 # than as a floor, so that a case added to that suite without this number
 # moving fails this step and says so. Deriving it from the same `go test`
 # output this step is checking would make it agree with itself whatever
@@ -213,7 +213,7 @@ conformance_verdict() {
   cases="$( { grep -cE '^    --- PASS: TestKubernetesStoreConformance/[A-Za-z][A-Za-z0-9]* \(' <<< "$out" || true; } )"
   echo "conformance cases passed: $cases of $CONFORMANCE_CASES" | evidence
   [ "$cases" = "$CONFORMANCE_CASES" ] \
-    || fail "k8srec" "$cases conformance cases passed against this cluster and the shared suite has $CONFORMANCE_CASES (runConformance in pkg/staterecord/conformance_test.go). Either a case was added or removed there without this scenario's CONFORMANCE_CASES moving with it, or a case did not run against this cluster."
+    || fail "k8srec" "$cases conformance cases passed against this cluster and the shared suite has $CONFORMANCE_CASES (RunConformance in pkg/staterecord/staterecordtest/conformance.go). Either a case was added or removed there without this scenario's CONFORMANCE_CASES moving with it, or a case did not run against this cluster."
   { grep -E -- '--- PASS: TestKubernetesStore(VersionIsTheResourceVersion|RefusesAMissingNamespaceByName)' <<< "$out" || true; } | evidence
 }
 cmd "go test ./pkg/staterecord -run TestKubernetesStore   # against the kind cluster"

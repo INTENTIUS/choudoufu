@@ -46,9 +46,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // ParentScopedChildSpec is what a caller supplies to drive one type through

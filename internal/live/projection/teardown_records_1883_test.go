@@ -9,8 +9,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/intentius/choudoufu/pkg/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // GitHub issue #1883, measured by reference-k8s-platform-app's

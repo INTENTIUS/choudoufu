@@ -17,8 +17,8 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // perParentCCServer answers a parent-scoped Cloud Control ListResources

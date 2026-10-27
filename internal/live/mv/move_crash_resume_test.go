@@ -16,8 +16,8 @@ import (
 	fakedynamic "k8s.io/client-go/dynamic/fake"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // GitHub issue #1858: the cross-estate move's half of #1764. A

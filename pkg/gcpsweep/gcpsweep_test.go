@@ -25,7 +25,6 @@ import (
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
-
 )
 
 // The response bodies below are the shapes testdata/README.md documents,

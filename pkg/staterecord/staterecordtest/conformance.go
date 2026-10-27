@@ -3,7 +3,10 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-package staterecord
+// Package staterecordtest is the [staterecord.Store] contract as a test
+// suite, exported so that any store, in this module or another, can be
+// held to exactly what choudoufu's own stores are (GitHub issue #2281).
+package staterecordtest
 
 import (
 	"context"
@@ -11,13 +14,15 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
-// runConformance exercises the [Store] contract every implementation must
-// satisfy identically, regardless of what backs it. newStore returns a
-// fresh, empty Store for each subtest, so cases never interact with each
-// other's keys.
-func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
+// RunConformance exercises the [staterecord.Store] contract every
+// implementation must satisfy identically, regardless of what backs it.
+// newStore returns a fresh, empty Store for each subtest, so cases never
+// interact with each other's keys.
+func RunConformance(t *testing.T, newStore func(t *testing.T) staterecord.Store) {
 	t.Helper()
 
 	t.Run("AbsoluteKeysAreRefusedLoudly", func(t *testing.T) {
@@ -165,9 +170,9 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 			t.Fatalf("first PutIfAbsent: %v", err)
 		}
 		_, err = s.PutIfAbsent(ctx, "k1", []byte("second"))
-		var conflict *VersionConflictError
+		var conflict *staterecord.VersionConflictError
 		if !errors.As(err, &conflict) {
-			t.Fatalf("second PutIfAbsent: got %v (%T), want *VersionConflictError", err, err)
+			t.Fatalf("second PutIfAbsent: got %v (%T), want *staterecord.VersionConflictError", err, err)
 		}
 		if conflict.Key != "k1" {
 			t.Errorf("conflict.Key = %q, want k1", conflict.Key)
@@ -232,9 +237,9 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 
 		// Now try to write again using the stale v1.
 		_, err = s.PutIfVersion(ctx, "k1", []byte("v3-should-not-land"), v1)
-		var conflict *VersionConflictError
+		var conflict *staterecord.VersionConflictError
 		if !errors.As(err, &conflict) {
-			t.Fatalf("PutIfVersion with stale version: got %v (%T), want *VersionConflictError", err, err)
+			t.Fatalf("PutIfVersion with stale version: got %v (%T), want *staterecord.VersionConflictError", err, err)
 		}
 		if conflict.ExpectedVersion != v1 {
 			t.Errorf("conflict.ExpectedVersion = %q, want %q", conflict.ExpectedVersion, v1)
@@ -255,9 +260,9 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 	t.Run("PutIfVersionOnMissingKeyConflicts", func(t *testing.T) {
 		s := newStore(t)
 		_, err := s.PutIfVersion(context.Background(), "nope", []byte("x"), "some-version")
-		var conflict *VersionConflictError
+		var conflict *staterecord.VersionConflictError
 		if !errors.As(err, &conflict) {
-			t.Fatalf("got %v (%T), want *VersionConflictError", err, err)
+			t.Fatalf("got %v (%T), want *staterecord.VersionConflictError", err, err)
 		}
 		if conflict.ActualVersion != "" {
 			t.Errorf("conflict.ActualVersion = %q, want empty (no record exists)", conflict.ActualVersion)
@@ -275,9 +280,9 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 			t.Fatal("PutIfVersion with expectedVersion \"\" returned an empty version")
 		}
 		_, err = s.PutIfVersion(ctx, "k1", []byte("world"), "")
-		var conflict *VersionConflictError
+		var conflict *staterecord.VersionConflictError
 		if !errors.As(err, &conflict) {
-			t.Fatalf("second PutIfVersion with expectedVersion \"\": got %v (%T), want *VersionConflictError", err, err)
+			t.Fatalf("second PutIfVersion with expectedVersion \"\": got %v (%T), want *staterecord.VersionConflictError", err, err)
 		}
 	})
 
@@ -312,9 +317,9 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 			t.Fatalf("PutIfVersion: %v", err)
 		}
 		err = s.Delete(ctx, "k1", v1)
-		var conflict *VersionConflictError
+		var conflict *staterecord.VersionConflictError
 		if !errors.As(err, &conflict) {
-			t.Fatalf("Delete with stale version: got %v (%T), want *VersionConflictError", err, err)
+			t.Fatalf("Delete with stale version: got %v (%T), want *staterecord.VersionConflictError", err, err)
 		}
 		if conflict.ActualVersion != v2 {
 			t.Errorf("conflict.ActualVersion = %q, want %q", conflict.ActualVersion, v2)
@@ -339,9 +344,9 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 	t.Run("DeleteOfAbsentKeyWithNonEmptyVersionConflicts", func(t *testing.T) {
 		s := newStore(t)
 		err := s.Delete(context.Background(), "never-existed", "some-version")
-		var conflict *VersionConflictError
+		var conflict *staterecord.VersionConflictError
 		if !errors.As(err, &conflict) {
-			t.Fatalf("got %v (%T), want *VersionConflictError", err, err)
+			t.Fatalf("got %v (%T), want *staterecord.VersionConflictError", err, err)
 		}
 		if conflict.ActualVersion != "" {
 			t.Errorf("conflict.ActualVersion = %q, want empty", conflict.ActualVersion)
@@ -366,9 +371,9 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 			t.Fatalf("PutIfAbsent: %v", err)
 		}
 		err = s.Delete(ctx, "k1", "")
-		var conflict *VersionConflictError
+		var conflict *staterecord.VersionConflictError
 		if !errors.As(err, &conflict) {
-			t.Fatalf("Delete of a PRESENT key with expectedVersion \"\": got %v (%T), want *VersionConflictError", err, err)
+			t.Fatalf("Delete of a PRESENT key with expectedVersion \"\": got %v (%T), want *staterecord.VersionConflictError", err, err)
 		}
 		if conflict.Key != "k1" {
 			t.Errorf("conflict.Key = %q, want k1", conflict.Key)
@@ -451,7 +456,7 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 		}
 
 		for estate, want := range map[string]string{"prod": prodKey, "prod-eu": euKey} {
-			ns := NamespacePrefix("tofu-records/" + estate)
+			ns := staterecord.NamespacePrefix("tofu-records/" + estate)
 			keys, err := s.List(ctx, ns)
 			if err != nil {
 				t.Fatalf("List(%q): %v", ns, err)
@@ -459,7 +464,7 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 			if !equalStrings(keys, []string{want}) {
 				t.Errorf("List(%q) = %v, want only %q", ns, keys, want)
 			}
-			if bulk, ok := s.(BulkReader); ok {
+			if bulk, ok := s.(staterecord.BulkReader); ok {
 				all, err := bulk.GetAll(ctx, ns)
 				if err != nil {
 					t.Fatalf("GetAll(%q): %v", ns, err)
@@ -477,7 +482,7 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 			t.Fatalf("List(bare): %v", err)
 		}
 		if !equalStrings(bare, []string{euKey, prodKey}) {
-			t.Errorf("List(%q) = %v, want both estates' keys: List is a string-prefix match, and a namespace passed without NamespacePrefix reaches its neighbour", "tofu-records/prod", bare)
+			t.Errorf("List(%q) = %v, want both estates' keys: List is a string-prefix match, and a namespace passed without staterecord.NamespacePrefix reaches its neighbour", "tofu-records/prod", bare)
 		}
 	})
 
@@ -494,7 +499,7 @@ func runConformance(t *testing.T, newStore func(t *testing.T) Store) {
 		}
 		msg := err.Error()
 		if msg == "" {
-			t.Fatal("VersionConflictError.Error() returned an empty string")
+			t.Fatal("staterecord.VersionConflictError.Error() returned an empty string")
 		}
 	})
 }

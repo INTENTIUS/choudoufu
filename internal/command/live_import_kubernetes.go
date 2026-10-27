@@ -10,8 +10,8 @@ import (
 	"fmt"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/liveimport"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // This file is live-import's half of GitHub issue #1109: the cluster

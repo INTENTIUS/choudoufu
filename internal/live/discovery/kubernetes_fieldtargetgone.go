@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // SummaryFieldGranularTargetMissing is the refusal for a field-granular

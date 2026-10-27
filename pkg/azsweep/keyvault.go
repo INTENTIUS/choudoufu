@@ -16,7 +16,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-
 )
 
 // This file is the Key Vault data-plane listing of GitHub issue #2205.

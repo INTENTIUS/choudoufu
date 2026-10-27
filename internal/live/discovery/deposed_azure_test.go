@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/pkg/azsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/substrate"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 )
 
 // The azure lane's day2_replace and day2_crash (#1120, reference-azure)

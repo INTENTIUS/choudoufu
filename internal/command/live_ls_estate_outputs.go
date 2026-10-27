@@ -11,8 +11,8 @@ import (
 	terraformProvider "github.com/intentius/choudoufu/internal/builtin/providers/tf"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/pkg/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // liveLsOpenEstateOutputs opens this command's terraform_estate_outputs

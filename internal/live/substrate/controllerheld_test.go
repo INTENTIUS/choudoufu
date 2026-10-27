@@ -8,8 +8,8 @@ package substrate
 import (
 	"testing"
 
-	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // TestControllerHeldIsTheAnswerItReplaced (GitHub issue #1706, "no
