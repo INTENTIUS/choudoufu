@@ -1,5 +1,5 @@
 Vendored unchanged from INTENTIUS/chant origin/integration/consolidation-graph
-68fe5c8986eda69b2b6a62e31d2e667d833b06a0 (chant#4536 merged):
+b6281ef154bb06e3cb5db499221cdb7eeb87967f (re-synced at epic-ready):
 
   chant-index-v1.json      packages/core/src/graph-schema/fixtures/index.json
   chant-adopt-v1.json      packages/core/src/graph-schema/fixtures/adopt.json

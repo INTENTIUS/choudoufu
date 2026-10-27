@@ -106,7 +106,7 @@
         "ownedBy": "marker",
         "markers": {
           "owner": "web",
-          "address": "module.app[0].aws_eip.pool[1]",
+          "address": "module.app:0.aws_eip.pool:1",
           "encoding": "escaped",
           "source": "live"
         },
