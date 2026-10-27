@@ -170,9 +170,6 @@ func AddressQuery(keys markerkeys.Keys, estate, address string) string {
 	return Query(keys, estate) + " AND labels." + keys.Address + "=" + keys.AddressValue(address)
 }
 
-// Markers is the marker vocabulary this client searches with.
-func (c *Client) Markers() markerkeys.Keys { return c.keys }
-
 // SearchAddress is [Client.Search] narrowed by one more label term: every
 // resource in project whose tofu-estate is exactly estate and whose
 // tofu-address is exactly address. Results are checked against both labels
