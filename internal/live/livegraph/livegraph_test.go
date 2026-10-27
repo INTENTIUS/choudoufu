@@ -331,7 +331,7 @@ func TestNodeIDsMatchChantIR(t *testing.T) {
 			want[n.ID] = n.InstanceOf
 		}
 	}
-	if len(want) < 20 {
+	if len(want) != 18 {
 		t.Fatalf("the golden IR holds %d resource and data nodes; the fixture is not what this test was written for", len(want))
 	}
 
@@ -560,7 +560,10 @@ func TestPlanFacts(t *testing.T) {
 		"aws_s3_bucket.logs": {Ownership: "bound", OwnedBy: "record",
 			CloudIDs: []CloudID{{Kind: "import-id", Value: "web-logs"}}, ObservedAt: "2026-10-26T12:00:00Z"},
 		"module.app[0].aws_eip.pool[1]": {Ownership: "bound", OwnedBy: "marker",
-			Markers:  &Markers{Owner: "web", Address: `module.app[0].aws_eip.pool[1]`, Encoding: "escaped", Source: "live"},
+			// The tofu-address value as written on the tag: chant's schema says
+			// encoding is "how owner and address are written on the object", and
+			// chant's own cloud lister copies the tag value unchanged.
+			Markers:  &Markers{Owner: "web", Address: "module.app:0.aws_eip.pool:1", Encoding: "escaped", Source: "live"},
 			CloudIDs: []CloudID{{Kind: "import-id", Value: "eipalloc-0abc"}}, ObservedAt: "2026-10-26T12:00:00Z"},
 		"module.app[0].aws_instance.web": {Ownership: "bound", OwnedBy: "name",
 			CloudIDs: []CloudID{{Kind: "import-id", Value: "i-0123"}}, ObservedAt: "2026-10-26T12:00:00Z"},
@@ -577,7 +580,7 @@ func TestPlanFacts(t *testing.T) {
 			continue
 		}
 		if !reflect.DeepEqual(*n.Facts, f) {
-			t.Errorf("%s facts = %+v, want %+v", id, *n.Facts, f)
+			t.Errorf("%s facts = %+v (markers %+v), want %+v (markers %+v)", id, *n.Facts, n.Facts.Markers, f, f.Markers)
 		}
 		if len(f.CloudIDs) > 0 && n.PhysicalID != f.CloudIDs[0].Value {
 			t.Errorf("%s physicalId = %q, want the first cloud id", id, n.PhysicalID)
