@@ -2,16 +2,90 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://intentius.io/chant/schemas/graph/v1/graph.schema.json",
   "title": "chant-graph/v1",
-  "description": "Generated from chant core's TypeScript types (packages/core/src/engine-facts.ts, packages/core/src/lifecycle/index-document.ts) by `npm run generate:graph-schema`; do not edit by hand. Two documents: an engine graph (`#/$defs/EngineGraphDocument`, what `choudoufu live-graph -json` and `plunge graph --json` print, chant#4520) and an index version (`#/$defs/IndexDocument`, behold#1025). Objects are closed so a writer's test catches a misspelled field; a reader ignores fields it does not know.",
+  "description": "Generated from chant core's TypeScript types (packages/core/src/engine-facts.ts, packages/core/src/lifecycle/index-document.ts, packages/core/src/lifecycle/adoption-file.ts) by `npm run generate:graph-schema`; do not edit by hand. Three documents: an engine graph (`#/$defs/EngineGraphDocument`, what `choudoufu live-graph -json` and `plunge graph --json` print, chant#4520), an index version (`#/$defs/IndexDocument`, behold#1025) and an adoption file (`#/$defs/AdoptionFile`, the `adopt: v1` input choudoufu, plunge and chant adopt from, chant#4536). Objects are closed so a writer's test catches a misspelled field; a reader ignores fields it does not know.",
   "anyOf": [
     {
       "$ref": "#/$defs/EngineGraphDocument"
     },
     {
       "$ref": "#/$defs/IndexDocument"
+    },
+    {
+      "$ref": "#/$defs/AdoptionFile"
     }
   ],
   "$defs": {
+    "AdoptionFile": {
+      "description": "An adoption file (`adopt: \"v1\"`): one index version and the nodes to adopt from it.",
+      "type": "object",
+      "properties": {
+        "adopt": {
+          "const": "v1"
+        },
+        "index": {
+          "$ref": "#/$defs/AdoptionIndexRef"
+        },
+        "select": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AdoptionSelection"
+          }
+        }
+      },
+      "required": [
+        "adopt",
+        "index",
+        "select"
+      ],
+      "additionalProperties": false
+    },
+    "AdoptionIndexRef": {
+      "description": "The index version an adoption file reads from.",
+      "type": "object",
+      "properties": {
+        "scopeKey": {
+          "description": "The version's `stamp.scopeKey`: `cloud/<substrate>/<scopeId>/<scope digest>`.",
+          "type": "string"
+        },
+        "version": {
+          "description": "The version's file name under the scope key: `<observedAt>-<digest12>.json`.",
+          "type": "string"
+        },
+        "digest": {
+          "description": "The version's `stamp.digest`, sha256 hex. A `sha256:` prefix is accepted and ignored.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scopeKey",
+        "version",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "AdoptionSelection": {
+      "description": "One node to adopt.",
+      "type": "object",
+      "properties": {
+        "node": {
+          "description": "The index node id: `<substrate>/<scopeId>/<location>/<listedType>/<nativeId>`.",
+          "type": "string"
+        },
+        "as": {
+          "description": "The engine's address for the object: a Terraform address for choudoufu, a URN name and parent for plunge, an entity (logical) name for chant.",
+          "type": "string"
+        },
+        "type": {
+          "description": "The engine's type (`aws_lb`, `aws:s3/bucket:Bucket`, `AWS::S3::Bucket`). Left out only when the node's listed type joins to exactly one engine type; an engine refuses an ambiguous join without it, naming every candidate.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node",
+        "as"
+      ],
+      "additionalProperties": false
+    },
     "ChantIndexScope": {
       "description": "A chant source: a snapshot or `chant graph --format ir`. Today's snapshot key, unchanged.",
       "type": "object",
@@ -113,7 +187,7 @@
       "additionalProperties": false
     },
     "CoverageEntry": {
-      "description": "What a read looked at, per type and location. A node can be absent only where this says `listed`.",
+      "description": "What a read looked at, per type and location. A node can be absent only where this says `listed`. `\"*\"` in `listedType` or `location` means every type or every location (behold#1029's lister writes it for a run with `types` or `locations` of `\"*\"`); indexCoverageFor honours it.",
       "type": "object",
       "properties": {
         "listedType": {
@@ -735,6 +809,27 @@
         "grain": {
           "description": "What the edge joins (#4520): two blocks, two instances, or a property of one instance to another. Set by an engine's graph (choudoufu: `block`; plunge: `instance` for dependencies, parents and providers, `property` for property dependencies). Absent when the source does not say. Two edges between the same pair that differ only in grain are two edges.",
           "$ref": "#/$defs/EdgeGrain"
+        },
+        "origin": {
+          "description": "Where the edge came from (behold#1025): `declared` (an AttrRef or an EntityReference), `observed` (the engine or the cloud reported it), or `derived` (a reference catalog rule matched an attribute value to another node, #4522). Absent reads as `declared` on a source IR and `observed` on a live one, which is what both meant before the field.",
+          "type": "string",
+          "enum": [
+            "declared",
+            "derived",
+            "observed"
+          ]
+        },
+        "rule": {
+          "description": "With `origin: \"derived\"`: the rule that produced the edge, `<lexicon>:<from kind>:<path>` for a catalog rule and `<lexicon>:<from kind>:tag:<key>` for a typed tag rule.",
+          "type": "string"
+        },
+        "relation": {
+          "description": "`reference` (the default when absent) or `containment`: the holder sits inside the target (a subnet in its VPC). A containment edge is also in `groups.byContainer`, so a renderer that draws boxes can skip the line.",
+          "type": "string",
+          "enum": [
+            "containment",
+            "reference"
+          ]
         }
       },
       "required": [
@@ -941,8 +1036,31 @@
           "$ref": "#/$defs/InstanceRollup"
         },
         "facts": {
-          "description": "Live-only: what an ownership engine (choudoufu, plunge) observed about this node (#4520, #4527), copied from `ResourceMetadata.facts` or read from the engine's graph document. For people and for readers that show the graph. Nothing in chant decides from it, and ownership keeps its own meaning. Absent unless an engine supplied it. See `./engine-facts.ts`.",
+          "description": "What an ownership engine (choudoufu, plunge) observed about this node (#4520, #4527). On a live node it is copied from `ResourceMetadata.facts`. On a declared node it comes from the entity's entityFacts: the pulumi lexicon reads a plunge member's checked-in `engine-graph.json` beside its stack export (#4529). For people and for readers that show the graph. Nothing in chant decides from it, and ownership keeps its own meaning. Absent unless an engine supplied it. See `./engine-facts.ts`.",
           "$ref": "#/$defs/EngineFacts"
+        },
+        "listedType": {
+          "description": "Indexed nodes only (#4521, behold#1025): the inventory API's own type name, as the cloud lister read it: `AWS::S3::Bucket`, `microsoft.storage/storageaccounts`, `storage.googleapis.com/Bucket`, `apps/v1/Deployment`. Absent on every node a cloud listing did not make.",
+          "type": "string"
+        },
+        "location": {
+          "description": "Indexed nodes only: the region or location the object was listed in, `global` for a global type, a namespace or `cluster` for Kubernetes.",
+          "type": "string"
+        },
+        "nativeId": {
+          "description": "Indexed nodes only: the identifier the listing returned, Cloud Control's `Identifier`, the ARM id, the asset `name`, or `namespace/name`.",
+          "type": "string"
+        },
+        "tags": {
+          "description": "Indexed nodes only: tags or labels as read, masked by key. Where markers come from.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "unmappedKind": {
+          "description": "Indexed nodes only: true when no lexicon kind maps the listed type. The node keeps `kind` = listedType and `lexicon` = the substrate, and is never dropped (#4521).",
+          "type": "boolean"
         }
       },
       "required": [
@@ -1090,6 +1208,10 @@
           "type": "string"
         },
         "location": {
+          "type": "string"
+        },
+        "command": {
+          "description": "A command the person can run themselves, never run by the source (a GCP API to enable).",
           "type": "string"
         }
       },
