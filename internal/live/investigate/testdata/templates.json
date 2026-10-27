@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "templates": [
+    {
+      "id": "dependents",
+      "title": "What depends on it",
+      "question": "what reads this resource, directly or through others, in its own project",
+      "sources": ["chant"],
+      "inputs": [
+        { "name": "node", "kind": "resource", "description": "The resource: a name, an IR id, a block address or a cloud ID." }
+      ],
+      "reads": "source",
+      "query": { "kind": "path", "text": "->*{{node}}" }
+    },
+    {
+      "id": "dependencies",
+      "title": "What it depends on",
+      "question": "what this resource reads, directly or through others, in its own project",
+      "sources": ["chant"],
+      "inputs": [
+        { "name": "node", "kind": "resource", "description": "The resource: a name, an IR id, a block address or a cloud ID." }
+      ],
+      "reads": "source",
+      "query": { "kind": "path", "text": "<-*{{node}}" }
+    },
+    {
+      "id": "paths-to-kind",
+      "title": "Paths from it to a kind",
+      "question": "does this resource reach anything of a given kind, and by which path",
+      "sources": ["chant"],
+      "inputs": [
+        { "name": "node", "kind": "resource", "description": "The resource: a name, an IR id, a block address or a cloud ID." },
+        { "name": "kind", "kind": "term", "description": "A kind or type, as kind: takes it (aws_internet_gateway, EC2::InternetGateway)." }
+      ],
+      "reads": "source",
+      "query": { "kind": "path", "text": "{{node}} ->*kind:{{kind}}" }
+    },
+    {
+      "id": "capability",
+      "title": "Whether a capability holds for it",
+      "question": "does a capability from the catalog hold for this resource",
+      "sources": ["chant"],
+      "inputs": [
+        { "name": "node", "kind": "resource", "description": "The resource: a name, an IR id, a block address or a cloud ID." },
+        { "name": "capability", "kind": "term", "description": "A capability from chant's catalog, with its arguments: internet-reachable(22)." }
+      ],
+      "reads": "source",
+      "query": { "kind": "path", "text": "{{node}} cap:{{capability}}" }
+    },
+    {
+      "id": "drift",
+      "title": "Drift",
+      "question": "has this resource drifted from its declaration in an environment",
+      "sources": ["chant"],
+      "inputs": [
+        { "name": "node", "kind": "resource", "description": "The resource: a name, an IR id, a block address or a cloud ID." },
+        { "name": "env", "kind": "scope", "description": "The environment to read live." }
+      ],
+      "reads": "live",
+      "query": { "kind": "path", "text": "{{node}}" },
+      "note": "Draws the node in the environment's live read, coloured by drift."
+    },
+    {
+      "id": "dependents-all",
+      "title": "What depends on it, across every source",
+      "question": "what reads this resource, in any project, root or stack loaded into the session",
+      "inputs": [
+        { "name": "node", "kind": "resource", "description": "The resource: a name, an IR id, a block address or a cloud ID." }
+      ],
+      "reads": "session",
+      "query": {
+        "kind": "cypher",
+        "text": "MATCH (o:Resource)-[:REF*1..6]->(r:Resource {key: $key}) RETURN DISTINCT o.key AS key, o.kind AS kind, o.scopeKey AS scope"
+      }
+    },
+    {
+      "id": "dependencies-all",
+      "title": "What it depends on, across every source",
+      "question": "what this resource reads, in any project, root or stack loaded into the session",
+      "inputs": [
+        { "name": "node", "kind": "resource", "description": "The resource: a name, an IR id, a block address or a cloud ID." }
+      ],
+      "reads": "session",
+      "query": {
+        "kind": "cypher",
+        "text": "MATCH (r:Resource {key: $key})-[:REF*1..6]->(o:Resource) RETURN DISTINCT o.key AS key, o.kind AS kind, o.scopeKey AS scope"
+      }
+    },
+    {
+      "id": "ownership",
+      "title": "Ownership",
+      "question": "who owns this cloud ID, and which other sources know the same object",
+      "inputs": [
+        { "name": "node", "kind": "resource", "description": "The resource: a name, an IR id, a block address or a cloud ID." }
+      ],
+      "reads": "session",
+      "query": {
+        "kind": "cypher",
+        "text": "MATCH (r:Resource {key: $key}) OPTIONAL MATCH (r)-[:KNOWN_AS]->(:CloudId)<-[:KNOWN_AS]-(o:Resource) WHERE o.key <> r.key RETURN r.key AS key, r.ownership AS ownership, r.facts AS facts, r.observedAt AS observedAt, collect(DISTINCT o.key) AS sameObject"
+      },
+      "note": "An engine's ownership is bound, unowned, pending or foreign; absent is unknown, never guessed. A cloud listing reads markers only."
+    },
+    {
+      "id": "same-object",
+      "title": "The same object in other sources",
+      "question": "where else is the object behind this resource declared or recorded",
+      "inputs": [
+        { "name": "node", "kind": "resource", "description": "The resource: a name, an IR id, a block address or a cloud ID." }
+      ],
+      "reads": "session",
+      "query": {
+        "kind": "cypher",
+        "text": "MATCH (r:Resource {key: $key})-[:KNOWN_AS]->(c:CloudId)<-[:KNOWN_AS]-(o:Resource) WHERE o.scopeKey <> r.scopeKey RETURN DISTINCT o.key AS key, o.scopeKey AS scope, c.value AS cloudId, c.kind AS cloudIdKind"
+      }
+    },
+    {
+      "id": "readers",
+      "title": "Who reads it from another estate or root",
+      "question": "which other estate or root reads this resource",
+      "inputs": [
+        { "name": "node", "kind": "resource", "description": "The resource: a name, an IR id, a block address or a cloud ID." }
+      ],
+      "reads": "session",
+      "query": {
+        "kind": "cypher",
+        "text": "MATCH (o:Resource)-[e:REF]->(r:Resource {key: $key}) WHERE o.scopeKey <> r.scopeKey RETURN o.key AS key, o.scopeKey AS scope, e.viaAttr AS via, e.origin AS origin, e.rule AS rule UNION MATCH (r:Resource {key: $key})-[:KNOWN_AS]->(:CloudId)<-[:KNOWN_AS]-(t:Resource)<-[e:REF]-(o:Resource) WHERE o.scopeKey <> r.scopeKey RETURN o.key AS key, o.scopeKey AS scope, e.viaAttr AS via, e.origin AS origin, e.rule AS rule"
+      },
+      "note": "A derived edge (origin derived, rule identity:<kind>) is an identity match, not a declared reference."
+    },
+    {
+      "id": "history",
+      "title": "History",
+      "question": "how has this resource's record changed over time",
+      "inputs": [
+        { "name": "node", "kind": "resource", "description": "The resource: a name, an IR id, a block address or a cloud ID." }
+      ],
+      "reads": "snapshots",
+      "query": {
+        "kind": "cypher",
+        "text": "MATCH (r:Resource {key: $key}) RETURN r.key AS key, r.facts AS facts, r.version AS version, r.observedAt AS observedAt"
+      },
+      "note": "The record's versions come from facts.recordVersions, when the engine ran with -history or --versions. Snapshot history (chant#4519's store) is not loaded into the session yet."
+    }
+  ]
+}

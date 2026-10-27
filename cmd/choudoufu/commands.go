@@ -409,6 +409,21 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #2280: named, read-only investigations - choudoufu's
+		// native lookups and chant's investigation templates - and the MCP
+		// server that fronts them with behold's MCP and chant's Ops.
+		"investigate": func() (cli.Command, error) {
+			return &command.InvestigateCommand{
+				Meta: meta,
+			}, nil
+		},
+
+		"mcp": func() (cli.Command, error) {
+			return &command.McpCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		"providers lock": func() (cli.Command, error) {
 			return &command.ProvidersLockCommand{
 				Meta: meta,
