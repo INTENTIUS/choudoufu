@@ -472,6 +472,20 @@ func (c *jointCommand) jointShow(args []string) (int, bool) {
 				c.stderr("keeping the reviewed plan of unit %s: %s", stub.Unit, err)
 				return 1, true
 			}
+			// The slice holds null for its sensitive values (#2277); the
+			// unit's hashes are what the apply checks them by.
+			if stub.Bundle.Scrubbed {
+				rs := jointReviewedSensitive{Session: stub.Session}
+				for _, h := range stub.Bundle.Sensitive {
+					if h.Unit == stub.Unit {
+						rs.Hashes = append(rs.Hashes, h)
+					}
+				}
+				if err := sess.saveReviewedSensitive(stub.Unit, rs); err != nil {
+					c.stderr("keeping the reviewed plan of unit %s: %s", stub.Unit, err)
+					return 1, true
+				}
+			}
 		}
 	}
 	for _, a := range args {
@@ -571,6 +585,7 @@ func (c *jointCommand) jointApply(args []string) (int, bool) {
 		return ExitApprovalRefused, true
 	}
 
+	var sensitiveCheck *jointSensitiveCheck
 	if rebuilt {
 		// The inputs the tool gives this unit now are read from what its
 		// upstream units have published since the plan. If they moved, the
@@ -586,8 +601,43 @@ func (c *jointCommand) jointApply(args []string) (int, bool) {
 				}
 			}
 		}
+		// The file's sensitive planned values were left out and hashed
+		// under the planning session's key (#2277). The apply's own plan
+		// recomputes them, and the approval check compares them with the
+		// hashes; without the key it cannot, and the apply refuses here.
+		if stub.Bundle.Scrubbed {
+			sensitive := &jointSensitiveCheck{Hashes: stub.Bundle.Sensitive}
+			if jointHasHashes(stub.Bundle.Sensitive) {
+				key, err := jointReadKey(stub.Session)
+				if err != nil {
+					return refuse(jointMissingKeyDetail(a.PlanPath, stub.Session, stub.Bundle.Sensitive, err))
+				}
+				sensitive.Key = key
+			}
+			sensitiveCheck = sensitive
+		}
 	} else if reviewed, ok := sess.loadReviewed(stub.Unit); ok {
-		if diff := jointSliceDiff(reviewed, jointSliceDoc(sess.loadDoc(st.Serial), stub.Unit)); len(diff) > 0 {
+		rs, scrubbed := sess.loadReviewedSensitive(stub.Unit)
+		if scrubbed && len(rs.Hashes) > 0 {
+			// The reviewed slice came from a scrubbed plan file (#2277):
+			// this run's plan is checked against its hashes.
+			var key []byte
+			if jointHasHashes(rs.Hashes) {
+				var err error
+				if key, err = jointReadKey(rs.Session); err != nil {
+					return refuse(jointMissingKeyDetail("The reviewed plan of unit "+stub.Unit, rs.Session, rs.Hashes, err))
+				}
+			}
+			fresh, schemaFor, err := jointReadPlanWithSchemas(sess.path("joint.plan"))
+			if err != nil {
+				c.stderr("reading this run's joint plan: %s", err)
+				return 1, true
+			}
+			if lines := jointCheckSensitive(rs.Hashes, key, fresh, nil, schemaFor); len(lines) > 0 {
+				return refuse(fmt.Sprintf("The plan this run made for unit %s does not plan the sensitive values of the reviewed plan of the unit, or they cannot be checked:\n%s", stub.Unit, strings.TrimRight(jointCappedLines(lines), "\n")))
+			}
+		}
+		if diff := jointSliceDiffSensitive(reviewed, jointSliceDoc(sess.loadDoc(st.Serial), stub.Unit), scrubbed); len(diff) > 0 {
 			return refuse(fmt.Sprintf("The plan this run made for unit %s is not the reviewed plan of the unit:\n  %s\nValues that were known after apply in the reviewed plan are not compared.", stub.Unit, strings.Join(diff, "\n  ")))
 		}
 	}
@@ -607,6 +657,7 @@ func (c *jointCommand) jointApply(args []string) (int, bool) {
 	m.variableArgs = nil
 	m.jointPlanFile = stubPath
 	m.jointRerun = rerun
+	m.jointSensitive = sensitiveCheck
 	applyArgs := []string{"-input=false"}
 	if a.View.NoColor {
 		applyArgs = append(applyArgs, "-no-color")

@@ -6,6 +6,7 @@
 package command
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +29,7 @@ import (
 //	root/             the composed root written from the units
 //	joint.plan        the plan file of that root
 //	lock              held while the root is written, planned or applied
+//	sensitive.key     the key of the hashes of sensitive planned values (#2277)
 type jointSession struct {
 	dir string
 }
@@ -151,6 +153,57 @@ func jointSweep(root string) {
 			_ = os.RemoveAll(filepath.Join(root, e.Name()))
 		}
 	}
+}
+
+// jointKeyFile is the session's key for the hashes a plan file keeps of
+// the sensitive values it drops (INTENTIUS/choudoufu#2277).
+const jointKeyFile = "sensitive.key"
+
+// sensitiveKey returns the session's key, made on first use: 32 random
+// bytes in a 0600 file of the session's 0700 directory. The key never goes
+// into a plan file. A plan file keeps an HMAC of each sensitive value under
+// this key rather than a plain hash, so that a low-entropy secret (a short
+// password, a PIN) cannot be found from the file by hashing guesses: without
+// the key a guess cannot be checked. The cost is that only a machine that
+// still has this session directory can check the values at apply.
+func (s *jointSession) sensitiveKey() ([]byte, error) {
+	if key, err := jointReadKey(s.dir); err == nil {
+		return key, nil
+	}
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(s.path(jointKeyFile), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return jointReadKey(s.dir)
+		}
+		return nil, err
+	}
+	if _, err := f.Write(key); err != nil {
+		f.Close()
+		return nil, err
+	}
+	if err := f.Close(); err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
+// jointReadKey reads the key of the session at dir.
+func jointReadKey(dir string) ([]byte, error) {
+	if dir == "" {
+		return nil, fmt.Errorf("the plan file names no session")
+	}
+	key, err := os.ReadFile(filepath.Join(dir, jointKeyFile))
+	if err != nil {
+		return nil, err
+	}
+	if len(key) != 32 {
+		return nil, fmt.Errorf("%s is not a key", filepath.Join(dir, jointKeyFile))
+	}
+	return key, nil
 }
 
 func (s *jointSession) path(parts ...string) string {
