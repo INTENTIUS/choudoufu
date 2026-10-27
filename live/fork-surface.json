@@ -3,16 +3,16 @@
   "fork_point": "2b6193043d500dcfef1f3b4f4819b938b667099f",
   "fork_point_short": "2b6193043d",
   "fork_point_subject": "Bump version v1.13.0",
-  "measured_at_head": "cfc2aa20113bec75330640ccc46065803c486bd2",
-  "generated_at": "2026-10-27T23:23:04Z",
+  "measured_at_head": "39a143679a6f5ffeae7dc186190049e8b55f7149",
+  "generated_at": "2026-10-27T23:55:49Z",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 25,
     "internal/live/": 1875,
-    "live/": 675,
+    "live/": 677,
     "other": 1716,
-    "site/": 93,
-    "tools/": 575
+    "site/": 94,
+    "tools/": 580
   },
   "files": {
     ".github/": [
@@ -9421,6 +9421,14 @@
         "status": "A"
       },
       {
+        "path": "live/module-compat.json",
+        "status": "A"
+      },
+      {
+        "path": "live/module_compat_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/module_count_doc_pin_test.go",
         "status": "A"
       },
@@ -17305,6 +17313,10 @@
         "status": "A"
       },
       {
+        "path": "site/src/components/ModuleCompat.astro",
+        "status": "A"
+      },
+      {
         "path": "site/src/components/PageTitle.astro",
         "status": "A"
       },
@@ -19096,6 +19108,26 @@
       },
       {
         "path": "tools/merge-guard/main_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/modcompat-gen/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/modcompat/gauntlet.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/modcompat/modcompat.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/modcompat/modcompat_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/modcompat/static.go",
         "status": "A"
       },
       {
