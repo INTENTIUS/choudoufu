@@ -3,16 +3,16 @@
   "fork_point": "2b6193043d500dcfef1f3b4f4819b938b667099f",
   "fork_point_short": "2b6193043d",
   "fork_point_subject": "Bump version v1.13.0",
-  "measured_at_head": "05b23a1f5aa1fc7abc71feb1489e0ad49bccc3ed",
-  "generated_at": "2026-10-27T01:12:11Z",
+  "measured_at_head": "8b36aab84cf179b10c5a18699dc671a3c4e3c6bc",
+  "generated_at": "2026-10-27T07:51:52Z",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 25,
-    "internal/live/": 1831,
-    "live/": 693,
-    "other": 1673,
+    "internal/live/": 1862,
+    "live/": 671,
+    "other": 1700,
     "site/": 93,
-    "tools/": 573
+    "tools/": 574
   },
   "files": {
     ".github/": [
@@ -4071,6 +4071,70 @@
         "status": "A"
       },
       {
+        "path": "internal/live/investigate/catalog.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/doc.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/fake_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/investigate_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/mcpclient.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/mcpserver.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/native.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/prompts.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/proxy.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/run.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/testdata/SOURCE",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/testdata/estate/chant.config.json",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/testdata/estate/graph.json",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/testdata/estate/search.json",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/testdata/templates.json",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/investigate/tools.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/largeset/baseline_live_test.go",
         "status": "A"
       },
@@ -4915,7 +4979,63 @@
         "status": "A"
       },
       {
+        "path": "internal/live/livegraph/bench_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/livegraph/build.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/livegraph/document.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/livegraph/livegraph_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/livegraph/testdata/chant/SOURCE",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/livegraph/testdata/chant/choudoufu.engine-graph.json",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/livegraph/testdata/chant/graph.schema.json",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/livegraph/testdata/small.chant-ir.json",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/livegraph/testdata/small.live-plan.json",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/livegraph/testdata/small/estate.chdf.hcl",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/livegraph/testdata/small/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/livegraph/testdata/small/modules/app/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/live/liveimport/address_annotation_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/liveimport/adopt.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/liveimport/adopt_test.go",
         "status": "A"
       },
       {
@@ -5680,6 +5800,10 @@
       },
       {
         "path": "internal/live/projection/deposed_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/projection/destroycrosscheck_test.go",
         "status": "A"
       },
       {
@@ -7821,38 +7945,6 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/corpus-cloudfront/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-cloudwatch-splunk/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-cncf-k8s-infra-aws-capa-ami/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-crossing/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-crossref-agent/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-crossref-orcid-agent/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-crossref-related-agent/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-datafiles-generator/run.sh",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/corpus-dynamodb-table-basic/run.sh",
         "status": "A"
       },
@@ -7862,10 +7954,6 @@
       },
       {
         "path": "live/e2e/corpus-ecs-fargate/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-ecs-taskdef/run.sh",
         "status": "A"
       },
       {
@@ -7882,22 +7970,6 @@
       },
       {
         "path": "live/e2e/corpus-govuk-cluster-access/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-govuk-cluster-services/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-govuk-cluster-services/split.py",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-govuk-oidc/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-govuk-root-dns/run.sh",
         "status": "A"
       },
       {
@@ -7933,35 +8005,11 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/corpus-message-queue/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-mobile-backend/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-oidc-provider/run.sh",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/corpus-overture-tiles/run.sh",
         "status": "A"
       },
       {
-        "path": "live/e2e/corpus-quickpizza/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-raw-resolution-logs/run.sh",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/corpus-rds-complete-postgres/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-root-dns-zones/run.sh",
         "status": "A"
       },
       {
@@ -7977,15 +8025,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/corpus-salesforce-api/run.sh",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/corpus-security-group-complete/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-service-linked-roles/run.sh",
         "status": "A"
       },
       {
@@ -7993,15 +8033,7 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/corpus-sitemaps-generator/run.sh",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/corpus-sqs-basic/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/corpus-store-crawler-results/run.sh",
         "status": "A"
       },
       {
@@ -8649,22 +8681,6 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/reference-eks/estate.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/reference-eks/run.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/reference-eks/stages.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e/reference-eks/two-fences.sh",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/reference-gcp/gcp.sh",
         "status": "A"
       },
@@ -8821,10 +8837,6 @@
         "status": "A"
       },
       {
-        "path": "live/e2e/run.sh",
-        "status": "A"
-      },
-      {
         "path": "live/e2e/selftest-floci-sweep.sh",
         "status": "A"
       },
@@ -8854,10 +8866,6 @@
       },
       {
         "path": "live/e2e_destroy_endpoint_test.go",
-        "status": "A"
-      },
-      {
-        "path": "live/e2e_lint_tables_test.go",
         "status": "A"
       },
       {
@@ -9274,10 +9282,6 @@
       },
       {
         "path": "live/live-cert/reference-ec2-vpc.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/live-cert/reference-eks.sh",
         "status": "A"
       },
       {
@@ -9773,10 +9777,6 @@
         "status": "A"
       },
       {
-        "path": "live/smoke/drafts/az-records-in-a-storage-account.sh",
-        "status": "A"
-      },
-      {
         "path": "live/smoke/drafts/az-the-fence-gap-is-as-stated.sh",
         "status": "A"
       },
@@ -9813,10 +9813,6 @@
         "status": "A"
       },
       {
-        "path": "live/smoke/drafts/gcp-records-in-a-bucket.sh",
-        "status": "A"
-      },
-      {
         "path": "live/smoke/drafts/gcp-the-fence-gap-is-as-stated.sh",
         "status": "A"
       },
@@ -9850,6 +9846,70 @@
       },
       {
         "path": "live/smoke/evidence/cas-holds-under-every-sse-flavour.lastrun.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestABadBucketIsRefusedOnEveryFirstContactUntilItIsFixed.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestARecordTheListNamesAndTheReadDoesNotIsRefused.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestAWaiverReachesOnlyWhatItNames.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestBeforeApplyAssertsTheBucketContract.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestBoundedFanOutNeverReportsSuccessForWorkItDidNotDo.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestBucketContract.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestClusterContractEncryptionAtRest.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestClusterContractEstateBoundary.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestClusterContractNamespaceAccessNamesTheVerbsItLacks.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestClusterContractReadIsolationRefusesAReadableForeignNamespace.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestClusterContractReportsAnAbsentNamespaceInTheStoresOwnWords.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestFirstContactHonoursTheWaiver.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestS3GetAllIsCompleteOrItFails.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestS3StoreConformance--NeighbourNamespacesShareNoListingOrBulkRead.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestS3StoreConformance--PutIfVersionWithStaleVersionConflicts.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestWriteBackVersionConflict.json",
         "status": "A"
       },
       {
@@ -9921,19 +9981,11 @@
         "status": "A"
       },
       {
-        "path": "live/smoke/scenarios/a-bulk-read-is-complete-or-it-fails.sh",
-        "status": "A"
-      },
-      {
         "path": "live/smoke/scenarios/a-held-delete-is-not-gone.sh",
         "status": "A"
       },
       {
         "path": "live/smoke/scenarios/a-killed-apply-hides-nothing.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/smoke/scenarios/a-name-prefix-shares-no-keys.sh",
         "status": "A"
       },
       {
@@ -9946,14 +9998,6 @@
       },
       {
         "path": "live/smoke/scenarios/a-shadow-is-not-a-claimant.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/smoke/scenarios/a-waiver-names-what-it-waives.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/smoke/scenarios/a-wrong-bucket-is-refused.sh",
         "status": "A"
       },
       {
@@ -9977,15 +10021,7 @@
         "status": "A"
       },
       {
-        "path": "live/smoke/scenarios/cas-holds-under-every-sse-flavour.sh",
-        "status": "A"
-      },
-      {
         "path": "live/smoke/scenarios/count-is-a-fungible-set.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/smoke/scenarios/full.sh",
         "status": "A"
       },
       {
@@ -10109,10 +10145,6 @@
         "status": "A"
       },
       {
-        "path": "live/smoke/scenarios/two-writers-one-record.sh",
-        "status": "A"
-      },
-      {
         "path": "live/smoke/scenarios/unchanged-is-free.sh",
         "status": "A"
       },
@@ -10138,6 +10170,10 @@
       },
       {
         "path": "live/smoke_break_patches_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke_claims_gotest_test.go",
         "status": "A"
       },
       {
@@ -11715,6 +11751,10 @@
         "status": "A"
       },
       {
+        "path": "internal/command/arguments/investigate.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/arguments/live_affected.go",
         "status": "A"
       },
@@ -11735,11 +11775,19 @@
         "status": "A"
       },
       {
+        "path": "internal/command/arguments/live_graph.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/arguments/live_history.go",
         "status": "A"
       },
       {
         "path": "internal/command/arguments/live_import.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/arguments/live_import_adopt_test.go",
         "status": "A"
       },
       {
@@ -11883,6 +11931,10 @@
         "status": "A"
       },
       {
+        "path": "internal/command/joint_env_key_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/joint_inputs_test.go",
         "status": "A"
       },
@@ -11904,6 +11956,10 @@
       },
       {
         "path": "internal/command/joint_sensitive_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/joint_sensitive_values_test.go",
         "status": "A"
       },
       {
@@ -12111,6 +12167,14 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_graph.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_graph_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_guards_test.go",
         "status": "A"
       },
@@ -12140,6 +12204,14 @@
       },
       {
         "path": "internal/command/live_import_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_investigate.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_investigate_test.go",
         "status": "A"
       },
       {
@@ -12580,6 +12652,10 @@
       },
       {
         "path": "internal/command/live_vouch_provider_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_waiver_every_run_test.go",
         "status": "A"
       },
       {
@@ -13063,6 +13139,10 @@
         "status": "M"
       },
       {
+        "path": "internal/command/views/investigate.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/views/live_adoption.go",
         "status": "A"
       },
@@ -13100,6 +13180,10 @@
       },
       {
         "path": "internal/command/views/live_drift.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/views/live_graph.go",
         "status": "A"
       },
       {
@@ -14087,6 +14171,38 @@
         "status": "A"
       },
       {
+        "path": "pkg/adoption/adoption.go",
+        "status": "A"
+      },
+      {
+        "path": "pkg/adoption/adoption_test.go",
+        "status": "A"
+      },
+      {
+        "path": "pkg/adoption/canonical.go",
+        "status": "A"
+      },
+      {
+        "path": "pkg/adoption/index.go",
+        "status": "A"
+      },
+      {
+        "path": "pkg/adoption/testdata/CHANT_SOURCE",
+        "status": "A"
+      },
+      {
+        "path": "pkg/adoption/testdata/chant-adopt-v1.json",
+        "status": "A"
+      },
+      {
+        "path": "pkg/adoption/testdata/chant-graph.schema.json",
+        "status": "A"
+      },
+      {
+        "path": "pkg/adoption/testdata/chant-index-v1.json",
+        "status": "A"
+      },
+      {
         "path": "pkg/azsweep/attrs.go",
         "status": "A"
       },
@@ -14284,6 +14400,22 @@
       },
       {
         "path": "pkg/identity/azure_serverminted.go",
+        "status": "A"
+      },
+      {
+        "path": "pkg/identity/cloudcontrol.go",
+        "status": "A"
+      },
+      {
+        "path": "pkg/identity/cloudcontrol_hand.go",
+        "status": "A"
+      },
+      {
+        "path": "pkg/identity/cloudcontrol_single.go",
+        "status": "A"
+      },
+      {
+        "path": "pkg/identity/cloudcontrol_test.go",
         "status": "A"
       },
       {
@@ -14524,6 +14656,10 @@
       },
       {
         "path": "pkg/registry/roster_test.go",
+        "status": "A"
+      },
+      {
+        "path": "pkg/registry/tagscreateonly_test.go",
         "status": "A"
       },
       {
@@ -15076,6 +15212,14 @@
       },
       {
         "path": "scripts/site-url-check.mjs",
+        "status": "A"
+      },
+      {
+        "path": "scripts/test-kind.sh",
+        "status": "A"
+      },
+      {
+        "path": "scripts/test-sse.sh",
         "status": "A"
       },
       {
@@ -18099,10 +18243,6 @@
         "status": "A"
       },
       {
-        "path": "tools/gauntlet/referenceeks_test.go",
-        "status": "A"
-      },
-      {
         "path": "tools/gauntlet/refusal_test.go",
         "status": "A"
       },
@@ -18364,6 +18504,14 @@
       },
       {
         "path": "tools/gcp-row-gen/unrecorded_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gotest-record/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/gotest-record/main_test.go",
         "status": "A"
       },
       {
