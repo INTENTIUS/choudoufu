@@ -508,6 +508,8 @@ func (c *LivePlanCommand) Execute(args *arguments.LivePlan) int {
 // that it appears before the trailing diagnostics exactly as it does in a
 // stock plan.
 func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, estateFlag string, view views.Plan, liveView views.LivePlan, preDiags tfdiags.Diagnostics, jsonRequested bool) (int, bool, tfdiags.Diagnostics) {
+	// When the live read starts: the -json document's observed_at (#2285).
+	readStart := time.Now().UTC()
 	var diags tfdiags.Diagnostics
 
 	// GitHub issue #626's knob, resolved once here and used by both of this
@@ -1203,6 +1205,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			Estate:           estate,
 			ChoudoufuVersion: tfversion.Fork,
 			UpstreamVersion:  tfversion.String(),
+			ObservedAt:       readStart.Format(time.RFC3339),
 			Bound:            boundReport,
 			Omissions:        oms,
 			Unowned:          unownedItems,
