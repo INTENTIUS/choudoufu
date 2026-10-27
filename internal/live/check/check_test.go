@@ -266,6 +266,14 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// can print it without importing any stage: a hash over finished
 		// plans, refusing nothing.
 		"setdigest": true,
+		// GitHub issue #2285's live-graph: one graph document built from
+		// configuration and an optional live-plan -json document. It runs
+		// no stage and refuses nothing; it reads what the stages decided.
+		"livegraph": true,
+		// GitHub issue #2280's investigate and MCP server: read-only
+		// questions (owner, versions, undeclared, touched roots) answered
+		// beside the stages, never inside one, with nothing to refuse.
+		"investigate": true,
 	}
 
 	classified := map[string]bool{}

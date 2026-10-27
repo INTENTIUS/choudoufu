@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=734 instances=2531
-# shape: class CONCRETE=1574
-# shape: class NEEDS_DISCOVERY=792
+# shape: dirs=736 instances=2546
+# shape: class CONCRETE=1575
+# shape: class NEEDS_DISCOVERY=806
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=703 fixture-instances=1827
+# shape: fixture-dirs=705 fixture-instances=1842
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=ae9e2101bb1b6aa33f592114083f1e33b3b83cd148e3e8b11810ca6024a709ad
+# shape: body-sha256=1c3105e537e299f9eb5dfc8f54ff5b380f65c7276d1ee6478a05423f476ea0dc
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -1638,6 +1638,21 @@ internal/live/lint/testdata/undeclared-provider-alias	aws_s3_bucket.east	CONCRET
 internal/live/lint/testdata/undeclared-provider-alias	aws_s3_bucket.stray	CONCRETE	lint-undeclared-alias-stray	bucket=lint-undeclared-alias-stray
 internal/live/lint/testdata/undeclared-provider-alias-declared	aws_s3_bucket.west	CONCRETE	lint-declared-alias-west	bucket=lint-declared-alias-west
 internal/live/lint/testdata/undeclared-provider-alias-two-names	aws_s3_bucket.cross	CONCRETE	lint-two-names-cross	bucket=lint-two-names-cross
+internal/live/livegraph/testdata/small	aws_s3_bucket.logs	CONCRETE	web-logs	bucket=web-logs
+internal/live/livegraph/testdata/small	aws_sqs_queue.bar[0]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	aws_sqs_queue.bar[1]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	aws_sqs_queue.foo[0]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	aws_sqs_queue.foo[1]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	aws_subnet.app	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	module.app[0].aws_eip.pool[0]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	module.app[0].aws_eip.pool[1]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	module.app[0].aws_instance.web	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	module.app[1].aws_eip.pool[0]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	module.app[1].aws_eip.pool[1]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	module.app[1].aws_instance.web	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small/modules/app	aws_eip.pool[0]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small/modules/app	aws_eip.pool[1]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small/modules/app	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/liveimport/testdata/slot-clientnamed-config	aws_iam_role.this[0]	NEEDS_DISCOVERY		
 internal/live/liveimport/testdata/slot-clientnamed-config	aws_iam_role.this[1]	NEEDS_DISCOVERY		
 internal/live/liveimport/testdata/slot-clientnamed-literal-config	aws_iam_role.this[0]	CONCRETE	task-0	name=task-0
