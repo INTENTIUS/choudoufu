@@ -27,49 +27,60 @@ name-uniqueness referees, "Acquiring state lock" appears in neither
 output, and the loser's next plan is `No changes.` `BREAK=1` strips the
 race winner's marker, and convergence must fail.
 
-### two-writers-one-record
+### Go tests: two writers, one record
 
-    just smoke two-writers-one-record
-    BREAK=1 just smoke two-writers-one-record
+    go test ./pkg/staterecord -run '^TestS3StoreConformance$/^PutIfVersionWithStaleVersionConflicts$'
+    go test ./internal/live/projection -run '^TestWriteBackVersionConflict$'
 
 Every record write is one conditional `PutObject` carrying the version it
-read (`If-Match`). A proxy holds two applies' writes until both are in
-flight, over several rounds: exactly one lands, the other is told the
-version it expected and the one it found, and its recovery is an ordinary
-re-plan. A writer killed mid-write strands nothing. Needs Go. `BREAK=1`
-rebuilds choudoufu with no `If-Match` (`go build -overlay`), and both
-racing applies must be caught reporting success over one record.
+read (`If-Match`). `TestS3StoreConformance/PutIfVersionWithStaleVersionConflicts`
+races two writers on one record against an in-process S3 that enforces
+`If-Match` as S3 does: once one has moved the record, the other's write
+is refused with a conflict naming both versions. A `PutObject` with no
+`If-Match`, the corruption `just smoke two-writers-one-record`'s
+`BREAK=1` built until #2288, fails it. `TestWriteBackVersionConflict` is
+the loser at the write-back: the record is not overwritten and the run
+stops on an error naming both versions. Both run in CI on every commit,
+and CLAIMS.md gives the CI run each was last recorded from.
 
 Two approved plans that change one attribute the provider reads back are
 refereed by the apply's re-read: steps 8-14 of
-[apply-what-was-approved](apply-what-was-approved.md#on-aws).
+[apply-what-was-approved](apply-what-was-approved.md#on-aws). A run killed
+with SIGKILL leaving nothing behind is
+[a-killed-apply-hides-nothing](a-killed-apply-hides-nothing.md).
 
-### cas-holds-under-every-sse-flavour
+### TestS3StoreCASUnderEverySSEFlavour, on real AWS
 
-    SMOKE_REAL_AWS=1 just smoke cas-holds-under-every-sse-flavour
-    SMOKE_REAL_AWS=1 BREAK=1 just smoke cas-holds-under-every-sse-flavour
+    SMOKE_REAL_AWS=1 just test-sse
 
-Real AWS, maintainer-run with `SMOKE_REAL_AWS=1`. Needs Go. The
-conditional write holds under SSE-S3, SSE-KMS with the AWS-managed key,
-SSE-KMS with a customer managed key and DSSE-KMS, because the store
-treats the ETag as opaque. `BREAK=1` builds a binary that checks each
-ETag is the MD5 of the payload; it must work under SSE-S3 and fail, on
-that check alone, under all three KMS flavours.
+Real AWS, maintainer-run, and only when `pkg/staterecord/s3.go` changes.
+`just test-sse` makes four buckets and a KMS key, runs the conditional-write
+suite under SSE-S3, SSE-KMS with the AWS-managed key, SSE-KMS with a
+customer managed key and DSSE-KMS, and removes what it made. Under the
+three KMS flavours the ETag is not the payload's MD5, and the store must
+treat it as opaque. Record its log with `go run ./tools/gotest-record -log`.
 
 ## On Kubernetes
 
-### k8s-records-in-the-cluster, steps 3 and 10
+### k8s-records-in-the-cluster, step 3
 
     just smoke k8s-records-in-the-cluster
     BREAK=1 just smoke k8s-records-in-the-cluster
 
 The scenario is [claim 29's](a-wrong-bucket-is-refused.md#on-kubernetes);
-steps 3 and 10 are this claim on the cluster's record store
-(`record_store "kubernetes"`, one Secret per record, `resourceVersion` as
-the conditional write). Step 3 kills an apply with SIGKILL and the next
-run carries on, with no Lease and nothing lock-shaped in the records
-namespace. Step 10 holds two writers' first requests on the wire until
-both are parked: in each of twelve rounds one write lands and the other
-is refused with a conflict naming both versions, and no Lease is taken.
-`BREAK=1` swaps each write for the stock `backend "kubernetes"`
-read-then-update, and all twelve rounds must end with both writes landed.
+step 3 is this claim on the cluster's record store (`record_store
+"kubernetes"`, one Secret per record, `resourceVersion` as the conditional
+write). It kills an apply with SIGKILL and the next run carries on, with
+no Lease and nothing lock-shaped in the records namespace. `BREAK=1`
+plants a Lease and a lock-named Secret, and step 3's check must fail.
+
+### TestKubernetesTwoWritersOneRecord, on kind
+
+    just test-kind
+
+Two writers' first requests are held on the wire until both are parked:
+in each of twelve rounds one write lands and the other is refused with a
+conflict naming both versions. With
+`CHOUDOUFU_K8S_RECORD_RACE_BREAK=1` each write becomes the stock `backend
+"kubernetes"` read-then-update, and the test must fail with both writes
+landed. Step 10 of the scenario until #2288; maintainer-run at release.

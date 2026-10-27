@@ -22,8 +22,9 @@ The record store's consistency rests on conditional writes against an object's
 ETag, and an ETag is computed differently under different encryption: it is
 the MD5 of the content under SSE-S3 and an opaque value under any KMS flavour.
 The store treats it as opaque under all of them.
-[Claim 2](../../live/smoke/claims/cas-holds-under-every-sse-flavour.md)
-runs the store's whole conformance suite against real S3 under each of:
+[Claim 2](../../live/smoke/claims/no-self-managed-locks.md#on-aws)'s
+`TestS3StoreCASUnderEverySSEFlavour`, run with `just test-sse`, runs the
+store's whole conformance suite against real S3 under each of:
 
 | Flavour | Bucket default |
 |---|---|

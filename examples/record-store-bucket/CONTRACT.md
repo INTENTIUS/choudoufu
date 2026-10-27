@@ -76,9 +76,9 @@ reads are `s3:GetBucketVersioning`, `s3:GetLifecycleConfiguration` and
 `s3:GetBucketPublicAccessBlock`, and the
 [published policy](iam/README.md) carries them.
 
-[Claim 29](../../live/smoke/claims/a-wrong-bucket-is-refused.md) measures
-each refusal by name, the first-contact refusal that leaves nothing behind,
-and that a plan against an established estate goes through without asking.
+[Claim 29](../../live/smoke/claims/a-wrong-bucket-is-refused.md#on-aws)'s
+Go tests hold each refusal by name, the first-contact refusal that leaves
+nothing behind, and the assertion on every apply.
 
 ## Waiving a setting, and what each waiver costs
 
@@ -109,8 +109,9 @@ only when run in the estate's directory with no `-bucket` flag, because a
 bucket named on the command line has no configuration to read a waiver from. An unknown name, a
 repeated name, a boolean, and `allow_insecure` on a store that is not a bucket
 are all configuration errors.
-[Claim 29](../../live/smoke/claims/a-waiver-names-what-it-waives.md)
-measures this.
+[Claim 29](../../live/smoke/claims/a-wrong-bucket-is-refused.md#on-aws)
+holds this with `TestAWaiverReachesOnlyWhatItNames` and
+`TestAWaiverWarnsOnEveryRunOfAnEstate`.
 
 The legitimate uses are narrow: a role that is not allowed to read a bucket's
 configuration, where someone who is has confirmed the setting, and a bucket an

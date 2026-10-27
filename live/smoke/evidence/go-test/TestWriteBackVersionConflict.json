@@ -1,0 +1,8 @@
+{
+  "test": "TestWriteBackVersionConflict",
+  "package": "./internal/live/projection",
+  "status": "pass",
+  "commit": "222ef3425ebc33286bb70474b61528076719dbe4",
+  "date": "2026-10-26",
+  "ci_run": "https://github.com/INTENTIUS/choudoufu/actions/runs/40411427907"
+}

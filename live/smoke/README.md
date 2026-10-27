@@ -108,7 +108,8 @@ is `registry.k8s.io/pause`, which kind's node image already carries, and
 `wait_for_rollout` is off, so the scenario needs no image pull.
 
 The Kubernetes scenarios run by hand on a kind cluster, each followed by
-its `BREAK=1` control; no workflow runs them.
+its `BREAK=1` control; no workflow runs them. The kind-gated Go tests in
+pkg/staterecord run the same way, with `just test-kind`.
 
 `k8s-custom-resource` is claim 7 (#1079's first unit): a CRD installed
 with kubectl, one `kubernetes_manifest` block declaring a CronTab, applied
@@ -486,113 +487,16 @@ showing its own checks would have caught it.
   account-wide question (`-adoption-only`), which is exactly the branch
   that drops the server-side estate filter, and the cost must explode.
 
-- **a-name-prefix-shares-no-keys** - *Claim 28: two estates whose names
-  prefix one another share a bucket and none of each other's keys.*
-  smoke-prod and smoke-prod-eu apply into one bucket; the AWS CLI shows
-  that the bare prefix tofu-records/smoke-prod names both estates and
-  the delimited one names one; smoke-prod then plans with the request
-  log on, and every LIST it sends ends in a slash while no request in
-  the run names its neighbour; it tears down and the neighbour's keys
-  and plan are unchanged. The delimiter is a line inside the binary, so
-  the BREAK control rebuilds choudoufu with it dropped (go build
-  -overlay, needs Go, refuses a release binary) and passes only when
-  the wire shows smoke-prod fetching smoke-prod-eu's record (#1335).
-
-- **a-wrong-bucket-is-refused** - *Claim 29: a record store bucket that
-  cannot keep its records is refused by name before anything is
-  applied.* A correct bucket costs an apply nothing; then five arms each
-  break one thing with the AWS CLI - versioning suspended, no
-  lifecycle, a lifecycle that exists and expires nothing, no
-  public-access block, and a lifecycle that also expires current objects
-  and so deletes records (#1377) - and each apply must fail naming it and
-  the bucket, with the record store's object versions unchanged. A plan
-  against the drifted bucket goes through, because the assertions do not
-  run on every plan, and the step says what that costs. A brand-new
-  estate's first plan is refused twice running and leaves nothing under
-  its prefix. The BREAK control used to run an arm with nothing
-  corrupted, which corrupted nothing; it now rebuilds choudoufu with
-  CheckBucketContract reporting no findings (go build -overlay, needs
-  Go, refuses a release binary), runs one arm against a bucket whose
-  versioning is Suspended, and passes only when that arm's own check
-  catches the apply going through (#1339, #1379).
-
-- **a-waiver-names-what-it-waives** - *Claim 29 (claim 30 until #1817): a bucket waiver waives
-  only the assertion it names, and says so on every run.* A bucket with
-  no versioning and `allow_insecure = ["versioning"]`: the apply
-  proceeds, warns with what the waiver costs, and says the bucket really
-  does fail the waived assertion. A plan and a second apply of the
-  unchanged estate each warn again. The lifecycle and the public-access
-  block, broken in turn, are each still refused by name. The plan's own
-  request log is read for the three bucket-configuration calls, which
-  the apply's log carries and the plan's must not. A misspelt name is
-  refused at configuration load, naming the word in what the run says
-  rather than only in the configuration line it echoes back, and listing
-  the three names it does accept. The BREAK control rebuilds choudoufu
-  so the warning appears on an estate's first run only (go build
-  -overlay, needs Go, refuses a release binary) and passes only when run
-  two is caught proceeding in silence (#1340). The same claim on the
-  Kubernetes record store is step 11 of `k8s-records-in-the-cluster`, which
-  also requires `live-cluster` to ignore the waiver (#1441).
-
-- **a-bulk-read-is-complete-or-it-fails** - *Claim 29 (claim 31 until #1817): a record read
-  that fails mid-fanout fails the read; a short map never reaches a
-  plan.* Twelve record-backed resources, then a small proxy in front of
-  S3 that can answer one record's GET with a 500, which nothing else can
-  do from outside the binary. A control plan through the unarmed proxy
-  is empty, and the proxy's count of record GETs in flight is more than
-  one by default and exactly one under
-  TOFU_LIVE_RECORD_READ_PARALLELISM=1, which is where "eight at a time"
-  is measured; one GET failed once leaves the plan true, empty on a zero
-  exit and a refusal naming the record otherwise; the same GET failed
-  every time makes the run refuse and name the record. Then a second
-  estate of two, #1355's own, with one record's GET answered 404 on the
-  bulk read and the per-key read while the listing still names it: plan,
-  plan -destroy and apply -destroy each refuse with "The record store
-  contradicts itself about a record", naming the address and the key,
-  and the bucket's versions are unchanged (#1430). The BREAK
-  control rebuilds choudoufu so a failed GET drops its key (go build
-  -overlay, needs Go, refuses a release binary) and passes only when the
-  plan is caught proposing to create a resource that exists (#1336).
-  `BREAK_CROSSCHECK=1` is the 404 step's own control: choudoufu rebuilt
-  without the plan-time cross-check, passing only when apply -destroy is
-  caught reporting 1 destroyed of two and exiting 0 with the record
-  still in the bucket, which is #1355's output, manufactured.
-  Needs python3. The same claim on the Kubernetes record store is step 12
-  of `k8s-records-in-the-cluster`, where `live/smoke/k8sproxy.py` answers
-  the second page of the records listing with 410 Expired (#1441).
-
-- **two-writers-one-record** - *Claim 2 (claim 32 until #1817): two writers, one record: the
-  loser is named, nothing is clobbered, and nothing is held.* Two
-  checkouts of one estate contend for one record. The smoke proxy
-  (`live/smoke/s3proxy.py`) holds both writers' conditional PUTs until
-  both have arrived and releases them in a chosen order, alternating
-  between rounds, so the race is a race every time. Exactly one apply
-  lands per round; the other gets a record store write conflict naming
-  the expected and the found version; the bucket holds no lock-shaped
-  key after any round; the loser re-plans and converges; a writer killed
-  with SIGKILL mid-write leaves the record holding what the round before
-  it left, with the proxy's log showing its PUT dropped and not
-  forwarded. The BREAK control rebuilds
-  choudoufu with no If-Match on the write (go build -overlay, needs Go,
-  refuses a release binary) and passes only when both applies are caught
-  reporting success (#1338). Needs python3. The same claim on the
-  Kubernetes record store is step 10 of `k8s-records-in-the-cluster`,
-  where a RoundTripper parks each writer's first request until both are
-  parked (#1441).
-
-- **cas-holds-under-every-sse-flavour** - *Claim 2 (claim 33 until #1817): compare-and-swap
-  holds under every SSE flavour.* **Real AWS, maintainer-run**: it refuses to start without `SMOKE_REAL_AWS=1`, because an
-  emulator does not reproduce the ETag semantics it measures. It creates
-  a bucket per flavour (SSE-S3, SSE-KMS with the AWS-managed key, SSE-KMS
-  with a customer managed key, DSSE-KMS) and one KMS key, or reuses
-  `SMOKE_KMS_KEY_ARN`, and removes what it made. Each flavour is first
-  checked for what it is, including that its ETag is or is not the
-  payload's MD5; then the record store's conformance suite runs against
-  it, then an estate's whole lifecycle with every count checked. The
-  BREAK control rebuilds choudoufu so the store checks each ETag against
-  an MD5, and passes only when that binary works under SSE-S3 and fails
-  on that check under all three KMS flavours (#1344). Needs Go and
-  python3.
+- Six bucket scenarios left in GitHub issue #2288, because a Go test in
+  CI's fast tier already held what each one's `BREAK=1` arm broke:
+  two-writers-one-record and cas-holds-under-every-sse-flavour (claim 2),
+  a-name-prefix-shares-no-keys (claim 28), and a-wrong-bucket-is-refused,
+  a-waiver-names-what-it-waives and a-bulk-read-is-complete-or-it-fails
+  (claim 29). Their cells cite those tests as `go_test` proofs in
+  `claims.json`; the real-AWS one, `TestS3StoreCASUnderEverySSEFlavour`,
+  runs with `SMOKE_REAL_AWS=1 just test-sse`. Steps 1, 7, 10 and 12 of
+  `k8s-records-in-the-cluster` went the same way, the kind-gated ones to
+  `just test-kind`.
 
 - **one-bucket-many-estates** - *Claim 28 (claim 35 until #1817): reading a neighbour's records
   takes two mistakes, not one.* **Real AWS, maintainer-run.** Two
@@ -707,7 +611,6 @@ showing its own checks would have caught it.
 | `BREAK=1` | corrupt one expected fact mid-scenario; the scenario passes only by CATCHING it - proof its assertions are load-bearing |
 | `BREAK_SLOT=1` | count-is-a-fungible-set's second control: the one corruption an absence assertion can be tested with, a tag that should not be there |
 | `BREAK_EARLY_RECORD=1` | a-killed-apply-hides-nothing's second control: choudoufu rebuilt with no record written until the apply's walk is over (#1944); passes only when the re-run is caught duplicating the record-carried inline policy |
-| `BREAK_CROSSCHECK=1` | a-bulk-read-is-complete-or-it-fails's second control: choudoufu rebuilt without the plan-time cross-check between the store's listing and a record read as absent; passes only when a destroy is caught reporting 1 destroyed of two (#1355's output) |
 | `SMOKE_TIMEOUT_SECS=600` | seconds before a k8s-* scenario with no verdict is killed (default max(600, 2 x claims.json minutes)) |
 | `CHDF_TIMEOUT_SECS=300` | one choudoufu call made behind a failing or rewriting admission chain |
 | `KC_REQUEST_TIMEOUT=30s` | one kubectl request |
