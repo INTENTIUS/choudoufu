@@ -32,15 +32,12 @@ providers and `remote_state` stay as they are. For a unit that already owns
 resources, pull its state with the stock binary and follow
 [Migrate](/choudoufu/docs/use/migrate/) before the first apply.
 
-## What you get
+## Terragrunt on the live backend
 
-| | Stock Terragrunt | On the live backend |
-|---|---|---|
-| One plan covers every unit | No, one per unit | Yes |
-| A changed value reaches the units that read it | No, a `dependency` reads the last applied outputs | Yes |
-| A new ID reaches the units that read it | Only as `mock_outputs` | Yes, as known after apply, and the mock is not planned |
-| The approved plan is what applies | `--out-dir` saves each unit's plan, mocks included | Yes, and choudoufu refuses a plan that no longer matches |
-| Applies | One per unit | One |
+- `run --all` joins the units in one plan.
+- A `dependency` reads the planned value.
+- A new ID arrives as known after apply, so `mock_outputs` stays as a fallback.
+- One apply runs the reviewed plan, and choudoufu refuses a plan that no longer matches.
 
 ## The workflow
 
