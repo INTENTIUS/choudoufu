@@ -21,7 +21,7 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )

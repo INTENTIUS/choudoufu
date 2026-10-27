@@ -8,8 +8,8 @@
 // resources in a set of subscriptions carry this estate's tofu-estate tag,
 // so that one whose block the configuration no longer declares can be
 // proposed for removal, exactly as the AWS tagging sweep, the Kubernetes
-// label list (internal/live/kubesweep) and the GCP asset search
-// (internal/live/gcpsweep) do on their substrates.
+// label list (pkg/kubesweep) and the GCP asset search
+// (pkg/gcpsweep) do on their substrates.
 //
 // # What a sweep is here
 //

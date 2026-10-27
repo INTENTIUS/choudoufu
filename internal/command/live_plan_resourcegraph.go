@@ -19,7 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/armtypes"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/staticeval"

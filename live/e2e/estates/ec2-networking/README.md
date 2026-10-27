@@ -106,7 +106,7 @@ not: this type's identity is genuinely server-assigned-and-taggable with no
 composable alternative, so the marker path is the only candidate and
 `aws_ec2_client_vpn_endpoint` clears it; `aws_vpc_ipam_pool_cidr_allocation`
 additionally needs a parent-scoped Cloud Control list Roster.listable
-(`internal/live/registry/roster.go`) never grants regardless.
+(`pkg/registry/roster.go`) never grants regardless.
 
 ## Corrected, not merely accepted
 

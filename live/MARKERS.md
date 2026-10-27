@@ -179,7 +179,7 @@ passes it now.
 A `kubernetes_manifest` entry in that state file is migrated too (#1109,
 ruled with #1104 on 2026-09-13), and its label is written differently: not
 through the provider, but as one API merge patch under the caller's own
-credential (`internal/live/kubesweep/patch.go`, shared with live-mv's
+credential (`pkg/kubesweep/patch.go`, shared with live-mv's
 cross-estate move). The type has no metadata block to write into - its
 whole object is one dynamic argument - so a labels-only write through the
 provider would be a re-apply of every field the provider manages,

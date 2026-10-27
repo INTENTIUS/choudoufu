@@ -10,9 +10,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // ---------------------------------------------------------------------------
@@ -210,7 +210,7 @@ func TestParentScopedCloudControlSweepTypeFindsChildrenAcrossMultipleParents(t *
 
 // TestParentScopedCloudControlSweepTypeDefendsAgainstAnUnscopedBackend is
 // the floci hazard made concrete: the fake server (like floci's own
-// ListResources - see internal/live/cloudcontrol.Client.ListResourcesScoped's
+// ListResources - see pkg/cloudcontrol.Client.ListResourcesScoped's
 // doc comment, verified against floci's source) ignores ResourceModel
 // entirely and returns every live child of the type, for every parent that
 // asks. Two parents are resolved; the server always answers with children

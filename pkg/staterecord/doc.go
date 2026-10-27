@@ -126,7 +126,7 @@
 // One consequence outside this package: a record Secret carries the estate's
 // tofu-estate label, and the Kubernetes sweep reads that label as "this
 // object is in the estate". Objects in the estate that no block declares are
-// orphans a plan proposes to DESTROY, so internal/live/kubesweep excludes the
+// orphans a plan proposes to DESTROY, so pkg/kubesweep excludes the
 // store's own objects by name (RecordStoreObject). Measured on kind: without
 // that exclusion an ordinary second plan proposed destroying all five of the
 // estate's own record Secrets.

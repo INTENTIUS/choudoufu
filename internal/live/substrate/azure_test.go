@@ -16,7 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )

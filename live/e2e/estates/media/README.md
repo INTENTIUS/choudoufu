@@ -279,7 +279,7 @@ build from, needs list-based enumeration to be swept — the same gap the
 storage and ec2-networking batches documented for `aws_efs_file_system`
 and `aws_ec2_client_vpn_endpoint`. `live/registry.json`'s
 `AWS::MediaLive::Multiplex` entry is `handlers.list: true` with no
-required input ("list-free"), so `internal/live/registry.Roster.EnumerationSource`
+required input ("list-free"), so `pkg/registry.Roster.EnumerationSource`
 resolves a CFN type for it and the Cloud Control fallback
 (`internal/live/discovery/cloudcontrol.go`) is the code path that would
 enumerate it once a caller wires the command layer to it — not yet done,

@@ -16,7 +16,7 @@ import (
 // An embed directive cannot reach live/ at the repo root, so the package carries
 // byte-for-byte copies, and regenerating the live/ artifacts must fail here
 // until the copies are refreshed (cp live/mapping.json live/registry.json
-// internal/live/registry/).
+// pkg/registry/).
 func TestEmbeddedArtifactsMatchLive(t *testing.T) {
 	root := repoRoot(t)
 	for _, pair := range []struct {
@@ -31,7 +31,7 @@ func TestEmbeddedArtifactsMatchLive(t *testing.T) {
 			t.Fatalf("reading %s: %v", pair.live, err)
 		}
 		if !bytes.Equal(pair.embedded, want) {
-			t.Errorf("the embedded copy of %s differs from the live artifact; re-copy it into internal/live/registry/ (the artifacts were regenerated without refreshing the embedded copies)", pair.live)
+			t.Errorf("the embedded copy of %s differs from the live artifact; re-copy it into pkg/registry/ (the artifacts were regenerated without refreshing the embedded copies)", pair.live)
 		}
 	}
 }

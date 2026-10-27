@@ -21,7 +21,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/intentius/choudoufu/internal/live/k8stest"
+	"github.com/intentius/choudoufu/pkg/k8stest"
 )
 
 // helmSweepKubeconfigEnvVar names the kubeconfig [TestListHoldsHelmReleaseOnACluster]

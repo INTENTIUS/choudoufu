@@ -62,14 +62,14 @@ policy. An identity bound to a `ClusterRole` with these same rules would be
 able to read, and in the apply case overwrite or delete, every other
 estate's record Secrets in the cluster. That is `read_isolation` in
 [CONTRACT.md](../CONTRACT.md) and in
-`internal/live/staterecord/kubernetescontract.go`'s `checkReadIsolation`,
+`pkg/staterecord/kubernetescontract.go`'s `checkReadIsolation`,
 which measures exactly this and refuses a namespace it can prove is not
 the boundary. Every manifest this script prints is a `Role` and a
 `RoleBinding`, bound in one namespace, never a `ClusterRole`.
 
 ## What each identity gets
 
-`internal/live/staterecord/kubernetescontract.go` names the two lists this
+`pkg/staterecord/kubernetescontract.go` names the two lists this
 script renders from, and nothing here repeats the choice of which verb goes
 where - it reads the store's own lists so the two cannot disagree:
 

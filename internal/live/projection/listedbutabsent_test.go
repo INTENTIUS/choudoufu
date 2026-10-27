@@ -16,7 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 )
 
@@ -33,7 +33,7 @@ import (
 // nothing for that instance and reports what it did do as a success.
 //
 // The fixes that keep the bulk read from producing such an answer are in
-// internal/live/staterecord. This is the backstop for every other way one
+// pkg/staterecord. This is the backstop for every other way one
 // can arrive: whatever produced it, the store's own listing still names the
 // key, and one store answering both ways about one key is a refusal.
 

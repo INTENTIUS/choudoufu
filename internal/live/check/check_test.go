@@ -162,7 +162,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// GitHub issue #1524: asks EKS, GKE or AKS whether a managed
 		// cluster encrypts Secrets at rest and returns the provider's
 		// answer as data. It emits no diagnostic; the encryption_at_rest
-		// finding is made in internal/live/staterecord's cluster contract,
+		// finding is made in pkg/staterecord's cluster contract,
 		// which is where every verdict about that answer lives.
 		"managedk8s":  true,
 		"markerstrip": true,

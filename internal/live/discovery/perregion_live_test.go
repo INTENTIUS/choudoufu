@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
-	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // This file is issue #1144's end-to-end half, and it exists because until

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )

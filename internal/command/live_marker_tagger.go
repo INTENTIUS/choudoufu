@@ -11,10 +11,10 @@ import (
 	"sync"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/azsweep"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/pkg/registry"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 )
 
@@ -89,7 +89,7 @@ var markerWriters = map[substrate.Write]func(*projectionProviders, addrs.AbsProv
 	// ARM's Tags API (#1120 unit 12), authenticated from the azurerm or
 	// azapi provider configuration's own arguments and the ARM_*
 	// environment through the credential chain the Resource Graph sweep
-	// uses (internal/live/azsweep). The client is built at the first write,
+	// uses (pkg/azsweep). The client is built at the first write,
 	// where there is a context, and a configuration that names no usable
 	// credential fails that write by name rather than the whole run: like
 	// the Tagging API client above, it is reached only after a real create

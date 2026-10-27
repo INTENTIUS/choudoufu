@@ -16,7 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/strict"
@@ -49,7 +49,7 @@ type Providers interface {
 // kubernetes_manifest object has no typed metadata block, so a
 // labels-only write through the provider would be a re-apply of the whole
 // manifest, and the label goes as one merge patch under the caller's own
-// credential instead. See internal/live/kubesweep/patch.go.
+// credential instead. See pkg/kubesweep/patch.go.
 //
 // A nil Clusters is what every caller before this existed supplied, and
 // the effect is exactly what it was for them: no manifest-shape resource

@@ -13,9 +13,9 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // probeCloudControlScoped is probeCloudControl's counterpart for the
@@ -37,7 +37,7 @@ import (
 // exists anywhere in its call chain, confirmed by reading
 // CloudControlJsonHandler.listResources and CloudControlService.
 // listResources directly - so the scope this leg's ResourceModel carries is
-// never read on the way to an answer. internal/live/cloudcontrol.Client.
+// never read on the way to an answer. pkg/cloudcontrol.Client.
 // ListResourcesScoped's own doc comment already states this ("floci's own
 // ListResources implementation ignores ResourceModel entirely and returns
 // every live resource of typeName unfiltered"); this file is what makes
@@ -174,7 +174,7 @@ func classifyListResourcesScoped(ctx context.Context, cc *cloudcontrol.Client, s
 				cfnType, cfnType, requiredInput)), nil
 		}
 		return row("implemented", fmt.Sprintf(
-			"CreateResource(%s, {}) made a resource and the following ListResourcesScoped(%s, %v) enumerated it, carrying %d properties - the round trip closed. Scoped with a synthetic placeholder value because floci's ListResources ignores ResourceModel scoping entirely (internal/live/cloudcontrol.Client.ListResourcesScoped's own doc comment); this establishes the type has real Cloud-Control-reachable list support, not that floci's scoping filter itself works",
+			"CreateResource(%s, {}) made a resource and the following ListResourcesScoped(%s, %v) enumerated it, carrying %d properties - the round trip closed. Scoped with a synthetic placeholder value because floci's ListResources ignores ResourceModel scoping entirely (pkg/cloudcontrol.Client.ListResourcesScoped's own doc comment); this establishes the type has real Cloud-Control-reachable list support, not that floci's scoping filter itself works",
 			cfnType, cfnType, requiredInput, len(desc.Properties))), nil
 	}
 	return row("unimplemented", fmt.Sprintf(

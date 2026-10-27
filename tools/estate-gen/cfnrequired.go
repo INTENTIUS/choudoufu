@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // This file is issue #174's second machine source: CloudFormation's own

@@ -14,7 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/gcpsweep"
+	"github.com/intentius/choudoufu/pkg/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )

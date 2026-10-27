@@ -22,7 +22,7 @@ where one side was idle 54% of its span and the other 30%.
 Two things it cannot see, said rather than hidden:
 
   * Only the PROVIDER logs "HTTP Request Sent" / "HTTP Response Received".
-    internal/live/cloudcontrol's client talks to Cloud Control and to the
+    pkg/cloudcontrol's client talks to Cloud Control and to the
     Tagging API over its own net/http client inside the tofu process and logs
     no line per HTTP request, so the sweep's own calls are invisible to the
     in-flight count. What the sweep does log is one line per type, and that is

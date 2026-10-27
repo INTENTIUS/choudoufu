@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // TestSweepBindType is issue #394's own coverage for [sweepBindType]: the

@@ -70,7 +70,7 @@
 // [Config.RetryBaseDelay] (default 200ms) and [Config.RetryMaxDelay]
 // (default 5s) tune the curve; [Config.RetrySleep] overrides the sleep
 // function itself, which is how a unit test gets a deterministic, instant
-// backoff instead of a real one (internal/live/cloudcontrol/retry_test.go).
+// backoff instead of a real one (pkg/cloudcontrol/retry_test.go).
 //
 // # Resource Groups Tagging API
 //

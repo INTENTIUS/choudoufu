@@ -1,8 +1,8 @@
 # Every google type listed through its own service API (INTENTIUS/choudoufu#2264,
-# INTENTIUS/plunge#15). choudoufu's internal/live/gcpsweep and plunge's
+# INTENTIUS/plunge#15). choudoufu's pkg/gcpsweep and plunge's
 # pkg/backend/plunge/gcplist each test that they cover exactly these types;
 # the two copies of this file are kept identical. Regenerate with
-#   UPDATE_COVERED_TYPES=1 go test ./internal/live/gcpsweep -run TestCoveredTypesMatchTheSharedList
+#   UPDATE_COVERED_TYPES=1 go test ./pkg/gcpsweep -run TestCoveredTypesMatchTheSharedList
 google_active_directory_domain
 google_alloydb_backup
 google_alloydb_cluster

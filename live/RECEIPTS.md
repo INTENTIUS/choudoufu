@@ -52,7 +52,7 @@ them, and the `receipt-cycle`/`receipt-cycle-existence` steps in
 
 GitHub issue #73 gives `null_resource`, `terraform_data`, `time_*` and
 `random_*` a persisted micro-state record on any estate with a `live` block
-(`internal/live/staterecord`; since #364 a block that declares no
+(`pkg/staterecord`; since #364 a block that declares no
 `record_store` gets an implied local one, and under the default
 `strict { secrets = "store" }` the secret-generating `random_*` are recorded
 the same way a stock state file records them). A receipt is not a candidate
@@ -69,7 +69,7 @@ trigger something with real-world consequences outside the resources
 OpenTofu manages directly. That diff exists because a receipt is a plain
 declared resource going through the ordinary plan/apply cycle described in
 Guard 1 above. A record-backed resource's prior state comes from
-`internal/live/staterecord.Store.Get` instead of a cloud read, but its
+`pkg/staterecord.Store.Get` instead of a cloud read, but its
 *plan diff* is exactly as visible either way. What moves is where the
 resource's *value* is read from, not whether a plan shows a change to it.
 Receipts stay off the record store because a receipt is deliberately

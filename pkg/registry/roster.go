@@ -497,7 +497,7 @@ func (r *Roster) RequiredListInput(cfnType string) (properties []string, ok bool
 // refusal, this reports the CFN type and the required property names, for a
 // caller that has a parent value in hand to scope with
 // (internal/live/discovery's parent-scoped Cloud Control leg,
-// internal/live/cloudcontrol.Client.ListResourcesScoped).
+// pkg/cloudcontrol.Client.ListResourcesScoped).
 //
 // ok is false for anything short of a mapped CFN type whose registry row
 // sets handlers.list with a non-empty required-input list - which, by

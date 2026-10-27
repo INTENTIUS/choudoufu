@@ -113,7 +113,7 @@ const readParallelismEnvVar = "TOFU_LIVE_READ_PARALLELISM"
 //     estate already asks it for, through the same provider process. This is
 //     not "stock uses ten somewhere"; it is the same calls at the same width.
 //   - The failure mode is mitigated where these calls land:
-//     internal/live/cloudcontrol/retry.go retries a ThrottlingException with
+//     pkg/cloudcontrol/retry.go retries a ThrottlingException with
 //     full jitter, five attempts, five-second cap - AWS's own recommendation
 //     for many concurrent callers backing off one API. Too high therefore
 //     costs wall clock before it costs a run.

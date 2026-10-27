@@ -15,7 +15,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/armtypes"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -251,7 +251,7 @@ func (azure) NotACarrier(_ *configschema.Block, typeName string) string {
 
 // MarkerWriter is [WriteARMTagsAPI] for every azurerm and azapi provider
 // configuration: internal/command builds the Tags API client with the
-// credential chain the Resource Graph sweep uses (internal/live/azsweep).
+// credential chain the Resource Graph sweep uses (pkg/azsweep).
 func (azure) MarkerWriter() Write { return WriteARMTagsAPI }
 
 // ---- GitHub issue #1642 ----

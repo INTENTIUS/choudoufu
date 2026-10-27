@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/states/statefile"
 	"github.com/intentius/choudoufu/internal/states/statemgr"

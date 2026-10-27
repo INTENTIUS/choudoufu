@@ -13,7 +13,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
 )
 

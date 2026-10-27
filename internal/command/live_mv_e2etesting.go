@@ -12,7 +12,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // liveMvInterruptEnv names the object a live-mv run kills itself on, as

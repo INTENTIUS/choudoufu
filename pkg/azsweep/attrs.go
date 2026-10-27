@@ -92,7 +92,7 @@ type Attrs struct {
 
 // ProviderAttrs reads the arguments the Azure sweep understands off the
 // evaluated azurerm or azapi provider block (providerType names which),
-// following internal/live/gcpsweep's ProviderAttrs: a marked value is left
+// following pkg/gcpsweep's ProviderAttrs: a marked value is left
 // unread rather than unmarked, except for the arguments that are
 // themselves the credential (client_secret, client_certificate and its
 // password, oidc_token, oidc_request_token), which are unmarked and read.

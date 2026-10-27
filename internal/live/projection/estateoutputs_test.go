@@ -15,7 +15,7 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )

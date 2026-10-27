@@ -171,7 +171,7 @@ func TestEmbeddedArtifactRecordsTheSilentPopulation(t *testing.T) {
 	}
 	if silent != 216 {
 		t.Errorf("the embedded live/registry.json has %d rows whose CloudFormation schema said nothing about tagging, want 216 "+
-			"(regenerate with `go run ./tools/registry-gen`, re-copy into internal/live/registry/, and move this figure only with a reviewed pin bump)", silent)
+			"(regenerate with `go run ./tools/registry-gen`, re-copy into pkg/registry/, and move this figure only with a reviewed pin bump)", silent)
 	}
 	if denied != 432 {
 		t.Errorf("the embedded live/registry.json has %d rows with an explicit \"taggable\": false, want 432", denied)

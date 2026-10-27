@@ -12,7 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
 

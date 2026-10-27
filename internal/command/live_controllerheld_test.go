@@ -15,7 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/terminal"
 )

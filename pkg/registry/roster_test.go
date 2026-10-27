@@ -415,8 +415,8 @@ func repoRoot(t *testing.T) string {
 	if !ok {
 		t.Fatal("cannot resolve the repository root: runtime.Caller failed")
 	}
-	// This file lives at internal/live/registry/roster_test.go.
-	root, err := filepath.Abs(filepath.Join(filepath.Dir(file), "..", "..", ".."))
+	// This file lives at pkg/registry/roster_test.go.
+	root, err := filepath.Abs(filepath.Join(filepath.Dir(file), "..", ".."))
 	if err != nil {
 		t.Fatalf("resolving the repository root: %v", err)
 	}

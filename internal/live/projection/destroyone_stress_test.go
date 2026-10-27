@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // jitterStore delays every read by a random 0..max, so the bulk load and the

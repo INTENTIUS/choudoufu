@@ -1131,7 +1131,7 @@ const (
 
 	// SweepGapScopeUnavailable is a type whose CFN listing needs a
 	// parent-scoped ResourceModel (live/registry.json's
-	// handlers.list_required_input, internal/live/cloudcontrol's
+	// handlers.list_required_input, pkg/cloudcontrol's
 	// ListResourcesScoped) that this leg could not build safely: either the
 	// required input does not match the single scoping property this leg
 	// was given, or it could not be positioned inside the type's own

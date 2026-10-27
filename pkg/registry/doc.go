@@ -51,7 +51,7 @@
 // those input property names, so a caller that does have a parent value
 // (internal/live/discovery's parent-scoped Cloud Control leg) can build the
 // ResourceModel the scoped call needs
-// (internal/live/cloudcontrol.Client.ListResourcesScoped). The two methods
+// (pkg/cloudcontrol.Client.ListResourcesScoped). The two methods
 // are mutually exclusive for any one CFN type: a type reports ok from at
 // most one of them, since Listable's own condition is required-input being
 // empty.

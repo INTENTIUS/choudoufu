@@ -14,7 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tofu"
@@ -28,7 +28,7 @@ import (
 // rendered lines, by value, not on which branch was taken.
 
 // captureWriteBackLog redirects the standard logger for the duration of fn
-// and returns what was written, the same shape internal/live/cloudcontrol's
+// and returns what was written, the same shape pkg/cloudcontrol's
 // own request-log test uses.
 func captureWriteBackLog(t *testing.T, fn func()) string {
 	t.Helper()

@@ -7,7 +7,7 @@
 # its own copy of the list. This diffs the two copies, so a type added on one
 # side is caught before either side's own test can notice:
 #
-#   choudoufu  internal/live/gcpsweep/testdata/covered-types.txt
+#   choudoufu  pkg/gcpsweep/testdata/covered-types.txt
 #   plunge     pkg/backend/plunge/gcplist/testdata/covered-types.txt
 #
 # With ref, plunge's copy is read from that git ref of the checkout
@@ -20,7 +20,7 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ours="$here/internal/live/gcpsweep/testdata/covered-types.txt"
+ours="$here/pkg/gcpsweep/testdata/covered-types.txt"
 rel="pkg/backend/plunge/gcplist/testdata/covered-types.txt"
 
 if [ $# -lt 1 ] || [ $# -gt 2 ]; then
@@ -66,7 +66,7 @@ if [ "$n" -eq 0 ]; then
 fi
 
 status=0
-diff -u --label "choudoufu internal/live/gcpsweep/testdata/covered-types.txt" --label "plunge $where" "$tmp/ours" "$tmp/theirs" || status=$?
+diff -u --label "choudoufu pkg/gcpsweep/testdata/covered-types.txt" --label "plunge $where" "$tmp/ours" "$tmp/theirs" || status=$?
 if [ "$status" -eq 0 ]; then
 	echo "covered-types: SAME ($n types)"
 	exit 0

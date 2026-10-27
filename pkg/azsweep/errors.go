@@ -116,7 +116,7 @@ func (e *ThrottledError) Error() string {
 
 // PartialError is a query that read at least one page and then failed:
 // the pages already read are discarded rather than returned, for
-// internal/live/gcpsweep's PartialError reason (a missed page is an orphan
+// pkg/gcpsweep's PartialError reason (a missed page is an orphan
 // nobody is told about). Err may itself be one of the typed errors above.
 type PartialError struct {
 	Subscription string

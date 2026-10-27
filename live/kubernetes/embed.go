@@ -11,10 +11,10 @@
 // directive can reach live/kubernetes/estate-boundary.yaml at all; and the
 // package that could otherwise have held it, github.com/intentius/choudoufu/live,
 // has test files that reach internal/live/projection, which reaches
-// internal/live/staterecord, which is the caller - an import cycle Go
+// pkg/staterecord, which is the caller - an import cycle Go
 // refuses even when only a test closes it. This package imports nothing.
 //
-// internal/live/staterecord's cluster contract reads the boundary to say how
+// pkg/staterecord's cluster contract reads the boundary to say how
 // the policy INSTALLED on a cluster differs from the one this repository
 // ships (GitHub issue #1448, section B4). Embedding the file rather than
 // transcribing its CEL into Go is the point: an edit to the policy - #1449's

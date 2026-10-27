@@ -29,7 +29,7 @@
 # store steps.
 #
 #   1. The Store contract, against this cluster's own API server. The same
-#      suite internal/live/staterecord holds the local and bucket stores to.
+#      suite pkg/staterecord holds the local and bucket stores to.
 #   2. An estate with a Kubernetes provider, a Kubernetes record store and
 #      NO AWS credentials in the environment at all - the variables unset,
 #      the config files pointed at /dev/null, IMDS disabled - applies end to
@@ -185,7 +185,7 @@ explain \
 kc create namespace "$RECORDS_NS" >/dev/null || fail "k8srec" "could not create the records namespace"
 kc create namespace "$BOB_NS" >/dev/null || fail "k8srec" "could not create Bob's records namespace"
 # CONFORMANCE_CASES is how many cases the shared Store contract suite has:
-# one t.Run per case in runConformance, internal/live/staterecord/
+# one t.Run per case in runConformance, pkg/staterecord/
 # conformance_test.go. It is written here, once, and compared EXACTLY rather
 # than as a floor, so that a case added to that suite without this number
 # moving fails this step and says so. Deriving it from the same `go test`
@@ -213,12 +213,12 @@ conformance_verdict() {
   cases="$( { grep -cE '^    --- PASS: TestKubernetesStoreConformance/[A-Za-z][A-Za-z0-9]* \(' <<< "$out" || true; } )"
   echo "conformance cases passed: $cases of $CONFORMANCE_CASES" | evidence
   [ "$cases" = "$CONFORMANCE_CASES" ] \
-    || fail "k8srec" "$cases conformance cases passed against this cluster and the shared suite has $CONFORMANCE_CASES (runConformance in internal/live/staterecord/conformance_test.go). Either a case was added or removed there without this scenario's CONFORMANCE_CASES moving with it, or a case did not run against this cluster."
+    || fail "k8srec" "$cases conformance cases passed against this cluster and the shared suite has $CONFORMANCE_CASES (runConformance in pkg/staterecord/conformance_test.go). Either a case was added or removed there without this scenario's CONFORMANCE_CASES moving with it, or a case did not run against this cluster."
   { grep -E -- '--- PASS: TestKubernetesStore(VersionIsTheResourceVersion|RefusesAMissingNamespaceByName)' <<< "$out" || true; } | evidence
 }
-cmd "go test ./internal/live/staterecord -run TestKubernetesStore   # against the kind cluster"
+cmd "go test ./pkg/staterecord -run TestKubernetesStore   # against the kind cluster"
 CONF_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_TEST=1 CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RECORDS_NS" \
-  go test ./internal/live/staterecord -run TestKubernetesStore -count=1 -v 2>&1 )" \
+  go test ./pkg/staterecord -run TestKubernetesStore -count=1 -v 2>&1 )" \
   || fail "k8srec" "the conformance suite failed against the cluster: $( { grep -E '^\s+--- FAIL|FAIL' <<< "$CONF_OUT" || true; } | awk 'NR<=10' )"
 conformance_verdict "$CONF_OUT"
 proof "every case in the shared Store suite passes against a real API server, including the stale-version conflict and the absent-key answers, plus the two Kubernetes-specific ones: the version IS metadata.resourceVersion, and a namespace that does not exist is refused by name rather than read as an empty estate."
@@ -901,9 +901,9 @@ explain \
   "the barrier never touches."
 RACE_NS="tofu-records-k8srec-race"
 kc create namespace "$RACE_NS" >/dev/null || fail "k8srec" "could not create the race records namespace"
-cmd "go test ./internal/live/staterecord -run TestKubernetesTwoWritersOneRecord   # against the kind cluster"
+cmd "go test ./pkg/staterecord -run TestKubernetesTwoWritersOneRecord   # against the kind cluster"
 RACE_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_TEST=1 CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RACE_NS" \
-  go test ./internal/live/staterecord -run TestKubernetesTwoWritersOneRecord -count=1 -v 2>&1 )" && RACE_RC=0 || RACE_RC=$?
+  go test ./pkg/staterecord -run TestKubernetesTwoWritersOneRecord -count=1 -v 2>&1 )" && RACE_RC=0 || RACE_RC=$?
 # `awk NR<=3` and not `head -3`: under pipefail a head that closes the pipe
 # early can take the whole evidence pipeline down with it, and an evidence
 # line that kills the run leaves the assertions below unreached.
@@ -1384,9 +1384,9 @@ if [ "${BREAK:-0}" = "1" ]; then
     "choudoufu contains it. If this arm were to pass, step 10 would be" \
     "passing for some reason other than the conditional write and would" \
     "prove nothing."
-  cmd "CHOUDOUFU_K8S_RECORD_RACE_BREAK=1 go test ./internal/live/staterecord -run TestKubernetesTwoWritersOneRecord"
+  cmd "CHOUDOUFU_K8S_RECORD_RACE_BREAK=1 go test ./pkg/staterecord -run TestKubernetesTwoWritersOneRecord"
   BREAK_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_TEST=1 CHOUDOUFU_K8S_RECORD_RACE_BREAK=1 CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RACE_NS" \
-    go test ./internal/live/staterecord -run TestKubernetesTwoWritersOneRecord -count=1 -v 2>&1 )" && BREAK_RC=0 || BREAK_RC=$?
+    go test ./pkg/staterecord -run TestKubernetesTwoWritersOneRecord -count=1 -v 2>&1 )" && BREAK_RC=0 || BREAK_RC=$?
   { grep -E 'BOTH writers reported success' <<< "$BREAK_OUT" || true; } | sed 's/^[[:space:]]*//; s/^[^:]*go:[0-9]*: //' | awk 'NR<=2' | evidence
   { grep -E 'RACE-SUMMARY case=total' <<< "$BREAK_OUT" || true; } | sed 's/^[[:space:]]*//; s/^[^:]*go:[0-9]*: //' | evidence
   grep -qE '^--- SKIP: TestKubernetesTwoWritersOneRecord ' <<< "$BREAK_OUT" \
@@ -1437,14 +1437,14 @@ if [ "${BREAK:-0}" = "1" ]; then
     "the suite skips, and again with -run narrowed so one case never runs." \
     "Step 1's own check must refuse each by name. If it passed either," \
     "step 1 would pass on a suite that measured nothing."
-  cmd "go test ./internal/live/staterecord -run TestKubernetesStore   # CHOUDOUFU_K8S_RECORD_KUBECONFIG unset"
+  cmd "go test ./pkg/staterecord -run TestKubernetesStore   # CHOUDOUFU_K8S_RECORD_KUBECONFIG unset"
   SKIP_OUT="$( cd "$ROOT" && env -u CHOUDOUFU_K8S_RECORD_KUBECONFIG -u CHOUDOUFU_K8S_RECORD_NAMESPACE \
-    go test ./internal/live/staterecord -run TestKubernetesStore -count=1 -v 2>&1 )" \
+    go test ./pkg/staterecord -run TestKubernetesStore -count=1 -v 2>&1 )" \
     || fail "k8srec" "BREAK: the suite with no cluster to reach did not exit 0, so this is not the skip the control was built to catch: $SKIP_OUT"
   must_fail_naming "the conformance suite SKIPPED" conformance_verdict "$SKIP_OUT"
-  cmd "go test ./internal/live/staterecord -run 'TestKubernetesStoreConformance/^[A-CE-Z]'   # the cases named D... left out"
+  cmd "go test ./pkg/staterecord -run 'TestKubernetesStoreConformance/^[A-CE-Z]'   # the cases named D... left out"
   SHORT_OUT="$( cd "$ROOT" && CHOUDOUFU_K8S_TEST=1 CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KUBECONFIG" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RECORDS_NS" \
-    go test ./internal/live/staterecord -run 'TestKubernetesStoreConformance/^[A-CE-Z]' -count=1 -v 2>&1 )" \
+    go test ./pkg/staterecord -run 'TestKubernetesStoreConformance/^[A-CE-Z]' -count=1 -v 2>&1 )" \
     || fail "k8srec" "BREAK: the narrowed suite failed, so this is not the short run the control was built to catch: $SHORT_OUT"
   must_fail_naming "conformance cases passed against this cluster and the shared suite has $CONFORMANCE_CASES" conformance_verdict "$SHORT_OUT"
   proof "caught, twice. A suite that skipped and a suite short of its cases each fail step 1's check by name, so the count step 1 prints is a count of cases that ran against this cluster."
@@ -1593,7 +1593,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     "resources, which exist. Step 12's check must refuse that run by" \
     "name; if it did not, step 12 would be passing for a reason other" \
     "than the listing failing whole."
-  SRC="$ROOT/internal/live/staterecord/kubernetes.go"
+  SRC="$ROOT/pkg/staterecord/kubernetes.go"
   mkdir -p "$W/break31"
   python3 - "$SRC" "$W/break31/kubernetes.go" <<'PYEOF'
 import sys

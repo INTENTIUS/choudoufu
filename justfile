@@ -223,12 +223,12 @@ tables: mapping row-emit rowgen-mismatches schema-precedence identity-sources su
 # CloudFormation Registry schemas -> live/registry.json + its embedded copy. Network on a cold cache.
 registry:
     env -u PWD go run ./tools/registry-gen
-    cp live/registry.json internal/live/registry/registry.json
+    cp live/registry.json pkg/registry/registry.json
 
 # registry.json + overlay.json + overlay.d/*.json -> live/mapping.json + its embedded copy.
 mapping:
     env -u PWD go run ./tools/mapping-gen
-    cp live/mapping.json internal/live/registry/mapping.json
+    cp live/mapping.json pkg/registry/mapping.json
 
 # Provider doc pages -> live/import-grammar.json. Offline: the doc cache is complete.
 importdocs:

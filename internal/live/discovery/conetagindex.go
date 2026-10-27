@@ -8,7 +8,7 @@ package discovery
 import (
 	"sort"
 
-	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // TaggingTypeFilters is the Resource Groups Tagging API resource-type

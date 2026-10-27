@@ -18,7 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/providers"

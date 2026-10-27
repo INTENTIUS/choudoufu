@@ -19,7 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/instances"
-	"github.com/intentius/choudoufu/internal/live/gcpsweep"
+	"github.com/intentius/choudoufu/pkg/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"

@@ -23,7 +23,7 @@ import (
 	clienttesting "k8s.io/client-go/testing"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 )
 

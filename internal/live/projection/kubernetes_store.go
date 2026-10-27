@@ -14,9 +14,9 @@ import (
 	restclient "k8s.io/client-go/rest"
 
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/managedk8s"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // controlPlaneReader asks a managed control plane's provider whether Secrets

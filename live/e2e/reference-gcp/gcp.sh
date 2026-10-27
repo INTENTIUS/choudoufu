@@ -168,7 +168,7 @@ PY
 
 # ── record_store_gcs's helpers ─────────────────────────────────────────────
 # The stage runs record_store "gcs" against emulator A's Cloud Storage (the
-# store's own calls, internal/live/staterecord/gcs.go), and reads the bucket
+# store's own calls, pkg/staterecord/gcs.go), and reads the bucket
 # behind its back with these: the JSON API through the run's fake token,
 # never through choudoufu.
 

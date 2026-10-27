@@ -22,7 +22,7 @@ import (
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/intentius/choudoufu/internal/live/k8stest"
+	"github.com/intentius/choudoufu/pkg/k8stest"
 )
 
 // Claim 2 on the Kubernetes record store: two writers, one record, the

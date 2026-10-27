@@ -36,7 +36,7 @@
 # tofu-estate label into manifest.metadata.labels on create, the same label
 # every built-in type carries in its metadata block, so the object is
 # inside the estate's boundary the way claim 13 on Kubernetes draws it. The third unit
-# (internal/live/kubesweep) lists every kind the cluster serves, CRDs
+# (pkg/kubesweep) lists every kind the cluster serves, CRDs
 # included, under kubernetes_manifest, so an object whose block is removed
 # is found by that label and proposed for removal at
 # kubernetes_manifest.orphan_<kind>_<namespace>_<name>. The fourth unit

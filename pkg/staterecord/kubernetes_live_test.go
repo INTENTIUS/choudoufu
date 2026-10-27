@@ -18,7 +18,7 @@ import (
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/intentius/choudoufu/internal/live/k8stest"
+	"github.com/intentius/choudoufu/pkg/k8stest"
 )
 
 // kubeconfigEnvVar names the kubeconfig [TestKubernetesStoreConformance] runs
@@ -34,7 +34,7 @@ import (
 // and runs `go test -run TestKubernetesStore`. That scenario is claim 29 in
 // live/smoke/claims.json and is what the claim's evidence is read from.
 //
-// A skip here is not a pass. A `go test ./internal/live/staterecord/` with no
+// A skip here is not a pass. A `go test ./pkg/staterecord/` with no
 // cluster measures the unit tests over the fake clientset and nothing about
 // conditional writes; the line this test prints when it skips says so, and
 // nothing in CI reads that line as evidence.

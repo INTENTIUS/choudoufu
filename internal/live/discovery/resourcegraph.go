@@ -14,7 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/armtypes"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/substrate"
@@ -23,7 +23,7 @@ import (
 
 // The Azure leg of the estate sweep (GitHub issue #1120, unit 11, under
 // #1122's ruling of 2026-10-19). One Azure Resource Graph query per
-// subscription the estate's resources resolve to (internal/live/azsweep),
+// subscription the estate's resources resolve to (pkg/azsweep),
 // matching the tofu-estate tag case-insensitively; every resource that
 // comes back carries this estate's marker, and is filed through the same
 // per-resource rules the AWS tag sweep applies to a tagged candidate

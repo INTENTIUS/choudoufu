@@ -25,7 +25,7 @@ import (
 // Proving it red: put "Two exclusions" back in OPERATE.md, or drop "Helm"
 // from any page below, or change "four signals" in client.go.
 
-const controllerMadeSource = "../internal/live/kubesweep/client.go"
+const controllerMadeSource = "../pkg/kubesweep/client.go"
 
 var controllerMadeSignals = regexp.MustCompile(`ControllerMade reports whether .*\n// .*on (\w+) signals`)
 

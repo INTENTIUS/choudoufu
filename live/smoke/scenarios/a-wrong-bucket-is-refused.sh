@@ -116,7 +116,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   [ -z "${CHOUDOUFU_BIN:-}${CHOUDOUFU_VERSION:-}" ] \
     || fail "wrongbucket" "BREAK=1 rebuilds choudoufu from this checkout with the bucket contract disabled; it cannot break CHOUDOUFU_BIN or CHOUDOUFU_VERSION. Unset them and run it again with Go installed."
   command -v go >/dev/null 2>&1 || fail "wrongbucket" "BREAK=1 needs Go to build the broken binary"
-  SRC="$ROOT/internal/live/staterecord/bucketcontract.go"
+  SRC="$ROOT/pkg/staterecord/bucketcontract.go"
   mkdir -p "$SMOKE_WORK/break"
   python3 - "$SRC" "$SMOKE_WORK/break/bucketcontract.go" <<'PYEOF'
 import sys

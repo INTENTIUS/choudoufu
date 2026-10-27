@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // GitHub issue #1335, at the one place a neighbour estate's key does harm.
