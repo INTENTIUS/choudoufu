@@ -313,6 +313,11 @@ func TestJointApplyRecomputesSensitiveValues(t *testing.T) {
 		t.Fatal(err)
 	}
 	approved := jsvApproved(t, scrubbed)
+	if ch, err := approved.Plan.Changes.Resources[0].Decode(&providers.Schema{Block: jsvSchema().Block}); err != nil {
+		t.Fatal(err)
+	} else if got, _ := ch.After.GetAttr("password").Unmark(); !got.IsNull() {
+		t.Fatalf("the scrubbed plan's password before the check = %#v, want null", got)
+	}
 	refused := false
 	check := &jointSensitiveCheck{Hashes: hashes, Key: key}
 	guard := check.guard(approved, approvalGuard(approved, &refused), &refused)
@@ -323,7 +328,13 @@ func TestJointApplyRecomputesSensitiveValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := ch.After.GetAttr("password"); !got.RawEquals(cty.StringVal(jsvPlanned)) {
+	// Decode applies the change's AfterValMarks, so the recomputed value
+	// comes back marked sensitive, as the plan it was put back into says.
+	got := ch.After.GetAttr("password")
+	if !got.HasMark(marks.Sensitive) {
+		t.Errorf("the approved plan's password after the check is not marked sensitive")
+	}
+	if got, _ := got.Unmark(); !got.RawEquals(cty.StringVal(jsvPlanned)) {
 		t.Errorf("the approved plan's password after the check = %#v, want the recomputed value", got)
 	}
 }
