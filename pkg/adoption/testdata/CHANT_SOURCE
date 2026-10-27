@@ -1,0 +1,13 @@
+Vendored unchanged from INTENTIUS/chant origin/integration/consolidation-graph
+68fe5c8986eda69b2b6a62e31d2e667d833b06a0 (chant#4536 merged):
+
+  chant-index-v1.json      packages/core/src/graph-schema/fixtures/index.json
+  chant-adopt-v1.json      packages/core/src/graph-schema/fixtures/adopt.json
+  chant-graph.schema.json  packages/core/src/graph-schema/graph.schema.json
+                           (#/$defs/AdoptionFile, AdoptionIndexRef, AdoptionSelection)
+
+The index fixture's stamp.digest and stamp.scopeKey were written by chant's
+indexDocumentDigest and indexScopeKey, so the Go reader's recomputation is
+checked against chant's own. Refresh each with:
+  git -C <chant> show <sha>:<path> > pkg/adoption/testdata/<file>
+and update the sha above.

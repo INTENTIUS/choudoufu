@@ -14,7 +14,7 @@
 //	}
 //
 // Its TypeScript type and JSON Schema live in chant core beside the index
-// schema (INTENTIUS/chant#4536); the Go engines read the JSON through this
+// schema (INTENTIUS/chant#4536, vendored in testdata with its sha); the Go engines read the JSON through this
 // package. `as` is the engine's address (a Terraform address for choudoufu, a
 // URN name for plunge, an entity name for chant). `type` is the engine's
 // type, and may be left out only when the inventory type joins to exactly one
