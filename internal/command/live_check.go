@@ -232,6 +232,9 @@ func liveCheckReport(dir string, report check.Report) views.LiveCheckReport {
 		InstanceRoster: liveCheckInstances(report.Roster),
 		References:     liveCheckReferences(report.References),
 	}
+	// GitHub issue #2296: the store the stamp check assumed writable.
+	out.StoreAssumedWritable = report.StoreAssumedWritable
+	out.RecordOnly = report.RecordOnly
 	for _, finding := range report.Findings {
 		if finding.UnsetVarSites > 0 {
 			out.VariableDependentFindings++
