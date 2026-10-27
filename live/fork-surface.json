@@ -3,13 +3,13 @@
   "fork_point": "2b6193043d500dcfef1f3b4f4819b938b667099f",
   "fork_point_short": "2b6193043d",
   "fork_point_subject": "Bump version v1.13.0",
-  "measured_at_head": "4b3ea15c5a835539cdeb90c851b550b83e581dec",
-  "generated_at": "2026-10-27T22:23:54Z",
+  "measured_at_head": "debfa564de7ef06e23229f01a107adcb0999b7e3",
+  "generated_at": "2026-10-27T22:28:24Z",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 25,
-    "internal/live/": 1862,
-    "live/": 673,
+    "internal/live/": 1864,
+    "live/": 674,
     "other": 1711,
     "site/": 93,
     "tools/": 574
@@ -4251,6 +4251,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/lint/aws_tag_count.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/aws_tag_count_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/lint/child_live_config.go",
         "status": "A"
       },
@@ -8438,6 +8446,10 @@
       },
       {
         "path": "live/e2e/limits/arm-tag-limit/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/limits/aws-tag-count/main.tf",
         "status": "A"
       },
       {
