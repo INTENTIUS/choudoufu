@@ -3,16 +3,16 @@
   "fork_point": "2b6193043d500dcfef1f3b4f4819b938b667099f",
   "fork_point_short": "2b6193043d",
   "fork_point_subject": "Bump version v1.13.0",
-  "measured_at_head": "d8483211fce5109eb5cfe4411c471992f23e2511",
-  "generated_at": "2026-10-27T22:48:44Z",
+  "measured_at_head": "6181226ec29f74f9b673af67032a2a6324e234d8",
+  "generated_at": "2026-10-27T23:19:28Z",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 25,
-    "internal/live/": 1870,
+    "internal/live/": 1875,
     "live/": 675,
     "other": 1716,
     "site/": 93,
-    "tools/": 574
+    "tools/": 575
   },
   "files": {
     ".github/": [
@@ -427,6 +427,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/check/pendingdataread_2297_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/check/projection_layer_test.go",
         "status": "A"
       },
@@ -464,6 +468,10 @@
       },
       {
         "path": "internal/live/check/synthesisgolden_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/testdata/acm-route53-pending-read-2297/main.tf",
         "status": "A"
       },
       {
@@ -5676,6 +5684,18 @@
       },
       {
         "path": "internal/live/noimporter/noimporter.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/offlineplan/offlineplan.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/offlineplan/offlineplan_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/offlineplan/sessions.go",
         "status": "A"
       },
       {
@@ -19184,6 +19204,10 @@
       },
       {
         "path": "tools/refusal-probe/schemas_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/refusal-probe/secondpass.go",
         "status": "A"
       },
       {
