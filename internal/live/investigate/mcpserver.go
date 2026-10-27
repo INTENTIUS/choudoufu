@@ -302,16 +302,19 @@ func investigateTool(s *Server, t *Tools) ServerTool {
 				}
 			}
 			inputs[tpl.Resource()] = in["node"]
-			var ask BeholdAsk
-			if s.Behold != nil {
-				if !s.Behold.Has("ask") {
-					return answerResult(Answer{Investigation: tpl.ID, Kind: tpl.Query.Kind, Method: MethodDeterministic, Reads: tpl.Reads, Inputs: inputs, Via: "behold:ask", Unavailable: "graph templates unavailable: behold's MCP lists no ask tool"}), nil
-				}
-				ask = func(ctx context.Context, args map[string]any) (*ToolResult, error) {
-					return s.Behold.Client.CallTool(ctx, "ask", args)
-				}
-			} else if tpl.Query.Kind == QueryCypher {
+			if tpl.Query.Kind != QueryCypher {
+				return answerResult(RunTemplate(ctx, t, tpl, inputs, nil)), nil
+			}
+			if s.Behold == nil {
+				// Absent, or it would not start: never retried per call.
 				return answerResult(RunTemplate(ctx, &Tools{Chant: t.Chant, Behold: "none", Dir: t.Dir, Env: t.Env}, tpl, inputs, nil)), nil
+			}
+			if !s.Behold.Has("ask") {
+				cost, fresh := readsCost(tpl.Reads)
+				return answerResult(Answer{Investigation: tpl.ID, Kind: tpl.Query.Kind, Method: MethodDeterministic, Reads: tpl.Reads, Cost: cost, Freshness: fresh, Inputs: inputs, Via: "behold:ask", Unavailable: "graph templates unavailable: behold's MCP lists no ask tool"}), nil
+			}
+			ask := func(ctx context.Context, args map[string]any) (*ToolResult, error) {
+				return s.Behold.Client.CallTool(ctx, "ask", args)
 			}
 			return answerResult(RunTemplate(ctx, t, tpl, inputs, ask)), nil
 		},

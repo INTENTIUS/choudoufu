@@ -1,0 +1,12 @@
+{
+  "readers": [
+    { "key": "api/aws_iam_policy.read_logs", "scope": "api", "via": "Resource", "origin": "declared" }
+  ],
+  "dependents-all": [
+    { "key": "web/aws_cloudfront_distribution.cdn", "kind": "aws_cloudfront_distribution", "scope": "web" },
+    { "key": "api/aws_iam_policy.read_logs", "kind": "aws_iam_policy", "scope": "api" }
+  ],
+  "ownership": [
+    { "key": "web/aws_s3_bucket.logs", "ownership": "bound", "sameObject": [] }
+  ]
+}

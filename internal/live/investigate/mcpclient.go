@@ -40,8 +40,8 @@ type ToolResult struct {
 // ContentItem is one entry of a tool result's content. Fields other than
 // type and text (an image's data and mimeType) are kept in Raw.
 type ContentItem struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
+	Type string          `json:"type"`
+	Text string          `json:"text,omitempty"`
 	Raw  json.RawMessage `json:"-"`
 }
 

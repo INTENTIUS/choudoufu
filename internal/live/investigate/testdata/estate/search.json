@@ -1,0 +1,10 @@
+{
+  "->*aws_s3_bucket.logs": [
+    { "id": "web/aws_cloudfront_distribution.cdn", "displayId": "aws_cloudfront_distribution.cdn", "kind": "aws_cloudfront_distribution", "paths": [] },
+    { "id": "web/aws_s3_bucket_policy.logs", "displayId": "aws_s3_bucket_policy.logs", "kind": "aws_s3_bucket_policy", "paths": [] }
+  ],
+  "<-*aws_s3_bucket.logs": [
+    { "id": "web/aws_kms_key.logs", "displayId": "aws_kms_key.logs", "kind": "aws_kms_key", "paths": [] }
+  ],
+  "aws_s3_bucket.logs ->*kind:aws_internet_gateway": []
+}
