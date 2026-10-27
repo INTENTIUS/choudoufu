@@ -293,6 +293,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkChildModules(ctx, cfg, path, issues)
 	checkModuleProviderMapping(mod, path, issues)
 	checkModuleProviderBlocks(mod, path, noProviderConfigRange, issues)
+	checkIgnoreTags(ctx, mod, path, issues)
 	checkUndeclaredProviderAlias(mod, path, issues)
 	checkChildLiveConfig(mod, path, issues)
 	checkMovedBlocks(cfg, mod, path, issues)

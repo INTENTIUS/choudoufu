@@ -126,6 +126,12 @@ const (
 	// the marker keys inside it. See ignore_changes.go.
 	RuleIgnoreChanges Rule = "ignore-changes"
 
+	// RuleIgnoreTags covers an aws provider block whose ignore_tags keys or
+	// key_prefixes cover an ownership marker, which hides the markers from
+	// every read the provider makes (GitHub issue #2290). See
+	// ignore_tags.go.
+	RuleIgnoreTags Rule = "ignore-tags"
+
 	// RuleStrictMarkerRepair covers a live block's strict block whose
 	// marker_repair argument names something other than the one setting a
 	// build implements. Two shapes reach it: a value outside
@@ -480,6 +486,10 @@ var ruleInfo = map[Rule]struct {
 	RuleIgnoreChanges: {
 		summary: "Ownership markers would be ignored",
 		docsRef: `live/LIMITATIONS.md, "ignore-changes"`,
+	},
+	RuleIgnoreTags: {
+		summary: "Provider ignore_tags hides the ownership markers",
+		docsRef: `live/LIMITATIONS.md, "ignore-tags"`,
 	},
 	RuleModuleProviders: {
 		summary: "Module provider mapping is not honoured",
