@@ -34,19 +34,16 @@ resources, follow [Migrate](/choudoufu/docs/use/migrate/) before the first
 apply.
 
 If you keep plans in Atmos's planfile store, set `planfiles.verify: warn` and
-`planfiles.required: true`. Atmos counts a value that was known after apply in
-the stored plan, and is known now, as drift, so a stored plan that reads a new
-ID cannot pass its check. choudoufu does the refusing instead.
+`planfiles.required: true`. Atmos's planfile check also compares a value that
+was known after apply and is known now. With `warn`, choudoufu runs the
+matching check and refuses a plan that changed.
 
-## What you get
+## Atmos on the live backend
 
-| | Stock Atmos | On the live backend |
-|---|---|---|
-| One plan covers every component | No, one per component | Yes |
-| A changed value reaches the components that read it | No, `!terraform.output` reads the last applied outputs | Yes |
-| A new ID reaches the components that read it | Only as a default or a mock | Yes, as known after apply |
-| The approved plan is what applies | The planfile store, which counts a newly known value as drift | Yes, and choudoufu refuses any other change |
-| Applies | One per component | One per component |
+- The components you plan with `--affected` join one plan.
+- A changed value reaches the components that read it.
+- A new ID arrives as known after apply.
+- The deploy applies the reviewed plan, one apply per component.
 
 ## The workflow
 

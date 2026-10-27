@@ -2,12 +2,17 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/intentius/choudoufu.svg)](https://pkg.go.dev/github.com/intentius/choudoufu)
 
-**OpenTofu that respects the owner tag on each resource.** <img src="site/public/brand/cube-160.png" width="32" height="32" alt="">
+**Runs your OpenTofu and Terraform configurations, with an owner tag on each resource.** <img src="site/public/brand/cube-160.png" width="32" height="32" alt="">
 
 Each resource carries its identity as a marker the platform can select on.
 On AWS that is two resource tags. The apply writes the marker and the next
 plan reads it back live. The state file becomes a cache you may lose. The
-policy engine you already run decides who may read or change what.
+policy engine you already run decides who may read or change each resource.
+
+Your OpenTofu or Terraform configuration runs as it is, and
+[Undo](https://intentius.io/choudoufu/docs/use/migrate/#undo) returns the
+estate to your own backend. chant and terragucci can run choudoufu as their
+engine.
 
 It runs on four platforms:
 
@@ -23,8 +28,8 @@ nothing to read back get a receipt that tracks their staleness.
 
 AWS already scopes IAM by tag. choudoufu derives each marker from the
 configuration address and writes it in the create call, so every resource
-that exists carries one. Your IAM is the whole permission model. Concurrent
-runs settle at the API, with no lock table. Whoever inherits an estate can
+that exists carries one. Your IAM is the permission model. Concurrent
+runs settle at the API, one resource at a time. Whoever inherits an estate can
 list it with any cloud tool before running the binary.
 
 Handover is granting a role. Adoption and renames are tag writes.

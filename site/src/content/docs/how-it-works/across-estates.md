@@ -8,19 +8,16 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-On stock backends each root plans alone, and a root that reads another plans on
-that root's last applied outputs, or on a mock when the value does not exist
-before the apply. The choudoufu live backend joins the roots in one plan.
+Each root plans on its own with your current backend, and that keeps working.
+The live backend can also join roots that read each other into one plan.
 
-## Five questions
+## Joining roots
 
-| | Stock backends | choudoufu live backend |
-|---|---|---|
-| One plan covers every root | No, one per root, unit or component | Yes |
-| A changed value reaches the roots that read it | No, they read the last applied outputs | Yes, from the joint plan |
-| A new ID reaches the roots that read it | Only as a mock or a default | Yes, as known after apply, filled in by the apply |
-| The approved plan is what applies | Each root's saved plan, mocks included | Yes, and choudoufu refuses a plan that no longer matches |
-| Applies | One per root | One, or one per component under Atmos |
+- One plan covers every root.
+- A changed value reaches the roots that read it, from the joint plan.
+- A new ID reaches the roots that read it as known after apply, filled in by the apply.
+- The reviewed plan is the one applied, and choudoufu refuses a plan that no longer matches.
+- One apply runs, or one per component under Atmos.
 
 Under [Terragrunt](/choudoufu/docs/use/terragrunt/) or
 [Atmos](/choudoufu/docs/use/atmos/), swap the binary and add a `live` block to
