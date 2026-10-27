@@ -152,6 +152,18 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 		}
 	}
 
+	// A joint plan file whose sensitive values were left out (#2277) is only
+	// ever an approval: applied as it is, it would write nulls.
+	if c.jointSensitive != nil && approved == nil {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"The joint plan cannot be applied as it is",
+			"The joint plan this file carries leaves out its sensitive planned values, so it is applied only as the approval of a plan this apply makes again under the composed root's live block, and that block was not found.",
+		))
+		view.Diagnostics(diags)
+		return 1
+	}
+
 	// Attempt to load the plan file, if specified. A live-markers run has
 	// already read everything it wants from the file and must not hand it to
 	// the operation, so this stays nil there.
@@ -213,6 +225,12 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 		}
 		if approved != nil {
 			opReq.PlanGuard = approvalGuard(approved, &approvalRefused)
+			// GitHub issue #2277: a joint plan file left out its sensitive
+			// planned values; they are checked against its hashes, and put
+			// back from this plan, before the approval compares the two.
+			if c.jointSensitive != nil {
+				opReq.PlanGuard = c.jointSensitive.guard(approved, opReq.PlanGuard, &approvalRefused)
+			}
 			// GitHub issue #2051: a plan made on other estates' planned
 			// outputs also needs those estates to have recorded them.
 			if len(approved.EstateOutputsFromPlan) > 0 {
