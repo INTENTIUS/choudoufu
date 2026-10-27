@@ -160,7 +160,7 @@ var otherAllowlist = []otherAllowEntry{
 	// store, their test suites and fakes, and the marker vocabulary moved
 	// here from internal/live/ with git mv. Wholly fork-owned; upstream has
 	// no pkg/ tree.
-	{"pkg/", "the fork's public packages: identity (#2244), and cloudcontrol, kubesweep, registry, staterecord, gcpsweep, azsweep, k8stest, markerkeys with their exported conformance suite and sweep fakes (#2281), moved out of internal/live/ so another module can import them"},
+	{"pkg/", "the fork's public packages: identity (#2244), and cloudcontrol, kubesweep, registry, staterecord, gcpsweep, azsweep, k8stest, markerkeys with their exported conformance suite and sweep fakes (#2281), moved out of internal/live/ so another module can import them, and adoption, the adopt: v1 file reader (#2286)"},
 	// GitHub issue #1898's tracing (#1921, #1923), first measured here by
 	// #2276's regeneration of this artifact.
 	{"internal/tracing/", "#1898: detail spans, a span budget, trace propagation and choudoufu's own trace attributes, added beside stock's tracing setup (init.go gains the provider hookup)"},

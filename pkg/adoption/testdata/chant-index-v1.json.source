@@ -1,0 +1,8 @@
+chant-index-v1.json is vendored unchanged from INTENTIUS/chant
+packages/core/src/graph-schema/fixtures/index.json
+at origin/integration/consolidation-graph b58709b7e80a7bf065f104b018d27b989821791b
+(file last changed in 424482c54e0fc5b317efbcc13510ed9670830a1c).
+Its stamp.digest and stamp.scopeKey were written by chant's indexDocumentDigest and indexScopeKey,
+so the Go reader's recomputation is checked against chant's own.
+Refresh it with:
+  git -C <chant> show <sha>:packages/core/src/graph-schema/fixtures/index.json > pkg/adoption/testdata/chant-index-v1.json

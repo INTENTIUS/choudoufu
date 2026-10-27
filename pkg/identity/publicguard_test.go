@@ -31,7 +31,7 @@ func TestPublicPackagesImportNothingInternal(t *testing.T) {
 	pkgs := strings.Fields(string(pkgsOut))
 	// The six packages GitHub issue #2281 moved, and the vocabulary they
 	// take: a listing without them is not reading the tree it thinks it is.
-	for _, want := range []string{"azsweep", "cloudcontrol", "gcpsweep", "kubesweep", "registry", "staterecord", "markerkeys", "k8stest"} {
+	for _, want := range []string{"azsweep", "cloudcontrol", "gcpsweep", "kubesweep", "registry", "staterecord", "markerkeys", "k8stest", "adoption"} {
 		found := false
 		for _, p := range pkgs {
 			found = found || p == "github.com/intentius/choudoufu/pkg/"+want
