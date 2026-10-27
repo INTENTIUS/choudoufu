@@ -56,8 +56,15 @@ type registryEntry struct {
 		// the type's create handler accepts tags in the create call.
 		// Read through [Roster.TagOnCreateKnown] (GitHub issue #1084).
 		TagOnCreate bool `json:"tag_on_create"`
+		// TagUpdatable is CloudFormation's tagging.tagUpdatable: whether
+		// an update can change the type's tags in place. Read through
+		// [Roster.TagsCreateOnly] (GitHub issue #2287).
+		TagUpdatable bool `json:"tag_updatable"`
 	} `json:"tagging"`
-	Handlers struct {
+	// CreateOnlyProperties is the schema's createOnlyProperties, by
+	// top-level property name: a change to any of them replaces the object.
+	CreateOnlyProperties []string `json:"create_only_properties,omitempty"`
+	Handlers             struct {
 		List              bool     `json:"list"`
 		ListRequiredInput []string `json:"list_required_input,omitempty"`
 	} `json:"handlers"`
@@ -147,6 +154,13 @@ type Roster struct {
 	// taggable are both true; see [Roster.TagOnCreateKnown].
 	tagOnCreate map[string]bool
 
+	// tagsCreateOnly is cfn_type -> whether a taggable, declared row's tags
+	// can be set only when the object is created: tagging.tag_updatable is
+	// false, or Tags is one of its create_only_properties
+	// ([Roster.TagsCreateOnly]). Rows that are not taggable or declare no
+	// tagging have no entry.
+	tagsCreateOnly map[string]bool
+
 	// arity is cfn_type -> len(primary_identifier), the number of "|"-joined
 	// segments a Cloud Control identifier for the type carries.
 	arity map[string]int
@@ -215,6 +229,7 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 		taggable:          make(map[string]bool, len(reg.Types)),
 		taggingDeclared:   make(map[string]bool, len(reg.Types)),
 		tagOnCreate:       make(map[string]bool, len(reg.Types)),
+		tagsCreateOnly:    make(map[string]bool, len(reg.Types)),
 		arity:             make(map[string]int, len(reg.Types)),
 		primaryIdentifier: make(map[string][]string, len(reg.Types)),
 	}
@@ -249,6 +264,15 @@ func Parse(mappingJSON, registryJSON []byte) (*Roster, error) {
 		r.taggable[e.TypeName] = e.Tagging.Taggable
 		r.taggingDeclared[e.TypeName] = e.Tagging.Declared
 		r.tagOnCreate[e.TypeName] = e.Tagging.TagOnCreate
+		if e.Tagging.Declared && e.Tagging.Taggable {
+			createOnly := !e.Tagging.TagUpdatable
+			for _, p := range e.CreateOnlyProperties {
+				if p == "Tags" {
+					createOnly = true
+				}
+			}
+			r.tagsCreateOnly[e.TypeName] = createOnly
+		}
 		r.arity[e.TypeName] = len(e.PrimaryIdentifier)
 		if len(e.PrimaryIdentifier) > 0 {
 			r.primaryIdentifier[e.TypeName] = append([]string(nil), e.PrimaryIdentifier...)
@@ -432,6 +456,23 @@ func (r *Roster) TagOnCreateKnown(cfnType string) (tagOnCreate, known bool) {
 func (r *Roster) TagsAfterCreate(cfnType string) bool {
 	tagOnCreate, known := r.TagOnCreateKnown(cfnType)
 	return known && !tagOnCreate
+}
+
+// TagsCreateOnly reports whether cfnType is a taggable type whose tags can
+// be set only at create (tagging.tag_updatable false, or Tags among its
+// create_only_properties), and whether the registry can answer at all:
+// known is false for a type it never saw, one whose schema declared no
+// tagging, and one that is not taggable. A marker written onto an existing
+// object of such a type would replace it, so adoption refuses the type by
+// name before any provider call (GitHub issue #2287; 67 of the pinned
+// registry's 1035 taggable types, AWS::EC2::KeyPair and
+// AWS::AppRunner::Service among them).
+func (r *Roster) TagsCreateOnly(cfnType string) (createOnly, known bool) {
+	if r == nil {
+		return false, false
+	}
+	createOnly, known = r.tagsCreateOnly[cfnType]
+	return createOnly, known
 }
 
 // IdentifierArity is the number of "|"-joined segments a Cloud Control

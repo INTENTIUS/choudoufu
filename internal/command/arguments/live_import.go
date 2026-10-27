@@ -29,6 +29,16 @@ type LiveImport struct {
 	// this command's whole design refuses to do.
 	StatePath string
 
+	// AdoptPath is the `adopt: v1` adoption file -adopt names (GitHub issue
+	// #2287), read in place of a state file. Exactly one of StatePath and
+	// AdoptPath is set.
+	AdoptPath string
+
+	// IndexStore is the filesystem index store directory the adoption
+	// file's index version is read from: <dir>/index/<scopeKey>/<version>.
+	// Required with AdoptPath.
+	IndexStore string
+
 	// Estate names the estate this run would stamp. Required: unlike
 	// live-plan and live-mv, there is no configuration for this command to
 	// derive it from - the state file being imported may belong to a
@@ -68,6 +78,8 @@ func BindLiveImport(cli *CommandLine) *LiveImport {
 	var input bool
 
 	cli.StringVar(&li.StatePath, "state", "", "The tfstate file to read. Required.").SetDisplay("=path")
+	cli.StringVar(&li.AdoptPath, "adopt", "", "An adoption file (adopt: v1) to adopt indexed objects from, in place of -state.").SetDisplay("=path")
+	cli.StringVar(&li.IndexStore, "index-store", "", "With -adopt, the index store directory holding the version the adoption file names.").SetDisplay("=dir")
 	cli.StringVar(&li.Estate, "estate", "", "The estate this run verifies against and, with -approve, stamps. Required.").SetDisplay("=name")
 	cli.BoolVar(&li.Approve, "approve", false, "Stamp every VERIFIED or DRIFTED resource from the ratification report.")
 	cli.BoolVar(&input, "input", true, "Accepted and ignored: this command never prompts.").SetDisplay("=false")
@@ -87,11 +99,30 @@ func BindLiveImport(cli *CommandLine) *LiveImport {
 			))
 		}
 
-		if li.StatePath == "" {
+		switch {
+		case li.StatePath != "" && li.AdoptPath != "":
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Both -state and -adopt named",
+				"live-import migrates from a tfstate file (-state) or adopts from an adoption file (-adopt), not both in one run.",
+			))
+		case li.StatePath == "" && li.AdoptPath == "":
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
 				"No state file named",
-				"live-import reads an existing tfstate file once, read-only. Pass -state=<path> naming it.",
+				"live-import reads an existing tfstate file once, read-only. Pass -state=<path> naming it, or -adopt=<path> naming an adoption file.",
+			))
+		case li.AdoptPath != "" && li.IndexStore == "":
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"No index store named",
+				"An adoption file names an index version by scope key and version; pass -index-store=<dir> naming the store that holds it (the directory whose index/ subdirectory behold index writes).",
+			))
+		case li.AdoptPath == "" && li.IndexStore != "":
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"-index-store without -adopt",
+				"-index-store says where an adoption file's index version lives, and has no meaning without -adopt.",
 			))
 		}
 		if li.Estate == "" {
