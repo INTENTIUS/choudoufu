@@ -33,9 +33,11 @@ import (
 const BehaviorIndexPath = "live/behaviors.json"
 
 // Behavior categories. Only "shape" fixtures are the tier-1 behavior matrix
-// the #522 ruling formalizes; "adoption" and "legacy-demo" are catalogued
-// because they are real scripts under live/e2e/, but they measure something
-// else and are excluded from `gauntlet behaviors`'s default run.
+// the #522 ruling formalizes. "adoption" and "legacy-demo" catalogued real
+// scripts under live/e2e/ that measured something else and were excluded
+// from `gauntlet behaviors`'s default run; #2288 deleted every fixture in
+// both categories with its script, and the constants stay so a reader of an
+// older live/behaviors.json (or live/history) can still place an entry.
 const (
 	// CategoryShape: a small, purpose-built fixture (2-6 resources) that
 	// exercises one seam - a count block, a for_each map, a module nesting,
@@ -43,20 +45,15 @@ const (
 	// repository. This is the #522 tier-1 candidate set.
 	CategoryShape = "shape"
 	// CategoryAdoption: a real third-party estate pulled from .corpus/ and
-	// crossed for cold-adoption discovery (issue #274's campaign). HANDOFF.md
-	// is explicit that cold adoption "is a feature with its own ladder. It
-	// is not part of the promise, and a number about it is not a number
-	// about the product" - so these are catalogued, not folded into the
-	// tier-1 matrix.
+	// crossed for cold-adoption discovery (issue #274's campaign), never part
+	// of the promise per HANDOFF.md. Its 20 scripts were deleted under #2288;
+	// each choudoufu-side defect they pinned has a Go test.
 	CategoryAdoption = "adoption"
 	// CategoryLegacyDemo: live/e2e/run.sh, the original pre-protocol,
-	// pre-board "live mode" demo. It predates both the stage protocol
-	// and the estate board, and its own steps (standup, adopt, drift,
-	// rename, count scale-down, block removal via the estate-block fixture,
-	// receipts, teardown) overlap almost every shape fixture and
-	// reference-ec2-vpc combined. live-markers.md's verification-budget
-	// section records it at "several minutes" - alone, on the wrong side of
-	// the #522 five-minute bar - so it is catalogued but not run by default.
+	// pre-board "live mode" demo, retired under #2288. Its steps are gauntlet
+	// stages or smoke claims; its lint step is internal/live/lint's
+	// limits_test.go and its receipts internal/live/lifecycle's
+	// receipt_existence_test.go.
 	CategoryLegacyDemo = "legacy-demo"
 )
 
@@ -74,8 +71,8 @@ type BehaviorLastRun struct {
 // embedded in a larger script, one identifiable seam inside it).
 type BehaviorFixture struct {
 	// ID is the fixture's name: the live/e2e/ directory for a standalone
-	// script, or a synthetic id (e.g. "estate-block") for a shape embedded
-	// in a larger legacy script.
+	// script, or a synthetic id for a shape embedded in a larger script
+	// (estate-block was one, inside the retired live/e2e/run.sh).
 	ID string `json:"id"`
 	// Script is the run.sh this fixture's evidence actually comes from,
 	// relative to the repo root. For an embedded fixture this is the HOST
@@ -126,7 +123,7 @@ type BehaviorFixture struct {
 	// runner does not override it (measured from the script's own source,
 	// not its header comment, which has gone stale before - see #522's PR
 	// body). Zero for a fixture that needs no floci emulator at all
-	// (record-store) or is not independently runnable (estate-block).
+	// (record-store) or is not independently runnable.
 	DefaultPort int `json:"default_port,omitempty"`
 	// Stage is the gauntlet stage id (tools/gauntlet/stages.go) this
 	// fixture is representative-set evidence for. Empty means unmapped:

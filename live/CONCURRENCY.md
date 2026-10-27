@@ -60,8 +60,9 @@ changing an attribute the provider reads back are last-writer-wins at the
 cloud API. `apply <planfile>` re-reads the live system and refuses, exit 3,
 when one of its changes' before- or after-values moved since approval, unless
 both runs re-read before either writes.
-[STORAGE.md](STORAGE.md#requests) has the detail; claim 2 races two saved
-plans on one queue.
+[STORAGE.md](STORAGE.md#requests) has the detail;
+[claim 15](smoke/claims/apply-what-was-approved.md) races two saved plans on
+one queue (steps 8-14 of `apply-what-was-approved`).
 
 Serialize applies against one estate in CI anyway, where the real mutex has
 always been. Two estates need none

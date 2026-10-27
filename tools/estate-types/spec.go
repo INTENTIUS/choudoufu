@@ -57,9 +57,9 @@ type estateSpec struct {
 	// ScanFiles are further repository-root-relative files given the same
 	// literal-resource-block scan as ScanScript, for an estate whose crossing
 	// script sources its configuration from a file beside it rather than
-	// carrying the heredocs itself - reference-eks (#1113) keeps its root in
-	// live/e2e/reference-eks/estate.sh so the emulator crossing and the
-	// live-cert script declare the same text. Empty for every other estate.
+	// carrying the heredocs itself. reference-eks (#1113) was the one
+	// estate that used it, and was retired under #2288; kept for the next
+	// estate whose emulator crossing and live-cert script share a root.
 	ScanFiles []string
 
 	// NotAppliedProviders names providers whose resource types ConfigDirs
@@ -272,13 +272,6 @@ var estateSpecs = []estateSpec{
 		ScanScript: true,
 		ScanFiles:  []string{".corpus/k8s-io/infra/gcp/terraform/k8s-infra-gcp-gcve/main.tf"},
 		Note:       `The gcp lane's first published root (#1119): kubernetes/k8s.io's infra/gcp/terraform/k8s-infra-gcp-gcve at 4046258e7d. ConfigDirs is nil on purpose: live/e2e/corpus-k8s-infra-gcp-gcve/run.sh's shape_root() copies main.tf, variables.tf, buckets.tf and iam.tf, replaces provider.tf, and takes only the four Compute resources out of vmware-engine.tf, leaving its five google_vmwareengine_* resources out, so loading the directory would count types the estate never applies; and corpus-fetch installs no modules for the gcp roots, which no corpus glob reaches. ScanFiles reads main.tf (google_project_service). ScanScript reads the script's network_expected() heredoc, the four Compute blocks it holds the corpus text to (google_compute_network, google_compute_subnetwork, google_compute_firewall), day2_replace's and day2_crash's scratch google_storage_bucket blocks, and the strict scratch estate's random_password. The two registry modules' types (simple_bucket's google_storage_bucket and google_storage_bucket_iam_member, projects_iam's google_project_iam_binding) are applied but not counted here: no module is installed for this root.`,
-	},
-	{
-		Name:       "reference-eks",
-		ConfigDirs: nil,
-		ScanScript: true,
-		ScanFiles:  []string{"live/e2e/reference-eks/estate.sh"},
-		Note:       `The "reference" lane's EKS estate (#1113), on the floci-eks substrate: no external source, a hand-written shape kept in this repository. run.sh declares no resource itself; it sources live/e2e/reference-eks/estate.sh, whose reference_eks_aws_resources() and reference_eks_cluster_resources() heredocs carry the whole estate, shared with live/live-cert/reference-eks.sh: the VPC, two subnets, internet gateway, route table and its two associations, four IAM roles and four policy attachments, the cluster, a managed node group, an access entry with a policy association and a pod identity association (the last three behind eks_access_api), and a kubernetes_namespace_v1, kubernetes_service_account_v1, kubernetes_config_map_v1 (app-config and a two-instance count set) and kubernetes_deployment_v1 on the cluster it creates. estate.sh also carries the day-2 stages' extra blocks, which live/e2e/reference-eks/stages.sh adds and removes again: day2_crash's kubernetes_secret_v1 and kubernetes_config_map_v1 pair, day2_replace's create_before_destroy kubernetes_config_map_v1, and the strict scratch estate's random_password, outside the estate itself. day2_crash's create_before_destroy rename window is live/e2e/lib/gauntlet.sh's gauntlet_kind_day2_crash_rename, whose kubernetes_config_map blocks are in the library and not scanned, as for the kind estates.`,
 	},
 	{
 		Name:       "corpus-azapi-role-assignment",

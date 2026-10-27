@@ -253,7 +253,7 @@ test-kubernetes-clean: ## Cleans environment after `test-kubernetes`.
 # cleaning containers of an image nothing here runs.
 #
 # ?= rather than := so an exported FLOCI_IMAGE wins, which is what
-# internal/live/flocitest and live/e2e/run.sh both already do. With :=, a run
+# internal/live/flocitest and the e2e harnesses already do. With :=, a run
 # under an overridden image started containers this target could not see, and
 # test-floci-clean went back to cleaning nothing - the same silent no-op the
 # drifted literal caused, reached a different way (issue #145).

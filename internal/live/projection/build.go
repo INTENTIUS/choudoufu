@@ -3361,7 +3361,7 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics, object absent.Object) (bool,
 // block showed a permanent, spurious "tags" in-place diff, re-adding the
 // same keys on every single plan. Verified directly against a live floci
 // build rather than inferred from the plan output (see the issue and
-// live/e2e/corpus-cncf-k8s-infra-aws-capa-ami/run.sh): CreateRole and
+// live/e2e/corpus-cncf-k8s-infra-aws-capa-ami/run.sh, deleted under #2288): CreateRole and
 // GetRole both correctly return every tag, default_tags merged client-side
 // by terraform-provider-aws before the request ever reaches the emulator.
 // The gap is upstream of both. [providers.Configured.ImportResourceState]
@@ -3749,7 +3749,7 @@ func dataSensitivePath(traversals []hcl.Traversal, dataSchemas map[string]provid
 //
 // The mechanism, verified directly against a live floci build rather than
 // inferred from the plan output (see the issue and
-// live/e2e/corpus-cncf-k8s-infra-aws-capa-ami/run.sh): CreateRole and
+// live/e2e/corpus-cncf-k8s-infra-aws-capa-ami/run.sh, deleted under #2288): CreateRole and
 // GetRole both correctly return every tag, default_tags merged client-side
 // by terraform-provider-aws before the request ever reaches the emulator.
 // The gap is upstream of both. [providers.Configured.ImportResourceState]

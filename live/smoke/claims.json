@@ -262,11 +262,6 @@
   ],
   "demos": [
     {
-      "scenario": "live/smoke/scenarios/full.sh",
-      "command": "just smoke full",
-      "minutes": 6
-    },
-    {
       "scenario": "live/smoke/scenarios/the-recommended-secure-configuration.sh",
       "command": "just smoke the-recommended-secure-configuration",
       "minutes": 10,
@@ -974,14 +969,13 @@
               "command": "just smoke one-bucket-many-estates",
               "minutes": 8,
               "real_service": true,
-              "break_mode": "Three controls, each stopping after its own. BREAK=1 has two arms: with the prefix mis-scoped and only the relabel Deny removed, it passes only when the role retags the neighbour's record and then reads it; with the prefix mis-scoped and the read Deny removed, only when the record reads back. BREAK_FIRST_WRITE=1 conditions the write on s3:ExistingObjectTag and passes only when a new estate's first write is denied (claim 34's control). BREAK_UNTAGGED=1 rebuilds choudoufu with an S3 store that sends no tags (go build -overlay, so it needs Go) and passes only when its first write is denied (claim 36's control)",
+              "break_mode": "Two controls, each stopping after its own. BREAK=1 has two arms: with the prefix mis-scoped and only the relabel Deny removed, it passes only when the role retags the neighbour's record and then reads it; with the prefix mis-scoped and the read Deny removed, only when the record reads back. BREAK_FIRST_WRITE=1 conditions the write on s3:ExistingObjectTag and passes only when a new estate's first write is denied (claim 34's control). Claim 36's control, a store that sends no tags, was this scenario's BREAK_UNTAGGED=1 arm and is now TestS3StoreTagsEveryObjectItWrites in pkg/staterecord (CI); the arm was dropped under #2288",
               "evidence": [
                 "live/smoke/evidence/one-bucket-many-estates.lastrun.json",
                 "live/smoke/evidence/a-new-estate-writes-its-first-record.lastrun.json",
                 "live/smoke/evidence/objects-carry-the-estate-tag.lastrun.json"
               ],
-              "note": "Real AWS, maintainer-run with SMOKE_REAL_AWS=1; it creates a bucket and IAM roles and removes them. Steps 1, 2, 7 and 8 and the BREAK_FIRST_WRITE and BREAK_UNTAGGED arms show a new estate's first record write and the estate tag on every object. The evidence files are the runs of 2026-09-18 and 2026-09-19, us-east-2.",
-              "needs_go": true
+              "note": "Real AWS, maintainer-run with SMOKE_REAL_AWS=1; it creates a bucket and IAM roles and removes them. Steps 1, 2, 7 and 8 and the BREAK_FIRST_WRITE arm show a new estate's first record write and the estate tag on every object. The evidence files are the runs of 2026-09-18 and 2026-09-19, us-east-2; the 2026-09-19 run also ran the since-dropped BREAK_UNTAGGED arm."
             },
             {
               "scenario": "live/smoke/scenarios/a-read-only-role-can-plan.sh",

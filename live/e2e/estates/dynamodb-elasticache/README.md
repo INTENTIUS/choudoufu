@@ -118,7 +118,7 @@ checks it by static HCL parse — `TestAdmissionTableCoversEstate` and
 to cover exactly the union of `live/e2e/estate/` and every `estates/*`
 cohort, this one included.
 
-`live/e2e/run.sh` and the gated `internal/live/discovery` floci integration
+`live/e2e/run.sh` (retired under #2288) and the gated `internal/live/discovery` floci integration
 test still stand up only the demo estate. Wiring cohort estates into the
 gated apply-against-floci tier is separate follow-on work, the same note
 every other cohort's README already makes.
@@ -194,7 +194,7 @@ advertises — narrower, in fact, than any earlier batch's cohort found:
   to the socket before rolling back. This is `lex00/floci#28`'s own
   Docker-socket requirement — the same gap the RDS batch's
   `aws_db_instance` ran into — not a new finding: neither this
-  hand-verification harness nor `live/e2e/run.sh`'s gated tier mounts the
+  hand-verification harness nor `live/e2e/run.sh` (retired under #2288)'s gated tier mounts the
   host's Docker socket into the floci container. `aws_elasticache_cluster.app`
   was still in its own multi-minute "Still creating" wait, consistent with
   the same code path, when this run was interrupted rather than left to

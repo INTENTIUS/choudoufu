@@ -48,7 +48,6 @@ just smoke k8s-plan-cost-tracks-the-estate # claim 14 on kind: 80 foreign Config
 just smoke k8s-an-estate-reads-another-by-declaring-it # claim 28 on kind: reading another estate's outputs is declared, granted one get, and refused by name without either
 just smoke a-held-delete-is-not-gone # claim 1 on AWS: a secret deleted with a recovery window stays in the account, and the plans after it read it as the provider does, empty (#1599)
 just smoke the-server-gets-the-last-word # claim 15 on AWS: a Deny landing after approval refuses the approved apply in AWS's words, and the same plan file applies once it lifts (#1599)
-just smoke full           # the comprehensive 15-step harness (~6 minutes)
 ```
 
 ## Scenarios
@@ -56,9 +55,10 @@ just smoke full           # the comprehensive 15-step harness (~6 minutes)
 The `import` and `greenfield` demos were dropped: `roundtrip` (claim 6)
 runs the stock-estate-without-its-state-file path end to end, and the
 gauntlet's migrate, greenfield and test_plan stages run both on every
-estate.
-
-- **full** - wraps `live/e2e/run.sh --expect 5`, the 15-step harness.
+estate. The `full` demo, which wrapped the legacy 15-step harness
+`live/e2e/run.sh`, was retired with that harness (#2288): its steps are
+gauntlet stages or smoke claims, and its lint-rejects step is
+`internal/live/lint/limits_test.go`.
 
 ## Kubernetes
 
@@ -612,9 +612,9 @@ showing its own checks would have caught it.
   `tofu-address`), that updates work under `If-Match`, and that a record
   retagged as another estate's is refused to its own estate by name.
   `BREAK_FIRST_WRITE=1` conditions the write on `s3:ExistingObjectTag`
-  and a new estate's first write must be denied; `BREAK_UNTAGGED=1`
-  builds a binary that sends no tags (Go needed) and its first write must
-  be denied. Needs jq.
+  and a new estate's first write must be denied. A store that sends no
+  tags is caught by `TestS3StoreTagsEveryObjectItWrites` in CI, so this
+  scenario no longer carries that arm (#2288). Needs jq.
 - **the-recommended-secure-configuration** - *Claim 37: the
   recommended secure configuration works end to end, including
   recovering a deleted record.* **Real AWS, maintainer-run.** The bucket

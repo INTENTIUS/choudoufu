@@ -302,95 +302,95 @@
   "sets": {
     "all": {
       "label": "All estates",
-      "estates": 25,
+      "estates": 24,
       "clear": 24,
       "verified": 0,
       "carried": 24,
       "stages": {
         "cold_deploy": {
-          "pass": 25,
+          "pass": 24,
           "fail": 0,
           "not_run": 0
         },
         "day2_count": {
           "pass": 24,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_crash": {
           "pass": 1,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "day2_endpoints": {
           "pass": 0,
           "fail": 0,
-          "not_run": 25
+          "not_run": 24
         },
         "day2_remove": {
           "pass": 24,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_rename": {
           "pass": 24,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_replace": {
           "pass": 24,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_teardown": {
           "pass": 0,
           "fail": 0,
-          "not_run": 25
+          "not_run": 24
         },
         "drift_reconverge": {
           "pass": 24,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "greenfield": {
           "pass": 24,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "migrate": {
           "pass": 24,
-          "fail": 1,
+          "fail": 0,
           "not_run": 0
         },
         "no_local_state": {
           "pass": 0,
           "fail": 0,
-          "not_run": 25
+          "not_run": 24
         },
         "plan_approval": {
           "pass": 24,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "record_store_gcs": {
           "pass": 0,
           "fail": 0,
-          "not_run": 25
+          "not_run": 24
         },
         "strict": {
           "pass": 1,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "test_apply": {
           "pass": 24,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "test_plan": {
           "pass": 24,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         }
       }
     },
@@ -962,95 +962,95 @@
     },
     "reference": {
       "label": "reference lane",
-      "estates": 3,
+      "estates": 2,
       "clear": 2,
       "verified": 0,
       "carried": 2,
       "stages": {
         "cold_deploy": {
-          "pass": 3,
+          "pass": 2,
           "fail": 0,
           "not_run": 0
         },
         "day2_count": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_crash": {
           "pass": 1,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "day2_endpoints": {
           "pass": 0,
           "fail": 0,
-          "not_run": 3
+          "not_run": 2
         },
         "day2_remove": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_rename": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_replace": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "day2_teardown": {
           "pass": 0,
           "fail": 0,
-          "not_run": 3
+          "not_run": 2
         },
         "drift_reconverge": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "greenfield": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "migrate": {
           "pass": 2,
-          "fail": 1,
+          "fail": 0,
           "not_run": 0
         },
         "no_local_state": {
           "pass": 0,
           "fail": 0,
-          "not_run": 3
+          "not_run": 2
         },
         "plan_approval": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "record_store_gcs": {
           "pass": 0,
           "fail": 0,
-          "not_run": 3
+          "not_run": 2
         },
         "strict": {
           "pass": 1,
           "fail": 0,
-          "not_run": 2
+          "not_run": 1
         },
         "test_apply": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         },
         "test_plan": {
           "pass": 2,
           "fail": 0,
-          "not_run": 1
+          "not_run": 0
         }
       }
     },
@@ -4883,67 +4883,6 @@
         }
       },
       "notes": "Verified end-to-end 2026-08-17/18. Drift-and-reconverge added 2026-08-18: the adopted estate's EC2 instance Name tag is tampered directly via the AWS CLI against the running floci container, choudoufu plan proposes fixing exactly aws_instance.main and nothing else, and apply reconverges it - verified with a real clean run and a real BREAK=1 run (BREAK also tampers a second object's Name tag, and the single-object assertion is confirmed to fail when it does)."
-    },
-    {
-      "name": "reference-eks",
-      "source": "hand-written reference shape kept in this repository (live/e2e/reference-eks/estate.sh): VPC, EKS cluster, one managed node group, an access entry and a pod identity association, with provider \"kubernetes\" configured from aws_eks_cluster.this and an exec token, and a four-object cluster leg; one estate across AWS and the cluster it creates (#1113), certified on real AWS by live/live-cert/reference-eks.sh",
-      "lane": "reference",
-      "set": "growing",
-      "substrate": "floci-eks",
-      "script": "live/e2e/reference-eks/run.sh",
-      "stages": {
-        "cold_deploy": "pass",
-        "day2_count": "not_run",
-        "day2_crash": "not_run",
-        "day2_endpoints": "not_run",
-        "day2_remove": "not_run",
-        "day2_rename": "not_run",
-        "day2_replace": "not_run",
-        "day2_teardown": "not_run",
-        "drift_reconverge": "not_run",
-        "greenfield": "not_run",
-        "migrate": "fail",
-        "no_local_state": "not_run",
-        "plan_approval": "not_run",
-        "record_store_gcs": "not_run",
-        "strict": "not_run",
-        "test_apply": "not_run",
-        "test_plan": "not_run"
-      },
-      "stage_runs": {
-        "cold_deploy": {
-          "commit": "2f02038dd18baf49374e59cd9813dbd67a120938",
-          "date": "2026-10-12T21:11:03Z"
-        },
-        "migrate": {
-          "commit": "2f02038dd18baf49374e59cd9813dbd67a120938",
-          "date": "2026-10-12T21:11:03Z"
-        }
-      },
-      "clear": false,
-      "protocol": "gauntlet",
-      "last_run": {
-        "commit": "2f02038dd18baf49374e59cd9813dbd67a120938",
-        "date": "2026-10-12T21:11:03Z",
-        "emulator": "ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144",
-        "aws_provider_version": "6.63.0",
-        "kubernetes_provider_version": "3.2.1",
-        "oracle": {
-          "terraform": "1.15.8",
-          "tofu": "1.12.5"
-        },
-        "upstream_version": "1.13.0",
-        "exit_code": 1,
-        "detail": {
-          "cold_deploy": "21 resources from stock terraform (15 AWS, 6 cluster objects) against floci-eks; cluster refeks-eks is ACTIVE and its k3s container floci-refeks13540-eks-refeks-eks holds the cluster leg, read with kubectl; zero tofu-estate labels; the kubernetes provider was configured from aws_eks_cluster.this with an exec token as written; access entry and pod identity association not created (eks_access_api=false: floci has no pod identity create, and the pinned image is not checked for access-entry create)",
-          "migrate": "live-import -approve did not finish with 0 failed and 0 skipped: 14 resource(s) newly stamped, 0 already stamped, 0 newly recorded, 0 re-recorded for sensitivity only, 0 already recorded, 1 failed, 6 skipped"
-        },
-        "duration_s": 72.3,
-        "stage_seconds": {
-          "cold_deploy": 50,
-          "migrate": 22
-        }
-      }
     },
     {
       "name": "reference-gcp",

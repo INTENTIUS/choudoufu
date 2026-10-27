@@ -4,9 +4,8 @@ description: Stand up a small estate on a local AWS emulator or a kind cluster, 
 prompt: >-
   Follow https://intentius.io/choudoufu/docs/tutorial/ in a checkout of
   INTENTIUS/choudoufu. Check that `docker info` succeeds, run
-  `bash live/e2e/run.sh --expect 5` for AWS or `just smoke k8s-greenfield`
-  for Kubernetes, and tell me which steps passed and, if it failed, which
-  step it named.
+  `just smoke roundtrip` for AWS or `just smoke k8s-greenfield` for
+  Kubernetes, and report each verdict line.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
@@ -15,34 +14,34 @@ and plans again from the markers alone.
 
 ## Before you start
 
-Install Docker (started, so `docker info` succeeds), the `aws` CLI and Go,
-then clone the repository:
+Install Docker (started, so `docker info` succeeds), the `aws` CLI, Go and
+`just`, then clone the repository:
 
 ```
 git clone https://github.com/INTENTIUS/choudoufu.git
 cd choudoufu
 ```
 
-For Kubernetes, also install `kind`, `kubectl` and `just`.
+For Kubernetes, also install `kind` and `kubectl`.
 
 ## On AWS
 
 From the root of the clone:
 
 ```
-bash live/e2e/run.sh --expect 5
+just smoke roundtrip
 ```
 
 The output ends like this:
 
 ```
-PASS: live-mode E2E harness reached the end.
-EXPECT 5: OK -- every step phase<=5 is pass, every step phase>5 is not_implemented
+PASS: smoke scenario 'roundtrip' - every claim held (smoke v...)
 ```
 
-Step 2 applies and tags each taggable resource with `tofu-estate` and `tofu-address`.
-Step 3 deletes `terraform.tfstate`. Steps 4 and 5 plan again, and both plans
-come back empty.
+Stock OpenTofu stands up an untagged estate. `live-import` tags each
+resource with `tofu-estate` and `tofu-address`. With `terraform.tfstate`
+deleted, the plan comes back empty. Stock then takes the estate back from
+one file and destroys it.
 
 ## On Kubernetes
 
@@ -55,7 +54,7 @@ finds them by the `tofu-estate` label and comes back empty.
 
 ## What just happened
 
-The apply wrote a marker on each taggable resource, so the state file is now a cache.
+The run wrote a marker on each taggable resource, so the state file is now a cache.
 In your own estate, an `estate.chdf.hcl` file turns that on.
 
 ## Next

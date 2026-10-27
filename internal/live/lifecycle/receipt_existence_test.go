@@ -27,8 +27,8 @@ import (
 // Runs through plain `choudoufu apply`/`plan` behind a `live {}` block (P4.1),
 // the same path an operator uses, rather than `live-plan -estate=`: the
 // claim under test is the receipt pattern working end to end through the
-// ordinary command surface, not the flag surface live/e2e/run.sh
-// already covers in more detail (its receipt-cycle-existence step, added by
+// ordinary command surface, not the flag surface the retired live/e2e/run.sh
+// covered in more detail (its receipt-cycle-existence step, added by
 // this same task, exercises the identical cycle against the full P0.1
 // estate through live-plan).
 func TestReceiptExistenceFlavorAgainstFloci(t *testing.T) {
@@ -67,7 +67,7 @@ func TestReceiptExistenceFlavorAgainstFloci(t *testing.T) {
 	// floci-gaps #10 (chant/test/floci-gaps.md): ssm:PutParameter drops the
 	// inline tag set a parameter is created with, so the freshly applied
 	// receipt reads back untagged and is correctly unowned until adopted -
-	// the same gap live/e2e/run.sh's step 3d works around for the full
+	// the same gap the retired live/e2e/run.sh's step 3d works around for the full
 	// estate fixture. Adopted here with the AWS CLI, a tag write a human
 	// would make deliberately, so the delete/re-arm claim below is about the
 	// existence cycle itself and not entangled with this standing emulator

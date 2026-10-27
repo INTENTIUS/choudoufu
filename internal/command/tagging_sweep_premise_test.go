@@ -36,7 +36,7 @@ import (
 //
 // The cost was not correctness. TaggingSweep=false still detects removals,
 // through ~950 per-type List calls instead of one GetResources. The cost was
-// coverage: loopback is what live/e2e/run.sh and
+// coverage: loopback is what the e2e harnesses and
 // internal/live/flocitest.Endpoint both use, so the gate meant the emulator
 // tier - the only tier that could exercise it - never reached
 // internal/live/discovery's sweepViaTagging leg at all.

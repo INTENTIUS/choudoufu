@@ -50,10 +50,6 @@ test-floci:
 bench-estate:
     make bench-estate
 
-# The demo: real estate on a local emulator, state file deleted mid-run, plans stay exact. Needs Docker, ~2 minutes, exit 0 = every claim held.
-demo:
-    bash live/e2e/run.sh --expect 5
-
 # The smoke stack (issue #713): docker compose (pinned floci + the stock
 # opentofu oracle), scenario-per-invocation, versioned. `just smoke` lists
 # scenarios; BREAK=1 proves a scenario's assertions can fail;

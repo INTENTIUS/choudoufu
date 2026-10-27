@@ -312,14 +312,14 @@ type EmulatorBlockedType struct {
 // EmulatorBlocked is the curated roster of types issue #26 names as
 // wireable against real AWS but not provable against the floci emulator
 // today. Which floci behavior blocks which type is read off the harness
-// (live/e2e/run.sh) and the admission table, not derivable from any
+// (the retired live/e2e/run.sh) and the admission table, not derivable from any
 // artifact, so this is hand data — the same status as DeprecatedServices
 // and CFNOnlyConstructs.
 var EmulatorBlocked = []EmulatorBlockedType{
 	{
 		Type:     "aws_iam_role",
 		Admitted: true,
-		// live/e2e/run.sh's RESIDUE_UNOWNED: floci's iam:GetRole omits
+		// The retired live/e2e/run.sh's RESIDUE_UNOWNED: floci's iam:GetRole omits
 		// Tags, so a marker run can never see the role's own tofu-address
 		// tag come back and reports it [UNOWNED] on every plan.
 		Reason: "floci's iam:GetRole omits Tags, so the role's own marker never reads back and every plan reports it unowned",
@@ -327,7 +327,7 @@ var EmulatorBlocked = []EmulatorBlockedType{
 	{
 		Type:     "aws_s3_bucket_policy",
 		Admitted: true,
-		// live/e2e/run.sh's RESIDUE_CHANGED: downstream of the role gap
+		// The retired live/e2e/run.sh's RESIDUE_CHANGED: downstream of the role gap
 		// above — the policy document embeds aws_iam_role.app's ARN, and
 		// an unowned role is planned as a create, so the policy's plan
 		// never settles either.
@@ -351,7 +351,7 @@ var EmulatorBlocked = []EmulatorBlockedType{
 	// because the emulator gap itself has not closed: confirmed by
 	// inspection during that batch that neither the gated Go harness
 	// (internal/live/flocitest) nor the shell e2e harness
-	// (live/e2e/run.sh) nor any cohort README's "Verifying by hand" `docker
+	// (the retired live/e2e/run.sh) nor any cohort README's "Verifying by hand" `docker
 	// run` command mounts the Docker socket lex00/floci#28 names.
 	{
 		Type:     "aws_db_instance",

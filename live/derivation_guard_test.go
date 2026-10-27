@@ -414,7 +414,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 1, Code: 0,
 	},
 	"live/residue.go": {
-		Reason: "EmulatorBlocked (#26): which floci gap blocks which type, read off live/e2e/run.sh and the harness rather than " +
+		Reason: "EmulatorBlocked (#26): which floci gap blocks which type, read off the e2e harnesses rather than " +
 			"any artifact. Its own doc comment already says it is hand data. Shrinks as the emulator improves.",
 		Data: 4, Code: 0,
 	},

@@ -29,7 +29,7 @@
 // 845 and moved the number of configurations that actually work by zero.
 // The only number here is cohorts that apply and replan empty.
 //
-// Nothing in live/e2e/run.sh is reused. That script is 2515 lines around
+// Nothing in live/e2e/run.sh (retired under #2288) was reused. That script was 2515 lines around
 // one demo fixture; this tier is built on internal/live/flocitest's
 // primitives (GenerateCohorts, CopyFixtureDir, StartFloci, the cross-process
 // init lock) precisely so that adding a cohort means adding a roster entry,
