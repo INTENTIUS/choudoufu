@@ -314,7 +314,18 @@
     "storage-account with_private_endpoint example pins azurerm =4.20.0, so",
     "those would measure against a schema the lane does not target. The",
     "private-endpoint coverage that example would have given comes from",
-    "azapi's Microsoft.Network_privateEndpoints example instead."
+    "azapi's Microsoft.Network_privateEndpoints example instead.",
+    "",
+    "eks has two sources (#2298). The static corpus measures eks at a",
+    "current major, v21.29.0, in .corpus/eks-v21. The v9.0.0 checkout in",
+    ".corpus/eks stays because the corpus-eks-basic gauntlet row runs",
+    "examples/basic from it, and #2291 re-measures that row. Its other four",
+    "v9.0.0 examples are no longer measured: their kubernetes, null,",
+    "random, template and local providers have no darwin_arm64 build, so",
+    "they could only ever be measured with partial schemas. examples/basic",
+    "is kept under the origin \"gauntlet input\" so that it is fetched and",
+    "measured beside its gauntlet row without counting toward the",
+    "terraform-aws-modules population."
   ],
   "sources": [
     {
@@ -328,8 +339,18 @@
       }
     },
     {
-      "glob": ".corpus/eks/examples/*",
+      "glob": ".corpus/eks-v21/examples/*",
       "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/eks-v21",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-eks.git",
+        "tag": "v21.29.0",
+        "commit": "91f11ea01656c26b8e6b8eb1b74f19863f60056c"
+      }
+    },
+    {
+      "glob": ".corpus/eks/examples/basic",
+      "origin": "gauntlet input",
       "fetch": {
         "dir": ".corpus/eks",
         "repo": "https://github.com/terraform-aws-modules/terraform-aws-eks.git",
