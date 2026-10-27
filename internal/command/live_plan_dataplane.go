@@ -17,12 +17,13 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 	"github.com/intentius/choudoufu/internal/live/substrate"
+	"github.com/intentius/choudoufu/internal/live/sweepconfig"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 )
 
 // The command layer's half of the Key Vault data-plane sweep (GitHub issue
@@ -81,7 +82,7 @@ func (p *projectionProviders) dataPlaneLeg(ctx context.Context, addr addrs.AbsPr
 				addr, strings.Join(vaults, ", "), plural(len(vaults), "that vault", "those vaults"))))
 	}
 	val, have := p.familyProviderValue(ctx, addr)
-	client, err := azsweep.NewKeyVault(ctx, substrate.AzureSweepAttrs(val, have))
+	client, err := sweepconfig.AzureKeyVault(ctx, substrate.AzureSweepAttrs(val, have))
 	if err != nil {
 		return nil, diags.Append(tfdiags.Sourceless(tfdiags.Warning, azsweep.SummarySweepUnavailable,
 			fmt.Sprintf("No Key Vault client could be built from provider configuration %s, so the keys, secrets and certificates in %s are not listed this run: %s.", addr, strings.Join(vaults, ", "), err)))

@@ -22,6 +22,8 @@ prompt: >-
 | `live-mv <old> <new>` | Rewrites a marker |
 | `live-plan` | The live plan; [`-filter`](https://github.com/INTENTIUS/choudoufu/blob/main/live/REPORT-FILTER.md) narrows it |
 | `live-history <address>` | A record's versions, newest first |
+| `live-graph DIR -json` | The estate's graph |
+| `investigate`, `mcp` | Read-only questions, also over MCP |
 | `live-ls -estate=<name>` | Lists an estate |
 | `live-bucket -bucket <name>` | Checks a bucket |
 | `live-cluster` | Checks a cluster record store |

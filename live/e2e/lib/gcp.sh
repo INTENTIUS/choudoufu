@@ -44,7 +44,7 @@ gcp_floci_up() {
 # /v1/projects belongs to IAM (docs/services/cloud-asset.md and
 # CloudAssetController at the pinned 641e6e8), and only rewrites a bare
 # /v1/ path for a cloudasset.* host name, which 127.0.0.1 is not. The
-# sweep (internal/live/gcpsweep's serviceRoot) keeps the prefix and drops
+# sweep (pkg/gcpsweep's serviceRoot) keeps the prefix and drops
 # the trailing v1, so it calls /cloudasset/v1/projects/<p>:searchAllResources.
 #
 # Two arguments are not the service's own name. google_service_account's

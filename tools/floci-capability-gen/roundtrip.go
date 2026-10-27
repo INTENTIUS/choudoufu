@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-// Cloud Control's write path, which internal/live/cloudcontrol deliberately
+// Cloud Control's write path, which pkg/cloudcontrol deliberately
 // does not have: that package is the discovery plane's READ transport
 // (ListResources/GetResource) and widening it with a Create would put a
 // write operation into the live path for a probe tool's benefit. The two
@@ -24,7 +24,7 @@ import (
 // 1.0 wire shape by hand.
 //
 // Unsigned on purpose, and only ever pointed at an emulator: floci does not
-// verify signatures (internal/live/cloudcontrol/doc.go's "Signing" section
+// verify signatures (pkg/cloudcontrol/doc.go's "Signing" section
 // records the same), and this probe has no business creating anything
 // anywhere that does.
 const (
@@ -206,7 +206,7 @@ func errorText(code, message string) string {
 }
 
 // shortCode strips the shape-ID prefix AWS JSON puts in front of an error
-// type, the same normalization internal/live/cloudcontrol's errorCode does.
+// type, the same normalization pkg/cloudcontrol's errorCode does.
 func shortCode(wireType string) string {
 	if i := strings.LastIndex(wireType, "#"); i >= 0 {
 		return wireType[i+1:]

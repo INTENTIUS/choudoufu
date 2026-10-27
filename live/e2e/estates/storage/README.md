@@ -56,7 +56,7 @@ For `aws_efs_file_system` specifically, the fallback applies:
 `live/mapping.json` maps it to `AWS::EFS::FileSystem` via `"name"`, and
 `live/registry.json` records that CFN type as listable
 (`handlers.list: true`, no `list_required_input`) — so
-`internal/live/registry.Roster.EnumerationSource` resolves a CFN type for
+`pkg/registry.Roster.EnumerationSource` resolves a CFN type for
 it, and `internal/live/discovery/cloudcontrol.go`'s `scanTypeCloudControl`
 is the code path that would enumerate it whenever a caller supplies
 `Request.CloudControl` and `Request.Roster`. `internal/live/discovery/
@@ -155,7 +155,7 @@ recovers the type.
   to search on; and `live/registry.json`'s
   `handlers.list_required_input` for the same CFN type is
   `["FileSystemId"]` rather than empty, so
-  `internal/live/registry.Roster.Listable` reports false and the Cloud
+  `pkg/registry.Roster.Listable` reports false and the Cloud
   Control fallback that rescues `aws_efs_file_system` above does not apply
   either — `scanTypeCloudControl` only ever calls `ListResources` with no
   input. `live/survey-full.json`'s own mechanical classifier reaches the

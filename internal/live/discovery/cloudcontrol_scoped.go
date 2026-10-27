@@ -46,9 +46,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // ParentScopedChildSpec is what a caller supplies to drive one type through
@@ -121,7 +121,7 @@ func parentScopedCloudControlSweepType(ctx context.Context, req Request, spec Pa
 			TypeName: spec.TypeName,
 			Reason:   SweepGapScopeUnavailable,
 			Detail: fmt.Sprintf(
-				"%s (Cloud Control type %s) requires list input %q to scope, but that property does not appear in the type's own primary_identifier (%v), so a scoped listing's results cannot be verified as actually belonging to the parent they were scoped to - see internal/live/cloudcontrol.Client.ListResourcesScoped's own warning that not every Cloud Control backend honors ResourceModel scoping (floci's own implementation does not). Refusing rather than trusting an unverifiable result.",
+				"%s (Cloud Control type %s) requires list input %q to scope, but that property does not appear in the type's own primary_identifier (%v), so a scoped listing's results cannot be verified as actually belonging to the parent they were scoped to - see pkg/cloudcontrol.Client.ListResourcesScoped's own warning that not every Cloud Control backend honors ResourceModel scoping (floci's own implementation does not). Refusing rather than trusting an unverifiable result.",
 				spec.TypeName, cfnType, spec.CFNScopeProperty, req.Roster.PrimaryIdentifier(cfnType)),
 		}))
 	}

@@ -310,17 +310,21 @@ func TestOptionalComputedProbeKeepsAnEchoOut(t *testing.T) {
 	}
 }
 
-// TestOptionalComputedProbeRefusesASensitiveConfiguredValue: insecure_value
-// set from a `sensitive = true` variable reaches the probe as a marked value.
-// cty panics on a marked receiver and the probe never unmarks one, so the
-// attribute is not probed: there is one read, the first read stands with
-// insecure_value null, and nothing errors.
-func TestOptionalComputedProbeRefusesASensitiveConfiguredValue(t *testing.T) {
+// TestSSMShapedSensitiveInsecureValuePlansTheConfiguredValue is
+// INTENTIUS/choudoufu#2278: insecure_value set from a `sensitive = true`
+// variable, with no record. The probe takes part even though the configured
+// value is marked: it sends only the sentinel, and its compare unmarks the
+// second read with paths and re-marks what it keeps. The projected prior
+// carries the live "v1" in insecure_value marked sensitive, and the plan is
+// an update whose insecure_value is the configured "v2", known and marked
+// sensitive. Before #2278 the probe skipped the marked value, the first read
+// stood, and the plan carried insecure_value as unknown.
+func TestSSMShapedSensitiveInsecureValuePlansTheConfiguredValue(t *testing.T) {
 	dir := t.TempDir()
 	const src = `
 terraform {
   live {
-    estate = "ssm-2269-sensitive"
+    estate = "ssm-2278-sensitive"
   }
 }
 
@@ -341,6 +345,7 @@ resource "stub_parameter" "p" {
 	}
 	cfg := loadConfig(t, dir)
 	addr := mustAddr(t, `stub_parameter.p`)
+	schema := stubParameterSchema()
 	ctx := context.Background()
 	p := stubParameterProvider("v1")
 	reads := 0
@@ -352,11 +357,11 @@ resource "stub_parameter" "p" {
 	provAddr := addrs.AbsProviderConfig{Module: addrs.RootModule, Provider: addrs.NewDefaultProvider("stub")}
 	res, diags := BuildWith(ctx, cfg, []identity.Resolution{
 		{Addr: addr, Class: identity.ClassConcrete, ImportID: "/p", IdentityValues: map[string]string{"name": "/p"}},
-	}, SingleProvider(provAddr, p), Options{RecordStore: NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("ssm-2269-sensitive"))})
+	}, SingleProvider(provAddr, p), Options{RecordStore: NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("ssm-2278-sensitive"))})
 	assertNoErrors(t, diags)
 	assertMaterialized(t, res, []string{`stub_parameter.p`})
-	if reads != 1 {
-		t.Errorf("%d reads of stub_parameter.p, want 1: a marked configured value is not probed", reads)
+	if reads != 2 {
+		t.Errorf("%d reads of stub_parameter.p, want 2: a marked configured value is probed too", reads)
 	}
 	ri := res.State.ResourceInstance(addr)
 	if ri == nil || ri.Current == nil {
@@ -366,16 +371,60 @@ resource "stub_parameter" "p" {
 	if err := json.Unmarshal(ri.Current.AttrsJSON, &prior); err != nil {
 		t.Fatalf("the projected prior is not valid JSON: %s", err)
 	}
-	if prior["insecure_value"] != nil {
-		t.Errorf("projected insecure_value = %#v, want null: the probe declined, so the first read stands", prior["insecure_value"])
+	if prior["insecure_value"] != "v1" {
+		t.Errorf("projected insecure_value = %#v, want \"v1\" (the probe read)", prior["insecure_value"])
+	}
+	if prior["value"] != nil {
+		t.Errorf("projected value = %#v, want null: the probe read is the one kept, and it never writes value", prior["value"])
+	}
+	priorSensitive := false
+	for _, pvm := range ri.Current.AttrSensitivePaths {
+		if pvm.Path.Equals(cty.GetAttrPath("insecure_value")) {
+			priorSensitive = true
+		}
+	}
+	if !priorSensitive {
+		t.Error("the projected prior's insecure_value is not marked sensitive; the probe's compare dropped the configuration's mark")
+	}
+
+	plan, planDiags := stubContext(t, p).Plan(ctx, cfg, res.State, &tofu.PlanOpts{
+		Mode: plans.NormalMode,
+		// The variable's own default, assigned as the CLI would: core's Plan
+		// refuses an unassigned root variable outright.
+		SetVariables: tofu.InputValues{"v": &tofu.InputValue{Value: cty.StringVal("v2"), SourceType: tofu.ValueFromConfig}},
+	})
+	if planDiags.HasErrors() {
+		t.Fatalf("planning against the projected state: %s", planDiags.Err())
+	}
+	chg := plan.Changes.ResourceInstance(addr)
+	if chg == nil {
+		t.Fatalf("the plan holds no change for %s; changes: %v", addr, changedAddrs(plan))
+	}
+	if chg.Action != plans.Update {
+		t.Fatalf("%s plans as %s, want Update", addr, chg.Action)
+	}
+	change, err := chg.Decode(&schema)
+	if err != nil {
+		t.Fatalf("decoding the planned change: %s", err)
+	}
+	got := change.After.GetAttr("insecure_value")
+	if !got.HasMark(marks.Sensitive) {
+		t.Error("the planned insecure_value is not marked sensitive")
+	}
+	got, _ = got.UnmarkDeep()
+	if !got.IsKnown() {
+		t.Fatal("the planned insecure_value is unknown (known after apply); the update would apply as a no-op")
+	}
+	if got.IsNull() || got.AsString() != "v2" {
+		t.Errorf("the planned insecure_value = %#v, want the configured \"v2\"", got)
 	}
 }
 
-// TestOptionalComputedProbeDeclinesAMarkedSecondRead: the probe's second read
+// TestOptionalComputedProbeKeepsMarksOnASecondRead: the probe's second read
 // hands back the probed attribute marked (configuration marks restored by
-// readImported). probeOptionalComputed must return the first read rather
-// than unmark the value to compare it against the sentinel.
-func TestOptionalComputedProbeDeclinesAMarkedSecondRead(t *testing.T) {
+// readImported). probeOptionalComputed compares it unmarked and returns the
+// second read with the mark still on it (#2278).
+func TestOptionalComputedProbeKeepsMarksOnASecondRead(t *testing.T) {
 	ctx := context.Background()
 	schema := stubParameterSchema()
 	ty := schema.Block.ImpliedType()
@@ -402,7 +451,14 @@ func TestOptionalComputedProbeDeclinesAMarkedSecondRead(t *testing.T) {
 		Marks: cty.NewValueMarks(marks.Sensitive),
 	}}
 	got := probeOptionalComputed(ctx, p, schema, "stub_parameter", "/p", stub, nil, configMarks, nil, []string{"insecure_value"}, first)
-	if got != first {
-		t.Fatalf("the probe kept a second read whose insecure_value was marked; want the first read back unchanged")
+	if got == first {
+		t.Fatal("the probe returned the first read; want the second read, compared unmarked")
+	}
+	iv := got.Value.GetAttr("insecure_value")
+	if !iv.HasMark(marks.Sensitive) {
+		t.Error("the kept second read's insecure_value lost its sensitive mark")
+	}
+	if uv, _ := iv.Unmark(); uv.IsNull() || uv.AsString() != "v1" {
+		t.Errorf("the kept second read's insecure_value = %#v, want \"v1\"", uv)
 	}
 }

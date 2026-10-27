@@ -949,7 +949,7 @@ type CloudContext struct {
 	// a provider block that names none: ARM_SUBSCRIPTION_ID, which azurerm
 	// and azapi both read when their block leaves subscription_id unset
 	// (GitHub issue #2133, finding 4). The caller fills it from
-	// internal/live/azsweep.EnvSubscriptionID, the function the Resource
+	// pkg/azsweep.EnvSubscriptionID, the function the Resource
 	// Graph sweep's own environment fallback is, so the two cannot read the
 	// environment differently. [resolver.cloudValueFor] consults it only
 	// for a provider block that does not set subscription_id at all; a
@@ -960,7 +960,7 @@ type CloudContext struct {
 	// Environment is the Azure cloud the run's environment gives a provider
 	// block that names none: ARM_ENVIRONMENT, or "public" when that is
 	// unset too, which is the default both providers apply. The caller
-	// fills it from internal/live/azsweep.EnvEnvironment, which answers ""
+	// fills it from pkg/azsweep.EnvEnvironment, which answers ""
 	// when ARM_METADATA_HOSTNAME names a metadata host (the cloud is then
 	// whatever that host serves, which nothing here reads). Like
 	// SubscriptionID it is consulted only for a block that does not set

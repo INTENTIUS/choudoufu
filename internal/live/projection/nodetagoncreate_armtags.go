@@ -17,7 +17,7 @@ import (
 // [TaggingAPIWriter] so the two families' writers merge independently.
 
 // ARMTagger is ARM's Tags API merge onto one ARM id.
-// *internal/live/azsweep.Tagger implements it; [ARMTagsWriter] adapts it
+// *pkg/azsweep.Tagger implements it; [ARMTagsWriter] adapts it
 // to [MarkerWriter].
 type ARMTagger interface {
 	MergeTags(ctx context.Context, id string, tags map[string]string) error
@@ -49,7 +49,7 @@ func (w ARMTagsWriter) WriteMarkers(ctx context.Context, created CreatedInstance
 // case-insensitively, so that what it stores has to be merged the same way
 // ([mergeMarkersAt]). True for ARM's Tags API ([substrate.WriteARMTagsAPI]):
 // its Merge replaces a key the object already carries in another spelling
-// under that spelling (internal/live/azsweep's Tagger.MergeTags). The
+// under that spelling (pkg/azsweep's Tagger.MergeTags). The
 // Tagging API's TagResources and a label patch match keys exactly.
 func writeFoldsKeys(write substrate.Write) bool {
 	return write == substrate.WriteARMTagsAPI

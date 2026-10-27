@@ -1,0 +1,15 @@
+{
+  "adopt": "v1",
+  "index": {
+    "scopeKey": "cloud/aws/000000000000/9bd41033bb42",
+    "version": "20261026T120000Z-e2f92b265a4d.json",
+    "digest": "e2f92b265a4dd604e013b3f55eafe5cf317ea1f5b7c54b4c5187120d0dcfe10d"
+  },
+  "select": [
+    {
+      "node": "aws/000000000000/us-east-1/AWS::S3::Bucket/web-logs",
+      "as": "aws_s3_bucket.web_logs",
+      "type": "aws_s3_bucket"
+    }
+  ]
+}

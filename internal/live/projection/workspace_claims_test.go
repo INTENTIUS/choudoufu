@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 func TestNoteWorkspaceClaim(t *testing.T) {

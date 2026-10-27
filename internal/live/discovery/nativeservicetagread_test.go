@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // GitHub issue #1125: the native leg's half of #1131's per-service tag-read.

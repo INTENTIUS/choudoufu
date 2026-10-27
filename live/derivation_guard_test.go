@@ -129,7 +129,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"and the list). A type with no row reads exactly as before, so a missing row costs requests, never answers.",
 		Data: 1, Code: 0,
 	},
-	"internal/live/gcpsweep/typelist.go": {
+	"pkg/gcpsweep/typelist.go": {
 		Reason: "typeLists and NotCovered (INTENTIUS/choudoufu#2264): the per-type GCP list for each labelled " +
 			"server-assigned google type, so two creates of one object are both seen. Every other covered type is " +
 			"derived in servicelist.go from pkg/identity's GoogleAssetImports Asset name (its parent collection is " +
@@ -147,7 +147,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"Code is 0: Covered and CoveredTypes are keyed lookups.",
 		Data: 11, Code: 0,
 	},
-	"internal/live/gcpsweep/handwrittenlist.go": {
+	"pkg/gcpsweep/handwrittenlist.go": {
 		Reason: "handwrittenLists (INTENTIUS/choudoufu#2274, paired with INTENTIUS/plunge#19's gcplist/handwritten.go, " +
 			"which lists the same three): the covered types servicelist.go's rule cannot derive because pkg/identity " +
 			"holds no GoogleAssetImports row for them. google_sql_database_instance and google_container_cluster have " +
@@ -334,6 +334,24 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"live GetBucketPolicy- or GetRolePolicy-style read means when it finds nothing, which is provider behaviour " +
 			"and not schema.",
 		Data: 5, Code: 0,
+	},
+	"pkg/identity/cloudcontrol_hand.go": {
+		Reason: "ccHands (issue #2286, moved from plunge's ccid_hand.go, plunge#15/#19/#31): the multi-part Cloud Control " +
+			"identifiers whose Terraform import id is not the parts joined by the type's Components (aws_eip's " +
+			"PublicIp|AllocationId imports by the allocation id alone, aws_ecs_service cuts names out of two ARNs). " +
+			"Keyed by CloudFormation type, each naming its Terraform type; the build is the provider's own importer " +
+			"grammar read against the registry's primary identifier order, which no schema states. A type missing " +
+			"here falls back to the generic Components join, and CloudControlTranslation refuses where that does not fit.",
+		Data: 10, Code: 0,
+	},
+	"pkg/identity/cloudcontrol_single.go": {
+		Reason: "ccSinglePropRows, ccSingleBuilds and ccSingleUncovered (issue #2286, moved from plunge's ccid_single.go, " +
+			"plunge#28): the single-part Cloud Control identifiers that are not the Terraform id, found by plunge#28's " +
+			"audit comparing every covered type's CloudFormation primary identifier against its import id row. Which " +
+			"model property holds the id (Id where the listing gives an ARN, an ARN where it gives a name), and which " +
+			"ids need an account the model lacks, are provider importer facts no schema carries. Every type not listed " +
+			"takes the identifier as the id, repaired by shape; the tables are rows only and no function branches on a type.",
+		Data: 82, Code: 0,
 	},
 	"internal/live/lint/receipt_leaf.go": {
 		Reason: "receiptType: live/RECEIPTS.md defines a receipt AS an aws_ssm_parameter under /tofu-receipts/. This is a " +
@@ -855,15 +873,24 @@ const (
 	// internal/live/projection/scopedlisting.go's scopedListSpecs row for
 	// aws_route53_record, one new Data literal, none moved.
 	// 1359 -> 1371 data, code unchanged, on 2026-10-25 (#2264):
-	// internal/live/gcpsweep/typelist.go (12 / 0), the ten hand-listed
+	// pkg/gcpsweep/typelist.go (12 / 0), the ten hand-listed
 	// server-assigned GCP types and NotCovered's two, never registered when
 	// the file landed. 12 new Data literals, none moved.
 	// 1371 -> 1373 data, code unchanged, on 2026-10-26 (#2274):
-	// internal/live/gcpsweep/handwrittenlist.go (3 / 0), Cloud SQL, GKE
+	// pkg/gcpsweep/handwrittenlist.go (3 / 0), Cloud SQL, GKE
 	// clusters and Assured Workloads listed per type, never registered when
 	// the file landed; google_assured_workloads_workload moved there out of
 	// typelist.go's NotCovered (12 -> 11). 2 new Data literals, 1 moved.
-	typeLiteralDataTotal = 1373
+	// 1373 -> 1465 data, code unchanged, on 2026-10-26 (#2286):
+	// pkg/identity/cloudcontrol_hand.go (10 / 0) and
+	// cloudcontrol_single.go (82 / 0), plunge's Cloud Control id tables
+	// moved into pkg/identity and never registered when they landed. The
+	// single-part property rows were built inside a func literal (73 read
+	// as in-function); they are now the package-level ccSinglePropRows,
+	// table rows either way. adopt.go's one kubernetes_manifest comparison
+	// (#2287) became markers.ManifestSurface on the schema, so Code stays.
+	// 92 new Data literals, none moved.
+	typeLiteralDataTotal = 1465
 	typeLiteralCodeTotal = 140
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of

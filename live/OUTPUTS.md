@@ -474,8 +474,41 @@ them into one run:
   looked for where it lies relative to this one as it did at plan time
   (Terragrunt's `--out-dir` keeps that layout) and then at the path it was
   planned to, and refuses, naming the unit, when one is not there or is from
-  another plan. The carried plan still holds the planned values of every
-  unit's resources, sensitive attributes included, as any plan file does.
+  another plan.
+- Sensitive planned values (#2277). No plan file of a joint run holds one.
+  Every value the joint plan marks sensitive is set to null in what each
+  `-out` file carries: a resource change's before and after values at the
+  sensitive paths, a sensitive output change, the same in the plan's drift,
+  the sensitive attributes and outputs of its state snapshots, and the same
+  places in the carried `show -json`. The marks stay, so `show` still says
+  which values are sensitive. For each dropped value that was known, the
+  file keeps an HMAC-SHA256 bound to the unit, address, side and attribute
+  path. The HMAC key comes from `CHOUDOUFU_PLAN_HMAC_KEY` when it is set:
+  hex or base64 (standard or URL alphabet) of at least 32 bytes, for
+  example `openssl rand -hex 32` kept as one CI secret that both the plan
+  job and the apply job read. A shorter or undecodable value refuses the
+  plan and the apply, naming the variable and never its value. Without it,
+  the key is 32 random bytes in `sensitive.key` inside the planning
+  session's 0700 directory (mode 0600). Neither key goes into a plan file,
+  so a short password cannot be recovered from a file by hashing guesses,
+  and the variable's value is never written to the session directory or
+  printed. The file records only where its key came from (`keyFrom: env`
+  or nothing) and an HMAC of a fixed label under the key, so that an apply
+  holding another key refuses saying the key differs. `apply <file>` plans again, which recomputes the values. Before
+  the approval check compares the two plans, each recomputed value is
+  checked against its hash and put back into the reviewed plan. A value
+  that differs, a key that is not on the machine (the planning session
+  is gone or was on another machine, and the variable is not set), or a
+  variable that holds another key than the plan's, refuses with exit status 3 and names
+  the unit, the address and the attribute, never the value. A value that
+  was known after apply at plan time is not compared, as the approval
+  check does for unknowns. The unit's own sensitive inputs are still in its
+  own file (above), since Terragrunt gives an apply of a plan file no
+  inputs to recompute them from. A plan made in one job and applied in
+  another (the pull request and merge flow above) needs
+  `CHOUDOUFU_PLAN_HMAC_KEY` set to the same secret in both jobs whenever
+  the plan has a known sensitive value. Without it the apply refuses; set
+  the secret, or plan again in that job.
 
 A unit run alone, a run of the tools without `--all` / `--affected`, a unit
 without a live block, and any plan that uses `-target`, `-destroy`,

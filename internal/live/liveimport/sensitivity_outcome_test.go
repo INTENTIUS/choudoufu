@@ -15,8 +15,8 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // GitHub issue #344's report half.

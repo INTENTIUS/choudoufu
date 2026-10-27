@@ -44,8 +44,8 @@ resources, pull its state with the stock binary and follow
 
 ## The workflow
 
-The pull request plans and keeps the `plans` directory. The merge applies
-those files, with nothing planned first:
+The pull request plans into `plans`, and the merge applies those files,
+planning nothing first:
 
 ```
 terragrunt run --all --out-dir plans -- plan
@@ -53,13 +53,13 @@ terragrunt run --all --out-dir plans -- apply
 ```
 
 Every plan file carries the whole joint plan, so the merge's job needs only
-that directory. The first unit's apply applies it once.
+that directory. Separate jobs need one CI secret in `CHOUDOUFU_PLAN_HMAC_KEY`
+([why](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md)).
 
 ## Limits
 
-- One apply needs the saved plan files. `run --all apply` without `--out-dir`
-  applies the units one at a time, each reading its upstream's recorded
-  outputs.
+- `run --all apply` without `--out-dir` applies one unit at a time, each
+  reading its upstream's recorded outputs.
 - A `dependency` read is taken from the joint plan when it feeds an input
   directly, or through OpenTofu functions. An input that also calls `get_env`,
   or a value read through `read_terragrunt_config`, keeps Terragrunt's value.

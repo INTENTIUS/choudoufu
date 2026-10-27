@@ -6,6 +6,11 @@
 package command
 
 import (
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +33,8 @@ import (
 //	root/             the composed root written from the units
 //	joint.plan        the plan file of that root
 //	lock              held while the root is written, planned or applied
+//	sensitive.key     the key of the hashes of sensitive planned values (#2277),
+//	                  unless CHOUDOUFU_PLAN_HMAC_KEY holds it
 type jointSession struct {
 	dir string
 }
@@ -151,6 +158,160 @@ func jointSweep(root string) {
 			_ = os.RemoveAll(filepath.Join(root, e.Name()))
 		}
 	}
+}
+
+// jointKeyFile is the session's key for the hashes a plan file keeps of
+// the sensitive values it drops (INTENTIUS/choudoufu#2277).
+const jointKeyFile = "sensitive.key"
+
+// jointKeyEnv names the environment variable that, when set, holds the key
+// of the hashes in place of the session's key file (the #2277 follow-up
+// ruling, "Key from a CI secret"). CI stores one secret, and a joint plan
+// made in one job can be applied in another or on another machine. The
+// value is hex or base64 of at least 32 bytes. It is never written to a
+// plan file or the session directory, and never printed.
+const jointKeyEnv = "CHOUDOUFU_PLAN_HMAC_KEY"
+
+// jointKeyFromEnv is the bundle's KeyFrom when the key came from
+// [jointKeyEnv].
+const jointKeyFromEnv = "env"
+
+// jointMinEnvKey is the shortest key [jointKeyEnv] may hold, in bytes.
+const jointMinEnvKey = 32
+
+// jointEnvKey returns the key [jointKeyEnv] holds. ok is false when the
+// variable is unset or empty. An error names the variable and what is
+// wrong with it, never its value.
+func jointEnvKey() (key []byte, ok bool, err error) {
+	v := strings.TrimSpace(os.Getenv(jointKeyEnv))
+	if v == "" {
+		return nil, false, nil
+	}
+	key, err = jointDecodeKey(v)
+	if err != nil {
+		return nil, true, err
+	}
+	return key, true, nil
+}
+
+// jointDecodeKey decodes a key written as hex or as base64 (standard or
+// URL alphabet, padded or not), and refuses one shorter than
+// [jointMinEnvKey] bytes.
+func jointDecodeKey(v string) ([]byte, error) {
+	var key []byte
+	if b, err := hex.DecodeString(v); err == nil {
+		key = b
+	} else {
+		for _, enc := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding} {
+			if b, err := enc.DecodeString(v); err == nil {
+				key = b
+				break
+			}
+		}
+		if key == nil {
+			return nil, fmt.Errorf("%s is neither hex nor base64. Set it to hex or base64 of at least %d random bytes, for example the output of \"openssl rand -hex 32\"", jointKeyEnv, jointMinEnvKey)
+		}
+	}
+	if len(key) < jointMinEnvKey {
+		return nil, fmt.Errorf("%s decodes to %d bytes, and the key of the hashes of sensitive planned values must be at least %d bytes, so that a short secret cannot be guessed from a plan file. Set it to hex or base64 of at least %d random bytes, for example the output of \"openssl rand -hex 32\"", jointKeyEnv, len(key), jointMinEnvKey, jointMinEnvKey)
+	}
+	return key, nil
+}
+
+// jointKeyCheckLabel is what [jointKeyCheck] hashes.
+const jointKeyCheckLabel = "choudoufu joint plan key check (#2277)"
+
+// jointKeyCheck is an HMAC of a fixed label under key. A plan file keeps it
+// so that an apply holding another key refuses with "the key differs"
+// rather than naming every sensitive value as changed. It tells nothing
+// about the key, which is at least 32 random bytes, or about any value.
+func jointKeyCheck(key []byte) string {
+	m := hmac.New(sha256.New, key)
+	m.Write([]byte(jointKeyCheckLabel))
+	return hex.EncodeToString(m.Sum(nil))
+}
+
+// sensitiveKey returns the key of this session's hashes, and where it came
+// from: [jointKeyFromEnv] when [jointKeyEnv] is set, or "" for the
+// session's key file.
+//
+// The key file is made on first use: 32 random bytes in a 0600 file of the
+// session's 0700 directory. The key never goes into a plan file. A plan
+// file keeps an HMAC of each sensitive value under this key rather than a
+// plain hash, so that a low-entropy secret (a short password, a PIN) cannot
+// be found from the file by hashing guesses: without the key a guess cannot
+// be checked. The cost of the file is that only a machine that still has
+// this session directory can check the values at apply; a key from
+// [jointKeyEnv] lifts that.
+func (s *jointSession) sensitiveKey() ([]byte, string, error) {
+	if key, ok, err := jointEnvKey(); ok {
+		return key, jointKeyFromEnv, err
+	}
+	if key, err := jointReadKeyFile(s.dir); err == nil {
+		return key, "", nil
+	}
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return nil, "", err
+	}
+	f, err := os.OpenFile(s.path(jointKeyFile), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			key, err := jointReadKeyFile(s.dir)
+			return key, "", err
+		}
+		return nil, "", err
+	}
+	if _, err := f.Write(key); err != nil {
+		f.Close()
+		return nil, "", err
+	}
+	if err := f.Close(); err != nil {
+		return nil, "", err
+	}
+	return key, "", nil
+}
+
+// jointReadKey returns the key an apply checks a plan file's hashes with.
+// When [jointKeyEnv] is set, that is its key, whatever planned. Otherwise
+// it is the key file of the planning session at dir; a plan made with a
+// key from [jointKeyEnv] (keyFrom) has no key file and says so. check, when
+// the plan file keeps one, must match the key, or the key differs from the
+// one that planned.
+func jointReadKey(dir, keyFrom, check string) ([]byte, error) {
+	key, ok, err := jointEnvKey()
+	switch {
+	case ok && err != nil:
+		return nil, err
+	case !ok && keyFrom == jointKeyFromEnv:
+		return nil, fmt.Errorf("the plan was made with the key in %s, which is not set here", jointKeyEnv)
+	case !ok:
+		if key, err = jointReadKeyFile(dir); err != nil {
+			return nil, err
+		}
+	}
+	if check != "" && !hmac.Equal([]byte(jointKeyCheck(key)), []byte(check)) {
+		if ok {
+			return nil, fmt.Errorf("the key in %s is not the key the plan was made with", jointKeyEnv)
+		}
+		return nil, fmt.Errorf("the key of session %s is not the key the plan was made with", dir)
+	}
+	return key, nil
+}
+
+// jointReadKeyFile reads the key file of the session at dir.
+func jointReadKeyFile(dir string) ([]byte, error) {
+	if dir == "" {
+		return nil, fmt.Errorf("the plan file names no session")
+	}
+	key, err := os.ReadFile(filepath.Join(dir, jointKeyFile))
+	if err != nil {
+		return nil, err
+	}
+	if len(key) != 32 {
+		return nil, fmt.Errorf("%s is not a key", filepath.Join(dir, jointKeyFile))
+	}
+	return key, nil
 }
 
 func (s *jointSession) path(parts ...string) string {

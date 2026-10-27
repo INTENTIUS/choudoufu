@@ -103,7 +103,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   [ -z "${CHOUDOUFU_BIN:-}${CHOUDOUFU_VERSION:-}" ] \
     || fail "nameprefix" "BREAK=1 rebuilds choudoufu from this checkout with the delimiter dropped; it cannot break CHOUDOUFU_BIN or CHOUDOUFU_VERSION. Unset them and run it again with Go installed."
   command -v go >/dev/null 2>&1 || fail "nameprefix" "BREAK=1 needs Go to build the broken binary"
-  SRC="$ROOT/internal/live/staterecord/store.go"
+  SRC="$ROOT/pkg/staterecord/store.go"
   mkdir -p "$SMOKE_WORK/break"
   sed 's|return strings.TrimRight(prefix, "/") + "/"|return strings.TrimRight(prefix, "/")|' "$SRC" > "$SMOKE_WORK/break/store.go"
   cmp -s "$SRC" "$SMOKE_WORK/break/store.go" \

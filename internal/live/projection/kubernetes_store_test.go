@@ -13,13 +13,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // TestKubernetesStoreLabelsWithTheMarker is where the two spellings of
-// tofu-estate meet. internal/live/staterecord holds no choudoufu concepts and
+// tofu-estate meet. pkg/staterecord holds no choudoufu concepts and
 // so writes the label as a literal; this fork reads it as markers.TagEstate,
 // and live/kubernetes/estate-boundary.yaml fences on it. If the store's label
 // ever stopped being the marker, every record Secret would be outside the
@@ -32,7 +32,7 @@ func TestKubernetesStoreLabelsWithTheMarker(t *testing.T) {
 }
 
 // TestTheSweepKnowsTheRecordStoresOwnObjects pins the two strings
-// internal/live/kubesweep tests a record Secret with against the store that
+// pkg/kubesweep tests a record Secret with against the store that
 // writes them. Neither package imports the other, and this is where they meet.
 //
 // It is load-bearing and was measured failing before the exclusion existed: a

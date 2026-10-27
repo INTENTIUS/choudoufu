@@ -13,10 +13,10 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // cloudControlSource decides whether typeName can be enumerated through
@@ -374,7 +374,7 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 			}
 			why := "and refining it with GetResource found none either, so its ownership markers cannot be read"
 			if read == ccTagsAbsent {
-				why = fmt.Sprintf("and live/registry.json has no row for %s, so nothing says whether that absence is a fact about this object or about the type - see internal/live/registry's TaggableKnown", cfnType)
+				why = fmt.Sprintf("and live/registry.json has no row for %s, so nothing says whether that absence is a fact about this object or about the type - see pkg/registry's TaggableKnown", cfnType)
 			}
 			diags = diags.Append(problemDiag(res, Problem{
 				Kind:     ProblemNoTags,

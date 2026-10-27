@@ -56,7 +56,7 @@
 # What this scenario does not measure: the record-store half of #1624's
 # question, a tag added out of band to an object choudoufu itself wrote for
 # a record-backed resource. That is not a plan-time question at all -
-# S3Store.PutIfVersion (internal/live/staterecord/s3.go) REPLACES an
+# S3Store.PutIfVersion (pkg/staterecord/s3.go) REPLACES an
 # object's whole tag set on every write, and no code path here ever reads a
 # record object's own tags to compute a diff; they are read once, on
 # access, only to confirm the object is this estate's (checkOwnershipAt),

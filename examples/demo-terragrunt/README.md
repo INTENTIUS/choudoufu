@@ -69,6 +69,11 @@ to review.
   the live system again and refuses, with exit status 3, if the result is not
   the reviewed plan (a value that was known after apply is not compared). The
   refusal names the command that plans again.
+- The plan files keep an HMAC of each sensitive planned value, not the value.
+  Both jobs read the key from the `CHOUDOUFU_PLAN_HMAC_KEY` secret (hex or
+  base64 of at least 32 bytes). With the secret unset, a merge job applying
+  a plan with a known sensitive value refuses, since the key stayed with the
+  pull request's job.
 - After each stage, chant's `terraform report` writes what behold reads. That
   step is not part of running the infrastructure. `terragrunt-plan-json`
   (on the demo host) joins the units' `show -json` documents for it, and

@@ -8,7 +8,7 @@ package discovery
 import (
 	"sort"
 
-	"github.com/intentius/choudoufu/internal/live/azsweep"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 )
 
 // This file is GitHub issue #110 applied to section D of #101's inventory,

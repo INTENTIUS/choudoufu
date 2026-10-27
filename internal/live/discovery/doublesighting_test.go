@@ -10,7 +10,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // doubleSightingFixture wires the shape corpus-overture-tiles' day2_rename

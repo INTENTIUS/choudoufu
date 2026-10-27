@@ -30,7 +30,7 @@ The store and projection layers have in-process loops of the same shape,
 skipped unless `CHOUDOUFU_STRESS_1355` names an iteration count:
 
 ```
-CHOUDOUFU_STRESS_1355=1000 go test -race -run TestStressRunCacheOverS3SeesBothRecords ./internal/live/staterecord/
+CHOUDOUFU_STRESS_1355=1000 go test -race -run TestStressRunCacheOverS3SeesBothRecords ./pkg/staterecord/
 CHOUDOUFU_STRESS_1355=3000 go test -race -run TestStressTwoRecordBackedInstancesBothMaterialize ./internal/live/projection/
 ```
 

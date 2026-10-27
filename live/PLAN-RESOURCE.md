@@ -66,6 +66,20 @@ reach them.
   - Azure sends the Resource Graph query narrowed to the cone types' ARM
     types and never sends the estate query.
 
+    Under a live block or an `estate.chdf.hcl` sidecar this leg is
+    usually not built. Such a configuration always has a record store
+    (the local one is implied when none is declared, #364), and with a
+    store an azurerm type on the server-minted roster (#2205) resolves
+    RECORD_LOCATED whenever the record-located route admits it: the type
+    is importable, the run holds its schema, and a record can hold its
+    identity in full. A RECORD_LOCATED instance is read from its record,
+    or planned as a create when it has none, so it never waits on
+    discovery and the cone has no Azure type for the leg to list. The
+    leg serves the `-estate` form on a configuration with no live block,
+    which has no record store, and a roster type the record-located route
+    refuses, which still resolves as needing discovery
+    (INTENTIUS/choudoufu#2279).
+
   Each leg reports its listings as scans, never as a sweep, and files
   nothing it lists as an orphan. Those are the discovery-level tests in
   `internal/live/discovery/conelegs_test.go`; the command-level tests in
@@ -73,6 +87,8 @@ reach them.
   -resource` for each family against a fake provider and a fake cluster,
   Cloud Asset Inventory or Resource Graph client, and check that the leg
   is built, sends no estate-wide query and the instance reads as observed.
+  The Azure test declares no live block and names the estate with
+  `-estate`, for the reason above (INTENTIUS/choudoufu#2267).
 - The policy's account reconciliation, the foreign classification, the
   guided-sweep hint, root outputs, the lookalike guard and the Kubernetes
   dry run do not run. None of them is about one resource's drift.

@@ -14,7 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/markers"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // TestGCSStoreConfigCarriesTheBlock: the bucket, the estate's tag and the

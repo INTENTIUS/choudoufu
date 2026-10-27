@@ -1,0 +1,520 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+// Package staterecordtest is the [staterecord.Store] contract as a test
+// suite, exported so that any store, in this module or another, can be
+// held to exactly what choudoufu's own stores are (GitHub issue #2281).
+package staterecordtest
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/intentius/choudoufu/pkg/staterecord"
+)
+
+// RunConformance exercises the [staterecord.Store] contract every
+// implementation must satisfy identically, regardless of what backs it.
+// newStore returns a fresh, empty Store for each subtest, so cases never
+// interact with each other's keys.
+func RunConformance(t *testing.T, newStore func(t *testing.T) staterecord.Store) {
+	t.Helper()
+
+	t.Run("AbsoluteKeysAreRefusedLoudly", func(t *testing.T) {
+		// Issue #689, from #688's terralith run: keys are
+		// store-relative, and a leading slash used to be accepted then
+		// handled differently by every store - the local store and
+		// the Parameter Store one that existed then normalized it on
+		// write but not in List's filter, so the write succeeded and
+		// the List came back empty, which a
+		// caller cannot tell from an empty estate. Every operation now
+		// refuses the shape with the same named error, on every store.
+		s := newStore(t)
+		if _, err := s.PutIfAbsent(context.Background(), "/abs/key", []byte("v")); err == nil || !strings.Contains(err.Error(), "store-relative") {
+			t.Errorf("PutIfAbsent(\"/abs/key\") err = %v, want the store-relative refusal", err)
+		}
+		if _, _, _, err := s.Get(context.Background(), "/abs/key"); err == nil || !strings.Contains(err.Error(), "store-relative") {
+			t.Errorf("Get(\"/abs/key\") err = %v, want the store-relative refusal", err)
+		}
+		if _, err := s.List(context.Background(), "/abs/"); err == nil || !strings.Contains(err.Error(), "store-relative") {
+			t.Errorf("List(\"/abs/\") err = %v, want the store-relative refusal", err)
+		}
+	})
+
+	t.Run("DeepRelativeKeysRoundTripThroughList", func(t *testing.T) {
+		// The companion positive case: the relative shape production
+		// keys actually use (projection.RecordKey: root/estate/type/
+		// encoded-address) round-trips through every prefix depth,
+		// and a sibling whose name shares a string prefix but not a
+		// path segment stays excluded - the segment rule #690 pins in
+		// the fake and the real services enforce.
+		s := newStore(t)
+		ctx := context.Background()
+		for _, k := range []string{"records/est-a/aws_vpc/AbCd", "records/est-a/aws_vpc/EfGh", "records/est-ab/aws_vpc/Zz99"} {
+			if _, err := s.PutIfAbsent(ctx, k, []byte("v")); err != nil {
+				t.Fatalf("PutIfAbsent(%q): %v", k, err)
+			}
+		}
+		got, err := s.List(ctx, "records/est-a/")
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		want := []string{"records/est-a/aws_vpc/AbCd", "records/est-a/aws_vpc/EfGh"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("List(\"records/est-a/\") = %v, want %v (est-ab must not string-prefix-match est-a/)", got, want)
+		}
+	})
+
+	t.Run("ChunkedKeysRoundTripOnEveryBackend", func(t *testing.T) {
+		// GitHub issue #1283. projection.RecordKey base64url-encodes an
+		// address, which expands it 4/3, and a filesystem bounds ONE path
+		// component at NAME_MAX - so a long address is now spread across
+		// several segments rather than crammed into one. This is that
+		// shape, at the full 230-byte chunk length the encoder uses, run
+		// against every backend rather than only the local one: S3
+		// bounds a whole object key, so a key shape that only the
+		// filesystem was asked about is a key shape the other store was
+		// never tested with.
+		//
+		// The update path is exercised on purpose. The local store names
+		// two sidecars after the leaf ("<leaf>.lock" and os.CreateTemp's
+		// "<leaf>.tmp-<digits>"), and both have to fit in NAME_MAX too -
+		// measured, a 255-byte leaf can be CREATED and cannot be
+		// UPDATED, which is why the chunk length is 230 and not 255.
+		s := newStore(t)
+		ctx := context.Background()
+		key := "records/est-a/aws_vpc/" + strings.Repeat("A", 230) + "/" + strings.Repeat("B", 230) + "/" + strings.Repeat("C", 40)
+
+		version, err := s.PutIfAbsent(ctx, key, []byte("v1"))
+		if err != nil {
+			t.Fatalf("PutIfAbsent on a chunked key: %v", err)
+		}
+		next, err := s.PutIfVersion(ctx, key, []byte("v2"), version)
+		if err != nil {
+			t.Fatalf("PutIfVersion on a chunked key: %v", err)
+		}
+		payload, gotVersion, exists, err := s.Get(ctx, key)
+		if err != nil || !exists {
+			t.Fatalf("Get on a chunked key: exists=%v err=%v", exists, err)
+		}
+		if string(payload) != "v2" || gotVersion != next {
+			t.Errorf("Get = %q at version %q, want %q at %q", payload, gotVersion, "v2", next)
+		}
+		got, err := s.List(ctx, "records/est-a/")
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if !reflect.DeepEqual(got, []string{key}) {
+			t.Errorf("List returned %d keys, want exactly the chunked key back", len(got))
+		}
+		if err := s.Delete(ctx, key, next); err != nil {
+			t.Fatalf("Delete on a chunked key: %v", err)
+		}
+		if _, _, exists, err := s.Get(ctx, key); err != nil || exists {
+			t.Errorf("after Delete: exists=%v err=%v, want absent and no error", exists, err)
+		}
+	})
+
+	t.Run("GetOnMissingKeyIsNotAnError", func(t *testing.T) {
+		s := newStore(t)
+		payload, version, exists, err := s.Get(context.Background(), "missing")
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if exists {
+			t.Errorf("exists = true, want false")
+		}
+		if payload != nil {
+			t.Errorf("payload = %v, want nil", payload)
+		}
+		if version != "" {
+			t.Errorf("version = %q, want empty", version)
+		}
+	})
+
+	t.Run("PutIfAbsentThenGetRoundTrips", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		version, err := s.PutIfAbsent(ctx, "k1", []byte("hello"))
+		if err != nil {
+			t.Fatalf("PutIfAbsent: %v", err)
+		}
+		if version == "" {
+			t.Fatal("PutIfAbsent returned an empty version")
+		}
+		payload, gotVersion, exists, err := s.Get(ctx, "k1")
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if !exists {
+			t.Fatal("exists = false after PutIfAbsent")
+		}
+		if string(payload) != "hello" {
+			t.Errorf("payload = %q, want %q", payload, "hello")
+		}
+		if gotVersion != version {
+			t.Errorf("Get version = %q, want %q (from PutIfAbsent)", gotVersion, version)
+		}
+	})
+
+	t.Run("PutIfAbsentTwiceConflicts", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		v1, err := s.PutIfAbsent(ctx, "k1", []byte("first"))
+		if err != nil {
+			t.Fatalf("first PutIfAbsent: %v", err)
+		}
+		_, err = s.PutIfAbsent(ctx, "k1", []byte("second"))
+		var conflict *staterecord.VersionConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("second PutIfAbsent: got %v (%T), want *staterecord.VersionConflictError", err, err)
+		}
+		if conflict.Key != "k1" {
+			t.Errorf("conflict.Key = %q, want k1", conflict.Key)
+		}
+		if conflict.ExpectedVersion != "" {
+			t.Errorf("conflict.ExpectedVersion = %q, want empty", conflict.ExpectedVersion)
+		}
+		if conflict.ActualVersion != v1 {
+			t.Errorf("conflict.ActualVersion = %q, want %q", conflict.ActualVersion, v1)
+		}
+
+		// The losing write must never have landed.
+		payload, _, _, err := s.Get(ctx, "k1")
+		if err != nil {
+			t.Fatalf("Get after conflict: %v", err)
+		}
+		if string(payload) != "first" {
+			t.Errorf("payload after conflict = %q, want %q (the loser must not overwrite)", payload, "first")
+		}
+	})
+
+	t.Run("PutIfVersionWithMatchingVersionSucceeds", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		v1, err := s.PutIfAbsent(ctx, "k1", []byte("v1"))
+		if err != nil {
+			t.Fatalf("PutIfAbsent: %v", err)
+		}
+		v2, err := s.PutIfVersion(ctx, "k1", []byte("v2"), v1)
+		if err != nil {
+			t.Fatalf("PutIfVersion: %v", err)
+		}
+		if v2 == "" || v2 == v1 {
+			t.Errorf("PutIfVersion returned version %q, want a new, non-empty version distinct from %q", v2, v1)
+		}
+		payload, gotVersion, exists, err := s.Get(ctx, "k1")
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if !exists {
+			t.Fatal("exists = false after PutIfVersion")
+		}
+		if string(payload) != "v2" {
+			t.Errorf("payload = %q, want %q", payload, "v2")
+		}
+		if gotVersion != v2 {
+			t.Errorf("Get version = %q, want %q", gotVersion, v2)
+		}
+	})
+
+	t.Run("PutIfVersionWithStaleVersionConflicts", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		v1, err := s.PutIfAbsent(ctx, "k1", []byte("v1"))
+		if err != nil {
+			t.Fatalf("PutIfAbsent: %v", err)
+		}
+		v2, err := s.PutIfVersion(ctx, "k1", []byte("v2"), v1)
+		if err != nil {
+			t.Fatalf("PutIfVersion to v2: %v", err)
+		}
+
+		// Now try to write again using the stale v1.
+		_, err = s.PutIfVersion(ctx, "k1", []byte("v3-should-not-land"), v1)
+		var conflict *staterecord.VersionConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("PutIfVersion with stale version: got %v (%T), want *staterecord.VersionConflictError", err, err)
+		}
+		if conflict.ExpectedVersion != v1 {
+			t.Errorf("conflict.ExpectedVersion = %q, want %q", conflict.ExpectedVersion, v1)
+		}
+		if conflict.ActualVersion != v2 {
+			t.Errorf("conflict.ActualVersion = %q, want %q", conflict.ActualVersion, v2)
+		}
+
+		payload, _, _, err := s.Get(ctx, "k1")
+		if err != nil {
+			t.Fatalf("Get after conflict: %v", err)
+		}
+		if string(payload) != "v2" {
+			t.Errorf("payload after conflict = %q, want %q (the stale write must not land)", payload, "v2")
+		}
+	})
+
+	t.Run("PutIfVersionOnMissingKeyConflicts", func(t *testing.T) {
+		s := newStore(t)
+		_, err := s.PutIfVersion(context.Background(), "nope", []byte("x"), "some-version")
+		var conflict *staterecord.VersionConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("got %v (%T), want *staterecord.VersionConflictError", err, err)
+		}
+		if conflict.ActualVersion != "" {
+			t.Errorf("conflict.ActualVersion = %q, want empty (no record exists)", conflict.ActualVersion)
+		}
+	})
+
+	t.Run("PutIfVersionEmptyExpectedActsLikePutIfAbsent", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		version, err := s.PutIfVersion(ctx, "k1", []byte("hello"), "")
+		if err != nil {
+			t.Fatalf("PutIfVersion with expectedVersion \"\": %v", err)
+		}
+		if version == "" {
+			t.Fatal("PutIfVersion with expectedVersion \"\" returned an empty version")
+		}
+		_, err = s.PutIfVersion(ctx, "k1", []byte("world"), "")
+		var conflict *staterecord.VersionConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("second PutIfVersion with expectedVersion \"\": got %v (%T), want *staterecord.VersionConflictError", err, err)
+		}
+	})
+
+	t.Run("DeleteWithMatchingVersionSucceeds", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		v1, err := s.PutIfAbsent(ctx, "k1", []byte("v1"))
+		if err != nil {
+			t.Fatalf("PutIfAbsent: %v", err)
+		}
+		if err := s.Delete(ctx, "k1", v1); err != nil {
+			t.Fatalf("Delete: %v", err)
+		}
+		_, _, exists, err := s.Get(ctx, "k1")
+		if err != nil {
+			t.Fatalf("Get after delete: %v", err)
+		}
+		if exists {
+			t.Error("exists = true after Delete")
+		}
+	})
+
+	t.Run("DeleteWithStaleVersionConflicts", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		v1, err := s.PutIfAbsent(ctx, "k1", []byte("v1"))
+		if err != nil {
+			t.Fatalf("PutIfAbsent: %v", err)
+		}
+		v2, err := s.PutIfVersion(ctx, "k1", []byte("v2"), v1)
+		if err != nil {
+			t.Fatalf("PutIfVersion: %v", err)
+		}
+		err = s.Delete(ctx, "k1", v1)
+		var conflict *staterecord.VersionConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("Delete with stale version: got %v (%T), want *staterecord.VersionConflictError", err, err)
+		}
+		if conflict.ActualVersion != v2 {
+			t.Errorf("conflict.ActualVersion = %q, want %q", conflict.ActualVersion, v2)
+		}
+
+		_, _, exists, err := s.Get(ctx, "k1")
+		if err != nil {
+			t.Fatalf("Get after conflicted delete: %v", err)
+		}
+		if !exists {
+			t.Error("exists = false after a conflicted Delete; the record must survive")
+		}
+	})
+
+	t.Run("DeleteOfAlreadyAbsentKeyWithEmptyVersionIsIdempotent", func(t *testing.T) {
+		s := newStore(t)
+		if err := s.Delete(context.Background(), "never-existed", ""); err != nil {
+			t.Fatalf("Delete of an absent key with expectedVersion \"\": %v", err)
+		}
+	})
+
+	t.Run("DeleteOfAbsentKeyWithNonEmptyVersionConflicts", func(t *testing.T) {
+		s := newStore(t)
+		err := s.Delete(context.Background(), "never-existed", "some-version")
+		var conflict *staterecord.VersionConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("got %v (%T), want *staterecord.VersionConflictError", err, err)
+		}
+		if conflict.ActualVersion != "" {
+			t.Errorf("conflict.ActualVersion = %q, want empty", conflict.ActualVersion)
+		}
+	})
+
+	// GitHub issue #1448, section F. Every store's Delete has this leg and no
+	// store's suite had the case, so a Delete that returned nil here was a
+	// mutation all three stores' tests passed with. It is in the SHARED suite
+	// because the gap was the contract's, not one backend's.
+	//
+	// What the contract says (store.go): expectedVersion "" is idempotent over
+	// an ABSENT key, and over a present one it is a caller holding no version
+	// deleting a record it never read. That is the delete half of a
+	// PutIfAbsent over an existing key, and it conflicts the same way, naming
+	// the version the store holds so the caller can re-read and decide.
+	t.Run("DeleteOfPresentKeyWithEmptyVersionConflicts", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		v1, err := s.PutIfAbsent(ctx, "k1", []byte("v1"))
+		if err != nil {
+			t.Fatalf("PutIfAbsent: %v", err)
+		}
+		err = s.Delete(ctx, "k1", "")
+		var conflict *staterecord.VersionConflictError
+		if !errors.As(err, &conflict) {
+			t.Fatalf("Delete of a PRESENT key with expectedVersion \"\": got %v (%T), want *staterecord.VersionConflictError", err, err)
+		}
+		if conflict.Key != "k1" {
+			t.Errorf("conflict.Key = %q, want k1", conflict.Key)
+		}
+		if conflict.ExpectedVersion != "" {
+			t.Errorf("conflict.ExpectedVersion = %q, want empty", conflict.ExpectedVersion)
+		}
+		if conflict.ActualVersion != v1 {
+			t.Errorf("conflict.ActualVersion = %q, want %q (the version the store holds)", conflict.ActualVersion, v1)
+		}
+
+		// And the record must still be there. A delete that refused and
+		// removed the record anyway would be worse than one that removed it
+		// and said so.
+		payload, _, exists, err := s.Get(ctx, "k1")
+		if err != nil {
+			t.Fatalf("Get after the refused delete: %v", err)
+		}
+		if !exists {
+			t.Fatal("exists = false after a refused Delete; the record must survive")
+		}
+		if string(payload) != "v1" {
+			t.Errorf("payload after the refused delete = %q, want %q", payload, "v1")
+		}
+	})
+
+	t.Run("ListReturnsKeysByPrefixSorted", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		for _, key := range []string{"b", "a", "prefix/two", "prefix/one", "other"} {
+			if _, err := s.PutIfAbsent(ctx, key, []byte(key)); err != nil {
+				t.Fatalf("PutIfAbsent(%q): %v", key, err)
+			}
+		}
+
+		all, err := s.List(ctx, "")
+		if err != nil {
+			t.Fatalf("List(\"\"): %v", err)
+		}
+		wantAll := []string{"a", "b", "other", "prefix/one", "prefix/two"}
+		if !equalStrings(all, wantAll) {
+			t.Errorf("List(\"\") = %v, want %v", all, wantAll)
+		}
+
+		prefixed, err := s.List(ctx, "prefix/")
+		if err != nil {
+			t.Fatalf("List(\"prefix/\"): %v", err)
+		}
+		wantPrefixed := []string{"prefix/one", "prefix/two"}
+		if !equalStrings(prefixed, wantPrefixed) {
+			t.Errorf("List(\"prefix/\") = %v, want %v", prefixed, wantPrefixed)
+		}
+
+		none, err := s.List(ctx, "nonexistent")
+		if err != nil {
+			t.Fatalf("List(\"nonexistent\"): %v", err)
+		}
+		if len(none) != 0 {
+			t.Errorf("List(\"nonexistent\") = %v, want empty", none)
+		}
+	})
+
+	// GitHub issue #1335. Two namespaces whose names prefix one another -
+	// estates "prod" and "prod-eu" in one store, which the bucket backend
+	// (#1332) recommends - must not share a listing or a bulk read. The
+	// delimiter is the whole mechanism, on every backend, because List is a
+	// string-prefix match on every backend: the last assertion pins that, so
+	// nobody reads this case as the store doing path-aware matching for them.
+	t.Run("NeighbourNamespacesShareNoListingOrBulkRead", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		const (
+			prodKey = "tofu-records/prod/aws_thing/a"
+			euKey   = "tofu-records/prod-eu/aws_thing/b"
+		)
+		for _, key := range []string{prodKey, euKey} {
+			if _, err := s.PutIfAbsent(ctx, key, []byte(key)); err != nil {
+				t.Fatalf("PutIfAbsent(%q): %v", key, err)
+			}
+		}
+
+		for estate, want := range map[string]string{"prod": prodKey, "prod-eu": euKey} {
+			ns := staterecord.NamespacePrefix("tofu-records/" + estate)
+			keys, err := s.List(ctx, ns)
+			if err != nil {
+				t.Fatalf("List(%q): %v", ns, err)
+			}
+			if !equalStrings(keys, []string{want}) {
+				t.Errorf("List(%q) = %v, want only %q", ns, keys, want)
+			}
+			if bulk, ok := s.(staterecord.BulkReader); ok {
+				all, err := bulk.GetAll(ctx, ns)
+				if err != nil {
+					t.Fatalf("GetAll(%q): %v", ns, err)
+				}
+				if _, has := all[want]; !has || len(all) != 1 {
+					t.Errorf("GetAll(%q) returned %d records, want only %q", ns, len(all), want)
+				}
+			}
+		}
+
+		// The hazard itself, so this case cannot pass for the wrong reason:
+		// without the delimiter the same store returns both estates' keys.
+		bare, err := s.List(ctx, "tofu-records/prod")
+		if err != nil {
+			t.Fatalf("List(bare): %v", err)
+		}
+		if !equalStrings(bare, []string{euKey, prodKey}) {
+			t.Errorf("List(%q) = %v, want both estates' keys: List is a string-prefix match, and a namespace passed without staterecord.NamespacePrefix reaches its neighbour", "tofu-records/prod", bare)
+		}
+	})
+
+	t.Run("VersionConflictErrorMessageNamesBothVersions", func(t *testing.T) {
+		s := newStore(t)
+		ctx := context.Background()
+		v1, err := s.PutIfAbsent(ctx, "k1", []byte("v1"))
+		if err != nil {
+			t.Fatalf("PutIfAbsent: %v", err)
+		}
+		_, err = s.PutIfVersion(ctx, "k1", []byte("v2"), "not-"+v1)
+		if err == nil {
+			t.Fatal("expected a conflict")
+		}
+		msg := err.Error()
+		if msg == "" {
+			t.Fatal("staterecord.VersionConflictError.Error() returned an empty string")
+		}
+	})
+}
+
+// equalStrings compares two string slices for equality including order,
+// treating nil and empty as equal — this test package's own helper, not
+// exported, since [Store] implementations never need it.
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

@@ -17,7 +17,7 @@
 #     discovery reports that group failed and every other group answers.
 #     The sweep could not list it at all before this unit: KindOfType read
 #     the type as "ApiService" where the server lists "APIService", under a
-#     group client-go's scheme does not register (internal/live/kubesweep).
+#     group client-go's scheme does not register (pkg/kubesweep).
 #   - writes into kube-system, a namespace the estate does not own and must
 #     never delete. day2_teardown and the stock destroy on B both have to
 #     leave every object kube-system held before cold_deploy in place.
@@ -385,7 +385,7 @@ gauntlet_stage test_apply pass "no-op apply (0 added, 0 changed, 0 destroyed); o
 # backend that refuses the connection: the APIService reports
 # Available=False and API discovery reports metrics.k8s.io as a failed
 # group. That is the condition the stage plans in. The sweep's discovery
-# tolerates one failed group (internal/live/kubesweep/client.go), and the
+# tolerates one failed group (pkg/kubesweep/client.go), and the
 # plan has to propose exactly the Deployment, as stock's does on B, with no
 # "Kubernetes sweep unavailable" warning; the reconverging apply rolls the
 # Deployment back and the APIService has to report Available again.

@@ -93,7 +93,7 @@ func TestAliasedProvidersAgainstFloci(t *testing.T) {
 	// bucket names - s3api list-buckets is account-global in real AWS (a
 	// bucket's name is unique across every region, and listing it is not
 	// scoped to the region the request was signed for), so this is not the
-	// region-scope claim internal/live/cloudcontrol/doc.go's "Signing"
+	// region-scope claim pkg/cloudcontrol/doc.go's "Signing"
 	// section makes for Cloud Control; that machinery lives in a code path
 	// this fixture (aws_s3_bucket, listed through the AWS provider's own
 	// native list resource) never reaches at all.

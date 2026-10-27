@@ -27,22 +27,16 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/check"
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
-	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
-	"github.com/intentius/choudoufu/internal/live/registry"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -51,6 +45,12 @@ import (
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/pkg/azsweep"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/gcpsweep"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
+	"github.com/intentius/choudoufu/pkg/registry"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 	tfversion "github.com/intentius/choudoufu/version"
 )
 
@@ -508,6 +508,8 @@ func (c *LivePlanCommand) Execute(args *arguments.LivePlan) int {
 // that it appears before the trailing diagnostics exactly as it does in a
 // stock plan.
 func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, estateFlag string, view views.Plan, liveView views.LivePlan, preDiags tfdiags.Diagnostics, jsonRequested bool) (int, bool, tfdiags.Diagnostics) {
+	// When the live read starts: the -json document's observed_at (#2285).
+	readStart := time.Now().UTC()
 	var diags tfdiags.Diagnostics
 
 	// GitHub issue #626's knob, resolved once here and used by both of this
@@ -1203,6 +1205,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			Estate:           estate,
 			ChoudoufuVersion: tfversion.Fork,
 			UpstreamVersion:  tfversion.String(),
+			ObservedAt:       readStart.Format(time.RFC3339),
 			Bound:            boundReport,
 			Omissions:        oms,
 			Unowned:          unownedItems,

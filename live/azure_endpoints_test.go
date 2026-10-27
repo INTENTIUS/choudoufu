@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
-	"github.com/intentius/choudoufu/internal/live/azsweep"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 )
 
 // An azure-lane run talks only to floci-az (GitHub issue #2133, the
@@ -474,7 +474,7 @@ func TestAzureHarnessEnvIsLocked(t *testing.T) {
 		}
 	}
 	// Every variable the sweep's credential chain reads (it mirrors both
-	// providers', internal/live/azsweep's envDefaults) is either set here
+	// providers', pkg/azsweep's envDefaults) is either set here
 	// or scrubbed.
 	handled := map[string]bool{}
 	for k := range want {
@@ -485,7 +485,7 @@ func TestAzureHarnessEnvIsLocked(t *testing.T) {
 	}
 	for _, k := range azsweep.EnvNames() {
 		if !handled[k] {
-			t.Errorf("%s, which azurerm or azapi reads (internal/live/azsweep's envDefaults), is neither set nor scrubbed by floci_az_provider_env", k)
+			t.Errorf("%s, which azurerm or azapi reads (pkg/azsweep's envDefaults), is neither set nor scrubbed by floci_az_provider_env", k)
 		}
 	}
 	for k, v := range env {

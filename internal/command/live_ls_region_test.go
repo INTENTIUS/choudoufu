@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/command/workdir"
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // GitHub issue #1044. live-ls resolved its region from -region, else the

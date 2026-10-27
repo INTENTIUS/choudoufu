@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // The two rendered spans, siblings of spanUntaggableAdmitted

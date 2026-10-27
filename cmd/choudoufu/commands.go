@@ -400,6 +400,30 @@ func initCommands(meta command.Meta) {
 			}, nil
 		},
 
+		// GitHub issue #2285: the estate's graph as one JSON document, in
+		// chant#4520's engine graph shape. It reads configuration (and a
+		// live-plan document when given one) and prints.
+		"live-graph": func() (cli.Command, error) {
+			return &command.LiveGraphCommand{
+				Meta: meta,
+			}, nil
+		},
+
+		// GitHub issue #2280: named, read-only investigations - choudoufu's
+		// native lookups and chant's investigation templates - and the MCP
+		// server that fronts them with behold's MCP and chant's Ops.
+		"investigate": func() (cli.Command, error) {
+			return &command.InvestigateCommand{
+				Meta: meta,
+			}, nil
+		},
+
+		"mcp": func() (cli.Command, error) {
+			return &command.McpCommand{
+				Meta: meta,
+			}, nil
+		},
+
 		"providers lock": func() (cli.Command, error) {
 			return &command.ProvidersLockCommand{
 				Meta: meta,

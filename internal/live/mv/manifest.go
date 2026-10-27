@@ -13,9 +13,9 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -31,7 +31,7 @@ import (
 //     request.
 //
 // The write is not the provider's, for the reason
-// internal/live/kubesweep/patch.go gives: a kubernetes_manifest object is
+// pkg/kubesweep/patch.go gives: a kubernetes_manifest object is
 // one dynamic argument, so a write through the provider is a re-apply of
 // every field it manages. It is one merge patch under the run's own
 // credential (the kubeconfig the provider block names), so an admission

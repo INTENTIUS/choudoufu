@@ -13,7 +13,7 @@
 // # Records
 //
 // Every managed instance has a record in the estate's record store
-// (internal/live/staterecord: a local directory by default, or an s3 or
+// (pkg/staterecord: a local directory by default, or an s3 or
 // kubernetes store for a team): its identity, the arguments the provider
 // does not return, sensitivity marks, taint and deposed keys, one per
 // resource, namespaced per estate and written with compare-and-swap.

@@ -118,7 +118,7 @@ const sweepParallelismEnvVar = "TOFU_LIVE_SWEEP_PARALLELISM"
 //     provider round trip against the same account. An operator who can plan
 //     this configuration is already asking for ten.
 //   - The failure mode is already mitigated where the sweep's bulk lands.
-//     internal/live/cloudcontrol/retry.go retries a ThrottlingException with
+//     pkg/cloudcontrol/retry.go retries a ThrottlingException with
 //     full jitter, five attempts, five-second cap - AWS's own recommendation
 //     for many concurrent callers backing off one API. Too high therefore
 //     costs wall clock before it costs a run.

@@ -4,9 +4,19 @@
 bin/
 modules-dev/
 /cost-project
-# /pkg/ was Godep's output directory. pkg/identity is source (#2244).
+# /pkg/ was Godep's output directory. Its public packages are source
+# (#2244, #2281).
 /pkg/*
+!/pkg/adoption/
+!/pkg/azsweep/
+!/pkg/cloudcontrol/
+!/pkg/gcpsweep/
 !/pkg/identity/
+!/pkg/k8stest/
+!/pkg/kubesweep/
+!/pkg/markerkeys/
+!/pkg/registry/
+!/pkg/staterecord/
 website/.vagrant
 website/.bundle
 website/build

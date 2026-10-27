@@ -20,6 +20,21 @@ import (
 // liveRoot is internal/live, relative to this package's own directory.
 const liveRoot = ".."
 
+// pkgRoot is the module's public pkg/ tree, relative to this package's own
+// directory. The sweeps and the record store moved there from internal/live
+// (GitHub issue #2281) and stay in this check: a name "pkg/<dir>" in the
+// lists below is pkg/<dir>.
+const pkgRoot = "../../../pkg"
+
+// pkgUnscanned are the pkg/ directories this check has never held, each
+// with its reason. pkg/identity moved out of internal/live/identity's
+// generated tables before #2281 (GitHub issue #2244) and is outside the
+// sweep that moved here; markerkeys holds strings only.
+var pkgUnscanned = map[string]string{
+	"identity":   "GitHub issue #2244's public identity tables, never part of this scan",
+	"markerkeys": "the public sweeps' marker vocabulary: strings and a func, no cty",
+}
+
 // guardedPackages are the packages this check holds to zero unproven sites.
 //
 // They are the ones that evaluate CONFIGURATION: every value they read can
@@ -37,6 +52,15 @@ var guardedPackages = []string{
 	// text file and lookups over it. It reads no configuration value and
 	// no cloud object, so it is held to zero.
 	"armtypes",
+	// GitHub issue #2280's investigations and MCP server: decoded JSON
+	// from chant and behold, live marker reads as strings, and git ranges.
+	// It imports no cty at all, so it is held to zero: it has nothing to
+	// defer.
+	"investigate",
+	// GitHub issue #2285's live-graph walks configuration expressions for
+	// references and reads literal count/for_each to name instances. It
+	// evaluates CONFIGURATION, which is this population exactly.
+	"livegraph",
 	// GitHub issue #1956's live-cone parses the root module's source text
 	// and evaluates only a module call's literal source, so it is held to
 	// zero.
@@ -60,9 +84,9 @@ var guardedPackages = []string{
 	// testing every argument for a mark before reading it and unmarking
 	// only the arguments that are the credential. Its API answers are Go
 	// structs.
-	"azsweep",
+	"pkg/azsweep",
 	"check",
-	"cloudcontrol",
+	"pkg/cloudcontrol",
 	// The verification cohorts' pinned rosters (issue #699): 31 cohort
 	// names, each with the -types list tools/estate-gen renders and the
 	// supporting types that render adds, plus sorted accessors over them.
@@ -79,13 +103,13 @@ var guardedPackages = []string{
 	"docrefs",
 	"docsref",
 	"flocitest",
-	"k8stest",
+	"pkg/k8stest",
 	"foreign",
 	// GitHub issue #1119's GCP sweep client: reads the google provider
 	// block's evaluated configuration, testing every argument for a mark
 	// before reading it and unmarking only credentials and access_token,
 	// the substrate rule (#1527). Its API answers are Go structs.
-	"gcpsweep",
+	"pkg/gcpsweep",
 	"harness",
 	"identity",
 	// Issue #1750's multi-estate fixture: HCL text rendering, a module
@@ -110,7 +134,7 @@ var guardedPackages = []string{
 	// The Kubernetes estate sweep (GitHub issue #1065): client-go
 	// unstructured objects and strings, never a cty.Value, so it is held
 	// to zero rather than deferred.
-	"kubesweep",
+	"pkg/kubesweep",
 	// GitHub issue #1524's managed control plane readers: one HTTP GET per
 	// provider, decoded into Go structs and strings. It imports no cty at
 	// all, so it is held to zero rather than deferred: it has nothing to
@@ -160,7 +184,11 @@ var guardedPackages = []string{
 	"recordtrips",
 	"providerversion",
 	"refusalscan",
-	"registry",
+	// GitHub issue #2286's adoption file: a JSON document of cloud ids and
+	// addresses, decoded into Go structs and strings. It imports no cty at
+	// all, so it is held to zero: it has nothing to defer.
+	"pkg/adoption",
+	"pkg/registry",
 	"slots",
 	"stamp",
 	// One floci measurement (#588): it generates an estate, shells out to
@@ -168,7 +196,7 @@ var guardedPackages = []string{
 	// touches no cty.Value at all, so like "onboard" and "docrefs" above it
 	// is held to zero rather than deferred - it has nothing to defer.
 	"statefulcost",
-	"staterecord",
+	"pkg/staterecord",
 	// The shared config-subset evaluator (issue #826), holding the copies
 	// that used to live in identity, lint, dataread, discovery and foreign -
 	// every one of them already in this list. It evaluates CONFIGURATION,
@@ -190,6 +218,11 @@ var guardedPackages = []string{
 	// standard library only. No cty at all, so held to zero.
 	"setdigest",
 	"substrate",
+	// GitHub issue #2281: choudoufu's marker vocabulary, credential
+	// chains and HTTP client for the public sweeps under pkg/. It reads
+	// provider block arguments only through the sweeps' own Attrs, already
+	// read mark by mark, and imports no cty.
+	"sweepconfig",
 	"uniquename",
 	// GitHub issue #1754's wave planning reads literal estate names out of
 	// data-source configuration with Value(nil); every string it takes is
@@ -219,6 +252,10 @@ func packageDirs(t *testing.T, names []string) []string {
 	t.Helper()
 	out := make([]string, 0, len(names))
 	for _, n := range names {
+		if rest, ok := strings.CutPrefix(n, "pkg/"); ok {
+			out = append(out, filepath.Join(pkgRoot, rest))
+			continue
+		}
 		out = append(out, filepath.Join(liveRoot, n))
 	}
 	return out
@@ -239,7 +276,7 @@ var (
 func receiverIndex(t *testing.T) ReceiverIndex {
 	t.Helper()
 	sharedIndexOnce.Do(func() {
-		sharedIndex, sharedIndexErr = LoadReceiverIndex(moduleRoot, "./internal/live/...")
+		sharedIndex, sharedIndexErr = LoadReceiverIndex(moduleRoot, "./internal/live/...", "./pkg/...")
 	})
 	if sharedIndexErr != nil {
 		t.Fatalf("building the receiver index: %v\n"+
@@ -273,11 +310,36 @@ func TestEveryLivePackageIsClassified(t *testing.T) {
 				"Add it to the first if its unsafe cty calls are all proven, or to the second with the reason.", e.Name())
 		}
 	}
-	for n := range known {
-		if !containsStr(found, n) {
-			t.Errorf("internal/live/%s is listed here but no longer exists; remove it.", n)
+	pkgEntries, err := os.ReadDir(pkgRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range pkgEntries {
+		if !e.IsDir() {
+			continue
+		}
+		if _, ok := pkgUnscanned[e.Name()]; ok {
+			continue
+		}
+		found = append(found, "pkg/"+e.Name())
+		if !known["pkg/"+e.Name()] {
+			t.Errorf("pkg/%s is in neither guardedPackages nor deferredPackages (as \"pkg/%s\") nor pkgUnscanned. "+
+				"Add it to the first if its unsafe cty calls are all proven, or to the second with the reason.", e.Name(), e.Name())
 		}
 	}
+	for n := range known {
+		if !containsStr(found, n) {
+			t.Errorf("%s is listed here but no longer exists; remove it.", qualifiedDir(n))
+		}
+	}
+}
+
+// qualifiedDir is a list entry as a repository path.
+func qualifiedDir(n string) string {
+	if strings.HasPrefix(n, "pkg/") {
+		return n
+	}
+	return "internal/live/" + n
 }
 
 func containsStr(hay []string, needle string) bool {

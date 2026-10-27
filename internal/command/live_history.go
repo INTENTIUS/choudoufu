@@ -6,6 +6,7 @@
 package command
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -16,8 +17,8 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // LiveHistoryCommand lists the past versions of one resource instance's
@@ -74,86 +75,7 @@ type liveHistoryVersion struct {
 
 func (c *LiveHistoryCommand) Execute(args *arguments.LiveHistory) int {
 	ctx := c.CommandContext()
-	var diags tfdiags.Diagnostics
-
-	addr, addrDiags := addrs.ParseAbsResourceInstanceStr(args.RawAddr)
-	diags = diags.Append(addrDiags)
-	if diags.HasErrors() {
-		c.View.Diagnostics(diags)
-		return 1
-	}
-
-	config, cfgDiags := c.loadConfig(ctx, ".")
-	diags = diags.Append(cfgDiags)
-	if cfgDiags.HasErrors() {
-		c.View.Diagnostics(diags)
-		return 1
-	}
-	if config.Module == nil || config.Module.Live == nil || config.Module.Live.RecordStore == nil {
-		c.View.Diagnostics(diags.Append(tfdiags.Sourceless(tfdiags.Error, "No record store",
-			"live-history reads the record store the live block's record_store block names, and this configuration has none.")))
-		return 1
-	}
-	live := config.Module.Live
-	rs := live.RecordStore
-
-	estate, _, estateDiags := liveEstateFor(ctx, args.Estate, config)
-	diags = diags.Append(estateDiags)
-	if estate == "" && !estateDiags.HasErrors() && live.Estate != "" {
-		if !discovery.ValidEstateName(live.Estate) {
-			estateDiags = estateDiags.Append(tfdiags.Sourceless(tfdiags.Error, "Invalid estate name",
-				fmt.Sprintf("The live block names estate %q, which does not match the tofu-estate marker grammar in live/MARKERS.md.", live.Estate)))
-			diags = diags.Append(estateDiags)
-		} else {
-			estate = live.Estate
-		}
-	}
-	if estateDiags.HasErrors() {
-		c.View.Diagnostics(diags)
-		return 1
-	}
-	if estate == "" {
-		c.View.Diagnostics(diags.Append(tfdiags.Sourceless(tfdiags.Error, "No estate name",
-			"A record is kept under its estate's name, and this configuration names no single estate. Pass -estate=<name>.")))
-		return 1
-	}
-
-	h := liveHistory{Address: addr.String(), Estate: estate, Store: rs.Type, Versions: []liveHistoryVersion{}}
-	if rs.Type == "s3" {
-		open := c.open
-		if open == nil {
-			open = projection.NewRecordStore
-		}
-		storeOpts, err := recordStoreOpenOptions()
-		if err != nil {
-			c.View.Diagnostics(diags.Append(recordStoreOpenDiag(rs.Type, err)))
-			return 1
-		}
-		store, err := open(ctx, rs, live.Retry, estate, ".", storeOpts...)
-		if err != nil {
-			c.View.Diagnostics(diags.Append(recordStoreOpenDiag(rs.Type, err)))
-			return 1
-		}
-		if lister, ok := staterecord.AsVersionLister(store); ok {
-			key := projection.RecordKey(projection.RecordStoreKeyPrefix(rs, estate), addr)
-			versions, err := lister.ListVersions(ctx, key)
-			if err != nil {
-				c.View.Diagnostics(diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot list the record's versions", fmt.Sprintf(
-					"%s.\n\nListing a record's versions takes s3:ListBucketVersions on the record store bucket, which the estate's own role does not carry. It is one of the grants a recovery needs: see \"What a recovery needs\" on the bucket page.", err))))
-				return 1
-			}
-			h.Kept = true
-			for _, v := range versions {
-				h.Versions = append(h.Versions, liveHistoryVersion{
-					VersionID:    v.VersionID,
-					LastModified: v.LastModified.UTC().Format(time.RFC3339),
-					Current:      v.Current,
-					Deleted:      v.Deleted,
-				})
-			}
-		}
-	}
-
+	h, diags := c.read(ctx, ".", args.Estate, args.RawAddr)
 	if diags.HasErrors() {
 		c.View.Diagnostics(diags)
 		return 1
@@ -173,6 +95,85 @@ func (c *LiveHistoryCommand) Execute(args *arguments.LiveHistory) int {
 	}
 	views.NewLiveHistory(c.View).Output(out)
 	return 0
+}
+
+// read is live-history's answer for the configuration in dir, shared with
+// "choudoufu investigate history" (#2280). It reads version metadata only,
+// never a version's content.
+func (c *LiveHistoryCommand) read(ctx context.Context, dir, estateArg, rawAddr string) (*liveHistory, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+
+	addr, addrDiags := addrs.ParseAbsResourceInstanceStr(rawAddr)
+	diags = diags.Append(addrDiags)
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	config, cfgDiags := c.loadConfig(ctx, dir)
+	diags = diags.Append(cfgDiags)
+	if cfgDiags.HasErrors() {
+		return nil, diags
+	}
+	if config.Module == nil || config.Module.Live == nil || config.Module.Live.RecordStore == nil {
+		return nil, diags.Append(tfdiags.Sourceless(tfdiags.Error, "No record store",
+			"live-history reads the record store the live block's record_store block names, and this configuration has none."))
+	}
+	live := config.Module.Live
+	rs := live.RecordStore
+
+	estate, _, estateDiags := liveEstateFor(ctx, estateArg, config)
+	diags = diags.Append(estateDiags)
+	if estate == "" && !estateDiags.HasErrors() && live.Estate != "" {
+		if !discovery.ValidEstateName(live.Estate) {
+			estateDiags = estateDiags.Append(tfdiags.Sourceless(tfdiags.Error, "Invalid estate name",
+				fmt.Sprintf("The live block names estate %q, which does not match the tofu-estate marker grammar in live/MARKERS.md.", live.Estate)))
+			diags = diags.Append(estateDiags)
+		} else {
+			estate = live.Estate
+		}
+	}
+	if estateDiags.HasErrors() {
+		return nil, diags
+	}
+	if estate == "" {
+		return nil, diags.Append(tfdiags.Sourceless(tfdiags.Error, "No estate name",
+			"A record is kept under its estate's name, and this configuration names no single estate. Pass -estate=<name>."))
+	}
+
+	h := liveHistory{Address: addr.String(), Estate: estate, Store: rs.Type, Versions: []liveHistoryVersion{}}
+	if rs.Type == "s3" {
+		open := c.open
+		if open == nil {
+			open = projection.NewRecordStore
+		}
+		storeOpts, err := recordStoreOpenOptions()
+		if err != nil {
+			return nil, diags.Append(recordStoreOpenDiag(rs.Type, err))
+		}
+		store, err := open(ctx, rs, live.Retry, estate, dir, storeOpts...)
+		if err != nil {
+			return nil, diags.Append(recordStoreOpenDiag(rs.Type, err))
+		}
+		if lister, ok := staterecord.AsVersionLister(store); ok {
+			key := projection.RecordKey(projection.RecordStoreKeyPrefix(rs, estate), addr)
+			versions, err := lister.ListVersions(ctx, key)
+			if err != nil {
+				return nil, diags.Append(tfdiags.Sourceless(tfdiags.Error, "Cannot list the record's versions", fmt.Sprintf(
+					"%s.\n\nListing a record's versions takes s3:ListBucketVersions on the record store bucket, which the estate's own role does not carry. It is one of the grants a recovery needs: see \"What a recovery needs\" on the bucket page.", err)))
+			}
+			h.Kept = true
+			for _, v := range versions {
+				h.Versions = append(h.Versions, liveHistoryVersion{
+					VersionID:    v.VersionID,
+					LastModified: v.LastModified.UTC().Format(time.RFC3339),
+					Current:      v.Current,
+					Deleted:      v.Deleted,
+				})
+			}
+		}
+	}
+
+	return &h, diags
 }
 
 func (h liveHistory) text() string {

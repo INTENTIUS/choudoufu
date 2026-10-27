@@ -46,7 +46,7 @@ if [ "${BREAK:-0}" = "1" ]; then
     "under every KMS flavour. Built with go build -overlay."
   [ -z "${CHOUDOUFU_BIN:-}${CHOUDOUFU_VERSION:-}" ] \
     || fail "sseflavours" "BREAK=1 rebuilds choudoufu from this checkout; it cannot break CHOUDOUFU_BIN or CHOUDOUFU_VERSION"
-  SRC="$ROOT/internal/live/staterecord/s3.go"
+  SRC="$ROOT/pkg/staterecord/s3.go"
   mkdir -p "$SMOKE_WORK/break"
   python3 - "$SRC" "$SMOKE_WORK/break/s3.go" <<'PYEOF'
 import sys
@@ -171,8 +171,8 @@ if [ "${BREAK:-0}" != "1" ]; then
     "whether its ETag equals the payload's MD5. It does under SSE-S3 and" \
     "does not under any KMS flavour, so the KMS runs are known to have" \
     "exercised an ETag that is not a content hash."
-  cmd "CHOUDOUFU_SSE_BUCKETS=... go test ./internal/live/staterecord/ -run TestS3StoreCASUnderEverySSEFlavour -v"
-  T_OUT="$(cd "$ROOT" && CHOUDOUFU_SSE_BUCKETS="$PAIRS" env -u PWD go test ./internal/live/staterecord/ -run TestS3StoreCASUnderEverySSEFlavour -count=1 -v 2>&1)" && T_RC=0 || T_RC=$?
+  cmd "CHOUDOUFU_SSE_BUCKETS=... go test ./pkg/staterecord/ -run TestS3StoreCASUnderEverySSEFlavour -v"
+  T_OUT="$(cd "$ROOT" && CHOUDOUFU_SSE_BUCKETS="$PAIRS" env -u PWD go test ./pkg/staterecord/ -run TestS3StoreCASUnderEverySSEFlavour -count=1 -v 2>&1)" && T_RC=0 || T_RC=$?
   grep -E 'ServerSideEncryption=' <<< "$T_OUT" | sed 's/^ *s3_sse_live_test.go:[0-9]*: //' | evidence
   grep -q -- "--- SKIP: TestS3StoreCASUnderEverySSEFlavour" <<< "$T_OUT" && fail "sseflavours" "the test SKIPPED, so nothing was measured: $T_OUT"
   for f in $FLAVOURS; do

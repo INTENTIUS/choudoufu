@@ -191,7 +191,7 @@ which is another resource's attribute at plan time.
 
 Three labelled types have no Asset name in `pkg/identity`, so the rule
 below does not derive them, and each is written out in
-`internal/live/gcpsweep/handwrittenlist.go` (INTENTIUS/choudoufu#2274,
+`pkg/gcpsweep/handwrittenlist.go` (INTENTIUS/choudoufu#2274,
 paired with plunge#19, whose `gcplist/handwritten.go` lists the same
 three). Each binds, consistency unmeasured. A listed object is named by its
 documented Asset name, and its import ID is that name's path, which is the
@@ -210,7 +210,7 @@ rule plunge's `pkg/backend/plunge/gcplist` uses (INTENTIUS/plunge#15's
 ruling: per-service listers for every covered type, the same in
 both repos). A type is covered when `pkg/identity.GoogleAssetImports` gives
 its Asset name and its service is one of the 28 in
-`internal/live/gcpsweep/servicelist.go`: Compute Engine, Cloud Storage,
+`pkg/gcpsweep/servicelist.go`: Compute Engine, Cloud Storage,
 Pub/Sub, Cloud Run, Cloud Functions, Secret Manager, Artifact Registry,
 Cloud KMS, Cloud DNS, Memorystore for Redis and Memcached, Filestore,
 Spanner, AlloyDB, API Gateway, Eventarc, Certificate Manager, CA Service,
@@ -221,7 +221,7 @@ name's parent collection (`projects/{{project}}/topics` for a topic,
 `projects/{{project}}/zones/{{zone}}/disks` for a disk, `b?project=` for
 buckets), read to the last page and kept by the estate's label client
 side. With the three above, the 156 types both repos list are in
-`internal/live/gcpsweep/testdata/covered-types.txt`, and plunge carries an
+`pkg/gcpsweep/testdata/covered-types.txt`, and plunge carries an
 identical copy that its own test reads.
 
 Where such a list is made comes from the instance's block: `project`,

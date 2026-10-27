@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/gcpsweep"
 )
 
 // fakeTypeLister is a [gcpsweep.TypeLister] serving fixed objects per type
@@ -102,10 +102,11 @@ func TestGCPTypeListNamesTheCollisionTheIndexMissed(t *testing.T) {
 // TestGCPDerivedTypeScopes: a derived type (one listed by its Asset name's
 // parent collection, INTENTIUS/choudoufu#2264 after INTENTIUS/plunge#15) is
 // listed where its block puts it. A zone given as a self link counts by its
-// last segment, and a block naming none takes the provider block's. A parent
-// written out is the path's prefix; one that refers to another resource, or a
-// location the block leaves to the provider, cannot be known from
-// configuration, and the type is bound from the index with a warning.
+// last segment, and a block naming none takes the provider block's; a block
+// naming no location takes the provider block's region (GitHub issue #2273).
+// A parent written out is the path's prefix; one that refers to another
+// resource cannot be known from configuration, and the type is bound from
+// the index with a warning.
 func TestGCPDerivedTypeScopes(t *testing.T) {
 	cfg := loadConfig(t, filepath.Join("testdata", "gcp-derived-scope"))
 	g := GCPAssetSweep{Project: "proj-a", Region: "us-central1", Zone: "us-central1-f"}
@@ -126,6 +127,9 @@ func TestGCPDerivedTypeScopes(t *testing.T) {
 		{"google_compute_disk.boot", "google_compute_disk", gcpsweep.ListScope{Project: "proj-a", Location: "us-central1-f", Collection: "projects/proj-a/zones/us-central1-f/disks"}},
 		{"google_kms_crypto_key.pinned", "google_kms_crypto_key", gcpsweep.ListScope{Project: "proj-a", Collection: "projects/proj-a/locations/global/keyRings/kr/cryptoKeys"}},
 		{"google_storage_bucket.logs", "google_storage_bucket", gcpsweep.ListScope{Project: "proj-a", Collection: "b", Query: "project=proj-a"}},
+		// GitHub issue #2273: a block with no location is listed in the
+		// provider block's region.
+		{"google_artifact_registry_repository.unlocated", "google_artifact_registry_repository", gcpsweep.ListScope{Project: "proj-a", Location: "us-central1", Collection: "projects/proj-a/locations/us-central1/repositories"}},
 	} {
 		got, why := scope(tc.addr, tc.typeName)
 		if why != "" || got != tc.want {
@@ -134,7 +138,6 @@ func TestGCPDerivedTypeScopes(t *testing.T) {
 	}
 	for _, tc := range []struct{ addr, typeName, says string }{
 		{"google_kms_crypto_key.referenced", "google_kms_crypto_key", "key_ring is not known from configuration alone"},
-		{"google_artifact_registry_repository.unlocated", "google_artifact_registry_repository", "location"},
 	} {
 		if _, why := scope(tc.addr, tc.typeName); !strings.Contains(why, tc.says) {
 			t.Errorf("%s: why = %q, want it to say %q", tc.addr, why, tc.says)

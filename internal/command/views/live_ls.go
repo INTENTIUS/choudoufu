@@ -15,7 +15,7 @@ import (
 )
 
 // LiveLsReport is what "choudoufu live-ls" prints, in a form this package
-// can render without importing internal/live/cloudcontrol or
+// can render without importing pkg/cloudcontrol or
 // internal/live/markers: the command package decides what is true (which
 // resources carry the estate's marker, which ones a configuration declares
 // but the listing cannot see, and why), and this package decides how it

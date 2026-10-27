@@ -14,14 +14,17 @@
 #           its own prefixes, the bystander's untouched
 #
 # Case 2 runs first because it is what brings the estates up. The plan texts
-# and every record listing are kept under $SMOKE_WORKROOT/composed/artifacts,
+# and every record listing are kept under $(smoke_log_dir)/composed-root-three-cases,
 # which is what the maintainer copies into the issue (or live/smoke/evidence/).
-# It proves no claim: a draft, run with `just smoke composed-root-three-cases`.
+# Run it through ci-run.sh, which points smoke_log_dir at the log's own
+# directory, so they outlive smoke.sh's cleanup of the workroot; under a bare
+# `just smoke composed-root-three-cases` they go with the workroot.
+# It proves no claim: a draft.
 
 W="$SMOKE_WORKROOT/composed"
 SMOKE_WORK="$W"; export SMOKE_WORK
 BUCKET="smoke-composed-records"
-ART="$W/artifacts"
+ART="$(smoke_log_dir)/composed-root-three-cases"
 mkdir -p "$W/root" "$W/net" "$W/app" "$W/svc" "$W/bystander" "$ART"
 flat() { tr '\n' ' ' | sed 's/│/ /g' | tr -s ' '; }
 

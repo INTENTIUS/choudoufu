@@ -162,7 +162,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// GitHub issue #1524: asks EKS, GKE or AKS whether a managed
 		// cluster encrypts Secrets at rest and returns the provider's
 		// answer as data. It emits no diagnostic; the encryption_at_rest
-		// finding is made in internal/live/staterecord's cluster contract,
+		// finding is made in pkg/staterecord's cluster contract,
 		// which is where every verdict about that answer lives.
 		"managedk8s":  true,
 		"markerstrip": true,
@@ -208,6 +208,10 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// path at all.
 		"statefulcost": true,
 		"staterecord":  true,
+		// GitHub issue #2281: the marker vocabulary and credential chains
+		// choudoufu hands the public sweeps under pkg/. Support code; the
+		// sweeps refuse, and they are listed above by their old names.
+		"sweepconfig": true,
 		// The shared config-subset evaluator (#826): the allowlist, the
 		// recover-wrapped evaluation, the count/for_each key derivation and
 		// the select-by-path argument read, in one leaf under identity,
@@ -262,6 +266,14 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// can print it without importing any stage: a hash over finished
 		// plans, refusing nothing.
 		"setdigest": true,
+		// GitHub issue #2285's live-graph: one graph document built from
+		// configuration and an optional live-plan -json document. It runs
+		// no stage and refuses nothing; it reads what the stages decided.
+		"livegraph": true,
+		// GitHub issue #2280's investigate and MCP server: read-only
+		// questions (owner, versions, undeclared, touched roots) answered
+		// beside the stages, never inside one, with nothing to refuse.
+		"investigate": true,
 	}
 
 	classified := map[string]bool{}
