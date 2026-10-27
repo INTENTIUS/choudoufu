@@ -1014,6 +1014,12 @@ func (r *liveRunner) PriorStateCalls() int {
 	return r.priorStateCalls
 }
 
+// liveRecordStoreOpener opens the record store for plan and apply. A
+// package variable for one reason: GitHub issue #2288's test of the waiver
+// warning runs an s3-configured estate twice over a local store, to pin that
+// the warning is on every run and not only the first (#1340).
+var liveRecordStoreOpener recordStoreOpener = projection.NewRecordStore
+
 // PriorState implements [backendLocal.LiveRun]: it runs the whole
 // live pipeline and returns the projection.
 //
@@ -1149,7 +1155,7 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 				// runs alone (GitHub issue #2059).
 				dir = r.baseDir
 			}
-			store, storeErr = projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, estate, dir, storeOpts...)
+			store, storeErr = liveRecordStoreOpener(ctx, recordStoreCfg, retryCfg, estate, dir, storeOpts...)
 		}
 		if storeErr != nil {
 			diags = diags.Append(recordStoreOpenDiag(recordStoreCfg.Type, storeErr))
