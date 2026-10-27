@@ -3,14 +3,14 @@
   "fork_point": "2b6193043d500dcfef1f3b4f4819b938b667099f",
   "fork_point_short": "2b6193043d",
   "fork_point_subject": "Bump version v1.13.0",
-  "measured_at_head": "9bcd050e13ec86392e6f930e0e5f1e04f4ad5087",
-  "generated_at": "2026-10-27T22:31:05Z",
+  "measured_at_head": "9a74c68893ed7aaed73224f7d17e7ebc8abe820a",
+  "generated_at": "2026-10-27T22:32:59Z",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 25,
     "internal/live/": 1866,
     "live/": 675,
-    "other": 1711,
+    "other": 1716,
     "site/": 93,
     "tools/": 574
   },
@@ -14995,6 +14995,10 @@
         "status": "A"
       },
       {
+        "path": "pkg/staterecord/sharedfixtures_test.go",
+        "status": "A"
+      },
+      {
         "path": "pkg/staterecord/shortsnapshot_test.go",
         "status": "A"
       },
@@ -15008,6 +15012,22 @@
       },
       {
         "path": "pkg/staterecord/store.go",
+        "status": "A"
+      },
+      {
+        "path": "pkg/staterecord/testdata/bucket-check/SOURCE.txt",
+        "status": "A"
+      },
+      {
+        "path": "pkg/staterecord/testdata/bucket-check/azure.json",
+        "status": "A"
+      },
+      {
+        "path": "pkg/staterecord/testdata/bucket-check/gcs.json",
+        "status": "A"
+      },
+      {
+        "path": "pkg/staterecord/testdata/bucket-check/s3.json",
         "status": "A"
       },
       {
