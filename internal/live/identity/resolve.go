@@ -118,6 +118,27 @@ type Context struct {
 	// configuration data that needs no read - see [resolver.managedCovered].
 	ManagedResults map[string]cty.Value
 
+	// PendingDataReads is GitHub issue #2297's: true for a caller that reads
+	// no data source itself and reports a data-source reference as a read
+	// still to come (internal/live/check, whose data-read pass files it as
+	// "Resolves at plan time via a data-source read"), rather than as a
+	// broken argument.
+	//
+	// It decides one thing. An instance whose other failing components all
+	// wait on a sibling's apply ([DiscoverySiblingApply]) is classified
+	// needs-discovery only when no component failed for a reason that
+	// apply will not settle. With this false, a component that refused
+	// because it reads a data source counts as such a reason, so the
+	// acm module's aws_route53_record.validation (zone_id from a data
+	// source, name and type from the certificate's planned
+	// domain_validation_options) stayed refused offline, although
+	// live-plan, which reads the zone first, classifies it. With this true,
+	// a component whose every error is a reference to a data source does
+	// not block that classification; its diagnostics stay, so the caller
+	// still reports the read. False is the default and every caller that
+	// performs its data reads (live-plan) keeps it.
+	PendingDataReads bool
+
 	// Scope is which resource blocks this run's -target / -exclude
 	// filtering leaves in the plan graph (GitHub issue #352). Nil is the
 	// default and means all of them, which is every untargeted run and
@@ -773,16 +794,17 @@ func newResolver(ctx context.Context, cfg *configs.Config, rctx Context) *resolv
 		// Measured on the index rather than on len(rctx.ManagedResults) so
 		// that an entry the index could not use - already reported as a
 		// caller error just below - does not switch the classification on.
-		managedResults: len(mgIndex) > 0,
-		expansions:     make(map[string]*expansion),
-		expFailed:      make(map[string]bool),
-		expVisit:       make(map[string]bool),
-		insts:          make(map[string]Resolution),
-		instFailed:     make(map[string]bool),
-		instVisit:      make(map[string]bool),
-		synth:          make(map[string]*TypeIdentity),
-		typeProviders:  make(map[string]string),
-		scopeCtx:       make(map[string][]string),
+		managedResults:   len(mgIndex) > 0,
+		pendingDataReads: rctx.PendingDataReads,
+		expansions:       make(map[string]*expansion),
+		expFailed:        make(map[string]bool),
+		expVisit:         make(map[string]bool),
+		insts:            make(map[string]Resolution),
+		instFailed:       make(map[string]bool),
+		instVisit:        make(map[string]bool),
+		synth:            make(map[string]*TypeIdentity),
+		typeProviders:    make(map[string]string),
+		scopeCtx:         make(map[string][]string),
 	}
 	// A result the index could not use is the calling code's defect, not
 	// the configuration's, and it must not vanish: dropped silently it
@@ -909,6 +931,9 @@ type resolver struct {
 	// one index (see [newResolver]), so "the index has entries" cannot
 	// answer "the caller performed a managed read".
 	managedResults bool
+
+	// pendingDataReads is [Context.PendingDataReads].
+	pendingDataReads bool
 
 	// pendingSiblingApply records the identity arguments this instance could
 	// not compute BECAUSE a managed result this run obtained is unknown until
@@ -1491,9 +1516,18 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	sibMark := len(r.pendingSiblingApply)
 	hardFailed := false
 	var sibArgs []string
+	// compDiags is where the current component's own diagnostics start, for
+	// [Context.PendingDataReads].
+	compDiags := len(r.diags)
 	fail := func(sibBefore int, argName string) {
 		failed = true
 		if len(r.pendingSiblingApply) == sibBefore {
+			if r.pendingDataReads && onlyDataReferences(r.diags[compDiags:]) {
+				// GitHub issue #2297: a read still to come, not a broken
+				// argument. Its diagnostics stay. See
+				// [Context.PendingDataReads].
+				return
+			}
 			hardFailed = true
 			return
 		}
@@ -1509,6 +1543,7 @@ func (r *resolver) resolveInstance(addr addrs.AbsResourceInstance, rng hcl.Range
 	armID := false
 	for i, comp := range entry.Components {
 		sibBefore := len(r.pendingSiblingApply)
+		compDiags = len(r.diags)
 		if comp.Cloud != CloudNone {
 			// A cloud-bearing component may also carry the argument the
 			// provider documents as defaulting to that same cloud property.
@@ -3772,6 +3807,33 @@ type siblingApplyRefusal struct {
 	arg     string
 	sibling string
 	diagIdx int
+}
+
+// onlyDataReferences reports whether diags holds at least one error and every
+// error in it refuses a reference to a data source
+// ([configs.RefusedReference] naming a data resource). See
+// [Context.PendingDataReads].
+func onlyDataReferences(diags tfdiags.Diagnostics) bool {
+	errors := 0
+	for _, d := range diags {
+		if d.Severity() != tfdiags.Error {
+			continue
+		}
+		errors++
+		switch subj := tfdiags.ExtraInfo[configs.RefusedReference](d).Subject.(type) {
+		case addrs.Resource:
+			if subj.Mode != addrs.DataResourceMode {
+				return false
+			}
+		case addrs.ResourceInstance:
+			if subj.Resource.Mode != addrs.DataResourceMode {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return errors > 0
 }
 
 func (r *resolver) stringValue(val cty.Value, expr hcl.Expression, ident configs.StaticIdentifier) (string, bool) {

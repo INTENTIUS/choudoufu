@@ -166,6 +166,10 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 		Cloud:          actx.Cloud,
 		Schemas:        actx.Schemas,
 		ManagedResults: actx.ManagedResults,
+		// GitHub issue #2297: this check reads no data source and files a
+		// reference to one as a read still to come (the data-read pass
+		// below), so identity treats it that way too.
+		PendingDataReads: true,
 	})
 	if result != nil {
 		report.Instances = result.Len()

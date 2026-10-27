@@ -102,10 +102,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/getproviders"
 	"github.com/intentius/choudoufu/internal/live/check"
+	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/offlineplan"
 	"github.com/intentius/choudoufu/internal/live/pluginschema"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -127,6 +131,7 @@ func run() error {
 		pinVersion   = flag.String("provider-version", pins.AWSProviderVersion, "exact version pinned for -provider-source (default: internal/live/pins.AWSProviderVersion, the same pin survey-gen builds the admission evidence from - #117)")
 		pinsPath     = flag.String("provider-pins", "live/corpus-provider-pins.json", "checked-in lock file (#222): every other provider's resolved version is read from here when present, instead of floating to whatever its own constraint resolves to today; a (provider, constraint) pair seen for the first time is acquired at its own constraint and appended here")
 		noSchemas    = flag.Bool("no-schemas", false, "run without provider schemas, and say so in the artifact")
+		secondPass   = flag.Bool("second-pass", true, "with schemas, run live-plan's second identity pass offline (GitHub issue #2297): an entry whose first pass refuses a value a provider can plan is resolved again with the providers' planned values, configured offline with no credentials and no cloud call. See internal/live/offlineplan")
 		quiet        = flag.Bool("quiet", false, "suppress the progress log")
 	)
 	flag.Parse()
@@ -165,6 +170,16 @@ func run() error {
 	acquirer := newSchemaAcquirer(*initBin, *noSchemas, pinned, *pinVersion, basePins, logOut)
 
 	ctx := context.Background()
+
+	// GitHub issue #2297: the offline second identity pass, for entries
+	// whose schemas loaded. Sessions keeps one install per provider release
+	// for the whole run; each entry starts and stops its own processes.
+	var sessions *offlineplan.Sessions
+	if *secondPass && !*noSchemas && *initBin != "" {
+		sessions = offlineplan.NewSessions(*initBin, logOut)
+		defer sessions.Close(ctx)
+	}
+
 	corpus := check.NewCorpus()
 	origins := map[string]int{}
 
@@ -184,11 +199,17 @@ func run() error {
 
 		var schemas map[string]providers.Schema
 		var schemaRows []check.EntryProviderSchema
+		actx := check.Context{}
 		if load.Config != nil {
-			schemas, schemaRows = acquirer.schemasFor(providerNeeds(load.Config))
+			needs := providerNeeds(load.Config)
+			schemas, schemaRows = acquirer.schemasFor(needs)
+			actx.Schemas = schemas
+			if sessions != nil && len(schemas) > 0 {
+				actx.ManagedResults = secondPassValues(ctx, sessions, load.Config, schemas, acquirer.versionsFor(needs))
+			}
 		}
 
-		report := check.Analyze(ctx, load.Config, check.Context{Schemas: schemas})
+		report := check.Analyze(ctx, load.Config, actx)
 		report.Load = load
 		// Attribution before folding, so a rate-capable entry's profile can
 		// flag the refusals that are artifacts of running without the
@@ -718,6 +739,34 @@ func (a *schemaAcquirer) acquire(need providerNeed) acquireResult {
 
 // note builds the artifact-level [SchemaNote] from everything this
 // acquirer tried over the whole run.
+// versionsFor is the exact release each of needs was acquired at, keyed by
+// [addrs.Provider.ForDisplay], for the providers that loaded. The second
+// identity pass (GitHub issue #2297) starts each provider at that release,
+// so it plans with the same provider the schemas came from.
+func (a *schemaAcquirer) versionsFor(needs []providerNeed) map[string]string {
+	out := map[string]string{}
+	for _, need := range needs {
+		res := a.acquire(need)
+		if res.Available && res.Version != "" {
+			out[res.Provider] = res.Version
+		}
+	}
+	return out
+}
+
+// secondPassValues runs live-plan's second identity pass offline for one
+// entry (GitHub issue #2297) and returns the planned values to hand
+// [check.Analyze], or nil when live-plan would keep its first pass.
+func secondPassValues(ctx context.Context, sessions *offlineplan.Sessions, cfg *configs.Config, schemas map[string]providers.Schema, versions map[string]string) map[string]cty.Value {
+	provs := offlineplan.New(sessions.For(func(p addrs.Provider) (string, bool) {
+		v, ok := versions[p.ForDisplay()]
+		return v, ok
+	}))
+	defer provs.Close(ctx)
+	values, _ := offlineplan.ManagedResults(ctx, cfg, identity.Context{Schemas: schemas}, provs)
+	return values
+}
+
 func (a *schemaAcquirer) note(noSchemas bool, initBin string) SchemaNote {
 	if noSchemas || initBin == "" {
 		return SchemaNote{

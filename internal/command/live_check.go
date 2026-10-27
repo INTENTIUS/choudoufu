@@ -12,11 +12,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/live/check"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
+	"github.com/intentius/choudoufu/internal/live/offlineplan"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tracing"
 	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
@@ -177,6 +180,22 @@ func (c *LiveCheckCommand) liveCheck(ctx context.Context, dir string) check.Repo
 	// provider boundary where a real live-plan draws it. See
 	// [check.Context.ProviderManagedTypes].
 	managedTypes := provs.managedTypesByProvider(schemaCtx)
+	cloud := identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv), Environment: azsweep.EnvEnvironment(os.Getenv)}
+	// GitHub issue #2297: live-plan's second identity pass, offline, when
+	// the plugins are installed. liveResolve configures each provider from
+	// the configuration's own block and asks it to plan; this asks the same
+	// plugins with offlineplan's configuration instead (placeholder
+	// credentials, no STS or metadata call, a dead proxy for hashicorp/aws),
+	// because this command makes no cloud call. The values are kept only
+	// when liveResolve would keep its second pass.
+	var managed map[string]cty.Value
+	if len(schemas) > 0 {
+		second := offlineplan.New(provs.mgr)
+		var outcome offlineplan.Outcome
+		managed, outcome = offlineplan.ManagedResults(schemaCtx, load.Config, identity.Context{Cloud: cloud, Schemas: schemas}, second)
+		second.Close(schemaCtx)
+		log.Printf("[TRACE] live-check: offline second identity pass: %s", outcome)
+	}
 	// A close failure is not this command's news: it read schemas and is
 	// done with the plugins. A provider that would not launch already shows
 	// up as absent schemas, which the report states.
@@ -189,7 +208,8 @@ func (c *LiveCheckCommand) liveCheck(ctx context.Context, dir string) check.Repo
 		ProviderManagedTypes: managedTypes,
 		// As liveResolve does, so live-check and live-plan name the same
 		// azurerm and azapi resources (GitHub issue #2133, finding 4).
-		Cloud: identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv), Environment: azsweep.EnvEnvironment(os.Getenv)},
+		Cloud:          cloud,
+		ManagedResults: managed,
 	})
 	analyzeSpan.End()
 	report.Load = load
