@@ -658,3 +658,15 @@ release never resets a result: `live/CLAIMS.md` marks a run older than the
 newest release stale. The `last_run` entries were restored from
 `claims.json` at 958bcf7f2d, the last commit before #2028, and
 `live/claims_last_run_test.go` holds each one to that history.
+
+A cell can also cite a Go test (`go_test`, GitHub issue #2288). One with no
+gate runs in CI's fast tier, and its dated run is a successful push run of
+the CI workflow on main at a commit, recorded with `go run
+./tools/gotest-record -ci-run <run id>`; one behind an environment gate
+runs from a recipe (`just test-kind`, `SMOKE_REAL_AWS=1 just test-sse`),
+and its dated run is that recipe's log, recorded with `go run
+./tools/gotest-record -log <log>`. Both land under
+`live/smoke/evidence/go-test/`, and nothing else writes there. A Go test
+proof with no recorded run yet reads "waiting for its first recorded run"
+in `live/CLAIMS.md` and does not count toward its cell, which still needs
+a dated proof of its own (`live/smoke_claims_gotest_test.go`).

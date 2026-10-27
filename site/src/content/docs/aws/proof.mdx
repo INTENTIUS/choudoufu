@@ -11,7 +11,7 @@ import PlatformSwitch from '../../../components/PlatformSwitch.astro';
 
 ## Claims you can run
 
-Each [claim](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/README.md) has a proof that runs on the local emulator. Under `BREAK=1` it must catch the injected fault.
+Each [claim](https://github.com/INTENTIUS/choudoufu/blob/main/live/smoke/claims/README.md) has a proof that runs on the local emulator or is a Go test CI runs on every commit. Under `BREAK=1` a scenario must catch the injected fault; a Go test fails on that fault.
 
 ## Where the numbers are
 

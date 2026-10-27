@@ -454,6 +454,36 @@ what it is excluding, and records `index_converged`/`index_target` beside
 `LIVECERT_HOLD`, `LIVECERT_RESUME` and `LIVECERT_TEARDOWN_ONLY` each name a
 work dir by path, so they only work on the machine that holds that dir.
 
+### Which real-AWS and kind runs a release takes
+
+The maintainer's ruling on GitHub issue #2288 (Q3, 2026-10-27) trimmed the
+real-AWS runs to a schedule. Every one is maintainer-run and spends money;
+nothing here is a reason for an agent to start one.
+
+At every release:
+
+- `SMOKE_REAL_AWS=1 just smoke one-bucket-many-estates` (claim 28, the
+  published bucket IAM in `examples/record-store-bucket/iam`)
+- `SMOKE_REAL_AWS=1 just smoke a-read-only-role-can-plan` (claim 28, the
+  published read-only policy)
+- `SMOKE_REAL_AWS=1 just smoke the-recommended-secure-configuration` (the
+  demo of the shipped bucket project end to end)
+- `live/live-cert/run.sh reference-ec2-vpc -target aws` (the lifecycle on
+  a real account, which no emulator run stands in for)
+- `just test-kind`, the kind-gated `pkg/staterecord` tests (ruling Q2; no
+  cloud, but no CI job runs them either)
+
+Only when its trigger holds:
+
+- `SMOKE_REAL_AWS=1 just test-sse` (`TestS3StoreCASUnderEverySSEFlavour`,
+  claim 2) when `pkg/staterecord/s3.go` has changed since its last recorded
+  run (`git log <its commit>..HEAD -- pkg/staterecord/s3.go`)
+- the terralith-scale live-cert (`gauntlet live-cert -target aws ...
+  terralith-scale`, above) when a scale claim's figure is re-quoted
+
+A Go test proof's run is recorded with `go run ./tools/gotest-record -log
+<the recipe's log>`; a smoke scenario's, as before, in its evidence file.
+
 ## Retired
 
 The old stock-comparison score and its three labels, the decision matrix and its `RULE` row,

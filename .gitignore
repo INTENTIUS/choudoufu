@@ -111,6 +111,7 @@ tmp
 /floci-capability-gen
 /forkdiff-gen
 /gcp-row-gen
+/gotest-record
 /harness-gen
 /iamref-gen
 /largeset-gen
