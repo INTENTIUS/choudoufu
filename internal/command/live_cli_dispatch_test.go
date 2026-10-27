@@ -80,7 +80,7 @@ func TestNewCLIDispatchesLiveCommands(t *testing.T) {
 		for _, cmd := range root.Commands {
 			have[cmd.Name] = cmd.Run != nil
 		}
-		for _, name := range []string{"live-check", "live-plan", "live-mv", "live-import", "live-ls", "live-bucket", "live-cluster", "live-summary", "live-affected", "live-cone", "live-history", "live-graph", "live-plan-set", "live-waves", "live-wave-apply"} {
+		for _, name := range []string{"live-check", "live-plan", "live-mv", "live-import", "live-ls", "live-bucket", "live-cluster", "live-summary", "live-affected", "live-cone", "live-history", "live-graph", "live-plan-set", "live-waves", "live-wave-apply", "investigate", "mcp"} {
 			if !have[name] {
 				t.Errorf("%s is not a runnable command in RootCommander, so the default CLI cannot reach it", name)
 			}

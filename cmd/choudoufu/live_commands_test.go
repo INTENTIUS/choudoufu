@@ -22,7 +22,7 @@ import (
 // v1.13.0 the default CLI is commandMain's urfave/cli tree, built from
 // command.RootCommander rather than from the legacy commands map, so each
 // has to be reachable there as well as in initCommands.
-var liveCommandNames = []string{"live-check", "live-plan", "live-mv", "live-import", "live-ls", "live-bucket", "live-cluster", "live-summary", "live-affected", "live-cone", "live-history", "live-graph", "live-plan-set", "live-waves", "live-wave-apply"}
+var liveCommandNames = []string{"live-check", "live-plan", "live-mv", "live-import", "live-ls", "live-bucket", "live-cluster", "live-summary", "live-affected", "live-cone", "live-history", "live-graph", "live-plan-set", "live-waves", "live-wave-apply", "investigate", "mcp"}
 
 // TestCommandMainRoutesLiveCommands is the routing half of GitHub issue
 // #1778's step 3 test (internal/command's TestNewCLIDispatchesLiveCommands
