@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // GitHub issue #1301, at the seam every consumer of a record-store listing

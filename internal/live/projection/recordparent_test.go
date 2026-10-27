@@ -15,9 +15,9 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // A cloud resource whose identity is derived from a record-backed parent

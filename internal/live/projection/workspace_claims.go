@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // This file is GitHub issue #2221's shared-estate notice. Under a live block

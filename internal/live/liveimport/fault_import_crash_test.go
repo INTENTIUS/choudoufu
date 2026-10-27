@@ -23,8 +23,8 @@ import (
 	clienttesting "k8s.io/client-go/testing"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // GitHub issue #1764, live-import's half: kubesweep.Client.PatchMarkers is

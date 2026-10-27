@@ -117,7 +117,7 @@
 //     #277). internal/live/discovery/cloudcontrol_scoped.go's
 //     ParentScopedChildSpec/ListResourcesScoped mechanism is what this leg
 //     exists to give a manifest row: create with an empty desired state,
-//     then internal/live/cloudcontrol.Client.ListResourcesScoped - scoped
+//     then pkg/cloudcontrol.Client.ListResourcesScoped - scoped
 //     with a synthetic placeholder value for every required property,
 //     never a real parent object - and look for the identifier the create
 //     named.

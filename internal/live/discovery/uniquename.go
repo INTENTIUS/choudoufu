@@ -13,9 +13,9 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // This file is the binding leg GitHub issue #272 asks for: recognising a

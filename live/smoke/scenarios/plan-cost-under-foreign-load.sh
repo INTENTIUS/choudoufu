@@ -76,7 +76,7 @@ LOGS="$SMOKE_WORKROOT/foreignload-logs"; mkdir -p "$LOGS"
 # requests it put on the wire. Cost is measured in API calls, the work that
 # actually scales, and "HTTP Request Sent" is the one line both the AWS
 # provider's own logger and choudoufu's Cloud Control and Tagging clients
-# emit per request (internal/live/cloudcontrol/client.go).
+# emit per request (pkg/cloudcontrol/client.go).
 planplan() { # $1=dir $2=logname $3+=extra flags
   local dir="$1" name="$2"; shift 2
   ( cd "$WORK/$dir" && TF_LOG=debug TF_LOG_PATH="$LOGS/$name.log" "$TOFU" plan -input=false -no-color "$@" >"$LOGS/$name.out" 2>&1 || true )
@@ -107,7 +107,7 @@ countin() {
 # its own rather than folded into a total.
 #
 # The pattern is anchored on "HTTP Request Sent" and not on rpc.method alone
-# for a measured reason: internal/live/cloudcontrol/client.go logs a Request
+# for a measured reason: pkg/cloudcontrol/client.go logs a Request
 # line AND a Response line per call, both carrying the same rpc.service and
 # rpc.method, so the unanchored pattern counts every call twice. It reported
 # 870 Cloud Control lists inside a 736-request plan before this said so.

@@ -1164,7 +1164,7 @@ gauntlet_stage day2_endpoints pass "a global and a regional internet NEG pair (I
 # day2_endpoints, so a store or emulator gap can never take a headline
 # verdict down.
 #
-# What it drives through the store (internal/live/staterecord/gcs.go):
+# What it drives through the store (pkg/staterecord/gcs.go):
 # live-import's record writes (multipart uploads under ifGenerationMatch=0),
 # reads (JSON media GETs, the generation from x-goog-generation), listings
 # by prefix, the contract read (buckets.get) and the sentinel listing

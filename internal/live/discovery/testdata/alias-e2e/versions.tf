@@ -10,7 +10,7 @@
 # default provider (same pinned version, same floci-facing flags, so the
 # plugin cache the P0.1 estate fixture already warms is reused); the "west"
 # alias repeats the same flags with a different region, which is what makes
-# this fixture a real test of internal/live/cloudcontrol/doc.go's
+# this fixture a real test of pkg/cloudcontrol/doc.go's
 # region-scope header machinery: floci is one host for every region, and
 # without that header a multi-region estate reads as one region silently.
 

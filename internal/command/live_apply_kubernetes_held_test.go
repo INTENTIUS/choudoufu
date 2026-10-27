@@ -16,12 +16,12 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // GitHub issue #1184: a delete the cluster has only accepted. These drive

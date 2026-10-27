@@ -15,9 +15,9 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // deniedStore answers every Get the way S3 answers a role with no grant on

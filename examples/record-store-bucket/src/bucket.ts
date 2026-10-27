@@ -117,7 +117,7 @@ export const recordsBucket = new Bucket({
         // days or date, or with tag filters, and this rule has none of those:
         // only the noncurrent expiry and the multipart abort. And choudoufu's
         // own bucket contract reads it correctly:
-        // internal/live/staterecord/bucketcontract.go's
+        // pkg/staterecord/bucketcontract.go's
         // `expiresCurrentObjects` looks at Expiration.Days and
         // Expiration.Date, so a marker cleanup is not read as a rule that
         // deletes records, and `just verify` still passes.

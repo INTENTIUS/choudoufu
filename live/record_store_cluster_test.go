@@ -16,7 +16,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // examples/record-store-cluster, held to the store it is an example for.

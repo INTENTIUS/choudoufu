@@ -111,7 +111,7 @@ per-account-and-OS singleton). `aws_ssm_maintenance_window_target` and
 `aws_ssm_maintenance_window_task` — both document a
 `window_id/id` composite where `id` is server-minted (not a configuration
 argument), both untaggable, and both CFN registry entries carry
-`list_required_input: ["WindowId"]`: `internal/live/registry.Roster.Listable`
+`list_required_input: ["WindowId"]`: `pkg/registry.Roster.Listable`
 is true only for `handlers.list` with an *empty* required-input list (see
 that package's own doc comment), so the Cloud Control fallback that rescues
 `aws_efs_file_system` in the storage batch does not reach either type here
@@ -267,7 +267,7 @@ above through the provider's own Identity Schema directly instead.
 
 ## A listability gap admitted anyway (WAFv2's four marker types)
 
-`internal/live/registry.Roster.Listable` reports every one of
+`pkg/registry.Roster.Listable` reports every one of
 `aws_wafv2_ip_set`, `aws_wafv2_regex_pattern_set`, `aws_wafv2_rule_group`
 and `aws_wafv2_web_acl` unlistable through the Cloud Control fallback:
 each CFN type's `handlers.list_required_input` names `Scope`, and that
@@ -285,7 +285,7 @@ mechanism at all today (their own CFN type is not even `handlers.list`,
 let alone list-with-no-input) — admission there does not depend on a
 working discovery path existing yet, only on the identity concept itself
 being sound and the type being taggable in principle (an estate-wide
-tag-based sweep, `internal/live/cloudcontrol`'s `NewTagging` client, is
+tag-based sweep, `pkg/cloudcontrol`'s `NewTagging` client, is
 tested but not yet wired into discovery — see that package's own history).
 The gap is real and worth tracking, but it is a discovery-mechanism
 limitation to close later, not a reason to withhold admission now.

@@ -16,7 +16,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // examples/record-store-cluster/rbac, held to the same standard as
@@ -132,7 +132,7 @@ func decodeRBAC(t *testing.T, raw []byte) []rbacRenderedDoc {
 }
 
 // TestRBACVerbsMatchTheStoresLists ties the renderer to
-// internal/live/staterecord/kubernetescontract.go's own lists, so a Role
+// pkg/staterecord/kubernetescontract.go's own lists, so a Role
 // rendered here cannot drift from what the store actually asks of the
 // cluster: KubernetesRecordVerbs for the grant, KubernetesPlanVerbs for the
 // read-only rendering (GitHub issue #1370's plan-vs-apply distinction, the

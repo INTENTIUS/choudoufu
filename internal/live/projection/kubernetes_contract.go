@@ -12,8 +12,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // What the cluster store needs that the shared open path does not give it:

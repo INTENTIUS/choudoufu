@@ -480,7 +480,7 @@ the script does not render.
 
 Nothing in this section has run against real GCS. The store and its checks
 are tested against a fake of the JSON API
-(`internal/live/staterecord/gcs_test.go`), and reference-gcp's
+(`pkg/staterecord/gcs_test.go`), and reference-gcp's
 `record_store_gcs` gauntlet stage runs the store against floci-gcp's Cloud
 Storage, an emulator and not GCS. On the emulator it reaches part of the
 first item below (a create-only write's `412` when two applies race) and the

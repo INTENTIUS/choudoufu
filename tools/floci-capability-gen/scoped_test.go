@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // classifyScopedAgainst mirrors classifyAgainst (sweep_test.go) for the

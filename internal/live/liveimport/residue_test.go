@@ -13,9 +13,9 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // GitHub issue #327: aws_nat_gateway's ForceNew arguments (allocation_id,

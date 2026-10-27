@@ -13,15 +13,15 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // releaseManifest is [releaseOne] for a manifest-shape target, a
 // kubernetes_manifest orphan (GitHub issue #1656, ruled 2026-09-27: allow
 // the label-delete patch). Its object is one dynamic argument, so there is
 // no typed labels map for a provider plan to be confined to; the release
-// is the second write internal/live/kubesweep/patch.go makes, one merge
+// is the second write pkg/kubesweep/patch.go makes, one merge
 // patch deleting key from metadata.labels and the block-address
 // annotation (markers.AddressAnnotation, GitHub issue #1639) from
 // metadata.annotations, under the same safety live-import's adoption patch

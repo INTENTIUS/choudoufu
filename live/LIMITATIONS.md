@@ -205,7 +205,7 @@ configuration with a `record_store` was told its type could never work.
   namespace is the "no persisted micro-state" limit closing, not a
   reinterpretation of what these types are. A `record_store` block backs
   the type's whole identity with a persisted record instead of a cloud
-  observation (`internal/live/staterecord`, local and S3 backends). See
+  observation (`pkg/staterecord`, local and S3 backends). See
   the site's reference page (https://intentius.io/choudoufu/docs/use/reference/)
   for the `record_store` block's config surface. Without
   a store, the refusal Detail names this class and cites #73 exactly as it

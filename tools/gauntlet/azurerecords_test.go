@@ -21,7 +21,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // The azure lane's records live in record_store "azurerm" on floci-az's blob
@@ -183,7 +183,7 @@ func (l *listsButLoses) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // TestFlociAzRecordAccountPassesTheStoreContract makes the account through
 // the helper and hands what it PUT to the record store's own opening checks
-// (internal/live/staterecord's CheckAzureContract), the external source
+// (pkg/staterecord's CheckAzureContract), the external source
 // here: every setting must pass, so a run's first contact is not refused or
 // waived.
 func TestFlociAzRecordAccountPassesTheStoreContract(t *testing.T) {

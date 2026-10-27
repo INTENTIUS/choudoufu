@@ -13,8 +13,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // encodeRecordPayload and decodeRecordPayload are the pre-GitHub-issue-#364

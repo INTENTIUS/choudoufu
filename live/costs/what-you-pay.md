@@ -655,7 +655,7 @@ That line is `markerIndex.fetch` in `internal/live/discovery/bindtags.go`,
 logging the one `resourcegroupstaggingapi GetResources` call this run's join
 path falls back to when a listed `aws_iam_policy` object's own tags come back
 empty. The call paginates correctly: `GetResources` in
-`internal/live/cloudcontrol/tagging.go` loops `PaginationToken` to exhaustion
+`pkg/cloudcontrol/tagging.go` loops `PaginationToken` to exhaustion
 and returns nothing at all if any page errors.
 
 `migrate` had stamped 1,655 resources with both markers 21 minutes earlier,

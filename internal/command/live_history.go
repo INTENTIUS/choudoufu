@@ -16,8 +16,8 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // LiveHistoryCommand lists the past versions of one resource instance's

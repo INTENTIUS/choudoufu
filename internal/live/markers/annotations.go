@@ -25,7 +25,7 @@ import (
 // The key sits under choudoufu.intentius.io/, the prefix the record store's
 // own annotation (staterecord.KubernetesRecordKeyAnnotation,
 // choudoufu.intentius.io/record-key) already established for this fork's
-// annotations on a cluster; a test in internal/live/staterecord pins that
+// annotations on a cluster; a test in pkg/staterecord pins that
 // the two keep one prefix.
 //
 // What it is not: a boundary. The admission fence

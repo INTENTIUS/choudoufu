@@ -14,12 +14,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
-	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // This file is issue #1318: in us-east-1 a tag index that has not caught up

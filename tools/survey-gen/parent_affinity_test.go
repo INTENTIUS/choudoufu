@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // This file is issue #129's guard, and it lives here rather than in

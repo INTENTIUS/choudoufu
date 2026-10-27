@@ -51,7 +51,7 @@ rest is an API server flag no namespace can set.
 `just up <estate>` creates two ServiceAccounts in the records namespace,
 each bound to a Role that holds exactly the verbs one kind of run uses on
 Secrets there, taken from the store's own lists in
-`internal/live/staterecord/kubernetescontract.go`:
+`pkg/staterecord/kubernetescontract.go`:
 
 | Identity | Verbs on Secrets in `tofu-records-<estate>` | Estate grant | For |
 |---|---|---|---|

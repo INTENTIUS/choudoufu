@@ -20,8 +20,8 @@ import (
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/stamp"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // GitHub issue #1637, ruled 2026-09-27: #950's unmarked-apply refusal

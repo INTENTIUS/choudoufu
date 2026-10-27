@@ -21,7 +21,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/httpclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // azureRMEnv is, per argument, the environment variables stock's azurerm

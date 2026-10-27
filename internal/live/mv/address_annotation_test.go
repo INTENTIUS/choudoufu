@@ -15,9 +15,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // GitHub issue #1639: a same-estate rename of a Kubernetes object is a

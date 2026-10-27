@@ -1514,7 +1514,7 @@ timed_plans() {
 #     stock this IS the plan's API-call count.
 #
 #   * CHOUDOUFU'S OWN CLIENT CALLS - NOT counted, and not countable from
-#     this log. internal/live/cloudcontrol's Client talks to Cloud Control
+#     this log. pkg/cloudcontrol's Client talks to Cloud Control
 #     and to the Tagging API over its own net/http client, inside the tofu
 #     process, and logs no line per HTTP request. What internal/live/
 #     discovery logs is one [DEBUG] line per TYPE listed and per TYPE swept,

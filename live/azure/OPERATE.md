@@ -45,7 +45,7 @@ one blob under the three prefixes the bucket uses, `tofu-records/`,
 `tofu-hints/` and `tofu-outputs/`, carrying `tofu-estate` as a blob index
 tag written in the same Put Blob. A create sends `If-None-Match: *`, an
 update or delete sends `If-Match` with the ETag the writer read, and no
-lease is taken (`internal/live/staterecord/azureblob.go`).
+lease is taken (`pkg/staterecord/azureblob.go`).
 
 Before it writes a record the store checks three settings on the storage
 account: blob versioning on, a lifecycle rule that deletes previous

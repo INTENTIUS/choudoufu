@@ -282,7 +282,7 @@ test-floci: ## Runs the live-mode tests against the floci AWS emulator.
 # the estate size (default 200, the committed live/plan-budget.json's own N);
 # a run at that default N also ratchets against the budget. See
 # internal/live/discovery/scale_bench_test.go's doc comment for the measured
-# scaling curve and internal/live/cloudcontrol/doc.go's "Retries" section for
+# scaling curve and pkg/cloudcontrol/doc.go's "Retries" section for
 # the backoff policy this same issue asked for.
 .PHONY: bench-estate
 

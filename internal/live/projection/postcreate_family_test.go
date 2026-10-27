@@ -20,11 +20,11 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/markers"
-	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // GitHub issue #1742, items 1 and 2: the post-create path's holes a third

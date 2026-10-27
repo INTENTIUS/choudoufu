@@ -82,7 +82,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   [ -z "${CHOUDOUFU_BIN:-}${CHOUDOUFU_VERSION:-}" ] \
     || fail "bulkread" "BREAK=1 rebuilds choudoufu from this checkout; it cannot break CHOUDOUFU_BIN or CHOUDOUFU_VERSION. Unset them and run it again with Go installed."
   command -v go >/dev/null 2>&1 || fail "bulkread" "BREAK=1 needs Go to build the broken binary"
-  SRC="$ROOT/internal/live/staterecord/bulk.go"
+  SRC="$ROOT/pkg/staterecord/bulk.go"
   mkdir -p "$SMOKE_WORK/break"
   python3 - "$SRC" "$SMOKE_WORK/break/bulk.go" <<'PYEOF'
 import sys

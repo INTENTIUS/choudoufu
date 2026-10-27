@@ -57,7 +57,7 @@ if [ "${BREAK:-0}" = "1" ]; then
   [ -z "${CHOUDOUFU_BIN:-}${CHOUDOUFU_VERSION:-}" ] \
     || fail "writerace" "BREAK=1 rebuilds choudoufu from this checkout; it cannot break CHOUDOUFU_BIN or CHOUDOUFU_VERSION. Unset them and run it again with Go installed."
   command -v go >/dev/null 2>&1 || fail "writerace" "BREAK=1 needs Go to build the broken binary"
-  SRC="$ROOT/internal/live/staterecord/s3.go"
+  SRC="$ROOT/pkg/staterecord/s3.go"
   mkdir -p "$SMOKE_WORK/break"
   python3 - "$SRC" "$SMOKE_WORK/break/s3.go" <<'PYEOF'
 import sys

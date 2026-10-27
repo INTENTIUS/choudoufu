@@ -155,6 +155,16 @@ var otherAllowlist = []otherAllowEntry{
 	{"examples/", "docs-adjacent demo projects: examples/live-mv-workbench (uv/Python, package tlmig) drives the terralith-migration demo and the live-mv workbench over a real or floci-emulated account - wholly new, no stock counterpart"},
 	{".gitattributes", "stock's four eol rules kept; appended: `*.sh text eol=lf diff` so `git grep` reads shell scripts in full (#1294), and the gauntlet-rendered merge driver for the five files tools/gauntlet render writes (#1308, #2092)"},
 	{"CONTRIBUTING.RELEASE.md", "upstream's release manual kept whole, with one prepended warning pointing a choudoufu release at CHANGELOG.md's \"Cutting a release\" paragraph instead"},
+	// GitHub issue #2281: the public, engine-neutral packages plunge
+	// imports. pkg/identity came first (#2244); the sweeps, the record
+	// store, their test suites and fakes, and the marker vocabulary moved
+	// here from internal/live/ with git mv. Wholly fork-owned; upstream has
+	// no pkg/ tree.
+	{"pkg/", "the fork's public packages: identity (#2244), and cloudcontrol, kubesweep, registry, staterecord, gcpsweep, azsweep, k8stest, markerkeys with their exported conformance suite and sweep fakes (#2281), moved out of internal/live/ so another module can import them"},
+	// GitHub issue #1898's tracing (#1921, #1923), first measured here by
+	// #2276's regeneration of this artifact.
+	{"internal/tracing/", "#1898: detail spans, a span budget, trace propagation and choudoufu's own trace attributes, added beside stock's tracing setup (init.go gains the provider hookup)"},
+	{"internal/states/statemgr/", "#1898: one span over a state-lock wait (locker.go) and refresh/persist through traced wrappers (helper.go calls tracing.go's Refresh and Persist), so a trace shows where a run waited on state"},
 }
 
 // forkSurfaceFile mirrors tools/forkdiff-gen's fileChange.
