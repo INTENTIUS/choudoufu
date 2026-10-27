@@ -3,18 +3,26 @@ title: Migrate an existing estate
 description: Move a Terraform or OpenTofu configuration with a state file onto markers, and back.
 prompt: >-
   Follow https://intentius.io/choudoufu/docs/use/migrate/ for this repository,
-  using the section for my platform. Install choudoufu, run
-  `terraform state pull > stock.tfstate` (or `tofu state pull`), remove the
-  `backend` block, create `estate.chdf.hcl` with an estate name and
-  `record_store` I confirm, then run `choudoufu init`, `choudoufu live-check`
-  and the dry `choudoufu live-import -state=stock.tfstate -estate=<estate>`,
-  and show me each output. Do not pass `-approve`.
+  using the section for my platform. Install choudoufu, keep the `backend`
+  block, create `estate.chdf.hcl` (empty, or with an estate name and
+  `record_store` I confirm), then run `choudoufu init`, `choudoufu live-check`
+  and the dry `choudoufu live-import`, and show me each output, including the
+  "Records:" line init prints. Do not pass `-approve`.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
 Run these steps in the directory that holds your configuration, before any
-`choudoufu apply`. Follow the section for your platform, from step 1. Steps 3
-and 4 swap your `backend` block for the live backend, `estate.chdf.hcl`.
+`choudoufu apply`.
+
+Keep your `backend` block. choudoufu ignores it for state, reads the old
+state from it on `live-import`, publishes outputs to it, and, with no
+`record_store`, keeps records in its bucket. The estate name defaults to the
+backend key (`prod/network/terraform.tfstate` gives `prod-network`), else the
+root's path. `init` and `plan` print both:
+
+```
+Records: s3 bucket "acme-tfstate" under tofu-records/prod-network/ (derived from backend "s3" at backend.tf:2); estate "prod-network" (from the backend key)
+```
 
 ## Install
 
@@ -41,140 +49,86 @@ For Windows, download `choudoufu_<version>_windows_amd64.zip` (or `_arm64.zip`)
 from the [latest release](https://github.com/INTENTIUS/choudoufu/releases/latest)
 and unzip it. Then put `choudoufu` on your `PATH`.
 
-## On AWS
+## Steps
 
 1. [Install choudoufu](#install).
-2. Pull the state:
+2. Create `estate.chdf.hcl`. It can be empty on AWS, GCP and Azure. To name
+   the estate or the store yourself, see the examples below.
+3. Migrate:
 
    ```
-   terraform state pull > stock.tfstate   # or tofu state pull
-   ```
-
-3. Delete the `backend "s3"` block.
-4. Create `estate.chdf.hcl` ([the bucket](../bucket/)):
-
-   ```hcl
-   estate = "my-estate"
-
-   record_store "s3" {
-     bucket = "my-records-bucket"
-     region = "us-east-2"
-   }
-   ```
-
-5. Migrate:
-
-   ```
-   choudoufu init
+   choudoufu init                    # prints where records go
    choudoufu live-check
-   choudoufu live-import -state=stock.tfstate -estate=my-estate            # preview
-   choudoufu live-import -state=stock.tfstate -estate=my-estate -approve   # write the tags
-   choudoufu plan                                                          # no changes
+   choudoufu live-import             # preview; reads the old state from the backend
+   choudoufu live-import -approve    # write the markers
+   choudoufu plan                    # no changes
    ```
 
-## On Kubernetes
+4. [Archive the old state](#archive-the-old-state).
 
-1. [Install choudoufu](#install).
-2. Pull the state:
+## Naming the store
 
-   ```
-   terraform state pull > stock.tfstate   # or tofu state pull
-   ```
+On AWS ([the bucket](../bucket/)):
 
-3. Delete the `backend "kubernetes"` block.
-4. Create `estate.chdf.hcl` ([the namespace](../setup/#the-record-store)):
+```hcl
+estate = "my-estate"
 
-   ```hcl
-   estate = "my-estate"
+record_store "s3" {
+  bucket = "my-records-bucket"
+  region = "us-east-2"
+}
+```
 
-   record_store "kubernetes" {
-     config_path = "~/.kube/config"
-   }
-   ```
+On GCP ([the bucket](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-gcs/CONTRACT.md)),
+`record_store "gcs" { bucket = "my-records-bucket" }`. On Azure
+([the storage account](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-azurerm/CONTRACT.md)),
+`record_store "azurerm"` with `storage_account_name`, `container_name` and
+`resource_group_name`; the derived store needs the backend block's
+`resource_group_name` too.
 
-5. Migrate:
+On Kubernetes the `kubernetes` backend has no record store counterpart, so
+name one ([the namespace](../setup/#the-record-store)):
 
-   ```
-   choudoufu init
-   choudoufu live-check
-   choudoufu live-import -state=stock.tfstate -estate=my-estate            # preview
-   choudoufu live-import -state=stock.tfstate -estate=my-estate -approve   # write the labels
-   choudoufu plan                                                          # no changes
-   ```
+```hcl
+estate = "my-estate"
 
-## On GCP
+record_store "kubernetes" {
+  config_path = "~/.kube/config"
+}
+```
 
-1. [Install choudoufu](#install).
-2. Pull the state:
+A backend set only through `-backend-config` cannot be read from the block:
+run `terraform state pull > stock.tfstate`, pass `-state=stock.tfstate` to
+`live-import`, and name the store, since `init` prints that it fell back to
+the local one.
 
-   ```
-   terraform state pull > stock.tfstate   # or tofu state pull
-   ```
+## Archive the old state
 
-3. Delete the `backend "gcs"` block.
-4. Create `estate.chdf.hcl` ([the bucket](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-gcs/CONTRACT.md)):
+The old state document still lists every resource, and an apply never
+overwrites a document that holds resources, so `terraform_remote_state`
+readers keep reading the pre-migration outputs until it is archived. Once
+`choudoufu plan` is empty:
 
-   ```hcl
-   estate = "my-estate"
+```
+tofu state pull > pre-live.tfstate        # or terraform; keep this copy
+aws s3 mv s3://acme-tfstate/prod/network/terraform.tfstate \
+          s3://acme-tfstate/archive/prod/network/terraform.tfstate
+```
 
-   record_store "gcs" {
-     bucket = "my-records-bucket"
-   }
-   ```
-
-5. Migrate:
-
-   ```
-   choudoufu init
-   choudoufu live-check
-   choudoufu live-import -state=stock.tfstate -estate=my-estate            # preview
-   choudoufu live-import -state=stock.tfstate -estate=my-estate -approve   # write the labels
-   choudoufu plan                                                          # no changes
-   ```
-
-## On Azure
-
-1. [Install choudoufu](#install).
-2. Pull the state:
-
-   ```
-   terraform state pull > stock.tfstate   # or tofu state pull
-   ```
-
-3. Delete the `backend "azurerm"` block.
-4. Create `estate.chdf.hcl` ([the storage account](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-azurerm/CONTRACT.md)):
-
-   ```hcl
-   estate = "my-estate"
-
-   record_store "azurerm" {
-     storage_account_name = "myrecords"
-     container_name       = "records"
-     resource_group_name  = "records-rg"
-   }
-   ```
-
-5. Migrate:
-
-   ```
-   choudoufu init
-   choudoufu live-check
-   choudoufu live-import -state=stock.tfstate -estate=my-estate            # preview
-   choudoufu live-import -state=stock.tfstate -estate=my-estate -approve   # write the tags
-   choudoufu plan                                                          # no changes
-   ```
+On GCP use `gcloud storage mv`; on Azure, copy the blob and delete the
+original. The next `choudoufu apply` writes an outputs-only document in its
+place.
 
 ## Undo
 
 1. Copy the cache: `cp .terraform/choudoufu-cache.tfstate terraform.tfstate`.
 2. Delete `estate.chdf.hcl`, then run `choudoufu init`.
 3. Remove the markers: `CHOUDOUFU_UNMIGRATE=my-estate choudoufu apply`.
-4. Put the `backend` block back.
-5. Push the state:
+4. Push the state; the `backend` block is still in place:
 
    ```
    terraform init -reconfigure                     # or tofu
    terraform state push -force terraform.tfstate
    ```
 
-6. `terraform plan` reports no changes.
+5. `terraform plan` reports no changes.

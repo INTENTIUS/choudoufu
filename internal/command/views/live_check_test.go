@@ -174,8 +174,13 @@ func TestVerdictNamesTheBackendEditWhenItIsAllThatRemains(t *testing.T) {
 	if strings.Contains(out, "Nothing in . is refused") {
 		t.Errorf("the generic clean headline still leads a backend-only estate:\n%s", out)
 	}
-	if !strings.Contains(out, "recommended edit") {
-		t.Errorf("the verdict does not say deleting the block is still recommended:\n%s", out)
+	// GitHub issue #2294: the block stays beside a live block (#2213), so
+	// the verdict says to keep it and never to delete it.
+	if !strings.Contains(out, "Keep it when you add a live block") {
+		t.Errorf("the verdict does not say to keep the block:\n%s", out)
+	}
+	if strings.Contains(out, "Delet") {
+		t.Errorf("the verdict still tells the user to delete the block:\n%s", out)
 	}
 }
 

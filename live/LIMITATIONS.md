@@ -761,6 +761,11 @@ keeps the dropped block for that. A backend configured only by `init
 -backend-config` flags (a bare `backend "s3" {}`) is not known to the apply, so
 nothing is published and the apply warns. A composed root publishes nothing.
 
+With no `record_store` block, an ignored `s3`, `gcs` or `azurerm` backend is
+also where the records go, under `tofu-records/<estate>/`, and `live-import`
+reads the old state through it, so a migration needs no `state pull` and the
+block should never be deleted (GitHub issue #2293; [`STORAGE.md`](STORAGE.md)).
+
 **Enforcement.** `RuleStateBackend`, `internal/live/lint/lint.go`
 (`checkStateBackends`), warning severity (`Rule.Severity`,
 `internal/live/lint/issue.go`). Fixture at `live/e2e/limits/backend-block/`.
@@ -775,7 +780,8 @@ different syntax, including the demotion: GitHub issue #214.
 
 **Forwarding address.** The same story as `backend-block`, again: beside a
 `live` block the `cloud` block is ignored with a warning, not refused (GitHub
-issue #2213).
+issue #2213), and it can stay. It names no bucket, so the records need a
+`record_store` block.
 
 **Enforcement.** `RuleStateBackend`, the same rule as `backend-block`, same
 warning severity. The two fixtures exist separately because they are two
