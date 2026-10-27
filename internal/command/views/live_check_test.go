@@ -582,3 +582,26 @@ func TestLiveCheckDocument_topLevelShapeIsPinned(t *testing.T) {
 		t.Errorf("the live-check -json document changed shape.\n--- got ---\n%s\n--- want ---\n%s", out, want)
 	}
 }
+
+// TestClearVerdictReportsTheReadCount is GitHub issue #2295: a report whose
+// only finding is the eligible data read is clear, and both the text and
+// the JSON say how many sites depend on the read.
+func TestClearVerdictReportsTheReadCount(t *testing.T) {
+	rep := LiveCheckReport{
+		Dir: ".", Blocked: false, Instances: 4, Sites: 7, Reads: 7,
+		Findings: []LiveCheckFinding{{Title: "Resolves at plan time via a data-source read", Layer: "dataread", SiteCount: 7}},
+	}
+
+	out := renderLiveCheck(t, rep)
+	if !strings.Contains(out, "Nothing in . is refused") {
+		t.Errorf("the clear verdict is missing:\n%s", out)
+	}
+	if !strings.Contains(out, "7 site(s) resolve at plan time through a data-source read") {
+		t.Errorf("the read count is missing:\n%s", out)
+	}
+
+	doc := renderLiveCheckJSON(t, rep)
+	if !strings.Contains(doc, `"reads": 7`) || !strings.Contains(doc, `"exit_code": 0`) {
+		t.Errorf("the JSON document lacks reads 7 with exit code 0:\n%s", doc)
+	}
+}

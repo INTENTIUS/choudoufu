@@ -835,7 +835,44 @@ func (r Report) Readable() bool { return r.Load.Config != nil }
 // and lands in [Report.Warnings] rather than here), and any identity error
 // diagnostic is fatal there, because a partial identity map makes the plan
 // propose creating objects that already exist.
-func (r Report) Blocked() bool { return len(r.Findings) > 0 }
+//
+// The data-read pass's eligible-read finding does not count (GitHub issue
+// #2295). It stays in Findings, so the text report, the roster and the
+// onboarding ladder still see it, but it is not a refusal: live-plan reads
+// the data source before resolution and plans the configuration, and the
+// finding's own description says no edit is needed. Counting it read 20 of
+// the 74 blocked terraform-aws-modules examples as blocked when the eligible
+// read was the only finding left (choudoufu#2292's research). [Report.Reads]
+// is how many sites it carries.
+func (r Report) Blocked() bool {
+	for _, f := range r.Findings {
+		if !f.EligibleRead() {
+			return true
+		}
+	}
+	return false
+}
+
+// Reads is how many sites resolve at plan time through an eligible
+// data-source read: the site count of the eligible-read finding, which
+// [Report.Blocked] leaves out. It is reported beside the verdict so a clear
+// configuration still says how much of it depends on a read the offline
+// check did not perform.
+func (r Report) Reads() int {
+	var n int
+	for _, f := range r.Findings {
+		if f.EligibleRead() {
+			n += len(f.Sites)
+		}
+	}
+	return n
+}
+
+// EligibleRead reports whether this finding is the data-read pass's
+// eligible read, the one finding that never blocks. See [Report.Blocked].
+func (f Finding) EligibleRead() bool {
+	return f.Layer == LayerDataread && f.ID == dataread.SummaryEligibleRead
+}
 
 // Sites is the total number of refused sites across every finding.
 func (r Report) Sites() int {

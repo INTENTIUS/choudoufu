@@ -30,6 +30,12 @@ type LiveCheckReport struct {
 	Instances int
 	Sites     int
 
+	// Reads is how many sites resolve at plan time through an eligible
+	// data-source read. That finding is listed with the others but never
+	// makes Blocked true (GitHub issue #2295), so a clear verdict names the
+	// count in its headline.
+	Reads int
+
 	// Findings are the refusals, already ranked.
 	Findings []LiveCheckFinding
 
@@ -299,6 +305,12 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 		fmt.Fprintf(&b, "\nNothing in %s is refused by the two checks below.\n", rep.Dir)
 		fmt.Fprintf(&b, "%d managed resource instance(s) resolved.\n", rep.Instances)
 	}
+	if !rep.Blocked && rep.Reads > 0 {
+		// GitHub issue #2295: the eligible read is not a refusal, but the
+		// plan depends on it, so a clear verdict says how much does.
+		fmt.Fprintf(&b, "%d site(s) resolve at plan time through a data-source read, which this check\n", rep.Reads)
+		fmt.Fprintf(&b, "does not perform. live-plan reads them before resolution.\n")
+	}
 
 	for _, finding := range rep.Findings {
 		fmt.Fprintf(&b, "\n%s  (%d site(s), %s)\n", finding.Title, finding.SiteCount, finding.Layer)
@@ -425,6 +437,12 @@ type liveCheckDocument struct {
 	Blocked  bool `json:"blocked"`
 	ExitCode int  `json:"exit_code"`
 
+	// Reads is the eligible data-read site count (GitHub issue #2295). The
+	// finding is still listed under Refusals by its own ID, but it never
+	// makes Blocked true, so a consumer reads the verdict from Blocked and
+	// this count beside it. Omitted at zero.
+	Reads int `json:"reads,omitempty"`
+
 	// Schemas is GitHub issue #966's answer to "what was this computed
 	// from": [SchemaSourceProvider] when the provider's own schemas backed
 	// the rungs below, [SchemaSourceBuiltin] when internal/live/check's
@@ -449,8 +467,8 @@ type liveCheckDocument struct {
 	Instances  []LiveCheckInstance  `json:"instances"`
 	References []LiveCheckReference `json:"references"`
 
-	// Refusals lists every refusal that makes Blocked true, one entry per
-	// rule: the rule id, the reason (the one-line summary the text report
+	// Refusals lists every refusal that makes Blocked true, plus the
+	// eligible data read (see Reads), one entry per rule: the rule id, the reason (the one-line summary the text report
 	// heads the refusal with), the count and the sites. A refusal need not
 	// name a roster instance, so Instances alone cannot explain a blocked
 	// verdict. Never null; empty when nothing is refused.
@@ -525,6 +543,7 @@ func (v *LiveCheckJSON) Report(rep LiveCheckReport) {
 		Estate:     rep.Estate,
 		Blocked:    rep.Blocked,
 		ExitCode:   exitCode,
+		Reads:      rep.Reads,
 		Schemas:    schemaSource(rep.Schemas),
 		Instances:  rep.InstanceRoster,
 		References: rep.References,
