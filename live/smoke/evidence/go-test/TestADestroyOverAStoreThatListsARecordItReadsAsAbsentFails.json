@@ -1,0 +1,8 @@
+{
+  "test": "TestADestroyOverAStoreThatListsARecordItReadsAsAbsentFails",
+  "package": "./internal/live/projection",
+  "status": "pass",
+  "commit": "80ff5c8606e6f925686b23a74fea435714158315",
+  "date": "2026-10-27",
+  "ci_run": "https://github.com/INTENTIUS/choudoufu/actions/runs/40531894760"
+}

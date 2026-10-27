@@ -2,7 +2,7 @@
   "test": "TestBucketContract",
   "package": "./pkg/staterecord",
   "status": "pass",
-  "commit": "289d16bad4cb3910600e0a9e60be85452eae47eb",
+  "commit": "80ff5c8606e6f925686b23a74fea435714158315",
   "date": "2026-10-27",
-  "ci_run": "https://github.com/INTENTIUS/choudoufu/actions/runs/40461112119"
+  "ci_run": "https://github.com/INTENTIUS/choudoufu/actions/runs/40531894760"
 }
