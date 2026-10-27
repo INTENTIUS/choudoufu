@@ -74,26 +74,9 @@ func publishOutputsState(ctx context.Context, config *configs.Config, outputs *p
 			diags = warn(fmt.Sprintf("the backend client failed unexpectedly: %v", r))
 		}
 	}()
-	if be.Eval == nil {
-		be.Eval = config.Module.StaticEvaluator
-	}
-
-	f, _ := backendInit.Backend(be.Type)
-	if f == nil {
-		return warn(fmt.Sprintf("choudoufu has no backend of type %q.", be.Type))
-	}
-	b := f(encryption.StateEncryptionDisabled())
-	schema := b.ConfigSchema()
-	val, hclDiags := be.Decode(ctx, schema.NoneRequired())
-	if hclDiags.HasErrors() || !val.IsWhollyKnown() {
-		return warn("the backend block is not fully set in the configuration (a backend configured by init -backend-config flags is not known here). " + hclDiags.Error())
-	}
-	val, prepDiags := b.PrepareConfig(val)
-	if prepDiags.HasErrors() {
-		return warn(prepDiags.Err().Error())
-	}
-	if cfgDiags := b.Configure(ctx, val); cfgDiags.HasErrors() {
-		return warn(cfgDiags.Err().Error())
+	b, problem := configureBlockBackend(ctx, be, config.Module.StaticEvaluator, encryption.StateEncryptionDisabled())
+	if problem != "" {
+		return warn(problem)
 	}
 	if workspace == "" {
 		workspace = currentWorkspaceName()
@@ -111,6 +94,35 @@ func publishOutputsState(ctx context.Context, config *configs.Config, outputs *p
 		return warn(werr.Error())
 	}
 	return sensitiveOutputsLeftOut(config.Module, be.Type)
+}
+
+// configureBlockBackend builds and configures the backend a backend block
+// names, from the block alone: a value passed with init -backend-config is
+// not known here. problem is a sentence saying why it could not be built.
+// Shared by the outputs-only publish (#2213) and live-import's read of the
+// old state (#2293).
+func configureBlockBackend(ctx context.Context, be *configs.Backend, eval *configs.StaticEvaluator, enc encryption.StateEncryption) (backend.Backend, string) {
+	if be.Eval == nil {
+		be.Eval = eval
+	}
+	f, _ := backendInit.Backend(be.Type)
+	if f == nil {
+		return nil, fmt.Sprintf("choudoufu has no backend of type %q.", be.Type)
+	}
+	b := f(enc)
+	schema := b.ConfigSchema()
+	val, hclDiags := be.Decode(ctx, schema.NoneRequired())
+	if hclDiags.HasErrors() || !val.IsWhollyKnown() {
+		return nil, "the backend block is not fully set in the configuration (a backend configured by init -backend-config flags is not known here). " + hclDiags.Error()
+	}
+	val, prepDiags := b.PrepareConfig(val)
+	if prepDiags.HasErrors() {
+		return nil, prepDiags.Err().Error()
+	}
+	if cfgDiags := b.Configure(ctx, val); cfgDiags.HasErrors() {
+		return nil, cfgDiags.Err().Error()
+	}
+	return b, ""
 }
 
 // SummarySensitiveOutputsNotPublished is the warning naming each sensitive

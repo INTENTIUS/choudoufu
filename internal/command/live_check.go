@@ -90,6 +90,11 @@ func (c *LiveCheckCommand) Execute(args *arguments.LiveCheck) int {
 	}
 
 	rep := liveCheckReport(dir, report)
+	// GitHub issue #2293: the resolved estate and record store, with no
+	// cloud call, for terragucci's init and chant's local-store lint.
+	setup := liveSetupFor(ctx, "", report.Load.Config)
+	rep.Setup = &setup
+	rep.Estate = setup.Estate
 	if jsonOutput {
 		// GitHub issue #790: the declared roster, for a caller like behold
 		// that parses no HCL of its own. See views.NewLiveCheckJSON's own
