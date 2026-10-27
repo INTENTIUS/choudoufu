@@ -208,6 +208,10 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// path at all.
 		"statefulcost": true,
 		"staterecord":  true,
+		// GitHub issue #2281: the marker vocabulary and credential chains
+		// choudoufu hands the public sweeps under pkg/. Support code; the
+		// sweeps refuse, and they are listed above by their old names.
+		"sweepconfig": true,
 		// The shared config-subset evaluator (#826): the allowlist, the
 		// recover-wrapped evaluation, the count/for_each key derivation and
 		// the select-by-path argument read, in one leaf under identity,

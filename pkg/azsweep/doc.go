@@ -5,11 +5,17 @@
 
 // Package azsweep is the Azure estate sweep's client (GitHub issue #1120,
 // the Azure platform epic, under #1122's ruling of 2026-10-19): which live
-// resources in a set of subscriptions carry this estate's tofu-estate tag,
+// resources in a set of subscriptions carry this estate's owner tag,
 // so that one whose block the configuration no longer declares can be
 // proposed for removal, exactly as the AWS tagging sweep, the Kubernetes
 // label list (pkg/kubesweep) and the GCP asset search
 // (pkg/gcpsweep) do on their substrates.
+//
+// The package is public and engine-neutral (GitHub issue #2281): the
+// caller names the owner tag key ([Config.Markers]; choudoufu's is
+// tofu-estate, which the examples below use) and hands over the
+// credential, endpoints and HTTP client every call goes through. It builds
+// no credential of its own.
 //
 // # What a sweep is here
 //
@@ -54,12 +60,10 @@
 // # Credentials
 //
 // [ProviderAttrs] reads an azurerm or azapi provider block's evaluated
-// configuration, [Attrs.WithEnv] applies the ARM_* environment variables
-// the provider itself reads for an argument the block leaves unset, and
-// [New] authenticates through the same credential chain the azurerm state
-// backend uses (internal/backend/remote-state/azure/auth): client
-// certificate, client secret, OIDC, managed identity, AKS workload
-// identity, then the Azure CLI. The credential is an
-// azcore.TokenCredential, so [NewWith] takes any, and the tests hand it a
-// fake token.
+// configuration, and [Attrs.WithEnv] applies the ARM_* environment
+// variables the provider itself reads for an argument the block leaves
+// unset. The credential is the caller's: any azcore.TokenCredential in
+// [Config]. choudoufu builds it with the azurerm state backend's chain
+// (internal/live/sweepconfig), plunge with azidentity, and the tests hand
+// it a fake token.
 package azsweep
