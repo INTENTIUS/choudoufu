@@ -127,14 +127,6 @@
       "set": "growing"
     },
     {
-      "name": "corpus-govuk-cluster-services",
-      "source": "alphagov/govuk-infrastructure terraform/deployments/cluster-services (commit c02504fa4abb439234669e9ea9b662bdb35209e9), GOV.UK's own in-cluster platform services root for its EKS clusters, split into a live slice (namespaces, dex client Secrets, kubernetes_labels and kubernetes_annotations with force) and a recorded stock half of Helm, kubectl and AWS blocks; the first published root driving the field-granular types",
-      "url": "https://github.com/alphagov/govuk-infrastructure.git",
-      "pin": "c02504fa4abb439234669e9ea9b662bdb35209e9",
-      "lane": "kubernetes",
-      "set": "growing"
-    },
-    {
       "name": "corpus-hongbomiao-labelbox",
       "source": "hongbo-miao/hongbomiao.com, three self-contained slices at one pin: the \"Labelbox\" section of infrastructure/opentofu/aws/general/main.tofu, the \"Harbor\" section of environments/production/aws/kubernetes/main.tofu, and the remote-state-free opening of environments/production/aws/storage/main.tofu (commit 3f69ab9c37211e163bbd4434bad39780b6d4b92b, no tag; harbor and storage were folded in from their own estates on 2026-10-11)",
       "url": "https://github.com/hongbo-miao/hongbomiao.com.git",
@@ -202,14 +194,6 @@
       "lane": "opentofu-native",
       "set": "core",
       "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
-    },
-    {
-      "name": "corpus-quickpizza",
-      "source": "grafana/quickpizza deployments/terraform (tag v0.15.28), Grafana Labs' QuickPizza demo application's own Kubernetes deployment root: a namespace, seven Deployments with their Services, a Postgres StatefulSet, ConfigMaps, Secrets, a ServiceAccount and a ClusterRoleBinding; the kubernetes lane's first published estate",
-      "url": "https://github.com/grafana/quickpizza.git",
-      "pin": "v0.15.28",
-      "lane": "kubernetes",
-      "set": "growing"
     },
     {
       "name": "corpus-rds-complete-postgres",
