@@ -6,6 +6,7 @@
 package investigate
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"go/parser"
@@ -417,7 +418,7 @@ func TestServerTools(t *testing.T) {
 		e := newFakeEnv(t, "chant", "behold")
 		s := NewServer(ctx, ServerConfig{Tools: e.Tools, Natives: Natives()})
 		defer s.Close()
-		want := []string{"affected", "behold:ask", "behold:capabilities", "behold:show", "behold:shot", "chant:lifecycle-diff", "chant:op-list", "chant:op-report", "chant:op-run", "chant:op-status", "foreign", "history", "investigate", "owner", "templates"}
+		want := []string{"affected", "behold:ask", "behold:capabilities", "behold:shot", "behold:show", "chant:lifecycle-diff", "chant:op-list", "chant:op-report", "chant:op-run", "chant:op-status", "foreign", "history", "investigate", "owner", "templates"}
 		if got := s.ToolNames(); !reflect.DeepEqual(got, want) {
 			t.Errorf("tools\n  %v\nwant\n  %v", got, want)
 		}
@@ -566,7 +567,14 @@ func TestServeProtocol(t *testing.T) {
 	var call ToolResult
 	_ = json.Unmarshal(byID[3]["result"], &call)
 	var ans Answer
-	if err := json.Unmarshal([]byte(call.Text()), &ans); err != nil || call.IsError || ans.Investigation != "owner" || ans.ObservedAt == "" || !strings.Contains(string(ans.Result), `"estate":"web"`) {
+	err := json.Unmarshal([]byte(call.Text()), &ans)
+	// The tool text is indented JSON, so the embedded result is too;
+	// compact it before looking for the field.
+	var result bytes.Buffer
+	if err == nil {
+		err = json.Compact(&result, ans.Result)
+	}
+	if err != nil || call.IsError || ans.Investigation != "owner" || ans.ObservedAt == "" || !strings.Contains(result.String(), `"estate":"web"`) {
 		t.Errorf("owner over MCP: %v %+v", err, ans)
 	}
 	if !strings.Contains(string(byID[4]["result"]), "safe-to-delete") {
