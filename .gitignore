@@ -120,6 +120,8 @@ tmp
 /limits-gen
 /mapping-gen
 /merge-guard
+/modcompat
+/modcompat-gen
 /oracle-bump-report
 /protobuf-compile
 /provider-bump-report

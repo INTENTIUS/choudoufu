@@ -1,0 +1,87 @@
+---
+// The module compatibility table in its two tiers (#2292), rendered at build
+// time from live/module-compat.json. Nothing here is a figure: every row and
+// count comes from the file, which tools/modcompat-gen and
+// `go run ./tools/gauntlet render` generate. The tiers stay in separate
+// tables and no total joins them.
+import raw from '../../../live/module-compat.json';
+
+interface Refusal { id: string; sites: number; docs_url?: string }
+interface StaticRow {
+	module: string; version: string; example: string; verdict: string; reads: number;
+	refusals: Refusal[]; reason?: string; missing_providers?: string[];
+}
+interface GauntletRow {
+	module: string; version: string; example: string; date: string; commit: string;
+	aws_provider: string; stages: { id: string; verdict: string }[];
+}
+interface File {
+	static_measurement: { date: string; commit: string; aws_provider: string } | null;
+	static: StaticRow[];
+	gauntlet: GauntletRow[];
+}
+const data = raw as unknown as File;
+const m = data.static_measurement;
+const short = (sha: string) => sha.slice(0, 10);
+const day = (date: string) => date.slice(0, 10);
+const tag = (module: string) => module.replace(/^terraform-aws-modules\//, '').replace(/\/aws$/, '');
+const verdict = (v: string) => (v === 'clear' ? 'plans' : v);
+---
+<h4>Static: live-check offline</h4>
+{m && (
+	<p>
+		Each example with a live block added, checked {m.date} at <code>{short(m.commit)}</code> with
+		hashicorp/aws {m.aws_provider}.
+	</p>
+)}
+<table>
+	<thead>
+		<tr><th>Module</th><th>Version</th><th>Example</th><th>Verdict</th><th>Reads</th><th>Refusals</th></tr>
+	</thead>
+	<tbody>
+		{data.static.map((r) => (
+			<tr>
+				<td>{tag(r.module)}</td>
+				<td>{r.version}</td>
+				<td><code>{r.example}</code></td>
+				<td>{verdict(r.verdict)}</td>
+				<td>{r.reads}</td>
+				<td>
+					{r.refusals.map((x, i) => (
+						<>
+							{i > 0 && ', '}
+							{x.docs_url ? <a href={x.docs_url}>{x.id}</a> : x.id} ({x.sites})
+						</>
+					))}
+					{r.reason}
+					{r.missing_providers && r.missing_providers.length > 0 && ` (partial schemas: ${r.missing_providers.join(', ')})`}
+				</td>
+			</tr>
+		))}
+	</tbody>
+</table>
+
+<h4>Gauntlet: applied on the emulator</h4>
+{data.gauntlet.length === 0 ? (
+	<p>No recorded run is current on today's pins.</p>
+) : (
+	<table>
+		<thead>
+			<tr><th>Module</th><th>Version</th><th>Example</th><th>Run</th><th>Stages passed</th></tr>
+		</thead>
+		<tbody>
+			{data.gauntlet.map((r) => (
+				<tr>
+					<td>{tag(r.module)}</td>
+					<td>{r.version}</td>
+					<td><code>{r.example}</code></td>
+					<td>{day(r.date)} at <code>{short(r.commit)}</code>, hashicorp/aws {r.aws_provider}</td>
+					<td>
+						{r.stages.filter((s) => s.verdict === 'pass').length} of{' '}
+						{r.stages.filter((s) => s.verdict !== 'not run').length} run
+					</td>
+				</tr>
+			))}
+		</tbody>
+	</table>
+)}
