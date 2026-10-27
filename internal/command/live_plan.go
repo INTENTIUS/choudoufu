@@ -1915,7 +1915,7 @@ func liveDiscoverOne(ctx context.Context, config *configs.Config, resolutions []
 			// property of a host.
 			//
 			// It cost the whole emulator tier its coverage of this branch.
-			// Loopback is exactly what live/e2e/run.sh and
+			// Loopback is exactly what the e2e harnesses and
 			// internal/live/flocitest.Endpoint both use, so with the gate
 			// in place every e2e run, every cohort-acceptance run and
 			// every local run took the per-type List fallback, and

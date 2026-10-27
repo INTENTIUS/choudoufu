@@ -315,7 +315,7 @@ fence, each a claim with a BREAK control, then a lane.
 | 7, identity is a tag | `carve-by-retag.sh` and others | `k8s-greenfield.sh` | `az-identity-is-a-tag` | strips the label; the replan must restore it |
 | 1, no silent orphans | `no-silent-orphans.sh` | `k8s-no-silent-orphans.sh` | `az-no-silent-orphans` | strips the orphan's label; the replan must leave it |
 | 13, the tag is the boundary | `the-tag-is-the-boundary.sh` | `k8s-the-label-is-the-boundary.sh` | `az-the-tag-is-the-boundary` | removes the policy; the denied write must go through |
-| 29, the store refuses what it can't trust | `a-wrong-bucket-is-refused.sh` | `k8s-records-in-the-cluster.sh` | `az-records-in-a-storage-account` | removes the fences |
+| 29, the store refuses what it can't trust | `a-wrong-bucket-is-refused.sh` | `k8s-records-in-the-cluster.sh` | none: the draft was deleted under #2288, since `TestAzureBlobStoreConformance` holds the store | removes the fences |
 
 Fixed (`live/smoke_claims_test.go`): the platform's name joins
 `provider_order` in `live/smoke/claims.json`; every claim gets a cell for it
@@ -395,7 +395,7 @@ definition of the contract.
 | 6. Fence | sweep, fence ruling | PR #1071: `estate-boundary.yaml` | unit 8: `estate-grant.json`, `estate-boundary.json`; draft, not run | claim 13, BREAK removes the policy |
 | 7. Lane | the claims above | PR #1074, PR #1089 | unit 15: `reference-azure`, clear on floci-az | lane reads clear |
 | 8. Migration | carrier | PR #1078: label carrier in `live-import` | unit 1: the ARM tags in `live-import` | lane migrate stage |
-| 9. Record store | optional | PR #1435 | `record_store "azurerm"`; draft `az-records-in-a-storage-account`, not run | claim 29, BREAK removes the fences |
+| 9. Record store | optional | PR #1435 | `record_store "azurerm"`; held by `TestAzureBlobStoreConformance` (the draft was deleted under #2288) | claim 29, BREAK removes the fences |
 
 Kubernetes got its family value after the fact (#1118) and its address
 annotation later (#1605); a new platform should start with the family value

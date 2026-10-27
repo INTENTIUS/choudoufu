@@ -123,7 +123,7 @@ and `TestTableCoversFixtureTypes` require `admittedTypesV0` and
 `DefaultTable` to cover exactly the union of `live/e2e/estate/` and every
 `estates/*` cohort, this one included.
 
-`live/e2e/run.sh` and the gated `internal/live/discovery` floci
+`live/e2e/run.sh` (retired under #2288) and the gated `internal/live/discovery` floci
 integration test still stand up only the demo estate (confirmed by
 inspection: neither mentions `estates/` or "cohort"). Wiring cohort
 estates into the gated apply-against-floci tier is separate follow-on
@@ -184,7 +184,7 @@ advertises, the same shape the Lambda and messaging batches found:
   blocker (lex00/floci#28: RDS needs the Docker socket mounted into the
   emulator, which — confirmed by inspection during this batch — neither
   the gated Go harness (`internal/live/flocitest`), the shell e2e harness
-  (`live/e2e/run.sh`), nor any cohort README's `docker run` command does).
+  (`live/e2e/run.sh` (retired under #2288)), nor any cohort README's `docker run` command does).
   The Create/Delete API calls themselves plainly do not require the
   socket against this pinned image. What they do not demonstrate is a
   genuinely functioning database: the synthetic endpoint address is not

@@ -368,8 +368,9 @@ write_root "$DST" live`, "CSRC="+src, "DST="+dst, "H="+azTestHost)
 }
 
 // TestAzureRecordStoreArgsAreLocked renders the azurerm record store's
-// connection arguments (az-records-in-a-storage-account.sh), which the
-// stock backend's schema reads.
+// connection arguments, which the stock backend's schema reads. The lane's
+// gauntlet library (gauntlet.sh) writes them; the draft that also did,
+// az-records-in-a-storage-account.sh, was deleted under #2288.
 func TestAzureRecordStoreArgsAreLocked(t *testing.T) {
 	out := runBash(t, `. e2e/lib/floci-az.sh && floci_az_record_store_args "$H" "$S" "$T" "$C"`,
 		"H="+azTestHost, "S="+azTestSub, "T="+azTestTenant, "C="+azTestClient)
@@ -389,10 +390,6 @@ func TestAzureRecordStoreArgsAreLocked(t *testing.T) {
 		if got[k] != v {
 			t.Errorf("record_store %s = %q, want %s", k, got[k], v)
 		}
-	}
-	scenario := readFile(t, "smoke/drafts/az-records-in-a-storage-account.sh")
-	if !strings.Contains(scenario, `floci_az_record_store_args "$AZURE_HOST"`) {
-		t.Error(`az-records-in-a-storage-account.sh's record_store "azurerm" does not take floci_az_record_store_args`)
 	}
 }
 

@@ -203,7 +203,7 @@ func measure(t *testing.T, snap *PaginatingOperations) (counts map[string]int, p
 // those three and walked straight past it. The population was narrow too:
 // that test scanned only the estates registered in
 // live/gauntlet/estates.json, and #1042's exact banned idiom was still
-// sitting in live/e2e/corpus-message-queue/run.sh, which is not one of
+// sitting in live/e2e/corpus-message-queue/run.sh (deleted since, #2288), not one of
 // them. This guard scans every e2e/*/run.sh and e2e/lib/*.sh instead.
 //
 // See live/awspagequery_baseline.go for why the guard is a per-script
@@ -368,14 +368,24 @@ func findQuery(t *testing.T, findings []AWSPageQueryFinding, needle string, reas
 
 // TestGuardIsRedOnTheRestored1042Idiom proves the widened guard still
 // covers the narrow one it replaces, in a script the narrow one could not
-// see. corpus-message-queue is not registered in live/gauntlet/estates.json,
+// see. corpus-message-queue was not registered in live/gauntlet/estates.json,
 // which is the only population TestNoScriptCountsTaggedObjectsPerPage ever
-// scanned - so the exact idiom #1042 banned was still on main here, and
+// scanned - so the exact idiom #1042 banned was still on main there, and
 // this unit's first fix was to route it through gauntlet_tagged_count.
+//
+// That script was deleted with the rest of the adoption campaign (#2288), so
+// its fixed call site is carried here verbatim and the revert is applied to
+// it.
+const restored1042Fixture = "# dead tagging index would otherwise read as a passing run.\n" +
+	"MARKED=\"$(gauntlet_tagged_count awsl resourcegroupstaggingapi get-resources \\\n" +
+	"  --tag-filters \"Key=tofu-estate,Values=$ESTATE\" \\\n" +
+	"  2>/dev/null || echo 0)\"\n" +
+	"[ \"$MARKED\" = \"29\" ] || fail \"marked $MARKED\"\n"
+
 func TestGuardIsRedOnTheRestored1042Idiom(t *testing.T) {
-	const rel = "e2e/corpus-message-queue/run.sh"
+	const rel = "e2e/corpus-message-queue/run.sh (fixture)"
 	snap := loadSnapshot(t)
-	real := readScript(t, rel)
+	real := restored1042Fixture
 
 	before, _, _ := snap.PageQueryFindings(real)
 
@@ -468,17 +478,25 @@ func TestTheEnumerationReadsBytesNotGrep(t *testing.T) {
 }
 
 // TestAWrapperHidingTheCallIsCountedNotDropped: corpus-service-linked-roles
-// reads tags through
+// read tags through
 //
 //	tag_of() { local key="$1"; shift; "$@" --query "Tags[?Key=='$key'].Value | [0]" ...; }
 //
 // There is no `aws` token on that line at all. The analyzer cannot say
 // which operation it calls, and "cannot say" must not read as "safe", so
 // the reducing --query is counted in the class with ReasonUnattributed.
+// The script was deleted with the adoption campaign (#2288); its wrapper is
+// carried here verbatim.
+const tagOfWrapperFixture = "tag_of() { # tag_of <key> <list-cmd...> -- reads a tag's value off one object\n" +
+	"  local key=\"$1\"; shift\n" +
+	"  \"$@\" --query \"Tags[?Key=='$key'].Value | [0]\" --output text 2>/dev/null || echo None\n" +
+	"}\n" +
+	"ROLE_ADDR=\"$(tag_of tofu-address awsl iam list-role-tags --role-name \"$ROLE_NAME\")\"\n"
+
 func TestAWrapperHidingTheCallIsCountedNotDropped(t *testing.T) {
-	const rel = "e2e/corpus-service-linked-roles/run.sh"
+	const rel = "e2e/corpus-service-linked-roles/run.sh (fixture)"
 	snap := loadSnapshot(t)
-	f, _, _ := snap.PageQueryFindings(readScript(t, rel))
+	f, _, _ := snap.PageQueryFindings(tagOfWrapperFixture)
 	var unattributed int
 	for _, x := range f {
 		if x.Reason == ReasonUnattributed {

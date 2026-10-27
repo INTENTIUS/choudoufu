@@ -177,7 +177,7 @@ entry picks them up automatically when regenerated with
 A real `terraform apply` was run by hand against the pinned floci image
 (`ghcr.io/lex00/floci@sha256:4753246c0260a22af1056c65993f4d73b0a907729a9580b9baba5d628b6dad34`),
 started manually on a local port with the AWS provider pointed at it via
-`AWS_ENDPOINT_URL` (the same mechanism `live/e2e/run.sh` uses). The
+`AWS_ENDPOINT_URL` (the same mechanism `live/e2e/run.sh` (retired under #2288) uses). The
 container's own `/_localstack/health` endpoint names which services it
 implements at all: `transfer` and `ecr` are both `"running"`;
 `networkmanager` and `storagegateway` are absent from the list entirely.

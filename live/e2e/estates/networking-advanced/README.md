@@ -218,7 +218,7 @@ that follow-up render lands — expected, tolerated drift, not a defect in
 this batch's own two files (`internal/live/lint/admission.go` and
 `pkg/identity/table.go`) or this cohort.
 
-`live/e2e/run.sh` and the gated `internal/live/discovery` floci integration
+`live/e2e/run.sh` (retired under #2288) and the gated `internal/live/discovery` floci integration
 test still stand up only the demo estate. Wiring cohort estates into the
 gated apply-against-floci tier is separate follow-on work, the same note
 every earlier cohort's README already makes.

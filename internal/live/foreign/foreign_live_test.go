@@ -136,7 +136,7 @@ func TestForeignAgainstFloci(t *testing.T) {
 	// wire, and the run says so in its "Not swept" list rather than letting
 	// "not reported" read as "nothing there". Until the floci tier ran
 	// again on 2026-09-21 (#1476) this test still asserted the pre-ruling
-	// expectation, the foreign group on a plain plan; live/e2e/run.sh's
+	// expectation, the foreign group on a plain plan; the retired live/e2e/run.sh's
 	// foreign-protected step made the same correction. Both halves are
 	// pinned: the plain plan must NOT see the group and must say why, and
 	// the opted-in plan below carries the original contract.

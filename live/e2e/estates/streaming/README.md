@@ -175,7 +175,7 @@ and checks it by static HCL parse — `TestAdmissionTableCoversEstate` and
 to cover exactly the union of `live/e2e/estate/` and every `estates/*`
 cohort, this one included.
 
-`live/e2e/run.sh` and the gated `internal/live/discovery` floci integration
+`live/e2e/run.sh` (retired under #2288) and the gated `internal/live/discovery` floci integration
 test still stand up only the demo estate. Wiring cohort estates into the
 gated apply-against-floci tier is separate follow-on work, the same note
 every earlier cohort's own README makes.

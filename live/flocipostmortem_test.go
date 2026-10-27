@@ -33,10 +33,9 @@ import (
 // in live/ that could plausibly start a floci container.
 //
 // Wider than CrossingScriptSources in awspagequery_baseline.go, deliberately,
-// and each addition is a script that actually starts one:
+// and each addition is a script that actually starts one (e2e/run.sh, the
+// live-mode harness one directory up, was the other until #2288 retired it):
 //
-//	e2e/run.sh          the live-mode harness, which e2e/*/run.sh misses
-//	                    because it sits one directory up.
 //	live-cert/*.sh      reference-ec2-vpc.sh and terralith-scale.sh both do,
 //	                    and a paid real-AWS run is the LAST place to discover
 //	                    that a dead container left no trace.
@@ -49,7 +48,6 @@ func flociScriptSources(t *testing.T) map[string]string {
 	t.Helper()
 	globs := []string{
 		filepath.Join("e2e", "*", "run.sh"),
-		filepath.Join("e2e", "run.sh"),
 		filepath.Join("e2e", "lib", "*.sh"),
 		filepath.Join("live-cert", "*.sh"),
 		filepath.Join("live-cert", "lib", "*.sh"),
@@ -183,7 +181,12 @@ func TestEveryScriptThatStartsFlociCanReadItBack(t *testing.T) {
 	// never counted) into the library live/e2e/lib/gcp.sh, whose gcp_floci_up
 	// every gcp-lane script calls. The two callers, reference-gcp/run.sh and
 	// corpus-k8s-infra-gcp-gcve/run.sh, are starters now.
-	const wantStarters = 63
+	//
+	// 40 since #2288 retired 23 starters: live/e2e/run.sh (the legacy
+	// demo), reference-eks's run.sh and its live-cert script, and the 20
+	// adoption-campaign scripts (corpus-cloudfront, corpus-crossing and the
+	// rest of category "adoption" in live/behaviors.json).
+	const wantStarters = 40
 
 	var starters, blind []string
 	for _, rel := range flociSortedKeys(scripts) {

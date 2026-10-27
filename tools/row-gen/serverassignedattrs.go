@@ -55,7 +55,7 @@ import (
 // this rule such a row had no IdentityAttrs at all, so both fell back to
 // "id" - an attribute a composite-identity type's identity object does not
 // carry either, which is exactly the failure live/e2e/corpus-ecs-taskdef
-// pins.
+// pinned (that script was deleted under #2288).
 //
 // Measured against the table as committed before this change: three
 // ServerAssigned rows have no Components, no ratified IdentityAttrs, and a
