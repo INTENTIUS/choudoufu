@@ -36,6 +36,12 @@ type LiveCheckReport struct {
 	// count in its headline.
 	Reads int
 
+	// StoreAssumedWritable and RecordOnly are GitHub issue #2296's
+	// statement: the record store the stamp check took as writable, and how
+	// many instances that exempted. Empty and zero when it exempted nothing.
+	StoreAssumedWritable string
+	RecordOnly           int
+
 	// Findings are the refusals, already ranked.
 	Findings []LiveCheckFinding
 
@@ -305,6 +311,13 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 		fmt.Fprintf(&b, "\nNothing in %s is refused by the two checks below.\n", rep.Dir)
 		fmt.Fprintf(&b, "%d managed resource instance(s) resolved.\n", rep.Instances)
 	}
+	if rep.StoreAssumedWritable != "" {
+		// GitHub issue #2296: live-plan exempts these only after probing the
+		// store, so the verdict says which store it assumed.
+		fmt.Fprintf(&b, "The stamp check took the %s record store as writable: %d instance(s)\n", rep.StoreAssumedWritable, rep.RecordOnly)
+		fmt.Fprintf(&b, "with nowhere to carry a marker are found by the record the apply writes. A run\n")
+		fmt.Fprintf(&b, "that may only read that store still refuses them.\n")
+	}
 	if !rep.Blocked && rep.Reads > 0 {
 		// GitHub issue #2295: the eligible read is not a refusal, but the
 		// plan depends on it, so a clear verdict says how much does.
@@ -443,6 +456,13 @@ type liveCheckDocument struct {
 	// this count beside it. Omitted at zero.
 	Reads int `json:"reads,omitempty"`
 
+	// StoreAssumedWritable and RecordOnly are GitHub issue #2296's: the
+	// record store the stamp check took as writable, and how many instances
+	// that exempted from the unmarked apply refusal. Omitted when it
+	// exempted nothing.
+	StoreAssumedWritable string `json:"store_assumed_writable,omitempty"`
+	RecordOnly           int    `json:"record_only,omitempty"`
+
 	// Schemas is GitHub issue #966's answer to "what was this computed
 	// from": [SchemaSourceProvider] when the provider's own schemas backed
 	// the rungs below, [SchemaSourceBuiltin] when internal/live/check's
@@ -551,6 +571,9 @@ func (v *LiveCheckJSON) Report(rep LiveCheckReport) {
 		Checked:    rep.Checked,
 		Partial:    rep.Partial,
 		Unchecked:  rep.Unchecked,
+
+		StoreAssumedWritable: rep.StoreAssumedWritable,
+		RecordOnly:           rep.RecordOnly,
 	}
 	if rep.Setup != nil {
 		doc.EstateSource = rep.Setup.EstateSource

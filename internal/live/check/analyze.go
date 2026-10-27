@@ -194,7 +194,14 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// analyzed without schemas or because one provider of several failed -
 	// reports "taggability unknown" as a warning and never as a refusal.
 	if result != nil {
-		stampDiags := nodeStampDiagnostics(ctx, cfg, result, flatSchemas(actx.Schemas), estateForStamp(ctx, cfg))
+		// GitHub issue #2296: a store the configuration names is taken as
+		// writable, the way live-plan takes one its probe can write.
+		store := offlineWritableStore(cfg)
+		stampDiags, recordOnly := nodeStampDiagnostics(ctx, cfg, result, flatSchemas(actx.Schemas), estateForStamp(ctx, cfg), store != nil)
+		if len(recordOnly) > 0 {
+			report.StoreAssumedWritable = describeAssumedStore(store)
+			report.RecordOnly = len(recordOnly)
+		}
 		for _, diag := range stampDiags {
 			desc := diag.Description()
 			site := Site{Detail: desc.Detail}
@@ -753,6 +760,18 @@ type Report struct {
 
 	// Instances is how many managed resource instances resolved.
 	Instances int
+
+	// StoreAssumedWritable names the record store the stamp pass took as
+	// writable (GitHub issue #2296), as "<kind> (declared in the live
+	// block)" or "<kind> (derived from the backend block)". It is set only
+	// when that assumption exempted at least one block from the unmarked
+	// apply refusal, and RecordOnly is then how many instances it exempted:
+	// instances with nowhere to carry a marker, which a later run finds by
+	// the record the apply writes. live-plan makes the same exemption only
+	// after probing the store, so a run that may only read it still
+	// refuses them.
+	StoreAssumedWritable string
+	RecordOnly           int
 
 	// Identities is what those instances resolved TO: every
 	// [identity.Resolution] the run produced, ordered by address.
