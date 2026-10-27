@@ -94,8 +94,9 @@ const (
 	// agrees, landing such an estate on the data-read-eligible rung rather
 	// than language-blocked.
 	//
-	// The first version of this tool counted it, because Report.Blocked() is
-	// len(Findings) > 0 and an informational finding is a finding. That
+	// The first version of this tool counted it, because Report.Blocked() was
+	// then len(Findings) > 0 and an informational finding is a finding (it
+	// leaves the eligible read out since GitHub issue #2295). That
 	// inflated the plan from 90 blocked estates to 118 and the one-away count
 	// from 44 to 56, and it put a class that no fix removes at the top of the
 	// board. An audit caught it the same day the tool was written.

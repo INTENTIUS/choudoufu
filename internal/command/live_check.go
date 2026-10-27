@@ -222,6 +222,7 @@ func liveCheckReport(dir string, report check.Report) views.LiveCheckReport {
 		Blocked:        report.Blocked(),
 		Instances:      report.Instances,
 		Sites:          report.Sites(),
+		Reads:          report.Reads(),
 		Schemas:        report.Schemas,
 		Checked:        layerNames(report.Checked),
 		Partial:        partialLayerNames(report.Partial),

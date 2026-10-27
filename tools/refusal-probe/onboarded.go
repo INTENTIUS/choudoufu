@@ -127,6 +127,7 @@ func formOf(rep check.Report, causes *causeCatalog, layers map[string]string) *f
 		Readable:  rep.Readable(),
 		Blocked:   rep.Blocked(),
 		Sites:     rep.Sites(),
+		Reads:     rep.Reads(),
 		Instances: rep.Instances,
 		Shadowed:  rep.Shadowed,
 		Refusals:  map[string]int{},
@@ -181,6 +182,7 @@ type formResult struct {
 	Refusals  map[string]int `json:"refusals"`
 	Instances int            `json:"instances"`
 	Shadowed  int            `json:"shadowed"`
+	Reads     int            `json:"reads,omitempty"`
 
 	Warnings map[string]int            `json:"warnings,omitempty"`
 	Causes   map[string]map[string]int `json:"causes,omitempty"`
@@ -332,15 +334,15 @@ func rungs(readable bool, refusals map[string]int) check.OnboardingClass {
 // summarizeOnboardingLadder is the verdict table, and it is the one to read
 // rather than "blocked".
 //
-// [check.Report.Blocked] is len(Findings) > 0, which counts the data-read
-// pass's eligible-read finding as a blocker. That finding is not a refusal -
-// dataread.SummaryEligibleRead's own declaration says so, and
+// [check.Report.Blocked] was once len(Findings) > 0, which counted the
+// data-read pass's eligible-read finding as a blocker. That finding is not a
+// refusal - dataread.SummaryEligibleRead's own declaration says so, and
 // check.ClassifyOnboarding lands an estate carrying only those on the
 // data-read-eligible rung. Counting it read 118 blocked where the ladder
-// reads 56 one-away, and put a class no code change removes at the top of a
-// work queue. So: blocked is the number the corpus artifacts carry and is
-// printed above for continuity; the ladder is what the two forms should be
-// compared on.
+// reads 56 one-away. Since GitHub issue #2295 Blocked leaves it out, so
+// blocked and the ladder agree on that rung; the ladder still separates the
+// rungs below language-blocked, and blocked is printed above for continuity
+// with the corpus artifacts.
 func summarizeOnboardingLadder(r *run) {
 	type cell struct{ pub, onb int }
 	byOrigin := map[string]map[check.OnboardingClass]*cell{}

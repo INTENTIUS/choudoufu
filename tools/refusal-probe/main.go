@@ -334,6 +334,11 @@ type entry struct {
 	Instances int            `json:"instances"`
 	Shadowed  int            `json:"shadowed"`
 
+	// Reads is [check.Report.Reads]: the eligible data-read sites, which
+	// stay in Refusals under their own ID but never make Blocked true
+	// (GitHub issue #2295).
+	Reads int `json:"reads,omitempty"`
+
 	// Warnings is the non-fatal per-ID breakdown, kept apart from Refusals
 	// so nothing can add the two together by accident.
 	Warnings map[string]int `json:"warnings,omitempty"`
@@ -641,6 +646,7 @@ func sweep(opts sweepOptions) (*run, error) {
 			Readable:         rep.Readable(),
 			Blocked:          rep.Blocked(),
 			Sites:            rep.Sites(),
+			Reads:            rep.Reads(),
 			Instances:        rep.Instances,
 			Shadowed:         rep.Shadowed,
 			Unresolved:       len(rep.Load.UnresolvedModules),

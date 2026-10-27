@@ -92,6 +92,12 @@ type CorpusEntry struct {
 	// Sites is how many refused sites it had.
 	Sites int `json:"sites"`
 
+	// Reads is how many sites resolve at plan time through an eligible
+	// data-source read ([Report.Reads]). They never make Blocked true
+	// (GitHub issue #2295), so a clear entry with a nonzero count is one
+	// whose plan depends on reads this offline measurement did not make.
+	Reads int `json:"reads,omitempty"`
+
 	// UnresolvedModules is how many module calls could not be read without
 	// installing them. Their contents are not measured in this row.
 	UnresolvedModules int `json:"unresolved_modules"`
@@ -297,6 +303,7 @@ func (c *Corpus) Add(name, origin string, report Report, varFiles ...string) {
 		Loaded:            report.Load.Config != nil,
 		Instances:         report.Instances,
 		Sites:             report.Sites(),
+		Reads:             report.Reads(),
 		UnresolvedModules: len(report.Load.UnresolvedModules),
 		UnsetVariables:    len(report.Load.UnsetVariables()),
 		Schemas:           report.Schemas,
