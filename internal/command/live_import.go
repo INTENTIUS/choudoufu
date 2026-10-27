@@ -7,6 +7,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sort"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/liveimport"
@@ -150,6 +152,41 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		return nil, nil, noop, diags
 	}
 
+	config, cfgDiags := c.loadConfig(ctx, ".")
+	diags = diags.Append(cfgDiags)
+	if cfgDiags.HasErrors() {
+		return nil, nil, noop, diags
+	}
+
+	// GitHub issue #2293: with no -estate, the name a live run of this
+	// configuration resolves; with no -state and no -adopt, the state the
+	// backend block names, read once through the backend's own client, so
+	// a migration needs no "state pull" first.
+	if args.Estate == "" {
+		estate, _, estateDiags := liveEstateFor(ctx, "", config)
+		diags = diags.Append(estateDiags)
+		if estate == "" {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"No estate named",
+				"live-import resolves the estate the way a live run does (the live block's estate argument, the configuration's tofu-estate tags, the backend key, then the root's path), and nothing here resolved one. Pass -estate=<name>.",
+			))
+		}
+		args.Estate = estate
+	}
+	var backendState *states.State
+	if args.StatePath == "" && args.AdoptPath == "" {
+		st, where, stDiags := liveImportStateFromBackend(ctx, config, enc)
+		diags = diags.Append(stDiags)
+		if !stDiags.HasErrors() {
+			backendState = st
+			args.StatePath = where
+		}
+	}
+	if diags.HasErrors() {
+		return nil, nil, noop, diags
+	}
+
 	// GitHub issue #2287: -adopt reads an adoption file and the index
 	// version it names in place of a state file. Both are checked against
 	// each other (scope key, version name, digest, every selected node)
@@ -166,6 +203,8 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 			))
 		}
 		adopt = a
+	} else if backendState != nil {
+		priorState = backendState
 	} else {
 		stateFile, err := getStateFromPath(args.StatePath, enc)
 		if err != nil {
@@ -183,12 +222,6 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 			))
 		}
 		priorState = stateFile.State
-	}
-
-	config, cfgDiags := c.loadConfig(ctx, ".")
-	diags = diags.Append(cfgDiags)
-	if cfgDiags.HasErrors() {
-		return nil, nil, noop, diags
 	}
 
 	coreOpts, err := c.contextOpts(ctx)
@@ -677,4 +710,64 @@ Options:
 
 func (c *LiveImportCommand) Synopsis() string {
 	return "Migrate a state-backed estate to live resource markers in bulk"
+}
+
+// liveImportStateFromBackend reads the old state through the configuration's
+// backend block, once, read-only (GitHub issue #2293): the ignored one under
+// a live block, or the active one on a root not yet converted. where names
+// it for the report in place of a -state path.
+//
+// It takes no lock. The read is the same one "state pull" makes, and a
+// migration that waited on someone else's lock, or held one, would be a
+// second writer's behaviour in a command that never writes state.
+func liveImportStateFromBackend(ctx context.Context, config *configs.Config, enc encryption.Encryption) (*states.State, string, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	var be *configs.Backend
+	if config != nil && config.Module != nil {
+		be = config.Module.IgnoredBackend
+		if be == nil {
+			be = config.Module.Backend
+		}
+	}
+	if be == nil {
+		return nil, "", diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"No state file named",
+			"live-import reads an existing state once, read-only, and this configuration has no backend block to read it from. Pass -state=<path> naming a tfstate file, or -adopt=<path> naming an adoption file.",
+		))
+	}
+	where := fmt.Sprintf("backend %q at %s", be.Type, configs.RangeFileLine(be.DeclRange))
+	fail := func(detail string) (*states.State, string, tfdiags.Diagnostics) {
+		return nil, "", diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Cannot read the state from the backend",
+			fmt.Sprintf("live-import read no -state, so it reads the state %s names. %s Pass -state=<path> with a file from \"state pull\" instead.", where, detail),
+		))
+	}
+	if be.Type == "local" {
+		path, ok := configs.BackendLiteral(be, "path")
+		if !ok || path == "" {
+			path = "terraform.tfstate"
+		}
+		stateFile, err := getStateFromPath(path, enc)
+		if err != nil {
+			return fail(err.Error())
+		}
+		if stateFile == nil || stateFile.State == nil {
+			return fail(path + " carries no state.")
+		}
+		return stateFile.State, path, diags
+	}
+	b, problem := configureBlockBackend(ctx, be, config.Module.StaticEvaluator, enc.State())
+	if problem != "" {
+		return fail(problem)
+	}
+	stateFile, err := getStateFromBackend(ctx, b, currentWorkspaceName())
+	if err != nil {
+		return fail(err.Error())
+	}
+	if stateFile == nil || stateFile.State == nil {
+		return fail("It holds no state, so there is nothing to ratify.")
+	}
+	return stateFile.State, where, diags
 }

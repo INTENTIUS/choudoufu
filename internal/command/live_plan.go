@@ -647,6 +647,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// the store opened here, so the store has to be open before it runs.
 	// live_mode.go's PriorState already opens it in this order.
 	estate, _, _ := liveEstateFor(ctx, estateFlag, config)
+	// GitHub issue #2293: under a live block, say where records go and which
+	// estate they belong to.
+	if config.Module != nil && config.Module.Live != nil && !config.Module.Live.IsComposed() {
+		printLiveSetup(c.View, liveSetupFor(ctx, estateFlag, config))
+	}
 
 	// The estate's record store, when the live block names one - opened
 	// here originally only as guided discovery's hint source (issue #109),
@@ -2220,9 +2225,47 @@ func liveEstateName(ctx context.Context, flagValue string, config *configs.Confi
 // can say why - "the configuration names no estate" and "the configuration
 // names three" call for different sentences, and only the caller knows what
 // its half of the run gave up.
+//
+// GitHub issue #2293 adds two later sources for a configuration with a live
+// block, reached only when the configuration stamps no tofu-estate value at
+// all: the backend block's state key, then the root's path in the
+// repository. See [liveResolveEstate].
 func liveEstateFor(ctx context.Context, flagValue string, config *configs.Config) (string, []string, tfdiags.Diagnostics) {
+	estate, _, found, diags := liveResolveEstate(ctx, flagValue, config)
+	return estate, found, diags
+}
+
+// liveResolveEstate is [liveEstateFor] that also says where the name came
+// from: one of the liveEstateSource* values. Precedence is explicit (the flag
+// or the live block's estate argument), then the configuration's own
+// tofu-estate tags, then the backend key, then the root path, so a root that
+// had a name before #2293 keeps it.
+func liveResolveEstate(ctx context.Context, flagValue string, config *configs.Config) (string, string, []string, tfdiags.Diagnostics) {
+	estate, found, diags := liveEstateDeclared(ctx, flagValue, config)
+	if diags.HasErrors() {
+		return "", liveEstateSourceNone, found, diags
+	}
+	if estate != "" {
+		if flagValue != "" {
+			return estate, liveEstateSourceExplicit, found, diags
+		}
+		return estate, liveEstateSourceTags, found, diags
+	}
+	if len(found) != 0 || config == nil || config.Module == nil || config.Module.Live == nil {
+		return "", liveEstateSourceNone, found, diags
+	}
+	if name, source := liveDerivedEstate(config.Module); name != "" {
+		return name, source, found, diags
+	}
+	return "", liveEstateSourceNone, found, diags
+}
+
+func liveEstateDeclared(ctx context.Context, flagValue string, config *configs.Config) (string, []string, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
+	if flagValue == "" && config != nil && config.Module != nil && config.Module.Live != nil && config.Module.Live.EstateSet {
+		flagValue = config.Module.Live.Estate
+	}
 	if flagValue != "" {
 		if !discovery.ValidEstateName(flagValue) {
 			return "", nil, diags.Append(tfdiags.Sourceless(

@@ -196,6 +196,12 @@ type Live struct {
 	// has, is internal/live/retry's vocabulary, checked at lint time by
 	// internal/live/lint.
 	Retry *LiveRetry
+
+	// RecordStoreNote says why a backend block beside this live block did
+	// not become its record store (GitHub issue #2293): the backend has no
+	// record store counterpart, or it sets what the store needs only through
+	// -backend-config. Empty when there was no backend block or it was used.
+	RecordStoreNote string
 }
 
 // LiveRetry is the "retry" block nested inside a live block. See
@@ -594,6 +600,12 @@ type LiveRecordStore struct {
 	// implied local record store" rather than pointing at a block the author
 	// never wrote, and what a test reads to assert which of the two it got.
 	Implied bool
+	// Derived is true for the store taken from the module's backend block
+	// when the live block declares no record_store (GitHub issue #2293, see
+	// [deriveRecordStore]). DeclRange is then the backend block's header.
+	// Implied stays false: the author wrote the bucket down, in the backend
+	// block, so the readers [Implied] lists treat it as a declared store.
+	Derived bool
 }
 
 // LiveRecordStoreKubernetes is the "kubernetes" record store's connection

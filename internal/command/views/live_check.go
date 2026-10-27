@@ -82,7 +82,15 @@ type LiveCheckReport struct {
 	// runs against, since it runs with no live block by design. Printed
 	// only by -json (see [LiveCheckJSON.Report]): the human report has
 	// never named the estate, and #790 does not ask it to start.
+	//
+	// Since GitHub issue #2293 it is the name a run would resolve (see
+	// Setup), and empty only when nothing resolves.
 	Estate string
+
+	// Setup is GitHub issue #2293's resolved estate and record store, for a
+	// caller that reads no HCL. Nil leaves estate_source and record_store
+	// out of the document.
+	Setup *LiveSetup
 
 	// InstanceRoster and References are GitHub issue #790's declared
 	// roster: every instance this analysis named an address for
@@ -413,10 +421,16 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 // [LiveCheckReport]'s own field names, which the human report already
 // fixed for a different reason before #790 existed.
 type liveCheckDocument struct {
-	Dir      string `json:"dir"`
-	Estate   string `json:"estate,omitempty"`
-	Blocked  bool   `json:"blocked"`
-	ExitCode int    `json:"exit_code"`
+	Dir    string `json:"dir"`
+	Estate string `json:"estate,omitempty"`
+
+	// EstateSource and RecordStore are GitHub issue #2293's contract: where
+	// the estate name came from, and where records go.
+	EstateSource string          `json:"estate_source,omitempty"`
+	RecordStore  *LiveSetupStore `json:"record_store,omitempty"`
+
+	Blocked  bool `json:"blocked"`
+	ExitCode int  `json:"exit_code"`
 
 	// Schemas is GitHub issue #966's answer to "what was this computed
 	// from": [SchemaSourceProvider] when the provider's own schemas backed
@@ -525,6 +539,11 @@ func (v *LiveCheckJSON) Report(rep LiveCheckReport) {
 		Checked:    rep.Checked,
 		Partial:    rep.Partial,
 		Unchecked:  rep.Unchecked,
+	}
+	if rep.Setup != nil {
+		doc.EstateSource = rep.Setup.EstateSource
+		store := rep.Setup.RecordStore
+		doc.RecordStore = &store
 	}
 	if doc.Instances == nil {
 		doc.Instances = []LiveCheckInstance{}

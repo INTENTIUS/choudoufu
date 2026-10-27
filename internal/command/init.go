@@ -356,6 +356,12 @@ To initialize the configuration already in this working directory, omit the
 		return 1
 	}
 
+	// GitHub issue #2293: under a live block, say where records go and which
+	// estate they belong to, every time.
+	if config != nil && config.Module != nil && config.Module.Live != nil && !config.Module.Live.IsComposed() {
+		printLiveSetup(c.View, liveSetupFor(ctx, "", config))
+	}
+
 	if cb, ok := back.(*cloud.Cloud); ok {
 		if c.SystemCfg.RunningInAutomation {
 			if err := cb.AssertImportCompatible(config); err != nil {

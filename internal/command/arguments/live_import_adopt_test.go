@@ -26,7 +26,6 @@ func TestParseLiveImportAdopt(t *testing.T) {
 		want string
 	}{
 		"both":                {[]string{"-adopt=a.json", "-index-store=/s", "-state=x.tfstate", "-estate=acme"}, "Both -state and -adopt"},
-		"neither":             {[]string{"-estate=acme"}, "No state file named"},
 		"adopt without store": {[]string{"-adopt=a.json", "-estate=acme"}, "No index store named"},
 		"store without adopt": {[]string{"-state=x.tfstate", "-index-store=/s", "-estate=acme"}, "-index-store without -adopt"},
 	} {
@@ -36,5 +35,18 @@ func TestParseLiveImportAdopt(t *testing.T) {
 				t.Errorf("diags = %v, want %q", diags.Err(), tc.want)
 			}
 		})
+	}
+}
+
+// GitHub issue #2293: with neither -state nor -adopt the command reads the
+// state the backend block names, and with no -estate it resolves the name
+// from the configuration, so both are accepted at parse time.
+func TestParseLiveImportStateAndEstateOptional(t *testing.T) {
+	li, diags := ParseLiveImport(nil)
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Err())
+	}
+	if li.StatePath != "" || li.AdoptPath != "" || li.Estate != "" {
+		t.Errorf("parsed %+v", li)
 	}
 }

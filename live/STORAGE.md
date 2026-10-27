@@ -35,8 +35,37 @@ the backend.
 | `azurerm` | Blobs in an Azure Storage container you already own | `storage_account_name`, `container_name`, `resource_group_name` (all required), `key_prefix`, `allow_insecure`, and the connection arguments of stock's `azurerm` backend |
 | `gcs` | A Google Cloud Storage bucket you already own, one per estate by default | `bucket` (required), `key_prefix`, `allow_insecure`, and the connection and encryption arguments of stock's `gcs` backend |
 
-A `live` block that declares no `record_store` gets the local one, the way
-stock implies a local state file.
+A `live` block that declares no `record_store` takes its store from the
+`backend` block beside it, which choudoufu keeps and ignores for state: an
+`s3` backend gives an `s3` store in the same bucket and region, `gcs` gives
+`gcs`, and `azurerm` gives `azurerm` in the same container. Records go under
+`tofu-records/<estate>/`, beside the state file and never over it. A `record_store`
+block always wins. With no backend block, or one that has no counterpart
+(`local`, `consul`, `http`), or one whose bucket comes only from
+`-backend-config`, the estate gets the local store, the way stock implies a
+local state file.
+
+Every `init` and `plan` prints where records go, on stderr:
+
+```
+Records: s3 bucket "acme-tfstate" under tofu-records/prod-network/ (derived from backend "s3" at backend.tf:2); estate "prod-network" (from the backend key)
+```
+
+`choudoufu live-check -json` carries the same answer in `estate`,
+`estate_source` and `record_store`, with no cloud call.
+
+The estate name comes from, in order: the `estate` argument, the one
+`tofu-estate` value the configuration stamps, the backend's state key
+(`prod/network/terraform.tfstate` gives `prod-network`), then the root's path
+in the repository. The marker grammar has no `/`, so a key or path is
+lowercased and each run of other characters becomes one `-`.
+
+The derived `s3` store takes `bucket` and `region` only and reaches the
+bucket through the SDK's default credential chain. A backend that needs
+`profile`, `assume_role` or custom `endpoints` to reach its bucket wants an
+explicit `record_store "s3"` block. The bucket must pass
+[the three settings](https://intentius.io/choudoufu/docs/use/bucket/), which a
+versioned state bucket usually already does.
 
 All five give the same guarantees; a run cannot tell them apart. Each record
 is its own object, tagged or labelled with the estate's name the way a
@@ -47,9 +76,9 @@ listing, so it is one per estate by default; see
 
 Use a bucket or a cluster for anything more than one operator shares. The
 local store is for one person or a demo. It is also what a CI runner gets if
-the estate declares nothing, and there it is empty on every run: an ordinary
-resource still binds by its marker, and a record-backed resource is proposed
-for create again.
+the estate declares nothing and has no backend block to derive from, and
+there it is empty on every run: an ordinary resource still binds by its
+marker, and a record-backed resource is proposed for create again.
 
 An estate that runs only on Kubernetes has no reason to reach for a bucket:
 its shared store is the cluster it already has, and
