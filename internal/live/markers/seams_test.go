@@ -122,6 +122,7 @@ const armTagsAreTaggable = "markers.ARMTagSurface is markers.TagSurface with a n
 // file or the function and never the package: #1108's hole sat in a
 // package whose other files handled every surface.
 var surfaceSeamExemptions = map[string]surfaceSeamExemption{
+	"internal/live/liveimport/adopt.go:adoptOne":                                               {Handles: []Surface{SurfaceManifest}, Why: "live-import -adopt (INTENTIUS/choudoufu#2287) asks markers.ManifestSurface only to work out a kubernetes_manifest's import id, the one Kubernetes type that imports by its manifest; it reads and writes no marker itself. The adopted objects' markers are refused and written by the existing Ratify and Approve path, which handles every surface"},
 	"internal/live/discovery/directread.go":                                                    {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
 	"internal/live/discovery/discovery.go":                                                     {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
 	"internal/live/discovery/lookalikerelist.go":                                               {Handles: []Surface{SurfaceTags}, Why: discoveryAWSLeg},
