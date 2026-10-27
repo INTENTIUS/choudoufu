@@ -387,7 +387,12 @@ resource "stub_parameter" "p" {
 		t.Error("the projected prior's insecure_value is not marked sensitive; the probe's compare dropped the configuration's mark")
 	}
 
-	plan, planDiags := stubContext(t, p).Plan(ctx, cfg, res.State, &tofu.PlanOpts{Mode: plans.NormalMode})
+	plan, planDiags := stubContext(t, p).Plan(ctx, cfg, res.State, &tofu.PlanOpts{
+		Mode: plans.NormalMode,
+		// The variable's own default, assigned as the CLI would: core's Plan
+		// refuses an unassigned root variable outright.
+		SetVariables: tofu.InputValues{"v": &tofu.InputValue{Value: cty.StringVal("v2"), SourceType: tofu.ValueFromConfig}},
+	})
 	if planDiags.HasErrors() {
 		t.Fatalf("planning against the projected state: %s", planDiags.Err())
 	}

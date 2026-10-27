@@ -6,6 +6,7 @@
 package command
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -370,8 +371,11 @@ func TestJointStubsCarryTheLastPlan(t *testing.T) {
 	if us := sess.units(); us[0].Out != net.Out {
 		t.Fatalf("the plan file of network was lost: %+v", us)
 	}
-	big := strings.Repeat("x", 20000)
-	os.WriteFile(sess.path("joint.plan"), []byte("PK"+big), 0o600)
+	// A real plan file: writeStubs drops its sensitive planned values
+	// (#2277), so it must open as one, and what the stubs carry is the
+	// scrubbed copy rather than these bytes.
+	plan := jsvPlanFile(t, jsvPlanned)
+	os.WriteFile(sess.path("joint.plan"), plan, 0o600)
 	os.WriteFile(sess.path("doc-2.json"), []byte(`{"resource_changes":[]}`), 0o600)
 	sess.saveState(jointState{Serial: 2, OK: true, Units: []string{"network", "app"}})
 	if err := sess.writeStubs(&jointTool{Kind: "terragrunt"}); err != nil {
@@ -379,8 +383,12 @@ func TestJointStubsCarryTheLastPlan(t *testing.T) {
 	}
 	for _, f := range []string{"network.tfplan", "app.tfplan"} {
 		st, ok := readJointStub(filepath.Join(dir, f))
-		if !ok || st.Serial != 2 || len(st.Units) != 2 || st.Bundle == nil || string(st.Bundle.Plan) != "PK"+big || st.Run != "terragrunt-7-abc" || len(st.Bundle.Units) != 2 {
+		if !ok || st.Serial != 2 || len(st.Units) != 2 || st.Bundle == nil || st.Run != "terragrunt-7-abc" || len(st.Bundle.Units) != 2 {
 			t.Errorf("%s does not carry the last joint plan: ok=%v serial=%d units=%v run=%q", f, ok, st.Serial, st.Units, st.Run)
+			continue
+		}
+		if !st.Bundle.Scrubbed || bytes.Contains(jsvUnzipAll(t, st.Bundle.Plan), []byte(jsvPlanned)) {
+			t.Errorf("%s carries the joint plan with its sensitive planned values", f)
 		}
 	}
 	sess.saveState(jointState{Serial: 3, OK: false})

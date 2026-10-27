@@ -319,11 +319,11 @@ func postCreateDisagreements(t *testing.T, families []substrate.Substrate, types
 	return bad
 }
 
-// postCreateWalkTypes is every tf_type live/mapping.json's embedded copy
+// postCreateWalkTypes is every tf_type pkg/registry/mapping.json (live/mapping.json's embedded copy)
 // names, plus synthetic types no family's facts know.
 func postCreateWalkTypes(t *testing.T) []string {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("..", "registry", "mapping.json"))
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "pkg", "registry", "mapping.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
