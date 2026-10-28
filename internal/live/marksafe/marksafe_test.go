@@ -228,6 +228,10 @@ var guardedPackages = []string{
 	// provider block arguments only through the sweeps' own Attrs, already
 	// read mark by mark, and imports no cty.
 	"sweepconfig",
+	// #2303's scenario estate renderer. It evaluates count, for_each and
+	// locals in a hand-written tree whose variables it builds from literal
+	// defaults, so no sensitive input variable can reach a value it reads.
+	"scenarioestate",
 	"uniquename",
 	// GitHub issue #1754's wave planning reads literal estate names out of
 	// data-source configuration with Value(nil); every string it takes is

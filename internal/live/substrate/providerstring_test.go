@@ -139,6 +139,8 @@ var providerStringAllowed = map[string]providerStringException{
 
 	// --- sites this guard's own first run found beyond the seed list ---
 
+	"internal/live/scenarioestate/scenarioestate.go:countInstances": {Why: "#2303's scenario estate renderer counts instances in its own hand-written AWS tree (live/e2e/estate); \"aws_\" tells a for_each over another resource in that tree from one over a var or local, a fixture render with no Kubernetes leg, not a substrate dispatch"},
+
 	"tools/estate-gen/gen.go": {Why: "a generator over the AWS provider's survey (same file-level reason already recorded in seams_test.go); it has no Kubernetes leg to pick between"},
 
 	"tools/mapping-gen/overlay.go": {Why: "validates a mapping-gen overlay YAML file's schema, which only ever describes the AWS provider's CloudFormation mapping; \"aws_\" here is a forbidden-prefix check on a config key, not a substrate dispatch"},
