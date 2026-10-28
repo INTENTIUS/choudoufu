@@ -19,10 +19,13 @@ Each scenario runs from the repository root and ends on a `PASS` line; its
     just smoke plan-cost-under-foreign-load
     BREAK=1 just smoke plan-cost-under-foreign-load
 
-Needs Go. The estate is held still while a second terralith, under another
-estate's marker, is applied around it. `FOREIGN_SCALE=1` (the default)
-puts 79 foreign resources there; `FOREIGN_SCALE=50` puts 3,705, the row in
-`live/gauntlet-scale.json`; `OWNED_SCALE` sizes the estate. The replan
+Needs Go. The estate is held still while a second estate, under another
+estate's marker, is applied around it. Both are copies of
+`live/e2e/estate` rendered by `tools/scenario-estate`, 43 resources each.
+`FOREIGN_SCALE=2` (the default) puts 86 foreign resources there;
+`FOREIGN_SCALE=86` puts 3,698. The 3,705-resource row in
+`live/gauntlet-scale.json` was measured on the generated terralith and is
+scale-ladder evidence. `OWNED_SCALE` sizes the estate. The replan
 must grow by less than half a call per foreign resource (a state file pays
 at least one), and Cloud Control lists stay flat. `BREAK=1` asks the
 account-wide question (`-adoption-only`), and the cost must explode past

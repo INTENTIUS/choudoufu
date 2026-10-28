@@ -1,19 +1,25 @@
 # plan-cost-under-foreign-load
 # CLAIM 14 (aws) - A plan costs its estate. ~5 min.
 #
-# This proof: Scale: a plan costs its estate when the account around it is a
-# terralith, and the one account-wide list is named rather than hidden.
+# This proof: Scale: a plan costs its estate when the account around it
+# holds a second, larger estate, and the one account-wide list is named
+# rather than hidden.
 
-# Issue #1032 unit 4. This is claim 14 run against a generated terralith
-# instead of against eight hand-written log groups: the estate under test is
-# held still and the ACCOUNT is grown, by a whole second terralith carrying a
-# different tofu-estate marker. The knobs are the two scales, so the same
-# scenario a reader runs in five minutes is the one that produced the
-# 3,705-resource row on the claims page:
+# Issue #1032 unit 4, re-based by choudoufu#2303. This is claim 14 run
+# against a scenario estate (go run ./tools/scenario-estate: copies of
+# live/e2e/estate, 43 resources each, stock until applied here) instead of
+# against eight hand-written log groups: the estate under test is held still
+# and the ACCOUNT is grown, by a second render under a different prefix and
+# a different tofu-estate marker. The knobs are the two scales:
 #
-#   FOREIGN_SCALE=1   (default)  79 foreign resources beside the estate
-#   FOREIGN_SCALE=50             3,705 of them; a long run, not a smoke run
-#   OWNED_SCALE=1     (default)  the estate itself, 74N + 5 resources
+#   FOREIGN_SCALE=2   (default)  86 foreign resources beside the estate
+#   FOREIGN_SCALE=86             3,698 of them; a long run, not a smoke run
+#   OWNED_SCALE=1     (default)  the estate itself, 43N resources
+#
+# The 3,705-resource row on the claims page was measured on the generated
+# terralith (tools/terralith-gen -scale 50) before the re-base. It stays as
+# scale-ladder evidence (live/gauntlet-scale.json); the row this scenario
+# records on the scenario estate is the test.
 #
 # The foreign estate is MARKED, not unmarked: it is applied under a second
 # `live { estate = ... }`, as plan-cost-tracks-the-estate.sh did before #1817
@@ -22,10 +28,10 @@
 # naming another estate has to be fetched and rejected, which is the harder
 # case and the one an operator actually has.
 
-FOREIGN_SCALE="${FOREIGN_SCALE:-1}"
+FOREIGN_SCALE="${FOREIGN_SCALE:-2}"
 OWNED_SCALE="${OWNED_SCALE:-1}"
 
-command -v go >/dev/null 2>&1 || fail "foreignload" "this scenario generates its terraliths with tools/terralith-gen and needs Go on PATH"
+command -v go >/dev/null 2>&1 || fail "foreignload" "this scenario renders its estates with go run ./tools/scenario-estate and needs Go on PATH"
 
 WORK="$SMOKE_WORKROOT/foreignload"
 mkdir -p "$WORK"
@@ -33,16 +39,14 @@ mkdir -p "$WORK"
 # even though this scenario never uses the oracle leg.
 SMOKE_WORK="$WORK"; export SMOKE_WORK
 
-# terralith_at generates one terralith into $WORK/$1 at scale $2 with prefix
+# estate_at renders one scenario estate into $WORK/$1 at scale $2 with prefix
 # $3, then makes it plannable here: floci's provider block in place of the
-# generator's (the generator sets skip_requesting_account_id, which is right
-# for output that must stand alone and wrong for anything resolving an ECS
-# identity, because an ECS ARN carries the account id - issue #572), and a
-# live block naming estate $4.
-terralith_at() {
+# render's, with the credentials and region inline, and a live block naming
+# estate $4.
+estate_at() {
   local dir="$1" scale="$2" prefix="$3" estate="$4"
-  ( cd "$ROOT" && go run ./tools/terralith-gen -scale "$scale" -prefix "$prefix" -out "$WORK/$dir" >"$WORK/$dir.gen" 2>&1 ) \
-    || { cat "$WORK/$dir.gen" >&2; fail "foreignload" "terralith-gen -scale $scale -prefix $prefix failed"; }
+  ( cd "$ROOT" && env -u PWD go run ./tools/scenario-estate -scale "$scale" -prefix "$prefix" -out "$WORK/$dir" >"$WORK/$dir.gen" 2>"$WORK/$dir.gen.err" ) \
+    || { cat "$WORK/$dir.gen.err" >&2; fail "foreignload" "scenario-estate -scale $scale -prefix $prefix failed"; }
   python3 - "$WORK/$dir/versions.tf" "$estate" <<'PY'
 import sys
 path, estate = sys.argv[1], sys.argv[2]
@@ -59,12 +63,12 @@ provider = '''provider "aws" {
 '''
 anchor = 'required_version = ">= 1.5.0"'
 if anchor not in head:
-    raise SystemExit("terralith-gen's versions.tf template changed: no %r" % anchor)
+    raise SystemExit("the scenario estate's versions.tf layout changed: no %r" % anchor)
 live = anchor + '\n\n  live {\n    estate = "' + estate + '"\n\n    record_store "local" {\n      path = ".tofu-records"\n    }\n  }'
 open(path, "w").write(head.replace(anchor, live, 1) + provider)
 PY
   [ $? -eq 0 ] || fail "foreignload" "could not rewrite $WORK/$dir/versions.tf"
-  sed -n '1s/.*: //p' "$WORK/$dir.gen"
+  jq -r '"\(.resources) resources: \(.scale) copies of \(.tree)"' "$WORK/$dir.gen"
 }
 
 stack_up
@@ -132,8 +136,8 @@ step "the claim"
 explain \
   "Claim 14 shows that a plan costs its estate rather than its account on" \
   "an account holding twelve resources. This is the same question asked" \
-  "where it is load-bearing: the account is a terralith. A whole second" \
-  "estate - generated by tools/terralith-gen, applied under its own" \
+  "where it is load-bearing: the account holds a second, larger" \
+  "estate - rendered by tools/scenario-estate, applied under its own" \
   "tofu-estate marker - lands beside the one under test, and the estate is" \
   "replanned unchanged. A bound state file pays at least one read for" \
   "every resource in it, so if this plan's cost tracked the ACCOUNT it" \
@@ -142,8 +146,8 @@ explain \
   "legs that read the account rather than the estate are named."
 
 step "1. stand up the estate, and plan it alone"
-cmd "go run ./tools/terralith-gen -scale $OWNED_SCALE -prefix ow ; choudoufu apply ; choudoufu plan"
-terralith_at owned "$OWNED_SCALE" ow ow-estate | evidence
+cmd "go run ./tools/scenario-estate -scale $OWNED_SCALE -prefix ow ; choudoufu apply ; choudoufu plan"
+estate_at owned "$OWNED_SCALE" ow ow-estate | evidence
 logged plan-cost-under-foreign-load-work-owned-init "foreignload" "owned init failed" -- in_dir "$WORK/owned" chdf init -input=false -no-color
 ( cd "$WORK/owned" && chdf apply -auto-approve -input=false -no-color >"$LOGS/owned-apply.out" 2>&1 ) \
   || { tail -30 "$LOGS/owned-apply.out" >&2; fail "foreignload" "owned apply failed"; }
@@ -155,14 +159,14 @@ OWNED_ALONE_CC="$(cclists owned-alone)"
 echo "plan of ow-estate, account holds only ow-estate: $OWNED_ALONE calls ($OWNED_ALONE_CC of them account-wide Cloud Control lists)" | evidence
 proof "$OWNED_ALONE calls to plan the estate on an account that holds nothing else."
 
-step "2. grow the ACCOUNT into a terralith, and replan the estate"
+step "2. grow the ACCOUNT around the estate, and replan it"
 explain \
-  "A second terralith joins the account under its own tofu-estate marker." \
+  "A second estate joins the account under its own tofu-estate marker." \
   "Nothing about the estate under test changes: same configuration, same" \
   "resources, same record store. The only thing that changed is how much" \
   "of somebody else's infrastructure the account now holds."
-cmd "go run ./tools/terralith-gen -scale $FOREIGN_SCALE -prefix fg ; choudoufu apply (estate fg-estate) ; choudoufu plan (ow-estate again)"
-terralith_at foreign "$FOREIGN_SCALE" fg fg-estate | evidence
+cmd "go run ./tools/scenario-estate -scale $FOREIGN_SCALE -prefix fg ; choudoufu apply (estate fg-estate) ; choudoufu plan (ow-estate again)"
+estate_at foreign "$FOREIGN_SCALE" fg fg-estate | evidence
 logged plan-cost-under-foreign-load-work-foreign-init "foreignload" "foreign init failed" -- in_dir "$WORK/foreign" chdf init -input=false -no-color
 ( cd "$WORK/foreign" && chdf apply -auto-approve -input=false -no-color >"$LOGS/foreign-apply.out" 2>&1 ) \
   || { tail -30 "$LOGS/foreign-apply.out" >&2; fail "foreignload" "foreign apply failed"; }
@@ -213,7 +217,7 @@ echo "account-wide Cloud Control list CALLS - alone: $OWNED_ALONE_CC   ·   unde
   || fail "foreignload" "the account-wide Cloud Control list count moved with the foreign population ($OWNED_ALONE_CC -> $OWNED_LOADED_CC); that is a finding to record against issue #1032, not a threshold to edit"
 proof "the account-wide Cloud Control list ran $OWNED_LOADED_CC times either way, and every list this plan could not scope to the estate is named above with the run's own reason for it."
 
-step "4. what reading the whole terralith would cost"
+step "4. what reading the whole account would cost"
 explain \
   "For scale, ask the account-wide question instead of the estate one -" \
   "what -adoption-only answers, and the shape a bound state file forces on" \
@@ -252,7 +256,7 @@ step "5. teardown"
 cmd "choudoufu apply -destroy (both estates)"
 ( cd "$WORK/owned" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "foreignload" "owned teardown failed"
 ( cd "$WORK/foreign" && chdf apply -destroy -auto-approve -input=false -no-color >/dev/null 2>&1 ) || fail "foreignload" "foreign teardown failed"
-proof "both terraliths gone."
+proof "both estates gone."
 
 echo "  What you watched: an estate that cost $OWNED_ALONE calls to plan alone"
 echo "  cost $OWNED_LOADED beside $FOREIGN_N foreign resources under another marker -"

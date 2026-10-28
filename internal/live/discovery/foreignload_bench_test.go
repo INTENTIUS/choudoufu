@@ -146,9 +146,9 @@ func TestForeignLoadAgainstFloci(t *testing.T) {
 		Emulator:         flocitest.Image(),
 		Break:            breaking,
 		OwnedScale:       ownedScale,
-		OwnedResources:   terralithResources(ownedScale),
+		OwnedResources:   scenarioResources(t, ownedScale),
 		ForeignScale:     foreignScale,
-		ForeignResources: terralithResources(foreignScale),
+		ForeignResources: scenarioResources(t, foreignScale),
 	}
 
 	// ---- 1. the foreign estate, if this row has one. A different
@@ -156,7 +156,7 @@ func TestForeignLoadAgainstFloci(t *testing.T) {
 	// plan-cost-under-foreign-load.sh's foreign estate carries one.
 	if foreignScale > 0 {
 		dir := filepath.Join(work, "foreign")
-		generateTerralith(t, root, dir, foreignScale, "fg")
+		generateEstate(t, root, dir, foreignScale, "fg")
 		useFlociProvider(t, dir)
 		addLiveBlockTo(t, dir, "foreign-load-fg")
 		flocitest.Run(t, dir, choudoufuBin, "init", "-input=false", "-no-color")
@@ -175,7 +175,7 @@ func TestForeignLoadAgainstFloci(t *testing.T) {
 	// ---- 2. the owned estate, beside it, in the same account.
 	ownedDir := filepath.Join(work, "owned")
 	const ownedEstate = "foreign-load-ow"
-	generateTerralith(t, root, ownedDir, ownedScale, "ow")
+	generateEstate(t, root, ownedDir, ownedScale, "ow")
 	useFlociProvider(t, ownedDir)
 	addLiveBlockTo(t, ownedDir, ownedEstate)
 	flocitest.Run(t, ownedDir, choudoufuBin, "init", "-input=false", "-no-color")
@@ -306,29 +306,22 @@ func logCounts(t *testing.T, label string, m map[string]int) {
 // Fixture helpers
 // ---------------------------------------------------------------------------
 
-// terralithResources is tools/terralith-gen's own composition formula,
-// 74N + 5, so a row can name the population it stood up without parsing the
-// generator's report line. Scale 0 means "no estate at all", which the
-// generator itself refuses and this row spells as zero resources.
-func terralithResources(scale int) int {
-	if scale <= 0 {
-		return 0
-	}
-	return 74*scale + 5
+// scenarioResources is how many resource instances the scenario estate
+// declares at scale (flocitest.ScenarioResources), so a row can name the
+// population it stood up. Scale 0 means "no estate at all", spelled as zero
+// resources.
+func scenarioResources(t *testing.T, scale int) int {
+	return flocitest.ScenarioResources(t, scale)
 }
 
-func generateTerralith(t *testing.T, root, dir string, scale int, prefix string) {
+// generateEstate renders the scenario estate (choudoufu#2303): scale copies
+// of live/e2e/estate, stock, under prefix. It took over from
+// tools/terralith-gen, which ruling A on INTENTIUS/chant#4586 keeps for the
+// scale ladder only.
+func generateEstate(t *testing.T, root, dir string, scale int, prefix string) {
 	t.Helper()
-
-	cmd := exec.Command("go", "run", "./tools/terralith-gen", //nolint:gosec // fixed binary and args, test-only
-		"-scale", strconv.Itoa(scale), "-prefix", prefix, "-out", dir)
-	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "PWD="+root)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("terralith-gen -scale %d -prefix %s: %v\n%s", scale, prefix, err, out)
-	}
-	t.Logf("terralith-gen(%s): %s", prefix, strings.TrimSpace(string(out)))
+	_ = root
+	flocitest.ScenarioEstate(t, dir, scale, prefix)
 }
 
 // foreignFlociProvider is the provider block
@@ -359,7 +352,7 @@ func useFlociProvider(t *testing.T, dir string) {
 	const anchor = "provider \"aws\" {"
 	idx := strings.Index(string(data), anchor)
 	if idx < 0 {
-		t.Fatalf("%s has no %q block; terralith-gen's versions.tf template changed", path, anchor)
+		t.Fatalf("%s has no %q block; the scenario estate's versions.tf layout changed (internal/live/scenarioestate)", path, anchor)
 	}
 	if err := os.WriteFile(path, []byte(string(data[:idx])+foreignFlociProvider), 0o600); err != nil {
 		t.Fatalf("writing %s: %v", path, err)
@@ -376,7 +369,7 @@ func addLiveBlockTo(t *testing.T, dir, estate string) {
 	}
 	const anchor = `required_version = ">= 1.5.0"`
 	if !strings.Contains(string(data), anchor) {
-		t.Fatalf("%s does not contain the expected anchor %q; terralith-gen's versions.tf template changed", path, anchor)
+		t.Fatalf("%s does not contain the expected anchor %q; the scenario estate's versions.tf layout changed (internal/live/scenarioestate)", path, anchor)
 	}
 	block := anchor + "\n\n  live {\n    estate = \"" + estate + "\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }"
 	updated := strings.Replace(string(data), anchor, block, 1)

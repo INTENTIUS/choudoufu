@@ -40,7 +40,7 @@ import (
 //	STEADY_SCALE=136 TF_FLOCI_TEST=1 go test ./internal/live/statefulcost/ \
 //	  -run TestSteadyStateCostAgainstFloci -v -timeout 600m
 //
-//	STEADY_SCALE   terralith-gen -scale (default 1; 136 is 10,069 resources)
+//	STEADY_SCALE   copies of the scenario estate (default 1; 43 resources each)
 //	STEADY_COMMIT  the commit the record names (default: git HEAD, +dirty)
 func TestSteadyStateCostAgainstFloci(t *testing.T) {
 	flocitest.Gate(t, "steadystate")
@@ -78,7 +78,7 @@ func TestSteadyStateCostAgainstFloci(t *testing.T) {
 	var cols []*column
 
 	// ── stock Terraform, holding the state file its own apply wrote ──────
-	// STEADY_FLAT_PER_TYPE swaps terralith-gen for the tagging-served estate
+	// STEADY_FLAT_PER_TYPE swaps the scenario estate for the tagging-served estate
 	// above, on BOTH columns so the comparison still holds. It is the only
 	// shape on which the state cache can be asked to do anything (#1085).
 	flatPerType := 0
@@ -170,15 +170,15 @@ func TestSteadyStateCostAgainstFloci(t *testing.T) {
 func emitSteadyRecord(t *testing.T, scale, flatPerType int, cols []*column) {
 	t.Helper()
 
-	resources := 74*scale + 5
-	shape := "identity-heavy"
+	resources := flocitest.ScenarioResources(t, scale)
+	shape := "scenario"
 	if flatPerType > 0 {
 		resources = flatPerType*5 + 1
 		shape = "tagging-served"
 	}
 
 	rec := SteadyRecord{
-		Estate: "terralith", Shape: shape, Resources: resources,
+		Estate: "live/e2e/estate", Shape: shape, Resources: resources,
 		Substrate: "floci", Emulator: flocitest.Image(),
 		Commit: steadyCommit(t),
 		Date:   time.Now().UTC().Format(time.RFC3339),

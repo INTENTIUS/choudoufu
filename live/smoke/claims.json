@@ -656,6 +656,7 @@
               "minutes": 6,
               "needs_go": true,
               "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "note": "Since #2303 the estate is a scenario estate, two copies of live/e2e/estate rendered by tools/scenario-estate (86 resources), not the generated terralith. The last_run below was measured on the terralith; the next maintainer run records the scenario estate.",
               "last_run": {
                 "status": "proven",
                 "claim": 7,
@@ -848,7 +849,7 @@
               "evidence": [
                 "live/gauntlet-scale.json"
               ],
-              "note": "FOREIGN_SCALE sizes the account around the estate: 1, the default, puts 79 foreign resources beside it; FOREIGN_SCALE=50 puts 3,705 there, the row in live/gauntlet-scale.json. OWNED_SCALE sizes the estate itself.",
+              "note": "Since #2303 both estates are scenario estates rendered by tools/scenario-estate (copies of live/e2e/estate, 43 resources each). FOREIGN_SCALE sizes the account around the estate: 2, the default, puts 86 foreign resources beside it; FOREIGN_SCALE=86 puts 3,698 there. OWNED_SCALE sizes the estate itself. The 3,705-resource row in live/gauntlet-scale.json was measured on the generated terralith and stays as scale-ladder evidence; the last_run below is also the terralith's, and the row the next maintainer run records on the scenario estate is the test.",
               "last_run": {
                 "status": "proven",
                 "claim": 14,
