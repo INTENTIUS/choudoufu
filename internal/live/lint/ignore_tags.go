@@ -105,6 +105,7 @@ func checkIgnoreTags(ctx context.Context, mod *configs.Module, path addrs.Module
 			Detail: fmt.Sprintf(
 				"%s's ignore_tags hides the ownership markers from every read this provider makes: %s. "+
 					"The provider still sends them on create, so the object is created marked, but each read strips them from tags and tags_all and an update never sends them again, so a live run cannot read who owns the object through this provider and cannot repair a marker on it. "+
+					"Config tags keeps the markers while the refreshed state does not, so every plan shows a tags diff and the estate never plans clean. "+
 					"Remove the marker keys from keys, or narrow key_prefixes so no prefix is the start of %s.",
 				block, strings.Join(covered, "; "), strings.Join(quoteEach(ignoreTagsMarkerKeys()), ", ")),
 			Subject: *subject,
