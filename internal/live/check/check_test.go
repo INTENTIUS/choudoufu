@@ -274,6 +274,12 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// questions (owner, versions, undeclared, touched roots) answered
 		// beside the stages, never inside one, with nothing to refuse.
 		"investigate": true,
+		// GitHub issue #2297's offline second identity pass: it plans
+		// creates with placeholder-configured providers and hands the
+		// values to this package as Context.ManagedResults. It runs before
+		// Analyze, inside no stage, and refuses nothing; the identity layer
+		// decides what those values settle.
+		"offlineplan": true,
 	}
 
 	classified := map[string]bool{}
