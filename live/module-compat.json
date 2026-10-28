@@ -15,7 +15,7 @@
   ],
   "static_measurement": {
     "date": "2026-10-27",
-    "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+    "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
     "instrument": "tools/refusal-probe -schemas -onboarded",
     "form": "onboarded",
     "schemas": true,
@@ -125,17 +125,253 @@
         "commit": "56b7f8aac0acf2c6c4cfc28d5aa12e08a8ebb843",
         "glob": ".corpus/ec2-instance/examples/*",
         "examples": 2
+      },
+      {
+        "module": "terraform-aws-modules/kms/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-kms",
+        "version": "v4.2.2",
+        "commit": "d25e459bd43d8d0bdff7c250ba6b237a12be7381",
+        "glob": ".corpus/kms/examples/*",
+        "examples": 1
+      },
+      {
+        "module": "terraform-aws-modules/rds-aurora/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-rds-aurora",
+        "version": "v10.4.1",
+        "commit": "d72cba285514b5e2e83bea7dd1272c1c206a4f64",
+        "glob": ".corpus/rds-aurora/examples/*",
+        "examples": 9
+      },
+      {
+        "module": "terraform-aws-modules/acm/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-acm",
+        "version": "v6.3.1",
+        "commit": "aae84c011dd68ace1beb5d10e1feddfe9a334953",
+        "glob": ".corpus/acm/examples/*",
+        "examples": 4
+      },
+      {
+        "module": "terraform-aws-modules/route53/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-route53",
+        "version": "v6.5.1",
+        "commit": "883f987d6bb328c09bd4dfc5a04024534b371d59",
+        "glob": ".corpus/route53/examples/*",
+        "examples": 2
+      },
+      {
+        "module": "terraform-aws-modules/cloudfront/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-cloudfront",
+        "version": "v6.7.1",
+        "commit": "5b9a0a480220b84f29f02d84ff71dd5340953f68",
+        "glob": ".corpus/cloudfront/examples/*",
+        "examples": 2
+      },
+      {
+        "module": "terraform-aws-modules/cloudwatch/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-cloudwatch",
+        "version": "v5.7.3",
+        "commit": "82e5143738712a283ab7a8cb4110e7a3e708a834",
+        "glob": ".corpus/cloudwatch/examples/*",
+        "examples": 12
+      },
+      {
+        "module": "terraform-aws-modules/eventbridge/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-eventbridge",
+        "version": "v4.3.3",
+        "commit": "e29707a5057ec9b0f6ea87686e9a5b48b4addd11",
+        "glob": ".corpus/eventbridge/examples/*",
+        "examples": 11
+      },
+      {
+        "module": "terraform-aws-modules/sns/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-sns",
+        "version": "v7.2.0",
+        "commit": "4538b7e208f5bbd6c9972f427f85c9bd735aedad",
+        "glob": ".corpus/sns/examples/*",
+        "examples": 1
+      },
+      {
+        "module": "terraform-aws-modules/ecr/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-ecr",
+        "version": "v3.2.0",
+        "commit": "b6ef04d088cf91d5ba9505132e9ff7c9f847ed5d",
+        "glob": ".corpus/ecr/examples/*",
+        "examples": 2
+      },
+      {
+        "module": "terraform-aws-modules/secrets-manager/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-secrets-manager",
+        "version": "v2.2.0",
+        "commit": "f3d3da1c801816563080065c5f37f212c8dee444",
+        "glob": ".corpus/secrets-manager/examples/*",
+        "examples": 1
+      },
+      {
+        "module": "terraform-aws-modules/key-pair/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-key-pair",
+        "version": "v3.0.1",
+        "commit": "f3221d392c436a874f189aa2d217d4aff60eb05e",
+        "glob": ".corpus/key-pair/examples/*",
+        "examples": 1
+      },
+      {
+        "module": "terraform-aws-modules/eks-pod-identity/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-eks-pod-identity",
+        "version": "v2.10.0",
+        "commit": "f72040b99272c264e0340f44758219e0808a52a2",
+        "glob": ".corpus/eks-pod-identity/examples/*",
+        "examples": 1
+      },
+      {
+        "module": "terraform-aws-modules/apigateway-v2/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-apigateway-v2",
+        "version": "v6.1.1",
+        "commit": "95e6a1d56d6d761ec12c89b36b29aad03a421b2f",
+        "glob": ".corpus/apigateway-v2/examples/*",
+        "examples": 3
+      },
+      {
+        "module": "terraform-aws-modules/appsync/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-appsync",
+        "version": "v4.1.1",
+        "commit": "36a0ca1ab1f9c2b3e645da8e4960181d11e4d1b3",
+        "glob": ".corpus/appsync/examples/*",
+        "examples": 1
+      },
+      {
+        "module": "terraform-aws-modules/appconfig/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-appconfig",
+        "version": "v2.0.2",
+        "commit": "32f02c8ce02615e9023b05d279665e72e60c7134",
+        "glob": ".corpus/appconfig/examples/*",
+        "examples": 4
+      },
+      {
+        "module": "terraform-aws-modules/step-functions/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-step-functions",
+        "version": "v5.1.1",
+        "commit": "16c7a1ffaa72643d714a7b3924216edce9413482",
+        "glob": ".corpus/step-functions/examples/*",
+        "examples": 1
+      },
+      {
+        "module": "terraform-aws-modules/rds-proxy/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-rds-proxy",
+        "version": "v4.4.0",
+        "commit": "012b4332f58ccaaa485d0af2040e599056d696f9",
+        "glob": ".corpus/rds-proxy/examples/*",
+        "examples": 4
+      },
+      {
+        "module": "terraform-aws-modules/ssm-parameter/aws",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-ssm-parameter",
+        "version": "v2.1.2",
+        "commit": "c798b114a38a36d278e2ba74550bf52f9b944563",
+        "glob": ".corpus/ssm-parameter/examples/*",
+        "examples": 1
       }
     ]
   },
   "static": [
     {
       "tier": "static",
+      "module": "terraform-aws-modules/acm/aws",
+      "version": "v6.3.1",
+      "example": "examples/complete-dns-validation",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 31,
+      "refusals": [
+        {
+          "id": "Dynamic value in static context",
+          "layer": "identity",
+          "sites": 43,
+          "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#dynamic-value-in-static-context"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 13,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "count-index",
+          "layer": "lint",
+          "sites": 9,
+          "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#count-index-in-tag"
+        },
+        {
+          "id": "module-providers",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"module-providers\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-providers"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/acm/aws",
+      "version": "v6.3.1",
+      "example": "examples/complete-dns-validation-with-cloudflare",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Module output not supported in static context",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-output-not-supported-in-static-context"
+        },
+        {
+          "id": "module-providers",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"module-providers\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-providers"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/acm/aws",
+      "version": "v6.3.1",
+      "example": "examples/complete-email-validation",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/acm/aws",
+      "version": "v6.3.1",
+      "example": "examples/complete-email-validation-with-validation-domain",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
       "module": "terraform-aws-modules/alb/aws",
       "version": "v9.9.0",
       "example": "examples/complete-alb",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 99,
@@ -147,7 +383,7 @@
       "version": "v9.9.0",
       "example": "examples/complete-nlb",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 98,
@@ -159,7 +395,7 @@
       "version": "v9.9.0",
       "example": "examples/mutual-auth-alb",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 98,
@@ -167,14 +403,515 @@
     },
     {
       "tier": "static",
+      "module": "terraform-aws-modules/apigateway-v2/aws",
+      "version": "v6.1.1",
+      "example": "examples/complete-http",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 4,
+      "refusals": [
+        {
+          "id": "markerless-type",
+          "layer": "lint",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"markerless-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#markerless-type"
+        },
+        {
+          "id": "for_each key cannot be recorded as a marker",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/MARKERS.md, \"Ownership semantics\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md#ownership-semantics"
+        },
+        {
+          "id": "moved-block",
+          "layer": "lint",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"moved-block\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#moved-block"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/apigateway-v2/aws",
+      "version": "v6.1.1",
+      "example": "examples/vpc-link-http",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 95,
+      "refusals": [
+        {
+          "id": "for_each key cannot be recorded as a marker",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/MARKERS.md, \"Ownership semantics\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md#ownership-semantics"
+        },
+        {
+          "id": "moved-block",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"moved-block\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#moved-block"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/apigateway-v2/aws",
+      "version": "v6.1.1",
+      "example": "examples/websocket",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "for_each key cannot be recorded as a marker",
+          "layer": "identity",
+          "sites": 4,
+          "docs_ref": "live/MARKERS.md, \"Ownership semantics\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/MARKERS.md#ownership-semantics"
+        },
+        {
+          "id": "markerless-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"markerless-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#markerless-type"
+        },
+        {
+          "id": "moved-block",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"moved-block\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#moved-block"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/appconfig/aws",
+      "version": "v2.0.2",
+      "example": "examples/appconfig-hosted",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/appconfig/aws",
+      "version": "v2.0.2",
+      "example": "examples/s3",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 7,
+      "refusals": [
+        {
+          "id": "Dynamic value in static context",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#dynamic-value-in-static-context"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/appconfig/aws",
+      "version": "v2.0.2",
+      "example": "examples/ssm-document",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Non-static for_each expression",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#non-static-for_each-expression"
+        },
+        {
+          "id": "Two resources with the same identity",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#duplicate-identity"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/appconfig/aws",
+      "version": "v2.0.2",
+      "example": "examples/ssm-parameter",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Non-static for_each expression",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#non-static-for_each-expression"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/appsync/aws",
+      "version": "v4.1.1",
+      "example": "examples/complete",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 3,
+      "refusals": [
+        {
+          "id": "Dynamic value in static context",
+          "layer": "identity",
+          "sites": 12,
+          "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#dynamic-value-in-static-context"
+        },
+        {
+          "id": "count-index",
+          "layer": "lint",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#count-index-in-tag"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        },
+        {
+          "id": "Identity not resolvable from configuration",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#identity-not-resolvable-from-configuration"
+        }
+      ]
+    },
+    {
+      "tier": "static",
       "module": "terraform-aws-modules/autoscaling/aws",
       "version": "v9.3.0",
       "example": "examples/complete",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 95,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudfront/aws",
+      "version": "v6.7.1",
+      "example": "examples/complete",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 99,
+      "refusals": [
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "Module output not supported in static context",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-output-not-supported-in-static-context"
+        },
+        {
+          "id": "count-index",
+          "layer": "lint",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#count-index-in-tag"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudfront/aws",
+      "version": "v6.7.1",
+      "example": "examples/mtls",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 4,
+      "refusals": [
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "Module output not supported in static context",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-output-not-supported-in-static-context"
+        },
+        {
+          "id": "count-index",
+          "layer": "lint",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"count-index-in-tag\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#count-index-in-tag"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudwatch/aws",
+      "version": "v5.7.3",
+      "example": "examples/cis-alarms",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Module output not supported in static context",
+          "layer": "identity",
+          "sites": 28,
+          "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-output-not-supported-in-static-context"
+        },
+        {
+          "id": "Two resources with the same identity",
+          "layer": "identity",
+          "sites": 28,
+          "docs_ref": "live/LIMITATIONS.md, \"duplicate-identity\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#duplicate-identity"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 28,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "Identity not resolvable from configuration",
+          "layer": "identity",
+          "sites": 15,
+          "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#identity-not-resolvable-from-configuration"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudwatch/aws",
+      "version": "v5.7.3",
+      "example": "examples/complete-log-metric-filter-and-alarm",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudwatch/aws",
+      "version": "v5.7.3",
+      "example": "examples/composite-alarm",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudwatch/aws",
+      "version": "v5.7.3",
+      "example": "examples/lambda-metric-alarm",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudwatch/aws",
+      "version": "v5.7.3",
+      "example": "examples/log-account-policy",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Null identity argument",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Null identity argument\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#null-identity-argument"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudwatch/aws",
+      "version": "v5.7.3",
+      "example": "examples/log-anomaly-detector",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudwatch/aws",
+      "version": "v5.7.3",
+      "example": "examples/log-group-with-data-protection-policy",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudwatch/aws",
+      "version": "v5.7.3",
+      "example": "examples/log-group-with-log-stream",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Dynamic value in static context",
+          "layer": "identity",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#dynamic-value-in-static-context"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudwatch/aws",
+      "version": "v5.7.3",
+      "example": "examples/log-subscription-filter",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Null identity argument",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Null identity argument\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#null-identity-argument"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudwatch/aws",
+      "version": "v5.7.3",
+      "example": "examples/metric-stream",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudwatch/aws",
+      "version": "v5.7.3",
+      "example": "examples/multiple-lambda-metric-alarm",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/cloudwatch/aws",
+      "version": "v5.7.3",
+      "example": "examples/query-definition",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
       "refusals": []
     },
     {
@@ -183,7 +920,7 @@
       "version": "v5.5.1",
       "example": "examples/autoscaling",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -195,7 +932,7 @@
       "version": "v5.5.1",
       "example": "examples/basic",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -207,7 +944,7 @@
       "version": "v5.5.1",
       "example": "examples/global-tables",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -219,7 +956,7 @@
       "version": "v5.5.1",
       "example": "examples/s3-import",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -231,7 +968,7 @@
       "version": "v6.4.0",
       "example": "examples/complete",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 95,
@@ -258,7 +995,7 @@
       "version": "v6.4.0",
       "example": "examples/session-manager",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 28,
@@ -266,11 +1003,51 @@
     },
     {
       "tier": "static",
+      "module": "terraform-aws-modules/ecr/aws",
+      "version": "v3.2.0",
+      "example": "examples/complete",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/ecr/aws",
+      "version": "v3.2.0",
+      "example": "examples/repository-template",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
       "module": "terraform-aws-modules/ecs/aws",
       "version": "v7.6.0",
       "example": "examples/complete",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 95,
@@ -297,7 +1074,7 @@
       "version": "v7.6.0",
       "example": "examples/container-definition",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -309,7 +1086,7 @@
       "version": "v7.6.0",
       "example": "examples/ec2-autoscaling",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 97,
@@ -321,7 +1098,7 @@
       "version": "v7.6.0",
       "example": "examples/express-service",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 96,
@@ -333,7 +1110,7 @@
       "version": "v7.6.0",
       "example": "examples/fargate",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 96,
@@ -345,7 +1122,7 @@
       "version": "v7.6.0",
       "example": "examples/managed-instances",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 95,
@@ -353,11 +1130,38 @@
     },
     {
       "tier": "static",
+      "module": "terraform-aws-modules/eks-pod-identity/aws",
+      "version": "v2.10.0",
+      "example": "examples/complete",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 55,
+      "refusals": [
+        {
+          "id": "moved-block",
+          "layer": "lint",
+          "sites": 16,
+          "docs_ref": "live/LIMITATIONS.md, \"moved-block\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#moved-block"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
       "module": "terraform-aws-modules/eks/aws",
       "version": "v21.29.0",
       "example": "examples/eks-auto-mode",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 158,
@@ -384,7 +1188,7 @@
       "version": "v21.29.0",
       "example": "examples/eks-capabilities",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 137,
@@ -411,7 +1215,7 @@
       "version": "v21.29.0",
       "example": "examples/eks-hybrid-nodes",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 228,
@@ -459,7 +1263,7 @@
       "version": "v21.29.0",
       "example": "examples/eks-managed-node-group",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 139,
@@ -500,7 +1304,7 @@
       "version": "v21.29.0",
       "example": "examples/karpenter",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 134,
@@ -541,7 +1345,7 @@
       "version": "v21.29.0",
       "example": "examples/self-managed-node-group",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 139,
@@ -571,11 +1375,341 @@
     },
     {
       "tier": "static",
+      "module": "terraform-aws-modules/eventbridge/aws",
+      "version": "v4.3.3",
+      "example": "examples/api-gateway-event-source",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Module output not supported in static context",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-output-not-supported-in-static-context"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "markerless-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"markerless-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#markerless-type"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/eventbridge/aws",
+      "version": "v4.3.3",
+      "example": "examples/complete",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Null identity argument",
+          "layer": "identity",
+          "sites": 10,
+          "docs_ref": "live/LIMITATIONS.md, \"Null identity argument\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#null-identity-argument"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 10,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "Dynamic value in static context",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#dynamic-value-in-static-context"
+        },
+        {
+          "id": "child-module",
+          "layer": "lint",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"child-module\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#child-module"
+        },
+        {
+          "id": "Non-static for_each expression",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#non-static-for_each-expression"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/eventbridge/aws",
+      "version": "v4.3.3",
+      "example": "examples/default-bus",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Null identity argument",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Null identity argument\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#null-identity-argument"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/eventbridge/aws",
+      "version": "v4.3.3",
+      "example": "examples/with-api-destination",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Null identity argument",
+          "layer": "identity",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"Null identity argument\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#null-identity-argument"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/eventbridge/aws",
+      "version": "v4.3.3",
+      "example": "examples/with-archive",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/eventbridge/aws",
+      "version": "v4.3.3",
+      "example": "examples/with-bus-logging",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Dynamic value in static context",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#dynamic-value-in-static-context"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/eventbridge/aws",
+      "version": "v4.3.3",
+      "example": "examples/with-ecs-scheduling",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "child-module",
+          "layer": "lint",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"child-module\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#child-module"
+        },
+        {
+          "id": "Dynamic value in static context",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#dynamic-value-in-static-context"
+        },
+        {
+          "id": "Non-static for_each expression",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Non-static for_each expression\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#non-static-for_each-expression"
+        },
+        {
+          "id": "Null identity argument",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Null identity argument\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#null-identity-argument"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/eventbridge/aws",
+      "version": "v4.3.3",
+      "example": "examples/with-lambda-scheduling",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Null identity argument",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Null identity argument\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#null-identity-argument"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/eventbridge/aws",
+      "version": "v4.3.3",
+      "example": "examples/with-permissions",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/eventbridge/aws",
+      "version": "v4.3.3",
+      "example": "examples/with-pipes",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Dynamic value in static context",
+          "layer": "identity",
+          "sites": 9,
+          "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#dynamic-value-in-static-context"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 4,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "Module output not supported in static context",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-output-not-supported-in-static-context"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/eventbridge/aws",
+      "version": "v4.3.3",
+      "example": "examples/with-schedules",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Identity not resolvable from configuration",
+          "layer": "identity",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#identity-not-resolvable-from-configuration"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
       "module": "terraform-aws-modules/iam/aws",
       "version": "v6.8.0",
       "example": "examples/iam-account",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -587,7 +1721,7 @@
       "version": "v6.8.0",
       "example": "examples/iam-group",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -607,7 +1741,7 @@
       "version": "v6.8.0",
       "example": "examples/iam-oidc-provider",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -619,7 +1753,7 @@
       "version": "v6.8.0",
       "example": "examples/iam-policy",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -631,7 +1765,7 @@
       "version": "v6.8.0",
       "example": "examples/iam-read-only-policy",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -643,7 +1777,7 @@
       "version": "v6.8.0",
       "example": "examples/iam-role",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -670,7 +1804,7 @@
       "version": "v6.8.0",
       "example": "examples/iam-role-for-service-accounts",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 783,
@@ -718,7 +1852,7 @@
       "version": "v6.8.0",
       "example": "examples/iam-user",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -734,11 +1868,57 @@
     },
     {
       "tier": "static",
+      "module": "terraform-aws-modules/key-pair/aws",
+      "version": "v3.0.1",
+      "example": "examples/complete",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/kms/aws",
+      "version": "v4.2.2",
+      "example": "examples/complete",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "markerless-type",
+          "layer": "lint",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"markerless-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#markerless-type"
+        },
+        {
+          "id": "Null identity argument",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Null identity argument\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#null-identity-argument"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
       "module": "terraform-aws-modules/lambda/aws",
       "version": "v8.8.1",
       "example": "examples/alias",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -793,7 +1973,7 @@
       "version": "v8.8.1",
       "example": "examples/async",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -813,7 +1993,7 @@
       "version": "v8.8.1",
       "example": "examples/build-package",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -825,7 +2005,7 @@
       "version": "v8.8.1",
       "example": "examples/code-signing",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -852,7 +2032,7 @@
       "version": "v8.8.1",
       "example": "examples/complete",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 20,
@@ -872,7 +2052,7 @@
       "version": "v8.8.1",
       "example": "examples/container-image",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -892,7 +2072,7 @@
       "version": "v8.8.1",
       "example": "examples/deploy",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 1,
@@ -912,7 +2092,7 @@
       "version": "v8.8.1",
       "example": "examples/event-source-mapping",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 50,
@@ -932,7 +2112,7 @@
       "version": "v8.8.1",
       "example": "examples/multiple-regions",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -944,7 +2124,7 @@
       "version": "v8.8.1",
       "example": "examples/runtimes",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -964,7 +2144,7 @@
       "version": "v8.8.1",
       "example": "examples/simple",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -976,7 +2156,7 @@
       "version": "v8.8.1",
       "example": "examples/simple-cicd",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -988,7 +2168,7 @@
       "version": "v8.8.1",
       "example": "examples/triggers",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -1000,7 +2180,7 @@
       "version": "v8.8.1",
       "example": "examples/with-efs",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -1012,7 +2192,7 @@
       "version": "v8.8.1",
       "example": "examples/with-vpc",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -1024,7 +2204,7 @@
       "version": "v8.8.1",
       "example": "examples/with-vpc-s3-endpoint",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 3,
@@ -1054,11 +2234,294 @@
     },
     {
       "tier": "static",
+      "module": "terraform-aws-modules/rds-aurora/aws",
+      "version": "v10.4.1",
+      "example": "examples/autoscaling",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 127,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/rds-aurora/aws",
+      "version": "v10.4.1",
+      "example": "examples/dsql",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/rds-aurora/aws",
+      "version": "v10.4.1",
+      "example": "examples/global-cluster",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 252,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/rds-aurora/aws",
+      "version": "v10.4.1",
+      "example": "examples/limitless",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 127,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/rds-aurora/aws",
+      "version": "v10.4.1",
+      "example": "examples/multi-az",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 126,
+      "refusals": [
+        {
+          "id": "Identity not resolvable from configuration",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#identity-not-resolvable-from-configuration"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/rds-aurora/aws",
+      "version": "v10.4.1",
+      "example": "examples/mysql",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 126,
+      "refusals": [
+        {
+          "id": "Identity not resolvable from configuration",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#identity-not-resolvable-from-configuration"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/rds-aurora/aws",
+      "version": "v10.4.1",
+      "example": "examples/postgresql",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 127,
+      "refusals": [
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/rds-aurora/aws",
+      "version": "v10.4.1",
+      "example": "examples/s3-import",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 126,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/rds-aurora/aws",
+      "version": "v10.4.1",
+      "example": "examples/serverless",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 128,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/rds-proxy/aws",
+      "version": "v4.4.0",
+      "example": "examples/mysql-iam-cluster",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 126,
+      "refusals": [
+        {
+          "id": "Module output not supported in static context",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-output-not-supported-in-static-context"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/rds-proxy/aws",
+      "version": "v4.4.0",
+      "example": "examples/mysql-iam-instance",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 126,
+      "refusals": [
+        {
+          "id": "Module output not supported in static context",
+          "layer": "identity",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-output-not-supported-in-static-context"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/rds-proxy/aws",
+      "version": "v4.4.0",
+      "example": "examples/postgresql-iam-cluster",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 126,
+      "refusals": [
+        {
+          "id": "Module output not supported in static context",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-output-not-supported-in-static-context"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/rds-proxy/aws",
+      "version": "v4.4.0",
+      "example": "examples/postgresql-iam-instance",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 126,
+      "refusals": [
+        {
+          "id": "Module output not supported in static context",
+          "layer": "identity",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-output-not-supported-in-static-context"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 3,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
       "module": "terraform-aws-modules/rds/aws",
       "version": "v7.2.1",
       "example": "examples/blue-green-deployment",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 126,
@@ -1070,7 +2533,7 @@
       "version": "v7.2.1",
       "example": "examples/complete-mssql",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 127,
@@ -1104,7 +2567,7 @@
       "version": "v7.2.1",
       "example": "examples/complete-mysql",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 127,
@@ -1116,7 +2579,7 @@
       "version": "v7.2.1",
       "example": "examples/complete-oracle",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 127,
@@ -1136,7 +2599,7 @@
       "version": "v7.2.1",
       "example": "examples/complete-postgres",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 127,
@@ -1163,7 +2626,7 @@
       "version": "v7.2.1",
       "example": "examples/cross-region-replica-postgres",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -1183,7 +2646,7 @@
       "version": "v7.2.1",
       "example": "examples/enhanced-monitoring",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 127,
@@ -1195,7 +2658,7 @@
       "version": "v7.2.1",
       "example": "examples/groups",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -1207,7 +2670,7 @@
       "version": "v7.2.1",
       "example": "examples/replica-mysql",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 126,
@@ -1219,7 +2682,7 @@
       "version": "v7.2.1",
       "example": "examples/replica-postgres",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 126,
@@ -1231,7 +2694,7 @@
       "version": "v7.2.1",
       "example": "examples/role-association-postgres",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 177,
@@ -1265,7 +2728,7 @@
       "version": "v7.2.1",
       "example": "examples/s3-import-mysql",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 126,
@@ -1281,11 +2744,71 @@
     },
     {
       "tier": "static",
+      "module": "terraform-aws-modules/route53/aws",
+      "version": "v6.5.1",
+      "example": "examples/complete",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 106,
+      "refusals": [
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 13,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        },
+        {
+          "id": "Identity not resolvable from configuration",
+          "layer": "identity",
+          "sites": 12,
+          "docs_ref": "live/LIMITATIONS.md, \"Identity not resolvable from configuration\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#identity-not-resolvable-from-configuration"
+        },
+        {
+          "id": "Dynamic value in static context",
+          "layer": "identity",
+          "sites": 11,
+          "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#dynamic-value-in-static-context"
+        },
+        {
+          "id": "Module output not supported in static context",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Module output not supported in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#module-output-not-supported-in-static-context"
+        },
+        {
+          "id": "Unresolvable identity",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unresolvable-identity"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/route53/aws",
+      "version": "v6.5.1",
+      "example": "examples/cross-account",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 111,
+      "refusals": []
+    },
+    {
+      "tier": "static",
       "module": "terraform-aws-modules/s3-bucket/aws",
       "version": "v5.9.1",
       "example": "examples/account-public-access",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -1297,7 +2820,7 @@
       "version": "v5.9.1",
       "example": "examples/complete",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 4,
@@ -1317,7 +2840,7 @@
       "version": "v5.9.1",
       "example": "examples/directory-bucket",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 5,
@@ -1329,7 +2852,7 @@
       "version": "v5.9.1",
       "example": "examples/notification",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -1349,7 +2872,7 @@
       "version": "v5.9.1",
       "example": "examples/object",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -1361,7 +2884,7 @@
       "version": "v5.9.1",
       "example": "examples/s3-analytics",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -1373,7 +2896,7 @@
       "version": "v5.9.1",
       "example": "examples/s3-inventory",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -1393,7 +2916,7 @@
       "version": "v5.9.1",
       "example": "examples/s3-replication",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -1413,7 +2936,7 @@
       "version": "v5.9.1",
       "example": "examples/table-bucket",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -1429,14 +2952,46 @@
     },
     {
       "tier": "static",
+      "module": "terraform-aws-modules/secrets-manager/aws",
+      "version": "v2.2.0",
+      "example": "examples/complete",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        }
+      ]
+    },
+    {
+      "tier": "static",
       "module": "terraform-aws-modules/security-group/aws",
       "version": "v6.0.0",
       "example": "examples/complete",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 74,
+      "refusals": []
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/sns/aws",
+      "version": "v7.2.0",
+      "example": "examples/complete",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "clear",
+      "reads": 0,
       "refusals": []
     },
     {
@@ -1445,7 +3000,7 @@
       "version": "v5.2.2",
       "example": "examples/complete",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -1453,11 +3008,79 @@
     },
     {
       "tier": "static",
+      "module": "terraform-aws-modules/ssm-parameter/aws",
+      "version": "v2.1.2",
+      "example": "examples/complete",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "Dynamic value in static context",
+          "layer": "identity",
+          "sites": 72,
+          "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#dynamic-value-in-static-context"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 48,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        }
+      ]
+    },
+    {
+      "tier": "static",
+      "module": "terraform-aws-modules/step-functions/aws",
+      "version": "v5.1.1",
+      "example": "examples/complete",
+      "date": "2026-10-27",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
+      "aws_provider": "6.59.0",
+      "verdict": "refused",
+      "reads": 0,
+      "refusals": [
+        {
+          "id": "unadmitted-type",
+          "layer": "lint",
+          "sites": 6,
+          "docs_ref": "live/LIMITATIONS.md, \"unadmitted-type\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unadmitted-type"
+        },
+        {
+          "id": "Unresolvable identity",
+          "layer": "identity",
+          "sites": 2,
+          "docs_ref": "live/LIMITATIONS.md, \"Unresolvable identity\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unresolvable-identity"
+        },
+        {
+          "id": "Dynamic value in static context",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Dynamic value in static context\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#dynamic-value-in-static-context"
+        },
+        {
+          "id": "Unable to compute static value",
+          "layer": "identity",
+          "sites": 1,
+          "docs_ref": "live/LIMITATIONS.md, \"Unable to compute static value\"",
+          "docs_url": "https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md#unable-to-compute-static-value"
+        }
+      ]
+    },
+    {
+      "tier": "static",
       "module": "terraform-aws-modules/vpc/aws",
       "version": "v6.6.1",
       "example": "examples/block-public-access",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 37,
@@ -1469,7 +3092,7 @@
       "version": "v6.6.1",
       "example": "examples/complete",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 211,
@@ -1481,7 +3104,7 @@
       "version": "v6.6.1",
       "example": "examples/flow-log",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 95,
@@ -1493,7 +3116,7 @@
       "version": "v6.6.1",
       "example": "examples/ipam",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 6,
@@ -1527,7 +3150,7 @@
       "version": "v6.6.1",
       "example": "examples/ipv6-dualstack",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 260,
@@ -1539,7 +3162,7 @@
       "version": "v6.6.1",
       "example": "examples/ipv6-only",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 0,
@@ -1551,7 +3174,7 @@
       "version": "v6.6.1",
       "example": "examples/issues",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -1578,7 +3201,7 @@
       "version": "v6.6.1",
       "example": "examples/manage-default-vpc",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 0,
@@ -1598,7 +3221,7 @@
       "version": "v6.6.1",
       "example": "examples/network-acls",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 203,
@@ -1610,7 +3233,7 @@
       "version": "v6.6.1",
       "example": "examples/outpost",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "refused",
       "reads": 131,
@@ -1630,7 +3253,7 @@
       "version": "v6.6.1",
       "example": "examples/secondary-cidr-blocks",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 123,
@@ -1642,7 +3265,7 @@
       "version": "v6.6.1",
       "example": "examples/separate-route-tables",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 238,
@@ -1654,7 +3277,7 @@
       "version": "v6.6.1",
       "example": "examples/simple",
       "date": "2026-10-27",
-      "commit": "e5fd4abf8c99ae4d36f1a68ec095a10102b92ee6",
+      "commit": "2850aa1d0e83ed521a5e67a1c5046d5789603d39",
       "aws_provider": "6.59.0",
       "verdict": "clear",
       "reads": 37,
