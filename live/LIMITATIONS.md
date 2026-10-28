@@ -1499,6 +1499,14 @@ again. The object carries its markers, the provider never shows them, and a
 marker repair through the provider cannot reach them. A live run reading
 ownership through that provider finds the object unmarked.
 
+A floci run against hashicorp/aws 6.70.0 (choudoufu#2290) confirmed each step
+and found one more consequence. Config `tags` keeps the markers while the
+refreshed state does not, so every plan shows a standing `tags` diff on the
+object (`+ "tofu-address"`, `+ "tofu-estate"`, exit code 2 under
+`-detailed-exitcode`), right after the create and again after any apply. An
+apply reports the change and writes nothing back. With `ignore_tags` covering
+the markers, an estate shows a tags diff on every plan and never plans clean.
+
 **What is matched.** A `keys` entry equal to `tofu-estate`, `tofu-address`,
 `tofu-address-2` to `tofu-address-4`, or `tofu-slot`; a `key_prefixes` entry
 that one of those keys starts with. `tofu-` and `to` match; `tofu-x` does not.
