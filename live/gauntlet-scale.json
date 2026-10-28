@@ -1,6 +1,7 @@
 {
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:0bbeb43075c9df9c7e06311cd4eec99a354594d304faa4fe5899b494a009d23d",
+  "note": "The scale ladder: rungs measured on the generated terralith (tools/terralith-gen). Since choudoufu#2303 it runs only when a scale figure is re-quoted (choudoufu#2288 Q3) and is not test evidence; tests, smoke claims and the gauntlet's core set run on scenario estates (tools/scenario-estate).",
   "records": [
     {
       "schema": 1,

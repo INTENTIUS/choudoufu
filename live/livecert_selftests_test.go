@@ -98,34 +98,6 @@ var liveCertSelftests = []liveCertSelftest{
 		measured: "0.3s. Stubs `aws` with a three-page fake and sources the shipped lib; nothing polls, sleeps or waits.",
 	},
 	{
-		script:   "selftest-teardown-timeout.sh",
-		proves:   "#1048 - teardown()'s untrusted step ran with no timeout, so a hang there blocked the trusted destroy indefinitely",
-		runner:   runsHere,
-		bound:    120 * time.Second,
-		measured: "2.2s. Already carries its own OUTER_BOUND_S=60 `timeout` around the extracted teardown(), under the fake hung step's own 120s sleep, so the unfixed script fails in a minute rather than hanging (15s under 30s until #1568, which a loaded machine used up).",
-	},
-	{
-		script:   "selftest-hold-resume.sh",
-		proves:   "#1032 - LIVECERT_HOLD / LIVECERT_RESUME / teardown-only, so one real-AWS stage costs minutes instead of a full deploy-and-destroy cycle",
-		runner:   runsHere,
-		bound:    60 * time.Second,
-		measured: "0.7s. Three cases over extracted code: two functions and, since #1380, the teardown-only dispatch's own marked span; no sleep, poll or wait anywhere in it.",
-	},
-	{
-		script:   "selftest-record-store-s3.sh",
-		proves:   "#1145 - RECORD_STORE_BACKEND=s3 took the local-disk else in both branches, so teardown printed VERIFIED EMPTY over a store it never listed",
-		runner:   runsHere,
-		bound:    120 * time.Second,
-		measured: "3.3s. Stub `aws` over two text files by default; LIVECERT_SELFTEST_ENDPOINT swaps in the real CLI against a real S3 (with test/test forced since #1380). Neither mode polls.",
-	},
-	{
-		script:   "selftest-index-wait.sh",
-		proves:   "#1046, #1049, #1143 - index_wait polled for a VERIFIED total the Resource Groups Tagging API can never serve, and three real-AWS runs read the resulting plateau as a slow index",
-		runner:   runsInGoTestFile,
-		where:    "indexwait_partition_test.go",
-		measured: "2.4s since #1410 stubbed the clock index_wait reads, so no case sleeps or depends on machine load (7.4s before, most of it real sleeps). Every case passes index_wait a small bound; #1143's first red arm hung on the production 1800s one, which is where #1267's hazard 2 comes from.",
-	},
-	{
 		script: "selftest-kill.sh",
 		proves: "#440 stage 1 - a real SIGTERM mid-apply still runs the harness's trap, tears the estate down and removes the emulator",
 		runner: runsByMaintainer,
@@ -137,29 +109,10 @@ var liveCertSelftests = []liveCertSelftest{
 			"container before the driver got there, and the skipped listing logged a line that read like a confirmation. The driver now " +
 			"sets LIVECERT_KEEP_FLOCI=1, lists the endpoint teardown finished with, and removes the container itself.",
 	},
-	{
-		script:   "selftest-prefix-count.sh",
-		proves:   "#1421 - s3_prefix_count read a FAILED list-objects-v2 as a count of 0, so teardown printed `0 object(s) to delete`, skipped the delete and left the run's records in the operator's bucket under a line that read clean",
-		runner:   runsHere,
-		bound:    60 * time.Second,
-		measured: "About 6s on a 2026-09-21 laptop, 2s inside this package. Extracts s3_prefix_count() and teardown() and drives them against a stub `aws` whose listing is picked by a mode file; six cases, no sleep, poll or wait.",
-	},
-	{
-		script:   "selftest-iam-headroom.sh",
-		proves:   "#1230 - IAM role quota exhausted from outside a run failed cold_deploy with LimitExceeded and the record blamed the product; the harness now reads Roles/RolesQuota before cold_deploy and refuses the rung (GAUNTLET refused=1 unit=iam-roles), failing open when the check itself cannot run",
-		runner:   runsHere,
-		bound:    60 * time.Second,
-		measured: "0.6s. Extracts the check and its gate between marker comments and drives eleven runs against a fake `aws` and a fake `terraform` on PATH, with the generator side stubbed; nothing polls, sleeps or waits.",
-	},
-	{
-		script: "selftest-heartbeat.sh",
-		proves: "#1324 - the run log was written at stage boundaries only, so cold_deploy's 5,633s apply left the file unchanged for 1h34m and a wedged stage was byte-identical to a healthy one",
-		runner: runsHere,
-		bound:  90 * time.Second,
-		measured: "14.3s. Extracts the heartbeat block out of terralith-scale.sh and drives it at a 1-second interval; the production default is 60. " +
-			"Its five cases sleep by design - a heartbeat is a thing that happens over time and there is no way to observe one without waiting - " +
-			"and every wait is a fixed small multiple of that interval, plus one bounded poll for the SIGKILL case.",
-	},
+	// Seven selftests left with live/live-cert/terralith-scale.sh, the
+	// harness they extracted their spans from (choudoufu#2303): heartbeat,
+	// hold-resume, iam-headroom, index-wait, prefix-count,
+	// record-store-s3 and teardown-timeout. Git history has them.
 }
 
 // TestLiveCertSelftestRosterIsComplete is the guard that actually closes

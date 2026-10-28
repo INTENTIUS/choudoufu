@@ -292,15 +292,10 @@ func report(t *testing.T, scale int, cols []*column) {
 
 func generate(t *testing.T, root, dir string, scale int, prefix string) {
 	t.Helper()
-	cmd := exec.Command("go", "run", "./tools/terralith-gen", //nolint:gosec // fixed binary and args, test-only
-		"-scale", strconv.Itoa(scale), "-prefix", prefix, "-out", dir)
-	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "PWD="+root)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("terralith-gen -scale %d -prefix %s: %v\n%s", scale, prefix, err, out)
-	}
-	t.Logf("terralith-gen(%s): %s", prefix, strings.TrimSpace(string(out)))
+	// A scenario estate, not the terralith (choudoufu#2303): scale copies
+	// of live/e2e/estate, stock and unmarked.
+	_ = root
+	flocitest.ScenarioEstate(t, dir, scale, prefix)
 	useFlociProviderBlock(t, dir)
 }
 
@@ -339,7 +334,7 @@ func useFlociProviderBlock(t *testing.T, dir string) {
 	const anchor = "provider \"aws\" {"
 	idx := strings.Index(string(data), anchor)
 	if idx < 0 {
-		t.Fatalf("%s has no %q block; terralith-gen's versions.tf template changed", path, anchor)
+		t.Fatalf("%s has no %q block; the scenario estate's versions.tf layout changed (internal/live/scenarioestate)", path, anchor)
 	}
 	updated := string(data[:idx]) + flociProviderBlock
 	if err := os.WriteFile(path, []byte(updated), 0o600); err != nil {
@@ -361,7 +356,7 @@ func addLiveBlock(t *testing.T, dir, estate string) {
 	}
 	const anchor = `required_version = ">= 1.5.0"`
 	if !strings.Contains(string(data), anchor) {
-		t.Fatalf("%s does not contain the expected anchor %q; terralith-gen's versions.tf template changed", path, anchor)
+		t.Fatalf("%s does not contain the expected anchor %q; the scenario estate's versions.tf layout changed (internal/live/scenarioestate)", path, anchor)
 	}
 	block := anchor + "\n\n  live {\n    estate = \"" + estate + "\"\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }"
 	updated := strings.Replace(string(data), anchor, block, 1)

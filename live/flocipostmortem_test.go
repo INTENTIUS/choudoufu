@@ -188,8 +188,10 @@ func TestEveryScriptThatStartsFlociCanReadItBack(t *testing.T) {
 	// rest of category "adoption" in live/behaviors.json).
 	//
 	// 41 since #2291 added corpus-eks-managed-node-group, the eks row on a
-	// current major, beside corpus-eks-basic.
-	const wantStarters = 41
+	// current major, beside corpus-eks-basic. 40 since #2303 deleted
+	// live/live-cert/terralith-scale.sh with the terralith's use as test
+	// evidence.
+	const wantStarters = 40
 
 	var starters, blind []string
 	for _, rel := range flociSortedKeys(scripts) {

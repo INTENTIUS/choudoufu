@@ -396,93 +396,93 @@
     },
     "core": {
       "label": "Core estates",
-      "estates": 24,
-      "clear": 23,
+      "estates": 23,
+      "clear": 22,
       "verified": 0,
-      "carried": 23,
+      "carried": 22,
       "stages": {
         "cold_deploy": {
-          "pass": 23,
+          "pass": 22,
           "fail": 0,
           "not_run": 1
         },
         "day2_count": {
-          "pass": 23,
+          "pass": 22,
           "fail": 0,
           "not_run": 1
         },
         "day2_crash": {
           "pass": 1,
           "fail": 0,
-          "not_run": 23
+          "not_run": 22
         },
         "day2_endpoints": {
           "pass": 0,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "day2_remove": {
-          "pass": 23,
+          "pass": 22,
           "fail": 0,
           "not_run": 1
         },
         "day2_rename": {
-          "pass": 23,
+          "pass": 22,
           "fail": 0,
           "not_run": 1
         },
         "day2_replace": {
-          "pass": 23,
+          "pass": 22,
           "fail": 0,
           "not_run": 1
         },
         "day2_teardown": {
           "pass": 0,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "drift_reconverge": {
-          "pass": 23,
+          "pass": 22,
           "fail": 0,
           "not_run": 1
         },
         "greenfield": {
-          "pass": 23,
+          "pass": 22,
           "fail": 0,
           "not_run": 1
         },
         "migrate": {
-          "pass": 23,
+          "pass": 22,
           "fail": 0,
           "not_run": 1
         },
         "no_local_state": {
           "pass": 0,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "plan_approval": {
-          "pass": 23,
+          "pass": 22,
           "fail": 0,
           "not_run": 1
         },
         "record_store_gcs": {
           "pass": 0,
           "fail": 0,
-          "not_run": 24
+          "not_run": 23
         },
         "strict": {
           "pass": 1,
           "fail": 0,
-          "not_run": 23
+          "not_run": 22
         },
         "test_apply": {
-          "pass": 23,
+          "pass": 22,
           "fail": 0,
           "not_run": 1
         },
         "test_plan": {
-          "pass": 23,
+          "pass": 22,
           "fail": 0,
           "not_run": 1
         }
@@ -6647,8 +6647,8 @@
       "name": "terralith-scale",
       "source": "tools/terralith-gen, generated at -scale 1 by this estate's own crossing script: a synthetic single-state terralith of stock Terraform - IAM-dominated with deliberate copy-paste duplication, a small ECS layer and a Route53 fan-out, expanded with count, for_each and a module-nested pod (issues #564 and #574). No upstream repository: the artifact is the generator, and \"the same estate at 4x\" is -scale 4 rather than a second fixture.",
       "lane": "reference",
-      "set": "core",
-      "reason": "the one estate shaped like the thing the product is FOR - a single-state monolith a stranger would bring to an adoption (#546) - rather than a module example; every other core estate is a small published module, so a headline bar without this one does not read the product's own claim",
+      "set": "growing",
+      "reason": "out of the core set and the headline bar since choudoufu#2303 (ruling A on INTENTIUS/chant#4586): the generated terralith is no longer test evidence. It stays for the scale ladder (live/gauntlet-scale.json), run only when a scale figure is re-quoted (choudoufu#2288 Q3). It was in core as the one estate shaped like a single-state monolith a stranger would bring to an adoption (#546)",
       "script": "live/e2e/terralith-scale/run.sh",
       "stages": {
         "cold_deploy": "pass",

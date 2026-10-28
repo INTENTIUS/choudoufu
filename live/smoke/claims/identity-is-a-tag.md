@@ -21,8 +21,9 @@ Each scenario runs from the repository root and ends on a `PASS` line; its
     just smoke carve-by-retag
     BREAK=1 just smoke carve-by-retag
 
-Needs Go. A stock terralith is adopted with one command, then carved into
-estates by rewriting `tofu-estate` on the resources that leave. Each side
+Needs Go. A stock estate, two copies of `live/e2e/estate` rendered by
+`tools/scenario-estate` (86 resources), is adopted with one command, then
+carved into estates by rewriting `tofu-estate` on the resources that leave. Each side
 plans clean and nothing is rebuilt; a parent whose marker names another
 estate never anchors a child for this one, whatever a left-behind record
 says. `BREAK=1` does the repository half of the carve and never rewrites a

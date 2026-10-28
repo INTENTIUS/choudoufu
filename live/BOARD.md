@@ -33,7 +33,7 @@ cluster and count toward neither AWS bar.
 <!-- board-gen:begin bars -->
 | Bar | Clear | Verified on the current pins | Carried from an earlier pin |
 |---|---|---|---|
-| Core estates | 23 of 24 | 0 | 23 |
+| Core estates | 22 of 23 | 0 | 22 |
 | All estates | 24 of 25 | 0 | 24 |
 | kubernetes lane | 17 of 17 | 0 | 17 |
 
@@ -41,21 +41,21 @@ Per active stage, over the same bars:
 
 | Stage | Core estates | All estates | kubernetes lane |
 |---|---|---|---|
-| Cold deploy | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
-| Migrate | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
-| Replan from nothing | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
-| No-op apply | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
-| Drift and reconverge | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
-| Rename | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
-| Remove a block | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
-| Change count | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
-| Replace with create_before_destroy | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
-| Crash mid-apply | 1 pass, 0 fail, 23 not run | 1 pass, 0 fail, 24 not run | 17 pass, 0 fail, 0 not run |
-| Teardown | 0 pass, 0 fail, 24 not run | 0 pass, 0 fail, 25 not run | 17 pass, 0 fail, 0 not run |
-| Plan, review, apply | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
-| Greenfield apply | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
-| Strict profile | 1 pass, 0 fail, 23 not run | 1 pass, 0 fail, 24 not run | 17 pass, 0 fail, 0 not run |
-| Plan with no local state | 0 pass, 0 fail, 24 not run | 0 pass, 0 fail, 25 not run | 17 pass, 0 fail, 0 not run |
+| Cold deploy | 22 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Migrate | 22 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Replan from nothing | 22 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| No-op apply | 22 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Drift and reconverge | 22 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Rename | 22 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Remove a block | 22 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Change count | 22 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Replace with create_before_destroy | 22 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Crash mid-apply | 1 pass, 0 fail, 22 not run | 1 pass, 0 fail, 24 not run | 17 pass, 0 fail, 0 not run |
+| Teardown | 0 pass, 0 fail, 23 not run | 0 pass, 0 fail, 25 not run | 17 pass, 0 fail, 0 not run |
+| Plan, review, apply | 22 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Greenfield apply | 22 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Strict profile | 1 pass, 0 fail, 22 not run | 1 pass, 0 fail, 24 not run | 17 pass, 0 fail, 0 not run |
+| Plan with no local state | 0 pass, 0 fail, 23 not run | 0 pass, 0 fail, 25 not run | 17 pass, 0 fail, 0 not run |
 
 Behaviors proven: 1 of 17 stages have their representative-set fixtures passing against the tier-1 behavior matrix. It is a development-loop signal, not a coverage claim.
 <!-- board-gen:end bars -->
@@ -120,7 +120,6 @@ P pass, **F** fail, - not run, n/a does not apply on this substrate, s stale (ca
 | <a id="corpus-vpc-complete"></a>[corpus-vpc-complete](e2e/corpus-vpc-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
 | <a id="corpus-xancloud-iac"></a>[corpus-xancloud-iac](e2e/corpus-xancloud-iac/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
 | <a id="reference-ec2-vpc"></a>[reference-ec2-vpc](e2e/reference-ec2-vpc/) | core | reference | yes, script changed | P | P | P | P | P | P | P | P | P | P | - | P | P | P | - | `f707182267` 2026-10-02 |
-| <a id="terralith-scale"></a>[terralith-scale](e2e/terralith-scale/) | core | reference | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `debf8ccd05` 2026-10-03 |
 | <a id="corpus-azapi-role-assignment"></a>[corpus-azapi-role-assignment](e2e/corpus-azapi-role-assignment/) | growing | azure | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `01d69a5a75` 2026-10-21 |
 | <a id="corpus-cloud-platform-components"></a>[corpus-cloud-platform-components](e2e/corpus-cloud-platform-components/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
 | <a id="corpus-govuk-cluster-access"></a>[corpus-govuk-cluster-access](e2e/corpus-govuk-cluster-access/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
@@ -143,6 +142,7 @@ P pass, **F** fail, - not run, n/a does not apply on this substrate, s stale (ca
 | <a id="reference-k8s-shared-objects"></a>[reference-k8s-shared-objects](e2e/reference-k8s-shared-objects/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
 | <a id="reference-k8s-workloads"></a>[reference-k8s-workloads](e2e/reference-k8s-workloads/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `56fcd26c6c` 2026-10-13 |
 | <a id="reference-k8s-yaml-rollouts"></a>[reference-k8s-yaml-rollouts](e2e/reference-k8s-yaml-rollouts/) | growing | kubernetes | yes, script changed | P | P | P | P | P | P | P | P | P | P | P | P | P | P | P | `2f02038dd1` 2026-10-12 |
+| <a id="terralith-scale"></a>[terralith-scale](e2e/terralith-scale/) | growing | reference | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `debf8ccd05` 2026-10-03 |
 <!-- board-gen:end estates -->
 
 ## Run time
@@ -175,7 +175,6 @@ P pass, **F** fail, - not run, n/a does not apply on this substrate, s stale (ca
 | corpus-vpc-complete | 6m39.7s | cold_deploy 40s, migrate 1m32s, test_plan 8s, test_apply 7s, drift_reconverge 19s, day2_rename 24s, day2_remove 29s, day2_count 1m58s, day2_replace 28s, plan_approval 33s, greenfield 58s |
 | corpus-xancloud-iac | 5m6.8s | cold_deploy 45s, migrate 38s, test_plan 8s, test_apply 7s, drift_reconverge 17s, day2_rename 22s, day2_remove 26s, day2_count 45s, day2_replace 16s, plan_approval 31s, greenfield 51s |
 | reference-ec2-vpc | 5m57s | cold_deploy 1m49s, migrate 41s, test_plan 4s, test_apply 5s, drift_reconverge 11s, day2_rename 19s, day2_remove 13s, day2_count 39s, day2_replace 35s, day2_crash 46s, plan_approval 25s, greenfield 10s, strict - |
-| terralith-scale | 10m16.9s | cold_deploy 2m28s, migrate 56s, test_plan 12s, test_apply 18s, drift_reconverge 1m11s, day2_rename 31s, day2_remove 22s, day2_count 45s, day2_replace 35s, plan_approval 43s, greenfield 2m15s, strict - |
 | corpus-azapi-role-assignment | 3m3.5s | cold_deploy 1m21s, migrate 5s, test_plan 1s, test_apply 2s, drift_reconverge 4s, day2_rename 6s, day2_remove 4s, day2_count 12s, day2_replace 13s, day2_crash 13s, day2_teardown 2s, plan_approval 5s, greenfield 28s, strict 4s, no_local_state 3s |
 | corpus-cloud-platform-components | 17m17.8s | cold_deploy 2m15s, migrate 19s, test_plan 17s, test_apply 18s, drift_reconverge 31s, day2_rename 28s, day2_remove 41s, day2_count 1m42s, day2_replace 2m21s, day2_crash 4m6s, day2_teardown 29s, plan_approval 40s, greenfield 2m6s, strict 20s, no_local_state 43s |
 | corpus-govuk-cluster-access | 14m2.8s | cold_deploy 1m52s, migrate 15s, test_plan 13s, test_apply 18s, drift_reconverge 45s, day2_rename 35s, day2_remove 35s, day2_count 1m9s, day2_replace 58s, day2_crash 4m11s, day2_teardown 26s, plan_approval 35s, greenfield 1m10s, strict 19s, no_local_state 35s |
@@ -198,6 +197,7 @@ P pass, **F** fail, - not run, n/a does not apply on this substrate, s stale (ca
 | reference-k8s-shared-objects | 17m33.3s | cold_deploy 1m32s, migrate 9s, test_plan 23s, test_apply 24s, drift_reconverge 58s, day2_rename 47s, day2_remove 47s, day2_count 1m10s, day2_replace 59s, day2_crash 3m55s, day2_teardown 1m26s, plan_approval 2m58s, greenfield 49s, strict 30s, no_local_state 45s |
 | reference-k8s-workloads | 4m34.9s | cold_deploy 1m58s, migrate 7s, test_plan 2s, test_apply 4s, drift_reconverge 4s, day2_rename 3s, day2_remove 8s, day2_count 8s, day2_replace 11s, day2_crash 25s, day2_teardown 29s, plan_approval 3s, greenfield 24s, strict 15s, no_local_state 2s |
 | reference-k8s-yaml-rollouts | 34m56.5s | cold_deploy 4m36s, migrate 37s, test_plan 44s, test_apply 43s, drift_reconverge 2m8s, day2_rename 3m23s, day2_remove 1m36s, day2_count 4m17s, day2_replace 2m34s, day2_crash 7m18s, day2_teardown 46s, plan_approval 2m35s, greenfield 1m55s, strict 31s, no_local_state 1m13s |
+| terralith-scale | 10m16.9s | cold_deploy 2m28s, migrate 56s, test_plan 12s, test_apply 18s, drift_reconverge 1m11s, day2_rename 31s, day2_remove 22s, day2_count 45s, day2_replace 35s, plan_approval 43s, greenfield 2m15s, strict - |
 <!-- board-gen:end runtime -->
 
 ## Live-AWS certification
