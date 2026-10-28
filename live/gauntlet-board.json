@@ -2,8 +2,8 @@
   "schema": 1,
   "emulator": "ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec",
   "banner": "Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 1 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-21T20:52:35Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
-  "runtime_banner": "43 of 45 estates have a recorded run duration, totaling 13h8m43.4s, but not from one sweep: 13m37.7s across 2 estate(s) at commit `01d69a5a75`; 8h1m4.5s across 15 estate(s) at commit `2f02038dd1`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 2 estate(s) with no recorded duration yet.",
-  "script_banner": "**43 of 45 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 18 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-azapi-role-assignment, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-hongbomiao-labelbox, corpus-iam-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-azure, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-argo-cd, reference-k8s-helm-cloudnative-pg, reference-k8s-helm-external-secrets, reference-k8s-helm-ingress-nginx, reference-k8s-helm-keda, reference-k8s-helm-kyverno, reference-k8s-helm-metallb, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads, reference-k8s-yaml-rollouts, terralith-scale. 2 more cannot be checked from this checkout: corpus-k8s-infra-gcp-gcve, reference-gcp.",
+  "runtime_banner": "43 of 46 estates have a recorded run duration, totaling 13h8m43.4s, but not from one sweep: 13m37.7s across 2 estate(s) at commit `01d69a5a75`; 8h1m4.5s across 15 estate(s) at commit `2f02038dd1`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 3 estate(s) with no recorded duration yet.",
+  "script_banner": "**43 of 46 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 18 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-azapi-role-assignment, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-hongbomiao-labelbox, corpus-iam-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-azure, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-argo-cd, reference-k8s-helm-cloudnative-pg, reference-k8s-helm-external-secrets, reference-k8s-helm-ingress-nginx, reference-k8s-helm-keda, reference-k8s-helm-kyverno, reference-k8s-helm-metallb, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads, reference-k8s-yaml-rollouts, terralith-scale. 3 more cannot be checked from this checkout: corpus-eks-managed-node-group, corpus-k8s-infra-gcp-gcve, reference-gcp.",
   "provider_banner": "Estates were last measured against different hashicorp/aws versions: 19 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 16 against `3.2.1` (current pin), 1 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.",
   "upstream_version": "1.13.0",
   "engine_banner": "The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 43 estates measured so far, 43 recorded running on it.",
@@ -1056,6 +1056,128 @@
           "verdict": "pass",
           "duration": "1m55s",
           "detail": "54 resources from nothing, cluster marker verified via the AWS CLI, 54 records under the implied local record store (#364 A2), replan empty, stock oracle in its own namespace matches structurally on cluster status/version, ASG count/desired-capacities, and cluster-owned security-group count"
+        },
+        {
+          "id": "strict",
+          "title": "Strict profile (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "no_local_state",
+          "title": "Plan with no local state (not a headline stage)",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_endpoints",
+          "title": "Endpoints with an unset optional identity field (planned)",
+          "verdict": "not run"
+        },
+        {
+          "id": "record_store_gcs",
+          "title": "Records in a GCS bucket (planned)",
+          "verdict": "not run"
+        }
+      ]
+    },
+    {
+      "name": "corpus-eks-managed-node-group",
+      "set": "core",
+      "lane": "terraform-popular",
+      "substrate": "floci-eks",
+      "clear": false,
+      "source": "terraform-aws-modules/terraform-aws-eks examples/eks-managed-node-group (tag v21.29.0, commit 91f11ea01656c26b8e6b8eb1b74f19863f60056c), the AL2023 cluster: a managed node group, add-ons and access entries",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-eks.git",
+      "pin": "v21.29.0",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy",
+      "script": "live/e2e/corpus-eks-managed-node-group/run.sh",
+      "protocol": "legacy",
+      "cells": [
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run",
+        "not run"
+      ],
+      "runtime_total": "-",
+      "runtime_cells": "none recorded yet",
+      "legacy_note": "No run is recorded for this estate yet: every cell reads not_run because Rebuild wrote it, and the first run of the crossing script replaces them.",
+      "script_stale": "unknown",
+      "script_note": "**Unverified**: whether `live/e2e/corpus-eks-managed-node-group` or `live/e2e/lib` has changed since the run recorded above cannot be told from this checkout - this row has recorded no run, so there is nothing to compare the script against. The verdicts above may describe an earlier version of the script (#1264, #1292).",
+      "stage_rows": [
+        {
+          "id": "cold_deploy",
+          "title": "Cold deploy",
+          "verdict": "not run"
+        },
+        {
+          "id": "migrate",
+          "title": "Migrate",
+          "verdict": "not run"
+        },
+        {
+          "id": "test_plan",
+          "title": "Replan from nothing",
+          "verdict": "not run"
+        },
+        {
+          "id": "test_apply",
+          "title": "No-op apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "drift_reconverge",
+          "title": "Drift and reconverge",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_rename",
+          "title": "Rename",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_remove",
+          "title": "Remove a block",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_count",
+          "title": "Change count",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_replace",
+          "title": "Replace with create_before_destroy",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_crash",
+          "title": "Crash mid-apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "day2_teardown",
+          "title": "Teardown",
+          "verdict": "not run"
+        },
+        {
+          "id": "plan_approval",
+          "title": "Plan, review, apply",
+          "verdict": "not run"
+        },
+        {
+          "id": "greenfield",
+          "title": "Greenfield apply",
+          "verdict": "not run"
         },
         {
           "id": "strict",
