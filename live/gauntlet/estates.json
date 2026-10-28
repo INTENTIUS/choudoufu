@@ -101,6 +101,16 @@
       "substrate": "floci-eks"
     },
     {
+      "name": "corpus-eks-managed-node-group",
+      "source": "terraform-aws-modules/terraform-aws-eks examples/eks-managed-node-group (tag v21.29.0, commit 91f11ea01656c26b8e6b8eb1b74f19863f60056c), the AL2023 cluster: a managed node group, add-ons and access entries",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-eks.git",
+      "pin": "v21.29.0",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy",
+      "substrate": "floci-eks"
+    },
+    {
       "name": "corpus-evoteum-modules",
       "source": "evoteum/tofu-modules, the aws/networking and aws/dynamodb modules (pinned by commit 7e8764035c50d1cb2a6ac04636a9f85ba6708d39; no tags published)",
       "url": "https://github.com/evoteum/tofu-modules.git",

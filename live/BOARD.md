@@ -20,7 +20,7 @@ The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 43 estates 
 
 Estates were last measured against different hashicorp/aws versions: 19 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 16 against `3.2.1` (current pin), 1 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
-**43 of 45 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 18 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-azapi-role-assignment, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-hongbomiao-labelbox, corpus-iam-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-azure, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-argo-cd, reference-k8s-helm-cloudnative-pg, reference-k8s-helm-external-secrets, reference-k8s-helm-ingress-nginx, reference-k8s-helm-keda, reference-k8s-helm-kyverno, reference-k8s-helm-metallb, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads, reference-k8s-yaml-rollouts, terralith-scale. 2 more cannot be checked from this checkout: corpus-k8s-infra-gcp-gcve, reference-gcp.
+**43 of 46 rows below were measured before their own estate directory, or the shared protocol library they source, last changed.** Their verdicts describe an earlier version of the crossing script: a stage one of those edits broke still reads `pass` here until the estate is re-run, and a stage one of them fixed still reads `fail` (#1264). For 18 of them nothing in their own directory moved: what changed is `live/e2e/lib`, the protocol library every crossing script sources (#1292). The rows are corpus-alb-complete, corpus-autoscaling-complete, corpus-azapi-role-assignment, corpus-cloud-platform-components, corpus-dynamodb-table-basic, corpus-ec2-instance-complete, corpus-ecs-fargate, corpus-eks-basic, corpus-evoteum-modules, corpus-giantswarm-crossplane, corpus-govuk-cluster-access, corpus-hongbomiao-labelbox, corpus-iam-policy, corpus-k8s-metrics-server, corpus-lambda-simple, corpus-leynos-monitoring, corpus-mastino-dns, corpus-overture-tiles, corpus-rds-complete-postgres, corpus-s3-bucket-complete, corpus-security-group-complete, corpus-simpleinfra-dns, corpus-sqs-basic, corpus-sumaform-aws, corpus-vpc-complete, corpus-xancloud-iac, reference-azure, reference-ec2-vpc, reference-k8s, reference-k8s-cert-manager, reference-k8s-helm-argo-cd, reference-k8s-helm-cloudnative-pg, reference-k8s-helm-external-secrets, reference-k8s-helm-ingress-nginx, reference-k8s-helm-keda, reference-k8s-helm-kyverno, reference-k8s-helm-metallb, reference-k8s-helm-template, reference-k8s-platform-app, reference-k8s-shared-objects, reference-k8s-workloads, reference-k8s-yaml-rollouts, terralith-scale. 3 more cannot be checked from this checkout: corpus-eks-managed-node-group, corpus-k8s-infra-gcp-gcve, reference-gcp.
 
 <!-- board-gen:end banner -->
 
@@ -33,29 +33,29 @@ cluster and count toward neither AWS bar.
 <!-- board-gen:begin bars -->
 | Bar | Clear | Verified on the current pins | Carried from an earlier pin |
 |---|---|---|---|
-| Core estates | 23 of 23 | 0 | 23 |
-| All estates | 24 of 24 | 0 | 24 |
+| Core estates | 23 of 24 | 0 | 23 |
+| All estates | 24 of 25 | 0 | 24 |
 | kubernetes lane | 17 of 17 | 0 | 17 |
 
 Per active stage, over the same bars:
 
 | Stage | Core estates | All estates | kubernetes lane |
 |---|---|---|---|
-| Cold deploy | 23 pass, 0 fail, 0 not run | 24 pass, 0 fail, 0 not run | 17 pass, 0 fail, 0 not run |
-| Migrate | 23 pass, 0 fail, 0 not run | 24 pass, 0 fail, 0 not run | 17 pass, 0 fail, 0 not run |
-| Replan from nothing | 23 pass, 0 fail, 0 not run | 24 pass, 0 fail, 0 not run | 17 pass, 0 fail, 0 not run |
-| No-op apply | 23 pass, 0 fail, 0 not run | 24 pass, 0 fail, 0 not run | 17 pass, 0 fail, 0 not run |
-| Drift and reconverge | 23 pass, 0 fail, 0 not run | 24 pass, 0 fail, 0 not run | 17 pass, 0 fail, 0 not run |
-| Rename | 23 pass, 0 fail, 0 not run | 24 pass, 0 fail, 0 not run | 17 pass, 0 fail, 0 not run |
-| Remove a block | 23 pass, 0 fail, 0 not run | 24 pass, 0 fail, 0 not run | 17 pass, 0 fail, 0 not run |
-| Change count | 23 pass, 0 fail, 0 not run | 24 pass, 0 fail, 0 not run | 17 pass, 0 fail, 0 not run |
-| Replace with create_before_destroy | 23 pass, 0 fail, 0 not run | 24 pass, 0 fail, 0 not run | 17 pass, 0 fail, 0 not run |
-| Crash mid-apply | 1 pass, 0 fail, 22 not run | 1 pass, 0 fail, 23 not run | 17 pass, 0 fail, 0 not run |
-| Teardown | 0 pass, 0 fail, 23 not run | 0 pass, 0 fail, 24 not run | 17 pass, 0 fail, 0 not run |
-| Plan, review, apply | 23 pass, 0 fail, 0 not run | 24 pass, 0 fail, 0 not run | 17 pass, 0 fail, 0 not run |
-| Greenfield apply | 23 pass, 0 fail, 0 not run | 24 pass, 0 fail, 0 not run | 17 pass, 0 fail, 0 not run |
-| Strict profile | 1 pass, 0 fail, 22 not run | 1 pass, 0 fail, 23 not run | 17 pass, 0 fail, 0 not run |
-| Plan with no local state | 0 pass, 0 fail, 23 not run | 0 pass, 0 fail, 24 not run | 17 pass, 0 fail, 0 not run |
+| Cold deploy | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Migrate | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Replan from nothing | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| No-op apply | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Drift and reconverge | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Rename | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Remove a block | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Change count | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Replace with create_before_destroy | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Crash mid-apply | 1 pass, 0 fail, 23 not run | 1 pass, 0 fail, 24 not run | 17 pass, 0 fail, 0 not run |
+| Teardown | 0 pass, 0 fail, 24 not run | 0 pass, 0 fail, 25 not run | 17 pass, 0 fail, 0 not run |
+| Plan, review, apply | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Greenfield apply | 23 pass, 0 fail, 1 not run | 24 pass, 0 fail, 1 not run | 17 pass, 0 fail, 0 not run |
+| Strict profile | 1 pass, 0 fail, 23 not run | 1 pass, 0 fail, 24 not run | 17 pass, 0 fail, 0 not run |
+| Plan with no local state | 0 pass, 0 fail, 24 not run | 0 pass, 0 fail, 25 not run | 17 pass, 0 fail, 0 not run |
 
 Behaviors proven: 1 of 17 stages have their representative-set fixtures passing against the tier-1 behavior matrix. It is a development-loop signal, not a coverage claim.
 <!-- board-gen:end bars -->
@@ -103,6 +103,7 @@ P pass, **F** fail, - not run, n/a does not apply on this substrate, s stale (ca
 | <a id="corpus-ec2-instance-complete"></a>[corpus-ec2-instance-complete](e2e/corpus-ec2-instance-complete/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
 | <a id="corpus-ecs-fargate"></a>[corpus-ecs-fargate](e2e/corpus-ecs-fargate/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
 | <a id="corpus-eks-basic"></a>[corpus-eks-basic](e2e/corpus-eks-basic/) | core | terraform-popular | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
+| <a id="corpus-eks-managed-node-group"></a>[corpus-eks-managed-node-group](e2e/corpus-eks-managed-node-group/) | core | terraform-popular | no, script unknown | - | - | - | - | - | - | - | - | - | - | - | - | - | - | - | no protocol run |
 | <a id="corpus-evoteum-modules"></a>[corpus-evoteum-modules](e2e/corpus-evoteum-modules/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
 | <a id="corpus-giantswarm-crossplane"></a>[corpus-giantswarm-crossplane](e2e/corpus-giantswarm-crossplane/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `f707182267` 2026-10-02 |
 | <a id="corpus-hongbomiao-labelbox"></a>[corpus-hongbomiao-labelbox](e2e/corpus-hongbomiao-labelbox/) | core | opentofu-native | yes, script changed | P | P | P | P | P | P | P | P | P | - | - | P | P | - | - | `2f02038dd1` 2026-10-12 |
@@ -147,7 +148,7 @@ P pass, **F** fail, - not run, n/a does not apply on this substrate, s stale (ca
 ## Run time
 
 <!-- board-gen:begin runtime -->
-43 of 45 estates have a recorded run duration, totaling 13h8m43.4s, but not from one sweep: 13m37.7s across 2 estate(s) at commit `01d69a5a75`; 8h1m4.5s across 15 estate(s) at commit `2f02038dd1`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 2 estate(s) with no recorded duration yet.
+43 of 46 estates have a recorded run duration, totaling 13h8m43.4s, but not from one sweep: 13m37.7s across 2 estate(s) at commit `01d69a5a75`; 8h1m4.5s across 15 estate(s) at commit `2f02038dd1`; 1h34m40.7s across 3 estate(s) at commit `56fcd26c6c`; 10m16.9s across 1 estate(s) at commit `debf8ccd05`; 3h9m3.6s across 22 estate(s) at commit `f707182267`. This total spans different commits, not a single board run, and excludes 3 estate(s) with no recorded duration yet.
 
 | Estate | Total | Per stage |
 |---|---|---|
@@ -157,6 +158,7 @@ P pass, **F** fail, - not run, n/a does not apply on this substrate, s stale (ca
 | corpus-ec2-instance-complete | 9m43.2s | cold_deploy 1m15s, migrate 39s, test_plan 12s, test_apply 11s, drift_reconverge 15s, day2_rename 29s, day2_remove 39s, day2_count 3m13s, day2_replace 1m2s, plan_approval 39s, greenfield 1m9s |
 | corpus-ecs-fargate | 12m59s | cold_deploy 1m37s, migrate 1m10s, test_plan 58s, test_apply 14s, drift_reconverge 25s, day2_rename 1m16s, day2_remove 34s, day2_count 2m2s, day2_replace 36s, plan_approval 1m7s, greenfield 3m0s |
 | corpus-eks-basic | 9m41.4s | cold_deploy 1m36s, migrate 39s, test_plan 9s, test_apply 13s, drift_reconverge 24s, day2_rename 40s, day2_remove 33s, day2_count 1m58s, day2_replace 33s, plan_approval 58s, greenfield 1m55s |
+| corpus-eks-managed-node-group | - | none recorded yet |
 | corpus-evoteum-modules | 3m2.1s | cold_deploy 33s, migrate 24s, test_plan 5s, test_apply 3s, drift_reconverge 8s, day2_rename 14s, day2_remove 10s, day2_count 19s, day2_replace 16s, plan_approval 17s, greenfield 33s |
 | corpus-giantswarm-crossplane | 3m38.6s | cold_deploy 35s, migrate 16s, test_plan 5s, test_apply 12s, drift_reconverge 7s, day2_rename 16s, day2_remove 9s, day2_count 1m9s, day2_replace 10s, plan_approval 19s, greenfield 21s |
 | corpus-hongbomiao-labelbox | 6m17s | cold_deploy 2m26s, migrate 38s, test_plan 6s, test_apply 8s, drift_reconverge 8s, day2_rename 12s, day2_remove 9s, day2_count 26s, day2_replace 10s, plan_approval 17s, greenfield 1m36s |

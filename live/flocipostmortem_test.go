@@ -186,7 +186,10 @@ func TestEveryScriptThatStartsFlociCanReadItBack(t *testing.T) {
 	// demo), reference-eks's run.sh and its live-cert script, and the 20
 	// adoption-campaign scripts (corpus-cloudfront, corpus-crossing and the
 	// rest of category "adoption" in live/behaviors.json).
-	const wantStarters = 40
+	//
+	// 41 since #2291 added corpus-eks-managed-node-group, the eks row on a
+	// current major, beside corpus-eks-basic.
+	const wantStarters = 41
 
 	var starters, blind []string
 	for _, rel := range flociSortedKeys(scripts) {
