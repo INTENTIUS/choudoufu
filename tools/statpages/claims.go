@@ -6,6 +6,7 @@
 package statpages
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -56,18 +57,42 @@ type claimProof struct {
 	GoTest        string   `json:"go_test"`
 	GoPackage     string   `json:"go_package"`
 	Gate          string   `json:"gate"`
-	LastRun       *struct {
+	// ProductScenario is set for a proof of kind product-scenario (#2299),
+	// whose "scenario" is then the product's scenario id and Scenario is
+	// left empty (UnmarshalJSON).
+	ProductScenario *ProductScenarioProof `json:"-"`
+	LastRun         *struct {
 		Status string `json:"status"`
 		Commit string `json:"commit"`
 		Date   string `json:"date"`
 	} `json:"last_run"`
 }
 
+// UnmarshalJSON reads a product-scenario proof into ProductScenario, so its
+// product scenario id never reads as a choudoufu scenario path.
+func (p *claimProof) UnmarshalJSON(raw []byte) error {
+	type plain claimProof
+	var q plain
+	if err := json.Unmarshal(raw, &q); err != nil {
+		return err
+	}
+	*p = claimProof(q)
+	ps, err := DecodeProductScenario(raw)
+	if err != nil {
+		return err
+	}
+	if ps != nil {
+		p.ProductScenario, p.Scenario = ps, ""
+	}
+	return nil
+}
+
 // claimsSpans is the claims table as markdown: a row per claim, a cell per
 // provider listing each proof's command and the date and commit it was last
 // proven at. A run is a scenario's evidence file or carried last_run, the
-// run of the scenario another claim's proof is steps of, or the gauntlet
-// run that measured a cited stage.
+// run of the scenario another claim's proof is steps of, the gauntlet
+// run that measured a cited stage, or a product's kept scenario row at the
+// claimed release.
 func claimsSpans(root string) (map[string]string, error) {
 	var d claimsData
 	if err := readJSON(root, ClaimsRel, &d); err != nil {
@@ -75,6 +100,10 @@ func claimsSpans(root string) (map[string]string, error) {
 	}
 	var a gauntletArtifact
 	if err := readJSON(root, GauntletArtifactRel, &a); err != nil {
+		return nil, err
+	}
+	claimed, err := ClaimedRelease(root)
+	if err != nil {
 		return nil, err
 	}
 	byID := map[int]map[string]claimProvider{}
@@ -105,7 +134,7 @@ func claimsSpans(root string) (map[string]string, error) {
 			}
 			var lines []string
 			for _, pr := range pv.Proofs {
-				line, err := proofLine(root, a, pr, byID[pr.ProvenBy][p].Proofs)
+				line, err := proofLine(root, a, pr, byID[pr.ProvenBy][p].Proofs, claimed)
 				if err != nil {
 					return nil, fmt.Errorf("claim %d (%s): %w", c.ID, p, err)
 				}
@@ -119,9 +148,12 @@ func claimsSpans(root string) (map[string]string, error) {
 }
 
 // proofLine is one proof as a line. source is the cell a proven_by proof
-// takes its scenario's run from.
-func proofLine(root string, a gauntletArtifact, pr claimProof, source []claimProof) (string, error) {
+// takes its scenario's run from; claimed is the release the claims are
+// about, which a product-scenario proof must have run.
+func proofLine(root string, a gauntletArtifact, pr claimProof, source []claimProof, claimed string) (string, error) {
 	switch {
+	case pr.ProductScenario != nil:
+		return ProductScenarioLine(root, *pr.ProductScenario, claimed)
 	case pr.Scenario != "":
 		line := fmt.Sprintf("`%s` ~%d min", pr.Command, pr.Minutes)
 		if pr.NeedsGo {

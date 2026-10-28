@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/tools/statpages"
 )
 
 // live/smoke/claims.json is the source of truth for the claims the smoke
@@ -146,11 +148,41 @@ type smokeProof struct {
 	GoTest    string `json:"go_test"`
 	GoPackage string `json:"go_package"`
 	Gate      string `json:"gate"`
+	// ProductScenario is set for a proof of kind product-scenario (GitHub
+	// issue #2299), which cites one recorded row of a CI product's scenario
+	// run: repo, scenario, claim, commit, date and the choudoufu version the
+	// row ran. Its "scenario" is the product's scenario id, so UnmarshalJSON
+	// moves it here and leaves Scenario empty. It counts toward its cell
+	// only when its row is kept under live/smoke/evidence/product-scenario/
+	// and that version is the release the claims are about, and it stands
+	// beside the cell's engine proofs, never in place of them
+	// (smoke_claims_product_test.go).
+	ProductScenario *statpages.ProductScenarioProof `json:"-"`
 	// LastRun is the last result measured for a scenario proof, carried
 	// until a newer run replaces it, the way live/gauntlet.json carries a
 	// row's last_run. A release never resets it; a page that renders it
 	// says when it is older than the newest release.
 	LastRun *smokeLastRun `json:"last_run,omitempty"`
+}
+
+// UnmarshalJSON reads a proof of kind product-scenario into
+// ProductScenario, so its product scenario id never reads as a scenario
+// path in the checks that walk scenarios.
+func (p *smokeProof) UnmarshalJSON(raw []byte) error {
+	type plain smokeProof
+	var q plain
+	if err := json.Unmarshal(raw, &q); err != nil {
+		return err
+	}
+	*p = smokeProof(q)
+	ps, err := statpages.DecodeProductScenario(raw)
+	if err != nil {
+		return err
+	}
+	if ps != nil {
+		p.ProductScenario, p.Scenario = ps, ""
+	}
+	return nil
 }
 
 // smokeLastRun is a proof's carried result. Claim is the claim whose cell
@@ -422,6 +454,14 @@ func TestSmokeClaimsMatchScenarios(t *testing.T) {
 	for _, c := range f.Claims {
 		for p, cell := range c.Providers {
 			for _, pr := range cell.Proofs {
+				if pr.ProductScenario != nil {
+					// smoke_claims_product_test.go holds the rest of a
+					// product-scenario proof.
+					if pr.Scenario != "" || pr.Stage != "" || pr.GoTest != "" || pr.ProvenBy != 0 {
+						t.Errorf("claim %d (%s): product-scenario proof %s/%s also cites a scenario, stage, Go test or proven_by; say one", c.ID, p, pr.ProductScenario.Repo, pr.ProductScenario.Scenario)
+					}
+					continue
+				}
 				if pr.Scenario != "" {
 					if pr.Stage != "" || pr.GoTest != "" {
 						t.Errorf("claim %d (%s): %s is a scenario and also cites stage %q or Go test %q; say one", c.ID, p, pr.Scenario, pr.Stage, pr.GoTest)
@@ -1022,6 +1062,12 @@ func TestSmokeClaimsPages(t *testing.T) {
 			}
 			sections++
 			for _, pr := range cell.Proofs {
+				if ps := pr.ProductScenario; ps != nil {
+					if !strings.Contains(body, ps.Scenario) || !strings.Contains(body, strings.TrimPrefix(ps.Repo, "INTENTIUS/")) {
+						t.Errorf("%s/%s.md: the \"## On %s\" section never names the product scenario %s in %s its cell cites", siteClaimsPages, c.Slug, smokeProviderNames[p], ps.Scenario, ps.Repo)
+					}
+					continue
+				}
 				if pr.GoTest != "" {
 					if !strings.Contains(body, pr.GoTest) {
 						t.Errorf("%s/%s.md: the \"## On %s\" section never names the Go test `%s` its cell cites", siteClaimsPages, c.Slug, smokeProviderNames[p], pr.GoTest)
