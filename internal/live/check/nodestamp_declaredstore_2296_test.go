@@ -9,8 +9,31 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/stamp"
+	"github.com/intentius/choudoufu/internal/providers"
 )
+
+// declaredStoreSchemas is the one schema the stamp-declared-store-2296
+// fixtures run under: aws_kms_alias with no tags map. See the fixtures' own
+// header for why this type and not aws_vpc.
+func declaredStoreSchemas() map[string]providers.Schema {
+	return map[string]providers.Schema{
+		"aws_kms_alias": {Block: &configschema.Block{
+			Attributes: map[string]*configschema.Attribute{
+				"id":            {Type: cty.String, Computed: true},
+				"arn":           {Type: cty.String, Computed: true},
+				"name":          {Type: cty.String, Optional: true, Computed: true},
+				"name_prefix":   {Type: cty.String, Optional: true},
+				"target_key_id": {Type: cty.String, Required: true},
+				// No "tags": nowhere to carry a marker.
+			},
+		}},
+	}
+}
 
 // TestOfflineStampHonorsADeclaredStore is GitHub issue #2296. live-plan lets
 // a writable record store settle the unmarked apply refusal for a type the
@@ -19,7 +42,10 @@ import (
 // derived from the backend block (#2293), and says so in the report. A live
 // block that names no store keeps the refusal.
 func TestOfflineStampHonorsADeclaredStore(t *testing.T) {
-	schemas := stampUnmarkedApplyRecordBackedSchemas()
+	schemas := declaredStoreSchemas()
+	if !projection.ApplyRecordsIdentity("aws_kms_alias", schemas["aws_kms_alias"]) {
+		t.Fatal("fixture drift: this schema's aws_kms_alias should be recordable by the apply")
+	}
 	dir := filepath.Join("testdata", "stamp-declared-store-2296")
 
 	for _, tc := range []struct {
