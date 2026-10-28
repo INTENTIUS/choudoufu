@@ -110,19 +110,22 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// supporting types that render adds. Data, read by the generator, by
 		// the acceptance tier and by three type-coverage guards. It is not on
 		// the live path at all and refuses nothing.
-		"cohorts":    true,
-		"docsref":    true, // parses the doc references refusals carry
-		"docrefs":    true, // issue #256 item 8: godoc cross-package citation sweep, not a live pass
-		"flocitest":  true, // test harness
-		"k8stest":    true, // test harness (#1596)
-		"foreign":    true, // classification of unclaimed resources, inside discovery's stage
-		"harness":    true, // the burndown and assumptions registries; measures the instrument, is not part of it
-		"lifecycle":  true,
-		"largeset":   true, // issue #1750's multi-estate fixture generator and its baseline record
-		"listclient": true, // a client
-		"liveimport": true, // the bulk migration command's engine
-		"markerkey":  true,
-		"markers":    true, // the marker vocabulary itself
+		"cohorts":   true,
+		"docsref":   true, // parses the doc references refusals carry
+		"docrefs":   true, // issue #256 item 8: godoc cross-package citation sweep, not a live pass
+		"flocitest": true, // test harness
+		"k8stest":   true, // test harness (#1596)
+		"foreign":   true, // classification of unclaimed resources, inside discovery's stage
+		"harness":   true, // the burndown and assumptions registries; measures the instrument, is not part of it
+		"lifecycle": true,
+		"largeset":  true, // issue #1750's multi-estate fixture generator and its baseline record
+		// #2303's scenario estate renderer: copies a hand-written tree N
+		// times for tests and smoke scenarios. Test-fixture support, not a pass.
+		"scenarioestate": true,
+		"listclient":     true, // a client
+		"liveimport":     true, // the bulk migration command's engine
+		"markerkey":      true,
+		"markers":        true, // the marker vocabulary itself
 		// GitHub issue #1118's Substrate seam: each provider family's
 		// answers over the marker vocabulary (which surface a schema
 		// carries, how a marker is read and written, which sweep client a

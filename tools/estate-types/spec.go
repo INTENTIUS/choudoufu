@@ -118,6 +118,11 @@ var estateSpecs = []estateSpec{
 		Note:       `run.sh SRC="$ROOT/.corpus/eks", copied whole ("cp -R \"$SRC\" \"$WORK/plain/eks\""); the estate is examples/basic, gated by "[ -d \"$SRC/examples/basic\" ]".`,
 	},
 	{
+		Name:       "corpus-eks-managed-node-group",
+		ConfigDirs: []string{".corpus/eks-v21/examples/eks-managed-node-group"},
+		Note:       `run.sh SRC="$ROOT/.corpus/eks-v21", EXAMPLE="examples/eks-managed-node-group", copied whole ("cp -R \"$SRC\" \"$WORK/plain/eks\""). apply_deltas() takes eks-bottlerocket.tf out and points eks-al2023.tf's module at "../.."; the directory read here still holds eks-bottlerocket.tf, a second call of the same eks module, so its types are the ones the al2023 call declares (#2291).`,
+	},
+	{
 		Name:       "corpus-evoteum-modules",
 		ConfigDirs: []string{".corpus/evoteum-tofu-modules/aws/networking", ".corpus/evoteum-tofu-modules/aws/dynamodb"},
 		ScanScript: true,

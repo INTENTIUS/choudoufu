@@ -428,7 +428,7 @@ func countInstances(files map[string][]byte) (instances, taggable int, err error
 		n := 1
 		if a, ok := b.body.Attributes["count"]; ok {
 			v, d := a.Expr.Value(ctx)
-			if d.HasErrors() || !v.Type().Equals(cty.Number) {
+			if d.HasErrors() || v.IsMarked() || !v.IsKnown() || v.IsNull() || !v.Type().Equals(cty.Number) {
 				return 0, fmt.Errorf("%s: count is not a number this render can evaluate", b.addr)
 			}
 			bf := v.AsBigFloat()
@@ -448,7 +448,7 @@ func countInstances(files map[string][]byte) (instances, taggable int, err error
 				n = m
 			} else {
 				v, d := a.Expr.Value(ctx)
-				if d.HasErrors() || !v.CanIterateElements() {
+				if d.HasErrors() || v.IsMarked() || !v.IsKnown() || v.IsNull() || !v.CanIterateElements() {
 					return 0, fmt.Errorf("%s: for_each is not a collection this render can evaluate", b.addr)
 				}
 				n = v.LengthInt()
