@@ -103,6 +103,20 @@ while its configuration still declares the read. The plan must fail with
 and the `--reads-outputs-of network` flag, and must not show network's
 value.
 
+### terragucci rows: smoke, choudoufu/shared-bucket and choudoufu/record-versions
+
+terragucci's smoke claims under scenario `smoke` share one record bucket
+in a pipeline. `choudoufu/shared-bucket` applies two estates into one
+bucket in one wave, each under its own prefix and estate tag, and the next
+plan of both shows no change. `choudoufu/record-versions` changes a record
+in three waves and reads three versions back, newest first.
+
+A terragucci row counts toward the claim when it ran choudoufu 0.31.0,
+the newest release in `live/history`, and `live/CLAIMS.md` gives each
+row's state. The rows stand beside the scenarios above, whose `BREAK=1`
+arms rebuild choudoufu from source, which a pipeline running a release
+cannot do.
+
 ## On Kubernetes
 
 ### k8s-records-in-the-cluster, steps 2, 4, 5 and 9

@@ -6,6 +6,13 @@
 > [`live/gauntlet-scale.json`](../gauntlet-scale.json). It is not typed here, so
 > that it cannot drift from the measurement. The docs site prints the current
 > values at https://intentius.io/choudoufu/docs/model/plan-cost/.
+>
+> Scale figures on this page come from the scale ladder in
+> `live/gauntlet-scale.json`, measured on the generated terralith
+> (`tools/terralith-gen`). Since choudoufu#2303 the terralith is no longer the
+> estate tests run against; it is run only when a scale figure here is
+> re-quoted (choudoufu#2288 Q3), and the tests and smoke claims run on
+> scenario estates (`tools/scenario-estate`).
 
 choudoufu puts a resource's identity on the resource, as two AWS tags, so that
 a state file stops being the record of what you own. That swap has a price.
@@ -25,7 +32,7 @@ on which of three things the run is doing:
 **Every figure on this page describes choudoufu the current release.** Each one
 names its fixture, its commit, and whether it came from the pinned AWS
 emulator or from a real AWS account. The two are not interchangeable and are
-never combined. Certification rows come only from an unheld run: `LIVECERT_HOLD=1` (`live/live-cert/terralith-scale.sh`, #1032) skips teardown to make real-account iteration affordable, and marks every stage it reports `held: true` for exactly this reason - a held run's account was never verified empty afterward, so it never counts as evidence here.
+never combined. Certification rows come only from an unheld run: `LIVECERT_HOLD=1` (the terralith's live-cert script, #1032, retired under #2303) skipped teardown to make real-account iteration affordable, and marked every stage it reported `held: true` for exactly this reason - a held run's account was never verified empty afterward, so it never counts as evidence here.
 
 **There is currently no wall-clock figure on this page.** The three real-AWS
 sessions that produced one were comparing a cached plan against an uncached

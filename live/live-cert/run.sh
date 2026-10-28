@@ -18,9 +18,10 @@ set -uo pipefail
 # Usage:
 #   bash live/live-cert/run.sh <estate> [-target floci|aws] [-timeout SECONDS] [-region REGION]
 #
-# living estates today: reference-ec2-vpc (2026-08-29 ruling, #440) and
-# terralith-scale. reference-eks (2026-10-03 ruling, #1113) was retired
-# under #2288.
+# living estates today: reference-ec2-vpc (2026-08-29 ruling, #440).
+# reference-eks (2026-10-03 ruling, #1113) was retired under #2288, and
+# terralith-scale under #2303 (its last run, scale 50 on 2026-09-11, failed
+# test_plan; the terralith is for the scale ladder only).
 
 usage() { echo "usage: $0 <estate> [-target floci|aws] [-timeout SECONDS] [-region REGION]" >&2; }
 

@@ -24,6 +24,12 @@
 // must never emit any of that. Its subject is a stranger's stock
 // Terraform, which is where a real adoption starts (#546's framing).
 //
+// Since choudoufu#2303 (ruling A on INTENTIUS/chant#4586) this generator
+// is for the scale ladder only: live/gauntlet-scale.json's rungs, run when
+// a scale figure is re-quoted (choudoufu#2288 Q3). It is not the estate
+// tests, smoke claims or the gauntlet's core set run against; those use
+// scenario estates (tools/scenario-estate, internal/live/scenarioestate).
+//
 // Composition is a function of one -scale parameter: "the same estate at
 // 4x" is `-scale 4`, not a new artifact. See gen.go's composition doc
 // comment for the counts and the reasoning behind them.

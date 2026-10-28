@@ -9,6 +9,7 @@
     "demos lists the scenarios that prove no claim; they carry no CLAIM header and belong to no cell.",
     "status is proven (every proof names a dated run: an evidence file with a date, a last_run, steps of such a scenario, a gauntlet stage that reads pass, or a recorded Go test run; a Go test proof with no recorded run yet is waiting, and stands beside the cell's dated proofs without counting as one) or n/a (the substrate has no such concept).",
     "go_test names a test in go_package (\"./pkg/x\"; a subtest is Test/Sub). With no gate it runs in CI's fast tier, its command is the go test that runs exactly it, and its dated run is a CI run at a recorded commit; with a gate (the environment variable it skips without) its command is the just recipe that sets that variable, and its dated run is a maintainer run with its log. `go run ./tools/gotest-record` writes both under live/smoke/evidence/go-test/, and nothing else does.",
+    "kind \"product-scenario\" (#2299) cites one recorded row of a CI product's scenario run: repo (INTENTIUS/<product>), scenario (the product's scenario id), claim (the product's claim id), commit (full sha), date (YYYY-MM-DD), engine_version (the choudoufu release the row ran, X.Y.Z) and a note, the same kind and keys plunge and sql-yodeler use. Its row is kept under live/smoke/evidence/product-scenario/, and it counts only when engine_version is the newest release in live/history. It stands beside the cell's engine proofs and never replaces one (ruling E on chant#4586). The other kinds carry no kind field.",
     "A promise with no proof is a GitHub issue, never a claim.",
     "last_run on a scenario proof is the last result measured for it, carried until a newer run replaces it: status, claim, commit, date (YYYY-MM-DD) and version. live/claims_last_run_test.go holds each entry to this file's history at 958bcf7f2d.",
     "substrate lists the providers the promise applies to: every cell that is not n/a.",
@@ -420,6 +421,46 @@
               "command": "just test-sse",
               "real_service": true,
               "note": "Real AWS, maintainer-run with SMOKE_REAL_AWS=1, and only when pkg/staterecord/s3.go changes (#2288 ruling Q3): the conditional-write suite on four real buckets, SSE-S3, SSE-KMS under the AWS-managed key and under a customer managed key, and DSSE-KMS. Under the three KMS flavours the ETag is not the payload's MD5, and the store must treat it as opaque. Its last run, as step 2 of the retired scenario cas-holds-under-every-sse-flavour, is live/smoke/evidence/cas-holds-under-every-sse-flavour.lastrun.json (2026-09-19)."
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "tg-estate-overlap",
+              "claim": "choudoufu/rows-overlap",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "The product line of the race live/CONCURRENCY.md lists as two runs changing different resources (#1938): on terragucci's harness, two pull requests that add different queues to one estate of example-demo-choudoufu-fanout merge back to back, both waves apply, the estate holds a record of each queue, and no apply row is left held on chant/lifecycle. Its BREAK=1 makes both pull requests change one shared queue, so one wave fails. It also kills a wave mid-apply and the next push takes its row over. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "smoke",
+              "claim": "choudoufu/rows-overlap",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "terragucci's smoke claim (stack/smoke.sh): two pushes whose plans change different resources of one estate apply at the same time, each wave holding the resource it changes, both reaching their record writes together, and no row left held. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "smoke",
+              "claim": "choudoufu/concurrency",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "terragucci's smoke claim: two tf-apply waves of one estate that change different resources reach their record writes together and both apply with no lock wait and no lock object; two that change one resource settle on one record, the loser failing its conditional write by name and overwriting nothing. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "smoke",
+              "claim": "choudoufu/rows-wait",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "terragucci's smoke claim: two tf-apply waves change one SQS queue's visibility timeout on floci; the second waits for the first, makes no call while the first's is in flight (the emulator's request log), then plans again and applies its value. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
             }
           ],
           "note": ""
@@ -552,6 +593,26 @@
                 "date": "2026-10-11",
                 "version": "v0.26.0"
               }
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "smoke",
+              "claim": "choudoufu/rows-takeover",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "terragucci's smoke claim: a wave killed after its change landed leaves its row held, the next push's wave takes it over with nothing unlocked, and its apply's re-read refuses the plan the killed run left behind before any call. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "smoke",
+              "claim": "choudoufu/killed",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "terragucci's smoke claim: a tf-apply wave killed while it applies leaves a record for the resource whose apply returned and none for the slow one, and the wave run again applies only the second under the same approval. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
             }
           ],
           "note": ""
@@ -606,6 +667,16 @@
                 "date": "2026-10-11",
                 "version": "v0.26.0"
               }
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "smoke",
+              "claim": "choudoufu/migrate",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "The stock-in half, in a pipeline: terragucci's smoke claim adopts a root on s3 state into an estate under an approval of its digest, stamps its resources and leaves the old state as the version it was, and the next plan of every root shows no change. terragucci's tg-migrate scenario adopts a stock root too; its row is cited under claim 7 for its cdf-apply and cdf-check steps. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
             }
           ],
           "note": ""
@@ -655,6 +726,7 @@
               "minutes": 6,
               "needs_go": true,
               "break_mode": "BREAK=1 manufactures the corruption the claim guards against and passes only by catching it",
+              "note": "Since #2303 the estate is a scenario estate, two copies of live/e2e/estate rendered by tools/scenario-estate (86 resources), not the generated terralith. The last_run below was measured on the terralith; the next maintainer run records the scenario estate.",
               "last_run": {
                 "status": "proven",
                 "claim": 7,
@@ -675,6 +747,16 @@
                 "date": "2026-10-11",
                 "version": "v0.26.0"
               }
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "tg-migrate",
+              "claim": "choudoufu/migrate-stock-in",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "The cdf-apply and cdf-check lines on terragucci's harness: the base push stamps infra's bucket with its estate's marker (cdf-apply), the adoption of app's stock state waits for its digest and, once approved, both of app's queues carry app's estate, and a branch adding a bucket that ignores its tags goes red with live-check naming infra (cdf-check). Its BREAK=1 names a state key app never wrote, so app is never stamped. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
             }
           ],
           "note": ""
@@ -800,6 +882,16 @@
                 "date": "2026-10-11",
                 "version": "v0.26.0"
               }
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "smoke",
+              "claim": "choudoufu/iam",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "terragucci's smoke claim: in a pipeline, a role granted one estate by its ownership tag applies a change to that estate, and IAM refuses it a change to an instance of another estate. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
             }
           ],
           "note": ""
@@ -847,7 +939,7 @@
               "evidence": [
                 "live/gauntlet-scale.json"
               ],
-              "note": "FOREIGN_SCALE sizes the account around the estate: 1, the default, puts 79 foreign resources beside it; FOREIGN_SCALE=50 puts 3,705 there, the row in live/gauntlet-scale.json. OWNED_SCALE sizes the estate itself.",
+              "note": "Since #2303 both estates are scenario estates rendered by tools/scenario-estate (copies of live/e2e/estate, 43 resources each). FOREIGN_SCALE sizes the account around the estate: 2, the default, puts 86 foreign resources beside it; FOREIGN_SCALE=86 puts 3,698 there. OWNED_SCALE sizes the estate itself. The 3,705-resource row in live/gauntlet-scale.json was measured on the generated terralith and stays as scale-ladder evidence; the last_run below is also the terralith's, and the row the next maintainer run records on the scenario estate is the test.",
               "last_run": {
                 "status": "proven",
                 "claim": 14,
@@ -1000,6 +1092,26 @@
                 "date": "2026-10-11",
                 "version": "v0.26.0"
               }
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "smoke",
+              "claim": "choudoufu/shared-bucket",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "terragucci's smoke claim: one tf-apply wave applies two estates into one record store bucket, each under its own prefix and estate tag, and the next plan of both shows no change. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "smoke",
+              "claim": "choudoufu/record-versions",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "terragucci's smoke claim: a record three tf-apply waves changed shows three versions, newest first, on terragucci's estate page and in choudoufu live-history, each estate's records under its own prefix. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
             }
           ],
           "note": ""
@@ -1250,6 +1362,26 @@
                 "date": "2026-10-11",
                 "version": "v0.26.0"
               }
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "smoke",
+              "claim": "drift/choudoufu",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "The declared half of the claim, in a pipeline: terragucci's smoke claim changes a queue outside choudoufu on a root under live resource markers, and it is drift; tf-drift plans the root in full, its report and one drift issue name the root and the attribute, and a run with no change closes the issue. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
+            },
+            {
+              "kind": "product-scenario",
+              "repo": "INTENTIUS/terragucci",
+              "scenario": "smoke-choudoufu",
+              "claim": "drift/tofu",
+              "commit": "8ad15b839f2c6c60219dc9483eba2cb2c9b63421",
+              "date": "2026-10-28",
+              "engine_version": "0.31.0",
+              "note": "The declared half of the claim, in terragucci's core drift claim run with SMOKE_BINARY=choudoufu: each root under live resource markers plans in full, the queue deleted outside choudoufu is named by root in the report and one drift issue, and a run with no drift closes it. Cited at terragucci 8ad15b8, the commit that wrote the scenario; the row's own commit, date and choudoufu version replace these when terragucci records it."
             }
           ],
           "note": ""

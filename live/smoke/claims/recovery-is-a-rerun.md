@@ -37,6 +37,21 @@ leave two inline policies and run the effect twice. [Recover an
 estate](https://intentius.io/choudoufu/docs/use/recover-an-estate/) is the
 procedure.
 
+### terragucci rows: smoke, choudoufu/rows-takeover and choudoufu/killed
+
+terragucci's smoke claims under scenario `smoke` kill a wave in its
+pipeline. In `choudoufu/killed` the killed wave leaves a record for the
+resource whose apply returned and none for the slow one, and the wave run
+again applies only the second under the same approval. In
+`choudoufu/rows-takeover` a wave killed after its change landed leaves its
+row held, and the next push's wave takes it over with nothing unlocked.
+
+A terragucci row counts toward the claim when it ran choudoufu 0.31.0,
+the newest release in `live/history`, and `live/CLAIMS.md` gives each
+row's state. The rows stand beside the scenarios above, whose `BREAK=1`
+arms rebuild choudoufu from source, which a pipeline running a release
+cannot do.
+
 ## On Kubernetes
 
 ### gauntlet stage reference-k8s:day2_crash

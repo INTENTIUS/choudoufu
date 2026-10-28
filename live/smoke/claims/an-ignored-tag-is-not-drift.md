@@ -25,6 +25,21 @@ the provider's stock `ignore_tags` names it, and a declared tag edited out
 of band plans. `BREAK=1` removes the `ignore_tags` line, and the same
 write must plan an update naming the tag.
 
+### terragucci rows: smoke drift/choudoufu and smoke-choudoufu drift/tofu
+
+terragucci's drift claims hold the declared half of this claim in a
+pipeline. `drift/choudoufu` (scenario `smoke`) changes a queue outside
+choudoufu on a root under live resource markers: tf-drift plans the root
+in full, its report and one drift issue name the root and the attribute,
+and a run with no change closes the issue. `drift/tofu` under scenario
+`smoke-choudoufu` is the core drift claim run on choudoufu.
+
+A terragucci row counts toward the claim when it ran choudoufu 0.31.0,
+the newest release in `live/history`, and `live/CLAIMS.md` gives each
+row's state. The rows stand beside the scenarios above, whose `BREAK=1`
+arms rebuild choudoufu from source, which a pipeline running a release
+cannot do.
+
 ## On Kubernetes
 
 ### k8s-a-label-is-a-change

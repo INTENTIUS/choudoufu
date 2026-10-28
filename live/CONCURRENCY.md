@@ -42,11 +42,15 @@ cluster's API server, which keeps nothing afterwards.
 | Two runs create the same record | One `PutObject` wins. The other is told by name, with both versions |
 | Two runs update the same record | The first wins. The second fails with a named write conflict and changes nothing |
 | An update racing a delete | The loser is told its version is not the store's (`412`, or `404` for a gone key) |
-| Two runs change different resources | Both land: an apply writes only the records it changed |
+| Two runs change different resources | Both land: an apply writes only the records it changed ([tg-estate-overlap](https://github.com/INTENTIUS/terragucci/blob/8ad15b839f2c6c60219dc9483eba2cb2c9b63421/stack/harness/scenarios/tg-estate-overlap/scenario.json)) |
 
 [Claim 2](smoke/claims/no-self-managed-locks.md) races two writers at the
 wire, one named conflict per round, and kills an apply with `SIGKILL` for the
-next run to finish.
+next run to finish. The last row is terragucci's `tg-estate-overlap`
+scenario, cited in claim 2's AWS cell as `choudoufu/rows-overlap`: two pull
+requests change different queues of one estate, both waves apply, and each
+queue's record lands. Its row counts once terragucci records it on the release
+the claims are about.
 
 A dead run leaves nothing held, so `force-unlock` is refused: there is no
 lock. The local store takes a lock file for one file write, and the next

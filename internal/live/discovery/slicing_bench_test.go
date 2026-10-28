@@ -204,14 +204,10 @@ func TestSlicingMatrixAgainstFloci(t *testing.T) {
 	prefix := fmt.Sprintf("sl%d", os.Getpid()%100000)
 
 	base := filepath.Join(work, "base")
-	genCmd := exec.Command("go", "run", "./tools/terralith-gen", //nolint:gosec // fixed binary and args, test-only
-		"-scale", strconv.Itoa(scale), "-prefix", prefix, "-out", base)
-	genCmd.Dir = root
-	if out, err := genCmd.CombinedOutput(); err != nil {
-		t.Fatalf("terralith-gen: %v\n%s", err, out)
-	} else {
-		t.Logf("terralith-gen: %s", strings.TrimSpace(string(out)))
-	}
+	// A scenario estate, not the terralith (choudoufu#2303): scale copies
+	// of live/e2e/estate, stock and unmarked, one file per layer.
+	flocitest.ScenarioEstate(t, base, scale, prefix)
+	_ = root
 
 	port := flocitest.StartFloci(t, "cdf-slicebench")
 	proxy := flocitest.NewCountingProxy(t, flocitest.Endpoint(port))
@@ -663,6 +659,29 @@ func parseBlocks(t *testing.T, dir string) []tfBlock {
 			out = append(out, blk)
 		}
 	}
+	// A resource that reads a local reads what the local reads: the scenario
+	// estate's hash receipt reads local.demo_effect_inputs_<k>, which reads
+	// the bucket and the role (choudoufu#2303). Without this the component
+	// partition would split them and leave the receipt's value to drift.
+	localRefs := map[string][]string{}
+	for _, b := range out {
+		if b.Kind != "locals" {
+			continue
+		}
+		for _, m := range regexp.MustCompile(`(?m)^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=`).FindAllStringSubmatch(b.Src, -1) {
+			localRefs[m[1]] = append(localRefs[m[1]], b.Refs...)
+		}
+	}
+	for i, b := range out {
+		if b.Addr == "" {
+			continue
+		}
+		for name, refs := range localRefs {
+			if strings.Contains(b.Src, "local."+name) {
+				out[i].Refs = append(out[i].Refs, refs...)
+			}
+		}
+	}
 	return out
 }
 
@@ -865,15 +884,31 @@ func writeSlice(t *testing.T, base, dir string, blocks []tfBlock, sl sliceAssign
 		case blk.Addr == "":
 			// locals and anything else shared: every slice keeps it. An
 			// unreferenced local costs nothing and keeps the slice's own
-			// blocks byte-identical to the whole estate's.
-			b.WriteString(blk.Src)
+			// blocks byte-identical to the whole estate's. A local that
+			// reads a resource this slice does not declare (the scenario
+			// estate's receipt inputs read the bucket and the role,
+			// choudoufu#2303) has that reference flattened to the whole
+			// estate's literal, as a resource's own cross-slice reference is.
+			src := blk.Src
+			for _, ref := range blk.Refs {
+				target, attr := refTarget(ref)
+				if sl.Addrs[target] || strings.Contains(ref, "[") {
+					continue
+				}
+				lit, ok := st.attr(target, attr)
+				if !ok {
+					t.Fatalf("a shared local needs %s but the whole-estate state has no such attribute", ref)
+				}
+				src = strings.ReplaceAll(src, ref, strconv.Quote(lit))
+			}
+			b.WriteString(src)
 			b.WriteString("\n\n")
 		case sl.Addrs[blk.Addr]:
 			src := blk.Src
 			for _, ref := range blk.Refs {
 				target, attr := refTarget(ref)
-				if sl.Addrs[target] {
-					continue
+				if sl.Addrs[target] || !strings.Contains(src, ref) {
+					continue // in the slice, or read through a local the shared block flattens
 				}
 				if strings.Contains(ref, "[") {
 					// A cross-slice reference into an EXPANDED resource
@@ -938,7 +973,7 @@ func versionsFor(t *testing.T, base, estate string) string {
 	// which would make the migrated column measure the stock one over again.
 	const anchor = `required_version = ">= 1.5.0"`
 	if !strings.Contains(src, anchor) {
-		t.Fatalf("%s does not contain the expected anchor %q; terralith-gen's versions.tf template changed", path, anchor)
+		t.Fatalf("%s does not contain the expected anchor %q; the scenario estate's versions.tf layout changed (internal/live/scenarioestate)", path, anchor)
 	}
 	block := anchor + fmt.Sprintf("\n\n  live {\n    estate = %q\n\n    record_store \"local\" {\n      path = \".tofu-records\"\n    }\n  }", estate)
 	return strings.Replace(src, anchor, block, 1)

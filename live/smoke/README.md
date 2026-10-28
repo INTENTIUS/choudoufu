@@ -670,3 +670,47 @@ and its dated run is that recipe's log, recorded with `go run
 proof with no recorded run yet reads "waiting for its first recorded run"
 in `live/CLAIMS.md` and does not count toward its cell, which still needs
 a dated proof of its own (`live/smoke_claims_gotest_test.go`).
+
+A cell can also cite a row a CI product recorded (kind `product-scenario`,
+GitHub issue #2299). terragucci, plywood and sql-yodeler run scenarios on
+the shared e2e harness (INTENTIUS/chant#4587) against a released choudoufu,
+with a plain run that must pass and a `BREAK=1` run that must be caught,
+and commit one row per scenario and claim. The proof is a flat object in
+`claims.json`:
+
+```json
+{"kind": "product-scenario", "repo": "INTENTIUS/terragucci",
+ "scenario": "tg-estate-overlap", "claim": "choudoufu/rows-overlap",
+ "commit": "<full sha>", "date": "YYYY-MM-DD", "engine_version": "0.31.0",
+ "note": "what the row shows that the claim needs"}
+```
+
+These are the kind and keys plunge's and sql-yodeler's claims use, so all
+three engines cite a product row the same way. The row is kept beside the
+claims as `live/smoke/evidence/product-scenario/<repo>--<scenario>--<claim>.json`,
+a copy of the row from the product's committed row file with that file's
+path (`row_file`), the product, the engine binary, the floci digest and both
+verdicts. `live/CLAIMS.md` links each proof to `row_file` at `commit`.
+
+A product row counts toward its cell only when its `engine_version` is the
+release the claims are about, the newest `live/history/vX.Y.Z.json`. A row
+at another release, or a proof whose row is not kept yet, reads as not
+counting in `live/CLAIMS.md` and stands beside the cell's dated proofs, the
+way a waiting Go test does. So a row that ran v0.28.0 never proves a claim
+about v0.31.0, and every product proof stops counting at a release until its
+product records a row on the new one.
+
+A proof can cite a row before the product records it. It then names the
+product commit that wrote the scenario, the day it was cited and the
+release the claims are about, and reads as waiting in `live/CLAIMS.md`.
+When the row is recorded, its kept copy lands under
+`live/smoke/evidence/product-scenario/` and the proof takes the row's own
+commit, date and `engine_version`. terragucci's choudoufu rows are cited
+this way in claims 2, 5, 6, 7, 13, 28 and 45 (GitHub issue #2301).
+
+A product row never replaces an engine scenario (ruling E on
+INTENTIUS/chant#4586). The engine's `BREAK=1` arms rebuild choudoufu from
+source with an overlay, which a product running a released binary cannot
+do, so every cell that cites a product row keeps an engine proof as well,
+and `live/smoke_claims_product_test.go` fails a cell whose only proofs are
+product rows.
