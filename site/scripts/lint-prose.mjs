@@ -20,6 +20,7 @@ import { RULES } from "sentences/lint/registry";
 import { runRules } from "sentences/lint/engine";
 import { buildDocAnalysis } from "sentences/lint/build-doc";
 import { extractProse } from "sentences/lint/markdown-prose";
+import { blankMdxEsm } from "./blank-mdx-esm.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REPO = join(here, "..", "..");
@@ -80,7 +81,9 @@ function markupAnaphora(f) {
 }
 
 const sources = docFiles(DOCS_ROOT).map((file) => {
-  const prose = extractProse(readFileSync(file, "utf8"));
+  const text = readFileSync(file, "utf8");
+  // MDX import and export lines are module syntax, not prose.
+  const prose = extractProse(file.endsWith(".mdx") ? blankMdxEsm(text) : text);
   return { rel: relative(REPO, file), prose, line: (o) => lineOf(prose, o) };
 });
 {
