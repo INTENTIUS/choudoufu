@@ -155,7 +155,10 @@ func ignoreTagsStrings(ctx context.Context, mod *configs.Module, body hcl.Body, 
 	for it := val.ElementIterator(); it.Next(); {
 		_, v := it.Element()
 		s, err := convert.Convert(v, cty.String)
-		if err != nil || s.IsNull() {
+		// val.IsMarked covers the collection, not each element: a list
+		// holding one sensitive string is unmarked at the top. A marked
+		// element is a value this rule cannot read, so it says nothing.
+		if err != nil || s.IsNull() || s.IsMarked() || !s.IsKnown() {
 			return nil, hcl.Range{}, false
 		}
 		out = append(out, s.AsString())
