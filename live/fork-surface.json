@@ -3,15 +3,15 @@
   "fork_point": "2b6193043d500dcfef1f3b4f4819b938b667099f",
   "fork_point_short": "2b6193043d",
   "fork_point_subject": "Bump version v1.13.0",
-  "measured_at_head": "39a143679a6f5ffeae7dc186190049e8b55f7149",
-  "generated_at": "2026-10-27T23:55:49Z",
+  "measured_at_head": "1c86dd56a151233ddacb59e536e85b78ee07bc8d",
+  "generated_at": "2026-10-28T05:27:36Z",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 25,
     "internal/live/": 1875,
     "live/": 677,
     "other": 1716,
-    "site/": 94,
+    "site/": 96,
     "tools/": 580
   },
   "files": {
@@ -17258,6 +17258,14 @@
       },
       {
         "path": "site/public/og.png",
+        "status": "A"
+      },
+      {
+        "path": "site/scripts/blank-mdx-esm.mjs",
+        "status": "A"
+      },
+      {
+        "path": "site/scripts/blank-mdx-esm.test.mjs",
         "status": "A"
       },
       {
