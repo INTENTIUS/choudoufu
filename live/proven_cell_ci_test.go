@@ -43,13 +43,17 @@ import (
 //     it red, this test fails; or
 //   - a Go test (go_test, GitHub issue #2288) whose run tools/gotest-record
 //     wrote to live/smoke/evidence/go-test/<test>.json: a CI run at a
-//     commit, or a maintainer run with its log.
+//     commit, or a maintainer run with its log; or
+//   - a product's scenario row (product_scenario, GitHub issue #2299) kept
+//     under live/smoke/evidence/product-scenario/, at the release the
+//     claims are about (the newest in live/history).
 //
 // A promise with an undated proof is no claim: the proof leaves the cell,
-// or the claim leaves the list for a GitHub issue. The one exception is a
-// Go test proof with no recorded run yet. It is waiting, CLAIMS.md says so,
-// and it stands beside the cell's dated proofs without counting as one: a
-// cell whose every proof is waiting is not proven.
+// or the claim leaves the list for a GitHub issue. The exceptions are a
+// Go test proof with no recorded run yet, and a product-scenario proof
+// whose row is not kept yet or ran another release. Each is waiting,
+// CLAIMS.md says so, and it stands beside the cell's dated proofs without
+// counting as one: a cell whose every proof is waiting is not proven.
 
 // provenCellEvidenceDate matches a lastrun evidence file's "date" field:
 // YYYY-MM-DD, the spelling every existing evidence file under
@@ -160,17 +164,18 @@ func scenarioDatedRun(p smokeProof, date evidenceDateFunc) string {
 
 // undatedProofs lists, one line each, the proofs in one (claim, provider)
 // cell that name neither a dated run nor a passing gauntlet stage.
-func undatedProofs(f smokeClaimsFile, c smokeClaim, provider string, rows map[string]gauntletStageRow, date evidenceDateFunc) []string {
-	out, dated := cellRuns(f, c, provider, rows, date)
+func undatedProofs(f smokeClaimsFile, c smokeClaim, provider string, rows map[string]gauntletStageRow, date evidenceDateFunc, claimed string) []string {
+	out, dated := cellRuns(f, c, provider, rows, date, claimed)
 	if len(c.Providers[provider].Proofs) > 0 && dated == 0 {
-		out = append(out, "no proof in the cell names a dated run; a Go test proof waiting for its first recorded run does not count as one")
+		out = append(out, "no proof in the cell names a dated run; a Go test proof waiting for its first recorded run, or a product row not kept or at another release, does not count as one")
 	}
 	return out
 }
 
 // cellRuns lists the undated proofs in one cell, as undatedProofs does, and
-// counts the dated ones. A waiting Go test proof is neither.
-func cellRuns(f smokeClaimsFile, c smokeClaim, provider string, rows map[string]gauntletStageRow, date evidenceDateFunc) (out []string, dated int) {
+// counts the dated ones. A waiting Go test or product-scenario proof is
+// neither. claimed is the release the claims are about.
+func cellRuns(f smokeClaimsFile, c smokeClaim, provider string, rows map[string]gauntletStageRow, date evidenceDateFunc, claimed string) (out []string, dated int) {
 	byID := map[int]smokeClaim{}
 	for _, x := range f.Claims {
 		byID[x.ID] = x
@@ -178,6 +183,10 @@ func cellRuns(f smokeClaimsFile, c smokeClaim, provider string, rows map[string]
 	for _, p := range c.Providers[provider].Proofs {
 		n := len(out)
 		switch {
+		case p.ProductScenario != nil:
+			if date(statpages.ProductScenarioEvidenceRel(*p.ProductScenario)) == "" || p.ProductScenario.EngineVersion != claimed {
+				continue // waiting: no kept row, or a row at another release
+			}
 		case p.Scenario != "":
 			if scenarioDatedRun(p, date) == "" {
 				out = append(out, fmt.Sprintf("%s has no evidence file with a YYYY-MM-DD date and no proven last_run", filepath.Base(p.Scenario)))
@@ -215,7 +224,7 @@ func cellRuns(f smokeClaimsFile, c smokeClaim, provider string, rows map[string]
 
 // datedRunProblems is the rule over the whole file: a proven cell has no
 // undated proof.
-func datedRunProblems(f smokeClaimsFile, rows map[string]gauntletStageRow, date evidenceDateFunc) []string {
+func datedRunProblems(f smokeClaimsFile, rows map[string]gauntletStageRow, date evidenceDateFunc, claimed string) []string {
 	var out []string
 	for _, c := range f.Claims {
 		for _, p := range f.ProviderOrder {
@@ -226,7 +235,7 @@ func datedRunProblems(f smokeClaimsFile, rows map[string]gauntletStageRow, date 
 			if cell.Status != "proven" {
 				continue
 			}
-			for _, u := range undatedProofs(f, c, p, rows, date) {
+			for _, u := range undatedProofs(f, c, p, rows, date, claimed) {
 				out = append(out, fmt.Sprintf("claim %d (%s): %s; a cell is proven on a dated run or a passing stage, and a promise without one is a GitHub issue", c.ID, p, u))
 			}
 		}
@@ -238,7 +247,11 @@ func datedRunProblems(f smokeClaimsFile, rows map[string]gauntletStageRow, date 
 func TestProvenCellsNameADatedRun(t *testing.T) {
 	f := readSmokeClaims(t)
 	rows := readGauntletStageRows(t)
-	for _, p := range datedRunProblems(f, rows, readEvidenceDate) {
+	claimed, err := statpages.ClaimedRelease("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range datedRunProblems(f, rows, readEvidenceDate, claimed) {
 		t.Error(p)
 	}
 	proven := 0
@@ -289,12 +302,18 @@ func TestDatedRunRuleCatches(t *testing.T) {
 		},
 	}
 	date := func(path string) string {
-		if path == "dated.json" || path == statpages.GoTestEvidenceRel("TestRecorded") {
+		if path == "dated.json" || path == statpages.GoTestEvidenceRel("TestRecorded") || path == statpages.ProductScenarioEvidenceRel(productAt("0.31.0")) || path == statpages.ProductScenarioEvidenceRel(productAt("0.28.0")) {
 			return "2026-10-04"
 		}
 		return ""
 	}
 	goTest := func(name string) smokeProof { return smokeProof{GoTest: name, GoPackage: "./pkg/x"} }
+	product := func(v string) smokeProof { p := productAt(v); return smokeProof{ProductScenario: &p} }
+	unkept := func() smokeProof {
+		p := productAt("0.31.0")
+		p.Scenario = "not-kept"
+		return smokeProof{ProductScenario: &p}
+	}
 	scen := func(name string, ev ...string) smokeProof {
 		return smokeProof{Scenario: "live/smoke/scenarios/" + name + ".sh", Command: "just smoke " + name, Evidence: ev}
 	}
@@ -335,8 +354,13 @@ func TestDatedRunRuleCatches(t *testing.T) {
 		{"waiting Go test beside a dated scenario", file("proven", scen("a", "dated.json"), goTest("TestWaiting")), false},
 		{"waiting Go test alone", file("proven", goTest("TestWaiting")), true},
 		{"waiting Go test beside an undated scenario", file("proven", goTest("TestRecorded"), goTest("TestWaiting"), scen("b")), true},
+		{"product row at the claimed release beside a dated scenario", file("proven", scen("a", "dated.json"), product("0.31.0")), false},
+		{"product row at the claimed release alone", file("proven", product("0.31.0")), false},
+		{"product row at another release alone", file("proven", product("0.28.0")), true},
+		{"product row at another release beside a dated scenario", file("proven", scen("a", "dated.json"), product("0.28.0")), false},
+		{"product row not kept alone", file("proven", unkept()), true},
 	} {
-		got := datedRunProblems(tc.f, rows, date)
+		got := datedRunProblems(tc.f, rows, date, "0.31.0")
 		if tc.report && len(got) == 0 {
 			t.Errorf("%s: the rule reported nothing", tc.name)
 		}
