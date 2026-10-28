@@ -11,6 +11,12 @@
 # is the disjoint half, unit-tested until now by
 # internal/live/projection/writeback_changedonly_1938_test.go and
 # writeinstance_disjoint_1944_test.go.
+#
+# Replaced by terragucci's tg-estate-overlap row (choudoufu#2301, ruling E
+# on INTENTIUS/chant#4586): claim 2's AWS cell cites it as a
+# product-scenario proof, and live/CONCURRENCY.md's row links it. This
+# script is not promoted. It is deleted once that row is recorded at the
+# release the claims are about, the order chant#4586 sets for deletions.
 
 SMOKE_WORK="$SMOKE_WORKROOT/disjoint"
 ESTATE="smoke-disjoint"

@@ -42,6 +42,21 @@ deletes the local files and strips one member's slot, and the plan must
 refuse the half-slotted set by name; `BREAK_SLOT=1` stamps a slot where
 none belongs, and the tag check must fail on it.
 
+### terragucci row: tg-migrate
+
+terragucci's harness scenario `tg-migrate` reads the tag in a pipeline.
+The base push stamps infra's bucket with its estate's marker (cdf-apply);
+app's stock state is adopted under an approval of its digest, and both of
+app's queues then carry app's estate; a branch that adds a bucket ignoring
+its tags goes red, live-check naming infra (cdf-check). Its `BREAK=1`
+names a state key app never wrote, and app is never stamped.
+
+A terragucci row counts toward the claim when it ran choudoufu 0.31.0,
+the newest release in `live/history`, and `live/CLAIMS.md` gives each
+row's state. The rows stand beside the scenarios above, whose `BREAK=1`
+arms rebuild choudoufu from source, which a pipeline running a release
+cannot do.
+
 ## On Kubernetes
 
 ### k8s-greenfield
