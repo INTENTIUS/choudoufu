@@ -240,6 +240,27 @@ cd ../service       && choudoufu init && choudoufu apply
 
 in that order, which is what the Op does.
 
+## The pipeline run: terragucci
+
+The example's own Forgejo workflows are run by terragucci, as its harness
+scenario [`tg-compose-cross-estate`](https://github.com/INTENTIUS/terragucci/blob/8ad15b839f2c6c60219dc9483eba2cb2c9b63421/stack/harness/scenarios/tg-compose-cross-estate/scenario.json)
+(claim `choudoufu/cross-estate-dependency`, INTENTIUS/terragucci#1296). The
+tree stays here: terragucci's `stack/harness/seed.sh` reads it from
+choudoufu, lifts `forgejo/.forgejo` to the repository's root, sets the
+secrets and the `AWS_REGION` variable the workflows read, and pushes it to
+the stack's Forgejo. The base push and a pull request that adds a security
+group to the network estate must each end with an `estates-apply` run
+recorded ok on the repository's `chant/lifecycle`, and terragucci's
+`check.sh cross-estate` then repeats check 2 above against floci: the
+subnet's `VpcId` is the producer's VPC, and each carries its own
+`tofu-estate`. Its `BREAK=1` points the consumer at an estate nothing
+applied, as this script's does.
+
+The workflows run as generated, so the row names the choudoufu they
+download, v0.18.0 today, and counts for that release alone. `scripts/prove.sh`
+stays until terragucci records the row (choudoufu#2302), and then goes; the
+`npm test` checks above stay with the example.
+
 ## Related
 
 - `live/OUTPUTS.md` — the decision, and why it is a data source rather than a
