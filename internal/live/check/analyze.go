@@ -166,6 +166,10 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 		Cloud:          actx.Cloud,
 		Schemas:        actx.Schemas,
 		ManagedResults: actx.ManagedResults,
+		// GitHub issue #2297: this check reads no data source and files a
+		// reference to one as a read still to come (the data-read pass
+		// below), so identity treats it that way too.
+		PendingDataReads: true,
 	})
 	if result != nil {
 		report.Instances = result.Len()
@@ -194,7 +198,14 @@ func Analyze(ctx context.Context, cfg *configs.Config, actx Context) Report {
 	// analyzed without schemas or because one provider of several failed -
 	// reports "taggability unknown" as a warning and never as a refusal.
 	if result != nil {
-		stampDiags := nodeStampDiagnostics(ctx, cfg, result, flatSchemas(actx.Schemas), estateForStamp(ctx, cfg))
+		// GitHub issue #2296: a store the configuration names is taken as
+		// writable, the way live-plan takes one its probe can write.
+		store := offlineWritableStore(cfg)
+		stampDiags, recordOnly := nodeStampDiagnostics(ctx, cfg, result, flatSchemas(actx.Schemas), estateForStamp(ctx, cfg), store != nil)
+		if len(recordOnly) > 0 {
+			report.StoreAssumedWritable = describeAssumedStore(store)
+			report.RecordOnly = len(recordOnly)
+		}
 		for _, diag := range stampDiags {
 			desc := diag.Description()
 			site := Site{Detail: desc.Detail}
@@ -754,6 +765,18 @@ type Report struct {
 	// Instances is how many managed resource instances resolved.
 	Instances int
 
+	// StoreAssumedWritable names the record store the stamp pass took as
+	// writable (GitHub issue #2296), as "<kind> (declared in the live
+	// block)" or "<kind> (derived from the backend block)". It is set only
+	// when that assumption exempted at least one block from the unmarked
+	// apply refusal, and RecordOnly is then how many instances it exempted:
+	// instances with nowhere to carry a marker, which a later run finds by
+	// the record the apply writes. live-plan makes the same exemption only
+	// after probing the store, so a run that may only read it still
+	// refuses them.
+	StoreAssumedWritable string
+	RecordOnly           int
+
 	// Identities is what those instances resolved TO: every
 	// [identity.Resolution] the run produced, ordered by address.
 	//
@@ -835,7 +858,44 @@ func (r Report) Readable() bool { return r.Load.Config != nil }
 // and lands in [Report.Warnings] rather than here), and any identity error
 // diagnostic is fatal there, because a partial identity map makes the plan
 // propose creating objects that already exist.
-func (r Report) Blocked() bool { return len(r.Findings) > 0 }
+//
+// The data-read pass's eligible-read finding does not count (GitHub issue
+// #2295). It stays in Findings, so the text report, the roster and the
+// onboarding ladder still see it, but it is not a refusal: live-plan reads
+// the data source before resolution and plans the configuration, and the
+// finding's own description says no edit is needed. Counting it read 20 of
+// the 74 blocked terraform-aws-modules examples as blocked when the eligible
+// read was the only finding left (choudoufu#2292's research). [Report.Reads]
+// is how many sites it carries.
+func (r Report) Blocked() bool {
+	for _, f := range r.Findings {
+		if !f.EligibleRead() {
+			return true
+		}
+	}
+	return false
+}
+
+// Reads is how many sites resolve at plan time through an eligible
+// data-source read: the site count of the eligible-read finding, which
+// [Report.Blocked] leaves out. It is reported beside the verdict so a clear
+// configuration still says how much of it depends on a read the offline
+// check did not perform.
+func (r Report) Reads() int {
+	var n int
+	for _, f := range r.Findings {
+		if f.EligibleRead() {
+			n += len(f.Sites)
+		}
+	}
+	return n
+}
+
+// EligibleRead reports whether this finding is the data-read pass's
+// eligible read, the one finding that never blocks. See [Report.Blocked].
+func (f Finding) EligibleRead() bool {
+	return f.Layer == LayerDataread && f.ID == dataread.SummaryEligibleRead
+}
 
 // Sites is the total number of refused sites across every finding.
 func (r Report) Sites() int {

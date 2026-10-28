@@ -40,6 +40,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/intentius/choudoufu/tools/modcompat"
 	"github.com/intentius/choudoufu/tools/statpages"
 )
 
@@ -365,6 +366,16 @@ func cmdRender(root string) error {
 	}
 	for _, p := range pages {
 		fmt.Printf("rewrote %s\n", p)
+	}
+	// The gauntlet tier of the module compatibility table (#2292), from the
+	// artifact and the board just written. The static tier is kept as
+	// committed; tools/modcompat-gen rebuilds it from a refusal-probe sweep.
+	wrote, err := modcompat.RefreshGauntlet(root)
+	if err != nil {
+		return err
+	}
+	if wrote {
+		fmt.Printf("rewrote %s\n", modcompat.Rel)
 	}
 	return nil
 }

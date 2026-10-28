@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 230" width="720" height="230"
      role="img" aria-labelledby="split-title split-desc">
-  <title id="split-title">What a state file holds, and where each part goes</title>
-  <desc id="split-desc">One state file on the left holds two things: which live resource each block owns, and the values that cannot be read back. On the right, the first is a marker on the resource and the second is a record in the record store. The file has one permission boundary, and the right side has one per resource.</desc>
+  <title id="split-title">The two parts of a state file, and where each goes on the live backend</title>
+  <desc id="split-desc">A state file holds two things: which live resource each block owns, and the values that cannot be read back. With the live backend, the first becomes a marker on the resource and the second a record, each with its own permission.</desc>
 
   <!-- Palette matches site/static/style.css. Kept literal rather than
        inherited so the file renders the same in GitHub, in an editor, and on
@@ -32,9 +32,9 @@
 
   <rect x="34" y="128" width="188" height="52" rx="5" class="card"/>
   <text x="48" y="148" class="s ink">Values</text>
-  <text x="48" y="169" class="l muted">what cannot be read back</text>
+  <text x="48" y="169" class="l muted">not read back from the cloud</text>
 
-  <text x="128" y="218" class="s muted" text-anchor="middle">one permission boundary</text>
+  <text x="128" y="218" class="s muted" text-anchor="middle">one file</text>
 
   <g class="brass" stroke-width="1.6" fill="none">
     <path d="M 250 100 H 300 L 300 92 H 356" marker-end="url(#a)"/>

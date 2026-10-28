@@ -1,71 +1,14 @@
 {
- "site/src/content/docs/404.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/aws/adopt.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/aws/compatibility.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/aws/gate.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/aws/operate.mdx": {
-  "discourse/punchy-fragments": 1
- },
  "site/src/content/docs/aws/proof.mdx": {
-  "discourse/punchy-fragments": 1,
   "anaphora/repeated-opening": 1
- },
- "site/src/content/docs/azure/adopt.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/azure/compatibility.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/azure/gate.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/azure/operate.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/azure/proof.mdx": {
-  "discourse/punchy-fragments": 1
  },
  "site/src/content/docs/docs/use/start.md": {
   "anaphora/repeated-opening": 1
  },
- "site/src/content/docs/gcp/adopt.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/gcp/compatibility.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/gcp/gate.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/gcp/operate.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/gcp/proof.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/kubernetes/adopt.mdx": {
-  "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/kubernetes/compatibility.mdx": {
-  "discourse/staccato-register": 1,
-  "discourse/punchy-fragments": 1
- },
  "site/src/content/docs/kubernetes/gate.mdx": {
   "discourse/punchy-fragments": 1
  },
- "site/src/content/docs/kubernetes/operate.mdx": {
-  "discourse/punchy-fragments": 1
- },
  "site/src/content/docs/kubernetes/proof.mdx": {
-  "discourse/punchy-fragments": 1,
   "anaphora/repeated-opening": 1
  },
  "site/src/data/rooms.ts": {

@@ -174,8 +174,13 @@ func TestVerdictNamesTheBackendEditWhenItIsAllThatRemains(t *testing.T) {
 	if strings.Contains(out, "Nothing in . is refused") {
 		t.Errorf("the generic clean headline still leads a backend-only estate:\n%s", out)
 	}
-	if !strings.Contains(out, "recommended edit") {
-		t.Errorf("the verdict does not say deleting the block is still recommended:\n%s", out)
+	// GitHub issue #2294: the block stays beside a live block (#2213), so
+	// the verdict says to keep it and never to delete it.
+	if !strings.Contains(out, "Keep it when you add a live block") {
+		t.Errorf("the verdict does not say to keep the block:\n%s", out)
+	}
+	if strings.Contains(out, "Delet") {
+		t.Errorf("the verdict still tells the user to delete the block:\n%s", out)
 	}
 }
 
@@ -575,5 +580,28 @@ func TestLiveCheckDocument_topLevelShapeIsPinned(t *testing.T) {
 `
 	if out != want {
 		t.Errorf("the live-check -json document changed shape.\n--- got ---\n%s\n--- want ---\n%s", out, want)
+	}
+}
+
+// TestClearVerdictReportsTheReadCount is GitHub issue #2295: a report whose
+// only finding is the eligible data read is clear, and both the text and
+// the JSON say how many sites depend on the read.
+func TestClearVerdictReportsTheReadCount(t *testing.T) {
+	rep := LiveCheckReport{
+		Dir: ".", Blocked: false, Instances: 4, Sites: 7, Reads: 7,
+		Findings: []LiveCheckFinding{{Title: "Resolves at plan time via a data-source read", Layer: "dataread", SiteCount: 7}},
+	}
+
+	out := renderLiveCheck(t, rep)
+	if !strings.Contains(out, "Nothing in . is refused") {
+		t.Errorf("the clear verdict is missing:\n%s", out)
+	}
+	if !strings.Contains(out, "7 site(s) resolve at plan time through a data-source read") {
+		t.Errorf("the read count is missing:\n%s", out)
+	}
+
+	doc := renderLiveCheckJSON(t, rep)
+	if !strings.Contains(doc, `"reads": 7`) || !strings.Contains(doc, `"exit_code": 0`) {
+		t.Errorf("the JSON document lacks reads 7 with exit code 0:\n%s", doc)
 	}
 }

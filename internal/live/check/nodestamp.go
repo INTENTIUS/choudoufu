@@ -115,10 +115,14 @@ import (
 // schemas is the flat, provider-less schema map [Analyze] already builds
 // for stamp.Stamp's use ([flatSchemas]). estate is [estateForStamp]'s
 // answer for this run.
-func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *identity.Result, schemas flatSchemas, estate string) tfdiags.Diagnostics {
+//
+// storeWritable is [offlineWritableStore]'s answer (GitHub issue #2296), and
+// the second return is every instance it exempted, as
+// [NodeStampUnmarkedApplyRecordOnly] returns them.
+func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *identity.Result, schemas flatSchemas, estate string, storeWritable bool) (tfdiags.Diagnostics, []addrs.AbsResourceInstance) {
 	var diags tfdiags.Diagnostics
 	if result == nil {
-		return diags
+		return diags, nil
 	}
 	// recordBacked is nil: this offline instrument never opens a live
 	// record store (see NodeStampUnmarkedApply's own doc comment on its
@@ -127,9 +131,55 @@ func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *iden
 	// scope is nil for the same reason recordBacked is: this offline
 	// instrument analyses a configuration, never a narrowed run, so every
 	// block is in scope. See [NodeStampUnmarkedApply]'s own doc comment.
-	diags = diags.Append(NodeStampUnmarkedApply(cfg, result, schemas, estate, nil, nil, false))
+	unmarked, recordOnly := NodeStampUnmarkedApplyRecordOnly(cfg, result, schemas, estate, nil, nil, storeWritable)
+	diags = diags.Append(unmarked)
 	diags = diags.Append(nodeStampMarkerConflicts(ctx, cfg, result, schemas, estate))
-	return diags
+	return diags, recordOnly
+}
+
+// offlineWritableStore is GitHub issue #2296: the record store this offline
+// check takes as writable, or nil.
+//
+// live-plan probes its record store and, when the probe says it can write,
+// lets the apply record the identity of an instance that has nowhere to
+// carry a marker (#1637, [NodeStampUnmarkedApply]'s storeWritable). This
+// check opens no store, so it cannot probe one. It takes a store the
+// configuration names as writable instead: a record_store block of kind
+// local, s3, gcs or azurerm in the root live block, or the bucket store
+// derived from the root's backend block (#2293, [configs.LiveRecordStore]'s
+// Derived). Before #2296 it passed false unconditionally, which refused
+// every such block although the same configuration plans under live-plan
+// with a store it can write.
+//
+// The implied local store does not count: the author named no store, and a
+// configuration that declares none keeps the refusal it always had. Neither
+// does a kubernetes store, whose write access depends on a cluster
+// credential this check has no way to reason about. The assumption is
+// stated in the report ([Report.StoreAssumedWritable]) whenever it exempts
+// anything, because a run whose identity may only read the store still
+// refuses these blocks.
+func offlineWritableStore(cfg *configs.Config) *configs.LiveRecordStore {
+	if cfg == nil || cfg.Module == nil || cfg.Module.Live == nil {
+		return nil
+	}
+	store := cfg.Module.Live.RecordStore
+	if store == nil || store.Implied {
+		return nil
+	}
+	switch store.Type {
+	case "local", "s3", "gcs", "azurerm":
+		return store
+	}
+	return nil
+}
+
+// describeAssumedStore renders [offlineWritableStore]'s store for
+// [Report.StoreAssumedWritable]: its kind, and where it came from.
+func describeAssumedStore(store *configs.LiveRecordStore) string {
+	if store.Derived {
+		return fmt.Sprintf("%s (derived from the backend block)", store.Type)
+	}
+	return fmt.Sprintf("%s (declared in the live block)", store.Type)
 }
 
 // NodeStampUnmarkedApply is the retired rewrite's marker-only escalation
@@ -201,8 +251,9 @@ func nodeStampDiagnostics(ctx context.Context, cfg *configs.Config, result *iden
 // does not hold and the block is exempt. The exemption applies only to a
 // type whose identity the apply can record at all
 // ([projection.ApplyRecordsIdentity]); for any other type the write-back
-// leaves no record and the refusal still fires. false - the offline
-// caller's value, and the online caller's with no store or a read-only one -
+// leaves no record and the refusal still fires. false - the online caller's
+// value with no store or a read-only one, and the offline caller's when the
+// configuration names no store ([offlineWritableStore], GitHub issue #2296) -
 // exempts nothing, which is this function's behavior before #1637.
 func NodeStampUnmarkedApply(cfg *configs.Config, result *identity.Result, schemas flatSchemas, estate string, recordBacked map[string]bool, scope identity.Scope, storeWritable bool) tfdiags.Diagnostics {
 	diags, _ := NodeStampUnmarkedApplyRecordOnly(cfg, result, schemas, estate, recordBacked, scope, storeWritable)

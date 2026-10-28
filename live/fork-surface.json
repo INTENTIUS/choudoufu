@@ -3,16 +3,16 @@
   "fork_point": "2b6193043d500dcfef1f3b4f4819b938b667099f",
   "fork_point_short": "2b6193043d",
   "fork_point_subject": "Bump version v1.13.0",
-  "measured_at_head": "8b36aab84cf179b10c5a18699dc671a3c4e3c6bc",
-  "generated_at": "2026-10-27T07:51:52Z",
+  "measured_at_head": "1c86dd56a151233ddacb59e536e85b78ee07bc8d",
+  "generated_at": "2026-10-28T05:27:36Z",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 25,
-    "internal/live/": 1862,
-    "live/": 671,
-    "other": 1700,
-    "site/": 93,
-    "tools/": 574
+    "internal/live/": 1875,
+    "live/": 677,
+    "other": 1716,
+    "site/": 96,
+    "tools/": 580
   },
   "files": {
     ".github/": [
@@ -395,6 +395,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/check/nodestamp_declaredstore_2296_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/check/nodestamp_family_1742_test.go",
         "status": "A"
       },
@@ -420,6 +424,10 @@
       },
       {
         "path": "internal/live/check/overlay_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/pendingdataread_2297_test.go",
         "status": "A"
       },
       {
@@ -460,6 +468,10 @@
       },
       {
         "path": "internal/live/check/synthesisgolden_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/testdata/acm-route53-pending-read-2297/main.tf",
         "status": "A"
       },
       {
@@ -560,6 +572,18 @@
       },
       {
         "path": "internal/live/check/testdata/projection-identity-cycle/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/testdata/stamp-declared-store-2296/derived/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/testdata/stamp-declared-store-2296/implied/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/check/testdata/stamp-declared-store-2296/local/main.tf",
         "status": "A"
       },
       {
@@ -4251,6 +4275,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/lint/aws_tag_count.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/aws_tag_count_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/lint/child_live_config.go",
         "status": "A"
       },
@@ -4352,6 +4384,14 @@
       },
       {
         "path": "internal/live/lint/ignore_changes_steps_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/ignore_tags.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/lint/ignore_tags_test.go",
         "status": "A"
       },
       {
@@ -5644,6 +5684,18 @@
       },
       {
         "path": "internal/live/noimporter/noimporter.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/offlineplan/offlineplan.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/offlineplan/offlineplan_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/offlineplan/sessions.go",
         "status": "A"
       },
       {
@@ -8441,6 +8493,10 @@
         "status": "A"
       },
       {
+        "path": "live/e2e/limits/aws-tag-count/main.tf",
+        "status": "A"
+      },
+      {
         "path": "live/e2e/limits/backend-block/main.tf",
         "status": "A"
       },
@@ -8514,6 +8570,10 @@
       },
       {
         "path": "live/e2e/limits/ignore-changes/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/limits/ignore-tags/main.tf",
         "status": "A"
       },
       {
@@ -9361,6 +9421,14 @@
         "status": "A"
       },
       {
+        "path": "live/module-compat.json",
+        "status": "A"
+      },
+      {
+        "path": "live/module_compat_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/module_count_doc_pin_test.go",
         "status": "A"
       },
@@ -9853,11 +9921,19 @@
         "status": "A"
       },
       {
+        "path": "live/smoke/evidence/go-test/TestADestroyOverAStoreThatListsARecordItReadsAsAbsentFails.json",
+        "status": "A"
+      },
+      {
         "path": "live/smoke/evidence/go-test/TestARecordTheListNamesAndTheReadDoesNotIsRefused.json",
         "status": "A"
       },
       {
         "path": "live/smoke/evidence/go-test/TestAWaiverReachesOnlyWhatItNames.json",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke/evidence/go-test/TestAWaiverWarnsOnEveryRunOfAnEstate.json",
         "status": "A"
       },
       {
@@ -12539,6 +12615,14 @@
         "status": "A"
       },
       {
+        "path": "internal/command/live_record_store_report.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_record_store_report_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/live_recordbacked_test.go",
         "status": "A"
       },
@@ -13043,6 +13127,30 @@
         "status": "A"
       },
       {
+        "path": "internal/command/testdata/live-record-store-azurerm/estate.chdf.hcl",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-record-store-azurerm/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-record-store-gcs/estate.chdf.hcl",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-record-store-gcs/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-record-store-s3/estate.chdf.hcl",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/testdata/live-record-store-s3/main.tf",
+        "status": "A"
+      },
+      {
         "path": "internal/command/testdata/live-resolve-acm-direct-fixed/main.tf",
         "status": "A"
       },
@@ -13243,6 +13351,10 @@
         "status": "A"
       },
       {
+        "path": "internal/command/views/live_setup.go",
+        "status": "A"
+      },
+      {
         "path": "internal/command/views/live_summary.go",
         "status": "A"
       },
@@ -13360,6 +13472,14 @@
       },
       {
         "path": "internal/configs/live_composed.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/live_derive.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/configs/live_derive_test.go",
         "status": "A"
       },
       {
@@ -14919,6 +15039,10 @@
         "status": "A"
       },
       {
+        "path": "pkg/staterecord/sharedfixtures_test.go",
+        "status": "A"
+      },
+      {
         "path": "pkg/staterecord/shortsnapshot_test.go",
         "status": "A"
       },
@@ -14932,6 +15056,22 @@
       },
       {
         "path": "pkg/staterecord/store.go",
+        "status": "A"
+      },
+      {
+        "path": "pkg/staterecord/testdata/bucket-check/SOURCE.txt",
+        "status": "A"
+      },
+      {
+        "path": "pkg/staterecord/testdata/bucket-check/azure.json",
+        "status": "A"
+      },
+      {
+        "path": "pkg/staterecord/testdata/bucket-check/gcs.json",
+        "status": "A"
+      },
+      {
+        "path": "pkg/staterecord/testdata/bucket-check/s3.json",
         "status": "A"
       },
       {
@@ -17121,6 +17261,14 @@
         "status": "A"
       },
       {
+        "path": "site/scripts/blank-mdx-esm.mjs",
+        "status": "A"
+      },
+      {
+        "path": "site/scripts/blank-mdx-esm.test.mjs",
+        "status": "A"
+      },
+      {
         "path": "site/scripts/check-links.mjs",
         "status": "A"
       },
@@ -17170,6 +17318,10 @@
       },
       {
         "path": "site/src/components/Landing.astro",
+        "status": "A"
+      },
+      {
+        "path": "site/src/components/ModuleCompat.astro",
         "status": "A"
       },
       {
@@ -18967,6 +19119,26 @@
         "status": "A"
       },
       {
+        "path": "tools/modcompat-gen/main.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/modcompat/gauntlet.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/modcompat/modcompat.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/modcompat/modcompat_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/modcompat/static.go",
+        "status": "A"
+      },
+      {
         "path": "tools/oracle-bump-report/main.go",
         "status": "A"
       },
@@ -19072,6 +19244,10 @@
       },
       {
         "path": "tools/refusal-probe/schemas_test.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/refusal-probe/secondpass.go",
         "status": "A"
       },
       {

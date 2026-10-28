@@ -12,25 +12,40 @@ prompt: >-
 
 1. `terraform_binary = "choudoufu"` in the file every unit includes, or
    `TG_TF_PATH=choudoufu` in the environment.
-2. A `live` block in each unit, naming its estate and the record store:
+2. One `generate "estate"` block in the same file, so every unit gets a live
+   sidecar:
 
 ```hcl
-# network/live.tf
-terraform {
-  live {
-    estate = "network"
+# root.hcl
+terraform_binary = "choudoufu"
 
-    record_store "s3" {
-      bucket = "my-records-bucket"
-    }
-  }
+generate "estate" {
+  path      = "estate.chdf.hcl"
+  if_exists = "overwrite"
+  contents  = "estate = \"${replace(path_relative_to_include(), "/", "-")}\"\n"
 }
 ```
 
-`include`, `inputs`, `dependency` blocks with `mock_outputs`, generated
-providers and `remote_state` stay as they are. For a unit that already owns
-resources, pull its state with the stock binary and follow
-[Migrate](/choudoufu/docs/use/migrate/) before the first apply.
+`remote_state` stays. Its generated backend block is where the records go:
+with no `record_store` in the sidecar, choudoufu writes the unit's records to
+the same bucket under `tofu-records/<estate>/` and prints the bucket, prefix
+and estate on every `init` and `plan`. Use `generate = { path = "backend.tf",
+if_exists = "overwrite" }` in `remote_state`, so the bucket is written into
+the backend block; a bucket passed only as `-backend-config` is not read, and
+the unit falls back to the local store and says so.
+
+The sidecar is read from the directory the binary runs in, which for a unit
+with a `terraform { source = ... }` is its `.terragrunt-cache` copy; Terragrunt
+writes generated files there too. Leave out the `estate` line and the name
+comes from the backend key, so `key = "${path_relative_to_include()}/terraform.tfstate"`
+gives the same name. An explicit `record_store` block in the sidecar always
+wins.
+
+`include`, `inputs`, `dependency` blocks with `mock_outputs` and generated
+providers stay as they are. For a unit that already owns resources, run
+`choudoufu live-import` in it before the first apply: it reads the old state
+straight from the backend, so no `state pull` is needed. See
+[Migrate](/choudoufu/docs/use/migrate/).
 
 ## Terragrunt on the live backend
 

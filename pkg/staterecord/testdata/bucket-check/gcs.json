@@ -1,0 +1,148 @@
+{
+  "schema": 1,
+  "store": "gcs",
+  "description": "chant#4558 shared bucket fixtures, GCS. Each case is the JSON API bucket resource (GET /storage/v1/b/{bucket}) or {\"error\": {\"status\"}} for a failed read. expect lists one verdict per setting in order: object_versioning, noncurrent_lifecycle, public_access_prevention, uniform_bucket_level_access. list_isolation only warns a run and is not covered. namespaces are the object-name prefixes the estate or stack writes under.",
+  "cases": [
+    {
+      "name": "correct",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "enabled": true },
+        "lifecycle": { "rule": [{ "action": { "type": "Delete" }, "condition": { "isLive": false, "daysSinceNoncurrentTime": 30 } }] },
+        "iamConfiguration": { "publicAccessPrevention": "enforced", "uniformBucketLevelAccess": { "enabled": true } }
+      },
+      "expect": [
+        { "setting": "object_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "noncurrent_lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_prevention", "verdict": "ok", "unwaivable": false },
+        { "setting": "uniform_bucket_level_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "bare-bucket",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {},
+      "expect": [
+        { "setting": "object_versioning", "verdict": "fail", "unwaivable": false },
+        { "setting": "noncurrent_lifecycle", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access_prevention", "verdict": "fail", "unwaivable": false },
+        { "setting": "uniform_bucket_level_access", "verdict": "fail", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "public-access-prevention-inherited",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "enabled": true },
+        "lifecycle": { "rule": [{ "action": { "type": "Delete" }, "condition": { "isLive": false, "daysSinceNoncurrentTime": 30 } }] },
+        "iamConfiguration": { "publicAccessPrevention": "inherited", "uniformBucketLevelAccess": { "enabled": true } }
+      },
+      "expect": [
+        { "setting": "object_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "noncurrent_lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_prevention", "verdict": "fail", "unwaivable": false },
+        { "setting": "uniform_bucket_level_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "rule-deletes-live-objects",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "enabled": true },
+        "lifecycle": {
+          "rule": [
+            { "action": { "type": "Delete" }, "condition": { "age": 365 } },
+            { "action": { "type": "Delete" }, "condition": { "isLive": false, "daysSinceNoncurrentTime": 30 } }
+          ]
+        },
+        "iamConfiguration": { "publicAccessPrevention": "enforced", "uniformBucketLevelAccess": { "enabled": true } }
+      },
+      "expect": [
+        { "setting": "object_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "noncurrent_lifecycle", "verdict": "fail", "unwaivable": true },
+        { "setting": "public_access_prevention", "verdict": "ok", "unwaivable": false },
+        { "setting": "uniform_bucket_level_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "noncurrent-delete-with-no-window",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "enabled": true },
+        "lifecycle": { "rule": [{ "action": { "type": "Delete" }, "condition": { "isLive": false } }] },
+        "iamConfiguration": { "publicAccessPrevention": "enforced", "uniformBucketLevelAccess": { "enabled": true } }
+      },
+      "expect": [
+        { "setting": "object_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "noncurrent_lifecycle", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access_prevention", "verdict": "ok", "unwaivable": false },
+        { "setting": "uniform_bucket_level_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "newer-versions-count-rule",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "enabled": true },
+        "lifecycle": { "rule": [{ "action": { "type": "Delete" }, "condition": { "numNewerVersions": 5 } }] },
+        "iamConfiguration": { "publicAccessPrevention": "enforced", "uniformBucketLevelAccess": { "enabled": true } }
+      },
+      "expect": [
+        { "setting": "object_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "noncurrent_lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_prevention", "verdict": "ok", "unwaivable": false },
+        { "setting": "uniform_bucket_level_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "prefix-rule-contains-namespace",
+      "bucket": "shared-state",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "enabled": true },
+        "lifecycle": { "rule": [{ "action": { "type": "Delete" }, "condition": { "isLive": false, "daysSinceNoncurrentTime": 30, "matchesPrefix": ["records/"] } }] },
+        "iamConfiguration": { "publicAccessPrevention": "enforced", "uniformBucketLevelAccess": { "enabled": true } }
+      },
+      "expect": [
+        { "setting": "object_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "noncurrent_lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_prevention", "verdict": "ok", "unwaivable": false },
+        { "setting": "uniform_bucket_level_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "suffix-filtered-rule-not-credited",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "enabled": true },
+        "lifecycle": { "rule": [{ "action": { "type": "Delete" }, "condition": { "isLive": false, "daysSinceNoncurrentTime": 30, "matchesSuffix": [".json"] } }] },
+        "iamConfiguration": { "publicAccessPrevention": "enforced", "uniformBucketLevelAccess": { "enabled": true } }
+      },
+      "expect": [
+        { "setting": "object_versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "noncurrent_lifecycle", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access_prevention", "verdict": "ok", "unwaivable": false },
+        { "setting": "uniform_bucket_level_access", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "bucket-read-denied",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": { "error": { "status": 403 } },
+      "expect": [
+        { "setting": "object_versioning", "verdict": "unreadable", "unwaivable": false },
+        { "setting": "noncurrent_lifecycle", "verdict": "unreadable", "unwaivable": false },
+        { "setting": "public_access_prevention", "verdict": "unreadable", "unwaivable": false },
+        { "setting": "uniform_bucket_level_access", "verdict": "unreadable", "unwaivable": false }
+      ]
+    }
+  ]
+}

@@ -12,11 +12,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/live/check"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/lint"
+	"github.com/intentius/choudoufu/internal/live/offlineplan"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tracing"
 	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
@@ -90,6 +93,11 @@ func (c *LiveCheckCommand) Execute(args *arguments.LiveCheck) int {
 	}
 
 	rep := liveCheckReport(dir, report)
+	// GitHub issue #2293: the resolved estate and record store, with no
+	// cloud call, for terragucci's init and chant's local-store lint.
+	setup := liveSetupFor(ctx, "", report.Load.Config)
+	rep.Setup = &setup
+	rep.Estate = setup.Estate
 	if jsonOutput {
 		// GitHub issue #790: the declared roster, for a caller like behold
 		// that parses no HCL of its own. See views.NewLiveCheckJSON's own
@@ -172,6 +180,22 @@ func (c *LiveCheckCommand) liveCheck(ctx context.Context, dir string) check.Repo
 	// provider boundary where a real live-plan draws it. See
 	// [check.Context.ProviderManagedTypes].
 	managedTypes := provs.managedTypesByProvider(schemaCtx)
+	cloud := identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv), Environment: azsweep.EnvEnvironment(os.Getenv)}
+	// GitHub issue #2297: live-plan's second identity pass, offline, when
+	// the plugins are installed. liveResolve configures each provider from
+	// the configuration's own block and asks it to plan; this asks the same
+	// plugins with offlineplan's configuration instead (placeholder
+	// credentials, no STS or metadata call, a dead proxy for hashicorp/aws),
+	// because this command makes no cloud call. The values are kept only
+	// when liveResolve would keep its second pass.
+	var managed map[string]cty.Value
+	if len(schemas) > 0 {
+		second := offlineplan.New(provs.mgr)
+		var outcome offlineplan.Outcome
+		managed, outcome = offlineplan.ManagedResults(schemaCtx, load.Config, identity.Context{Cloud: cloud, Schemas: schemas}, second)
+		second.Close(schemaCtx)
+		log.Printf("[TRACE] live-check: offline second identity pass: %s", outcome)
+	}
 	// A close failure is not this command's news: it read schemas and is
 	// done with the plugins. A provider that would not launch already shows
 	// up as absent schemas, which the report states.
@@ -184,7 +208,8 @@ func (c *LiveCheckCommand) liveCheck(ctx context.Context, dir string) check.Repo
 		ProviderManagedTypes: managedTypes,
 		// As liveResolve does, so live-check and live-plan name the same
 		// azurerm and azapi resources (GitHub issue #2133, finding 4).
-		Cloud: identity.CloudContext{SubscriptionID: azsweep.EnvSubscriptionID(os.Getenv), Environment: azsweep.EnvEnvironment(os.Getenv)},
+		Cloud:          cloud,
+		ManagedResults: managed,
 	})
 	analyzeSpan.End()
 	report.Load = load
@@ -217,6 +242,7 @@ func liveCheckReport(dir string, report check.Report) views.LiveCheckReport {
 		Blocked:        report.Blocked(),
 		Instances:      report.Instances,
 		Sites:          report.Sites(),
+		Reads:          report.Reads(),
 		Schemas:        report.Schemas,
 		Checked:        layerNames(report.Checked),
 		Partial:        partialLayerNames(report.Partial),
@@ -226,6 +252,9 @@ func liveCheckReport(dir string, report check.Report) views.LiveCheckReport {
 		InstanceRoster: liveCheckInstances(report.Roster),
 		References:     liveCheckReferences(report.References),
 	}
+	// GitHub issue #2296: the store the stamp check assumed writable.
+	out.StoreAssumedWritable = report.StoreAssumedWritable
+	out.RecordOnly = report.RecordOnly
 	for _, finding := range report.Findings {
 		if finding.UnsetVarSites > 0 {
 			out.VariableDependentFindings++
@@ -240,14 +269,11 @@ func liveCheckReport(dir string, report check.Report) views.LiveCheckReport {
 	// rule can no longer reach Findings at all, so it can no longer be what
 	// blocks a configuration. What it can still do is be the ONLY warning on
 	// an otherwise-clean estate, which is worth naming explicitly rather
-	// than folding into an unqualified "nothing is refused" - the deletion
-	// is still the recommended edit, and not required for THIS check, which
-	// runs with no live block by design (see LiveCheckCommand's doc
-	// comment). It stops being optional the moment a live block is added,
-	// which plan and apply both need and which live-check does not exercise
-	// (GitHub issue #268: internal/configs/module.go refuses to load a
-	// module carrying both). Computed here, where the warning IDs are, per
-	// this function's own rule that what is true is decided below the view.
+	// than folding into an unqualified "nothing is refused". Since #2213 the
+	// block stays beside a live block, and since #2293 it is where records
+	// go, so the verdict says to keep it. Computed here, where the warning
+	// IDs are, per this function's own rule that what is true is decided
+	// below the view.
 	out.OnlyBackendRemains = !report.Blocked() && len(report.Warnings) > 0
 	for _, warning := range report.Warnings {
 		if warning.ID != string(lint.RuleStateBackend) {

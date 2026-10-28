@@ -170,6 +170,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/check"
+	"github.com/intentius/choudoufu/internal/live/offlineplan"
 	"github.com/intentius/choudoufu/internal/live/pins"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -243,6 +244,12 @@ type run struct {
 	// identical call in both modes, which is what lets every existing
 	// consumer read an -onboarded sweep unchanged.
 	OnboardedForm bool `json:"onboarded_form"`
+
+	// SecondPass records whether -schemas entries were measured with
+	// live-plan's second identity pass (GitHub issue #2297, secondpass.go).
+	// A sweep with it and one without measure the acm-shaped sites
+	// differently, so -diff refuses the pair.
+	SecondPass bool `json:"second_pass"`
 
 	// InitBin is the binary used to install providers, in -schemas mode.
 	// Empty otherwise.
@@ -333,6 +340,15 @@ type entry struct {
 	Refusals  map[string]int `json:"refusals"`
 	Instances int            `json:"instances"`
 	Shadowed  int            `json:"shadowed"`
+
+	// Reads is [check.Report.Reads]: the eligible data-read sites, which
+	// stay in Refusals under their own ID but never make Blocked true
+	// (GitHub issue #2295).
+	Reads int `json:"reads,omitempty"`
+
+	// SecondPass is how the offline second identity pass decided for this
+	// entry ([offlineplan.Outcome]), empty when it did not run.
+	SecondPass string `json:"second_pass,omitempty"`
 
 	// Warnings is the non-fatal per-ID breakdown, kept apart from Refusals
 	// so nothing can add the two together by accident.
@@ -444,6 +460,8 @@ func main() {
 		pinVersion  = flag.String("provider-version", pins.AWSProviderVersion, "exact version for -provider-source")
 		quiet       = flag.Bool("quiet", false, "suppress the per-entry progress log")
 
+		secondPassFlag = flag.Bool("second-pass", true, "with -schemas, run live-plan's second identity pass offline (GitHub issue #2297): each entry whose first pass refuses a value a provider can plan is resolved again with the providers' planned values, configured offline with no credentials and no cloud call. See internal/live/offlineplan")
+
 		onboarded = flag.Bool("onboarded", false, "also analyze each entry in its ONBOARDED form - internal/live/onboard's computed edit: a live sidecar declaring record_store \"local\", with the backend or cloud block removed. The published-form numbers are unaffected; this adds a second column. See onboarded.go")
 
 		allowPartial = flag.Bool("allow-partial-corpus", false, "measure anyway when a manifest source expands to no configurations on this disk, or a fetched source sits at a commit the manifest does not pin; the sweep records what was wrong and -diff then refuses to compare it against a full sweep")
@@ -470,6 +488,7 @@ func main() {
 		pinVer:       *pinVersion,
 		allowPartial: *allowPartial,
 		onboarded:    *onboarded,
+		secondPass:   *secondPassFlag,
 	}
 	if !*quiet {
 		opts.log = os.Stderr
@@ -518,6 +537,10 @@ type sweepOptions struct {
 	// onboarded adds the second form. See onboarded.go.
 	onboarded bool
 
+	// secondPass runs live-plan's second identity pass offline under
+	// -schemas. See secondpass.go.
+	secondPass bool
+
 	log io.Writer
 }
 
@@ -555,6 +578,7 @@ func sweep(opts sweepOptions) (*run, error) {
 		CorpusProblems: problems,
 		Schemas:        opts.schemas,
 		OnboardedForm:  opts.onboarded,
+		SecondPass:     opts.schemas && opts.secondPass,
 	}
 	if opts.onboarded {
 		r.Totals.Onboarding = &onboardingTotals{}
@@ -567,6 +591,7 @@ func sweep(opts sweepOptions) (*run, error) {
 	}
 
 	var acq *acquirer
+	var second *secondPass
 	if opts.schemas {
 		if opts.initBin == "" {
 			return nil, fmt.Errorf("-schemas needs -init-bin: a binary that can install providers")
@@ -584,6 +609,10 @@ func sweep(opts sweepOptions) (*run, error) {
 			pinned = p
 		}
 		acq = newAcquirer(opts.initBin, pinned, opts.pinVer, locks, opts.log)
+		if opts.secondPass {
+			second = newSecondPass(opts.initBin, opts.log)
+			defer second.close(ctx)
+		}
 		r.InitBin = opts.initBin
 		r.PinsPath = opts.pinsPath
 		r.PinSource = opts.pinSrc
@@ -606,6 +635,7 @@ func sweep(opts sweepOptions) (*run, error) {
 		var provRows []entryProvider
 		var schemas map[string]providers.Schema
 		var skew *versionSkew
+		var secondOutcome offlineplan.Outcome
 		switch {
 		case acq == nil:
 			// No Schemas: that is the whole bound the default mode carries.
@@ -621,7 +651,9 @@ func sweep(opts sweepOptions) (*run, error) {
 				needs = providerNeeds(load.Config)
 				schemas, provRows = acq.schemasFor(needs)
 			}
-			rep = check.Analyze(ctx, load.Config, check.Context{Schemas: schemas})
+			actx := check.Context{Schemas: schemas}
+			actx.ManagedResults, secondOutcome = second.managed(ctx, load.Config, schemas, provRows)
+			rep = check.Analyze(ctx, load.Config, actx)
 			rep.Load = load
 			if needs != nil {
 				// versionSkewFor reads rep.Identities, so it has to run
@@ -641,6 +673,7 @@ func sweep(opts sweepOptions) (*run, error) {
 			Readable:         rep.Readable(),
 			Blocked:          rep.Blocked(),
 			Sites:            rep.Sites(),
+			Reads:            rep.Reads(),
 			Instances:        rep.Instances,
 			Shadowed:         rep.Shadowed,
 			Unresolved:       len(rep.Load.UnresolvedModules),
@@ -650,6 +683,7 @@ func sweep(opts sweepOptions) (*run, error) {
 			ModulesInstalled: modulesInstalled(ref.Dir),
 			VarFiles:         ref.VarFiles,
 			VersionSkew:      skew,
+			SecondPass:       string(secondOutcome),
 		}
 		if skew != nil {
 			r.Totals.EntriesVersionChecked++
@@ -683,7 +717,7 @@ func sweep(opts sweepOptions) (*run, error) {
 		}
 
 		if opts.onboarded {
-			measureOnboarded(ctx, &e, ref.Dir, varFiles, schemas, rep, causes, r, opts)
+			measureOnboarded(ctx, &e, ref.Dir, varFiles, schemas, provRows, second, rep, causes, r, opts)
 		}
 
 		r.Entries = append(r.Entries, e)
@@ -1139,6 +1173,11 @@ func diffPreconditions(beforeName string, before *run, afterName string, after *
 	// totals out of the other. -diff compares the PUBLISHED form on both
 	// sides and says so, and refusing the mixed pair keeps that sentence
 	// true of every file it will ever print.
+	if before.SecondPass != after.SecondPass {
+		return fmt.Errorf("one run used the offline second identity pass and the other did not (%s: %v, %s: %v).\n"+
+			"The pass resolves sites the other run refuses, so the difference would read as a fix. Re-run so both agree",
+			beforeName, before.SecondPass, afterName, after.SecondPass)
+	}
 	if before.OnboardedForm != after.OnboardedForm {
 		return fmt.Errorf("one run measured the onboarded form and the other did not (%s: %v, %s: %v).\n"+
 			"-diff compares the published form on both sides, so the pair would compare fine and answer a question neither file was asked. "+

@@ -243,6 +243,7 @@ func liveBegin(
 		// pipeline calls the same methods either way, so nothing below
 		// this line knows which mode it is in.
 		view:         livePlanView(view, adoptionOnly, filter),
+		setupView:    view,
 		filter:       filter,
 		adoptionOnly: adoptionOnly,
 		// GitHub issue #352. The operation carries the run's -target and
@@ -718,6 +719,11 @@ func liveRejections(surface liveSurface, op *arguments.Operation, state *argumen
 // liveRunner is the live pipeline, wearing the interface the local
 // backend calls it through. One runner serves one operation.
 type liveRunner struct {
+	// setupView is where the record store line goes (GitHub issue #2293),
+	// printed once per run in PriorState. Nil prints nothing: a composed
+	// estate's runner and a test that builds a runner by hand.
+	setupView *views.View
+
 	// publishWorkspace is the workspace a composed estate's outputs are
 	// published under: the one its tool selected for it when it joined a
 	// joint run (#2231). "" means this run's own workspace.
@@ -1060,6 +1066,9 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 	diags = diags.Append(estateDiags)
 	if estateDiags.HasErrors() {
 		return nil, diags
+	}
+	if r.priorStateCalls == 1 && r.setupView != nil {
+		printLiveSetup(r.setupView, liveSetupFor(ctx, r.settings.Estate, config))
 	}
 	// GitHub issue #352's targeting scope, nil unless this run passed
 	// -target or -exclude, and read off the same core context that will

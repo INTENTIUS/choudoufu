@@ -3,9 +3,9 @@
   "fork_point_short": "2b6193043d",
   "fork_point_subject": "Bump version v1.13.0",
   "fork_point_url": "https://github.com/opentofu/opentofu/commit/2b6193043d500dcfef1f3b4f4819b938b667099f",
-  "measured_at_head": "8b36aab84cf179b10c5a18699dc671a3c4e3c6bc",
-  "measured_at_head_short": "8b36aab84c",
-  "generated_at": "2026-10-27T07:51:52Z",
+  "measured_at_head": "1c86dd56a151233ddacb59e536e85b78ee07bc8d",
+  "measured_at_head_short": "1c86dd56a1",
+  "generated_at": "2026-10-28T05:27:36Z",
   "base_opentofu_version": "1.13.0",
   "named_roots": [
     "internal/live/",
@@ -17,15 +17,15 @@
   "other_bucket": "other",
   "counts": {
     ".github/": 25,
-    "internal/live/": 1862,
-    "live/": 671,
-    "other": 1700,
-    "site/": 93,
-    "tools/": 574
+    "internal/live/": 1875,
+    "live/": 677,
+    "other": 1716,
+    "site/": 96,
+    "tools/": 580
   },
-  "named_total": 3225,
-  "other_count": 1700,
-  "total": 4925,
+  "named_total": 3253,
+  "other_count": 1716,
+  "total": 4969,
   "module_path_old": "github.com/opentofu/opentofu",
   "module_path_new": "github.com/intentius/choudoufu",
   "mechanical_module_rename": {
