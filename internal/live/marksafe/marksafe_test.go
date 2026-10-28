@@ -148,6 +148,11 @@ var guardedPackages = []string{
 	// carry a mark - every value it handles is already a Go string or a
 	// freshly-built cty.StringVal - so it has nothing to defer either.
 	"noimporter",
+	// GitHub issue #2297's offline second identity pass. It builds the
+	// placeholder provider configuration from fresh cty values and hands
+	// planned values on without reading their strings, so it is held to
+	// zero.
+	"offlineplan",
 	// Rewrites a module's source text and touches no cty.Value at all, so
 	// it is held to zero rather than deferred: it has nothing to defer.
 	"onboard",

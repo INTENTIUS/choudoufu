@@ -90,7 +90,9 @@ func ConfigValue(provider addrs.Provider, block *configschema.Block) cty.Value {
 		block = &configschema.Block{}
 	}
 	empty := block.EmptyValue()
-	if provider != awsProvider || !empty.Type().IsObjectType() {
+	// EmptyValue never carries a mark. The IsMarked test is what lets
+	// internal/live/marksafe prove the AsValueMap below.
+	if provider != awsProvider || empty.IsMarked() || !empty.Type().IsObjectType() {
 		return empty
 	}
 	vals := empty.AsValueMap()
