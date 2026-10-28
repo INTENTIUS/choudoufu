@@ -35,7 +35,7 @@ gh release download -R INTENTIUS/choudoufu --pattern "*_${os}_${arch}.tar.gz"
 tar xzf choudoufu_*_"${os}"_"${arch}".tar.gz
 ```
 
-With curl:
+Without `gh`, use curl:
 
 ```
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -68,7 +68,7 @@ and unzip it. Then put `choudoufu` on your `PATH`.
 
 ## Naming the store
 
-On AWS ([the bucket](../bucket/)):
+An AWS store names [the bucket](../bucket/):
 
 ```hcl
 estate = "my-estate"
@@ -79,15 +79,15 @@ record_store "s3" {
 }
 ```
 
-On GCP ([the bucket](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-gcs/CONTRACT.md)),
-`record_store "gcs" { bucket = "my-records-bucket" }`. On Azure
-([the storage account](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-azurerm/CONTRACT.md)),
-`record_store "azurerm"` with `storage_account_name`, `container_name` and
-`resource_group_name`; the derived store needs the backend block's
-`resource_group_name` too.
+GCP takes `record_store "gcs" { bucket = "my-records-bucket" }`
+([the bucket](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-gcs/CONTRACT.md)).
+Azure takes `record_store "azurerm"`
+([the storage account](https://github.com/INTENTIUS/choudoufu/blob/main/examples/record-store-azurerm/CONTRACT.md))
+with `storage_account_name`, `container_name` and `resource_group_name`; the
+derived store needs the backend block's `resource_group_name` too.
 
-On Kubernetes the `kubernetes` backend has no record store counterpart, so
-name one ([the namespace](../setup/#the-record-store)):
+The `kubernetes` backend has no record store counterpart, so name one
+([the namespace](../setup/#the-record-store)):
 
 ```hcl
 estate = "my-estate"
@@ -106,8 +106,8 @@ the local one.
 
 The old state document still lists every resource, and an apply never
 overwrites a document that holds resources, so `terraform_remote_state`
-readers keep reading the pre-migration outputs until it is archived. Once
-`choudoufu plan` is empty:
+readers keep reading the pre-migration outputs until it is archived. Move it
+once `choudoufu plan` is empty:
 
 ```
 tofu state pull > pre-live.tfstate        # or terraform; keep this copy
