@@ -700,6 +700,14 @@ way a waiting Go test does. So a row that ran v0.28.0 never proves a claim
 about v0.31.0, and every product proof stops counting at a release until its
 product records a row on the new one.
 
+A proof can cite a row before the product records it. It then names the
+product commit that wrote the scenario, the day it was cited and the
+release the claims are about, and reads as waiting in `live/CLAIMS.md`.
+When the row is recorded, its kept copy lands under
+`live/smoke/evidence/product-scenario/` and the proof takes the row's own
+commit, date and `engine_version`. terragucci's choudoufu rows are cited
+this way in claims 2, 5, 6, 7, 13, 28 and 45 (GitHub issue #2301).
+
 A product row never replaces an engine scenario (ruling E on
 INTENTIUS/chant#4586). The engine's `BREAK=1` arms rebuild choudoufu from
 source with an overlay, which a product running a released binary cannot

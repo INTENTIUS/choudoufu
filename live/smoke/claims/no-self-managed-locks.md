@@ -60,6 +60,27 @@ customer managed key and DSSE-KMS, and removes what it made. Under the
 three KMS flavours the ETag is not the payload's MD5, and the store must
 treat it as opaque. Record its log with `go run ./tools/gotest-record -log`.
 
+### terragucci rows: tg-estate-overlap and the smoke claims
+
+terragucci runs choudoufu 0.31.0 in its pipelines on Forgejo and floci
+and records a row per claim, a plain run that passes and a `BREAK=1` run
+that is caught. Its harness scenario `tg-estate-overlap` is the race
+[live/CONCURRENCY.md](../../CONCURRENCY.md) lists as two runs changing
+different resources: two pull requests that add different queues to one
+estate merge back to back, both waves apply, the estate holds a record of
+each queue, and no apply row is left held. Its `BREAK=1` makes both pull
+requests change one shared queue, and one wave fails. Under scenario
+`smoke`, the claims `choudoufu/rows-overlap`, `choudoufu/concurrency` and
+`choudoufu/rows-wait` race two waves of one estate: different resources
+both land with no lock object, one resource settles on one record, and a
+second change to one queue waits for the first's call.
+
+A terragucci row counts toward the claim when it ran choudoufu 0.31.0,
+the newest release in `live/history`, and `live/CLAIMS.md` gives each
+row's state. The rows stand beside the scenarios above, whose `BREAK=1`
+arms rebuild choudoufu from source, which a pipeline running a release
+cannot do.
+
 ## On Kubernetes
 
 ### k8s-records-in-the-cluster, step 3

@@ -140,10 +140,9 @@ func decodeProductScenarioProof(raw []byte) (smokeProof, []string) {
 
 // TestProductScenarioProofsHaveTheirShape holds every product-scenario
 // proof in claims.json to its six fields and every cell that cites one to
-// ruling E. No claim cites one yet: the rows are recorded by
-// INTENTIUS/terragucci#1295 and the proofs land with them
-// (choudoufu#2301). Until then this checks nothing in claims.json, and
-// TestProductScenarioRulesCatch holds the rules.
+// ruling E. Since choudoufu#2301 claims 2, 5, 6, 7, 13, 28 and 45 cite
+// terragucci's rows (smoke_claims_terragucci_test.go), and
+// TestProductScenarioRulesCatch holds the rules against fixtures.
 func TestProductScenarioProofsHaveTheirShape(t *testing.T) {
 	raw, err := os.ReadFile(smokeClaimsPath)
 	if err != nil {

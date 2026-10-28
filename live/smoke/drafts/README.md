@@ -36,6 +36,10 @@ The Azure and GCP record-store drafts (`az-records-in-a-storage-account`,
 the shared layer, held by `TestAzureBlobStoreConformance` and
 `TestGCSStoreConformance` in CI and plunge's emulator conformance legs.
 
+`two-applies-disjoint-records.sh` (#2255) is not promoted: terragucci's
+`tg-estate-overlap` row, cited in claim 2's AWS cell (#2301), replaces it,
+and it is deleted once that row is recorded.
+
 The scenario lints read drafts as well as scenarios (#1876), so a draft is
 held to them before it is promoted: no bare `kubectl` in a `k8s-*` draft
 (`bash live/smoke/selftest-bounds.sh --only kubectl-roster`), no bare `wait`
