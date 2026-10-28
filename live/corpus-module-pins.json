@@ -45,31 +45,48 @@
       "0.15.0"
     ],
     "terraform-aws-modules/acm/aws": [
-      "4.5.0"
+      "4.5.0",
+      "6.2.0",
+      "6.3.1"
     ],
     "terraform-aws-modules/alb/aws": [
       "10.5.0",
       "9.17.0"
     ],
+    "terraform-aws-modules/apigateway-v2/aws": [
+      "4.0.0"
+    ],
     "terraform-aws-modules/autoscaling/aws": [
       "9.3.0"
     ],
+    "terraform-aws-modules/cloudfront/aws": [
+      "5.2.0"
+    ],
     "terraform-aws-modules/cloudwatch/aws": [
-      "4.5.0"
+      "4.5.0",
+      "5.7.3"
+    ],
+    "terraform-aws-modules/dynamodb-table/aws": [
+      "5.5.2"
     ],
     "terraform-aws-modules/ec2-instance/aws": [
-      "4.3.0"
+      "4.3.0",
+      "6.4.1"
     ],
     "terraform-aws-modules/ecr/aws": [
       "1.6.0",
       "3.2.0"
+    ],
+    "terraform-aws-modules/ecs/aws": [
+      "6.12.0"
     ],
     "terraform-aws-modules/eks/aws": [
       "19.11.0",
       "21.25.0"
     ],
     "terraform-aws-modules/iam/aws": [
-      "2.6.0",
+      "3.13.0",
+      "4.24.1",
       "5.28.0",
       "5.60.0",
       "6.8.0"
@@ -90,22 +107,37 @@
       "8.8.1"
     ],
     "terraform-aws-modules/rds-aurora/aws": [
-      "10.3.1"
+      "10.3.1",
+      "9.16.1"
+    ],
+    "terraform-aws-modules/rds/aws": [
+      "6.13.1"
+    ],
+    "terraform-aws-modules/route53/aws": [
+      "5.0.0"
     ],
     "terraform-aws-modules/s3-bucket/aws": [
       "3.15.1",
       "3.15.2",
       "5.15.4"
     ],
+    "terraform-aws-modules/secrets-manager/aws": [
+      "1.3.1"
+    ],
     "terraform-aws-modules/security-group/aws": [
       "4.17.2",
       "5.3.1"
     ],
     "terraform-aws-modules/sns/aws": [
-      "3.3.0"
+      "3.3.0",
+      "6.2.1"
     ],
     "terraform-aws-modules/sqs/aws": [
-      "3.5.0"
+      "3.5.0",
+      "5.2.2"
+    ],
+    "terraform-aws-modules/step-functions/aws": [
+      "5.1.1"
     ],
     "terraform-aws-modules/vpc/aws": [
       "2.6.0",
