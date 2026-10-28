@@ -42,6 +42,8 @@ jobs:
       # skipping when the binary is absent - a green run here over
       # unverified cohort identities is the outcome the golden exists to
       # prevent - so the binary has to actually be on PATH in this job.
+      # tools/estate-gen's TestDeterminism (choudoufu#2300) uses the same
+      # binary the same way.
       #
       # Pinned via live/oracle-versions.json, the same file the gauntlet
       # tool reads, rather than "latest": issue #544 (root cause of #498) is
