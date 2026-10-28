@@ -165,6 +165,51 @@ func TestModuleCompatStaticTierMatchesTheManifest(t *testing.T) {
 	}
 }
 
+// moduleCompatCorpus is the terraform-aws-modules population the static tier
+// covers (#2292): the 25 most downloaded modules of the namespace on the
+// public registry on 2026-10-27, and serverless.tf's module list. eks is
+// measured from its v21 source; its v9.0.0 checkout is a gauntlet input.
+var moduleCompatCorpus = []string{
+	// The 25 most downloaded, in registry order.
+	"iam", "s3-bucket", "vpc", "eks", "kms", "security-group", "lambda",
+	"rds-aurora", "rds", "acm", "route53", "alb", "ec2-instance", "sqs",
+	"dynamodb-table", "ecs", "cloudfront", "cloudwatch", "eventbridge",
+	"autoscaling", "sns", "ecr", "secrets-manager", "key-pair",
+	"eks-pod-identity",
+	// serverless.tf's list, less the ones above.
+	"apigateway-v2", "appsync", "appconfig", "step-functions", "rds-proxy",
+	"ssm-parameter",
+}
+
+// TestModuleCompatCorpusHoldsTheChosenModules fails when a module the static
+// tier promises is dropped from live/corpus-manifest.json, or when a source
+// is added without the list above (and the comment in the manifest) saying
+// why it is there. Proving it red: delete the kms source from the manifest.
+func TestModuleCompatCorpusHoldsTheChosenModules(t *testing.T) {
+	root := moduleCompatRoot(t)
+	sources, err := modcompat.ManifestSources(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	have := map[string]bool{}
+	for _, s := range sources {
+		have[s.Module] = true
+	}
+	want := map[string]bool{}
+	for _, name := range moduleCompatCorpus {
+		module := "terraform-aws-modules/" + name + "/aws"
+		want[module] = true
+		if !have[module] {
+			t.Errorf("%s has no terraform-aws-modules source for %s, which the static tier covers (#2292)", modcompat.ManifestRel, module)
+		}
+	}
+	for module := range have {
+		if !want[module] {
+			t.Errorf("%s measures %s, which moduleCompatCorpus does not list; add it there with the reason it is in the corpus", modcompat.ManifestRel, module)
+		}
+	}
+}
+
 // TestModuleCompatPageRendersTheFile holds the site page to the file: the
 // component reads live/module-compat.json, and the compatibility page places
 // it. A table typed into the page would pass neither.
