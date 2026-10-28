@@ -126,6 +126,11 @@ var providerStringAllowed = map[string]providerStringException{
 	"internal/live/projection/store.go:newRecordStore":              {Why: "the record_store kind switch's projection-side counterpart; same enum as configs/live.go's, not a Substrate dispatch"},
 	"internal/command/live_cluster.go:liveClusterSubject":           {Why: "reports which record_store \"kubernetes\" block (if any) supplies the connection this run inspects; record stores are their own enum, not a Substrate dispatch (see configs/live.go's entry)"},
 	"internal/command/live_bucket_contract.go:bucketWaiverWarnings": {Why: "warns once per waived allow_insecure setting, named per record_store kind (the bucket's three settings, the cluster's four); same record-store enum as configs/live.go's, not a Substrate dispatch"},
+	"internal/command/live_record_store_report.go:liveSetupStore":   {Why: "the setup line every run prints (#2293) names where each record_store kind keeps records (a bucket, a storage container, a namespace, a directory); same record-store enum as configs/live.go's, not a Substrate dispatch"},
+	"internal/command/views/live_setup.go:LiveSetupLine":            {Why: "renders that same setup line, worded per record_store kind; same record-store enum as configs/live.go's, not a Substrate dispatch"},
+
+	// aws-tag-count lint (#2131).
+	"internal/live/lint/aws_tag_count.go:isAWSProvider": {Why: "the 50-tag count reads the tags map hashicorp/aws writes; substrate.ForProvider has already picked the AWS substrate, and the type name only separates aws from awscc, whose tags are a list of key/value objects, inside that one substrate"},
 
 	// uniquename regex.
 	// managed control plane recognition (#1524).
