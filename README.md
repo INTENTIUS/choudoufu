@@ -46,13 +46,9 @@ both. Live markers are the only change from stock OpenTofu.
 
 ## Where this stands
 
-Most commonly used AWS resource types are admitted. `aws_ecs_service` is
-proven end to end (deploy, migrate, drift, rename, remove) on a real
-ECS/Fargate estate. `aws_lambda_permission` takes no tags, so it is
+Most commonly used AWS resource types are admitted. `aws_lambda_permission` takes no tags, so it is
 [declaration-carried](https://intentius.io/choudoufu/docs/use/resource-tiers/):
 its identity is recomputed from the configuration on every run.
-[The gauntlet](https://intentius.io/choudoufu/docs/progress/) records which
-estates clear which stages against a real emulator.
 
 Some constructs stop a configuration more often than types do, for example
 `count.index` in a resource argument or a child module call. A `backend`
@@ -73,16 +69,16 @@ choudoufu live-check
 covers the same ground. [`live/LIMITATIONS.md`](live/LIMITATIONS.md) lists
 every limit with its reasoning.
 
-## See it prove itself
+## Try it
 
 The smoke stack is the demo and the test suite. One `docker compose` stack
 runs the pinned emulator and a stock OpenTofu oracle. Each step prints a
-verdict line, and the run exits 0 when every claim held. A scenario needs
+verdict line, and the run exits 0 when every step passed. A scenario needs
 Docker and takes about two minutes.
 
 ```
 just smoke roundtrip    # stock estate -> live-import -> no state file -> back to stock
-just smoke             # lists every scenario and the claim it proves
+just smoke             # lists every scenario
 ```
 
 Or paste this to a coding agent:

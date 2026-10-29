@@ -77,3 +77,5 @@ cache under `-refresh=false`.
 [refusals](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md),
 [IAM permissions](https://github.com/INTENTIUS/choudoufu/blob/main/live/IAM-REFERENCE.md),
 [outputs](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md).
+What is verified, and how, is indexed in
+[EVIDENCE.md](https://github.com/INTENTIUS/choudoufu/blob/main/EVIDENCE.md).

@@ -119,7 +119,6 @@ export default defineConfig({
 						{ label: 'Gate', slug: 'aws/gate' },
 						{ label: 'Operate', slug: 'aws/operate' },
 						{ label: 'Compatibility', slug: 'aws/compatibility' },
-						{ label: 'Proof', slug: 'aws/proof' },
 					],
 				},
 				{
@@ -131,7 +130,6 @@ export default defineConfig({
 						{ label: 'Gate', slug: 'kubernetes/gate' },
 						{ label: 'Operate', slug: 'kubernetes/operate' },
 						{ label: 'Compatibility', slug: 'kubernetes/compatibility' },
-						{ label: 'Proof', slug: 'kubernetes/proof' },
 					],
 				},
 				{
@@ -143,7 +141,6 @@ export default defineConfig({
 						{ label: 'Gate', slug: 'gcp/gate' },
 						{ label: 'Operate', slug: 'gcp/operate' },
 						{ label: 'Compatibility', slug: 'gcp/compatibility' },
-						{ label: 'Proof', slug: 'gcp/proof' },
 					],
 				},
 				{
@@ -155,7 +152,6 @@ export default defineConfig({
 						{ label: 'Gate', slug: 'azure/gate' },
 						{ label: 'Operate', slug: 'azure/operate' },
 						{ label: 'Compatibility', slug: 'azure/compatibility' },
-						{ label: 'Proof', slug: 'azure/proof' },
 					],
 				},
 				{

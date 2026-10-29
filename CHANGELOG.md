@@ -36,6 +36,8 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    `examples/ci-pipelines`, and commit the three regenerated trees plus
    `generated-from.json` alongside the pin. Skipping this step for more than
    one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
+7. Update the numbers in `EVIDENCE.md` at the cut, from `live/CLAIMS.md` and
+   `live/BOARD.md`, on the release branch before step 4's commit.
 
 ## choudoufu v0.32.0 (Unreleased)
 
