@@ -23,7 +23,8 @@ It runs on four platforms:
 
 Three things persist between runs. A tag on the resource says which real
 resource an address refers to. Values with no home in AWS go in a
-`record_store`: an S3 bucket you own, or a local directory. Effects with
+`record_store`: an S3 bucket, a GCS bucket, an Azure Blob container or a
+Kubernetes namespace you own, or a local directory (the default). Effects with
 nothing to read back get a receipt that tracks their staleness.
 
 AWS already scopes IAM by tag. choudoufu derives each marker from the
@@ -53,8 +54,11 @@ its identity is recomputed from the configuration on every run.
 [The gauntlet](https://intentius.io/choudoufu/docs/progress/) records which
 estates clear which stages against a real emulator.
 
-Constructs such as a `backend "s3"` block stop a configuration more often
-than types do. A saved plan file (`-out` plus `apply <planfile>`) works:
+Some constructs stop a configuration more often than types do, for example
+`count.index` in a resource argument or a child module call. A `backend`
+block does not: it is ignored with a warning, and when no `record_store` is
+declared, an `s3`, `gcs` or `azurerm` backend is where the records go, so keep
+it. A saved plan file (`-out` plus `apply <planfile>`) works:
 the apply re-reads the live system and refuses by name if it differs from
 the approved file ([#878](https://github.com/INTENTIUS/choudoufu/issues/878)).
 
