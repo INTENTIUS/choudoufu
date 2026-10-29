@@ -28,7 +28,7 @@ export async function pages() {
 
 export const PREAMBLE = `# choudoufu
 
-> choudoufu runs your OpenTofu and Terraform configurations and tags each resource with its owner, so your cloud's own permissions decide who can change it.
+> OpenTofu with per-resource locking.
 
 The source, and the reference material the site links to, is at https://github.com/INTENTIUS/choudoufu.
 
