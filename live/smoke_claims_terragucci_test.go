@@ -146,8 +146,14 @@ func TestTerragucciRowsWaitUntilRecorded(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(line, "waiting for its row") {
-			t.Errorf("terragucci %s %s renders as %q; want it waiting", p.Scenario, p.Claim, line)
+		// A proof that last ran an older release reports that version;
+		// one at the claimed release waits for its row.
+		want := "waiting for its row"
+		if p.EngineVersion != claimed {
+			want = "last proven at choudoufu " + p.EngineVersion
+		}
+		if !strings.Contains(line, want) {
+			t.Errorf("terragucci %s %s renders as %q; want it to say %q", p.Scenario, p.Claim, line, want)
 		}
 	}
 }
@@ -232,6 +238,8 @@ func TestTerragucciRowsCountOnlyAtTheClaimedRelease(t *testing.T) {
 	// The cell count: a kept row at the claimed release adds one dated
 	// proof to its cell, and a kept row at another release adds none.
 	rows := readGauntletStageRows(t)
+	// A release that is not the claimed one; the rows kept above ran claimed.
+	otherRelease := "0.0.1"
 	kept := map[string]bool{}
 	for _, p := range proofs {
 		kept[statpages.ProductScenarioEvidenceRel(p)] = true
@@ -248,16 +256,39 @@ func TestTerragucciRowsCountOnlyAtTheClaimedRelease(t *testing.T) {
 			continue
 		}
 		_, before := cellRuns(f, c, "aws", rows, readEvidenceDate, claimed)
-		_, at := cellRuns(f, c, "aws", rows, withRows, claimed)
-		_, other := cellRuns(f, c, "aws", rows, withRows, "0.32.0")
+		_, at := cellRuns(f, rerunAt(c, claimed), "aws", rows, withRows, claimed)
+		_, other := cellRuns(f, rerunAt(c, claimed), "aws", rows, withRows, otherRelease)
 		if at-before != len(want) {
 			t.Errorf("claim %d (aws): kept rows at %s added %d dated proofs, want %d", c.ID, claimed, at-before, len(want))
 		}
 		if other != before {
-			t.Errorf("claim %d (aws): rows that ran %s counted toward claims about 0.32.0 (%d dated, %d without them)", c.ID, claimed, other, before)
+			t.Errorf("claim %d (aws): rows that ran %s counted toward claims about %s (%d dated, %d without them)", c.ID, claimed, otherRelease, other, before)
 		}
 		if before == 0 {
 			t.Errorf("claim %d (aws) has no dated engine proof without terragucci's rows", c.ID)
 		}
 	}
+}
+
+// rerunAt is c with every product-scenario proof citing the engine version
+// v, as if terragucci had re-run its scenarios against that release. The
+// file itself keeps the version each row ran, so a proof that last ran an
+// older release reads as last proven at that version and never fails the suite.
+func rerunAt(c smokeClaim, v string) smokeClaim {
+	cells := map[string]smokeClaimProviderCell{}
+	for name, cell := range c.Providers {
+		proofs := make([]smokeProof, len(cell.Proofs))
+		for j, p := range cell.Proofs {
+			if p.ProductScenario != nil {
+				ps := *p.ProductScenario
+				ps.EngineVersion = v
+				p.ProductScenario = &ps
+			}
+			proofs[j] = p
+		}
+		cell.Proofs = proofs
+		cells[name] = cell
+	}
+	c.Providers = cells
+	return c
 }

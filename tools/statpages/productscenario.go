@@ -195,13 +195,14 @@ func ProductScenarioRecordProblems(p ProductScenarioProof, r ProductScenarioReco
 // ProductScenarioCounts reports whether a proof counts toward its cell
 // given the claimed release: only when its kept row is there and the
 // engine version it ran is the claimed one. A row at v0.28.0 never proves a
-// claim about v0.31.0. why says what is missing when it does not count.
+// claim about v0.31.0; it is reported with the version it last ran, and the
+// check that counts it never fails. why says what is missing when it does not count.
 func ProductScenarioCounts(p ProductScenarioProof, rec *ProductScenarioRecord, claimed string) (ok bool, why string) {
 	switch {
+	case p.EngineVersion != claimed:
+		return false, fmt.Sprintf("last proven at choudoufu %s, not the %s the claims are about, so it does not count", p.EngineVersion, claimed)
 	case rec == nil:
 		return false, "waiting for its row to be recorded"
-	case p.EngineVersion != claimed:
-		return false, fmt.Sprintf("ran choudoufu %s and the claims are about %s, so it does not count", p.EngineVersion, claimed)
 	}
 	return true, ""
 }
