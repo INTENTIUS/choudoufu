@@ -1,13 +1,12 @@
 ---
 // One room, from data/rooms.ts, in fixed sections: who it is for, what works,
-// what differs, first step, a link to the claims, then the pages to read in
+// what differs, first step, then the pages to read in
 // order: how-to, explanation, reference.
 import { room } from '../data/rooms';
 
 interface Props {
 	id: string;
 }
-const CLAIMS = 'https://github.com/INTENTIUS/choudoufu/blob/main/live/CLAIMS.md';
 const r = room(Astro.props.id);
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (h: string) => (/^https?:/.test(h) ? h : `${base}${h}`);
@@ -31,7 +30,6 @@ const href = (h: string) => (/^https?:/.test(h) ? h : `${base}${h}`);
 			<p><a href={href(r.first.href)}>{r.first.label}</a></p>
 		</section>
 	</div>
-	<p id="proof"><a href={CLAIMS}>Every claim is proven</a></p>
 	<section id="read" class="read">
 		<h2>Then read</h2>
 		<dl>

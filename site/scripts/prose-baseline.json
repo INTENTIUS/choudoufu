@@ -1,15 +1,9 @@
 {
- "site/src/content/docs/aws/proof.mdx": {
-  "anaphora/repeated-opening": 1
- },
  "site/src/content/docs/docs/use/start.md": {
   "anaphora/repeated-opening": 1
  },
  "site/src/content/docs/kubernetes/gate.mdx": {
   "discourse/punchy-fragments": 1
- },
- "site/src/content/docs/kubernetes/proof.mdx": {
-  "anaphora/repeated-opening": 1
  },
  "site/src/data/rooms.ts": {
   "discourse/punchy-fragments": 12,
