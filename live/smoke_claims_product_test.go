@@ -439,7 +439,7 @@ func TestProductScenarioRendersWithItsRow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(line, "does not count") || strings.Contains(line, "last proven") {
+	if !strings.Contains(line, "does not count") || strings.Contains(line, "last proven 20") {
 		t.Errorf("a v0.28.0 row renders as %q; want it named as not counting", line)
 	}
 	waiting := productAt("0.31.0")

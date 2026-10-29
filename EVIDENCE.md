@@ -8,6 +8,11 @@ is updated with each release.
 - 13 claims, each proven on AWS and on Kubernetes. [live/CLAIMS.md](live/CLAIMS.md)
   lists them with the scenario or test behind each cell.
 - GCP and Azure have no claim rows yet.
+- Claims 2, 5, 6, 7, 13, 28 and 45 each cite terragucci scenario rows on AWS.
+  Those rows are stale: they last ran choudoufu 0.31.0, and the claims are now
+  about 0.32.0, so they are listed in [live/CLAIMS.md](live/CLAIMS.md) as last
+  proven at 0.31.0 and do not count toward the 0.32.0 cells. The other proofs
+  in those cells are unchanged.
 - 46 estates on the gauntlet board, which runs real OpenTofu and Terraform
   configurations beside stock OpenTofu. The Azure estates pass.
   [live/BOARD.md](live/BOARD.md) has every stage of every estate.
