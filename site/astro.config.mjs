@@ -77,7 +77,7 @@ export default defineConfig({
 				ThemeProvider: './src/components/ThemeProvider.astro',
 				ThemeSelect: './src/components/ThemeSelect.astro',
 			},
-			description: 'choudoufu runs your OpenTofu and Terraform configurations and tags each resource with its owner, so your cloud\'s own permissions decide who can change it.',
+			description: 'OpenTofu with per-resource locking.',
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/INTENTIUS/choudoufu' },
 			],

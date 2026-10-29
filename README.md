@@ -2,7 +2,9 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/intentius/choudoufu.svg)](https://pkg.go.dev/github.com/intentius/choudoufu)
 
-**Runs your OpenTofu and Terraform configurations, with an owner tag on each resource.** <img src="site/public/brand/cube-160.png" width="32" height="32" alt="">
+**OpenTofu with per-resource locking.** <img src="site/public/brand/cube-160.png" width="32" height="32" alt="">
+
+The engine terragucci can run with `binary: choudoufu`.
 
 Each resource carries its identity as a marker the platform can select on.
 On AWS that is two resource tags. The apply writes the marker and the next
