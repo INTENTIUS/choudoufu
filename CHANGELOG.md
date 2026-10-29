@@ -39,7 +39,28 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 7. Update the numbers in `EVIDENCE.md` at the cut, from `live/CLAIMS.md` and
    `live/BOARD.md`, on the release branch before step 4's commit.
 
-## choudoufu v0.32.0 (Unreleased)
+## choudoufu v0.33.0 (Unreleased)
+
+## choudoufu v0.32.0 (2026-10-29)
+
+Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.32.0.json`](live/history/v0.32.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.31.0.json live/history/v0.32.0.json`):
+
+### Board movement
+
+- Core estates: 23/23 clear -> 22/23 clear (-1)
+- All estates: 24/25 clear -> 24/25 clear (0)
+
+### Newly cleared
+
+- none
+
+### Regressed
+
+- none
+
+The core count moves because `corpus-eks-managed-node-group` (#2291) joins the board unmeasured; no estate that was clear regressed.
 
 - New: `choudoufu investigate [NAME [INPUT] [name=value ...]]` answers one named, read-only question (#2280). Four native lookups need no graph: `owner` (the estate and address owning an AWS ARN, from one live marker read), `history` (a record's versions), `foreign` (the live resources nobody declares, from a `live-plan -json` document) and `affected` (the roots a git range touches). Every other name is one of chant's investigation templates (INTENTIUS/chant#4531), read as data from an installed chant: a path template runs through `chant search`, a Cypher template goes to behold's graph through `behold mcp`'s `ask`, and without behold it is reported unavailable. Each answer says what it read, what that cost and how fresh it is. `choudoufu mcp` serves the same investigations over stdio MCP, re-exports behold's `ask`, `show`, `shot` and `capabilities` under `behold:` when a behold binary is present, and passes chant's Ops through under `chant:` in a chant project, with `op-approve` left out unless `-allow-op-approve` is given. One guided recipe, `safe-to-delete`, is served as a prompt.
 - New: `choudoufu live-graph DIR -json [-from-plan=<file>] [-history]` prints the estate's graph as one JSON document in chant's engine graph shape (INTENTIUS/chant#4520): a node per resource and data block, keyed by address, and per instance a literal `count`/`for_each` or the live plan names; reference edges found without a provider schema, all `grain: "block"`; one node per estate the configuration reads. Facts (ownership, markers, ownedBy, import id, observedAt) come only from a `live-plan -json` document; `-history` adds each record's version ids and times. It writes nothing, starts no provider and prints no argument value (#2285). `live-plan -json` now carries `observed_at`, when its live read started.
@@ -59,6 +80,7 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 - Changed: the six sweep and store packages (`staterecord`, the Kubernetes, GCP and Azure sweeps, `k8stest`) and per-type identity knowledge moved from `internal/` to `pkg/` (#2244, #2281). The sweeps take credentials, endpoints, HTTP client and marker keys from the caller.
 - Changed: bucket contract checks for `s3`, `gcs` and `azurerm` stores are held to chant's shared fixtures (#2293).
 - Changed: claims cite `go_test` proofs recorded from main's CI, and terragucci's rows as extra proofs (#2288, #2299, #2301); 39 claim numbers are retired or reserved, 13 remain. The example pipelines point at terragucci's scenarios (#2302), and the `terralith` estate is for scale only (#2303).
+- Changed: the README and docs site describe choudoufu as "OpenTofu with per-resource locking." and name terragucci as the tool that runs it with `binary: choudoufu`. The claims, proof and board highlights are off the site and README; `EVIDENCE.md` now indexes the claims table and the gauntlet board, with its numbers updated at each release.
 
 ## choudoufu v0.31.0 (2026-10-24)
 
