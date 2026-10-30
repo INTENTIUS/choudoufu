@@ -157,6 +157,8 @@ jobs:
       - name: npm ci for the bucket project's template test
         working-directory: examples/record-store-bucket
         run: npm ci
+      - name: Prose lint README.md
+        run: npm ci --no-audit --no-fund && node prose-lint.mjs -fail README.md
       - name: Fast test tier
         run: go test ./internal/live/... ./pkg/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/backend/remote-state/azure/auth/ ./internal/configs/ ./internal/plans/ ./internal/plans/planfile/ ./internal/plugin/ ./internal/plugin6/ ./internal/plugins/ ./internal/states/statemgr/ ./internal/tracing/... ./internal/builtin/providers/tf/
 
