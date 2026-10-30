@@ -2,13 +2,13 @@
 title: choudoufu
 description: OpenTofu with per-resource locking.
 template: splash
-hero:
-  title: choudoufu
-  tagline: OpenTofu with per-resource locking.
-  image:
-    html: '<img class="cd-hero-cube" src="/choudoufu/brand/cube.svg" width="256" height="256" alt="The choudoufu cube, a pixel-art block of dark fried tofu" />'
 ---
 
 import Landing from '../../components/Landing.astro';
+import ProductHome from '../../components/ProductHome.astro';
+
+<ProductHome id="choudoufu">
+  <img slot="art" class="cd-hero-cube" src="/choudoufu/brand/cube.svg" width="256" height="256" alt="The choudoufu cube, a pixel-art block of dark fried tofu" />
+</ProductHome>
 
 <Landing />
