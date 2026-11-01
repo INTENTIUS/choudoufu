@@ -28,7 +28,7 @@ export async function pages() {
 
 export const PREAMBLE = `# choudoufu
 
-> OpenTofu with per-resource locking.
+> Per-resource locking for OpenTofu.
 
 The source, and the reference material the site links to, is at https://github.com/INTENTIUS/choudoufu.
 

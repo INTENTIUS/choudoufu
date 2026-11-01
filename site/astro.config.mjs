@@ -77,7 +77,7 @@ export default defineConfig({
 				ThemeProvider: './src/components/ThemeProvider.astro',
 				ThemeSelect: './src/components/ThemeSelect.astro',
 			},
-			description: 'OpenTofu with per-resource locking.',
+			description: 'Per-resource locking for OpenTofu.',
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/INTENTIUS/choudoufu' },
 			],
