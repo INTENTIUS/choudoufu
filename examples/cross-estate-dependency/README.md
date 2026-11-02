@@ -38,7 +38,7 @@ namespace and no lint rule.
 
 ## Substrate
 
-AWS-only. The read this project demonstrates is a filter on two tags,
+This example runs on AWS. The read this project demonstrates is a filter on two tags,
 `tag:tofu-estate` and `tag:tofu-address`, which is an AWS provider idiom:
 `aws_vpc`'s `filter` block queries the EC2 API's own tag index. A Kubernetes
 data source reads by name and namespace, not by an arbitrary label filter

@@ -39,19 +39,19 @@ func TestExamplesStateTheirSubstrate(t *testing.T) {
 	}{
 		{
 			"../examples/pipeline-governance/README.md",
-			[]string{"## Substrate", "AWS-only", "ci-pipelines"},
+			[]string{"## Substrate", "runs on AWS", "ci-pipelines"},
 		},
 		{
 			"../examples/cross-estate-dependency/README.md",
-			[]string{"## Substrate", "AWS-only", "tag:tofu-estate"},
+			[]string{"## Substrate", "runs on AWS", "tag:tofu-estate"},
 		},
 		{
 			"../examples/ci-pipelines/README.md",
-			[]string{"## Substrate", "AWS-only", "Resource Groups Tagging API"},
+			[]string{"## Substrate", "runs on AWS", "Resource Groups Tagging API"},
 		},
 		{
 			"../examples/converge-operator/README.md",
-			[]string{"## Substrate", "AWS-only", "AWS CLI"},
+			[]string{"## Substrate", "runs on AWS", "AWS CLI"},
 		},
 	} {
 		t.Run(tc.readme, func(t *testing.T) {
