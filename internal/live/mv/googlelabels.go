@@ -18,13 +18,13 @@ import (
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/discovery"
-	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/gcpsweep"
 )
 
 // This file is live-mv's GCP answer (GitHub issue #1119): the same command
@@ -66,7 +66,7 @@ import (
 //
 // Once found, the object goes through the same destination check the AWS
 // identity path makes ([mover.checkDestinationFree]): [mover.sweep] asks
-// Cloud Asset Inventory, through internal/live/gcpsweep, for every
+// Cloud Asset Inventory, through pkg/gcpsweep, for every
 // resource carrying tofu-estate=<destination> and tofu-address=<the new
 // value> in the projects the estate names ([mover.sweepAssets]), and
 // [mover.destinationDiags] refuses a move onto an address another object

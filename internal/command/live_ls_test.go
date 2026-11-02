@@ -23,10 +23,10 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/command/workdir"
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // ---------------------------------------------------------------------------
@@ -266,7 +266,7 @@ func TestPollConsistent(t *testing.T) {
 // covered: real iam:ListRoles and iam:ListRoleTags requests, decoded by the
 // real aws-sdk-go-v2/service/iam client this command builds, against
 // responses shaped exactly as IAM's own query protocol wire format - the
-// same fake-server technique internal/live/staterecord's ssm_test.go and
+// same fake-server technique pkg/staterecord's ssm_test.go and
 // s3_test.go already use for the same reason (a real account is not
 // available to a unit test, and floci's own IAM support is exercised
 // separately by TestLiveLsIAMAgainstFloci, gated behind Docker).

@@ -6,6 +6,7 @@ prompt: |
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 import PlatformSwitch from '../../../components/PlatformSwitch.astro';
+import ModuleCompat from '../../../components/ModuleCompat.astro';
 
 <PlatformSwitch />
 
@@ -26,6 +27,10 @@ The live backend in `estate.chdf.hcl` takes the place of the `backend` or `cloud
 ## Resource types
 
 Admitted AWS types plan, and [READINESS.md](https://github.com/INTENTIUS/choudoufu/blob/main/live/READINESS.md) lists each type's tier.
+
+### Modules
+
+<ModuleCompat />
 
 ## Running it
 

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // ControlPlaneFor settles which managed control plane, if any, a record_store
@@ -26,7 +26,7 @@ import (
 // `<id>.<suffix>.<region>.eks.amazonaws.com`. Both have to be present - the
 // cluster name from the plugin, the EKS host from the connection - and the
 // provider's own answer is still believed only when its endpoint is that
-// host (internal/live/staterecord's endpoint check), so a wrong guess comes
+// host (pkg/staterecord's endpoint check), so a wrong guess comes
 // out NOT CHECKED and never a pass.
 //
 // GKE and AKS are not inferred. gke-gcloud-auth-plugin and kubelogin carry

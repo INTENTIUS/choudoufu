@@ -12,8 +12,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // GitHub issue #1637: [RecordStore.ProbeWritable] is what lets #950's

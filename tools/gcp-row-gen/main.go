@@ -70,7 +70,7 @@ const (
 	EvidenceJSONRel = "live/gcp-identity-evidence.json"
 	FactsJSONRel    = "live/gcp-schema-facts.json"
 	SurveyJSONRel   = "live/gcp-survey.json"
-	TableGoRel      = "internal/live/identity/table_generated_google.go"
+	TableGoRel      = "pkg/identity/table_generated_google.go"
 )
 
 // The two provider names one row serves (#1119 item 6).

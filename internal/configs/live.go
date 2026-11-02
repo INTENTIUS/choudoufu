@@ -50,20 +50,24 @@ import (
 // mode exists to remove. Removing the file's authority is the point;
 // removing the file was the over-rotation #685 unwound.
 //
-// The block is also why a live-mode module cannot have a backend today: a
-// "backend" or "cloud" block alongside it is refused here, in the
-// configuration decoder, rather than only by the lint. Ruled on issue
-// #1170 (maintainer, 2026-09-26): the refusal stays. A live-mode module
-// keeps its cache locally (choudoufu-cache.tfstate) and its records in
-// record_store; a backend or cloud block would be a second authoritative
-// home for state, and that - not the cache's existence - is what gets
-// refused.
+// A "backend" or "cloud" block alongside it is kept and ignored for state,
+// with a warning (GitHub issue #2213, superseding the #1170 refusal): a
+// live-mode module keeps its cache locally (choudoufu-cache.tfstate) and its
+// records in record_store, so no state is read through the block. The block
+// is kept as [Module.IgnoredBackend], where an apply publishes an
+// outputs-only state document for terraform_remote_state readers, live-import
+// reads the old state, and, with no record_store block, the record store is
+// derived from it (GitHub issue #2293). See Module.ignoreStateStoreUnderLive.
+// Terragrunt and Atmos write one beside the live block on every run, which
+// is why it is not refused.
 type Live struct {
 	// Estate is the name of the estate this configuration owns, as it appears
 	// in the tofu-estate marker described by live/MARKERS.md. It is
 	// optional: when it is not set, the estate name is derived from the
-	// tofu-estate tags the configuration already stamps, and a configuration
-	// that stamps none (or several) is told to name one here.
+	// tofu-estate tags the configuration already stamps, then from the
+	// backend block's state key, then from the root's path in the repository
+	// (GitHub issue #2293); a configuration that stamps several is told to
+	// name one here.
 	//
 	// The value must be a literal string. An estate name assembled from a
 	// variable would mean the identity of the thing that owns live resources
@@ -196,6 +200,12 @@ type Live struct {
 	// has, is internal/live/retry's vocabulary, checked at lint time by
 	// internal/live/lint.
 	Retry *LiveRetry
+
+	// RecordStoreNote says why a backend block beside this live block did
+	// not become its record store (GitHub issue #2293): the backend has no
+	// record store counterpart, or it sets what the store needs only through
+	// -backend-config. Empty when there was no backend block or it was used.
+	RecordStoreNote string
 }
 
 // LiveRetry is the "retry" block nested inside a live block. See
@@ -525,7 +535,7 @@ type LiveRecordStore struct {
 	// Kubernetes is the "kubernetes" backend's connection block: the same
 	// arguments the stock kubernetes backend and the hashicorp/kubernetes
 	// provider take, decoded here and turned into a client by
-	// internal/live/projection through internal/live/kubesweep's own loader,
+	// internal/live/projection through pkg/kubesweep's own loader,
 	// which is the one copy of that precedence this fork keeps.
 	Kubernetes LiveRecordStoreKubernetes
 
@@ -594,6 +604,12 @@ type LiveRecordStore struct {
 	// implied local record store" rather than pointing at a block the author
 	// never wrote, and what a test reads to assert which of the two it got.
 	Implied bool
+	// Derived is true for the store taken from the module's backend block
+	// when the live block declares no record_store (GitHub issue #2293, see
+	// [deriveRecordStore]). DeclRange is then the backend block's header.
+	// Implied stays false: the author wrote the bucket down, in the backend
+	// block, so the readers [Implied] lists treat it as a declared store.
+	Derived bool
 }
 
 // LiveRecordStoreKubernetes is the "kubernetes" record store's connection
@@ -602,7 +618,7 @@ type LiveRecordStore struct {
 // provider's, so an operator who has written either writes this one.
 //
 // Nothing here is interpreted by this package. internal/live/projection maps
-// it onto [internal/live/kubesweep.Attrs] and that package's RestConfig
+// it onto [pkg/kubesweep.Attrs] and that package's RestConfig
 // applies the precedence - in_cluster_config first, then a kubeconfig named
 // by config_path, config_paths or the KUBE_* and KUBECONFIG environment
 // variables, then host, token and the TLS arguments over the top. That loader
@@ -1114,7 +1130,7 @@ var recordStoreControlPlaneBlockSchema = &hcl.BodySchema{
 
 // RecordStoreControlPlaneProviders is every label a record_store
 // "kubernetes" block's control_plane block takes, in the order the docs list
-// them. internal/live/staterecord spells the same three as
+// them. pkg/staterecord spells the same three as
 // ControlPlaneProviders.
 var RecordStoreControlPlaneProviders = []string{"eks", "gke", "aks"}
 
@@ -1162,14 +1178,14 @@ var RecordStoreGCSSettings = []string{
 
 // RecordStoreGCSInsecureSettings is every name the "gcs" backend's
 // "allow_insecure" argument accepts: the five things the GCS bucket contract
-// asserts. Pinned to [internal/live/staterecord.GCSSettings] by the same test
+// asserts. Pinned to [pkg/staterecord.GCSSettings] by the same test
 // as the other two lists.
 var RecordStoreGCSInsecureSettings = []string{"object_versioning", "noncurrent_lifecycle", "public_access_prevention", "uniform_bucket_level_access", "list_isolation"}
 
 // RecordStoreInsecureSettings is every name the "s3" backend's
 // "allow_insecure" argument accepts: the three settings the bucket contract
 // asserts (GitHub issue #1339). internal/live/projection pins this list to
-// [internal/live/staterecord.BucketSettings] by test, so a fourth assertion
+// [pkg/staterecord.BucketSettings] by test, so a fourth assertion
 // cannot be added there without being waivable here, or the other way round.
 var RecordStoreInsecureSettings = []string{"versioning", "lifecycle", "public_access_block"}
 
@@ -1177,14 +1193,14 @@ var RecordStoreInsecureSettings = []string{"versioning", "lifecycle", "public_ac
 // "allow_insecure" argument accepts: the four properties the cluster contract
 // asserts (GitHub issue #1393), and ahead of them the one it asserts about
 // this block's own "insecure" argument (#1448). Pinned to
-// [internal/live/staterecord.ClusterSettings] by the same test, for the same
+// [pkg/staterecord.ClusterSettings] by the same test, for the same
 // reason.
 var RecordStoreClusterInsecureSettings = []string{"tls_verification", "namespace_access", "read_isolation", "encryption_at_rest", "estate_boundary"}
 
 // RecordStoreAzureRMInsecureSettings is every name the "azurerm" backend's
 // "allow_insecure" argument accepts: the three storage account settings its
 // contract asserts (the Azure epic, #1120). Pinned to
-// [internal/live/staterecord.AzureSettings] by the same test as the others.
+// [pkg/staterecord.AzureSettings] by the same test as the others.
 var RecordStoreAzureRMInsecureSettings = []string{"blob_versioning", "lifecycle_management", "public_access"}
 
 // RecordStoreInsecureSettingsFor is the names "allow_insecure" accepts on a
@@ -2998,7 +3014,7 @@ func validateRecordStoreKeyPrefix(raw, estate string) string {
 	// reserved namespaces still gets the reserved namespace's reason, which
 	// is the more dangerous of the two.
 	//
-	// internal/live/staterecord's validateKeyPrefix refuses a leading slash
+	// pkg/staterecord's validateKeyPrefix refuses a leading slash
 	// at the store, for issue #688's reasons. It only sees the key the store
 	// builds, though, so a key_prefix with a leading slash passed this
 	// validator, survived the whole of config loading, and then failed every

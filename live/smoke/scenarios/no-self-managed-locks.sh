@@ -178,9 +178,10 @@ explain \
   "Server-assigned resources have no unique name for the cloud to" \
   "enforce, so a true double-create leaves two live objects claiming one" \
   "address. The claim does not pretend otherwise - it promises the next" \
-  "plan REPORTS the pair, by id, and binds to the one the estate's own" \
-  "record says it owns, instead of guessing or going silent. Staged here" \
-  "with the CLI: a second VPC wearing aws_vpc.main's exact markers."
+  "plan names both by id and refuses until a person resolves it, instead" \
+  "of binding one or going silent. Staged here with the CLI: a second VPC" \
+  "wearing aws_vpc.main's exact markers. The raced version, two applies" \
+  "each creating the VPC, is the draft smoke/drafts/two-creates-one-address.sh."
 cat > "$SMOKE_WORK/a/vpc.tf" <<'TFEOF'
 resource "aws_vpc" "main" {
   cidr_block = "10.7.0.0/16"
@@ -198,11 +199,21 @@ awsl ec2 create-tags --resources "$DUPE" \
   --tags "Key=tofu-estate,Value=smoke-locks" "Key=tofu-address,Value=aws_vpc.main" \
   || fail "locks" "could not mark the duplicate"
 cmd "choudoufu plan   # with two live VPCs claiming aws_vpc.main"
-COLL="$(cd "$SMOKE_WORK/a" && chdf plan -input=false -no-color 2>&1 || true)"
-grep -q "$DUPE" <<< "$COLL" \
+# The rc is kept, not discarded with `|| true`: a plan that names both and
+# still exits 0 has not refused anything (#2254).
+COLL_RC=0
+COLL="$(cd "$SMOKE_WORK/a" && chdf plan -input=false -no-color 2>&1)" || COLL_RC=$?
+COLL_FLAT="$(tr '\n' ' ' <<< "$COLL" | sed 's/│/ /g' | tr -s ' ')"
+[ "$COLL_RC" != "0" ] \
+  || fail "locks" "the plan exited 0 with two live VPCs claiming aws_vpc.main ($REAL_VPC and $DUPE): $COLL"
+grep -q "$REAL_VPC" <<< "$COLL_FLAT" \
+  || fail "locks" "the estate's own VPC $REAL_VPC is nowhere in the plan output: $COLL"
+grep -q "$DUPE" <<< "$COLL_FLAT" \
   || fail "locks" "the duplicate $DUPE is nowhere in the plan output - a silent double-claim: $COLL"
-grep -E "$DUPE" <<< "$COLL" | head -1 | evidence
-proof "both claimants surfaced, by id. A human deletes one - that is the resolution, and it is a decision, not an accident."
+grep -q "A human has to resolve the collision before this estate can be planned" <<< "$COLL_FLAT" \
+  || fail "locks" "the plan failed without the collision refusal: $COLL"
+grep -oE "[0-9]+ live aws_vpc resources carry estate .{0,200}" <<< "$COLL_FLAT" | head -1 | evidence
+proof "the plan refused, naming $REAL_VPC and $DUPE. A human deletes one - that is the resolution, and it is a decision, not an accident."
 
 step "5. the human resolves it, the estate is clean again"
 cmd "aws ec2 delete-vpc --vpc-id $DUPE ; choudoufu plan"

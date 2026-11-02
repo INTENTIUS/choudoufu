@@ -112,7 +112,7 @@ the reason each family gives in `aws.go`, `kubernetes.go` and `azure.go`:
 | `Writes` | in-create / tags-only-plan / tagging-api | in-create / labels-only-plan or api-patch / never-needed | in-create / tags-only-plan / arm-tags-api |
 | `CarriesAddress` | true: the `tofu-address` tag | true: the address annotation (#1605's ruling, built as PRs #1664, #1678, #1684) | true: the `tofu-address` tag, as on AWS |
 | `AddressInMarkers`, `AddressCarrier` | true: the address is a key of the tag map | false: the annotation sits outside the label map | true: the address is a key of the tag map |
-| `Sweep`, `NewSweeper` | tagging-index, through the configured provider, no client | label-list, a cluster client built from the provider block | resource-graph: one Azure Resource Graph query per subscription, a client built from the azurerm or azapi provider block (`internal/live/azsweep`) |
+| `Sweep`, `NewSweeper` | tagging-index, through the configured provider, no client | label-list, a cluster client built from the provider block | resource-graph: one Azure Resource Graph query per subscription, a client built from the azurerm or azapi provider block (`pkg/azsweep`) |
 | `SweepFindsUnadmitted` | false: the tagging-index universe is the admission table read another way | true: it lists every kind the cluster serves | true, from the design: Resource Graph lists every tagged ARM resource whatever its type; awaits measurement |
 | `MarkerOutlivesObject` | true: the tagging index keeps listing a terminated object's tags for a while, so a record tombstone is read | false: the label is a field of the object, so a tombstone has no reader (#1883) | true: Azure documents a lag before a delete reaches Resource Graph, so tombstones are read; from the docs, awaits measurement |
 | `CreateCollidesOnKey` | false: out of scope of #1546, since an AWS create of an existing object often succeeds or renames, per type and unmeasured | true for `labels`: the API server answers 409 while an unlabelled object holds the name (#1546); false for `manifest`, where the server-side dry run already answers | false: an ARM create is a PUT that updates an existing object. `CreateOverwritesAtKey` is true instead, and an unmarked object at a declared id is refused by name before any create |
@@ -228,7 +228,7 @@ failures.
 
 | | AWS | Kubernetes | Azure |
 |---|---|---|---|
-| Kind | `substrate.SweepTaggingIndex`: the Resource Groups Tagging API and the other legs in `discovery/tagging.go`, `nativesweep.go`, `cloudcontrol.go`, through the configured provider | `substrate.SweepLabelList`: one label-selected list per served kind per namespace, `discovery/kubernetes.go` over the `internal/live/kubesweep` client from `NewSweeper` | `substrate.SweepResourceGraph`: `discovery/resourcegraph.go` over the `internal/live/azsweep` client |
+| Kind | `substrate.SweepTaggingIndex`: the Resource Groups Tagging API and the other legs in `discovery/tagging.go`, `nativesweep.go`, `cloudcontrol.go`, through the configured provider | `substrate.SweepLabelList`: one label-selected list per served kind per namespace, `discovery/kubernetes.go` over the `pkg/kubesweep` client from `NewSweeper` | `substrate.SweepResourceGraph`: `discovery/resourcegraph.go` over the `pkg/azsweep` client |
 | Finds a type with no row | no | yes (`SweepFindsUnadmitted`) | yes, from the design |
 | Marker outlives the object | yes, so tombstones are read | no (`MarkerOutlivesObject`) | yes, from Azure's docs |
 | Controller-held | ACK and Crossplane tags (`markers.ControllerTagKeys`) | the Helm release annotation; objects with `ownerReferences` are excluded by the sweep in `kubesweep` | ARM `managedBy`, and tags with the `aks-managed-` prefix |
@@ -315,7 +315,7 @@ fence, each a claim with a BREAK control, then a lane.
 | 7, identity is a tag | `carve-by-retag.sh` and others | `k8s-greenfield.sh` | `az-identity-is-a-tag` | strips the label; the replan must restore it |
 | 1, no silent orphans | `no-silent-orphans.sh` | `k8s-no-silent-orphans.sh` | `az-no-silent-orphans` | strips the orphan's label; the replan must leave it |
 | 13, the tag is the boundary | `the-tag-is-the-boundary.sh` | `k8s-the-label-is-the-boundary.sh` | `az-the-tag-is-the-boundary` | removes the policy; the denied write must go through |
-| 29, the store refuses what it can't trust | `a-wrong-bucket-is-refused.sh` | `k8s-records-in-the-cluster.sh` | `az-records-in-a-storage-account` | removes the fences |
+| 29, the store refuses what it can't trust | Go tests (`TestBucketContract` and others, #2288) | `k8s-records-in-the-cluster.sh` | none: the draft was deleted under #2288, since `TestAzureBlobStoreConformance` holds the store | removes the fences |
 
 Fixed (`live/smoke_claims_test.go`): the platform's name joins
 `provider_order` in `live/smoke/claims.json`; every claim gets a cell for it
@@ -395,7 +395,7 @@ definition of the contract.
 | 6. Fence | sweep, fence ruling | PR #1071: `estate-boundary.yaml` | unit 8: `estate-grant.json`, `estate-boundary.json`; draft, not run | claim 13, BREAK removes the policy |
 | 7. Lane | the claims above | PR #1074, PR #1089 | unit 15: `reference-azure`, clear on floci-az | lane reads clear |
 | 8. Migration | carrier | PR #1078: label carrier in `live-import` | unit 1: the ARM tags in `live-import` | lane migrate stage |
-| 9. Record store | optional | PR #1435 | `record_store "azurerm"`; draft `az-records-in-a-storage-account`, not run | claim 29, BREAK removes the fences |
+| 9. Record store | optional | PR #1435 | `record_store "azurerm"`; held by `TestAzureBlobStoreConformance` (the draft was deleted under #2288) | claim 29, BREAK removes the fences |
 
 Kubernetes got its family value after the fact (#1118) and its address
 annotation later (#1605); a new platform should start with the family value

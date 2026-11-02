@@ -110,19 +110,22 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// supporting types that render adds. Data, read by the generator, by
 		// the acceptance tier and by three type-coverage guards. It is not on
 		// the live path at all and refuses nothing.
-		"cohorts":    true,
-		"docsref":    true, // parses the doc references refusals carry
-		"docrefs":    true, // issue #256 item 8: godoc cross-package citation sweep, not a live pass
-		"flocitest":  true, // test harness
-		"k8stest":    true, // test harness (#1596)
-		"foreign":    true, // classification of unclaimed resources, inside discovery's stage
-		"harness":    true, // the burndown and assumptions registries; measures the instrument, is not part of it
-		"lifecycle":  true,
-		"largeset":   true, // issue #1750's multi-estate fixture generator and its baseline record
-		"listclient": true, // a client
-		"liveimport": true, // the bulk migration command's engine
-		"markerkey":  true,
-		"markers":    true, // the marker vocabulary itself
+		"cohorts":   true,
+		"docsref":   true, // parses the doc references refusals carry
+		"docrefs":   true, // issue #256 item 8: godoc cross-package citation sweep, not a live pass
+		"flocitest": true, // test harness
+		"k8stest":   true, // test harness (#1596)
+		"foreign":   true, // classification of unclaimed resources, inside discovery's stage
+		"harness":   true, // the burndown and assumptions registries; measures the instrument, is not part of it
+		"lifecycle": true,
+		"largeset":  true, // issue #1750's multi-estate fixture generator and its baseline record
+		// #2303's scenario estate renderer: copies a hand-written tree N
+		// times for tests and smoke scenarios. Test-fixture support, not a pass.
+		"scenarioestate": true,
+		"listclient":     true, // a client
+		"liveimport":     true, // the bulk migration command's engine
+		"markerkey":      true,
+		"markers":        true, // the marker vocabulary itself
 		// GitHub issue #1118's Substrate seam: each provider family's
 		// answers over the marker vocabulary (which surface a schema
 		// carries, how a marker is read and written, which sweep client a
@@ -162,7 +165,7 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// GitHub issue #1524: asks EKS, GKE or AKS whether a managed
 		// cluster encrypts Secrets at rest and returns the provider's
 		// answer as data. It emits no diagnostic; the encryption_at_rest
-		// finding is made in internal/live/staterecord's cluster contract,
+		// finding is made in pkg/staterecord's cluster contract,
 		// which is where every verdict about that answer lives.
 		"managedk8s":  true,
 		"markerstrip": true,
@@ -208,6 +211,10 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// path at all.
 		"statefulcost": true,
 		"staterecord":  true,
+		// GitHub issue #2281: the marker vocabulary and credential chains
+		// choudoufu hands the public sweeps under pkg/. Support code; the
+		// sweeps refuse, and they are listed above by their old names.
+		"sweepconfig": true,
 		// The shared config-subset evaluator (#826): the allowlist, the
 		// recover-wrapped evaluation, the count/for_each key derivation and
 		// the select-by-path argument read, in one leaf under identity,
@@ -262,6 +269,20 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// can print it without importing any stage: a hash over finished
 		// plans, refusing nothing.
 		"setdigest": true,
+		// GitHub issue #2285's live-graph: one graph document built from
+		// configuration and an optional live-plan -json document. It runs
+		// no stage and refuses nothing; it reads what the stages decided.
+		"livegraph": true,
+		// GitHub issue #2280's investigate and MCP server: read-only
+		// questions (owner, versions, undeclared, touched roots) answered
+		// beside the stages, never inside one, with nothing to refuse.
+		"investigate": true,
+		// GitHub issue #2297's offline second identity pass: it plans
+		// creates with placeholder-configured providers and hands the
+		// values to this package as Context.ManagedResults. It runs before
+		// Analyze, inside no stage, and refuses nothing; the identity layer
+		// decides what those values settle.
+		"offlineplan": true,
 	}
 
 	classified := map[string]bool{}

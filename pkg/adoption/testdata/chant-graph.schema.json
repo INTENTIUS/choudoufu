@@ -1,0 +1,1387 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intentius.io/chant/schemas/graph/v1/graph.schema.json",
+  "title": "chant-graph/v1",
+  "description": "Generated from chant core's TypeScript types (packages/core/src/engine-facts.ts, packages/core/src/lifecycle/index-document.ts, packages/core/src/lifecycle/adoption-file.ts) by `npm run generate:graph-schema`; do not edit by hand. Three documents: an engine graph (`#/$defs/EngineGraphDocument`, what `choudoufu live-graph -json` and `plunge graph --json` print, chant#4520), an index version (`#/$defs/IndexDocument`, behold#1025) and an adoption file (`#/$defs/AdoptionFile`, the `adopt: v1` input choudoufu, plunge and chant adopt from, chant#4536). Objects are closed so a writer's test catches a misspelled field; a reader ignores fields it does not know.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/EngineGraphDocument"
+    },
+    {
+      "$ref": "#/$defs/IndexDocument"
+    },
+    {
+      "$ref": "#/$defs/AdoptionFile"
+    }
+  ],
+  "$defs": {
+    "AdoptionFile": {
+      "description": "An adoption file (`adopt: \"v1\"`): one index version and the nodes to adopt from it.",
+      "type": "object",
+      "properties": {
+        "adopt": {
+          "const": "v1"
+        },
+        "index": {
+          "$ref": "#/$defs/AdoptionIndexRef"
+        },
+        "select": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AdoptionSelection"
+          }
+        }
+      },
+      "required": [
+        "adopt",
+        "index",
+        "select"
+      ],
+      "additionalProperties": false
+    },
+    "AdoptionIndexRef": {
+      "description": "The index version an adoption file reads from.",
+      "type": "object",
+      "properties": {
+        "scopeKey": {
+          "description": "The version's `stamp.scopeKey`: `cloud/<substrate>/<scopeId>/<scope digest>`.",
+          "type": "string"
+        },
+        "version": {
+          "description": "The version's file name under the scope key: `<observedAt>-<digest12>.json`.",
+          "type": "string"
+        },
+        "digest": {
+          "description": "The version's `stamp.digest`, sha256 hex. A `sha256:` prefix is accepted and ignored.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scopeKey",
+        "version",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "AdoptionSelection": {
+      "description": "One node to adopt.",
+      "type": "object",
+      "properties": {
+        "node": {
+          "description": "The index node id: `<substrate>/<scopeId>/<location>/<listedType>/<nativeId>`.",
+          "type": "string"
+        },
+        "as": {
+          "description": "The engine's address for the object: a Terraform address for choudoufu, a URN name and parent for plunge, an entity (logical) name for chant.",
+          "type": "string"
+        },
+        "type": {
+          "description": "The engine's type (`aws_lb`, `aws:s3/bucket:Bucket`, `AWS::S3::Bucket`). Left out only when the node's listed type joins to exactly one engine type; an engine refuses an ambiguous join without it, naming every candidate.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node",
+        "as"
+      ],
+      "additionalProperties": false
+    },
+    "ChantIndexScope": {
+      "description": "A chant source: a snapshot or `chant graph --format ir`. Today's snapshot key, unchanged.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "chant"
+        },
+        "member": {
+          "description": "`.` for a project outside a workspace.",
+          "type": "string"
+        },
+        "env": {
+          "type": "string"
+        },
+        "stack": {
+          "type": "string"
+        },
+        "lexicon": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "member",
+        "env",
+        "lexicon"
+      ],
+      "additionalProperties": false
+    },
+    "CloudIndexScope": {
+      "description": "A direct cloud read (behold#1029). Lists are sorted and deduplicated by canonicalScope.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "cloud"
+        },
+        "substrate": {
+          "type": "string",
+          "enum": [
+            "aws",
+            "azure",
+            "gcp",
+            "kubernetes"
+          ]
+        },
+        "scopeId": {
+          "description": "The account, subscription, project or cluster.",
+          "type": "string"
+        },
+        "locations": {
+          "description": "Regions or locations, or `\"*\"` for every one.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "string",
+              "enum": [
+                "*"
+              ]
+            }
+          ]
+        },
+        "types": {
+          "description": "Listed types, or `\"*\"` for every one.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "string",
+              "enum": [
+                "*"
+              ]
+            }
+          ]
+        },
+        "tagFilter": {
+          "description": "A tag or label filter, when the read had one.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "substrate",
+        "scopeId",
+        "locations",
+        "types"
+      ],
+      "additionalProperties": false
+    },
+    "CoverageEntry": {
+      "description": "What a read looked at, per type and location. A node can be absent only where this says `listed`. `\"*\"` in `listedType` or `location` means every type or every location (behold#1029's lister writes it for a run with `types` or `locations` of `\"*\"`); indexCoverageFor honours it.",
+      "type": "object",
+      "properties": {
+        "listedType": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "filtered",
+            "listed",
+            "no-binding",
+            "no-credentials",
+            "not-reached",
+            "read-failed",
+            "unsupported-kind"
+          ]
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "listedType",
+        "location",
+        "verdict"
+      ],
+      "additionalProperties": false
+    },
+    "EdgeGrain": {
+      "description": "What an edge joins (#4520): two blocks, two instances, or a property of one instance to another. Absent on an edge whose source does not say.",
+      "type": "string",
+      "enum": [
+        "block",
+        "instance",
+        "property"
+      ]
+    },
+    "EngineCloudId": {
+      "description": "One cloud identifier of a node.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "arn",
+            "import-id",
+            "k8s-uid",
+            "provider-id",
+            "self-link"
+          ]
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "EngineFacts": {
+      "description": "What an ownership engine observed about one node (#4520). Never read for a decision. Every field is optional: one the engine cannot supply is absent, never guessed, and a reader shows it as unknown.",
+      "type": "object",
+      "properties": {
+        "ownership": {
+          "description": "The engine's ownership verdict. A node built from configuration alone has none.",
+          "type": "string",
+          "enum": [
+            "bound",
+            "foreign",
+            "pending",
+            "unowned"
+          ]
+        },
+        "markers": {
+          "$ref": "#/$defs/EngineMarkers"
+        },
+        "ownedBy": {
+          "description": "What bound the node: a marker, the engine's record, or its name.",
+          "type": "string",
+          "enum": [
+            "marker",
+            "name",
+            "record"
+          ]
+        },
+        "cloudIds": {
+          "description": "The node's cloud ids. The first is the primary one and equals `physicalId` when both are set.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EngineCloudId"
+          }
+        },
+        "recordVersions": {
+          "$ref": "#/$defs/EngineRecordVersions"
+        },
+        "observedAt": {
+          "description": "ISO 8601 UTC, when this node's live facts were read.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EngineGraphDocument": {
+      "description": "The one JSON document `choudoufu live-graph -json` and `plunge graph --json` print. A `GraphIR` at version 1: node ids are the engine's own addresses (choudoufu's instance address, plunge's URN), and readers map them with `entityKeyFor`, `observedInstanceNodeId` and `pulumiNodeKey`.",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "meta": {
+          "$ref": "#/$defs/EngineGraphDocumentMeta"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IRNode"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IREdge"
+          }
+        },
+        "groups": {
+          "$ref": "#/$defs/IRGroups"
+        },
+        "exports": {
+          "description": "Outputs this stack publishes for other stacks to import (#513).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IRExport"
+          }
+        },
+        "imports": {
+          "description": "Parameters this stack imports from other stacks. A viewer matches an import's `name` to another stack's export `name` to draw the cross-stack edge; the parameter's in-stack consumers are ordinary `$ref` edges to it (#513).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IRImport"
+          }
+        },
+        "pipeline": {
+          "description": "The CI/pipeline projection alongside the component graph (#989) — see IRPipeline.",
+          "$ref": "#/$defs/IRPipeline"
+        },
+        "dangling": {
+          "description": "References that name nothing in this graph (#3910) — see IRDanglingRef. Absent when there are none.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IRDanglingRef"
+          }
+        },
+        "derivedAttrs": {
+          "description": "Attributes chant computed rather than read back from the provider, keyed by the kind they were folded onto. An enrichment pass records what it derived here so callers can report the graph's own surface without knowing any attribute name — the set is whatever the passes produced, not a list maintained by hand.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "capabilityView": {
+          "description": "With `chant graph --format ir --capability-view` (#4378): the lexicon-neutral view capability rules read, built by this chant through the project's own lexicon mappings and adapters. A `ViewDocument` (`capabilities/view.ts`). Absent unless asked for."
+        },
+        "rootReads": {
+          "description": "With `chant graph --live` (INTENTIUS/chant#4452): which read answered each root, the observation's structured RootRead report passed through as the lexicon wrote it, keyed by the lexicon's root key (terraform uses `terraform.roots.<root>`). `depth` is the read asked for, and `fellBackTo` and `reason` are set only when that read failed, so the read that answered is `fellBackTo ?? depth`. A consumer reads this and never the stderr notes that say the same thing in prose. Additive: absent when no lexicon reported one (a lexicon with one read path, a source graph, an `--at` replay), and an older chant never writes it.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/RootRead"
+          }
+        }
+      },
+      "required": [
+        "version",
+        "meta",
+        "nodes",
+        "edges",
+        "groups"
+      ],
+      "additionalProperties": false
+    },
+    "EngineGraphDocumentMeta": {
+      "description": "The open `meta` bag of an engine graph document, holding `engineGraph`.",
+      "type": "object",
+      "properties": {
+        "engineGraph": {
+          "$ref": "#/$defs/EngineGraphMeta"
+        }
+      },
+      "required": [
+        "engineGraph"
+      ]
+    },
+    "EngineGraphEngine": {
+      "description": "The engine that printed the document.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "`choudoufu` or `plunge`.",
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "EngineGraphGap": {
+      "description": "A node the engine could not describe, and why.",
+      "type": "object",
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "address",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "EngineGraphMeta": {
+      "description": "`meta.engineGraph` on an engine graph document.",
+      "type": "object",
+      "properties": {
+        "format": {
+          "description": "ENGINE_GRAPH_FORMAT.",
+          "const": 1
+        },
+        "engine": {
+          "$ref": "#/$defs/EngineGraphEngine"
+        },
+        "scope": {
+          "$ref": "#/$defs/EngineGraphScope"
+        },
+        "observedAt": {
+          "description": "ISO 8601 UTC, when the read started. Absent when nothing was read live.",
+          "type": "string"
+        },
+        "markerScheme": {
+          "$ref": "#/$defs/EngineMarkerScheme"
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EngineGraphGap"
+          }
+        }
+      },
+      "required": [
+        "format",
+        "engine",
+        "scope"
+      ],
+      "additionalProperties": false
+    },
+    "EngineGraphScope": {
+      "description": "What the read covered: a choudoufu estate or a plunge stack.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "estate"
+            },
+            "estate": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "estate"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "stack"
+            },
+            "project": {
+              "type": "string"
+            },
+            "stack": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "project",
+            "stack"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "EngineIndexScope": {
+      "description": "A graph an engine printed (choudoufu, plunge).",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "engine"
+        },
+        "engine": {
+          "type": "string"
+        },
+        "estate": {
+          "description": "choudoufu's estate.",
+          "type": "string"
+        },
+        "project": {
+          "description": "plunge's project and stack.",
+          "type": "string"
+        },
+        "stack": {
+          "type": "string"
+        },
+        "backend": {
+          "description": "The backend URL, with any credentials stripped before it reaches here.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "engine"
+      ],
+      "additionalProperties": false
+    },
+    "EngineMarkerScheme": {
+      "description": "The marker keys and encodings the engine passes into its sweep packages, printed once per document.",
+      "type": "object",
+      "properties": {
+        "ownerKey": {
+          "type": "string"
+        },
+        "addressKey": {
+          "type": "string"
+        },
+        "continuationKeys": {
+          "description": "Keys a long value continues into (`tofu-slot`, `plunge-urn-2`).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "encoding": {
+          "type": "object",
+          "properties": {
+            "tags": {
+              "type": "string",
+              "enum": [
+                "digest",
+                "escaped",
+                "plain"
+              ]
+            },
+            "labels": {
+              "type": "string",
+              "enum": [
+                "digest",
+                "escaped",
+                "plain"
+              ]
+            }
+          },
+          "required": [
+            "tags",
+            "labels"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "ownerKey",
+        "addressKey",
+        "encoding"
+      ],
+      "additionalProperties": false
+    },
+    "EngineMarkers": {
+      "description": "The marker values an engine read or recorded for one node.",
+      "type": "object",
+      "properties": {
+        "owner": {
+          "description": "The estate name, or plunge's `<project>/<stack>`. A digest under encoding `digest`.",
+          "type": "string"
+        },
+        "address": {
+          "description": "The tofu-address value, or plunge's URN without stack and project. Same encoding rule as `owner`.",
+          "type": "string"
+        },
+        "encoding": {
+          "description": "How `owner` and `address` are written on the object.",
+          "type": "string",
+          "enum": [
+            "digest",
+            "escaped",
+            "plain"
+          ]
+        },
+        "source": {
+          "description": "`live`: read off the live object. `record`: what the engine's record says it wrote.",
+          "type": "string",
+          "enum": [
+            "live",
+            "record"
+          ]
+        }
+      },
+      "required": [
+        "encoding",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "EngineRecordVersion": {
+      "description": "One version of a node's record. No record values.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "writtenAt": {
+          "description": "ISO 8601 UTC.",
+          "type": "string"
+        },
+        "current": {
+          "type": "boolean"
+        },
+        "deleted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "writtenAt",
+        "current",
+        "deleted"
+      ],
+      "additionalProperties": false
+    },
+    "EngineRecordVersions": {
+      "description": "The versions of a node's record, when the run asked for them (`-history`, `--versions`).",
+      "type": "object",
+      "properties": {
+        "kept": {
+          "description": "False for a store that replaces records in place (local, Kubernetes).",
+          "type": "boolean"
+        },
+        "versions": {
+          "description": "Newest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EngineRecordVersion"
+          }
+        }
+      },
+      "required": [
+        "kept",
+        "versions"
+      ],
+      "additionalProperties": false
+    },
+    "GraphIR": {
+      "description": "The full graph IR for a project at the default (declarable) detail level.",
+      "type": "object",
+      "properties": {
+        "version": {
+          "description": "GRAPH_IR_VERSION, stamped by `chant graph --format ir` when it writes the IR (#2529). Absent on an IR built in memory, and on output from a chant older than the field, which a reader treats as version 1.",
+          "type": "number"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IRNode"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IREdge"
+          }
+        },
+        "groups": {
+          "$ref": "#/$defs/IRGroups"
+        },
+        "meta": {
+          "description": "Graph-level facts that are about the whole read rather than any one node.\n\nDeliberately an open bag. A fact lands here when it has no node to sit on — `_behaviour` (#2377) carries the engine, its version, the traffic level the figures are *at*, and the estate's totals, or a whole refusal report when there was no engine to ask. None of that is a property of a single entity, and putting the refusal on nodes would mean writing it N times or dropping it, and dropping it is the one outcome the contract forbids (`./behaviour-overlay.ts`).\n\nAbsent unless something filled it, and a consumer reads absence as \"not looked\" rather than as a negative finding.",
+          "type": "object"
+        },
+        "exports": {
+          "description": "Outputs this stack publishes for other stacks to import (#513).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IRExport"
+          }
+        },
+        "imports": {
+          "description": "Parameters this stack imports from other stacks. A viewer matches an import's `name` to another stack's export `name` to draw the cross-stack edge; the parameter's in-stack consumers are ordinary `$ref` edges to it (#513).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IRImport"
+          }
+        },
+        "pipeline": {
+          "description": "The CI/pipeline projection alongside the component graph (#989) — see IRPipeline.",
+          "$ref": "#/$defs/IRPipeline"
+        },
+        "dangling": {
+          "description": "References that name nothing in this graph (#3910) — see IRDanglingRef. Absent when there are none.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IRDanglingRef"
+          }
+        },
+        "derivedAttrs": {
+          "description": "Attributes chant computed rather than read back from the provider, keyed by the kind they were folded onto. An enrichment pass records what it derived here so callers can report the graph's own surface without knowing any attribute name — the set is whatever the passes produced, not a list maintained by hand.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "capabilityView": {
+          "description": "With `chant graph --format ir --capability-view` (#4378): the lexicon-neutral view capability rules read, built by this chant through the project's own lexicon mappings and adapters. A `ViewDocument` (`capabilities/view.ts`). Absent unless asked for."
+        },
+        "rootReads": {
+          "description": "With `chant graph --live` (INTENTIUS/chant#4452): which read answered each root, the observation's structured RootRead report passed through as the lexicon wrote it, keyed by the lexicon's root key (terraform uses `terraform.roots.<root>`). `depth` is the read asked for, and `fellBackTo` and `reason` are set only when that read failed, so the read that answered is `fellBackTo ?? depth`. A consumer reads this and never the stderr notes that say the same thing in prose. Additive: absent when no lexicon reported one (a lexicon with one read path, a source graph, an `--at` replay), and an older chant never writes it.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/RootRead"
+          }
+        }
+      },
+      "required": [
+        "nodes",
+        "edges",
+        "groups"
+      ],
+      "additionalProperties": false
+    },
+    "IRDanglingRef": {
+      "description": "A reference whose target is not a node of this graph (#3910): a job `needs` a job no workflow declares, a `uses:` names another repository's workflow, a GitLab `include:` names a file chant did not generate. Kept on the IR rather than dropped or matched to a near name, so a reader can tell \"no dependency\" from \"a dependency on something outside this project\". Field names follow the live resolver's `DanglingRef` (./graph-refs.ts).",
+      "type": "object",
+      "properties": {
+        "from": {
+          "description": "The node holding the reference.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "The edge kind the reference would have been.",
+          "$ref": "#/$defs/IREdgeKind"
+        },
+        "path": {
+          "description": "Where on `from` it was written, e.g. `needs`, `uses`, `trigger.include`.",
+          "type": "string"
+        },
+        "value": {
+          "description": "The reference exactly as written.",
+          "type": "string"
+        },
+        "crossPipeline": {
+          "description": "Same meaning as IREdge.crossPipeline.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "from",
+        "kind",
+        "path",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "IREdge": {
+      "description": "A directed dependency: `from` references `to` (an attribute of it, for `ref`).",
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "\"ref\" for an AttrRef-derived edge; a CI kind otherwise (see IREdgeKind).",
+          "$ref": "#/$defs/IREdgeKind"
+        },
+        "viaAttr": {
+          "description": "The consumer-side property the reference flows through, when derivable.",
+          "type": "string"
+        },
+        "toAttr": {
+          "description": "The producer-side attribute referenced (e.g. \"id\"). Added at detail T3.",
+          "type": "string"
+        },
+        "crossPipeline": {
+          "description": "True when the edge leaves the pipeline `from` belongs to (#3910): a reusable-workflow call, a `workflow_run` trigger, a GitLab child or multi-project trigger, an include, a cross-project `needs`. A renderer that draws each pipeline as a group (IRGroups.byPipeline) reads this to route the edge between groups. Absent on every in-pipeline edge.",
+          "type": "boolean"
+        },
+        "grain": {
+          "description": "What the edge joins (#4520): two blocks, two instances, or a property of one instance to another. Set by an engine's graph (choudoufu: `block`; plunge: `instance` for dependencies, parents and providers, `property` for property dependencies). Absent when the source does not say. Two edges between the same pair that differ only in grain are two edges.",
+          "$ref": "#/$defs/EdgeGrain"
+        },
+        "origin": {
+          "description": "Where the edge came from (behold#1025): `declared` (an AttrRef or an EntityReference), `observed` (the engine or the cloud reported it), or `derived` (a reference catalog rule matched an attribute value to another node, #4522). Absent reads as `declared` on a source IR and `observed` on a live one, which is what both meant before the field.",
+          "type": "string",
+          "enum": [
+            "declared",
+            "derived",
+            "observed"
+          ]
+        },
+        "rule": {
+          "description": "With `origin: \"derived\"`: the rule that produced the edge, `<lexicon>:<from kind>:<path>` for a catalog rule and `<lexicon>:<from kind>:tag:<key>` for a typed tag rule.",
+          "type": "string"
+        },
+        "relation": {
+          "description": "`reference` (the default when absent) or `containment`: the holder sits inside the target (a subnet in its VPC). A containment edge is also in `groups.byContainer`, so a renderer that draws boxes can skip the line.",
+          "type": "string",
+          "enum": [
+            "containment",
+            "reference"
+          ]
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "IREdgeKind": {
+      "description": "What an edge means (#3910). `ref` is a typed cross-resource reference (an `AttrRef`, a `Ref` intrinsic, a whole node held in props, or an EntityReference). The rest are the dependency strings a CI lexicon writes, reported through a plugin's `graphEdges` hook:\n\n - `needs`    — job waits for job (GitHub/GitLab `needs:`, GitLab stage order)\n - `calls`    — job runs a reusable workflow or a local composite action (`uses:`)\n - `triggers` — a pipeline starts another one: GitLab `trigger:` (from starts to), GitHub `on.workflow_run` (to finishing starts from)\n - `includes` — a pipeline pulls in another file's config (GitLab `include:`)\n - `extends`  — a job inherits another job's keys (GitLab `extends:`)\n\nEvery edge points from the entity that holds the reference to the entity it names. The set grows additively (GRAPH_IR_VERSION): a reader ignores a kind it does not know.",
+      "type": "string",
+      "enum": [
+        "calls",
+        "extends",
+        "includes",
+        "needs",
+        "ref",
+        "triggers"
+      ]
+    },
+    "IRExport": {
+      "description": "A cross-stack export this stack publishes (a `stackOutput`/`output`): its name (the matching key another stack imports by) and the node that produces it.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Output name — the cross-stack handle (e.g. \"ClusterArn\").",
+          "type": "string"
+        },
+        "node": {
+          "description": "Logical name of the producing node, when resolvable.",
+          "type": "string"
+        },
+        "attr": {
+          "description": "Producer-side attribute the output reads (e.g. \"Arn\").",
+          "type": "string"
+        },
+        "value": {
+          "description": "The published value, when the graph was observed rather than declared (#1279)."
+        },
+        "stack": {
+          "description": "The deployed stack that publishes it, on an observed graph (#1279).",
+          "type": "string"
+        },
+        "previously": {
+          "description": "Names the output had before, from a rename hint a lexicon read (#3931).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "IRGroups": {
+      "description": "Grouping metadata for cluster/subgraph rendering. Maps group name -> node ids.",
+      "type": "object",
+      "properties": {
+        "byLexicon": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "byComposite": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "byStack": {
+          "description": "Deployable-stack grouping (`stackName → nodeIds`). Consumers (e.g. pinhole's boundary boxes) read this rather than inferring stacks — which is the point, so it should never require one.\n\nThree sources, depending on how the project is shaped:\n\n - **side-by-side stacks**, declared in config and composed by `buildDeclaredPerStack` — keys are the declared stack names. Nothing is inferred; the project stated both the names and the membership.\n - **entities that name their own unit** (entityStack, #2266) — keys are those names, one entry per unit. A terraform root is the case this exists for: five `terraform.roots` are five `terraform apply`s and five boundary boxes, not one bucket called `terraform`.\n - **one source tree** — keys are lexicon partitions, since each lexicon serialises to one deployable stack.\n\nFormerly documented as awaiting \"#513 phase 2\" to regroup by nested child-project. #513 is closed and that phase was never filed; directory partitioning is the exception rather than the rule (#1433).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "byContainer": {
+          "description": "Live containment (#779): a container node id → the node ids directly inside it (VPC → subnets/SGs, subnet → instances/service). Nested *flatly* — a subnet is both a member of its VPC's entry and a key with its own members — so a boundary-box renderer recurses it. Populated by `chant graph --live` from the reference resolver's containment output; absent for source IR.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "byWave": {
+          "description": "Component-graph deploy wave (`chant graph --components --format ir`): `wave-N → component node ids` that deploy in parallel in that wave. A wave-laned renderer reads this the way `byStack` drives boundary boxes. Present only for the component-DAG projection; absent for entity IR.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "byPipeline": {
+          "description": "CI pipeline membership (#3910): a workflow or pipeline name -> the node ids it runs (the workflow node and its jobs). Reported by a CI lexicon's `graphEdges` hook; absent when no lexicon reports one. Edges marked `crossPipeline` run between these groups.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "IRImport": {
+      "description": "A cross-stack import this stack consumes — a `Parameter` fed from another stack's output at deploy time. A viewer matches an import `name` to another stack's export `name` to draw the cross-stack edge; the parameter's in-stack consumers are ordinary `$ref` edges to `node` (#513). A reader that infers that match by name uses `joinKey()` from `./join-key.ts` and labels the edge `exact` or `folded`, the way `chant workspace graph` labels joins across members (#2539, ws-008).",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Parameter name — the cross-stack handle (e.g. \"clusterArn\").",
+          "type": "string"
+        },
+        "node": {
+          "description": "Logical name of the parameter node.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "node"
+      ],
+      "additionalProperties": false
+    },
+    "IRNode": {
+      "description": "One resource in the graph.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Logical name (the export name, or composite-expanded name).",
+          "type": "string"
+        },
+        "kind": {
+          "description": "Resource type, e.g. \"GkeCluster\".",
+          "type": "string"
+        },
+        "lexicon": {
+          "description": "Lexicon the resource belongs to, e.g. \"gcp\".",
+          "type": "string"
+        },
+        "compositeParent": {
+          "description": "Name of the composite *type* that expanded this node, when it came from one (e.g. \"CockroachDbCluster\").",
+          "type": "string"
+        },
+        "compositeInstance": {
+          "description": "The composite *instance* (export name) this node belongs to — shared by every node from the same composite call. Detail tiers collapse on this (#494).",
+          "type": "string"
+        },
+        "attrs": {
+          "description": "Literal/const/ref-resolved props. References appear as `{ $ref }`.",
+          "type": "object"
+        },
+        "sourceLoc": {
+          "description": "Where the node was declared.",
+          "$ref": "#/$defs/SourceLoc"
+        },
+        "physicalId": {
+          "description": "Live-only (`chant graph --live`): the observed physical identifier (id / ARN). Absent for source-derived IR. The reference resolver (#778) indexes on this to reconstruct edges from live resource references.",
+          "type": "string"
+        },
+        "ownership": {
+          "description": "Live-only: ownership verdict read from the resource's marker (#119/#120). `owned` = chant-managed. Absent for source-derived IR.",
+          "type": "string",
+          "enum": [
+            "foreign",
+            "owned"
+          ]
+        },
+        "runtimeOwner": {
+          "description": "Live-only, undeclared nodes: the declared entity this node's owner-reference chain resolves to (#1077) — a Pod a declared Deployment's controller created, for instance. Presence of this field is what an overlay reads to paint the node `runtime` instead of `warn`/foreign; a node without it (including every declared, source-derived node) is unaffected.",
+          "type": "string"
+        },
+        "instanceOf": {
+          "description": "On an instance node of a `count` or `for_each` block (#4454): the block node's id. The node's own id is that id followed by instanceKey, `aws_eip.pool[0]` under `aws_eip.pool`, and the block node stays in the graph as the rollup. Absent on every other node. See `./instance-nodes.ts`.",
+          "type": "string"
+        },
+        "instanceKey": {
+          "description": "With instanceOf: the block's own instance key as the engine prints it, `[0]` or `[\"a\"]`. Absent on an instance that only an expanded enclosing scope makes (#4486), a block without `count` under `module \"app\" { count = 2 }`.",
+          "type": "string"
+        },
+        "instanceScope": {
+          "description": "With instanceOf, under an expanded enclosing scope (#4486): that scope's path as the engine prints it, `module.app[0]`. The node id then carries the key on the scope's segment, `estate/module.app[0]/aws_eip.pool[1]`.",
+          "type": "string"
+        },
+        "instanceRollup": {
+          "description": "On a block node whose `count` or `for_each` the declared graph cannot count (#4489): why it stays one node, and the expression. Absent on a block that is not expanded and on one whose instances are listed. See `./instance-nodes.ts`.",
+          "$ref": "#/$defs/InstanceRollup"
+        },
+        "facts": {
+          "description": "What an ownership engine (choudoufu, plunge) observed about this node (#4520, #4527). On a live node it is copied from `ResourceMetadata.facts`. On a declared node it comes from the entity's entityFacts: the pulumi lexicon reads a plunge member's checked-in `engine-graph.json` beside its stack export (#4529). For people and for readers that show the graph. Nothing in chant decides from it, and ownership keeps its own meaning. Absent unless an engine supplied it. See `./engine-facts.ts`.",
+          "$ref": "#/$defs/EngineFacts"
+        },
+        "listedType": {
+          "description": "Indexed nodes only (#4521, behold#1025): the inventory API's own type name, as the cloud lister read it: `AWS::S3::Bucket`, `microsoft.storage/storageaccounts`, `storage.googleapis.com/Bucket`, `apps/v1/Deployment`. Absent on every node a cloud listing did not make.",
+          "type": "string"
+        },
+        "location": {
+          "description": "Indexed nodes only: the region or location the object was listed in, `global` for a global type, a namespace or `cluster` for Kubernetes.",
+          "type": "string"
+        },
+        "nativeId": {
+          "description": "Indexed nodes only: the identifier the listing returned, Cloud Control's `Identifier`, the ARM id, the asset `name`, or `namespace/name`.",
+          "type": "string"
+        },
+        "tags": {
+          "description": "Indexed nodes only: tags or labels as read, masked by key. Where markers come from.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "unmappedKind": {
+          "description": "Indexed nodes only: true when no lexicon kind maps the listed type. The node keeps `kind` = listedType and `lexicon` = the substrate, and is never dropped (#4521).",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "lexicon",
+        "attrs"
+      ],
+      "additionalProperties": false
+    },
+    "IRPipeline": {
+      "description": "The CI/pipeline projection of a component graph (#989): the stages/jobs/ `needs` a CI-provider lexicon (gitlab, github, forgejo, or any lexicon implementing `generateComponentPipeline`) would synthesize for `chant build --components --generate <lexicon>`, reused here — never re-derived — as first-class IR nodes/edges. A consumer (e.g. behold) reads this alongside the component graph's `nodes`/`edges`/`groups.byWave` to render the CI shape without parsing generated YAML. Present only when `chant graph --components --format ir` is invoked with `--projection <lexicon>`.",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "description": "The CI-provider lexicon that produced this projection (e.g. \"gitlab\").",
+          "type": "string"
+        },
+        "env": {
+          "description": "The environment the projected pipeline deploys (#2046) — copied from the generator's own resolution (`ComponentPipelineResult.env`), so the IR carries the identity instead of leaving a consumer to lex it out of a job's run line.",
+          "type": "string"
+        },
+        "stages": {
+          "description": "Wave-ordered stage names — 1:1 with the component graph's `groups.byWave` keys.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IRPipelineNode"
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IRPipelineEdge"
+          }
+        }
+      },
+      "required": [
+        "provider",
+        "stages",
+        "nodes",
+        "edges"
+      ],
+      "additionalProperties": false
+    },
+    "IRPipelineEdge": {
+      "description": "A `needs:` dependency between two generated CI jobs — mirrors the `dependsOn` edge it derives from, consumer job → producer job.",
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "needs"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "IRPipelineNode": {
+      "description": "One generated CI job in the pipeline projection (`chant graph --components --format ir --projection <lexicon>`, #989) — the same job a CI-provider lexicon's `generateComponentPipeline` synthesizes for `chant build --components --generate <lexicon>` (see `ComponentPipelineJob`, ./lexicon.ts), reshaped into the IR's node vocabulary.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "CI job name (the generator's job id — a safe YAML/workflow key).",
+          "type": "string"
+        },
+        "kind": {
+          "const": "CIJob"
+        },
+        "component": {
+          "description": "The component this job triggers.",
+          "type": "string"
+        },
+        "stage": {
+          "description": "The stage/wave this job runs in — the same wave index as the component graph's `groups.byWave` (one CI stage/`needs:`-level per wave).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "component",
+        "stage"
+      ],
+      "additionalProperties": false
+    },
+    "IndexDocument": {
+      "description": "One index version.",
+      "type": "object",
+      "properties": {
+        "index": {
+          "const": "v1"
+        },
+        "stamp": {
+          "$ref": "#/$defs/IndexStamp"
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CoverageEntry"
+          }
+        },
+        "graph": {
+          "$ref": "#/$defs/GraphIR"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IndexNote"
+          }
+        }
+      },
+      "required": [
+        "index",
+        "stamp",
+        "coverage",
+        "graph"
+      ],
+      "additionalProperties": false
+    },
+    "IndexNote": {
+      "description": "A type with no lister, a lexicon with no catalog, a disabled API.",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "listedType": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "command": {
+          "description": "A command the person can run themselves, never run by the source (a GCP API to enable).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "IndexScope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ChantIndexScope"
+        },
+        {
+          "$ref": "#/$defs/CloudIndexScope"
+        },
+        {
+          "$ref": "#/$defs/EngineIndexScope"
+        }
+      ]
+    },
+    "IndexSource": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/IndexSourceKind"
+        },
+        "name": {
+          "description": "`behold-lister`, `choudoufu`, `plunge`, `chant`.",
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "IndexSourceKind": {
+      "description": "Who produced an index.",
+      "type": "string",
+      "enum": [
+        "chant",
+        "cloud",
+        "engine"
+      ]
+    },
+    "IndexStamp": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/IndexSource"
+        },
+        "scope": {
+          "$ref": "#/$defs/IndexScope"
+        },
+        "scopeKey": {
+          "description": "The store path the scope maps to (indexScopeKey): a reader refuses a mismatch by comparing it.",
+          "type": "string"
+        },
+        "observedAt": {
+          "description": "When the read started, ISO UTC.",
+          "type": "string"
+        },
+        "completedAt": {
+          "description": "When the last call returned, ISO UTC.",
+          "type": "string"
+        },
+        "commit": {
+          "description": "The source repository commit, when there is one.",
+          "type": "string"
+        },
+        "digest": {
+          "description": "sha256 hex of the canonical `graph` and `coverage` (indexDocumentDigest).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "scope",
+        "scopeKey",
+        "observedAt",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "InstanceRollup": {
+      "description": "On a block node whose `count` or `for_each` the declared graph cannot count (#4489): why, and the expression it could not count. `argument` and `expression` are the block's own, or with `call` those of the enclosing module call that could not be counted.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "instances-each-value",
+            "instances-form-unread",
+            "instances-merge",
+            "instances-module-uncounted",
+            "instances-over-limit",
+            "instances-value-unknown"
+          ]
+        },
+        "argument": {
+          "description": "`count` or `for_each`.",
+          "type": "string",
+          "enum": [
+            "count",
+            "for_each"
+          ]
+        },
+        "expression": {
+          "description": "The expression as written, without the `${ }` around it.",
+          "type": "string"
+        },
+        "call": {
+          "description": "With `instances-module-uncounted`: the module call, `module.app` or `module.app.module.db`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "argument",
+        "expression"
+      ],
+      "additionalProperties": false
+    },
+    "RootRead": {
+      "description": "The read a root was asked for and the one that answered. `depth` is the read asked for (`\"plan\"` for a plan-depth root, `\"live+plan\"` for a live root at the plan depth). `fellBackTo` is set only when that read failed: the read that answered instead (`\"live\"` is live-plan alone, for a live root), or `\"declared\"` when none did. `reason` is a short machine-stable cause, not prose to match on.",
+      "type": "object",
+      "properties": {
+        "depth": {
+          "type": "string"
+        },
+        "fellBackTo": {
+          "type": "string",
+          "enum": [
+            "declared",
+            "live",
+            "state"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "depth"
+      ],
+      "additionalProperties": false
+    },
+    "SourceLoc": {
+      "description": "Where in the source a node came from. Entity-level (file), not a line map.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "description": "Path of the declaring file, relative to the project root when possible.",
+          "type": "string"
+        },
+        "line": {
+          "description": "Line number, when available. Provenance is entity-level today, so this is usually absent — reserved for a future source map.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "file"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

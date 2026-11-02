@@ -55,7 +55,7 @@ const gcpAttributionLabel = "goog-terraform-provisioned"
 // that sets labels is counted; such a run refuses every google type as
 // unadmitted-type anyway.
 //
-// AWS has the same unguarded gap at its 50-tag cap; it is not this rule's.
+// AWS has the same cap at 50 tags, guarded by aws-tag-count (aws_tag_count.go).
 func checkGCPLabelCount(ctx context.Context, cfg *configs.Config, schemas map[string]providers.Schema, scope identity.Scope, issues *[]Issue) {
 	cfg.DeepEach(func(c *configs.Config) {
 		if c.Module == nil {

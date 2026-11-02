@@ -18,7 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	container "google.golang.org/api/container/v1"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // These hold each provider's reading to the fields that provider documents,

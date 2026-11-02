@@ -18,7 +18,8 @@ import (
 // static and built here, not from the legacy map, so a command registered
 // only in the map is "no command named" under the default CLI. The test
 // TestNewCLIDispatchesLiveCommands walks RootCommander and fails if any of
-// the fourteen is missing.
+// the fifteen is missing. investigate and mcp (GitHub issue #2280) ride
+// along: they are this fork's too, and reach the tree the same way.
 func LiveCommanders() []Command {
 	return []Command{
 		LiveAffectedCommander(),
@@ -26,6 +27,7 @@ func LiveCommanders() []Command {
 		LiveCheckCommander(),
 		LiveClusterCommander(),
 		LiveConeCommander(),
+		LiveGraphCommander(),
 		LiveHistoryCommander(),
 		LiveImportCommander(),
 		LiveLsCommander(),
@@ -35,6 +37,8 @@ func LiveCommanders() []Command {
 		LiveSummaryCommander(),
 		LiveWaveApplyCommander(),
 		LiveWavesCommander(),
+		InvestigateCommander(),
+		McpCommander(),
 	}
 }
 

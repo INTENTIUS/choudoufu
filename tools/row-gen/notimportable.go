@@ -102,7 +102,7 @@ func notImportableRoster(survey map[string]surveyEntry) []string {
 // identity table: it answers the same question - may this type be admitted -
 // and internal/live's own accounting has to read it to know a type outside
 // the identity table is outside it for a recorded reason.
-const notImportableTableRel = "internal/live/identity/notimportable_generated.go"
+const notImportableTableRel = "pkg/identity/notimportable_generated.go"
 
 // renderNotImportableFile renders internal/live/identity's not-importable
 // veto roster, the same shape renderMarkerlessFile takes.

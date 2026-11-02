@@ -8,7 +8,7 @@ proof-of-mechanism cohort, and `live/e2e/estates/lambda/README.md` for the
 first registry-backed cohort this one follows).
 
 This cohort exercises every type this batch ratified into
-`internal/live/lint/admission.go` and `internal/live/identity/table.go`.
+`internal/live/lint/admission.go` and `pkg/identity/table.go`.
 
 ## Coverage map
 
@@ -144,7 +144,7 @@ checks it by static HCL parse — `TestAdmissionTableCoversEstate` and
 to cover exactly the union of `live/e2e/estate/` and every `estates/*`
 cohort, this one included.
 
-`live/e2e/run.sh` and the gated `internal/live/discovery` floci integration
+`live/e2e/run.sh` (retired under #2288) and the gated `internal/live/discovery` floci integration
 test still stand up only the demo estate (confirmed by inspection: neither
 mentions `estates/` or "cohort"). Wiring cohort estates into the gated
 apply-against-floci tier is separate follow-on work, the same note
@@ -235,7 +235,7 @@ From `messaging.tf`:
 > admission strategy, #44's row-gen tool). Every resource below tagged
 > "Coverage" is one of the six types this batch ratified into
 > admittedTypesV0 (internal/live/lint/admission.go) and DefaultTable
-> (internal/live/identity/table.go) — see table.go's second
+> (pkg/identity/table.go) — see table.go's second
 > "Registry-ratified" section comment for the per-type evidence, for the
 > two row-gen proposals (aws_cloudwatch_alarm_mute_rule,
 > aws_cloudwatch_event_rule) this batch rejected, and for the one

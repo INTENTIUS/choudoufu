@@ -16,7 +16,7 @@ ownership.
 
 | Kind | For |
 |---|---|
-| `identity` | A resource with a live object: what a read cannot return |
+| `identity` | A resource with a live object: what a read leaves out |
 | `object` | A resource with no live object, such as `random_*` or `tls_*`: the whole value |
 
 ## Five stores

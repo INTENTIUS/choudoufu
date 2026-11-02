@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // GitHub issue #1287. A record write that fails for a record-rung instance

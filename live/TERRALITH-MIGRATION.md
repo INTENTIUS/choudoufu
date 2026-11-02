@@ -1,9 +1,8 @@
 # Migrating a terralith into per-team estates
 
-A terralith is one configuration that owns everything: every team's roles,
-policies, and infrastructure under a single state. It plans slowly because
-every plan refreshes the whole account, and ownership is a social convention
-rather than a boundary the tool enforces.
+A terralith is one configuration that owns everything under a single state,
+which is a simple place to start. As teams grow, each may want its own estate
+and its own permissions.
 
 This example takes a small terralith, splits it into an estate per team by
 rewriting one ownership tag per resource, and then measures the difference.

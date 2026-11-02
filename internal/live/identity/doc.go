@@ -131,7 +131,10 @@
 // Per-type identity knowledge lives in [DefaultTable], a v0 hardcoded
 // table covering the estate fixture's AWS types. See table.go for what it
 // holds and for the note on replacing it with provider-served resource
-// identity schemas.
+// identity schemas. The table, its generated siblings and the rules that
+// read a provider's identity schema are in pkg/identity (GitHub issue
+// #2244), so that another module can import them; this package reads them
+// through the aliases in public.go and keeps the configuration-reading half.
 //
 // A type absent from it is no longer automatically outside the subset.
 // [SynthesizeTypeIdentity] builds an entry from the provider's own resource

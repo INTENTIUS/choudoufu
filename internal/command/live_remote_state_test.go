@@ -15,11 +15,13 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/backend/remote-state/inmem"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/states/remote"
 	"github.com/intentius/choudoufu/internal/states/statefile"
 	"github.com/intentius/choudoufu/internal/states/statemgr"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 func readPublished(t *testing.T, c *inmem.RemoteClient) *statefile.File {
@@ -138,5 +140,40 @@ func TestWriteOutputsStateRespectsLockAndResources(t *testing.T) {
 func TestPublishOutputsStateNoBackend(t *testing.T) {
 	if d := publishOutputsState(context.Background(), nil, nil, ""); len(d) != 0 {
 		t.Fatal(d)
+	}
+}
+
+// TestSensitiveOutputsLeftOutNamesThem is #2217's second item: the document
+// leaves a sensitive output out (TestWriteOutputsState never sees one, since
+// the record store holds none), and the publish warns naming each by name.
+func TestSensitiveOutputsLeftOutNamesThem(t *testing.T) {
+	mod := &configs.Module{Outputs: map[string]*configs.Output{
+		"vpc_id":   {Name: "vpc_id"},
+		"db_pass":  {Name: "db_pass", Sensitive: true},
+		"api_key":  {Name: "api_key", Sensitive: true},
+		"endpoint": {Name: "endpoint"},
+	}}
+	diags := sensitiveOutputsLeftOut(mod, "s3")
+	if len(diags) != 1 {
+		t.Fatalf("got %d diagnostics, want one warning: %v", len(diags), diags)
+	}
+	d := diags[0]
+	if d.Severity() != tfdiags.Warning || d.Description().Summary != SummarySensitiveOutputsNotPublished {
+		t.Fatalf("got %v %q, want a warning %q", d.Severity(), d.Description().Summary, SummarySensitiveOutputsNotPublished)
+	}
+	want := `The outputs document published to the "s3" backend leaves out 2 sensitive output(s): "api_key", "db_pass".`
+	if got := d.Description().Detail; !strings.HasPrefix(got, want) {
+		t.Errorf("detail = %q\nwant it to start %q", got, want)
+	}
+	for _, plain := range []string{"vpc_id", "endpoint"} {
+		if strings.Contains(d.Description().Detail, plain) {
+			t.Errorf("detail names the non-sensitive output %q: %s", plain, d.Description().Detail)
+		}
+	}
+
+	delete(mod.Outputs, "db_pass")
+	delete(mod.Outputs, "api_key")
+	if diags := sensitiveOutputsLeftOut(mod, "s3"); len(diags) != 0 {
+		t.Errorf("no sensitive output, but got %v", diags)
 	}
 }

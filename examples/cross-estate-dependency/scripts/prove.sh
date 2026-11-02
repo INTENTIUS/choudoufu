@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # The example, actually run (issue #1059).
 #
+# The pipeline run of this example is terragucci's harness scenario
+# tg-compose-cross-estate (INTENTIUS/terragucci#1296), which drives the
+# example's own Forgejo workflows. This script goes once terragucci records
+# that row (choudoufu#2302); until then it is the example's live proof.
+#
 # Everything else in this project asserts what the files say. This runs them:
 # `chant run estates-apply` against the pinned floci emulator, and then four
 # checks that read the emulator and the disk directly rather than believing

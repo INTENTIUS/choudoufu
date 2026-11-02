@@ -25,17 +25,14 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/cone"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/retry"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/live/untag"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -45,6 +42,9 @@ import (
 	"github.com/intentius/choudoufu/internal/states/statemgr"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/pkg/azsweep"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // This file turns plain "choudoufu plan" and plain "choudoufu apply" into live mode when the
@@ -243,6 +243,7 @@ func liveBegin(
 		// pipeline calls the same methods either way, so nothing below
 		// this line knows which mode it is in.
 		view:         livePlanView(view, adoptionOnly, filter),
+		setupView:    view,
 		filter:       filter,
 		adoptionOnly: adoptionOnly,
 		// GitHub issue #352. The operation carries the run's -target and
@@ -718,6 +719,11 @@ func liveRejections(surface liveSurface, op *arguments.Operation, state *argumen
 // liveRunner is the live pipeline, wearing the interface the local
 // backend calls it through. One runner serves one operation.
 type liveRunner struct {
+	// setupView is where the record store line goes (GitHub issue #2293),
+	// printed once per run in PriorState. Nil prints nothing: a composed
+	// estate's runner and a test that builds a runner by hand.
+	setupView *views.View
+
 	// publishWorkspace is the workspace a composed estate's outputs are
 	// published under: the one its tool selected for it when it joined a
 	// joint run (#2231). "" means this run's own workspace.
@@ -1014,6 +1020,12 @@ func (r *liveRunner) PriorStateCalls() int {
 	return r.priorStateCalls
 }
 
+// liveRecordStoreOpener opens the record store for plan and apply. A
+// package variable for one reason: GitHub issue #2288's test of the waiver
+// warning runs an s3-configured estate twice over a local store, to pin that
+// the warning is on every run and not only the first (#1340).
+var liveRecordStoreOpener recordStoreOpener = projection.NewRecordStore
+
 // PriorState implements [backendLocal.LiveRun]: it runs the whole
 // live pipeline and returns the projection.
 //
@@ -1054,6 +1066,9 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 	diags = diags.Append(estateDiags)
 	if estateDiags.HasErrors() {
 		return nil, diags
+	}
+	if r.priorStateCalls == 1 && r.setupView != nil {
+		printLiveSetup(r.setupView, liveSetupFor(ctx, r.settings.Estate, config))
 	}
 	// GitHub issue #352's targeting scope, nil unless this run passed
 	// -target or -exclude, and read off the same core context that will
@@ -1149,7 +1164,7 @@ func (r *liveRunner) PriorState(ctx context.Context, config *configs.Config, cor
 				// runs alone (GitHub issue #2059).
 				dir = r.baseDir
 			}
-			store, storeErr = projection.NewRecordStore(ctx, recordStoreCfg, retryCfg, estate, dir, storeOpts...)
+			store, storeErr = liveRecordStoreOpener(ctx, recordStoreCfg, retryCfg, estate, dir, storeOpts...)
 		}
 		if storeErr != nil {
 			diags = diags.Append(recordStoreOpenDiag(recordStoreCfg.Type, storeErr))

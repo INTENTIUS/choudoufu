@@ -19,13 +19,13 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/live/armtypes"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 )
 
 // The command layer's half of the Azure sweep (GitHub issue #1120, unit 11;
@@ -169,6 +169,16 @@ func (s memoSearcher) Search(ctx context.Context, subscription, estate string) (
 	// A slice of its own per caller: the passes share the resources, not
 	// the slice header.
 	return append([]azsweep.Resource(nil), a.resources...), a.err
+}
+
+// SearchTypes passes live-plan -resource's narrowed query through to the
+// client, unmemoized: each cone asks it once (GitHub issue #2260).
+func (s memoSearcher) SearchTypes(ctx context.Context, subscription, estate string, armTypes []string) ([]azsweep.Resource, error) {
+	narrow, ok := s.inner.(azsweep.TypeSearcher)
+	if !ok {
+		return nil, fmt.Errorf("the Resource Graph client for subscription %s cannot narrow its query by type", subscription)
+	}
+	return narrow.SearchTypes(ctx, subscription, estate, armTypes)
 }
 
 // azureUntaggableTypes is [untaggableARMTypes] over this run's

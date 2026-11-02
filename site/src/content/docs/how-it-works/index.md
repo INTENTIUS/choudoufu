@@ -21,8 +21,8 @@ A marker is a tag or label holding the estate name. The block address sits
 beside it: a tag, a label, or on Kubernetes the
 `choudoufu.intentius.io/tofu-address` annotation ([Identity](identity/)).
 
-A record holds what the live resource cannot return, such as a generated
-password ([Records](values/)).
+A record holds what a read of the live resource leaves out, such as a
+generated password ([Records](values/)).
 
 ## The marker says what you own
 
@@ -36,16 +36,16 @@ aws resourcegroupstaggingapi get-resources \
 kubectl get configmaps,services -A -l tofu-estate=prod-networking
 ```
 
-## Stock backends and the live backend
+## Your backend and the live backend
 
-![What a state file holds, and where each part goes](../../../assets/diagram-split.svg)
+![The two parts of a state file, and where each goes on the live backend](../../../assets/diagram-split.svg)
 
-| | Stock backend | choudoufu live backend |
+| | With a backend block | With the live backend |
 |---|---|---|
-| Permission unit | one file | one resource |
+| Permission unit | the state file | each resource |
 | To narrow access | split the state | write a policy |
-| Two applies at once | a lock on the whole state | [no lock, a conditional write per record](locking/) |
-| Losing the state file | you lose what you own | a slower plan, since it is a [cache](cache/) |
+| Two applies at once | take turns on the state lock | run together, [one conditional write per record](locking/) |
+| Losing the state file | restore it from your backend's versioning | plan again, since the file is a [cache](cache/) |
 
 ## Two runs, and many roots
 

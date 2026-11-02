@@ -11,7 +11,7 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // GitHub issue #1114: the provider block's exec block is how every EKS

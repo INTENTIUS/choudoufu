@@ -10,7 +10,7 @@ The contract is that plain `choudoufu plan`/`choudoufu apply` go
 into live mode only when a configuration's `terraform` block contains a
 `live` block — never behind a CLI flag, so a team cannot fall back to a
 state file by forgetting one. The main estate's `standup` step
-(`live/e2e/run.sh`, step 2) needs the opposite: a stock `choudoufu apply`
+(step 2 of `live/e2e/run.sh`, retired under #2288) needs the opposite: a stock `choudoufu apply`
 that writes a plain `terraform.tfstate`, which is what `adopt` (step 3) then
 deletes to demonstrate the "nothing but a marker sweep gets you back" claim.
 Adding a `live` block to `live/e2e/estate/` would turn `standup`'s
@@ -44,7 +44,7 @@ step 11 does not want:
 - **`aws_iam_role`** — `chant/test/floci-gaps.md` #5: `iam:GetRole` omits
   `Tags`, so any import/refresh-based read of the role shows a
   tags-only in-place diff. Excluding the role keeps step 11's clean-plan
-  assertion (`live/e2e/run.sh`, step 11.3) a genuinely empty plan
+  assertion (step 11.3 of the retired `live/e2e/run.sh`) a genuinely empty plan
   instead of routing it through `assert_full_estate_clean`'s tolerance.
 - **`aws_ssm_parameter` (the receipt)** — `chant/test/floci-gaps.md` #10:
   SSM drops inline tags, with the same shape of tolerated-but-not-clean
@@ -65,7 +65,7 @@ Every identifier in this fixture (`live-e2e-block` estate name, VPC/
 subnet CIDRs, bucket name, log group name, security group name) is distinct
 from the main estate's (`live-e2e`), so the two can stand up in the same
 floci account without either estate's plan seeing the other's resources —
-step 11 (`live/e2e/run.sh`) asserts exactly that: the main estate's
+step 11 of the retired `live/e2e/run.sh` asserts exactly that: the main estate's
 resource counts are unchanged before and after this fixture's apply.
 
 ## Teardown

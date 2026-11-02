@@ -6,6 +6,7 @@
 //
 //   node prose-lint.mjs                 # every tracked page, summary per file
 //   node prose-lint.mjs path/to/page.md # one file, every finding located
+//   node prose-lint.mjs -fail README.md # one file, exit 1 on any finding (CI)
 //   node prose-lint.mjs -json           # machine-readable, for a future ratchet
 //
 // The rules come from the `sentences` package, whose published tarball is the
@@ -92,7 +93,8 @@ function lineOf(text, offset) {
 
 const args = process.argv.slice(2);
 const asJSON = args.includes("-json");
-const files = args.filter((a) => a !== "-json");
+const failOnFindings = args.includes("-fail");
+const files = args.filter((a) => a !== "-json" && a !== "-fail");
 
 if (files.length === 1) {
   const rel = relative(ROOT, join(process.cwd(), files[0]));
@@ -107,7 +109,7 @@ if (files.length === 1) {
     }
     for (const e of report.errors) console.log(`  RULE ERROR ${e.ruleId}: ${e.message}`);
   }
-  process.exit(0);
+  process.exit(failOnFindings && report.counts.findings > 0 ? 1 : 0);
 }
 
 const rows = [];

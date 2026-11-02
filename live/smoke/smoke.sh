@@ -12,7 +12,6 @@
 # shares with the main arm; both reach the same closing line.
 #
 #   bash live/smoke/smoke.sh roundtrip
-#   bash live/smoke/smoke.sh full
 #   bash live/smoke/smoke.sh k8s-greenfield   (a kind cluster, no emulator)
 #   bash live/smoke/smoke.sh gcp-greenfield   (floci-gcp, no kind cluster)
 #

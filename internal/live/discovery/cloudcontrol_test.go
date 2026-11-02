@@ -20,9 +20,9 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 const ccEstate = "cc-e2e"
@@ -111,7 +111,7 @@ func ccRoster(t *testing.T, mapped map[string]string, listable map[string]bool, 
 // ---------------------------------------------------------------------------
 // A fake Cloud Control endpoint, one per test: httptest.Server dispatching
 // on X-Amz-Target and the request body's TypeName, mirroring
-// internal/live/cloudcontrol's own fake-server test pattern.
+// pkg/cloudcontrol's own fake-server test pattern.
 // ---------------------------------------------------------------------------
 
 type ccResource struct {
@@ -1129,7 +1129,7 @@ func runCCDiscovery(t *testing.T, srv *ccServer, server *httptest.Server, typeNa
 	// MaxAttempts: 1 - TestCloudControlListResourcesFailure drives this
 	// through a server that answers ThrottlingException on every call; this
 	// helper is about discovery's handling of a list failure, not the
-	// client's retry policy (internal/live/cloudcontrol/retry_test.go), so
+	// client's retry policy (pkg/cloudcontrol/retry_test.go), so
 	// it must not sit through real backoff sleeps.
 	cc := cloudcontrol.New(cloudcontrol.Config{Endpoint: server.URL, MaxAttempts: 1})
 	roster := ccRoster(t,

@@ -1,13 +1,15 @@
-# The e2e harness
+# The e2e harnesses
 
-`live/e2e/run.sh` is both the end-to-end test for live resource
-markers and the feature's live demo
-(the site's [start page](https://intentius.io/choudoufu/docs/use/start/)). This README
-covers running it in one command, reading its output as a human or a
-machine, and what the branch's claim means as a single exit code.
+This directory holds the gauntlet's estates (`live/gauntlet/estates.json`),
+the fixtures the Go tests read, and a set of small purpose-built harnesses,
+each on its own port so they can all run at once. `just demo-run <name>` runs
+`live/e2e/<name>/run.sh`.
 
-There are smaller harnesses beside it, each on its own port so they can all
-run at once.
+The 15-step legacy harness `live/e2e/run.sh` (and `just demo`, `just smoke
+full`) was retired under #2288. Its steps are gauntlet stages or smoke
+claims; its lint-rejects step is `internal/live/lint/limits_test.go` and its
+receipt steps are `internal/live/lifecycle/receipt_existence_test.go`. The
+site's tutorial now runs `just smoke roundtrip`.
 
 | | Issue | Needs |
 |---|---|---|
@@ -28,195 +30,12 @@ fixture, read `live/FLOCI.md`: four classes of question the emulator cannot
 answer at any scale, so that a fixture is not built to measure one of them.
 Value semantics is the one that has actually shipped a defect to main, twice.
 
-## Quickstart
-
-You need four things.
-
-- Docker, running (`docker info` must succeed). The harness stands up
-  Floci (`floci/floci:latest`), a local AWS emulator, on a free port.
-- The AWS CLI (`aws`) on `PATH`. It is used directly, alongside
-  `choudoufu`, to make assertions no `choudoufu` command should be trusted
-  to grade itself on, such as reading a tag straight off a live resource.
-- Go, or a prebuilt `choudoufu` binary via `TOFU_BIN` (see below). Without
-  `TOFU_BIN`, the harness runs `go build ./cmd/choudoufu` from this
-  checkout itself, so it always exercises the code actually on the branch.
-
-The one command, from the repository root.
-
-```
-bash live/e2e/run.sh
-```
-
-It takes about 2 minutes on a warm Go build cache (longer on a cold one,
-since the harness builds `choudoufu` from this checkout unless `TOFU_BIN`
-is set). It builds `choudoufu`, starts Floci, applies a real estate against
-it with plain local state, deletes the state file in front of you, and then
-proves each claim below live against the same running emulator. Nothing
-here is mocked or simulated.
-
-## What each step proves
-
-Steps whose command surface isn't wired up yet in this build report `NOT
-IMPLEMENTED (phase N)` instead of failing. See "Flags" below for the
-`--expect` grouping. As of this branch every step is green, including
-drift-exact, removal-exact, receipt-cycle, receipt-cycle-existence and
-drift-reconverge (phase 5, P5.1's exactness work, gated additionally on
-`LIVE_E2E_EXACTNESS`, see "Env knobs").
-
-| Step | Proves |
-|---|---|
-| `standup` | Stock `choudoufu init`/`apply` builds a real estate on the emulator with plain local state, the ordinary baseline before any marker work happens. |
-| `adopt` | Deleting `terraform.tfstate(.backup)` is the entire migration. Nothing else about the estate or its config changes. |
-| `tofu-init` | The state-less work copy resolves providers via `choudoufu` (registry.opentofu.org), never `terraform`. |
-| `slot-migration` | The pre-slot `aws_eip.pool` members take their stable `tofu-slot` markers with no create and no destroy, the one-time write an apply would perform. |
-| `receipt-adoption` | Both SSM-parameter receipts (`demo_effect` the hash flavor, `demo_existence` the existence flavor, RA.6) take their ownership markers by hand with `aws ssm add-tags-to-resource`, adoption exactly as the docs describe it, a tag you write with your own cloud tools. The emulator drops the inline tags an SSM parameter is created with (floci-gaps #10), so without this both receipts are correctly unowned and every later step would be measuring against a standing diff instead of an owned resource. |
-| `empty-plan-named` | `choudoufu live-plan -target=...` reports an empty plan for the client-named/attachment subset, rebuilt from markers alone, with no state file read or written. |
-| `empty-plan-full` | The same, full-estate, no `-target`. Every declared instance materializes via discovery plus binding except the one the emulator will not serve tags for, which is reported as an `[UNOWNED]` omission with an adoption hint rather than silently adopted, and gathered in the plan's rendered `Unowned` section as `[ADOPTABLE]` with the exact tag values to write. |
-| `drift-exact` | One out-of-band mutation per estate type (VPC, subnet, security group, EIP, bucket, log group tag, and log group retention as the non-tag case) surfaces as *exactly* that resource and that attribute with no broader neighbour noise, is corrected, and reconverges cleanly, all seven cases in one matrix. |
-| `foreign-protected` | An unmarked security group created out of band is reported under a `Foreign resources` section and never proposed for deletion. |
-| `removal-exact` | Deleting a whole resource block (`aws_security_group.main`) proposes *exactly* one destroy, named in an `Owned and undeclared` section alongside the live resource's ID. Applying it (via the AWS CLI, since no `live-apply` exists) removes exactly that resource and nothing else. |
-| `count-scale-down` | Taking `count` from 3 to 2 on `aws_eip.pool` proposes exactly one destroy (the highest slot), zero churn on the survivors, and converges cleanly on re-plan. |
-| `rename-no-churn` | `choudoufu live-mv <old> <new>` rewrites the live `tofu-address` tag in place. The following plan is empty. |
-| `plain-plan-works` | A `live { estate = "..." }` block in `terraform{}` puts a plain `choudoufu plan`/`apply` on markers, with no `live-`-prefixed subcommand anywhere. `-out` and `refresh` are rejected by name. |
-| `receipt-cycle` | The estate's receipt (`aws_ssm_parameter.demo_effect`, the HASH flavor, live/RECEIPTS.md) exists with a 64-char hash after standup. Breaking it out of band (a value overwrite) re-arms the plan's "effect will fire" signal on exactly that resource's value. A corrective write converges it back to clean. |
-| `receipt-cycle-existence` | The estate's other receipt (`aws_ssm_parameter.demo_existence`, the EXISTENCE flavor, RA.6, live/RECEIPTS.md's default recommendation) exists with the constant value `"done"`. Breaking it out of band THE EXISTENCE WAY, a genuine `aws ssm delete-parameter` rather than an overwrite, re-arms the plan's "effect will fire" signal as exactly one create on that resource. Recreating it (playing the Op) converges it back to clean. |
-| `drift-reconverge` | A phase-local copy of the standing estate, given its own `live { estate = "live-e2e" }` block, adopts the same live resources with no changes at all (no second standup). Three drifts of three different shapes injected out of band (a log group's retention, a plain tag beside the markers on the VPC, a whole CloudWatch alarm deleted) render on ONE plain `choudoufu plan` as exactly two in-place updates and one create, nothing else, and one untargeted apply reconverges all three in the same breath (1 added, 2 changed). drift-exact proves each shape alone under live-plan; this step proves them together under the plain-command path. (The observational-snapshot half this step used to carry — the `tofu-snapshots` git branch and its `git log`/`git diff` assertions — was removed with the subsystem, issue #109.) |
-| `lint-rejects` | Every directory in `live/e2e/limits/` is refused by the shipped binary, naming exactly the lint rule that fixture exists for and no other. The one construct no lint rule catches yet (duplicate-identity, refused at identity resolution instead) is asserted as unenforced, so the gap is visible in the output rather than hidden by omission. |
-
-Every step that mutates the shared live estate ($MAIN) restores it before
-finishing. `count-scale-down` reallocates the EIP it released,
-`removal-exact` recreates the security group it destroyed,
-`rename-no-churn` rewrites the live tag back to the original address, and
-`drift-reconverge` applies its own phase-local copy of the config to
-reconverge the log group, VPC and alarm it drifted, so every later step
-still sees the full estate its own config declares.
-
-## Env knobs
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `FLOCI_PORT` | `4601` | Emulator port. Change if the default is taken on your machine. |
-| `FLOCI_NAME` | `tofu-live-e2e-$$` | Container name. The default already includes the PID for uniqueness across parallel runs. |
-| `TOFU_BIN` | (unset) | Path to a prebuilt `choudoufu` binary. Skips the `go build` step. Must be executable. |
-| `LIVE_E2E_EXACTNESS` | `1` | Gates `drift-exact`/`removal-exact`/`receipt-cycle`/`receipt-cycle-existence` on top of their own `-estate`/`live-mv` probes. With the default `1` (since P5.2) all four run for real against P5.1's exactness work, which is merged and green. With `0` all four are forced back to `NOT IMPLEMENTED`, for a pre-exactness bisect or to reproduce what `--expect 4` verified before P5.1/P5.2 landed. |
-| `LIVE_E2E_JSON` | `0` | Env-var spelling of `--json` (see below). `1` enables it. |
-
-## Flags
-
-- **`--json`** (or `LIVE_E2E_JSON=1`) emits exactly one JSON object
-  as the final line written to stdout.
-
-  ```
-  {"steps":[{"name":"standup","status":"pass","phase":0}, ...],"overall":"pass"}
-  ```
-
-  `status` is one of `pass`, `not_implemented`, `fail`. `phase` is the
-  `--expect` grouping below, not the roadmap task number embedded in a `NOT
-  IMPLEMENTED (phase N)` human-readable line (those name which `P<N>.x`
-  task unblocks a step, a different scale).
-
-  `overall` is one of four values, independent of `--expect`.
-
-  | `overall` | Meaning |
-  |---|---|
-  | `pass` | Every recorded step passed or legitimately reported `not_implemented`, and the harness reached its own end. |
-  | `fail` | A claim was checked and found false. Some step's `status` is `fail`. |
-  | `error` | The harness did not finish and no step reported a failure. A signal, a `set -e` abort, a crash. |
-  | `skipped` | The run ended in `SKIP` (missing Docker, `aws` or `go`). Nothing was verified. |
-
-  The last two exist because they used to be reported as `pass`. Every
-  `RC=$?` guard after a `choudoufu` invocation was unreachable under `set
-  -euo pipefail`, since the command substitution aborts the script first,
-  so a genuinely broken run died with no diagnostic and this object still
-  said the run had passed. `run_tf` in `run.sh` is what makes those guards
-  live, and `error`/`skipped` are what the summary says when there is
-  nothing to report a verdict on.
-
-  A design decision worth knowing. With `--json` on, all the normal
-  human-readable progress output (`=== N. step ===`, per-step detail
-  lines, `FAIL`/`PASS`) stays on stdout exactly as it does without the
-  flag. Nothing is redirected to stderr, and nothing about the run is
-  quieter. The JSON object is appended as the truly last thing written to
-  stdout, from an `EXIT` trap, so it comes out whether the run reaches its
-  normal end or exits early via `fail()`. **Parse it by taking the last
-  line of stdout.** Do not try to parse the whole stream as one JSON
-  document.
-
-- **`--expect <phase>`** exits `0` iff every recorded step at or below
-  `<phase>` has status `pass` AND every step above `<phase>` reports
-  `not_implemented`. A `fail` anywhere exits nonzero regardless of
-  `--expect` (a step that already called `fail()` has already exited the
-  script before `--expect` is ever evaluated). On a miss, `run.sh` names
-  the blocking step(s), their phase, and their actual status on stderr.
-
-  Phase assignment.
-
-  | Phase | Steps |
-  |---|---|
-  | 0 | `standup`, `adopt`, `tofu-init`, `slot-migration`, `receipt-adoption` |
-  | 1 | `empty-plan-named` |
-  | 2 | `empty-plan-full`, `foreign-protected` |
-  | 3 | `count-scale-down`, `rename-no-churn` |
-  | 4 | `plain-plan-works` |
-  | 5 | `drift-exact`, `removal-exact`, `receipt-cycle`, `receipt-cycle-existence`, `drift-reconverge`, `lint-rejects` |
-
-## Exit-code meanings
-
-| Exit code | Meaning |
-|---|---|
-| `0` | Every step ran and either passed or legitimately reported `NOT IMPLEMENTED`, or the run was cleanly `SKIP`ped with no `--expect` given, or `--expect <phase>` was given and its condition held. |
-| `1` | A step's claim was checked and found false (`FAIL`), or the harness died before finishing, or `--expect <phase>` was given and did not hold. |
-| `2` | An argument was invalid, or the run was `SKIP`ped while `--expect` was given. A skipped run verified nothing, so it must not report the expectation as met, distinct from both `0` (met) and `1` (checked and false). |
-
-`SKIP` is reserved for missing tooling. A step that runs and finds its
-claim false is always `FAIL`, never `SKIP`. The harness never lets a
-broken claim through just because the environment happened to let it
-start.
-
-## The reproduction contract
-
-`run.sh --expect <phase>` is how this branch states its own claim, in a
-form any agent or human can check without reading the script. Run the
-command, read the exit code. Today, that invocation is the following.
-
-```
-bash live/e2e/run.sh --expect 5
-```
-
-This passes. Every step through phase 5, including `drift-exact`,
-`removal-exact`, `receipt-cycle`, `receipt-cycle-existence` and
-`drift-reconverge`, is `pass`, and no step reports `not_implemented`.
-
-```
-bash live/e2e/run.sh --expect 4
-```
-
-This now FAILS, naming `drift-exact`, `removal-exact`, `receipt-cycle`,
-`receipt-cycle-existence` and `drift-reconverge` as blockers. `--expect 4`
-requires every step above phase 4 to be `not_implemented`, and all five are
-`pass` now that P5.1's exactness work is merged and P5.2 wired the harness
-steps and flipped `LIVE_E2E_EXACTNESS`'s default to `1`. It stays
-meaningful as a pre-exactness bisect. Run it with `LIVE_E2E_EXACTNESS=0` to
-reproduce the phase-4 claim this branch made before P5.1/P5.2 landed.
-
-Nobody should need to read `run.sh` to know whether this branch backs up
-what it says it does. The exit code of `--expect <current phase>` is the
-verdict.
-
-## The harness is also the demo
-
-`live/e2e/run.sh` is the command the site's
-[start page](https://intentius.io/choudoufu/docs/use/start/) points at, described
-there in user-facing terms rather than test-harness terms. If you're
-changing what a step proves, check that page's claims still match this
-README's table above.
-
 ## The record-store harness
 
 `live/e2e/record-store/run.sh` is the other end of the fork: issue #73's
 record-backed class, the types whose identity is not in the cloud at all but
-in the estate's own `record_store`. Everything above is about live markers on
-cloud objects; nothing above declares a `record_store` at all, so without this
+in the estate's own `record_store`. The other harnesses here are about live
+markers on cloud objects and declare no `record_store`, so without this
 harness that whole class has no end-to-end exercise.
 
 ```
@@ -234,7 +53,7 @@ providers, so the whole thing runs against a local directory. It builds a real
 | record layout | Exactly four records land under `tofu-records/<estate>/<type>/<hash>`, and guided discovery's hint under `tofu-hints/<estate>/guided` is *not* one of them. The two namespaces are deliberately disjoint (`RecordKeyPrefix` and `HintKey`, `internal/live/projection`) so that orphan discovery listing the record namespace can never mistake a hint for a resource. |
 | clean re-plan | With no state file anywhere, prior state rebuilt from the records alone gives `No changes`. A hydration bug looks like a proposal to re-create everything. |
 | replace | Changing a `triggers` input forces a replacement of exactly that resource; the two untouched records stay byte-identical and the replaced one changes. |
-| destroy | Emptying the resource blocks and applying destroys all four and removes all four records. `choudoufu destroy` itself is refused under live markers, so removal-by-deletion is the tested path, the same as `live/e2e/run.sh`'s own removal steps. |
+| destroy | Emptying the resource blocks and applying destroys all four and removes all four records. `choudoufu destroy` itself is refused under live markers, so removal-by-deletion is the tested path, the same as the gauntlet's day2_remove stage. |
 
 What it does **not** cover, and the next thing worth adding: a cloud-backed
 resource whose identity is derived from a record-backed parent's attribute
@@ -256,7 +75,7 @@ just demo-run run dataread-projection
 ```
 
 It needs Docker and the AWS CLI, and runs on port 4599 rather than 4566 so
-it can run beside `just demo`. Under a minute after the image is pulled.
+it can run beside the other harnesses. Under a minute after the image is pulled.
 
 The offline half of that mechanism — deciding *whether* an argument is
 projectable — is tested offline in `internal/live/dataread`, and has to be:
@@ -306,7 +125,7 @@ image is pulled.
 
 Why it did not exist before. `internal/command/live_plan.go` turned
 `TaggingSweep` off for any loopback endpoint, on the strength of a real gap
-in an older emulator pin — and loopback is what `live/e2e/run.sh` and
+in an older emulator pin — and loopback is what the e2e harnesses and
 `internal/live/flocitest.Endpoint` both use. So the only configuration that
 could have covered the branch was the one configuration excluded from it. The
 emulator gap was fixed (`lex00/floci#229`) and the pin moved; the gate
@@ -691,56 +510,3 @@ for the running half:
 docker ps -aq --filter name=choudoufu- --filter status=exited | xargs docker rm
 docker ps -q  --filter name=choudoufu-                        # inspect before killing these
 ```
-
-## The corpus-crossing harness
-
-`live/e2e/corpus-crossing/run.sh` runs somebody else's production
-configuration. `.corpus/mastino/global/dns` is 63 instances of DataCite's
-Route 53 estate, written for their own account and not for us; it has passed
-`live-check` with zero refused sites for as long as the corpus has held it,
-and until this harness existed it had never been run against anything.
-
-```
-just demo-run corpus-crossing
-```
-
-Docker, the AWS CLI, a populated `.corpus` (`just corpus-fetch`), port 4605.
-It runs six plans and three applies over 63 instances, so it is the slowest
-of these harnesses by some way.
-
-What the estate contributes that a generated fixture cannot is not scale.
-It is three shapes nobody would think to write on purpose.
-
-- `aws_route53_zone.production` and `aws_route53_zone.internal` are **both
-  named `datacite.org`**. The hosted zone ID is server-assigned, so nothing
-  in the configuration separates them and only the `tofu-address` marker
-  does. `production-ns` and `internal-ns` then share a name *and* a type,
-  differing in nothing but the zone ID each inherited, and step 6 asserts the
-  run rendered two distinct apex NS identities rather than one twice.
-- 59 of the 63 instances are `aws_route53_record`, which has no `tags`
-  argument. They carry no marker, cannot carry one, and do not need one: the
-  identity re-derives from the declaration plus the zone's ID on every run.
-  Four marker carriers, 59 instances with none, in one estate.
-- Names a fixture author would not invent: a wildcard label
-  (`*.blog.datacite.org`, which Route 53 stores escaped as `\052`), a name
-  written relative to its zone (`_lovable.strategy`), a label repeating the
-  zone name inside itself (`datacite.org._domainkey.datacite.org`), and two
-  names spelled with the trailing dot Route 53 itself uses.
-
-The identity assertion takes its expectation from Route 53 rather than from
-choudoufu: every string the run rendered must name a hosted zone that exists,
-or a record set that exists *in the zone that identity names*. Both spellings
-Route 53 accepts are allowed and nothing else is.
-
-Steps 4 and 7 pin defects rather than features, so exit 0 means each is still
-true and a red one means somebody fixed it.
-
-| Step | Pins |
-|---|---|
-| 4 | `allow_overwrite` is a create-time argument Route 53 never returns, and under markers there is no state file to remember it. The ten `wp-prod-staging` records show an in-place update on every run, and applying that update does not settle it — the same ten come back. |
-| 7 | A record whose `name` carries Route 53's own trailing dot renders an import identity carrying that dot. The import succeeds, so the instance binds a real record by a wrong name; the plan then proposes destroying and recreating it, once per run. Step 7 restores the dot deliberately and asserts the identity check fires **on the string**, not on the count. |
-
-The deltas the estate needs before it can run at all are applied by the
-script, each asserting that it matched, and each labelled with what kind it
-is: an ordinary onboarding edit, an emulator flag, an emulator gap, or a
-defect. `run.sh`'s header says what each one is and why.

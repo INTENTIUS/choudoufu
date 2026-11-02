@@ -20,8 +20,8 @@ import (
 // is missing, untested or out of scope is a GitHub issue that links the
 // claim, never a sentence on the claim. TestClaimWordingIsProofOnly holds
 // every place claim text or claim status is written to that: the table, the
-// claim pages, the text of claims.json, the site's proof pages and the
-// components that link the claims.
+// claim pages, the text of claims.json and the site
+// components.
 //
 // Proving it red: put "open" back as a cell's status in claims.json, or add
 // "This is not measured on real AWS." to a claim page.
@@ -37,7 +37,7 @@ func claimWordingMarkdown(t *testing.T) []string {
 		t.Fatalf("no claim pages under %s (%v); this test is checking nothing", siteClaimsPages, err)
 	}
 	sort.Strings(pages)
-	return append([]string{"CLAIMS.md", "../site/src/content/docs/aws/proof.mdx", "../site/src/content/docs/kubernetes/proof.mdx"}, pages...)
+	return append([]string{"CLAIMS.md"}, pages...)
 }
 
 // claimWordingSource are the site files that link the claims; every line of

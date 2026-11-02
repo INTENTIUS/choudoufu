@@ -280,7 +280,7 @@ Rules are tests. The ones that hold this document to the tree:
 
 | Guard | What it holds |
 |---|---|
-| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 2527 rendered identities across 732 configuration directories, pinned by value; 701 of those directories are committed fixtures and 31 are the verification cohorts, rendered into a temp dir by `estate-gen -all` on every run. If your change moves a line, explain it, and `-update` alone cannot silence it |
+| `internal/live/check`: `TestIdentityGolden`, `TestIdentityGoldenShapeIsPinned` | 2552 rendered identities across 742 configuration directories, pinned by value; 711 of those directories are committed fixtures and 31 are the verification cohorts, rendered into a temp dir by `estate-gen -all` on every run. If your change moves a line, explain it, and `-update` alone cannot silence it |
 | `tools/gauntlet`: `TestRenderedDocsAreCurrent`, `TestManifestIsCanonical`, `TestArtifactAgreesWithManifest` | the spec, the board data and the artifact are what the code says |
 | `tools/gauntlet`: `TestLegacyScriptsOnlyGoDown` | crossing scripts move onto the protocol and never back |
 | `live/derivation_guard_test.go`: `TestEveryTypeLiteralSurfaceIsRegistered`, `TestNoTypeNameIsAssembledFromLiterals` | every hand-wired provider type name carries a registered reason and count, and none is assembled at runtime to dodge the registry |
@@ -344,17 +344,11 @@ and the site leads with the claims everywhere else (#803).
   editing.
 - **Iterating on a real estate.** A live-cert cycle against real AWS is a
   full cold_deploy + migrate + teardown round trip, tens of minutes each,
-  to look at one plan (#1032). `live/live-cert/terralith-scale.sh` has a
-  held-estate mode for exactly this: `LIVECERT_HOLD=1` runs the stages and
-  then skips teardown, printing the work dir, the estate marker, the
-  prefix, and the exact commands to resume or tear down later instead;
-  `LIVECERT_RESUME=<work dir>` skips cold_deploy and migrate against a held
-  work dir and reruns from index_wait on, refusing outright if the work
-  dir's own recorded prefix or scale disagrees with the environment; and
-  `terralith-scale.sh teardown <work dir>` (or `LIVECERT_TEARDOWN_ONLY=<work
-  dir>`) tears one down on its own. A held run's row is never mistaken for a
-  finished certification: every stage it reports carries `held: true` in
-  its own detail.
+  to look at one plan (#1032). The held-estate mode that made that
+  affordable (`LIVECERT_HOLD`, `LIVECERT_RESUME`, teardown-only) lived in
+  the terralith's live-cert script, which left under #2303 with the
+  terralith's use as test evidence; git history has it. The one living
+  live-cert estate is reference-ec2-vpc.
 
 ### Heavy runs are the maintainer's, by hand
 
@@ -453,6 +447,36 @@ what it is excluding, and records `index_converged`/`index_target` beside
 
 `LIVECERT_HOLD`, `LIVECERT_RESUME` and `LIVECERT_TEARDOWN_ONLY` each name a
 work dir by path, so they only work on the machine that holds that dir.
+
+### Which real-AWS and kind runs a release takes
+
+The maintainer's ruling on GitHub issue #2288 (Q3, 2026-10-27) trimmed the
+real-AWS runs to a schedule. Every one is maintainer-run and spends money;
+nothing here is a reason for an agent to start one.
+
+At every release:
+
+- `SMOKE_REAL_AWS=1 just smoke one-bucket-many-estates` (claim 28, the
+  published bucket IAM in `examples/record-store-bucket/iam`)
+- `SMOKE_REAL_AWS=1 just smoke a-read-only-role-can-plan` (claim 28, the
+  published read-only policy)
+- `SMOKE_REAL_AWS=1 just smoke the-recommended-secure-configuration` (the
+  demo of the shipped bucket project end to end)
+- `live/live-cert/run.sh reference-ec2-vpc -target aws` (the lifecycle on
+  a real account, which no emulator run stands in for)
+- `just test-kind`, the kind-gated `pkg/staterecord` tests (ruling Q2; no
+  cloud, but no CI job runs them either)
+
+Only when its trigger holds:
+
+- `SMOKE_REAL_AWS=1 just test-sse` (`TestS3StoreCASUnderEverySSEFlavour`,
+  claim 2) when `pkg/staterecord/s3.go` has changed since its last recorded
+  run (`git log <its commit>..HEAD -- pkg/staterecord/s3.go`)
+- the terralith-scale live-cert (`gauntlet live-cert -target aws ...
+  terralith-scale`, above) when a scale claim's figure is re-quoted
+
+A Go test proof's run is recorded with `go run ./tools/gotest-record -log
+<the recipe's log>`; a smoke scenario's, as before, in its evidence file.
 
 ## Retired
 

@@ -17,7 +17,7 @@ import (
 // This file is issue #145's remaining half.
 //
 // The consolidation the issue asks for has landed: live/floci-image is the
-// single source, and the Makefile, live/e2e/run.sh, internal/live/flocitest
+// single source, and the Makefile, the e2e harnesses, internal/live/flocitest
 // and live/flocicap_test.go all read it rather than carrying a copy.
 // make test-floci-clean uses that pin too, so it no longer cleans an image
 // nobody runs.

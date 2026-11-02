@@ -169,7 +169,7 @@ func renderProposal(p proposal) string {
 	case bucketNeedsHandSeparator:
 		b.WriteString("no pastable row: the composite separator is not registry evidence; a human chooses it.\n")
 	case bucketFoldChild:
-		b.WriteString("no pastable row: the fold-child admission path exists (issue #68), but the child's own Components - the parent's tuple, plus any further argument (e.g. status_code) the parent alone does not supply - still need a human's separator and shape choice, the same standard internal/live/identity/table.go's \"Fold-children (issue #68)\" section comment holds every entry to.\n")
+		b.WriteString("no pastable row: the fold-child admission path exists (issue #68), but the child's own Components - the parent's tuple, plus any further argument (e.g. status_code) the parent alone does not supply - still need a human's separator and shape choice, the same standard pkg/identity/parent.go's foldParentTypes comment holds every entry to.\n")
 	case bucketEvidenceOnly:
 		b.WriteString("no pastable row.\n")
 	}

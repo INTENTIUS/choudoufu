@@ -64,7 +64,7 @@ lock = threading.Lock()
 # The API server's own answer to a continue token that has outlived its watch
 # cache, byte for byte the shape client-go decodes into a StatusError with
 # reason Expired and code 410. The wording is the one
-# internal/live/staterecord/kubernetes_missing_write_live_test.go puts on the
+# pkg/staterecord/kubernetes_missing_write_live_test.go puts on the
 # wire for the same fault, and the one the store's error text is held to.
 EXPIRED = (
     b'{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure",'

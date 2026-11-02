@@ -23,8 +23,8 @@ import (
 	clienttesting "k8s.io/client-go/testing"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // GitHub issue #1110, fault 4's move half: a kill between the two writes

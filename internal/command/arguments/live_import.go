@@ -23,16 +23,27 @@ const defaultLiveImportParallelism = 10
 // LiveImport represents the command-line arguments for the live-import
 // command.
 type LiveImport struct {
-	// StatePath is the tfstate file to read, once, read-only. Required:
-	// there is no default the way -state defaults to terraform.tfstate for
-	// state-backed commands, because reading one by accident is exactly what
-	// this command's whole design refuses to do.
+	// StatePath is the tfstate file to read, once, read-only. There is no
+	// terraform.tfstate default, because reading a stray file by accident is
+	// exactly what this command's whole design refuses to do. Empty with no
+	// AdoptPath means the state the configuration's backend block names
+	// (GitHub issue #2293).
 	StatePath string
 
-	// Estate names the estate this run would stamp. Required: unlike
-	// live-plan and live-mv, there is no configuration for this command to
-	// derive it from - the state file being imported may belong to a
-	// configuration that has never heard of markers at all.
+	// AdoptPath is the `adopt: v1` adoption file -adopt names (GitHub issue
+	// #2287), read in place of a state file. Exactly one of StatePath and
+	// AdoptPath is set.
+	AdoptPath string
+
+	// IndexStore is the filesystem index store directory the adoption
+	// file's index version is read from: <dir>/index/<scopeKey>/<version>.
+	// Required with AdoptPath.
+	IndexStore string
+
+	// Estate names the estate this run would stamp. Empty means the name a
+	// live run of this configuration resolves (GitHub issue #2293); a
+	// configuration with no live block resolves none, and the command
+	// refuses.
 	Estate string
 
 	// Approve turns the run from a read-only ratification into one that also
@@ -67,8 +78,10 @@ func BindLiveImport(cli *CommandLine) *LiveImport {
 	// scripts pass it to every OpenTofu command out of habit.
 	var input bool
 
-	cli.StringVar(&li.StatePath, "state", "", "The tfstate file to read. Required.").SetDisplay("=path")
-	cli.StringVar(&li.Estate, "estate", "", "The estate this run verifies against and, with -approve, stamps. Required.").SetDisplay("=name")
+	cli.StringVar(&li.StatePath, "state", "", "The tfstate file to read. Defaults to the state the backend block names.").SetDisplay("=path")
+	cli.StringVar(&li.AdoptPath, "adopt", "", "An adoption file (adopt: v1) to adopt indexed objects from, in place of -state.").SetDisplay("=path")
+	cli.StringVar(&li.IndexStore, "index-store", "", "With -adopt, the index store directory holding the version the adoption file names.").SetDisplay("=dir")
+	cli.StringVar(&li.Estate, "estate", "", "The estate this run verifies against and, with -approve, stamps. Defaults to the estate the live block resolves.").SetDisplay("=name")
 	cli.BoolVar(&li.Approve, "approve", false, "Stamp every VERIFIED or DRIFTED resource from the ratification report.")
 	cli.BoolVar(&input, "input", true, "Accepted and ignored: this command never prompts.").SetDisplay("=false")
 	cli.IntVar(&li.Parallelism, "parallelism", defaultLiveImportParallelism, "Limit the number of resources stamped at once.").SetDisplay("=n")
@@ -87,20 +100,33 @@ func BindLiveImport(cli *CommandLine) *LiveImport {
 			))
 		}
 
-		if li.StatePath == "" {
+		switch {
+		case li.StatePath != "" && li.AdoptPath != "":
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
-				"No state file named",
-				"live-import reads an existing tfstate file once, read-only. Pass -state=<path> naming it.",
+				"Both -state and -adopt named",
+				"live-import migrates from a tfstate file (-state) or adopts from an adoption file (-adopt), not both in one run.",
 			))
-		}
-		if li.Estate == "" {
+		// Neither -state nor -adopt: the state is read from the backend
+		// block (GitHub issue #2293), and the command refuses there when
+		// the configuration has none.
+		case li.AdoptPath != "" && li.IndexStore == "":
 			diags = diags.Append(tfdiags.Sourceless(
 				tfdiags.Error,
-				"No estate named",
-				"live-import has no configuration to derive an estate name from - the state file it reads may belong to a configuration that has never used markers. Pass -estate=<name>.",
+				"No index store named",
+				"An adoption file names an index version by scope key and version; pass -index-store=<dir> naming the store that holds it (the directory whose index/ subdirectory behold index writes).",
+			))
+		case li.AdoptPath == "" && li.IndexStore != "":
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"-index-store without -adopt",
+				"-index-store says where an adoption file's index version lives, and has no meaning without -adopt.",
 			))
 		}
+		// No -estate: the command resolves it from the configuration the
+		// way a live run does (GitHub issue #2293), and refuses there when
+		// nothing resolves.
+
 		// The same refusal stock's own -parallelism makes, in the same words:
 		// internal/tofu/context.go rejects a non-positive value rather than
 		// reading it as "no limit", and a migration that silently stamped an

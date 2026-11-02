@@ -20,10 +20,10 @@ import (
 // LiveCertScript is where a real-AWS certification script lives for a given
 // estate, mirroring Estate.ScriptPath's convention for live/e2e/*/run.sh.
 // reference-ec2-vpc was the first (issue #440, ruled 2026-08-29: $5/run
-// ceiling); reference-eks is the second (issue #1113, ruled 2026-10-03: a
-// new hand-written estate, $5/run ceiling, proved on the emulator first,
-// its paid run the maintainer's). Any further estate needs its own ruling
-// before its own script is added here.
+// ceiling). reference-eks was the second (issue #1113, ruled 2026-10-03)
+// until #2288 retired it: its emulator crossing failed at migrate and its
+// paid run never happened. Any further estate needs its own ruling before
+// its own script is added here.
 func LiveCertScript(estate string) string {
 	return filepath.Join("live", "live-cert", estate+".sh")
 }

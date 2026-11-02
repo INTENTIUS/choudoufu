@@ -129,7 +129,7 @@ type MarkerWriter interface {
 }
 
 // MarkerTagger is the Resource Groups Tagging API's TagResources, an upsert
-// of tags onto every ARN listed. *internal/live/cloudcontrol.Client
+// of tags onto every ARN listed. *pkg/cloudcontrol.Client
 // implements it; [TaggingAPIWriter] adapts it to [MarkerWriter].
 type MarkerTagger interface {
 	TagResources(ctx context.Context, arns []string, tags map[string]string) error

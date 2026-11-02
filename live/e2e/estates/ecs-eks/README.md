@@ -7,7 +7,7 @@ proof-of-mechanism cohort, and `live/e2e/estates/messaging/README.md` for
 the most recent registry-backed cohort this one follows).
 
 This cohort exercises every type this batch ratified into
-`internal/live/lint/admission.go` and `internal/live/identity/table.go`.
+`internal/live/lint/admission.go` and `pkg/identity/table.go`.
 It does not repeat `aws_ecs_cluster`, already covered by `live/e2e/estate/`,
 or `aws_iam_group`, which this same batch ratifies but lands in the
 `iam-ecr` cohort instead — see that cohort's own README.
@@ -258,7 +258,7 @@ checks it by static HCL parse — `TestAdmissionTableCoversEstate` and
 to cover exactly the union of `live/e2e/estate/` and every `estates/*`
 cohort, this one included.
 
-`live/e2e/run.sh` and the gated `internal/live/discovery` floci integration
+`live/e2e/run.sh` (retired under #2288) and the gated `internal/live/discovery` floci integration
 test still stand up only the demo estate. Wiring cohort estates into the
 gated apply-against-floci tier is separate follow-on work, the same note
 every cohort README before this one already makes.

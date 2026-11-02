@@ -222,7 +222,8 @@ h1#_top {
 }
 
 /* The home hero: a large, tight claim, a quiet tagline and the big cube. */
-.hero .cd-hero-cube {
+.hero .cd-hero-cube,
+.ph .cd-hero-cube {
 	width: clamp(8rem, 22vw, 16rem);
 	height: auto;
 	margin-inline: auto;
@@ -369,4 +370,10 @@ code, pre, kbd, samp {
 	margin-left: 2px;
 	background: var(--cd-gold);
 	transform: rotate(45deg);
+}
+
+/* The home page carries its own heading in ProductHome, so Starlight's title
+   panel is hidden there. */
+:root:has(.ph) main > .content-panel:first-child:has(h1#_top) {
+	display: none;
 }

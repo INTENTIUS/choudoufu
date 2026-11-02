@@ -346,7 +346,7 @@ type argumentRefEntry struct {
 	// states the provider assigns this Optional argument a fresh value
 	// (not a literal default - see Component.Default's own scrape,
 	// OmittedFallbacks above) when the configuration omits it. See #190
-	// and internal/live/identity/table.go's Component.ServerAssignedIfAbsent,
+	// and pkg/identity/table.go's Component.ServerAssignedIfAbsent,
 	// the field this evidence feeds at emit time (emit.go's
 	// mergeServerAssigned).
 	ServerAssignedIfAbsent bool `json:"server_assigned_if_absent"`

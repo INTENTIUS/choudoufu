@@ -3,7 +3,7 @@
 // Copyright (c) 2023 HashiCorp, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
-// cloudcontrol-probe is a manual smoke test for internal/live/cloudcontrol,
+// cloudcontrol-probe is a manual smoke test for pkg/cloudcontrol,
 // not shipped in any binary. Point it at floci or real AWS and it either
 // lists a type or, given -identifier, fetches one resource — the two calls
 // the package's automated tests only ever exercise against a fake server.
@@ -34,7 +34,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 func main() {

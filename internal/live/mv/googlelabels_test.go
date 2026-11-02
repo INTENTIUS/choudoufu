@@ -16,11 +16,12 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/internal/live/sweepconfig"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/pkg/gcpsweep"
 )
 
 // live-mv's GCP answer (GitHub issue #1119; googlelabels.go). The fake
@@ -180,7 +181,7 @@ func (s *googleTestSearch) AssetSearcher(context.Context, addrs.AbsProviderConfi
 }
 
 func (s *googleTestSearch) SearchAddress(_ context.Context, project, estate, address string) ([]gcpsweep.Asset, error) {
-	s.calls = append(s.calls, project+" "+gcpsweep.AddressQuery(estate, address))
+	s.calls = append(s.calls, project+" "+gcpsweep.AddressQuery(sweepconfig.Markers, estate, address))
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -223,7 +224,7 @@ func TestMove_GoogleLabelsRenameWithinEstate(t *testing.T) {
 	if diags.HasErrors() {
 		t.Fatalf("the rename was refused: %s", diags.Err())
 	}
-	if want := "p1 " + gcpsweep.AddressQuery("app", markers.GoogleAddressValue(renamed)); len(search.calls) != 1 || search.calls[0] != want {
+	if want := "p1 " + gcpsweep.AddressQuery(sweepconfig.Markers, "app", markers.GoogleAddressValue(renamed)); len(search.calls) != 1 || search.calls[0] != want {
 		t.Errorf("destination searches %q, want one: %q", search.calls, want)
 	}
 	if res.Surface != markers.SurfaceGoogleLabels {
@@ -264,7 +265,7 @@ func TestMove_GoogleLabelsMoveBetweenEstates(t *testing.T) {
 	if diags.HasErrors() {
 		t.Fatalf("the move was refused: %s", diags.Err())
 	}
-	if want := "p1 " + gcpsweep.AddressQuery("data", markers.GoogleAddressValue(moved)); len(search.calls) != 1 || search.calls[0] != want {
+	if want := "p1 " + gcpsweep.AddressQuery(sweepconfig.Markers, "data", markers.GoogleAddressValue(moved)); len(search.calls) != 1 || search.calls[0] != want {
 		t.Errorf("destination searches %q, want one: %q", search.calls, want)
 	}
 	if !res.Written || !res.Verified {

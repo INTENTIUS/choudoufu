@@ -124,7 +124,7 @@ func (aws) MarkerWriter() Write { return WriteTaggingAPI }
 
 // AWSCreateTagFacts is the AWS family's entry in [Facts] (GitHub issue
 // #1708): live/mapping.json's Terraform-to-CloudFormation join and
-// live/registry.json's tagging.tag_on_create. *internal/live/registry.Roster
+// live/registry.json's tagging.tag_on_create. *pkg/registry.Roster
 // implements it, nil included (every answer false); internal/command puts
 // the embedded roster under [AWS]'s name. An interface so this package
 // stays below the registry.

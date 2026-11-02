@@ -11,9 +11,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // Issue #355's coverage. Cloud Control omits a CFN property that has no

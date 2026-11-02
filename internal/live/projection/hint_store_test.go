@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // This file is issue #109's carrier: guided discovery's hint riding the

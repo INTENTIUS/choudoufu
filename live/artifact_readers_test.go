@@ -101,6 +101,7 @@ var writtenArtifacts = []string{
 	"live/import-grammar.json",
 	"live/logical-schemas.json",
 	"live/mapping.json",
+	"live/module-compat.json",
 	"live/readiness.json",
 	"live/registry-schema-facts.json",
 	"live/registry.json",

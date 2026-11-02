@@ -101,7 +101,7 @@ func TestModuleKeyedForEachAgainstFloci(t *testing.T) {
 	// --- 3. A plain plan recovers both instances of the estate ------------
 	//
 	// This is also the discovery proof: aws_eip's identity is
-	// server-assigned (internal/live/identity/table.go), so nothing in
+	// server-assigned (pkg/identity's DefaultTable), so nothing in
 	// configuration names either instance and the only way a plan can
 	// recover both without proposing a duplicate create is to list every
 	// EIP in the account and match each one's tofu-address tag against the

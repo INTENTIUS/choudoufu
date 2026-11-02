@@ -1,0 +1,9 @@
+templates.json is a copy of INTENTIUS/chant's
+packages/core/src/capabilities/templates.json (chant#4531) at
+integration/consolidation-graph b67edc447, 2026-10-26. The tests read it as
+the catalog a fake chant serves, the way choudoufu reads the real one.
+
+estate/ is the fixture chant project the fake chant and behold run in:
+chant.config.json marks it a chant project, search.json holds the matches
+the fake chant search answers with, and graph.json the rows the fake behold's
+ask answers each Cypher template with.

@@ -179,7 +179,7 @@ passes it now.
 A `kubernetes_manifest` entry in that state file is migrated too (#1109,
 ruled with #1104 on 2026-09-13), and its label is written differently: not
 through the provider, but as one API merge patch under the caller's own
-credential (`internal/live/kubesweep/patch.go`, shared with live-mv's
+credential (`pkg/kubesweep/patch.go`, shared with live-mv's
 cross-estate move). The type has no metadata block to write into - its
 whole object is one dynamic argument - so a labels-only write through the
 provider would be a re-apply of every field the provider manages,
@@ -1252,7 +1252,9 @@ and a fourth tier of continuation would just move the same question further
 out without answering it. Four tags is deliberately generous headroom
 against the 50-tag-per-resource AWS limit (minus whatever tags the
 configuration's `tags` block already uses) while staying a small, fixed
-number instead of a knob a configuration can turn.
+number instead of a knob a configuration can turn. A block whose own tags,
+`default_tags` and markers together pass 50 is refused at lint
+(`aws-tag-count`, live/LIMITATIONS.md).
 
 A resource whose address fits in 256 characters (the overwhelming common
 case, and every marker written before this addition existed) carries only

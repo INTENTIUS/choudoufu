@@ -27,9 +27,10 @@ just ci         # exactly what CI runs, in order
 just site-serve # preview the docs site
 ```
 
-`just --list` shows the rest. `just demo` stands up a real estate against a
-local AWS emulator and checks each claim the project makes. Its exit code is
-the verdict.
+`just --list` shows the rest. `just smoke roundtrip` stands up a real estate
+against a local AWS emulator, takes it over without its state file and hands
+it back to stock; `just smoke` lists the other claim scenarios. Each run's
+exit code is the verdict.
 
 ## What a good change looks like
 

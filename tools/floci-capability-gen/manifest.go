@@ -24,7 +24,7 @@ const generatedByLine = "tools/floci-capability-gen (go run ./tools/floci-capabi
 // exactly, field for field - re-declared here rather than imported, the
 // same duplication every other tools/*-gen artifact writer in this repo
 // carries for its own committed JSON shape (e.g. tools/registry-gen's
-// RegistryArtifact vs. internal/live/registry's registryArtifact): the
+// RegistryArtifact vs. pkg/registry's registryArtifact): the
 // reading side's copy is unexported by design, so nothing outside
 // live/flocicap.go can write a manifest row that skips its own status
 // vocabulary check.

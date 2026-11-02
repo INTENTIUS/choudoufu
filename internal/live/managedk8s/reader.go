@@ -8,7 +8,7 @@
 // encrypts Secrets before they reach etcd (GitHub issue #1524).
 //
 // record_store "kubernetes" checks encryption at rest on first contact
-// (internal/live/staterecord/kubernetescontract.go). On kind and kubeadm the
+// (pkg/staterecord/kubernetescontract.go). On kind and kubeadm the
 // answer is a flag on the API server's static Pod. On a managed control plane
 // there is no such Pod at any permission level, and the setting lives on the
 // provider's description of the cluster instead. [Reader] reads that
@@ -27,7 +27,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // Reader is the real [staterecord.ControlPlaneReader]. The zero value asks

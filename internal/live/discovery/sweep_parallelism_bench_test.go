@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -18,10 +17,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // This is issue #605's measurement: what does making the estate-wide sweep
@@ -234,14 +233,10 @@ func runSweepParallelismBenchmark(t *testing.T, scale int) []sweepParRow {
 	dir := t.TempDir()
 	prefix := fmt.Sprintf("sp%d", os.Getpid()%100000)
 
-	genCmd := exec.Command("go", "run", "./tools/terralith-gen", //nolint:gosec // fixed binary and args, test-only
-		"-scale", strconv.Itoa(scale), "-prefix", prefix, "-out", dir)
-	genCmd.Dir = root
-	genOut, err := genCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go run ./tools/terralith-gen -scale %d: %v\n%s", scale, err, genOut)
-	}
-	t.Logf("terralith-gen: %s", strings.TrimSpace(string(genOut)))
+	// A scenario estate, not the terralith (choudoufu#2303): scale copies
+	// of live/e2e/estate, stock and unmarked.
+	_ = root
+	flocitest.ScenarioEstate(t, dir, scale, prefix)
 
 	flociPort := flocitest.StartFloci(t, "cdf-sweeppar")
 	proxy := flocitest.NewCountingProxy(t, flocitest.Endpoint(flociPort))

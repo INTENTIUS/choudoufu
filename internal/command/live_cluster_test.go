@@ -13,7 +13,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 const clusterNS = "tofu-records-alice"
@@ -194,7 +194,7 @@ func TestLiveClusterReportsEveryVerbItReviewed(t *testing.T) {
 	// The same findings, asked as an apply: the three write verbs are then
 	// required, so the report has to say so rather than repeat the plan's
 	// answer. (The requirement itself is the contract's, measured in
-	// internal/live/staterecord; what is pinned here is that the report
+	// pkg/staterecord; what is pinned here is that the report
 	// prints which question it asked.)
 	apply := renderLiveClusterReport(buildLiveClusterReport(clusterTargetForTest(), "alice", "apply", clusterFindings(), nil))
 	if !strings.Contains(apply, "checked as an apply identity") {

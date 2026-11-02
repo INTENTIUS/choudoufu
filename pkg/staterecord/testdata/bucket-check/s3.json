@@ -1,0 +1,277 @@
+{
+  "schema": 1,
+  "store": "s3",
+  "description": "chant#4558 shared bucket fixtures, S3. Each case is what GetBucketVersioning, GetBucketLifecycleConfiguration and GetPublicAccessBlock answered, in the S3 API's own field names (aws-sdk-go-v2 output types decode them as-is), or {\"error\": {\"code\", \"status\"}} for a failed read. expect lists one verdict per setting in order: versioning, lifecycle, public_access_block. Verdicts are choudoufu live-bucket -json's: ok, fail, unreadable. namespaces are the object-key prefixes the estate or stack writes under.",
+  "cases": [
+    {
+      "name": "correct-unfiltered-rule",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": { "Rules": [{ "ID": "noncurrent", "Status": "Enabled", "Filter": {}, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "bare-bucket",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": {},
+        "lifecycle": { "error": { "code": "NoSuchLifecycleConfiguration", "status": 404 } },
+        "publicAccessBlock": { "error": { "code": "NoSuchPublicAccessBlockConfiguration", "status": 404 } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "fail", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "fail", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "versioning-suspended",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "Status": "Suspended" },
+        "lifecycle": { "Rules": [{ "ID": "noncurrent", "Status": "Enabled", "Filter": {}, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "fail", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "prefix-rule-contains-namespace",
+      "bucket": "shared-state",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": { "Rules": [{ "ID": "records-noncurrent", "Status": "Enabled", "Filter": { "Prefix": "records/" }, "NoncurrentVersionExpiration": { "NoncurrentDays": 14 } }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "legacy-top-level-prefix",
+      "bucket": "shared-state",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": { "Rules": [{ "ID": "legacy", "Status": "Enabled", "Prefix": "records/", "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "prefix-rule-elsewhere",
+      "bucket": "shared-state",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": { "Rules": [{ "ID": "logs-noncurrent", "Status": "Enabled", "Filter": { "Prefix": "logs/" }, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "prefix-rule-without-namespaces",
+      "bucket": "shared-state",
+      "namespaces": [],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": { "Rules": [{ "ID": "records-noncurrent", "Status": "Enabled", "Filter": { "Prefix": "records/" }, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "two-namespaces-two-rules",
+      "bucket": "shared-state",
+      "namespaces": ["records/prod", "outputs/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": {
+          "Rules": [
+            { "ID": "records", "Status": "Enabled", "Filter": { "Prefix": "records/" }, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } },
+            { "ID": "outputs", "Status": "Enabled", "Filter": { "Prefix": "outputs/" }, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }
+          ]
+        },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "one-of-two-namespaces-uncovered",
+      "bucket": "shared-state",
+      "namespaces": ["records/prod", "outputs/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": { "Rules": [{ "ID": "records", "Status": "Enabled", "Filter": { "Prefix": "records/" }, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "current-expiry-reaches-records",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": {
+          "Rules": [
+            { "ID": "cleanup", "Status": "Enabled", "Filter": {}, "Expiration": { "Days": 90 } },
+            { "ID": "noncurrent", "Status": "Enabled", "Filter": {}, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }
+          ]
+        },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "fail", "unwaivable": true },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "current-expiry-outside-namespaces",
+      "bucket": "shared-state",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": {
+          "Rules": [
+            { "ID": "tmp-cleanup", "Status": "Enabled", "Filter": { "Prefix": "tmp/" }, "Expiration": { "Days": 7 } },
+            { "ID": "noncurrent", "Status": "Enabled", "Filter": {}, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }
+          ]
+        },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "delete-marker-cleanup-is-not-expiry",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": { "Rules": [{ "ID": "noncurrent", "Status": "Enabled", "Filter": {}, "Expiration": { "ExpiredObjectDeleteMarker": true }, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "tag-filtered-rule-not-credited",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": { "Rules": [{ "ID": "tagged", "Status": "Enabled", "Filter": { "Tag": { "Key": "kind", "Value": "record" } }, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "disabled-rule-not-credited",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": { "Rules": [{ "ID": "noncurrent", "Status": "Disabled", "Filter": {}, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "lifecycle-without-noncurrent-expiry",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": { "Rules": [{ "ID": "abort-uploads", "Status": "Enabled", "Filter": {} }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "fail", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "public-access-block-partial",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "Status": "Enabled" },
+        "lifecycle": { "Rules": [{ "ID": "noncurrent", "Status": "Enabled", "Filter": {}, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": false } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "ok", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "fail", "unwaivable": false }
+      ]
+    },
+    {
+      "name": "versioning-read-denied",
+      "bucket": "records-prod",
+      "namespaces": ["records/prod"],
+      "input": {
+        "versioning": { "error": { "code": "AccessDenied", "status": 403 } },
+        "lifecycle": { "Rules": [{ "ID": "noncurrent", "Status": "Enabled", "Filter": {}, "NoncurrentVersionExpiration": { "NoncurrentDays": 30 } }] },
+        "publicAccessBlock": { "PublicAccessBlockConfiguration": { "BlockPublicAcls": true, "IgnorePublicAcls": true, "BlockPublicPolicy": true, "RestrictPublicBuckets": true } }
+      },
+      "expect": [
+        { "setting": "versioning", "verdict": "unreadable", "unwaivable": false },
+        { "setting": "lifecycle", "verdict": "ok", "unwaivable": false },
+        { "setting": "public_access_block", "verdict": "ok", "unwaivable": false }
+      ]
+    }
+  ]
+}

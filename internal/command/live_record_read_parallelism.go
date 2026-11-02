@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // recordReadParallelismEnvVar sets how many of the "s3" record store's

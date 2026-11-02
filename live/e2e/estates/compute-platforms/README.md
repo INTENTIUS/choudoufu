@@ -9,7 +9,7 @@ the proof-of-mechanism cohort, and `live/e2e/estates/route53-cloudfront/README.m
 for the batch this one follows most closely in shape and rigor).
 
 This cohort exercises every type this batch ratified into
-`internal/live/lint/admission.go` and `internal/live/identity/table.go`: 26
+`internal/live/lint/admission.go` and `pkg/identity/table.go`: 26
 types across six CFN-adjacent services (Batch, EMR/EMRContainers/
 EMRServerless, AppRunner, ElasticBeanstalk, Amplify, Lightsail), rejecting
 or deliberately scoping out about twenty more — see "Rejected and out of
@@ -20,7 +20,7 @@ derivation (see "Regenerate" below).
 
 Two rows needed reclassification and one needed a wrong guess corrected —
 all three caught by reading the provider's own docs rather than trusting
-the registry or row-gen's own bucket. `internal/live/identity/table.go`'s
+the registry or row-gen's own bucket. `pkg/identity/table.go`'s
 own batch-banner comment tells the full story for each; the short version:
 
 - **`aws_batch_job_definition`**: row-gen proposed client-named on an "arn"

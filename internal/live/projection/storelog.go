@@ -15,7 +15,7 @@ import (
 )
 
 // recordStoreRequestLog logs one line per request the record store's own AWS
-// clients send, in the wording internal/live/cloudcontrol's client already
+// clients send, in the wording pkg/cloudcontrol's client already
 // uses, so a TF_LOG capture counts them with everything else.
 //
 // GitHub issue #1335 is why it exists. The claim that one estate never asks

@@ -275,7 +275,9 @@ the outputs as they always did (choudoufu#2213).
 - The values are the ones `output` returns: read from the record store, so a
   sensitive output and one not wholly known are never published, and a scoped
   apply does not blank outputs it did not evaluate. A whole destroy leaves a
-  document with no outputs.
+  document with no outputs. Each publish warns "Sensitive outputs were not
+  published to the backend", naming every output declared `sensitive = true`,
+  so a reader missing one is told which.
 - No backend block, a `local` one, or no record store: nothing happens.
 - The write goes through the backend's own state manager, so its locking is
   used (the S3 lockfile or DynamoDB table; gcs and azurerm locks), and the lock
@@ -386,6 +388,12 @@ them into one run:
   `*.auto.tfvars`, `-var`, `-var-file`), and the outputs it declares.
 - The composed root of "Composed runs" above is written over the units in the
   session, one module call per unit carrying that unit's inputs, and planned.
+  An input whose variable the unit declares `sensitive = true` is a sensitive
+  variable of the root (`<unit>__<variable>`), set from a variables file
+  beside it (`joint-sensitive.auto.tfvars.json`, mode 0600), so the root's
+  configuration and its snapshot in the plan hold no constant of it. One that
+  reads another unit's output is an expression over that module, wrapped in
+  `sensitive()`.
   It is planned again as each unit registers, so the plan after the last unit
   is one plan across all of them. Each unit is still its own estate, with its
   own record store and markers.
@@ -453,6 +461,54 @@ them into one run:
   `planfiles.verify: warn` with `planfiles.required: true`, and choudoufu's
   check is the one that refuses.
 - `plan` prints the unit's own resources and the path of the whole plan.
+- What holds input values, sensitive ones included (#2270). The session is a
+  directory under the temporary directory (`choudoufu-joint-<uid>`), mode
+  0700, with every file in it 0600. The next joint run on the machine removes
+  a session whose directory was last modified more than a day before. Its `units/<unit>.json` and the root's variables file hold each
+  unit's inputs in clear, as a stock plan file holds its variables. Each
+  unit's `-out` file is written 0600 and holds that unit's own sensitive
+  inputs, but none of another unit's: their values are left out of the
+  carried plan's variables, out of its `show -json` and out of the units'
+  inputs (marked withheld). An `apply <file>` where the session is gone reads
+  each other unit's sensitive inputs back from that unit's own plan file,
+  looked for where it lies relative to this one as it did at plan time
+  (Terragrunt's `--out-dir` keeps that layout) and then at the path it was
+  planned to, and refuses, naming the unit, when one is not there or is from
+  another plan.
+- Sensitive planned values (#2277). No plan file of a joint run holds one.
+  Every value the joint plan marks sensitive is set to null in what each
+  `-out` file carries: a resource change's before and after values at the
+  sensitive paths, a sensitive output change, the same in the plan's drift,
+  the sensitive attributes and outputs of its state snapshots, and the same
+  places in the carried `show -json`. The marks stay, so `show` still says
+  which values are sensitive. For each dropped value that was known, the
+  file keeps an HMAC-SHA256 bound to the unit, address, side and attribute
+  path. The HMAC key comes from `CHOUDOUFU_PLAN_HMAC_KEY` when it is set:
+  hex or base64 (standard or URL alphabet) of at least 32 bytes, for
+  example `openssl rand -hex 32` kept as one CI secret that both the plan
+  job and the apply job read. A shorter or undecodable value refuses the
+  plan and the apply, naming the variable and never its value. Without it,
+  the key is 32 random bytes in `sensitive.key` inside the planning
+  session's 0700 directory (mode 0600). Neither key goes into a plan file,
+  so a short password cannot be recovered from a file by hashing guesses,
+  and the variable's value is never written to the session directory or
+  printed. The file records only where its key came from (`keyFrom: env`
+  or nothing) and an HMAC of a fixed label under the key, so that an apply
+  holding another key refuses saying the key differs. `apply <file>` plans again, which recomputes the values. Before
+  the approval check compares the two plans, each recomputed value is
+  checked against its hash and put back into the reviewed plan. A value
+  that differs, a key that is not on the machine (the planning session
+  is gone or was on another machine, and the variable is not set), or a
+  variable that holds another key than the plan's, refuses with exit status 3 and names
+  the unit, the address and the attribute, never the value. A value that
+  was known after apply at plan time is not compared, as the approval
+  check does for unknowns. The unit's own sensitive inputs are still in its
+  own file (above), since Terragrunt gives an apply of a plan file no
+  inputs to recompute them from. A plan made in one job and applied in
+  another (the pull request and merge flow above) needs
+  `CHOUDOUFU_PLAN_HMAC_KEY` set to the same secret in both jobs whenever
+  the plan has a known sensitive value. Without it the apply refuses; set
+  the secret, or plan again in that job.
 
 A unit run alone, a run of the tools without `--all` / `--affected`, a unit
 without a live block, and any plan that uses `-target`, `-destroy`,

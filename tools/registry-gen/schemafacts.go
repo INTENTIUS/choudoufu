@@ -34,7 +34,7 @@ import (
 // # Why a sibling artifact rather than more columns
 //
 // live/registry.json is 1.1MB and has an embedded copy compiled into the
-// binary (internal/live/registry/registry.json, held in step by
+// binary (pkg/registry/registry.json, held in step by
 // TestEmbeddedArtifactsMatchLive). These three fields are 28,356 action
 // strings and 13,170 enum members, which roughly doubles it - and the
 // runtime reads none of them. They are generator input, not resolver input.

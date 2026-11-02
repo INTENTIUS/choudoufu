@@ -60,7 +60,7 @@ var typeOverridesRds = map[string]typeOverride{
 	},
 	"aws_db_proxy_default_target_group": {
 		Reasons: []string{
-			`schema requires only db_proxy_name; the generic pass's parentRef alias does not fire because this type's own identity argument (db_proxy_name, per internal/live/identity/table.go) has the same name as its own Required argument, so it fills its own identity placeholder instead of referencing the sibling aws_db_proxy this batch's cohort also admits - db_proxy_name is set to aws_db_proxy.app's own "name" argument by hand instead`,
+			`schema requires only db_proxy_name; the generic pass's parentRef alias does not fire because this type's own identity argument (db_proxy_name, per pkg/identity/table.go) has the same name as its own Required argument, so it fills its own identity placeholder instead of referencing the sibling aws_db_proxy this batch's cohort also admits - db_proxy_name is set to aws_db_proxy.app's own "name" argument by hand instead`,
 		},
 		Apply: func(g *generator, body *hclwrite.Body, addr resourceAddr) {
 			if parent, ok := g.byType["aws_db_proxy"]; ok {

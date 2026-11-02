@@ -15,7 +15,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // fakeCloudControl is a Cloud Control endpoint that reproduces the exact
@@ -260,7 +260,7 @@ func TestClassifyCreateRefusedIsUnverified(t *testing.T) {
 
 // TestClassifyUnsupportedOperation covers floci's router refusing a type
 // outright - unimplemented, the wire shape
-// internal/live/cloudcontrol/client_test.go's own TestErrorCodeMapping
+// pkg/cloudcontrol/client_test.go's own TestErrorCodeMapping
 // exercises at the client layer.
 func TestClassifyUnsupportedOperation(t *testing.T) {
 	f := newFakeCloudControl()

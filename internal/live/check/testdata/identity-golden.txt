@@ -9,24 +9,28 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=732 instances=2527
-# shape: class CONCRETE=1573
-# shape: class NEEDS_DISCOVERY=789
+# shape: dirs=742 instances=2552
+# shape: class CONCRETE=1577
+# shape: class NEEDS_DISCOVERY=810
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=701 fixture-instances=1823
+# shape: fixture-dirs=711 fixture-instances=1848
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=dc7c1dd7ce57621c0fde73b89060bfbeccd2dd669b8934ea969d84ed582e1bf5
+# shape: body-sha256=86854ddad0d5f07b35103b77955cf8a974ee526b68af6f5eea6da12a93ba6eaa
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
 # --- section: committed fixtures, one row per instance the in-repo .tf files resolve ---
 internal/live/acceptance/testdata/synth-composite	aws_s3_bucket.holder	CONCRETE	tofu-synth-composite-e2e	bucket=tofu-synth-composite-e2e
+internal/live/check/testdata/acm-route53-pending-read-2297	aws_acm_certificate.this[0]	NEEDS_DISCOVERY		
 internal/live/check/testdata/data-read-blocked	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/check/testdata/managed-result-foreach	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/check/testdata/managed-result-foreach-mixed-var	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/check/testdata/managed-result-foreach-unset-var	aws_acm_certificate.cert	NEEDS_DISCOVERY		
 internal/live/check/testdata/managed-result-foreach-var-key	aws_acm_certificate.cert	NEEDS_DISCOVERY		
+internal/live/check/testdata/stamp-declared-store-2296/derived	aws_kms_alias.unmarkable	NEEDS_DISCOVERY		
+internal/live/check/testdata/stamp-declared-store-2296/implied	aws_kms_alias.unmarkable	NEEDS_DISCOVERY		
+internal/live/check/testdata/stamp-declared-store-2296/local	aws_kms_alias.unmarkable	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/check/testdata/stamp-schema-gate	random_id.suffix	RECORD_BACKED		
 internal/live/check/testdata/stamp-uniquename-exempt	aws_cloudfront_cache_policy.exempt	NEEDS_DISCOVERY		
@@ -120,6 +124,10 @@ internal/live/discovery/testdata/foreach-legacy-key	aws_subnet.this["at@sign"]	N
 internal/live/discovery/testdata/gcp-count-slots	google_vertex_ai_index_endpoint.keys[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/gcp-count-slots	google_vertex_ai_index_endpoint.keys[1]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/gcp-count-slots	google_vertex_ai_index_endpoint.site	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/gcp-derived-scope	google_artifact_registry_repository.unlocated	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/gcp-derived-scope	google_compute_disk.boot	NEEDS_DISCOVERY		
+internal/live/discovery/testdata/gcp-derived-scope	google_compute_disk.data	CONCRETE	projects/proj-b/zones/us-east1-b/disks/data	name=data,project=proj-b,zone=us-east1-b
+internal/live/discovery/testdata/gcp-derived-scope	google_kms_key_ring.kr	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read	aws_iam_policy.team_0002_policy	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read-count	aws_iam_policy.team_policy[0]	NEEDS_DISCOVERY		
 internal/live/discovery/testdata/iam-policy-direct-read-count	aws_iam_policy.team_policy[1]	NEEDS_DISCOVERY		
@@ -1634,6 +1642,21 @@ internal/live/lint/testdata/undeclared-provider-alias	aws_s3_bucket.east	CONCRET
 internal/live/lint/testdata/undeclared-provider-alias	aws_s3_bucket.stray	CONCRETE	lint-undeclared-alias-stray	bucket=lint-undeclared-alias-stray
 internal/live/lint/testdata/undeclared-provider-alias-declared	aws_s3_bucket.west	CONCRETE	lint-declared-alias-west	bucket=lint-declared-alias-west
 internal/live/lint/testdata/undeclared-provider-alias-two-names	aws_s3_bucket.cross	CONCRETE	lint-two-names-cross	bucket=lint-two-names-cross
+internal/live/livegraph/testdata/small	aws_s3_bucket.logs	CONCRETE	web-logs	bucket=web-logs
+internal/live/livegraph/testdata/small	aws_sqs_queue.bar[0]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	aws_sqs_queue.bar[1]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	aws_sqs_queue.foo[0]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	aws_sqs_queue.foo[1]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	aws_subnet.app	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	module.app[0].aws_eip.pool[0]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	module.app[0].aws_eip.pool[1]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	module.app[0].aws_instance.web	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	module.app[1].aws_eip.pool[0]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	module.app[1].aws_eip.pool[1]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small	module.app[1].aws_instance.web	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small/modules/app	aws_eip.pool[0]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small/modules/app	aws_eip.pool[1]	NEEDS_DISCOVERY		
+internal/live/livegraph/testdata/small/modules/app	aws_instance.web	NEEDS_DISCOVERY		
 internal/live/liveimport/testdata/slot-clientnamed-config	aws_iam_role.this[0]	NEEDS_DISCOVERY		
 internal/live/liveimport/testdata/slot-clientnamed-config	aws_iam_role.this[1]	NEEDS_DISCOVERY		
 internal/live/liveimport/testdata/slot-clientnamed-literal-config	aws_iam_role.this[0]	CONCRETE	task-0	name=task-0
@@ -1779,6 +1802,7 @@ live/e2e/estate-module/wrapped	aws_eip.app	NEEDS_DISCOVERY
 live/e2e/estate-references	aws_subnet.app	NEEDS_DISCOVERY		
 live/e2e/import-fixture	aws_security_group.main	NEEDS_DISCOVERY		
 live/e2e/import-fixture	aws_vpc.main	NEEDS_DISCOVERY		
+live/e2e/limits/aws-tag-count	aws_s3_bucket.crowded	CONCRETE	limits-aws-tag-count	bucket=limits-aws-tag-count
 live/e2e/limits/child-live-config	module.vendored.aws_s3_bucket.inner	CONCRETE	child-live-config-inner	bucket=child-live-config-inner
 live/e2e/limits/child-live-config/mod	aws_s3_bucket.inner	CONCRETE	child-live-config-inner	bucket=child-live-config-inner
 live/e2e/limits/child-module	aws_s3_bucket.data	CONCRETE	tofu-live-limits-child-module	bucket=tofu-live-limits-child-module
@@ -1803,6 +1827,7 @@ live/e2e/limits/ignore-changes	aws_s3_bucket.everything	CONCRETE	estate-everythi
 live/e2e/limits/ignore-changes	aws_s3_bucket.marker_key	CONCRETE	estate-marker-key	bucket=estate-marker-key
 live/e2e/limits/ignore-changes	aws_s3_bucket.one_foreign_key	CONCRETE	estate-one-foreign-key	bucket=estate-one-foreign-key
 live/e2e/limits/ignore-changes	aws_s3_bucket.whole_tags	CONCRETE	estate-whole-tags	bucket=estate-whole-tags
+live/e2e/limits/ignore-tags	aws_s3_bucket.q	CONCRETE	limits-ignore-tags	bucket=limits-ignore-tags
 live/e2e/limits/local-exec	aws_s3_bucket.data	CONCRETE	tofu-live-limits-local-exec	bucket=tofu-live-limits-local-exec
 live/e2e/limits/local-file	local_file.rendered	RECORD_BACKED		
 live/e2e/limits/local-sensitive-file	local_sensitive_file.rendered	RECORD_BACKED		

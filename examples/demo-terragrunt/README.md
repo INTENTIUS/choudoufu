@@ -43,6 +43,16 @@ What differs from the docs' example, and why:
 - `mock_outputs_allowed_terraform_commands` lists `show` because the workflow's
   report step runs `terragrunt run -- show -json <plan file>` in each unit.
 
+`live/demo_workaround_lint_test.go` (`TestTerragruntDemoCarriesNoWorkaround`)
+fails if the tree, its scenario trees included, gains a workaround this demo
+once needed: a `generate "backend"` block in place of `remote_state`,
+`--no-dependency-fetch-output-from-state` or its `TG_` variable,
+`dependency_fetch_output_from_state = false`, `terraform_estate_outputs`, or a
+composed root (a module call to a directory with a `live` block). It also
+checks that `root.hcl` sets `terraform_binary = "choudoufu"` and keeps the
+`remote_state` block. It catches workarounds seen so far; a new kind is left
+to review.
+
 ## The workflow
 
 `.forgejo/workflows/terragrunt-choudoufu.yml` runs Terragrunt's own CLI.
@@ -59,6 +69,11 @@ What differs from the docs' example, and why:
   the live system again and refuses, with exit status 3, if the result is not
   the reviewed plan (a value that was known after apply is not compared). The
   refusal names the command that plans again.
+- The plan files keep an HMAC of each sensitive planned value, not the value.
+  Both jobs read the key from the `CHOUDOUFU_PLAN_HMAC_KEY` secret (hex or
+  base64 of at least 32 bytes). With the secret unset, a merge job applying
+  a plan with a known sensitive value refuses, since the key stayed with the
+  pull request's job.
 - After each stage, chant's `terraform report` writes what behold reads. That
   step is not part of running the infrastructure. `terragrunt-plan-json`
   (on the demo host) joins the units' `show -json` documents for it, and
@@ -116,6 +131,22 @@ apply fills it in.
   the failure, and a re-run plans only what is left.
 - `mock_outputs_allowed_terraform_commands` lists `show` because the report
   step runs `terragrunt run -- show -json <plan file>` in each unit.
+
+## The pipeline run: terragucci
+
+terragucci runs this tree, as its harness scenario
+[`tg-compose-terragrunt`](https://github.com/INTENTIUS/terragucci/blob/8ad15b839f2c6c60219dc9483eba2cb2c9b63421/stack/harness/scenarios/tg-compose-terragrunt/scenario.json)
+(claim `choudoufu/compose-terragrunt`, INTENTIUS/terragucci#1296). The tree
+stays here: terragucci's `stack/harness/seed.sh` reads it from choudoufu
+the way its `stack/demo.sh` does, and pushes it to the stack's Forgejo with
+`DEMO_SCENARIOS=terragrunt-choudoufu-create stack/demo.sh up` running for
+the job images and the record store. The create scenario's `pull/` files
+are the pull request; `.forgejo/workflows/terragrunt-choudoufu.yml` plans
+it with choudoufu, the second person approves, the merge applies the
+reviewed plan, and network's records must be in its record store. Its
+`BREAK=1` adds a resource live-check refuses to every pull request, so the
+plan fails and nothing applies. The row is the product proof for
+choudoufu#2213, #2219 and B6.
 
 ## The base
 

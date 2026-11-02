@@ -6,4 +6,3 @@ description: One label marks each object. An admission policy decides who change
 - [Gate](/choudoufu/kubernetes/gate/): fence writes with the label.
 - [Operate](/choudoufu/kubernetes/operate/): rename, remove, keep records in-cluster.
 - [Compatibility](/choudoufu/kubernetes/compatibility/): what plans.
-- [Proof](/choudoufu/kubernetes/proof/): what is proven and where.

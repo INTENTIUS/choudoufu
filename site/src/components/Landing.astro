@@ -1,13 +1,9 @@
 ---
-// The home page under the hero and its lead: the picker, then a link to the
-// claims.
+// The home page under the hero and its lead: the picker.
 import Picker from './Picker.astro';
-
-const CLAIMS = 'https://github.com/INTENTIUS/choudoufu/blob/main/live/CLAIMS.md';
 ---
 <div class="cd-landing not-content">
 	<Picker />
-	<p class="claims"><a href={CLAIMS}>Every claim is proven</a></p>
 </div>
 
 <style>
@@ -22,16 +18,5 @@ const CLAIMS = 'https://github.com/INTENTIUS/choudoufu/blob/main/live/CLAIMS.md'
 	}
 	.cd-landing :global(.cd-picker) {
 		margin: 0;
-	}
-	.claims {
-		margin: 0;
-		text-align: center;
-	}
-	.claims a {
-		color: var(--cd-accent);
-		text-decoration-color: color-mix(in srgb, var(--cd-accent) 35%, transparent);
-	}
-	.claims a:hover {
-		text-decoration-color: var(--cd-gold);
 	}
 </style>

@@ -253,7 +253,7 @@ test-kubernetes-clean: ## Cleans environment after `test-kubernetes`.
 # cleaning containers of an image nothing here runs.
 #
 # ?= rather than := so an exported FLOCI_IMAGE wins, which is what
-# internal/live/flocitest and live/e2e/run.sh both already do. With :=, a run
+# internal/live/flocitest and the e2e harnesses already do. With :=, a run
 # under an overridden image started containers this target could not see, and
 # test-floci-clean went back to cleaning nothing - the same silent no-op the
 # drifted literal caused, reached a different way (issue #145).
@@ -282,7 +282,7 @@ test-floci: ## Runs the live-mode tests against the floci AWS emulator.
 # the estate size (default 200, the committed live/plan-budget.json's own N);
 # a run at that default N also ratchets against the budget. See
 # internal/live/discovery/scale_bench_test.go's doc comment for the measured
-# scaling curve and internal/live/cloudcontrol/doc.go's "Retries" section for
+# scaling curve and pkg/cloudcontrol/doc.go's "Retries" section for
 # the backoff policy this same issue asked for.
 .PHONY: bench-estate
 

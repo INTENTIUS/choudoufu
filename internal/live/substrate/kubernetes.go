@@ -11,8 +11,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // Kubernetes is the hashicorp/kubernetes family: the tofu-estate label, in

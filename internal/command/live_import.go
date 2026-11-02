@@ -7,7 +7,9 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/zclconf/go-cty/cty"
@@ -16,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/liveimport"
@@ -25,6 +28,7 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tracing"
 	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
+	"github.com/intentius/choudoufu/pkg/adoption"
 )
 
 // LiveImportCommand is the bulk migration path from a state-backed estate to
@@ -85,10 +89,13 @@ func (c *LiveImportCommand) Execute(args *arguments.LiveImport) int {
 
 	diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
 
-	rat, closeProviders, ratDiags := c.liveImportRatify(ctx, args)
+	rat, adopted, closeProviders, ratDiags := c.liveImportRatify(ctx, args)
 	diags = diags.Append(ratDiags)
 
-	if rat != nil {
+	switch {
+	case adopted != nil:
+		views.NewLiveImport(c.View).Ratification(liveImportAdoptReport(args, adopted))
+	case rat != nil:
 		views.NewLiveImport(c.View).Ratification(liveImportReport(args.StatePath, rat))
 	}
 	if diags.HasErrors() || rat == nil {
@@ -135,42 +142,92 @@ func (c *LiveImportCommand) Execute(args *arguments.LiveImport) int {
 // what shuts them down, and the caller is responsible for calling it exactly
 // once, after Approve has had its chance to run (or immediately, when there
 // is no Approve call to wait for).
-func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *arguments.LiveImport) (*liveimport.Ratification, func() tfdiags.Diagnostics, tfdiags.Diagnostics) {
+func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *arguments.LiveImport) (*liveimport.Ratification, *liveimport.AdoptRatification, func() tfdiags.Diagnostics, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	noop := func() tfdiags.Diagnostics { return nil }
 
 	enc, encDiags := c.Encryption(ctx)
 	diags = diags.Append(encDiags)
 	if encDiags.HasErrors() {
-		return nil, noop, diags
-	}
-
-	stateFile, err := getStateFromPath(args.StatePath, enc)
-	if err != nil {
-		return nil, noop, diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Cannot read the state file",
-			err.Error(),
-		))
-	}
-	if stateFile == nil || stateFile.State == nil {
-		return nil, noop, diags.Append(tfdiags.Sourceless(
-			tfdiags.Error,
-			"Empty state file",
-			args.StatePath+" carries no state, so there is nothing to ratify.",
-		))
+		return nil, nil, noop, diags
 	}
 
 	config, cfgDiags := c.loadConfig(ctx, ".")
 	diags = diags.Append(cfgDiags)
 	if cfgDiags.HasErrors() {
-		return nil, noop, diags
+		return nil, nil, noop, diags
+	}
+
+	// GitHub issue #2293: with no -estate, the name a live run of this
+	// configuration resolves; with no -state and no -adopt, the state the
+	// backend block names, read once through the backend's own client, so
+	// a migration needs no "state pull" first.
+	if args.Estate == "" {
+		estate, _, estateDiags := liveEstateFor(ctx, "", config)
+		diags = diags.Append(estateDiags)
+		if estate == "" {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"No estate named",
+				"live-import resolves the estate the way a live run does (the live block's estate argument, the configuration's tofu-estate tags, the backend key, then the root's path), and nothing here resolved one. Pass -estate=<name>.",
+			))
+		}
+		args.Estate = estate
+	}
+	var backendState *states.State
+	if args.StatePath == "" && args.AdoptPath == "" {
+		st, where, stDiags := liveImportStateFromBackend(ctx, config, enc)
+		diags = diags.Append(stDiags)
+		if !stDiags.HasErrors() {
+			backendState = st
+			args.StatePath = where
+		}
+	}
+	if diags.HasErrors() {
+		return nil, nil, noop, diags
+	}
+
+	// GitHub issue #2287: -adopt reads an adoption file and the index
+	// version it names in place of a state file. Both are checked against
+	// each other (scope key, version name, digest, every selected node)
+	// before any provider is started.
+	var priorState *states.State
+	var adopt *adoption.Adoption
+	if args.AdoptPath != "" {
+		a, err := adoption.Open(args.AdoptPath, args.IndexStore)
+		if err != nil {
+			return nil, nil, noop, diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Cannot read the adoption file",
+				err.Error(),
+			))
+		}
+		adopt = a
+	} else if backendState != nil {
+		priorState = backendState
+	} else {
+		stateFile, err := getStateFromPath(args.StatePath, enc)
+		if err != nil {
+			return nil, nil, noop, diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Cannot read the state file",
+				err.Error(),
+			))
+		}
+		if stateFile == nil || stateFile.State == nil {
+			return nil, nil, noop, diags.Append(tfdiags.Sourceless(
+				tfdiags.Error,
+				"Empty state file",
+				args.StatePath+" carries no state, so there is nothing to ratify.",
+			))
+		}
+		priorState = stateFile.State
 	}
 
 	coreOpts, err := c.contextOpts(ctx)
 	if err != nil {
 		diags = diags.Append(err)
-		return nil, noop, diags
+		return nil, nil, noop, diags
 	}
 
 	provs := newProjectionProviders(config, coreOpts.Plugins)
@@ -207,7 +264,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		store, storeDiags := openRecordStoreForImport(ctx, projection.NewRecordStore, recordStoreCfg, retryCfg, args.Estate, args.Approve)
 		diags = diags.Append(storeDiags)
 		if storeDiags.HasErrors() {
-			return nil, closer, diags
+			return nil, nil, closer, diags
 		}
 		recordStore = projection.NewRecordEnvelopeStore(store, projection.RecordStoreKeyPrefix(recordStoreCfg, args.Estate))
 		// GitHub issue #349: the same underlying store again, its own
@@ -234,9 +291,9 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 	// did. Placed here because it must be complete before the first
 	// [projectionProviders.ConfiguredProvider] call, and Ratify's own first
 	// instance makes one.
-	liveImportProviderDataReads(ctx, config, provs, recordStore, stateFile.State)
+	liveImportProviderDataReads(ctx, config, provs, recordStore, priorState)
 
-	rat, impDiags := liveimport.Ratify(ctx, liveimport.Request{
+	req := liveimport.Request{
 		Estate: args.Estate,
 		// GitHub issue #372's remainder: the same configuration this
 		// command already loaded above to find the record_store block, now
@@ -248,7 +305,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		// answered from when the provider block names none, as for a live
 		// plan's identity resolution (live_mode.go's liveRecordCloud).
 		Cloud:     liveRecordCloud(),
-		State:     stateFile.State,
+		State:     priorState,
 		Providers: provs,
 		// GitHub issue #1109: the cluster client a manifest-shape
 		// resource's tofu-estate label is written through. The same
@@ -270,9 +327,18 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		// GitHub issue #2063: one stderr line per resource as -approve's
 		// write for it returns. Ratify ignores it.
 		Progress: liveImportProgress(c.View, args),
-	})
+	}
+	if adopt != nil {
+		adopted, adoptDiags := liveimport.RatifyAdoption(ctx, liveimport.AdoptRequest{Request: req, Adoption: adopt})
+		diags = diags.Append(adoptDiags)
+		if adopted == nil {
+			return nil, nil, closer, diags
+		}
+		return adopted.Ratification, adopted, closer, diags
+	}
+	rat, impDiags := liveimport.Ratify(ctx, req)
 	diags = diags.Append(impDiags)
-	return rat, closer, diags
+	return rat, nil, closer, diags
 }
 
 // liveImportProviderDataReads runs GitHub issue #313's provider-
@@ -485,6 +551,43 @@ func liveImportReport(statePath string, rat *liveimport.Ratification) views.Live
 	return rep
 }
 
+// liveImportAdoptReport is the report for a -adopt run (GitHub issue
+// #2287): the ratification of what was adopted, the refused selections, and
+// every marker write -approve would make, each tags only.
+func liveImportAdoptReport(args *arguments.LiveImport, a *liveimport.AdoptRatification) views.LiveImportReport {
+	rep := liveImportReport("", a.Ratification)
+	ad := &views.LiveImportAdoption{
+		AdoptPath:    args.AdoptPath,
+		ScopeKey:     a.Index.ScopeKey,
+		IndexVersion: a.Index.Version,
+	}
+	for _, r := range a.Refused {
+		ad.Refused = append(ad.Refused, views.LiveImportAdoptRefusal{
+			Node:     r.Node,
+			As:       r.As,
+			TypeName: r.TypeName,
+			ImportID: r.ImportID,
+			Reason:   r.Reason,
+		})
+	}
+	for _, w := range a.MarkerWrites() {
+		tags := make([]string, 0, len(w.Tags))
+		for k, v := range w.Tags {
+			tags = append(tags, k+"="+v)
+		}
+		sort.Strings(tags)
+		ad.Writes = append(ad.Writes, views.LiveImportMarkerWrite{
+			Addr:     w.Addr.String(),
+			TypeName: w.TypeName,
+			Node:     w.Node,
+			ImportID: w.ImportID,
+			Tags:     tags,
+		})
+	}
+	rep.Adopt = ad
+	return rep
+}
+
 func liveImportStampReport(rep *liveimport.StampReport) views.LiveImportStamped {
 	out := views.LiveImportStamped{Estate: rep.Estate, IdentitiesRecorded: rep.IdentitiesRecorded}
 	for _, o := range rep.Outcomes {
@@ -501,6 +604,7 @@ func liveImportStampReport(rep *liveimport.StampReport) views.LiveImportStamped 
 func (c *LiveImportCommand) Help() string {
 	helpText := `
 Usage: choudoufu [global options] live-import -state=PATH -estate=NAME [-approve]
+       choudoufu [global options] live-import -adopt=PATH -index-store=DIR -estate=NAME [-approve]
 
   Migrates an existing, state-backed estate to live resource
   markers in bulk: reads a tfstate file (v4 format) once, read-only, verifies
@@ -545,9 +649,30 @@ Usage: choudoufu [global options] live-import -state=PATH -estate=NAME [-approve
   value is refused once, by the read-only run, rather than once per object
   at -approve.
 
+  With -adopt, the run starts from an adoption file (adopt: v1) instead of
+  a state file: an index version, named by scope key, version and digest,
+  and the index nodes to adopt, each with the Terraform address to adopt it
+  as and, where its listed type maps to more than one Terraform type, which
+  one. The index only names each object. Every object is imported and read
+  again through its provider, and that read decides: an object carrying
+  another estate's marker, a plunge stack's or chant's is refused, and so
+  is one whose tags can be set only at create (it would be replaced to mark
+  it), a type that cannot be imported, and an ambiguous type the selection
+  does not name. The report lists every marker write -approve would make,
+  each a tags-only write.
+
 Options:
 
-  -state=path             The tfstate file to read. Required.
+  -state=path             The tfstate file to read. Required unless -adopt
+                          is given.
+
+  -adopt=path             An adoption file (adopt: v1) to adopt indexed
+                          objects from, in place of -state.
+
+  -index-store=dir        With -adopt, the index store directory: the
+                          version is read from
+                          <dir>/index/<scopeKey>/<version>. Required with
+                          -adopt.
 
   -estate=name            The estate this run verifies against and, with
                           -approve, stamps. Required: unlike live-plan and
@@ -585,4 +710,64 @@ Options:
 
 func (c *LiveImportCommand) Synopsis() string {
 	return "Migrate a state-backed estate to live resource markers in bulk"
+}
+
+// liveImportStateFromBackend reads the old state through the configuration's
+// backend block, once, read-only (GitHub issue #2293): the ignored one under
+// a live block, or the active one on a root not yet converted. where names
+// it for the report in place of a -state path.
+//
+// It takes no lock. The read is the same one "state pull" makes, and a
+// migration that waited on someone else's lock, or held one, would be a
+// second writer's behaviour in a command that never writes state.
+func liveImportStateFromBackend(ctx context.Context, config *configs.Config, enc encryption.Encryption) (*states.State, string, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	var be *configs.Backend
+	if config != nil && config.Module != nil {
+		be = config.Module.IgnoredBackend
+		if be == nil {
+			be = config.Module.Backend
+		}
+	}
+	if be == nil {
+		return nil, "", diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"No state file named",
+			"live-import reads an existing state once, read-only, and this configuration has no backend block to read it from. Pass -state=<path> naming a tfstate file, or -adopt=<path> naming an adoption file.",
+		))
+	}
+	where := fmt.Sprintf("backend %q at %s", be.Type, configs.RangeFileLine(be.DeclRange))
+	fail := func(detail string) (*states.State, string, tfdiags.Diagnostics) {
+		return nil, "", diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"Cannot read the state from the backend",
+			fmt.Sprintf("live-import read no -state, so it reads the state %s names. %s Pass -state=<path> with a file from \"state pull\" instead.", where, detail),
+		))
+	}
+	if be.Type == "local" {
+		path, ok := configs.BackendLiteral(be, "path")
+		if !ok || path == "" {
+			path = "terraform.tfstate"
+		}
+		stateFile, err := getStateFromPath(path, enc)
+		if err != nil {
+			return fail(err.Error())
+		}
+		if stateFile == nil || stateFile.State == nil {
+			return fail(path + " carries no state.")
+		}
+		return stateFile.State, path, diags
+	}
+	b, problem := configureBlockBackend(ctx, be, config.Module.StaticEvaluator, enc.State())
+	if problem != "" {
+		return fail(problem)
+	}
+	stateFile, err := getStateFromBackend(ctx, b, currentWorkspaceName())
+	if err != nil {
+		return fail(err.Error())
+	}
+	if stateFile == nil || stateFile.State == nil {
+		return fail("It holds no state, so there is nothing to ratify.")
+	}
+	return stateFile.State, where, diags
 }

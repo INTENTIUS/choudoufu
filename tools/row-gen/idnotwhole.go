@@ -61,7 +61,7 @@ import (
 // and markerless_generated.go for the reason markerlessTableRel states: the
 // package that acts on a ruling is where the ruling's evidence should be
 // readable from.
-const idNotWholeTableRel = "internal/live/identity/idnotwhole_generated.go"
+const idNotWholeTableRel = "pkg/identity/idnotwhole_generated.go"
 
 // idNotProvenWholeRoster is every type in the scraped import grammar whose
 // documented import string is composite and whose exported `id` no source

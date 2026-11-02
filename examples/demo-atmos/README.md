@@ -34,6 +34,15 @@ Not part of the Atmos repo's own configuration: the workflow's report step
 (`.forgejo/composed-plan.mjs`) joins the components' slices of the joint plan
 into the one document chant's `terraform report` reads for behold.
 
+`live/demo_workaround_lint_test.go` (`TestAtmosDemoCarriesNoWorkaround`) fails
+if the tree, its scenario trees included, gains a workaround this demo once
+needed: `init_run_reconfigure: false`, `auto_generate_backend_file: false`, a
+pinned `metadata.terraform_workspace`, `workspaces_enabled: false`,
+`terraform_estate_outputs`, or a composed root (a module call to a directory
+with a `live` block). It also checks that `atmos.yaml` keeps `command:
+choudoufu` and the generated backend file, and that each component has a `live`
+block. It catches workarounds seen so far; a new kind is left to review.
+
 ## The workflow
 
 - Pull request: `atmos terraform plan --affected --include-dependents --ci`.
@@ -132,3 +141,19 @@ No scenario replaces or destroys anything.
 
 The demo host's loop applies the base with `atmos terraform apply` in the demo image,
 outside the workflow, and each reset applies it again.
+
+## The pipeline run: terragucci
+
+terragucci runs this tree, as its harness scenario
+[`tg-compose-atmos`](https://github.com/INTENTIUS/terragucci/blob/8ad15b839f2c6c60219dc9483eba2cb2c9b63421/stack/harness/scenarios/tg-compose-atmos/scenario.json)
+(claim `choudoufu/compose-atmos`, INTENTIUS/terragucci#1296). The tree stays
+here: terragucci's `stack/harness/seed.sh` reads it from choudoufu the way
+its `stack/demo.sh` does, and pushes it to the stack's Forgejo with
+`DEMO_SCENARIOS=atmos-choudoufu-create stack/demo.sh up` running for the
+job images and the record store. The create scenario's `pull/` files are
+the pull request; `.forgejo/workflows/atmos-choudoufu.yml` plans the
+affected components with choudoufu, the second person approves, the merge
+deploys the reviewed plan, and network's records must be in its record
+store. Its `BREAK=1` adds a resource live-check refuses to every pull
+request, so the plan fails and nothing applies. The row is the product
+proof for choudoufu#2213, #2219 and B7.

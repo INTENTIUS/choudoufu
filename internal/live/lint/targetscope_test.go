@@ -152,6 +152,7 @@ var lintRuleTargetScope = map[Rule]struct {
 	RuleReceiptSecret:   {ruleScoped, "same block, same run"},
 	RuleARMTagLimit:     {ruleScoped, "a create this run will not make cannot overflow; TestARMTagLimitHonoursTheTargetScope pins it, outside the shared fixture"},
 	RuleGCPLabelCount:   {ruleScoped, "a create this run will not make cannot overflow; TestGCPLabelCountHonoursTheTargetScope pins it, outside the shared fixture"},
+	RuleAWSTagCount:     {ruleScoped, "a create this run will not make cannot overflow; aws_s3_bucket is admitted, so the pair sits in the shared fixture"},
 	RuleGCPEstateLabel:  {ruleScoped, "the node stamp refuses per instance, and a block this run leaves out is never stamped; TestGCPEstateLabelHonoursTheTargetScope pins it, outside the shared fixture"},
 
 	// ---- names a block, and still does not narrow ------------------
@@ -176,6 +177,7 @@ var lintRuleTargetScope = map[Rule]struct {
 	RuleStrictProviderChange:      {ruleWholeConfig, "same block"},
 	RuleStrictMarkers:             {ruleWholeConfig, "the markers selection is a declaration about the estate, malformed on every run whatever this one touches; checkStrictMarkers runs once over the whole tree, outside checkConfig"},
 	RuleStrictMarkersUnrecordable: {ruleWholeConfig, "same selection, and its unit is a TYPE rather than a block"},
+	RuleIgnoreTags:                {ruleWholeConfig, "a provider block's ignore_tags; names no resource, and it hides the markers of every resource the provider serves whatever this run targets"},
 	RuleGCPMultiProject:           {ruleWholeConfig, "the projects the estate spans, read off every google provider block and resource; a narrowed run plans fewer blocks of the same estate, whose fence is the same whatever this run targets"},
 }
 
@@ -192,7 +194,7 @@ func scopedRuleSet() []Rule {
 }
 
 // scopedRules are the members of [scopedRuleSet] this fixture actually
-// trips. Five of the fifteen are absent. Two ride the identical
+// trips. Five of the sixteen are absent. Two ride the identical
 // `continue` in checkManagedResources that RuleProvisioner,
 // RuleLogicalResource, RuleUnadmittedType, RuleCountIndex and
 // RuleIgnoreChanges are pinned on here: RuleMarkerlessType (whose #1203
@@ -216,6 +218,7 @@ var scopedRules = []Rule{
 	RuleReceiptValue,
 	RuleReceiptSecret,
 	RuleReceiptLeaf,
+	RuleAWSTagCount,
 }
 
 // unscopedRules are the rules that must keep firing over a block the run

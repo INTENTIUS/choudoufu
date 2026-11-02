@@ -1,0 +1,189 @@
+{
+  "_source": "Generated once by `chant graph --format ir` (chant 0.124.53, @intentius/chant-lexicon-terraform from the same install) over testdata/small as the root \"web\", 2026-10-26, for choudoufu#2285. Trimmed to node ids, kinds and instance fields; edges kept as printed.",
+  "version": 1,
+  "nodes": [
+    {
+      "id": "web/aws_s3_bucket.logs",
+      "kind": "Terraform::Resource"
+    },
+    {
+      "id": "web/aws_sqs_queue.bar",
+      "kind": "Terraform::Resource"
+    },
+    {
+      "id": "web/aws_sqs_queue.bar[0]",
+      "kind": "Terraform::Resource",
+      "instanceOf": "web/aws_sqs_queue.bar",
+      "instanceKey": "[0]"
+    },
+    {
+      "id": "web/aws_sqs_queue.bar[1]",
+      "kind": "Terraform::Resource",
+      "instanceOf": "web/aws_sqs_queue.bar",
+      "instanceKey": "[1]"
+    },
+    {
+      "id": "web/aws_sqs_queue.foo",
+      "kind": "Terraform::Resource"
+    },
+    {
+      "id": "web/aws_sqs_queue.foo[0]",
+      "kind": "Terraform::Resource",
+      "instanceOf": "web/aws_sqs_queue.foo",
+      "instanceKey": "[0]"
+    },
+    {
+      "id": "web/aws_sqs_queue.foo[1]",
+      "kind": "Terraform::Resource",
+      "instanceOf": "web/aws_sqs_queue.foo",
+      "instanceKey": "[1]"
+    },
+    {
+      "id": "web/aws_subnet.app",
+      "kind": "Terraform::Resource"
+    },
+    {
+      "id": "web/data.aws_vpc.shared",
+      "kind": "Terraform::Data"
+    },
+    {
+      "id": "web/data.terraform_estate_outputs.net",
+      "kind": "Terraform::Data"
+    },
+    {
+      "id": "web/live",
+      "kind": "Terraform::Live"
+    },
+    {
+      "id": "web/locals",
+      "kind": "Terraform::Locals"
+    },
+    {
+      "id": "web/module.app",
+      "kind": "Terraform::Module"
+    },
+    {
+      "id": "web/module.app[0]",
+      "kind": "Terraform::Module",
+      "instanceOf": "web/module.app",
+      "instanceKey": "[0]"
+    },
+    {
+      "id": "web/module.app[0]/aws_eip.pool[0]",
+      "kind": "Terraform::Resource",
+      "instanceOf": "web/module.app/aws_eip.pool",
+      "instanceKey": "[0]",
+      "instanceScope": "module.app[0]"
+    },
+    {
+      "id": "web/module.app[0]/aws_eip.pool[1]",
+      "kind": "Terraform::Resource",
+      "instanceOf": "web/module.app/aws_eip.pool",
+      "instanceKey": "[1]",
+      "instanceScope": "module.app[0]"
+    },
+    {
+      "id": "web/module.app[0]/aws_instance.web",
+      "kind": "Terraform::Resource",
+      "instanceOf": "web/module.app/aws_instance.web",
+      "instanceScope": "module.app[0]"
+    },
+    {
+      "id": "web/module.app[1]",
+      "kind": "Terraform::Module",
+      "instanceOf": "web/module.app",
+      "instanceKey": "[1]"
+    },
+    {
+      "id": "web/module.app[1]/aws_eip.pool[0]",
+      "kind": "Terraform::Resource",
+      "instanceOf": "web/module.app/aws_eip.pool",
+      "instanceKey": "[0]",
+      "instanceScope": "module.app[1]"
+    },
+    {
+      "id": "web/module.app[1]/aws_eip.pool[1]",
+      "kind": "Terraform::Resource",
+      "instanceOf": "web/module.app/aws_eip.pool",
+      "instanceKey": "[1]",
+      "instanceScope": "module.app[1]"
+    },
+    {
+      "id": "web/module.app[1]/aws_instance.web",
+      "kind": "Terraform::Resource",
+      "instanceOf": "web/module.app/aws_instance.web",
+      "instanceScope": "module.app[1]"
+    },
+    {
+      "id": "web/module.app/aws_eip.pool",
+      "kind": "Terraform::Resource"
+    },
+    {
+      "id": "web/module.app/aws_instance.web",
+      "kind": "Terraform::Resource"
+    },
+    {
+      "id": "web/module.app/output.web_id",
+      "kind": "Terraform::Output"
+    },
+    {
+      "id": "web/module.app/var.logs_bucket",
+      "kind": "Terraform::Variable"
+    }
+  ],
+  "edges": [
+    {
+      "from": "web/aws_sqs_queue.bar",
+      "to": "web/aws_sqs_queue.foo",
+      "kind": "ref",
+      "viaAttr": "redrive_policy"
+    },
+    {
+      "from": "web/aws_subnet.app",
+      "to": "web/data.aws_vpc.shared",
+      "kind": "ref",
+      "viaAttr": "vpc_id",
+      "toAttr": "id"
+    },
+    {
+      "from": "web/aws_subnet.app",
+      "to": "web/data.terraform_estate_outputs.net",
+      "kind": "ref",
+      "viaAttr": "cidr_block",
+      "toAttr": "outputs"
+    },
+    {
+      "from": "web/locals",
+      "to": "web/aws_s3_bucket.logs",
+      "kind": "ref",
+      "viaAttr": "bucket_id",
+      "toAttr": "id"
+    },
+    {
+      "from": "web/module.app/aws_eip.pool",
+      "to": "web/module.app/aws_instance.web",
+      "kind": "ref",
+      "viaAttr": "instance",
+      "toAttr": "id"
+    },
+    {
+      "from": "web/module.app/aws_instance.web",
+      "to": "web/module.app/var.logs_bucket",
+      "kind": "ref",
+      "viaAttr": "tags"
+    },
+    {
+      "from": "web/module.app/output.web_id",
+      "to": "web/module.app/aws_instance.web",
+      "kind": "ref",
+      "viaAttr": "value",
+      "toAttr": "id"
+    },
+    {
+      "from": "web/module.app",
+      "to": "web/locals",
+      "kind": "ref",
+      "viaAttr": "logs_bucket"
+    }
+  ]
+}

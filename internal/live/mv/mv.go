@@ -16,11 +16,8 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/discovery"
-	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
@@ -31,6 +28,9 @@ import (
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/gcpsweep"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // Request is one rename.
@@ -171,7 +171,7 @@ type Request struct {
 	// configuration, the seam internal/live/liveimport's Request.Clusters
 	// names for the same reason: a manifest-declared object's markers are
 	// written by an API merge patch, never through the provider
-	// (internal/live/kubesweep/patch.go). live-mv needs it for one write,
+	// (pkg/kubesweep/patch.go). live-mv needs it for one write,
 	// the address annotation a same-estate rename of such an object
 	// rewrites (GitHub issue #1639). Nil refuses that rename by name and
 	// leaves every other move exactly as it was.

@@ -13,9 +13,9 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 )
 
 // GitHub issue #2133, finding 4: live-plan's identity pass reads

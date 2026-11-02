@@ -10,9 +10,9 @@ import (
 	"fmt"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/gcpsweep"
 	"github.com/intentius/choudoufu/internal/live/mv"
 	"github.com/intentius/choudoufu/internal/live/substrate"
+	"github.com/intentius/choudoufu/pkg/gcpsweep"
 )
 
 // live-mv's GCP destination search (GitHub issue #1119): before a GCP move

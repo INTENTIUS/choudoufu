@@ -124,7 +124,8 @@ func generateCohort(t *testing.T, cohort string, types []string, out string) *ge
 // keyed, 59c) shape.
 func generateCohortWith(t *testing.T, cohort string, types []string, out string, moduleWrap bool, moduleKeys []string) *generator {
 	t.Helper()
-	flocitest.Gate(t, "estate-gen schema acquisition")
+	// No floci gate here: generating needs only terraform. A caller that
+	// needs more (TestValidateGeneratedCohorts) gates itself.
 	flocitest.RequireBinary(t, defaultInitBin)
 
 	schemas, err := acquireSchemas(defaultInitBin, t.TempDir(), testLogWriter{t})
@@ -149,8 +150,17 @@ func generateCohortWith(t *testing.T, cohort string, types []string, out string,
 // TestDeterminism regenerates the same cohort twice into separate
 // directories and requires byte-identical output: no timestamps, no map-
 // order nondeterminism - the verification bar issue #56 sets explicitly.
+//
+// It covers generator output only. Two plans of one estate producing the
+// same bytes is a different property, and no engine claim makes it.
+//
+// It needs terraform on PATH (for init and fmt, as generateCohort does)
+// and nothing else: no floci, no Docker, no AWS CLI. So it carries no
+// flocitest.Gate and runs in the fast test tier and in `just ci`, which
+// install terraform for TestIdentityGolden already (choudoufu#2300).
+// RequireBinary fails rather than skips without terraform, for the same
+// reason ci.yml gives for the golden.
 func TestDeterminism(t *testing.T) {
-	flocitest.Gate(t, "estate-gen determinism")
 	flocitest.RequireBinary(t, defaultInitBin)
 
 	out1 := filepath.Join(t.TempDir(), "run1")

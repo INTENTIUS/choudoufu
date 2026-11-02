@@ -45,14 +45,15 @@ calling itself a receipt in this mode. The demonstration is
 `aws_ssm_parameter.demo_existence` is the existence flavor and this spec's
 default recommendation, and `aws_ssm_parameter.demo_effect` is the hash
 flavor. See "Two flavors, prefer the simpler" below for what distinguishes
-them, and the `receipt-cycle`/`receipt-cycle-existence` steps in
-`live/e2e/run.sh` for both running live.
+them, and `internal/live/lifecycle/receipt_existence_test.go` for both running live
+against floci (the `receipt-cycle` steps of `live/e2e/run.sh` did this until
+#2288 retired it).
 
 ## Boundary: receipts never migrate onto the record store
 
 GitHub issue #73 gives `null_resource`, `terraform_data`, `time_*` and
 `random_*` a persisted micro-state record on any estate with a `live` block
-(`internal/live/staterecord`; since #364 a block that declares no
+(`pkg/staterecord`; since #364 a block that declares no
 `record_store` gets an implied local one, and under the default
 `strict { secrets = "store" }` the secret-generating `random_*` are recorded
 the same way a stock state file records them). A receipt is not a candidate
@@ -69,7 +70,7 @@ trigger something with real-world consequences outside the resources
 OpenTofu manages directly. That diff exists because a receipt is a plain
 declared resource going through the ordinary plan/apply cycle described in
 Guard 1 above. A record-backed resource's prior state comes from
-`internal/live/staterecord.Store.Get` instead of a cloud read, but its
+`pkg/staterecord.Store.Get` instead of a cloud read, but its
 *plan diff* is exactly as visible either way. What moves is where the
 resource's *value* is read from, not whether a plan shows a change to it.
 Receipts stay off the record store because a receipt is deliberately
@@ -386,8 +387,10 @@ Both ship as fixtures, side by side, in `live/e2e/estate/receipts.tf`.
 recommendation, the existence flavor has nothing to scrub and nothing to
 go stale: its value carries no information, so there is no hash to keep
 correct and no secret to mishandle in computing one. The
-`receipt-cycle-existence` step in `live/e2e/run.sh` runs the flavor live.
-The receipt starts owned and clean. The step breaks it with an
+floci test in `internal/live/lifecycle/receipt_existence_test.go` runs the
+flavor live (it replaced the retired `live/e2e/run.sh`'s
+`receipt-cycle-existence` step).
+The receipt starts owned and clean. The test breaks it with an
 out-of-band `aws ssm delete-parameter` instead of a value overwrite,
 because there is no changed value to write. The next plan proposes
 exactly one create on it ("will be created" meaning "will fire").

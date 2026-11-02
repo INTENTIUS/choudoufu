@@ -15,17 +15,18 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/substrate"
+	"github.com/intentius/choudoufu/internal/live/sweepconfig"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/pkg/azsweep"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // GitHub issue #1120, the Azure lane's fourth run: the first in which the
@@ -66,7 +67,7 @@ func (g *famGraph) Search(_ context.Context, sub, estate string) ([]azsweep.Reso
 	g.asked[strings.ToLower(sub)]++
 	var out []azsweep.Resource
 	for _, r := range g.bySub[strings.ToLower(sub)] {
-		if v, ok := azsweep.EstateTag(r.Tags); ok && v == estate {
+		if v, ok := azsweep.OwnerTag(sweepconfig.Markers, r.Tags); ok && v == estate {
 			out = append(out, r)
 		}
 	}

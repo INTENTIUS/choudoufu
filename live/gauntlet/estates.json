@@ -101,6 +101,16 @@
       "substrate": "floci-eks"
     },
     {
+      "name": "corpus-eks-managed-node-group",
+      "source": "terraform-aws-modules/terraform-aws-eks examples/eks-managed-node-group (tag v21.29.0, commit 91f11ea01656c26b8e6b8eb1b74f19863f60056c), the AL2023 cluster: a managed node group, add-ons and access entries",
+      "url": "https://github.com/terraform-aws-modules/terraform-aws-eks.git",
+      "pin": "v21.29.0",
+      "lane": "terraform-popular",
+      "set": "core",
+      "reason": "a most-downloaded terraform-aws-modules example, pinned by tag; the shape most people deploy",
+      "substrate": "floci-eks"
+    },
+    {
       "name": "corpus-evoteum-modules",
       "source": "evoteum/tofu-modules, the aws/networking and aws/dynamodb modules (pinned by commit 7e8764035c50d1cb2a6ac04636a9f85ba6708d39; no tags published)",
       "url": "https://github.com/evoteum/tofu-modules.git",
@@ -121,14 +131,6 @@
     {
       "name": "corpus-govuk-cluster-access",
       "source": "alphagov/govuk-infrastructure terraform/deployments/cluster-access (commit c02504fa4abb439234669e9ea9b662bdb35209e9, MIT), GOV.UK's platform team's own cluster access root: three Namespaces, then module \"access-entry\" called eight times, each a ClusterRole with dynamic rule blocks and its ClusterRoleBinding, plus a Role and RoleBinding per namespace through for_each for four of them - 31 objects, the kubernetes lane's first typed RBAC beyond one binding and its first module fan-out; the EKS access entries are dropped on kind",
-      "url": "https://github.com/alphagov/govuk-infrastructure.git",
-      "pin": "c02504fa4abb439234669e9ea9b662bdb35209e9",
-      "lane": "kubernetes",
-      "set": "growing"
-    },
-    {
-      "name": "corpus-govuk-cluster-services",
-      "source": "alphagov/govuk-infrastructure terraform/deployments/cluster-services (commit c02504fa4abb439234669e9ea9b662bdb35209e9), GOV.UK's own in-cluster platform services root for its EKS clusters, split into a live slice (namespaces, dex client Secrets, kubernetes_labels and kubernetes_annotations with force) and a recorded stock half of Helm, kubectl and AWS blocks; the first published root driving the field-granular types",
       "url": "https://github.com/alphagov/govuk-infrastructure.git",
       "pin": "c02504fa4abb439234669e9ea9b662bdb35209e9",
       "lane": "kubernetes",
@@ -202,14 +204,6 @@
       "lane": "opentofu-native",
       "set": "core",
       "reason": "a real project built for OpenTofu specifically, so OpenTofu-only surface is exercised"
-    },
-    {
-      "name": "corpus-quickpizza",
-      "source": "grafana/quickpizza deployments/terraform (tag v0.15.28), Grafana Labs' QuickPizza demo application's own Kubernetes deployment root: a namespace, seven Deployments with their Services, a Postgres StatefulSet, ConfigMaps, Secrets, a ServiceAccount and a ClusterRoleBinding; the kubernetes lane's first published estate",
-      "url": "https://github.com/grafana/quickpizza.git",
-      "pin": "v0.15.28",
-      "lane": "kubernetes",
-      "set": "growing"
     },
     {
       "name": "corpus-rds-complete-postgres",
@@ -295,13 +289,6 @@
       "lane": "reference",
       "set": "core",
       "reason": "the plainest hand-written reference shape, kept in this repository"
-    },
-    {
-      "name": "reference-eks",
-      "source": "hand-written reference shape kept in this repository (live/e2e/reference-eks/estate.sh): VPC, EKS cluster, one managed node group, an access entry and a pod identity association, with provider \"kubernetes\" configured from aws_eks_cluster.this and an exec token, and a four-object cluster leg; one estate across AWS and the cluster it creates (#1113), certified on real AWS by live/live-cert/reference-eks.sh",
-      "lane": "reference",
-      "set": "growing",
-      "substrate": "floci-eks"
     },
     {
       "name": "reference-gcp",
@@ -489,8 +476,8 @@
       "name": "terralith-scale",
       "source": "tools/terralith-gen, generated at -scale 1 by this estate's own crossing script: a synthetic single-state terralith of stock Terraform - IAM-dominated with deliberate copy-paste duplication, a small ECS layer and a Route53 fan-out, expanded with count, for_each and a module-nested pod (issues #564 and #574). No upstream repository: the artifact is the generator, and \"the same estate at 4x\" is -scale 4 rather than a second fixture.",
       "lane": "reference",
-      "set": "core",
-      "reason": "the one estate shaped like the thing the product is FOR - a single-state monolith a stranger would bring to an adoption (#546) - rather than a module example; every other core estate is a small published module, so a headline bar without this one does not read the product's own claim",
+      "set": "growing",
+      "reason": "out of the core set and the headline bar since choudoufu#2303 (ruling A on INTENTIUS/chant#4586): the generated terralith is no longer test evidence. It stays for the scale ladder (live/gauntlet-scale.json), run only when a scale figure is re-quoted (choudoufu#2288 Q3). It was in core as the one estate shaped like a single-state monolith a stranger would bring to an adoption (#546)",
       "scale_ladder": true
     }
   ]

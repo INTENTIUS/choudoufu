@@ -20,11 +20,20 @@ import (
 	"time"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/flocitest"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/projection"
 )
 
+// Since choudoufu#2303 this benchmark runs on the scenario estate
+// (flocitest.ScenarioEstate: TERRALITH_CEILING_SCALE copies of
+// live/e2e/estate, 43 resources each, stock and unmarked), not on
+// tools/terralith-gen's output. Ruling A on INTENTIUS/chant#4586 keeps the
+// terralith for the scale ladder only. The names below and the figures in
+// this comment are the terralith's, kept as the record of what was measured
+// on it; a re-measure on the scenario estate replaces them.
+//
 // This is issue #565's benchmark (child C of epic #546, "establish floci's
 // ceiling"): the same Discover+BuildFrom pipeline scale_bench_test.go
 // measures for a single client-named type (aws_s3_bucket, issue #64), run
@@ -213,46 +222,37 @@ func TestTerralithCeilingAgainstFloci(t *testing.T) {
 	logTerralithScans(t, report)
 }
 
-// TestLoadConfigHandlesCurrentTerralithGenOutput is issue #708's guard
-// against a repeat of its own defect: TestTerralithCeilingAgainstFloci's
-// fixture loader (discovery_test.go's loadConfig) fell behind
-// tools/terralith-gen's own module-nested bucket (issue #574) with nothing
-// noticing until someone ran the floci-gated benchmark by hand - a plain
-// `go test ./...` never touches it, because TestTerralithCeilingAgainstFloci
-// itself skips unless TF_ACC or TF_FLOCI_TEST is set (flocitest.Gate).
+// TestLoadConfigHandlesTheScenarioEstate is issue #708's guard, re-based
+// with the benchmark (choudoufu#2303). The defect it guards against: the
+// benchmark's fixture loader (discovery_test.go's loadConfig) fell behind
+// the generator's output with nothing noticing until someone ran the
+// floci-gated benchmark by hand, because TestTerralithCeilingAgainstFloci
+// skips unless TF_ACC or TF_FLOCI_TEST is set (flocitest.Gate).
 //
-// This test generates the CURRENT terralith-gen output - no docker, no
-// terraform apply, no floci, so it runs in an ordinary `go test` and cannot
-// rot silently the same way - and loads it through the exact same
-// loadConfig the benchmark calls, asserting the module call actually
-// resolved (a child config for "team_pod" exists and at least one
-// resolution comes back) rather than only that loadConfig returned without
-// a fatal.
-func TestLoadConfigHandlesCurrentTerralithGenOutput(t *testing.T) {
-	root := flocitest.RepoRoot(t)
+// This renders the CURRENT scenario estate the benchmark applies - no
+// docker, no terraform, no floci, so it runs in an ordinary `go test` - and
+// loads it through the same loadConfig, asserting every rendered resource
+// block is in the loaded tree and identity resolution returns something.
+func TestLoadConfigHandlesTheScenarioEstate(t *testing.T) {
 	dir := t.TempDir()
-
-	genCmd := exec.Command("go", "run", "./tools/terralith-gen", //nolint:gosec // fixed binary and args, test-only
-		"-scale", "1", "-prefix", "lc", "-out", dir)
-	genCmd.Dir = root
-	if out, err := genCmd.CombinedOutput(); err != nil {
-		t.Fatalf("go run ./tools/terralith-gen -scale 1: %v\n%s", err, out)
-	}
+	s := flocitest.ScenarioEstate(t, dir, 2, "lc")
 
 	cfg := loadConfig(t, dir)
 	if cfg == nil {
-		t.Fatal("loadConfig returned a nil config for terralith-gen's current output")
+		t.Fatal("loadConfig returned a nil config for the scenario estate")
 	}
-	if _, ok := cfg.Children["team_pod"]; !ok {
-		t.Fatal(`loaded config has no "team_pod" child module - terralith-gen's own module-nested bucket (issue #574) is missing from the loaded tree, so this fixture is no longer exercising the module-call shape it exists to guard`)
+	blocks := 0
+	cfg.DeepEach(func(c *configs.Config) { blocks += len(c.Module.ManagedResources) })
+	if blocks == 0 || blocks > s.Resources {
+		t.Fatalf("loaded %d resource blocks from a render that declares %d instances; the loader is not reading the rendered tree", blocks, s.Resources)
 	}
 
 	res, diags := identity.Resolve(context.Background(), cfg)
 	if diags.HasErrors() {
-		t.Logf("identity resolution diagnostics (%d) - not fatal to this guard, which only asserts loadConfig itself resolves the module call, not that every instance resolves cleanly:\n%s", len(diags), renderDiags(diags))
+		t.Logf("identity resolution diagnostics (%d) - not fatal to this guard, which only asserts loadConfig itself reads the tree, not that every instance resolves cleanly:\n%s", len(diags), renderDiags(diags))
 	}
 	if len(res.All()) == 0 {
-		t.Fatal("identity.Resolve produced zero resolutions from terralith-gen's current output loaded through loadConfig")
+		t.Fatal("identity.Resolve produced zero resolutions from the scenario estate loaded through loadConfig")
 	}
 }
 
@@ -370,14 +370,10 @@ func runTerralithCeilingBenchmark(t *testing.T, scale int) terralithCeilingRepor
 	dir := t.TempDir()
 	prefix := fmt.Sprintf("cb%d", os.Getpid()%100000)
 
-	genCmd := exec.Command("go", "run", "./tools/terralith-gen", //nolint:gosec // fixed binary and args, test-only
-		"-scale", strconv.Itoa(scale), "-prefix", prefix, "-out", dir)
-	genCmd.Dir = root
-	genOut, err := genCmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("go run ./tools/terralith-gen -scale %d: %v\n%s", scale, err, genOut)
-	}
-	t.Logf("terralith-gen: %s", strings.TrimSpace(string(genOut)))
+	// A scenario estate, not the terralith (choudoufu#2303): scale copies
+	// of live/e2e/estate, stock and unmarked.
+	_ = root
+	flocitest.ScenarioEstate(t, dir, scale, prefix)
 
 	flociPort := flocitest.StartFloci(t, "cdf-ceiling")
 	flociName := findFlociContainer(t, flociPort)

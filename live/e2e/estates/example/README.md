@@ -27,7 +27,7 @@ into the pinned universe with no test-file edits.
 This cohort exists to prove the mechanism, not to ratify a type. It
 deliberately declares no resources: adding one here would mean adding a new
 managed resource type to the admission table and the identity table for
-real (`internal/live/lint/admission.go`, `internal/live/identity/table.go`),
+real (`internal/live/lint/admission.go`, `pkg/identity/table.go`),
 which is registry-expansion work belonging to whichever issue ratifies the
 next real batch, not to the mechanism that lets that batch land later
 without editing a test file. A future cohort with real resources replaces
@@ -37,7 +37,7 @@ existence proof.
 ## Gating
 
 Nothing here runs against a live or emulated cloud. The pin tests above are
-plain Go tests and always run. `live/e2e/run.sh` and the
+plain Go tests and always run. `live/e2e/run.sh` (retired under #2288) and the
 `internal/live/discovery` floci-gated live test still stand up only the
 demo estate — this cohort does not change the default tier's runtime, and
 wiring cohort estates into the gated live run is separate follow-on work.

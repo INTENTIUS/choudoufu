@@ -7,7 +7,7 @@
 # so an estate that declares the block empty lands here.
 #
 # Two Roles and not one, because a plan and an apply need different verbs
-# and internal/live/staterecord/kubernetescontract.go asks for exactly these:
+# and pkg/staterecord/kubernetescontract.go asks for exactly these:
 #
 #   - plan:  get and list on Secrets (KubernetesPlanVerbs). A plan reads
 #            records and writes none; the sentinel an earlier apply left

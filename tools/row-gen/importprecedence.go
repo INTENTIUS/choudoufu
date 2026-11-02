@@ -107,7 +107,7 @@ import (
 //  5. tryRegistryComposite: only for a still-needs-hand-separator proposal
 //     (the registry's own primaryIdentifier is the arity signal here, not
 //     the grammar). Splits the documented example on each of the four
-//     characters internal/live/identity/table.go's DefaultTable actually
+//     characters pkg/identity's DefaultTable actually
 //     uses, and accepts a separator only when every resulting segment
 //     matches exactly one primaryIdentifier property by name - recovering
 //     NetworkManager's association quartet's separator and order from
@@ -198,7 +198,7 @@ func applyImportGrammarPrecedence(proposals []proposal, importGrammar map[string
 
 // candidateSeparators is the join-character search order tryRegistryComposite
 // tries when the grammar row itself carries no separator: the four
-// internal/live/identity/table.go's DefaultTable doc comment names as its
+// separators pkg/identity's DefaultTable uses as its
 // own ("/", ":", "_", ","), plus Cloud Control's own "|", ordered so the
 // characters least likely to occur inside an embedded ARN or resource path
 // (which own plenty of "/" and ":" internally) are tried first.
@@ -1744,7 +1744,7 @@ func tryArnVsIDOverride(p *proposal, g importGrammarRow) bool {
 // and identity-attribute guess from a single documented example's own
 // shape: a full ARN gets "ARN"/"arn", anything else gets the generic
 // "ID"/"id" - the same two spellings every ratified server-assigned entry
-// in internal/live/identity/table.go actually uses for this shape (VPC
+// in pkg/identity's DefaultTable actually uses for this shape (VPC
 // Lattice's nine corrected types and Transfer Server all resolve to
 // "ID"/"id"; NetworkManager's device/site/link resolve to "ARN"/"arn").
 func labelForOpaqueValue(example string) (importSyntax, identityAttr string) {

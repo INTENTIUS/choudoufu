@@ -21,8 +21,9 @@ Each scenario runs from the repository root and ends on a `PASS` line; its
     just smoke carve-by-retag
     BREAK=1 just smoke carve-by-retag
 
-Needs Go. A stock terralith is adopted with one command, then carved into
-estates by rewriting `tofu-estate` on the resources that leave. Each side
+Needs Go. A stock estate, two copies of `live/e2e/estate` rendered by
+`tools/scenario-estate` (86 resources), is adopted with one command, then
+carved into estates by rewriting `tofu-estate` on the resources that leave. Each side
 plans clean and nothing is rebuilt; a parent whose marker names another
 estate never anchors a child for this one, whatever a left-behind record
 says. `BREAK=1` does the repository half of the carve and never rewrites a
@@ -40,6 +41,21 @@ through `count.index` gets no slot and binds by `tofu-address`. `BREAK=1`
 deletes the local files and strips one member's slot, and the plan must
 refuse the half-slotted set by name; `BREAK_SLOT=1` stamps a slot where
 none belongs, and the tag check must fail on it.
+
+### terragucci row: tg-migrate
+
+terragucci's harness scenario `tg-migrate` reads the tag in a pipeline.
+The base push stamps infra's bucket with its estate's marker (cdf-apply);
+app's stock state is adopted under an approval of its digest, and both of
+app's queues then carry app's estate; a branch that adds a bucket ignoring
+its tags goes red, live-check naming infra (cdf-check). Its `BREAK=1`
+names a state key app never wrote, and app is never stamped.
+
+A terragucci row counts toward the claim when it ran choudoufu 0.31.0,
+the newest release in `live/history`, and `live/CLAIMS.md` gives each
+row's state. The rows stand beside the scenarios above, whose `BREAK=1`
+arms rebuild choudoufu from source, which a pipeline running a release
+cannot do.
 
 ## On Kubernetes
 

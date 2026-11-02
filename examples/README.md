@@ -16,3 +16,9 @@ that you can clone and run.
 | [`examples/live-mv-workbench`](live-mv-workbench/) | A notebook that splits a configuration by retagging, against the local emulator |
 | [`examples/demo-terragrunt`](demo-terragrunt/README.md) | A stock three-unit Terragrunt repo run with choudoufu as its binary, one joint plan across units |
 | [`examples/demo-atmos`](demo-atmos/README.md) | A stock three-component Atmos repo run with choudoufu as its command, one joint plan across components |
+
+terragucci runs three of these in its pipelines, as scenarios on its
+harness (INTENTIUS/terragucci#1296): `cross-estate-dependency` as
+`tg-compose-cross-estate`, `demo-terragrunt` as `tg-compose-terragrunt` and
+`demo-atmos` as `tg-compose-atmos`. The trees stay here, and each example's
+README names its scenario.

@@ -28,7 +28,7 @@ import (
 // the replan finds the object the old spelling created instead of
 // proposing a destroy and a create. live/smoke/scenarios/k8s-greenfield.sh
 // step 5 measures that on a kind cluster (an empty plan, 2026-09-12);
-// internal/live/kubesweep's KindOfType is the sweep's half of the same
+// pkg/kubesweep's KindOfType is the sweep's half of the same
 // fact, filing both spellings under one kind.
 //
 // Proving it red: give the Kubernetes substrate's objectMetaIdentity a trailing literal

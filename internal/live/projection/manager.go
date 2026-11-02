@@ -15,12 +15,12 @@ import (
 	"time"
 
 	"github.com/intentius/choudoufu/internal/encryption"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/states/statefile"
 	"github.com/intentius/choudoufu/internal/states/statemgr"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // Manager is the state manager a live run uses: the roadmap's

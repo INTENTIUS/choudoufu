@@ -52,7 +52,7 @@
 # What it measures, which is what #1524 asked for
 # ---------------------------------------------------------------------------
 #
-#   1. The Store contract suite (internal/live/staterecord's
+#   1. The Store contract suite (pkg/staterecord's
 #      TestKubernetesStore*, the one kind runs in claim 29's step 1) against
 #      the managed API server: conditional writes under resourceVersion,
 #      authenticated through the cloud's exec plugin. The suite's output is
@@ -193,7 +193,7 @@ record namespaces PASS "created $RECORDS_NS and $APP_NS"
 SUITE_LOG="$OUT/conformance.log"
 ( cd "$ROOT" && CHOUDOUFU_K8S_TEST=1 \
     CHOUDOUFU_K8S_RECORD_KUBECONFIG="$KC" CHOUDOUFU_K8S_RECORD_NAMESPACE="$RECORDS_NS" \
-    env -u PWD go test ./internal/live/staterecord -run 'TestKubernetesStore' -count=1 -v ) > "$SUITE_LOG" 2>&1
+    env -u PWD go test ./pkg/staterecord -run 'TestKubernetesStore' -count=1 -v ) > "$SUITE_LOG" 2>&1
 SUITE_RC=$?
 PASSES="$(grep -cE '^( {4})*--- PASS' "$SUITE_LOG" || true)"
 FAILS="$(grep -c -- '--- FAIL' "$SUITE_LOG" || true)"

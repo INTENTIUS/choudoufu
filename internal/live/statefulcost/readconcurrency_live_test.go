@@ -34,7 +34,7 @@ import (
 //
 // Env:
 //
-//	CONC_SCALE       terralith-gen -scale (default 1)
+//	CONC_SCALE       copies of the scenario estate (default 1; 43 resources each)
 //	CONC_LATENCY_MS  injected per-request latency (default 100, #654's)
 //	CONC_REPEATS     timed runs per column (default 3)
 //	CONC_READ_PAR    comma-separated TOFU_LIVE_READ_PARALLELISM values to

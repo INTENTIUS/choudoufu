@@ -314,7 +314,30 @@
     "storage-account with_private_endpoint example pins azurerm =4.20.0, so",
     "those would measure against a schema the lane does not target. The",
     "private-endpoint coverage that example would have given comes from",
-    "azapi's Microsoft.Network_privateEndpoints example instead."
+    "azapi's Microsoft.Network_privateEndpoints example instead.",
+    "",
+    "eks has two sources (#2298). The static corpus measures eks at a",
+    "current major, v21.29.0, in .corpus/eks-v21. The v9.0.0 checkout in",
+    ".corpus/eks stays because the corpus-eks-basic gauntlet row runs",
+    "examples/basic from it, and #2291 re-measures that row. Its other four",
+    "v9.0.0 examples are no longer measured: their kubernetes, null,",
+    "random, template and local providers have no darwin_arm64 build, so",
+    "they could only ever be measured with partial schemas. examples/basic",
+    "is kept under the origin \"gauntlet input\" so that it is fetched and",
+    "measured beside its gauntlet row without counting toward the",
+    "terraform-aws-modules population.",
+    "",
+    "The terraform-aws-modules population was widened on 2026-10-27 for the",
+    "static tier of the module compatibility table (#2292). It adds every",
+    "module among the 25 most downloaded in the terraform-aws-modules",
+    "namespace on the public registry that day which the corpus did not",
+    "hold (kms, rds-aurora, acm, route53, cloudfront, cloudwatch,",
+    "eventbridge, sns, ecr, secrets-manager, key-pair, eks-pod-identity),",
+    "and the rest of the module list serverless.tf publishes (apigateway-v2,",
+    "appsync, appconfig, step-functions, rds-proxy, ssm-parameter). Each is",
+    "pinned at the release the registry listed as latest that day, by tag",
+    "and commit, and measured over its examples/ like the modules above.",
+    "None of them has a gauntlet row."
   ],
   "sources": [
     {
@@ -328,8 +351,18 @@
       }
     },
     {
-      "glob": ".corpus/eks/examples/*",
+      "glob": ".corpus/eks-v21/examples/*",
       "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/eks-v21",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-eks.git",
+        "tag": "v21.29.0",
+        "commit": "91f11ea01656c26b8e6b8eb1b74f19863f60056c"
+      }
+    },
+    {
+      "glob": ".corpus/eks/examples/basic",
+      "origin": "gauntlet input",
       "fetch": {
         "dir": ".corpus/eks",
         "repo": "https://github.com/terraform-aws-modules/terraform-aws-eks.git",
@@ -445,6 +478,186 @@
         "repo": "https://github.com/terraform-aws-modules/terraform-aws-ec2-instance.git",
         "tag": "v6.4.0",
         "commit": "56b7f8aac0acf2c6c4cfc28d5aa12e08a8ebb843"
+      }
+    },
+    {
+      "glob": ".corpus/kms/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/kms",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-kms.git",
+        "tag": "v4.2.2",
+        "commit": "d25e459bd43d8d0bdff7c250ba6b237a12be7381"
+      }
+    },
+    {
+      "glob": ".corpus/rds-aurora/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/rds-aurora",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-rds-aurora.git",
+        "tag": "v10.4.1",
+        "commit": "d72cba285514b5e2e83bea7dd1272c1c206a4f64"
+      }
+    },
+    {
+      "glob": ".corpus/acm/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/acm",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-acm.git",
+        "tag": "v6.3.1",
+        "commit": "aae84c011dd68ace1beb5d10e1feddfe9a334953"
+      }
+    },
+    {
+      "glob": ".corpus/route53/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/route53",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-route53.git",
+        "tag": "v6.5.1",
+        "commit": "883f987d6bb328c09bd4dfc5a04024534b371d59"
+      }
+    },
+    {
+      "glob": ".corpus/cloudfront/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/cloudfront",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-cloudfront.git",
+        "tag": "v6.7.1",
+        "commit": "5b9a0a480220b84f29f02d84ff71dd5340953f68"
+      }
+    },
+    {
+      "glob": ".corpus/cloudwatch/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/cloudwatch",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-cloudwatch.git",
+        "tag": "v5.7.3",
+        "commit": "82e5143738712a283ab7a8cb4110e7a3e708a834"
+      }
+    },
+    {
+      "glob": ".corpus/eventbridge/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/eventbridge",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-eventbridge.git",
+        "tag": "v4.3.3",
+        "commit": "e29707a5057ec9b0f6ea87686e9a5b48b4addd11"
+      }
+    },
+    {
+      "glob": ".corpus/sns/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/sns",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-sns.git",
+        "tag": "v7.2.0",
+        "commit": "4538b7e208f5bbd6c9972f427f85c9bd735aedad"
+      }
+    },
+    {
+      "glob": ".corpus/ecr/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/ecr",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-ecr.git",
+        "tag": "v3.2.0",
+        "commit": "b6ef04d088cf91d5ba9505132e9ff7c9f847ed5d"
+      }
+    },
+    {
+      "glob": ".corpus/secrets-manager/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/secrets-manager",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-secrets-manager.git",
+        "tag": "v2.2.0",
+        "commit": "f3d3da1c801816563080065c5f37f212c8dee444"
+      }
+    },
+    {
+      "glob": ".corpus/key-pair/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/key-pair",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-key-pair.git",
+        "tag": "v3.0.1",
+        "commit": "f3221d392c436a874f189aa2d217d4aff60eb05e"
+      }
+    },
+    {
+      "glob": ".corpus/eks-pod-identity/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/eks-pod-identity",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-eks-pod-identity.git",
+        "tag": "v2.10.0",
+        "commit": "f72040b99272c264e0340f44758219e0808a52a2"
+      }
+    },
+    {
+      "glob": ".corpus/apigateway-v2/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/apigateway-v2",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-apigateway-v2.git",
+        "tag": "v6.1.1",
+        "commit": "95e6a1d56d6d761ec12c89b36b29aad03a421b2f"
+      }
+    },
+    {
+      "glob": ".corpus/appsync/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/appsync",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-appsync.git",
+        "tag": "v4.1.1",
+        "commit": "36a0ca1ab1f9c2b3e645da8e4960181d11e4d1b3"
+      }
+    },
+    {
+      "glob": ".corpus/appconfig/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/appconfig",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-appconfig.git",
+        "tag": "v2.0.2",
+        "commit": "32f02c8ce02615e9023b05d279665e72e60c7134"
+      }
+    },
+    {
+      "glob": ".corpus/step-functions/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/step-functions",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-step-functions.git",
+        "tag": "v5.1.1",
+        "commit": "16c7a1ffaa72643d714a7b3924216edce9413482"
+      }
+    },
+    {
+      "glob": ".corpus/rds-proxy/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/rds-proxy",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-rds-proxy.git",
+        "tag": "v4.4.0",
+        "commit": "012b4332f58ccaaa485d0af2040e599056d696f9"
+      }
+    },
+    {
+      "glob": ".corpus/ssm-parameter/examples/*",
+      "origin": "terraform-aws-modules",
+      "fetch": {
+        "dir": ".corpus/ssm-parameter",
+        "repo": "https://github.com/terraform-aws-modules/terraform-aws-ssm-parameter.git",
+        "tag": "v2.1.2",
+        "commit": "c798b114a38a36d278e2ba74550bf52f9b944563"
       }
     },
     {

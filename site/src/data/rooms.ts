@@ -139,7 +139,7 @@ export const ROOMS: Room[] = [
 		first: { label: 'The AWS hub', href: '/aws/' },
 		howto: [{ label: 'Adopt', href: '/aws/adopt/' }, { label: 'Operate', href: '/aws/operate/' }, { label: 'Create the bucket', href: '/docs/use/bucket/' }],
 		explain: [{ label: 'Gate', href: '/aws/gate/' }, { label: 'Identity', href: '/how-it-works/identity/' }],
-		reference: [{ label: 'Compatibility', href: '/aws/compatibility/' }, { label: 'Proof', href: '/aws/proof/' }],
+		reference: [{ label: 'Compatibility', href: '/aws/compatibility/' }],
 	},
 	{
 		id: 'kubernetes',
@@ -154,7 +154,7 @@ export const ROOMS: Room[] = [
 		first: { label: 'The Kubernetes hub', href: '/kubernetes/' },
 		howto: [{ label: 'Adopt', href: '/kubernetes/adopt/' }, { label: 'Operate', href: '/kubernetes/operate/' }],
 		explain: [{ label: 'Gate', href: '/kubernetes/gate/' }, { label: 'Identity', href: '/how-it-works/identity/' }],
-		reference: [{ label: 'Compatibility', href: '/kubernetes/compatibility/' }, { label: 'Proof', href: '/kubernetes/proof/' }],
+		reference: [{ label: 'Compatibility', href: '/kubernetes/compatibility/' }],
 	},
 	{
 		id: 'gcp',
@@ -169,7 +169,7 @@ export const ROOMS: Room[] = [
 		first: { label: 'The GCP hub', href: '/gcp/' },
 		howto: [{ label: 'Adopt', href: '/gcp/adopt/' }, { label: 'Operate', href: '/gcp/operate/' }],
 		explain: [{ label: 'Gate', href: '/gcp/gate/' }, { label: 'Identity', href: '/how-it-works/identity/' }],
-		reference: [{ label: 'Compatibility', href: '/gcp/compatibility/' }, { label: 'Proof', href: '/gcp/proof/' }],
+		reference: [{ label: 'Compatibility', href: '/gcp/compatibility/' }],
 	},
 	{
 		id: 'azure',
@@ -184,7 +184,7 @@ export const ROOMS: Room[] = [
 		first: { label: 'The Azure hub', href: '/azure/' },
 		howto: [{ label: 'Adopt', href: '/azure/adopt/' }, { label: 'Operate', href: '/azure/operate/' }],
 		explain: [{ label: 'Gate', href: '/azure/gate/' }, { label: 'Identity', href: '/how-it-works/identity/' }],
-		reference: [{ label: 'Compatibility', href: '/azure/compatibility/' }, { label: 'Proof', href: '/azure/proof/' }],
+		reference: [{ label: 'Compatibility', href: '/azure/compatibility/' }],
 	},
 	{
 		id: 'security',
@@ -211,14 +211,13 @@ export const ROOMS: Room[] = [
 		lede: 'You want to see it work first.',
 		works: [
 			'The tutorial needs Docker, the aws CLI and Go',
-			'Each claim is a scenario you can run and break',
 			'Undo is six steps back to your backend',
 		],
 		differs: [],
 		first: { label: 'Tutorial', href: '/docs/tutorial/' },
 		howto: [{ label: 'Start a new estate', href: '/docs/use/start/' }, migrate],
 		explain: [whatItIs],
-		reference: [{ label: 'Claims', href: repo('live/CLAIMS.md') }, { label: 'Refusals', href: repo('live/LIMITATIONS.md') }],
+		reference: [{ label: 'Refusals', href: repo('live/LIMITATIONS.md') }],
 	},
 	{
 		id: 'agents',
@@ -240,15 +239,14 @@ export const ROOMS: Room[] = [
 		title: 'Contributing',
 		lede: 'You want to change choudoufu.',
 		works: [
-			'just contribute runs one gauntlet unit',
-			'Each claim has a BREAK=1 arm that must be caught',
+			'just contribute runs one unit of work',
 			'A maintainer merges every pull request',
 		],
 		differs: [],
 		first: { label: 'Contributing', href: repo('CONTRIBUTING.md') },
 		howto: [{ label: 'Contribute compute', href: repo('live/CONTRIBUTE-GAUNTLET.md') }],
-		explain: [{ label: 'The gauntlet', href: repo('live/GAUNTLET.md') }],
-		reference: [{ label: 'Board', href: repo('live/BOARD.md') }, { label: 'Claims', href: repo('live/CLAIMS.md') }],
+		explain: [whatItIs],
+		reference: [{ label: 'Refusals', href: repo('live/LIMITATIONS.md') }],
 	},
 ];
 

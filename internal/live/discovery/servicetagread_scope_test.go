@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/flocitest"
-	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/live/servicetags"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // TestCloudControlTagUnreadableTypesAreReadOrIndexed is GitHub issue

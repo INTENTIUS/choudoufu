@@ -13,9 +13,9 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // GitHub issue #391's own shape, the reason [ReadInstances]'s recordBacked

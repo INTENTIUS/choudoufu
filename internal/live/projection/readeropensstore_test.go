@@ -21,7 +21,7 @@ import (
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // This file is GitHub issue #1370's first half: a run whose identity may

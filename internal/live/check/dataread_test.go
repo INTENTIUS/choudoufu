@@ -91,3 +91,49 @@ func TestAnalyzeReportsIneligibleDataReadWithClassWording(t *testing.T) {
 		t.Errorf("classified %q, want %q", got, OnboardingLanguageBlocked)
 	}
 }
+
+// TestEligibleReadDoesNotBlock is GitHub issue #2295: a report whose only
+// finding is the eligible read is not blocked, and its site count is
+// still reported through Reads.
+func TestEligibleReadDoesNotBlock(t *testing.T) {
+	report := analyzeFixtureDir(t, "data-read-eligible")
+	if report.Blocked() {
+		t.Errorf("Blocked() = true for a report whose only finding is the eligible read: %+v", report.Findings)
+	}
+	if got := report.Reads(); got != 1 {
+		t.Errorf("Reads() = %d, want 1", got)
+	}
+
+	blocked := analyzeFixtureDir(t, "data-read-blocked")
+	if !blocked.Blocked() {
+		t.Errorf("Blocked() = false for a report with an ineligible data read: %+v", blocked.Findings)
+	}
+}
+
+// TestAnyOtherFindingStillBlocks: the eligible read is left out of Blocked
+// and nothing else is. A report carrying it beside any other finding stays
+// blocked, and Reads counts only the eligible sites.
+func TestAnyOtherFindingStillBlocks(t *testing.T) {
+	read := Finding{
+		Refusal: Refusal{Layer: LayerDataread, ID: dataread.SummaryEligibleRead},
+		Sites:   []Site{{File: "main.tf", Line: 1}, {File: "main.tf", Line: 2}},
+	}
+	other := Finding{
+		Refusal: Refusal{Layer: LayerIdentity, ID: "Unresolvable identity"},
+		Sites:   []Site{{File: "main.tf", Line: 3}},
+	}
+
+	if (Report{Findings: []Finding{read}}).Blocked() {
+		t.Errorf("only the eligible read: Blocked() = true, want false")
+	}
+	both := Report{Findings: []Finding{read, other}}
+	if !both.Blocked() {
+		t.Errorf("eligible read plus another finding: Blocked() = false, want true")
+	}
+	if got := both.Reads(); got != 2 {
+		t.Errorf("Reads() = %d, want 2", got)
+	}
+	if !(Report{Findings: []Finding{other}}).Blocked() {
+		t.Errorf("one other finding: Blocked() = false, want true")
+	}
+}

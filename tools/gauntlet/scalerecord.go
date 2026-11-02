@@ -110,8 +110,12 @@ type ScaleArtifact struct {
 	// name the emulator it goes with" - has a single, flat field to check
 	// this file against, the same way it checks live/gauntlet.json's own
 	// top-level Emulator.
-	Emulator string        `json:"emulator,omitempty"`
-	Records  []ScaleRecord `json:"records"`
+	Emulator string `json:"emulator,omitempty"`
+	// Note says what the ladder is for, kept with the file so a reader of
+	// the JSON alone sees it (choudoufu#2303): the terralith's rungs, run
+	// only when a scale figure is re-quoted, never test evidence.
+	Note    string        `json:"note,omitempty"`
+	Records []ScaleRecord `json:"records"`
 	// Refusals is the ladder's companion shelf: one refusal per (estate,
 	// target) for an estate that has no ladder to put one on (#1233).
 	//

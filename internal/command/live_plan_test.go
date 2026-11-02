@@ -31,13 +31,13 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/stamp"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/provisioners"
 	"github.com/intentius/choudoufu/internal/terminal"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
 	residue "github.com/intentius/choudoufu/live"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // The live-plan tests drive the whole pipeline (lint, identity
@@ -2985,6 +2985,15 @@ func keysOf(m map[string]json.RawMessage) []string {
 // as bytes: chant's reader is written against #788's document as recorded,
 // and a route that produced a differently-shaped one would satisfy the
 // letter of the issue and break the reader anyway.
+// observedAtLine matches a live-plan document's observed_at member.
+var observedAtLine = regexp.MustCompile(`"observed_at": "[^"]*"`)
+
+// withoutObservedAt blanks the observed_at timestamp in a live-plan -json
+// document, for a comparison of two runs' bytes.
+func withoutObservedAt(doc string) string {
+	return observedAtLine.ReplaceAllString(doc, `"observed_at": ""`)
+}
+
 func TestLivePlan_jsonDocumentReachesADeclaredEstate(t *testing.T) {
 	// The reference: the one route that already worked. The live-plan and
 	// live-block fixtures are identical apart from the live block (see
@@ -3086,7 +3095,10 @@ func TestLivePlan_jsonDocumentReachesADeclaredEstate(t *testing.T) {
 				t.Errorf("the document, or part of it, was written to stderr:\n%s", out.Stderr())
 			}
 
-			if tc.sameAsReference && stdout != reference {
+			// observed_at is the wall clock at each run's read start, so
+			// two runs a second boundary apart differ there and nowhere
+			// else. Every other byte is still compared.
+			if tc.sameAsReference && withoutObservedAt(stdout) != withoutObservedAt(reference) {
 				t.Errorf("this route's document differs from the -estate form's over the same cloud.\n--- this route ---\n%s\n--- -estate ---\n%s", stdout, reference)
 			}
 		})

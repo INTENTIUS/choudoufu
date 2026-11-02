@@ -10,7 +10,7 @@ prompt: >-
 | Piece | Who creates it |
 |---|---|
 | Credentials and an access policy | You |
-| `estate.chdf.hcl`, the live backend: the estate name and the `record_store` block | You |
+| `estate.chdf.hcl`, the live backend: the estate name and the `record_store` block, both derived from a `backend` block when left out | You |
 | The record store: a bucket, a namespace or a storage container | You |
 | Markers on new resources | The apply |
 | Markers on existing resources | You, by [migrating](../migrate/) |
@@ -35,6 +35,10 @@ record_store "s3" {
   region = "us-east-2"
 }
 ```
+
+Left out, the store comes from an `s3`, `gcs` or `azurerm` backend block
+beside it and the name from its key, else the root's path. `init` and `plan`
+print both.
 
 ## The record store
 

@@ -4,7 +4,7 @@ description: Install choudoufu, add one file, and apply an estate where choudouf
 prompt: >-
   Follow https://intentius.io/choudoufu/docs/use/start/ in this repository.
   Install choudoufu, create `estate.chdf.hcl` with an estate name I confirm,
-  remove any `backend` or `cloud` block, add `.tofu-records/` to `.gitignore`,
+  keep any `backend` block, add `.tofu-records/` to `.gitignore`,
   then run `choudoufu init` and `choudoufu plan` and show me the plan.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
@@ -28,7 +28,7 @@ Then put `choudoufu` on your `PATH`.
 
 ## On AWS
 
-Two files. `estate.chdf.hcl` is the live backend, in place of a `backend` block:
+Two files. `estate.chdf.hcl` is the live backend; a `backend` block can stay beside it, and with no `record_store` its bucket holds the records:
 
 ```hcl
 estate = "my-estate"

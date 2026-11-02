@@ -77,7 +77,7 @@ import (
 //
 //	ESTATES_FOREIGN_ESTATES    foreign estates in arm B (default 4)
 //	ESTATES_FOREIGN_PER_ESTATE objects in each of them (default 3)
-//	ESTATES_OWNED_SCALE        terralith-gen -scale for the owned estate (default 1)
+//	ESTATES_OWNED_SCALE        copies of the scenario estate for the owned estate (default 1; 43 resources each)
 //	ESTATES_ARMS               comma-separated subset of A,B,C (default all three)
 //
 // It asserts nothing about the numbers. It asserts that each arm's foreign

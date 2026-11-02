@@ -15,11 +15,12 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/substrate"
+	"github.com/intentius/choudoufu/internal/live/sweepconfig"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 )
 
 // The Azure leg (GitHub issue #1120, unit 11), driven through Discover the
@@ -46,7 +47,7 @@ func (f *fakeGraph) Search(_ context.Context, subscription, estate string) ([]az
 	}
 	var out []azsweep.Resource
 	for _, r := range f.answers[subscription] {
-		if v, ok := azsweep.EstateTag(r.Tags); ok && v == estate {
+		if v, ok := azsweep.OwnerTag(sweepconfig.Markers, r.Tags); ok && v == estate {
 			out = append(out, r)
 		}
 	}

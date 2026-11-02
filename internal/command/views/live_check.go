@@ -30,6 +30,18 @@ type LiveCheckReport struct {
 	Instances int
 	Sites     int
 
+	// Reads is how many sites resolve at plan time through an eligible
+	// data-source read. That finding is listed with the others but never
+	// makes Blocked true (GitHub issue #2295), so a clear verdict names the
+	// count in its headline.
+	Reads int
+
+	// StoreAssumedWritable and RecordOnly are GitHub issue #2296's
+	// statement: the record store the stamp check took as writable, and how
+	// many instances that exempted. Empty and zero when it exempted nothing.
+	StoreAssumedWritable string
+	RecordOnly           int
+
 	// Findings are the refusals, already ranked.
 	Findings []LiveCheckFinding
 
@@ -64,8 +76,9 @@ type LiveCheckReport struct {
 	// OnlyBackendRemains is true when the configuration is not blocked and
 	// the only warning is the state-backend rule: the sole remaining
 	// friction is a backend or cloud block, which choudoufu ignores rather
-	// than reads. Deleting it is still the recommended edit - so the
-	// configuration says what actually happens - though it is not required.
+	// than reads. Since GitHub issue #2213 it stays beside a live block, and
+	// since #2293 an s3, gcs or azurerm backend is where the records go, so
+	// the verdict says to keep it.
 	//
 	// Before #214 demoted state-backend from a fatal finding to a warning,
 	// this named the "one edit from moving" case (#175): 11 of 145 real
@@ -82,7 +95,15 @@ type LiveCheckReport struct {
 	// runs against, since it runs with no live block by design. Printed
 	// only by -json (see [LiveCheckJSON.Report]): the human report has
 	// never named the estate, and #790 does not ask it to start.
+	//
+	// Since GitHub issue #2293 it is the name a run would resolve (see
+	// Setup), and empty only when nothing resolves.
 	Estate string
+
+	// Setup is GitHub issue #2293's resolved estate and record store, for a
+	// caller that reads no HCL. Nil leaves estate_source and record_store
+	// out of the document.
+	Setup *LiveSetup
 
 	// InstanceRoster and References are GitHub issue #790's declared
 	// roster: every instance this analysis named an address for
@@ -275,28 +296,33 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 		}
 	} else if rep.OnlyBackendRemains {
 		// #215: the estate is clean, but the only warning below is its
-		// backend or cloud block. That block is inert under live resource
-		// markers rather than merely superfluous, and the rule's own detail
-		// text (internal/live/lint/lint.go, checkStateBackends) already
-		// recommends deleting it; nothing else in this report surfaces that
-		// recommendation, so it is worth this one dedicated sentence rather
-		// than folding into the generic clean verdict below.
-		//
-		// #268: "not required" is only true of this check, which runs with
-		// no live block by design. Plan and apply both need one, and a live
-		// block beside this one refuses to load at all - so the wording
-		// below says when deletion stops being optional, rather than
-		// leaving a blanket "not required" that only holds here.
+		// backend or cloud block. Since #2213 the block stays beside a live
+		// block, ignored for state, and since #2293 it is where records go
+		// and where live-import reads the old state, so this sentence says
+		// to keep it. Before #2213 it said to delete it, because a live
+		// block beside one refused to load (#268).
 		fmt.Fprintf(&b, "\n%s already moves under live resource markers.\n", rep.Dir)
-		fmt.Fprintf(&b, "The only warning below is its backend or cloud block: this check ran with no live\n")
-		fmt.Fprintf(&b, "block, so the block is ignored. Deleting it is the recommended edit, and it is not\n")
-		fmt.Fprintf(&b, "required for a check like this one - but it is required the moment a live block is\n")
-		fmt.Fprintf(&b, "added, which plan and apply both need: a live block beside this one refuses to\n")
-		fmt.Fprintf(&b, "load. Delete it now rather than at that point.\n")
+		fmt.Fprintf(&b, "The only warning below is its backend or cloud block, which this check does not read.\n")
+		fmt.Fprintf(&b, "Keep it when you add a live block: it is ignored for state, live-import reads the old\n")
+		fmt.Fprintf(&b, "state from it, and an s3, gcs or azurerm backend holds the records unless the live\n")
+		fmt.Fprintf(&b, "block names a record_store.\n")
 		fmt.Fprintf(&b, "%d managed resource instance(s) resolved.\n", rep.Instances)
 	} else {
 		fmt.Fprintf(&b, "\nNothing in %s is refused by the two checks below.\n", rep.Dir)
 		fmt.Fprintf(&b, "%d managed resource instance(s) resolved.\n", rep.Instances)
+	}
+	if rep.StoreAssumedWritable != "" {
+		// GitHub issue #2296: live-plan exempts these only after probing the
+		// store, so the verdict says which store it assumed.
+		fmt.Fprintf(&b, "The stamp check took the %s record store as writable: %d instance(s)\n", rep.StoreAssumedWritable, rep.RecordOnly)
+		fmt.Fprintf(&b, "with nowhere to carry a marker are found by the record the apply writes. A run\n")
+		fmt.Fprintf(&b, "that may only read that store still refuses them.\n")
+	}
+	if !rep.Blocked && rep.Reads > 0 {
+		// GitHub issue #2295: the eligible read is not a refusal, but the
+		// plan depends on it, so a clear verdict says how much does.
+		fmt.Fprintf(&b, "%d site(s) resolve at plan time through a data-source read, which this check\n", rep.Reads)
+		fmt.Fprintf(&b, "does not perform. live-plan reads them before resolution.\n")
 	}
 
 	for _, finding := range rep.Findings {
@@ -413,10 +439,29 @@ func (v *LiveCheckHuman) Report(rep LiveCheckReport) {
 // [LiveCheckReport]'s own field names, which the human report already
 // fixed for a different reason before #790 existed.
 type liveCheckDocument struct {
-	Dir      string `json:"dir"`
-	Estate   string `json:"estate,omitempty"`
-	Blocked  bool   `json:"blocked"`
-	ExitCode int    `json:"exit_code"`
+	Dir    string `json:"dir"`
+	Estate string `json:"estate,omitempty"`
+
+	// EstateSource and RecordStore are GitHub issue #2293's contract: where
+	// the estate name came from, and where records go.
+	EstateSource string          `json:"estate_source,omitempty"`
+	RecordStore  *LiveSetupStore `json:"record_store,omitempty"`
+
+	Blocked  bool `json:"blocked"`
+	ExitCode int  `json:"exit_code"`
+
+	// Reads is the eligible data-read site count (GitHub issue #2295). The
+	// finding is still listed under Refusals by its own ID, but it never
+	// makes Blocked true, so a consumer reads the verdict from Blocked and
+	// this count beside it. Omitted at zero.
+	Reads int `json:"reads,omitempty"`
+
+	// StoreAssumedWritable and RecordOnly are GitHub issue #2296's: the
+	// record store the stamp check took as writable, and how many instances
+	// that exempted from the unmarked apply refusal. Omitted when it
+	// exempted nothing.
+	StoreAssumedWritable string `json:"store_assumed_writable,omitempty"`
+	RecordOnly           int    `json:"record_only,omitempty"`
 
 	// Schemas is GitHub issue #966's answer to "what was this computed
 	// from": [SchemaSourceProvider] when the provider's own schemas backed
@@ -442,8 +487,8 @@ type liveCheckDocument struct {
 	Instances  []LiveCheckInstance  `json:"instances"`
 	References []LiveCheckReference `json:"references"`
 
-	// Refusals lists every refusal that makes Blocked true, one entry per
-	// rule: the rule id, the reason (the one-line summary the text report
+	// Refusals lists every refusal that makes Blocked true, plus the
+	// eligible data read (see Reads), one entry per rule: the rule id, the reason (the one-line summary the text report
 	// heads the refusal with), the count and the sites. A refusal need not
 	// name a roster instance, so Instances alone cannot explain a blocked
 	// verdict. Never null; empty when nothing is refused.
@@ -518,6 +563,7 @@ func (v *LiveCheckJSON) Report(rep LiveCheckReport) {
 		Estate:     rep.Estate,
 		Blocked:    rep.Blocked,
 		ExitCode:   exitCode,
+		Reads:      rep.Reads,
 		Schemas:    schemaSource(rep.Schemas),
 		Instances:  rep.InstanceRoster,
 		References: rep.References,
@@ -525,6 +571,14 @@ func (v *LiveCheckJSON) Report(rep LiveCheckReport) {
 		Checked:    rep.Checked,
 		Partial:    rep.Partial,
 		Unchecked:  rep.Unchecked,
+
+		StoreAssumedWritable: rep.StoreAssumedWritable,
+		RecordOnly:           rep.RecordOnly,
+	}
+	if rep.Setup != nil {
+		doc.EstateSource = rep.Setup.EstateSource
+		store := rep.Setup.RecordStore
+		doc.RecordStore = &store
 	}
 	if doc.Instances == nil {
 		doc.Instances = []LiveCheckInstance{}

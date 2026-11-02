@@ -98,7 +98,7 @@ type Context struct {
 // [RuleUnadmittedType], [RuleMarkerlessType], [RuleCountIndex],
 // [RuleIgnoreChanges], [RuleGenerateName], [RuleForEachKey],
 // [RuleOverlongAddress], [RuleReceiptLeaf], [RuleReceiptValue],
-// [RuleReceiptSecret], [RuleARMTagLimit], [RuleGCPLabelCount] and
+// [RuleReceiptSecret], [RuleARMTagLimit], [RuleAWSTagCount], [RuleGCPLabelCount] and
 // [RuleGCPEstateLabel], plus [CheckResidueAttributes]' warning. Every other
 // rule is about the configuration, a module call or the live block itself,
 // and none of those is an [addrs.ConfigResource] for a scope to answer
@@ -293,6 +293,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkChildModules(ctx, cfg, path, issues)
 	checkModuleProviderMapping(mod, path, issues)
 	checkModuleProviderBlocks(mod, path, noProviderConfigRange, issues)
+	checkIgnoreTags(ctx, mod, path, issues)
 	checkUndeclaredProviderAlias(mod, path, issues)
 	checkChildLiveConfig(mod, path, issues)
 	checkMovedBlocks(cfg, mod, path, issues)
@@ -304,6 +305,7 @@ func checkConfig(ctx context.Context, cfg *configs.Config, modInst addrs.ModuleI
 	checkForEachKeys(ctx, cfg, path, scope, issues)
 	checkOverlongAddresses(ctx, mod, modInst, scope, issues)
 	checkARMTagLimit(ctx, cfg, modInst, schemas, scope, issues)
+	checkAWSTagCount(ctx, cfg, modInst, schemas, scope, issues)
 	checkReceiptLeafRule(mod, path, scope, issues)
 	checkReceiptValueRule(mod, path, scope, issues)
 	checkReceiptSecretRule(mod, path, scope, issues)
@@ -393,22 +395,16 @@ func worstCaseChildKey(ctx context.Context, cfg *configs.Config, name string) ad
 // #210: [RuleStateBackend] is [SeverityWarning], not fatal). The block is
 // not wrong to have a state file to write to - it does - but the run that
 // reaches this warning never reads it: no file under internal/live reads
-// mod.Backend or mod.CloudConfig, so the block sits unread rather than
-// merely unwise, and its lock protects nothing this run takes.
+// mod.Backend or mod.CloudConfig, so the block sits unread and its lock
+// protects nothing this run takes.
 //
-// That is true only of the run that reaches this warning, though, and this
-// warning can only ever be reached from a module with no live block: mod
-// arrives here already fully decoded, and internal/configs/module.go's
-// appendFile hard-refuses to decode a module that has both a live block and
-// a backend (or cloud) block, before this function - or anything else - can
-// run over it (GitHub issue #268). So every time this fires, deleting the
-// backend or cloud block is optional for the run in front of the operator,
-// which is the -estate flag path (live-plan, live-import, live-mv are the
-// only commands that accept -estate without a live block). It stops being
-// optional the moment a live block is added, which is mandatory for every
-// other command, apply included - internal/command/arguments has no -estate
-// flag for apply. The messages below say so, rather than promising a
-// blanket "not required" that only the flag path can honor.
+// It fires only on a module with no live block, and on a child module:
+// beside a live block, internal/configs' ignoreStateStoreUnderLive keeps the
+// block as Module.IgnoredBackend and drops it from mod.Backend with its own
+// warning (GitHub issue #2213, superseding the #1170 and #268 refusal). So
+// the advice is to keep the block. Once a live block is added it is where an
+// apply publishes outputs, where live-import reads the old state, and, with
+// no record_store block, where records go (GitHub issue #2293).
 func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 	if backend := mod.Backend; backend != nil {
 		*issues = append(*issues, Issue{
@@ -418,15 +414,11 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 			Detail: "a backend configures where authoritative state is stored and locked. " +
 				"This configuration has no live block yet, so the live system does not " +
 				"govern it: choudoufu reads no state from this block and takes no lock " +
-				"through it, and deleting it changes nothing about this run's outcome. " +
-				"That holds only while there is no live block, though. Add one - which " +
-				"every command but live-plan, live-import and live-mv requires, since " +
-				"those three are the only ones with an -estate flag - and the decoder " +
-				"refuses to load a module carrying both a live and a backend block at all " +
-				"(\"Both a backend and a live configuration are present\"), before lint or " +
-				"anything else runs. If a live block is coming, delete this block now: " +
-				"leaving it produces that hard load failure at that point, not a warning " +
-				"like this one",
+				"through it. Keep the block when a live block is added: it is then " +
+				"ignored for state with a warning, live-import reads the old state " +
+				"from it, an apply publishes the estate's outputs to it for " +
+				"terraform_remote_state readers, and an s3, gcs or azurerm backend " +
+				"holds the records when the live block names no record_store",
 			Subject: backend.DeclRange,
 		})
 	}
@@ -440,14 +432,9 @@ func checkStateBackends(mod *configs.Module, path addrs.Module, issues *[]Issue)
 				"remote locking attached. This configuration has no live block yet, so " +
 				"the live system does not govern it: choudoufu reads no state from this " +
 				"block and takes no lock through it, the same way a backend block is " +
-				"ignored. That holds only while there is no live block, though. Add one - " +
-				"which every command but live-plan, live-import and live-mv requires, " +
-				"since those three are the only ones with an -estate flag - and the " +
-				"decoder refuses to load a module carrying both a live and a cloud block " +
-				"at all (\"Both a cloud and a live configuration are present\"), before " +
-				"lint or anything else runs. If a live block is coming, delete this block " +
-				"now: leaving it produces that hard load failure at that point, not a " +
-				"warning like this one",
+				"ignored. Beside a live block it is ignored with a warning too, and " +
+				"it can stay; the records need a record_store block, since a cloud " +
+				"block names no bucket",
 			Subject: cloud.DeclRange,
 		})
 	}

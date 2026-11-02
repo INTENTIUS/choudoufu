@@ -12,40 +12,52 @@ prompt: >-
 
 1. `terraform_binary = "choudoufu"` in the file every unit includes, or
    `TG_TF_PATH=choudoufu` in the environment.
-2. A `live` block in each unit, naming its estate and the record store:
+2. One `generate "estate"` block in the same file, so every unit gets a live
+   sidecar:
 
 ```hcl
-# network/live.tf
-terraform {
-  live {
-    estate = "network"
+# root.hcl
+terraform_binary = "choudoufu"
 
-    record_store "s3" {
-      bucket = "my-records-bucket"
-    }
-  }
+generate "estate" {
+  path      = "estate.chdf.hcl"
+  if_exists = "overwrite"
+  contents  = "estate = \"${replace(path_relative_to_include(), "/", "-")}\"\n"
 }
 ```
 
-`include`, `inputs`, `dependency` blocks with `mock_outputs`, generated
-providers and `remote_state` stay as they are. For a unit that already owns
-resources, pull its state with the stock binary and follow
-[Migrate](/choudoufu/docs/use/migrate/) before the first apply.
+`remote_state` stays. Its generated backend block is where the records go:
+with no `record_store` in the sidecar, choudoufu writes the unit's records to
+the same bucket under `tofu-records/<estate>/` and prints the bucket, prefix
+and estate on every `init` and `plan`. Use `generate = { path = "backend.tf",
+if_exists = "overwrite" }` in `remote_state`, so the bucket is written into
+the backend block; a bucket passed only as `-backend-config` is not read, and
+the unit falls back to the local store and says so.
 
-## What you get
+The sidecar is read from the directory the binary runs in, which for a unit
+with a `terraform { source = ... }` is its `.terragrunt-cache` copy; Terragrunt
+writes generated files there too. Leave out the `estate` line and the name
+comes from the backend key, so `key = "${path_relative_to_include()}/terraform.tfstate"`
+gives the same name. An explicit `record_store` block in the sidecar always
+wins.
 
-| | Stock Terragrunt | On the live backend |
-|---|---|---|
-| One plan covers every unit | No, one per unit | Yes |
-| A changed value reaches the units that read it | No, a `dependency` reads the last applied outputs | Yes |
-| A new ID reaches the units that read it | Only as `mock_outputs` | Yes, as known after apply, and the mock is not planned |
-| The approved plan is what applies | `--out-dir` saves each unit's plan, mocks included | Yes, and choudoufu refuses a plan that no longer matches |
-| Applies | One per unit | One |
+`include`, `inputs`, `dependency` blocks with `mock_outputs` and generated
+providers stay as they are. For a unit that already owns resources, run
+`choudoufu live-import` in it before the first apply: it reads the old state
+straight from the backend, so no `state pull` is needed. See
+[Migrate](/choudoufu/docs/use/migrate/).
+
+## Terragrunt on the live backend
+
+- `run --all` joins the units in one plan.
+- A `dependency` reads the planned value.
+- A new ID arrives as known after apply, so `mock_outputs` stays as a fallback.
+- One apply runs the reviewed plan, and choudoufu refuses a plan that no longer matches.
 
 ## The workflow
 
-The pull request plans and keeps the `plans` directory. The merge applies
-those files, with nothing planned first:
+The pull request plans into `plans`, and the merge applies those files,
+planning nothing first:
 
 ```
 terragrunt run --all --out-dir plans -- plan
@@ -53,13 +65,13 @@ terragrunt run --all --out-dir plans -- apply
 ```
 
 Every plan file carries the whole joint plan, so the merge's job needs only
-that directory. The first unit's apply applies it once.
+that directory. Separate jobs need one CI secret in `CHOUDOUFU_PLAN_HMAC_KEY`
+([why](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md)).
 
 ## Limits
 
-- One apply needs the saved plan files. `run --all apply` without `--out-dir`
-  applies the units one at a time, each reading its upstream's recorded
-  outputs.
+- `run --all apply` without `--out-dir` applies one unit at a time, each
+  reading its upstream's recorded outputs.
 - A `dependency` read is taken from the joint plan when it feeds an input
   directly, or through OpenTofu functions. An input that also calls `get_env`,
   or a value read through `read_terragrunt_config`, keeps Terragrunt's value.

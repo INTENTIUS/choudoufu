@@ -6,5 +6,7 @@ retired: 32
 # Claim 32 is part of claim 2
 
 Since #1817 claim 32 is one of the proofs of claim 2, "Nothing is held":
-see [claim 2 on AWS](no-self-managed-locks.md#on-aws). The scenario
-is unchanged: `just smoke two-writers-one-record`.
+see [claim 2 on AWS](no-self-managed-locks.md#on-aws). Its scenario
+was removed in #2288, and the cell cites
+`TestS3StoreConformance/PutIfVersionWithStaleVersionConflicts` and
+`TestWriteBackVersionConflict` instead.

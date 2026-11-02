@@ -155,6 +155,13 @@ var enforcedLimits = map[string]Rule{
 	// live/LIMITATIONS.md, "gcp-label-count", and limitsCompanionRules for
 	// the one other rule allowed beside it.
 	"gcp-label-count": RuleGCPLabelCount,
+	// An aws provider block with ignore_tags { key_prefixes = ["tofu-"] }
+	// (GitHub issue #2290). See live/LIMITATIONS.md, "ignore-tags".
+	"ignore-tags": RuleIgnoreTags,
+	// An aws_s3_bucket with 46 tags and 3 default_tags: two markers make
+	// 51, one past AWS's 50 (GitHub issue #2131). See live/LIMITATIONS.md,
+	// "aws-tag-count". aws_s3_bucket is admitted, so no companion rule.
+	"aws-tag-count": RuleAWSTagCount,
 	// A 64-character estate name over one google_storage_bucket: one past
 	// GCP's 63-character label value. See live/LIMITATIONS.md,
 	// "gcp-estate-label", and limitsCompanionRules.

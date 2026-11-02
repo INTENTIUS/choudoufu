@@ -12,7 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
-	"github.com/intentius/choudoufu/internal/live/registry"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // sgRuleRoster builds a Roster mapping both aws_vpc_security_group_egress_rule

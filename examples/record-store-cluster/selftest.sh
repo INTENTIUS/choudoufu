@@ -7,7 +7,7 @@ set -uo pipefail
 #
 # `just up` is applied to a kind cluster, and then `kubectl auth can-i --as`
 # asks the authorizer, per identity and per verb, exactly what
-# internal/live/staterecord/kubernetescontract.go asks it with a
+# pkg/staterecord/kubernetescontract.go asks it with a
 # SelfSubjectAccessReview: the plan identity may get and list Secrets in the
 # records namespace and nothing else, the apply identity may do all five
 # verbs the store uses and nothing else, neither may read Secrets outside

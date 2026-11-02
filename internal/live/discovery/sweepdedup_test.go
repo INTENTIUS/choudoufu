@@ -9,7 +9,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // TestSweepDoesNotReListAConfigScannedUnservedType is GitHub issues

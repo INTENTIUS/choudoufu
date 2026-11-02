@@ -412,14 +412,15 @@ func TestResidueSeedForWithoutARecordReproducesIssue395Unfixed(t *testing.T) {
 	}
 }
 
-// TestResidueSeedForNeverSeedsAComputedAttribute is residueSeedFor's own
-// boundary: a residue record can legitimately hold a Computed-only
-// attribute too (aws_nat_gateway.regional_nat_gateway_address is the
-// confirmed case fillResidue's own doc comment names), and
-// residueSeedFor must leave those to fillResidueFor's POST-read fill
-// rather than seeding them pre-read - see residueSeedFor's own doc
-// comment for why the two are not proven equivalent in this change.
-func TestResidueSeedForNeverSeedsAComputedAttribute(t *testing.T) {
+// TestResidueSeedForSeedsSettableResidueOnly is residueSeedFor's own
+// boundary. A residue record can hold an attribute configuration sets
+// (Optional, with or without Computed) and a Computed-only one
+// (aws_nat_gateway.regional_nat_gateway_address is the confirmed case
+// fillResidue's own doc comment names). The settable ones are seeded
+// before the read, Optional+Computed included since GitHub issue #2261
+// (see residueSeedFor's "Optional+Computed residue" section); a
+// Computed-only one is left to fillResidueFor's post-read fill.
+func TestResidueSeedForSeedsSettableResidueOnly(t *testing.T) {
 	ctx := context.Background()
 	store := NewRecordEnvelopeStore(localHintStore(t), RecordKeyPrefix("residue-seed-boundary"))
 	addr := locatedTestAddr(t, "aws_lambda_function", "check-links")
@@ -441,11 +442,14 @@ func TestResidueSeedForNeverSeedsAComputedAttribute(t *testing.T) {
 	if v, ok := seed["publish"]; !ok || !v.RawEquals(cty.False) {
 		t.Errorf("publish (Optional, not Computed) must be seeded from the residue record; seed=%#v", seed)
 	}
-	if v, ok := seed["source_code_hash"]; ok {
-		t.Errorf("source_code_hash (Optional+Computed) must NOT be pre-read seeded even though it is "+
-			"recorded as residue - Computed means the provider may answer independent of configuration, "+
-			"and fillResidueFor's own post-read, carriesNoInformation-gated fill already handles this "+
-			"population correctly; got seeded as %#v", v)
+	if v, ok := seed["source_code_hash"]; !ok || v.AsString() != "82e750d3" {
+		t.Errorf("source_code_hash (Optional+Computed, recorded as residue) must be seeded from the residue "+
+			"record, as a state-backed prior would carry it into the read (GitHub issue #2261); seed=%#v", seed)
+	}
+	for name := range seed {
+		if attr := lambdaLikeSchema().Block.Attributes[name]; attr != nil && !attr.Optional && !attr.Required {
+			t.Errorf("%s is Computed only and must be left to the post-read fill; seed=%#v", name, seed)
+		}
 	}
 }
 

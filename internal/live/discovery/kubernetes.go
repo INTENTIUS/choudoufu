@@ -8,6 +8,7 @@ package discovery
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -17,11 +18,11 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // The Kubernetes leg of the estate sweep (GitHub issue #1065, under
@@ -103,13 +104,39 @@ type KubernetesSweep struct {
 	// ([FieldGranularTypeOf]), whose orphans the field-manager leg finds
 	// (GitHub issue #1863; kubernetes_fieldorphans.go). Empty lists none.
 	FieldGranular []FieldGranularType
+	// Cone, when non-nil, runs the leg for live-plan -resource's cone
+	// (GitHub issue #2260): only these types are listed, each listing is a
+	// scan rather than a sweep, and nothing undeclared is filed as an
+	// orphan. See conelegs.go.
+	Cone map[string]bool
 }
 
 // Leg is [substrate.SweepLabelList].
 func (KubernetesSweep) Leg() substrate.Sweep { return substrate.SweepLabelList }
 
+// ScansDeclared reports whether this leg, rather than the config-driven
+// scan, finds the declared needs-discovery instances of typeName. Only the
+// cone leg does (INTENTIUS/choudoufu#2266): live-plan -resource finds a cone
+// instance through the leg's label-selected list of the type's kinds, so
+// leaving the type with the config-driven scan would refuse it as unlistable
+// before the leg ran whenever the provider cannot list it. A type the leg
+// does not list (outside Types and not the manifest type) stays with the
+// config-driven scan.
+func (k KubernetesSweep) ScansDeclared(typeName string) bool {
+	if !k.Cone[typeName] || k.Client == nil {
+		return false
+	}
+	if k.ManifestType != "" && typeName == k.ManifestType {
+		return true
+	}
+	return slices.Contains(k.Types, typeName)
+}
+
 // Sweep runs the leg.
 func (k KubernetesSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.Diagnostics {
+	if k.Cone != nil {
+		return k.sweepCone(ctx, in)
+	}
 	return k.sweep(ctx, in.Request, in.Result)
 }
 

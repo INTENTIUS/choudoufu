@@ -13,9 +13,9 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 )
 
 // Follow-ups to GitHub issue #2136 (its 2026-10-20 comment, items 2 and 3):

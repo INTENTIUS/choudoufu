@@ -103,7 +103,7 @@ type Tagging struct {
 	// type's create handler accepts tags in the create call. GitHub issue
 	// #1084 asked which of three things this field is - inert, the create
 	// path, or an ABAC limit - and it is the create path (the issue's case
-	// 2). internal/live/registry.Roster.TagOnCreateKnown reads it; for a
+	// 2). pkg/registry.Roster.TagOnCreateKnown reads it; for a
 	// taggable row that reads false the node writer withholds this fork's
 	// ownership marker from the create call and the live path writes it
 	// immediately after, in the same apply, so the object is never

@@ -835,8 +835,8 @@ func TestLegacyScriptsOnlyGoDown(t *testing.T) {
 //
 // The population moved too, and that was not cosmetic: scanning only the
 // estates in live/gauntlet/estates.json left #1042's own banned idiom
-// sitting in live/e2e/corpus-message-queue/run.sh, which is not one of
-// them. The replacement reads every e2e/*/run.sh and e2e/lib/*.sh with
+// sitting in live/e2e/corpus-message-queue/run.sh (deleted since, #2288),
+// which was not one of them. The replacement reads every e2e/*/run.sh and e2e/lib/*.sh with
 // os.ReadFile, and classifies each reducing --query against botocore's own
 // paginator data (live/aws-paginating-operations.json).
 

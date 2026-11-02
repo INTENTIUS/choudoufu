@@ -216,9 +216,9 @@ func TestDiffRefusesToCompareAcrossOnboardingModes(t *testing.T) {
 
 // TestRungsReadsTheForkLadder pins that the summary's verdict column is
 // check.ClassifyOnboarding and not a second rule beside it. The data-read
-// finding is the case that separates them: check.Report.Blocked counts it,
-// the ladder does not, and a table built on Blocked put a class no code
-// change removes at the top of a work queue.
+// finding is the case a table built on Blocked once got wrong: before GitHub
+// issue #2295 check.Report.Blocked counted it and the ladder did not, which
+// put a class no code change removes at the top of a work queue.
 func TestRungsReadsTheForkLadder(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

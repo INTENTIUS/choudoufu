@@ -129,6 +129,38 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"and the list). A type with no row reads exactly as before, so a missing row costs requests, never answers.",
 		Data: 1, Code: 0,
 	},
+	"pkg/gcpsweep/typelist.go": {
+		Reason: "typeLists and NotCovered (INTENTIUS/choudoufu#2264): the per-type GCP list for each labelled " +
+			"server-assigned google type, so two creates of one object are both seen. Every other covered type is " +
+			"derived in servicelist.go from pkg/identity's GoogleAssetImports Asset name (its parent collection is " +
+			"the list call) and a per-host Services row, and that file names no type. These ten cannot take that " +
+			"rule: google_vertex_ai_dataset, google_vertex_ai_tensorboard, google_service_directory_namespace and " +
+			"google_recaptcha_enterprise_key have no GoogleAssetImports row (tools/gcp-row-gen records why in " +
+			"importids_generated_google.go); google_transcoder_job and google_active_directory_domain have Asset " +
+			"\"{{name}}\", which has no parent collection to list; google_vertex_ai_index, _index_endpoint, " +
+			"_reasoning_engine and google_document_ai_schema are on regional hosts ({{region}}-aiplatform, " +
+			"{{location}}-documentai) that a Services Root cannot spell, and adding their hosts would also move the " +
+			"covered set off the list plunge shares (testdata/covered-types.txt). Each row is the provider's own " +
+			"create collection and the API reference's list field, read at hashicorp/google 8.6.0. NotCovered's one " +
+			"row is the server-assigned type with no list it can scope at plan time (its parent agent); " +
+			"google_assured_workloads_workload left it for handwrittenlist.go in INTENTIUS/choudoufu#2274. " +
+			"Code is 0: Covered and CoveredTypes are keyed lookups.",
+		Data: 11, Code: 0,
+	},
+	"pkg/gcpsweep/handwrittenlist.go": {
+		Reason: "handwrittenLists (INTENTIUS/choudoufu#2274, paired with INTENTIUS/plunge#19's gcplist/handwritten.go, " +
+			"which lists the same three): the covered types servicelist.go's rule cannot derive because pkg/identity " +
+			"holds no GoogleAssetImports row for them. google_sql_database_instance and google_container_cluster have " +
+			"ratified Components rows and no Asset template; google_assured_workloads_workload has no row because " +
+			"its documented Asset name //assuredworkloads.googleapis.com/{WORKLOAD} carries none of its import " +
+			"format's parts (importids_generated_google.go records that). A row would not be enough either: what each " +
+			"entry carries is a fact of its own list API that no committed artifact states, read from the API " +
+			"reference and the Asset names page - Cloud SQL's Asset host is cloudsql.googleapis.com while its list " +
+			"is at sqladmin, GKE is listed at locations/- and names each cluster from its own location field, and " +
+			"Assured Workloads lists under the organization its required argument names. Code is 0: " +
+			"HandwrittenImportID is a keyed lookup.",
+		Data: 3, Code: 0,
+	},
 	"internal/live/discovery/directread.go": {
 		Reason: "directReadTypes (issue #1046): the narrow, hand-verified registry of ServerAssigned types whose live " +
 			"ARN a service mints deterministically from configuration's own arguments alone, so a targeted Import+Read " +
@@ -249,14 +281,14 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"declares. The collection-to-type pairing is a fact of Key Vault's data plane that no azurerm schema states.",
 		Data: 0, Code: 6,
 	},
-	"internal/live/identity/azure_recordcarried.go": {
+	"pkg/identity/azure_recordcarried.go": {
 		Reason: "AzureRecordCarriedTypes (maintainer ruling of 2026-10-23 on #2201, items 2 and 8; built by #2203): the 37 " +
 			"azurerm parent-id settings objects admitted as record-carried BY DECLARATION, because each stores its " +
 			"parent's ARM id as its own and has no tags argument, so no marker can name it. A declaration, not a " +
 			"derivation: moving a type in or out of the list is a ruling.",
 		Data: 37, Code: 0,
 	},
-	"internal/live/identity/azure_serverminted.go": {
+	"pkg/identity/azure_serverminted.go": {
 		Reason: "AzureServerMintedTypes (issue #2205, ruling of 2026-10-23 on #2201 item 4): the 17 azurerm types whose id " +
 			"the server mints, held by hand because no committed artifact says per type which ids the server supplies; " +
 			"the classification is #2147's trace of azurerm 5.10.0's Create functions. " +
@@ -270,7 +302,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"the id types and the schema at generation time, and a failed check refuses the type with its reason.",
 		Data: 31, Code: 0,
 	},
-	"internal/live/identity/docimportid.go": {
+	"pkg/identity/docimportid.go": {
 		Reason: "VariadicTrailingImportIDTypes: aws_security_group_rule alone, the one type today whose documented " +
 			"import grammar (\"SOURCE[_SOURCE]*\") ends in a variadic tail AND whose provider-side importer has " +
 			"been verified, from hashicorp/terraform-provider-aws's own resourceSecurityGroupRuleImport source " +
@@ -296,12 +328,30 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 			"the one thing that cannot be derived.",
 		Data: 2, Code: 0,
 	},
-	"internal/live/identity/parent.go": {
+	"pkg/identity/parent.go": {
 		Reason: "parentReadRemovable, parentListRecovered and foldParentTypes: hand-curated maps whose growth rule is written " +
 			"into their own doc comments as \"one provider-behavior verification at a time\". The fact recorded is what a " +
 			"live GetBucketPolicy- or GetRolePolicy-style read means when it finds nothing, which is provider behaviour " +
 			"and not schema.",
 		Data: 5, Code: 0,
+	},
+	"pkg/identity/cloudcontrol_hand.go": {
+		Reason: "ccHands (issue #2286, moved from plunge's ccid_hand.go, plunge#15/#19/#31): the multi-part Cloud Control " +
+			"identifiers whose Terraform import id is not the parts joined by the type's Components (aws_eip's " +
+			"PublicIp|AllocationId imports by the allocation id alone, aws_ecs_service cuts names out of two ARNs). " +
+			"Keyed by CloudFormation type, each naming its Terraform type; the build is the provider's own importer " +
+			"grammar read against the registry's primary identifier order, which no schema states. A type missing " +
+			"here falls back to the generic Components join, and CloudControlTranslation refuses where that does not fit.",
+		Data: 10, Code: 0,
+	},
+	"pkg/identity/cloudcontrol_single.go": {
+		Reason: "ccSinglePropRows, ccSingleBuilds and ccSingleUncovered (issue #2286, moved from plunge's ccid_single.go, " +
+			"plunge#28): the single-part Cloud Control identifiers that are not the Terraform id, found by plunge#28's " +
+			"audit comparing every covered type's CloudFormation primary identifier against its import id row. Which " +
+			"model property holds the id (Id where the listing gives an ARN, an ARN where it gives a name), and which " +
+			"ids need an account the model lacks, are provider importer facts no schema carries. Every type not listed " +
+			"takes the identifier as the id, repaired by shape; the tables are rows only and no function branches on a type.",
+		Data: 82, Code: 0,
 	},
 	"internal/live/lint/receipt_leaf.go": {
 		Reason: "receiptType: live/RECEIPTS.md defines a receipt AS an aws_ssm_parameter under /tofu-receipts/. This is a " +
@@ -364,7 +414,7 @@ var typeLiteralSurfaces = map[string]typeLiteralSurface{
 		Data: 1, Code: 0,
 	},
 	"live/residue.go": {
-		Reason: "EmulatorBlocked (#26): which floci gap blocks which type, read off live/e2e/run.sh and the harness rather than " +
+		Reason: "EmulatorBlocked (#26): which floci gap blocks which type, read off the e2e harnesses rather than " +
 			"any artifact. Its own doc comment already says it is hand data. Shrinks as the emulator improves.",
 		Data: 4, Code: 0,
 	},
@@ -822,7 +872,25 @@ const (
 	// 1358 -> 1359 data, code unchanged, on 2026-10-24 (#2232):
 	// internal/live/projection/scopedlisting.go's scopedListSpecs row for
 	// aws_route53_record, one new Data literal, none moved.
-	typeLiteralDataTotal = 1359
+	// 1359 -> 1371 data, code unchanged, on 2026-10-25 (#2264):
+	// pkg/gcpsweep/typelist.go (12 / 0), the ten hand-listed
+	// server-assigned GCP types and NotCovered's two, never registered when
+	// the file landed. 12 new Data literals, none moved.
+	// 1371 -> 1373 data, code unchanged, on 2026-10-26 (#2274):
+	// pkg/gcpsweep/handwrittenlist.go (3 / 0), Cloud SQL, GKE
+	// clusters and Assured Workloads listed per type, never registered when
+	// the file landed; google_assured_workloads_workload moved there out of
+	// typelist.go's NotCovered (12 -> 11). 2 new Data literals, 1 moved.
+	// 1373 -> 1465 data, code unchanged, on 2026-10-26 (#2286):
+	// pkg/identity/cloudcontrol_hand.go (10 / 0) and
+	// cloudcontrol_single.go (82 / 0), plunge's Cloud Control id tables
+	// moved into pkg/identity and never registered when they landed. The
+	// single-part property rows were built inside a func literal (73 read
+	// as in-function); they are now the package-level ccSinglePropRows,
+	// table rows either way. adopt.go's one kubernetes_manifest comparison
+	// (#2287) became markers.ManifestSurface on the schema, so Code stays.
+	// 92 new Data literals, none moved.
+	typeLiteralDataTotal = 1465
 	typeLiteralCodeTotal = 140
 
 	// typeLiteralSweepFloor is the anti-tamper leg, in the spirit of
@@ -846,17 +914,17 @@ const (
 // past this guard. So the exempt set is exact rather than a rule: a fourth
 // generated file, or a hand-written one that grows the header, fails here.
 var generatedTypeLiteralFiles = []string{
-	"internal/live/identity/contentmatch_generated.go",
-	"internal/live/identity/discoverablefallback_generated.go",
-	"internal/live/identity/docimportid_generated.go",
-	"internal/live/identity/idnotwhole_generated.go",
-	"internal/live/identity/importids_generated_google.go",       // tools/gcp-row-gen
-	"internal/live/identity/identityimports_generated_google.go", // tools/gcp-row-gen
-	"internal/live/substrate/google_unrecorded_generated.go",     // tools/gcp-row-gen
-	"internal/live/identity/markerless_generated.go",
-	"internal/live/identity/notimportable_generated.go",
-	"internal/live/identity/table_generated.go",
-	"internal/live/identity/table_generated_google.go", // tools/gcp-row-gen
+	"pkg/identity/contentmatch_generated.go",
+	"pkg/identity/discoverablefallback_generated.go",
+	"pkg/identity/docimportid_generated.go",
+	"pkg/identity/idnotwhole_generated.go",
+	"pkg/identity/importids_generated_google.go",             // tools/gcp-row-gen
+	"pkg/identity/identityimports_generated_google.go",       // tools/gcp-row-gen
+	"internal/live/substrate/google_unrecorded_generated.go", // tools/gcp-row-gen
+	"pkg/identity/markerless_generated.go",
+	"pkg/identity/notimportable_generated.go",
+	"pkg/identity/table_generated.go",
+	"pkg/identity/table_generated_google.go", // tools/gcp-row-gen
 }
 
 // providerTypeLiteral matches a string literal that is exactly a provider

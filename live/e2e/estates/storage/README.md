@@ -17,7 +17,7 @@ this cohort spans three CloudFormation services (EFS, FSx, Backup), and
 against the cohort name (`cohort.go`'s `defaultCohortTypes`).
 
 This cohort exercises every type this batch ratified into
-`internal/live/lint/admission.go` and `internal/live/identity/table.go`.
+`internal/live/lint/admission.go` and `pkg/identity/table.go`.
 
 ## Coverage map
 
@@ -56,7 +56,7 @@ For `aws_efs_file_system` specifically, the fallback applies:
 `live/mapping.json` maps it to `AWS::EFS::FileSystem` via `"name"`, and
 `live/registry.json` records that CFN type as listable
 (`handlers.list: true`, no `list_required_input`) — so
-`internal/live/registry.Roster.EnumerationSource` resolves a CFN type for
+`pkg/registry.Roster.EnumerationSource` resolves a CFN type for
 it, and `internal/live/discovery/cloudcontrol.go`'s `scanTypeCloudControl`
 is the code path that would enumerate it whenever a caller supplies
 `Request.CloudControl` and `Request.Roster`. `internal/live/discovery/
@@ -155,7 +155,7 @@ recovers the type.
   to search on; and `live/registry.json`'s
   `handlers.list_required_input` for the same CFN type is
   `["FileSystemId"]` rather than empty, so
-  `internal/live/registry.Roster.Listable` reports false and the Cloud
+  `pkg/registry.Roster.Listable` reports false and the Cloud
   Control fallback that rescues `aws_efs_file_system` above does not apply
   either — `scanTypeCloudControl` only ever calls `ListResources` with no
   input. `live/survey-full.json`'s own mechanical classifier reaches the
@@ -233,7 +233,7 @@ checks it by static HCL parse — `TestAdmissionTableCoversEstate` and
 to cover exactly the union of `live/e2e/estate/` and every `estates/*`
 cohort, this one included.
 
-`live/e2e/run.sh` and the gated `internal/live/discovery` floci integration
+`live/e2e/run.sh` (retired under #2288) and the gated `internal/live/discovery` floci integration
 test still stand up only the demo estate (confirmed by inspection: neither
 mentions `estates/` or "cohort"). Wiring cohort estates into the gated
 apply-against-floci tier is separate follow-on work, the same note

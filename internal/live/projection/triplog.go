@@ -11,7 +11,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // RecordTripLogEnvVar names a file this process appends one line to for every

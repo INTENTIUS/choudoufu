@@ -14,12 +14,16 @@ applying anything.
 
 ## The order
 
-1. Pull the state into a file, if it lives in a backend:
-   `tofu state pull > terraform.tfstate`.
-2. Remove the `backend` or `cloud` block. Both are refused beside a live
-   configuration.
-3. Write `estate.chdf.hcl` beside the configuration, with the estate's name
-   and its record store ([`STORAGE.md`](STORAGE.md)):
+1. Leave the `backend` or `cloud` block where it is. Beside a live
+   configuration choudoufu ignores it for state, with a warning, and an apply
+   publishes the estate's non-sensitive outputs there for
+   `terraform_remote_state` readers.
+2. Write `estate.chdf.hcl` beside the configuration. With an `s3`, `gcs` or
+   `azurerm` backend block it can be empty: the record store is derived from
+   that backend's bucket, under `tofu-records/<estate>/`, and the estate name
+   from its state key (`prod/network/terraform.tfstate` gives `prod-network`),
+   else from the root's path in the repository. Name either one to override
+   it ([`STORAGE.md`](STORAGE.md)):
 
    ```hcl
    # estate.chdf.hcl
@@ -29,21 +33,29 @@ applying anything.
      bucket = "my-records-bucket"
    }
    ```
-4. `choudoufu init`.
-5. `choudoufu live-check`, which reports what in the configuration can move
+3. `choudoufu init`. It prints where records go and the estate name, and
+   every `plan` prints them again:
+
+   ```
+   Records: s3 bucket "acme-tfstate" under tofu-records/prod-network/ (derived from backend "s3" at backend.tf:2); estate "prod-network" (from the backend key)
+   ```
+4. `choudoufu live-check`, which reports what in the configuration can move
    under markers and names what stops the rest.
-6. `choudoufu live-import -state=terraform.tfstate -estate=my-estate`, which
-   writes nothing and prints the report, then the same command with
-   `-approve`, which stamps the markers
-   ([the bulk path](#moving-a-large-estate-in-one-go)).
-7. `choudoufu plan`. It is empty once every resource carries its markers.
+5. `choudoufu live-import`, which reads the old state straight from the
+   backend block, writes nothing and prints the report, then the same command
+   with `-approve`, which stamps the markers
+   ([the bulk path](#moving-a-large-estate-in-one-go)). `-state=<file>` reads a
+   file instead, for a backend whose settings come only from
+   `-backend-config`; `-estate=<name>` overrides the derived name.
+6. `choudoufu plan`. It is empty once every resource carries its markers.
+7. Archive the old state ([below](#archive-the-old-state)).
 
-## Keep the state file until the migration is done
+## Keep the old state until the migration is done
 
-If this estate still has a `terraform.tfstate`, do not delete it yet. It is the
-only input `choudoufu live-import` has, and there is no flag that supplies the
-addresses another way. Run it against a file that is gone and the command stops
-before it reaches the live system at all:
+The old state, in the backend or in a file, is the only input
+`choudoufu live-import` has, and there is no flag that supplies the addresses
+another way. With no state to read the command stops before it reaches the
+live system at all:
 
 ```
 Error: Cannot read the state file
@@ -51,17 +63,40 @@ Error: Cannot read the state file
 Error loading statefile: open terraform.tfstate: no such file or directory
 ```
 
-A parsed state file is a precondition of ratification itself, not just of
-opening the file: `liveimport.Ratify` refuses a nil state with `No state to
+A parsed state is a precondition of ratification itself, not just of
+opening it: `liveimport.Ratify` refuses a nil state with `No state to
 ratify`
 ([`internal/live/liveimport/ratify.go`](https://github.com/INTENTIUS/choudoufu/blob/main/internal/live/liveimport/ratify.go)).
-So deleting the file takes [the bulk path](#moving-a-large-estate-in-one-go)
+So deleting it takes [the bulk path](#moving-a-large-estate-in-one-go)
 with it, leaving the plan-based loop and its `count`/`for_each` blind spot as
 the only way through.
 
 Keeping it costs nothing while you decide. The live backend does not read a state
 file, refuse one, or mention one, so a `terraform.tfstate` sitting beside a
 live configuration changes no behaviour at all.
+
+## Archive the old state
+
+After the migration the old state document still lists every resource. An
+apply publishes an outputs-only document to the backend for
+`terraform_remote_state` readers, but it never overwrites a document that
+holds resources: that is a stock state somebody may still own
+([`internal/command/live_remote_state.go`](https://github.com/INTENTIUS/choudoufu/blob/main/internal/command/live_remote_state.go)).
+So until it is archived, every `terraform_remote_state` and Atmos
+`!terraform.state` reader keeps reading the pre-migration outputs.
+
+Once `choudoufu plan` is empty, keep a copy and move the document aside. The
+next `choudoufu apply` writes the outputs-only document in its place:
+
+```
+tofu state pull > pre-live.tfstate      # keep this copy somewhere safe
+aws s3 mv s3://acme-tfstate/prod/network/terraform.tfstate \
+          s3://acme-tfstate/archive/prod/network/terraform.tfstate
+```
+
+For gcs, `gcloud storage mv` the object under the backend's `prefix`; for
+azurerm, copy the blob named by `key` to another name and delete the
+original. A versioned bucket keeps the old version either way.
 
 ## What binds on its own, and what does not
 
@@ -425,9 +460,10 @@ declared id would be overwritten", under `declared_untagged = "refuse"`
 admit the object first and write the markers onto it in the plan. Adopt it
 with `"adopt"`, or write the two tags by hand and plan again.
 
-If the stock state lives in the `azurerm` backend, `tofu state pull >
-stock.tfstate` gives `live-import` its file. Keep the blob as the way back
-until the plan has been empty for as long as you need.
+If the stock state lives in the `azurerm` backend, `live-import` reads it
+from there through the backend block. Keep the blob as the way back until the
+plan has been empty for as long as you need, then
+[archive it](#archive-the-old-state).
 `live/azure/ADOPT.md` has the rest.
 
 ## On GCP

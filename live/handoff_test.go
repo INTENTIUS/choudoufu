@@ -396,7 +396,7 @@ var testDecl = regexp.MustCompile(`(?m)^func (Test[A-Za-z0-9_]*)\(`)
 func definedTestNames(t *testing.T, root string) map[string]bool {
 	t.Helper()
 	out := map[string]bool{}
-	for _, dir := range []string{"live", "internal", "tools", "cmd"} {
+	for _, dir := range []string{"live", "internal", "pkg", "tools", "cmd"} {
 		walkTestFiles(t, filepath.Join(root, dir), func(b []byte) {
 			for _, m := range testDecl.FindAllSubmatch(b, -1) {
 				out[string(m[1])] = true

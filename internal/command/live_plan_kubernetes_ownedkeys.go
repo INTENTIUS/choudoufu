@@ -13,9 +13,9 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/projection"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // The command layer's half of GitHub issue #1211: the one cluster read
@@ -27,7 +27,7 @@ import (
 // the estate's record of what the configuration last declared; this only
 // ever declines one of those candidates, because managedFields answers
 // "who wrote this field" and the question is "did this configuration
-// declare it" - see internal/live/kubesweep/managedkeys.go for the
+// declare it" - see pkg/kubesweep/managedkeys.go for the
 // measurement that separated the two. The projection consults it only
 // when a candidate exists, so a converged estate makes no call here at
 // all.

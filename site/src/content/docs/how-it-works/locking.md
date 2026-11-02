@@ -1,29 +1,28 @@
 ---
 title: Resource-level concurrency
-description: Terraform locks the whole state file. choudoufu moves the apply boundary to each resource, with no lock to take or release.
+description: Two applies to one estate can run together. choudoufu writes one record per resource, each with a conditional write.
 prompt: >-
   Read https://intentius.io/choudoufu/how-it-works/locking/ and say how our CI
   serializes applies to one estate. Change no files.
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-Terraform and OpenTofu lock the state file because the apply boundary is the
-state file, so everything in it is locked together. Teams split state into
-roots to shrink what one lock covers. choudoufu moves the boundary to each
-resource. It keeps one record per resource in a store you own and writes each
-record only if it is unchanged since the run read it. That prevents state
-corruption with no lock to take or release.
+OpenTofu and Terraform protect each state file with a lock, which keeps every
+apply to it safe. choudoufu keeps one record per resource in a
+[record store](../values/), so two applies that touch different resources can
+run at the same time. A run's write to a record fails if another run wrote that
+record first, which keeps the records consistent without a lock.
 
 ## Two applies, one estate
 
 Apply A changes `db` while apply B changes `dns`, in the same estate.
 
-| | Stock backend | choudoufu live backend |
+| | With a state lock | With the live backend |
 |---|---|---|
-| Apply A changes `db` | Takes the lock on the whole state | Lands |
-| Apply B changes `dns` | Waits for A's lock or fails, though it touches nothing A does | Lands |
-| A saved plan for `db`, made before A applied | Refused as stale, as it would be after any change to the state | Refused before anything changes, naming `db` |
-| An apply killed part way | Holds the lock until someone runs `force-unlock` | Leaves nothing to release, and `force-unlock` is rejected |
+| Apply A changes `db` | Takes the lock | Lands |
+| Apply B changes `dns` | Runs after A releases the lock | Lands |
+| A saved plan for `db`, made before A applied | Refused as stale | Refused before anything changes, naming `db` |
+| An apply killed part way | `force-unlock` releases the lock | Leaves nothing to release, and `force-unlock` is rejected |
 
 ## What refused means
 
@@ -53,12 +52,12 @@ written conditionally on its `resourceVersion`.
 A run that fails or loses part way does not undo the records it already wrote.
 Every write stands alone, so nothing rolls back across records.
 
-A record holds identity and what the cloud cannot return. Two plain applies
-without a saved plan that change an attribute the provider reads back are last
-writer wins at the cloud API. Keep one apply at a time per estate in CI anyway.
+A record holds only what a read of the resource leaves out, such as a generated
+password. An attribute the provider reads back has no record, so two plain
+applies that change it without a saved plan are last writer wins at the cloud
+API. Keep one apply at a time per estate in CI anyway.
 
 ## Across states
 
-With the boundary at each resource, the lock stops being a reason to split
-state. The roots you keep for ownership can plan and apply together:
+Roots you keep for ownership can also plan and apply together:
 [One plan, one apply, across roots](../across-estates/).

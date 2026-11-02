@@ -46,7 +46,7 @@
 # kubernetes_service and kubernetes_deployment by their plain names.
 #
 # kubernetes_daemonset is the alias that found something while this estate
-# was built: internal/live/kubesweep's KindOfType joined its name to
+# was built: pkg/kubesweep's KindOfType joined its name to
 # "Daemonset", where the API server lists DaemonSet, so a declared object of
 # that type could not meet its own listing. #1884 fixed the join in the same
 # unit (the registry's spelling wins when only case differs); this estate is

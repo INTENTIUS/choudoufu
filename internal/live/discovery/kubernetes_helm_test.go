@@ -25,8 +25,8 @@ import (
 	fakedynamic "k8s.io/client-go/dynamic/fake"
 	clienttesting "k8s.io/client-go/testing"
 
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // fixedKindsClient is the real [kubesweep.Client] over a fake dynamic

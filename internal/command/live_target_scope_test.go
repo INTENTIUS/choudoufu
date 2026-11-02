@@ -112,6 +112,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"projection.ReadRootOutputValues": {wholeConfigByDesign, "root outputs are not resources and carry no address to target"},
 	"foreign.Classify":                {wholeConfigByDesign, "classifies live objects nothing declares; an estate fact, not a run's"},
 	"collectDeposedRecords":           {wholeConfigByDesign, "record reads for crash-window recovery; errors are swallowed, nothing is refused"},
+	"liveSetupFor":                    {wholeConfigByDesign, "the estate and record store every run prints (#2293) are properties of the configuration; it refuses nothing and names no resource"},
 
 	// ---- filed gaps ------------------------------------------------
 	"liveProviderDataReads": {unscopedKnownGap, "dataread.AnalyzeProviderConfigs runs unscoped; provider work, not a refusal. #1258's second leg. Its first leg, projection.PlanInstancesIn inside liveResolve, is narrowed"},
@@ -125,7 +126,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"identity.NoSourceCreateFor":          {notAPass, "reads the strict profile"},
 	"identity.SecretsFor":                 {notAPass, "reads the strict profile's secrets setting, to decide whether this run keeps a state cache at all (#1375). That is a fact about the run, not about any resource, so no target set narrows it"},
 	"projection.NewMarkerIndex":           {notAPass, "indexes resolutions already in hand"},
-	"projection.NewRecordStore":           {notAPass, "opens a store"},
+	"liveRecordStoreOpener":               {notAPass, "opens a store (projection.NewRecordStore, a variable for #2288's test)"},
 	"projection.NewRecordEnvelopeStore":   {notAPass, "wraps a store"},
 	"projection.NewRootOutputStore":       {notAPass, "wraps a store"},
 	"projection.RecordStoreKeyPrefix":     {notAPass, "computes a key prefix"},

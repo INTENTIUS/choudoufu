@@ -23,7 +23,7 @@ matches by CFN service name alone, so it would pull in every ec2-core type
 too, not just this batch's forty-three.
 
 This cohort exercises every type this batch ratified into
-`internal/live/lint/admission.go` and `internal/live/identity/table.go`.
+`internal/live/lint/admission.go` and `pkg/identity/table.go`.
 
 ## Coverage map
 
@@ -69,7 +69,7 @@ This cohort exercises every type this batch ratified into
 | Marker path | `aws_network_acl.app` | EC2 assigns the network ACL's own id (`acl-…`) at create time. |
 | Parent-derived, untaggable | `aws_network_acl_rule.app` | Import id is `network_acl_id:rule_number:protocol:egress`, all four configuration arguments (`egress` defaults to `false` in the schema but is not resolved from that default — an omitted `egress` fails resolution honestly rather than guessing). |
 | Marker path | `aws_flow_log.app` | EC2 assigns the flow log's own id (`fl-…`) at create time. Real Identity Schema and native list resource. |
-| Marker path | `aws_nat_gateway.app` | This batch's headline type — see the header comment above `aws_nat_gateway`'s row in `internal/live/identity/table.go`. |
+| Marker path | `aws_nat_gateway.app` | This batch's headline type — see the header comment above `aws_nat_gateway`'s row in `pkg/identity/table.go`. |
 | Parent-derived, untaggable | `aws_nat_gateway_eip_association.app` | Import id is `nat_gateway_id,allocation_id`, both configuration arguments — `allocation_id` names an `aws_eip`, already admitted via list-plus-content match. |
 
 ## Requested types
@@ -106,7 +106,7 @@ not: this type's identity is genuinely server-assigned-and-taggable with no
 composable alternative, so the marker path is the only candidate and
 `aws_ec2_client_vpn_endpoint` clears it; `aws_vpc_ipam_pool_cidr_allocation`
 additionally needs a parent-scoped Cloud Control list Roster.listable
-(`internal/live/registry/roster.go`) never grants regardless.
+(`pkg/registry/roster.go`) never grants regardless.
 
 ## Corrected, not merely accepted
 
@@ -265,7 +265,7 @@ and `TestTableCoversFixtureTypes` require `admittedTypesV0` and
 `DefaultTable` to cover exactly the union of `live/e2e/estate/` and every
 `estates/*` cohort, this one included.
 
-`live/e2e/run.sh` and the gated `internal/live/discovery` floci
+`live/e2e/run.sh` (retired under #2288) and the gated `internal/live/discovery` floci
 integration test still stand up only the demo estate (confirmed by
 inspection: neither mentions `estates/` or "cohort"). Wiring cohort
 estates into the gated apply-against-floci tier is separate follow-on

@@ -27,21 +27,16 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/check"
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/foreign"
 	"github.com/intentius/choudoufu/internal/live/identity"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/lint"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
-	"github.com/intentius/choudoufu/internal/live/registry"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -50,6 +45,12 @@ import (
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/pkg/azsweep"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/gcpsweep"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
+	"github.com/intentius/choudoufu/pkg/registry"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 	tfversion "github.com/intentius/choudoufu/version"
 )
 
@@ -202,7 +203,9 @@ func (c *LivePlanCommand) Execute(args *arguments.LivePlan) int {
 	// stdout ahead of the document and a consumer piping stdout into a
 	// JSON parser failed on the first one. See [views.View.StdoutOnStderr].
 	renderView := c.View
-	if jsonRequested {
+	if jsonRequested || args.Resource != nil {
+		// GitHub issue #2245: -resource's stdout is the drift stream, so it
+		// takes the same route.
 		renderView = c.View.StdoutOnStderr()
 	}
 	view := views.NewPlan(&renderOpts, renderView)
@@ -260,7 +263,7 @@ func (c *LivePlanCommand) Execute(args *arguments.LivePlan) int {
 			view.Diagnostics(diags)
 			return 1
 		}
-		if !jsonRequested {
+		if !jsonRequested && args.Resource == nil {
 			// The plan command's own Execute, handed the plan half of this
 			// command's arguments: live-plan's option set is the plan
 			// command's plus -estate, and -estate was refused just above.
@@ -318,6 +321,16 @@ func (c *LivePlanCommand) Execute(args *arguments.LivePlan) int {
 			view.Diagnostics(diags)
 			return 1
 		}
+	}
+
+	// GitHub issue #2245: -resource plans one resource's cone on this
+	// pipeline, on both routes, and prints drift records. It is its own
+	// branch from here: see live_plan_resource.go.
+	if args.Resource != nil {
+		diags = diags.Append(c.providerDevOverrideRuntimeWarnings())
+		diags = diags.Append(c.liveStateFileNote())
+		diags = diags.Append(c.checkAWSProviderVersionSkew())
+		return c.executeResource(ctx, args, estateFlag, renderView, diags)
 	}
 
 	// GitHub issue #894. The surface below is [surfaceEstateFlag] on both
@@ -495,6 +508,8 @@ func (c *LivePlanCommand) Execute(args *arguments.LivePlan) int {
 // that it appears before the trailing diagnostics exactly as it does in a
 // stock plan.
 func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, estateFlag string, view views.Plan, liveView views.LivePlan, preDiags tfdiags.Diagnostics, jsonRequested bool) (int, bool, tfdiags.Diagnostics) {
+	// When the live read starts: the -json document's observed_at (#2285).
+	readStart := time.Now().UTC()
 	var diags tfdiags.Diagnostics
 
 	// GitHub issue #626's knob, resolved once here and used by both of this
@@ -632,6 +647,11 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// the store opened here, so the store has to be open before it runs.
 	// live_mode.go's PriorState already opens it in this order.
 	estate, _, _ := liveEstateFor(ctx, estateFlag, config)
+	// GitHub issue #2293: under a live block, say where records go and which
+	// estate they belong to.
+	if config.Module != nil && config.Module.Live != nil && !config.Module.Live.IsComposed() {
+		printLiveSetup(c.View, liveSetupFor(ctx, estateFlag, config))
+	}
 
 	// The estate's record store, when the live block names one - opened
 	// here originally only as guided discovery's hint source (issue #109),
@@ -642,7 +662,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// #1376, before which both kinds were a log line.
 	var hintStore staterecord.Store
 	if config.Module != nil && config.Module.Live != nil {
-		store, storeDiags := openRecordStoreAsOneMoreSource(ctx, projection.NewRecordStore, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, "live-plan")
+		store, storeDiags := openRecordStoreAsOneMoreSource(ctx, livePlanRecordStoreOpener, config.Module.Live.RecordStore, config.Module.Live.Retry, estate, "live-plan")
 		diags = diags.Append(storeDiags)
 		if storeDiags.HasErrors() {
 			diags = diags.Append(provs.close(ctx))
@@ -1190,6 +1210,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 			Estate:           estate,
 			ChoudoufuVersion: tfversion.Fork,
 			UpstreamVersion:  tfversion.String(),
+			ObservedAt:       readStart.Format(time.RFC3339),
 			Bound:            boundReport,
 			Omissions:        oms,
 			Unowned:          unownedItems,
@@ -1214,6 +1235,12 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	}
 	return 0, true, diags
 }
+
+// livePlanRecordStoreOpener opens the record store for livePlan's own
+// pipeline. A package variable for one reason: GitHub issue #2245's test
+// runs the whole-estate plan over a fake store as its control, to show the
+// fake sees the List the -resource path must not make.
+var livePlanRecordStoreOpener recordStoreOpener = projection.NewRecordStore
 
 // ---------------------------------------------------------------------------
 // Discovery and foreign classification
@@ -1893,7 +1920,7 @@ func liveDiscoverOne(ctx context.Context, config *configs.Config, resolutions []
 			// property of a host.
 			//
 			// It cost the whole emulator tier its coverage of this branch.
-			// Loopback is exactly what live/e2e/run.sh and
+			// Loopback is exactly what the e2e harnesses and
 			// internal/live/flocitest.Endpoint both use, so with the gate
 			// in place every e2e run, every cohort-acceptance run and
 			// every local run took the per-type List fallback, and
@@ -2198,9 +2225,47 @@ func liveEstateName(ctx context.Context, flagValue string, config *configs.Confi
 // can say why - "the configuration names no estate" and "the configuration
 // names three" call for different sentences, and only the caller knows what
 // its half of the run gave up.
+//
+// GitHub issue #2293 adds two later sources for a configuration with a live
+// block, reached only when the configuration stamps no tofu-estate value at
+// all: the backend block's state key, then the root's path in the
+// repository. See [liveResolveEstate].
 func liveEstateFor(ctx context.Context, flagValue string, config *configs.Config) (string, []string, tfdiags.Diagnostics) {
+	estate, _, found, diags := liveResolveEstate(ctx, flagValue, config)
+	return estate, found, diags
+}
+
+// liveResolveEstate is [liveEstateFor] that also says where the name came
+// from: one of the liveEstateSource* values. Precedence is explicit (the flag
+// or the live block's estate argument), then the configuration's own
+// tofu-estate tags, then the backend key, then the root path, so a root that
+// had a name before #2293 keeps it.
+func liveResolveEstate(ctx context.Context, flagValue string, config *configs.Config) (string, string, []string, tfdiags.Diagnostics) {
+	estate, found, diags := liveEstateDeclared(ctx, flagValue, config)
+	if diags.HasErrors() {
+		return "", liveEstateSourceNone, found, diags
+	}
+	if estate != "" {
+		if flagValue != "" {
+			return estate, liveEstateSourceExplicit, found, diags
+		}
+		return estate, liveEstateSourceTags, found, diags
+	}
+	if len(found) != 0 || config == nil || config.Module == nil || config.Module.Live == nil {
+		return "", liveEstateSourceNone, found, diags
+	}
+	if name, source := liveDerivedEstate(config.Module); name != "" {
+		return name, source, found, diags
+	}
+	return "", liveEstateSourceNone, found, diags
+}
+
+func liveEstateDeclared(ctx context.Context, flagValue string, config *configs.Config) (string, []string, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
+	if flagValue == "" && config != nil && config.Module != nil && config.Module.Live != nil && config.Module.Live.EstateSet {
+		flagValue = config.Module.Live.Estate
+	}
 	if flagValue != "" {
 		if !discovery.ValidEstateName(flagValue) {
 			return "", nil, diags.Append(tfdiags.Sourceless(
@@ -4522,6 +4587,13 @@ Options:
                           plan proposes creating them, and no markers are
                           stamped.
 
+  -resource=address       Plan one managed resource or resource instance
+                          and what it reads, with no estate-wide marker
+                          sweep and no record-store listing, and print one
+                          drift record per instance as NDJSON instead of a
+                          plan. The last line counts what the run read.
+                          See live/PLAN-RESOURCE.md.
+
   -target=resource        Limit the planning operation to only the given
                           module, resource, or resource instance and all of
                           its dependencies. You can use this option multiple
@@ -4746,12 +4818,24 @@ func (p *projectionProviders) assetSearchLeg(ctx context.Context, sub substrate.
 		}
 	}
 	leg := discovery.GCPAssetSweep{Searcher: client.Client, Project: client.Project}
+	// INTENTIUS/choudoufu#2264: the same credential lists the covered
+	// server-assigned types through their own services.
+	if lister, ok := client.Client.(gcpsweep.TypeLister); ok && err == nil {
+		leg.Lister = lister
+		if r, hasRegion := client.Client.(interface{ Region() string }); hasRegion {
+			leg.Region = r.Region()
+		}
+		if z, hasZone := client.Client.(interface{ Zone() string }); hasZone {
+			leg.Zone = z.Zone()
+		}
+	}
 	if err != nil {
 		// GitHub issue #2134, item 2: no client is a named warning and a leg
 		// that searches nothing, never no leg at all, so the unlabelled
 		// types the configuration declares are still filed as
 		// TYPE_NOT_TAGGABLE gaps below.
 		leg.Searcher = nil
+		leg.Lister = nil
 		diags = diags.Append(tfdiags.Sourceless(tfdiags.Warning, discovery.SummaryGCPSweepIncomplete,
 			fmt.Sprintf("No Cloud Asset Inventory client could be built from provider configuration %s, so no labelled GCP resource owned by this estate is searched this run; a deleted block is still removed from its record: %s.", addr, err)))
 	}

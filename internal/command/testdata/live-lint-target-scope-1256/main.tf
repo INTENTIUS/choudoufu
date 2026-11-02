@@ -15,7 +15,7 @@
 #
 # There is no live block on purpose. A live block implies a local record
 # store (#364, configs.impliedRecordStore), which admits provisioners, and
-# the provisioner rule is one of the twelve under test here.
+# the provisioner rule is one of the thirteen under test here.
 
 terraform {
   required_providers {
@@ -183,6 +183,20 @@ resource "aws_s3_bucket" "leaf_targeted" {
 
 resource "aws_s3_bucket" "leaf_excluded" {
   bucket = aws_ssm_parameter.receipt_targeted.value
+}
+
+# ---- RuleAWSTagCount -------------------------------------------------
+
+# 49 tags: the two markers make 51, one past AWS's 50 (GitHub issue #2131).
+
+resource "aws_s3_bucket" "tagcount_targeted" {
+  bucket = "tagcount-targeted"
+  tags   = { for i in range(49) : "tag-${i}" => "x" }
+}
+
+resource "aws_s3_bucket" "tagcount_excluded" {
+  bucket = "tagcount-excluded"
+  tags   = { for i in range(49) : "tag-${i}" => "x" }
 }
 
 # ---- Whole-configuration controls, error severity ---------------------

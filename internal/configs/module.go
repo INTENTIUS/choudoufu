@@ -1015,7 +1015,7 @@ func (m *Module) ignoreStateStoreUnderLive(diags *hcl.Diagnostics) {
 		*diags = append(*diags, &hcl.Diagnostic{
 			Severity: hcl.DiagWarning,
 			Summary:  "Backend configuration ignored under live resource markers",
-			Detail:   fmt.Sprintf("This module has a live block (at %s), so its state cache is local and its records are in record_store; the backend block at %s configures nothing this run uses and is ignored. A generated backend.tf or backend.tf.json can stay where it is; an apply writes this estate's non-sensitive outputs to the location it names, for terraform_remote_state readers.", m.Live.DeclRange, m.Backend.DeclRange),
+			Detail:   fmt.Sprintf("This module has a live block (at %s), so its state cache is local and no state is read from the backend block at %s. With no record_store block, records go to the bucket that backend block names (s3, gcs and azurerm), and every init and plan prints where. A generated backend.tf or backend.tf.json can stay where it is; an apply writes this estate's non-sensitive outputs to the location it names, for terraform_remote_state readers.", m.Live.DeclRange, m.Backend.DeclRange),
 			// No Subject: the warning names the block's place in its detail
 			// and prints no source excerpt. The excerpt of an Atmos-generated
 			// backend.tf.json is a line ending in "{", and Atmos reads the
@@ -1024,6 +1024,15 @@ func (m *Module) ignoreStateStoreUnderLive(diags *hcl.Diagnostics) {
 		})
 		m.IgnoredBackend = m.Backend
 		m.Backend = nil
+		// GitHub issue #2293: with no record_store block of its own, the
+		// live block takes its store from this backend block.
+		if rs := m.Live.RecordStore; rs != nil && rs.Implied {
+			if derived, why := deriveRecordStore(m.IgnoredBackend); derived != nil {
+				m.Live.RecordStore = derived
+			} else {
+				m.Live.RecordStoreNote = why
+			}
+		}
 	}
 	if m.CloudConfig != nil {
 		*diags = append(*diags, &hcl.Diagnostic{

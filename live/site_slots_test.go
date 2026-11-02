@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-// The docs site's provider hubs carry the same five slots, in the same
+// The docs site's provider hubs carry the same four slots, in the same
 // order, under the same names, on every platform (#1055): a reader who has
 // learned one hub has learned them all, and a platform whose answer to a
 // slot is honestly empty gets a page that says so rather than a missing
@@ -21,7 +21,7 @@ import (
 //
 // Since the Astro cutover (#2092) the roster is the sidebar in
 // site/astro.config.mjs: each hub is a sidebar group whose pages are the
-// hub's index and then the five slots, in slot order. The Hugo site held the
+// hub's index and then the four slots, in slot order. The Hugo site held the
 // order in each page's `weight:` and the roster in site/data/providers.yaml;
 // both went with it. This test holds the content tree and the sidebar to
 // each other, in the shape TestLimitationsDocCoversDirs holds
@@ -39,8 +39,8 @@ const (
 	siteRedirectJSON = "../site/src/data/redirects.json"
 )
 
-// siteSlots are the five slot pages, in the order the hub shows them.
-var siteSlots = []string{"adopt", "gate", "operate", "compatibility", "proof"}
+// siteSlots are the four slot pages, in the order the hub shows them.
+var siteSlots = []string{"adopt", "gate", "operate", "compatibility"}
 
 // siteNonHubDirs are the top-level content directories that are not
 // provider hubs.
@@ -104,7 +104,7 @@ func TestSiteProviderHubsCarryTheFiveSlots(t *testing.T) {
 			}
 		}
 
-		// Every extra page in a hub is a sixth slot nobody agreed on.
+		// Every extra page in a hub is a fifth slot nobody agreed on.
 		pages, _ := os.ReadDir(dir)
 		for _, p := range pages {
 			name := strings.TrimSuffix(strings.TrimSuffix(p.Name(), ".mdx"), ".md")
@@ -118,11 +118,11 @@ func TestSiteProviderHubsCarryTheFiveSlots(t *testing.T) {
 				}
 			}
 			if !known {
-				t.Errorf("%s/%s is not one of the five slots (%s); the hubs must stay identical in shape", dir, p.Name(), strings.Join(siteSlots, ", "))
+				t.Errorf("%s/%s is not one of the four slots (%s); the hubs must stay identical in shape", dir, p.Name(), strings.Join(siteSlots, ", "))
 			}
 		}
 
-		// The sidebar is the order: the hub's index, then the five slots.
+		// The sidebar is the order: the hub's index, then the four slots.
 		want := []string{hub}
 		for _, slot := range siteSlots {
 			want = append(want, hub+"/"+slot)

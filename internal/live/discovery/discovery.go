@@ -21,7 +21,6 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/markers"
@@ -29,12 +28,13 @@ import (
 	"github.com/intentius/choudoufu/internal/live/policy"
 	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/live/providerscope"
-	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/live/servicetags"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tracing"
 	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/registry"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // Request is one discovery pass.
@@ -265,6 +265,15 @@ type Request struct {
 	// the tagging sweep regardless of TaggingSweep, the same "absence is
 	// off" rule [Request.CloudControl] follows.
 	Tagging *cloudcontrol.Client
+
+	// TaggingTypeFilters narrows the tag index's one GetResources call to
+	// these Resource Groups Tagging API resource types ("service" or
+	// "service:resourcetype", see [TaggingTypeFilters]). Nil asks for every
+	// type, which is what every caller before this field existed did. A
+	// caller that sets it must not also set TaggingSweep: the sweep reads
+	// the index as the whole estate (GitHub issue #2260, live-plan
+	// -resource's cone).
+	TaggingTypeFilters []string
 
 	// ServiceTags is GitHub issue #1131's per-service tag-read leg: the
 	// fourth route to an ownership marker, for an object Cloud Control

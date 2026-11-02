@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // unreachableStore fails every call the way a store that cannot be reached

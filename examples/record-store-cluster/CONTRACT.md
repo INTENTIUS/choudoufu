@@ -5,7 +5,7 @@ choudoufu asserts four settings about the cluster behind
 before any run that writes a record, and refuses a run whose cluster fails
 one that could be read. Each is asked the way that can answer honestly, and
 each exists because of something specific about what a record is. The
-assertions and their words are `internal/live/staterecord/kubernetescontract.go`;
+assertions and their words are `pkg/staterecord/kubernetescontract.go`;
 this page says what they mean for the two identities `just up` creates.
 
 | Setting | What is asserted | How it is asked |

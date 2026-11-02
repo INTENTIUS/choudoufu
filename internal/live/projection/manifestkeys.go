@@ -53,7 +53,7 @@ import (
 // rule built on that set proposes deleting it, the server writes it back,
 // and the plan churns for ever. After the laundering our manager is its
 // ONLY owner, so no co-ownership filter rescues it.
-// internal/live/kubesweep's launderedEntries pins that reading verbatim.
+// pkg/kubesweep's launderedEntries pins that reading verbatim.
 //
 // managedFields survives here as a SAFETY RAIL and never as the source:
 // a key the record names is only proposed for removal if our own field
@@ -78,7 +78,7 @@ import (
 // wrote. It is [Options.ManifestOwnedKeys]; the implementation the
 // commands supply reads metadata.managedFields off the live object
 // through the marker sweep's cluster client
-// ([internal/live/kubesweep.ManagedMetadataKeys]).
+// ([pkg/kubesweep.ManagedMetadataKeys]).
 //
 // It is the safety rail described above, never the source, and it is
 // consulted ONLY when the record has already named a candidate for

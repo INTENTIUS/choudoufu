@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
-	"github.com/intentius/choudoufu/internal/live/azsweep"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 )
 
 // An azure-lane run talks only to floci-az (GitHub issue #2133, the
@@ -368,8 +368,9 @@ write_root "$DST" live`, "CSRC="+src, "DST="+dst, "H="+azTestHost)
 }
 
 // TestAzureRecordStoreArgsAreLocked renders the azurerm record store's
-// connection arguments (az-records-in-a-storage-account.sh), which the
-// stock backend's schema reads.
+// connection arguments, which the stock backend's schema reads. The lane's
+// gauntlet library (gauntlet.sh) writes them; the draft that also did,
+// az-records-in-a-storage-account.sh, was deleted under #2288.
 func TestAzureRecordStoreArgsAreLocked(t *testing.T) {
 	out := runBash(t, `. e2e/lib/floci-az.sh && floci_az_record_store_args "$H" "$S" "$T" "$C"`,
 		"H="+azTestHost, "S="+azTestSub, "T="+azTestTenant, "C="+azTestClient)
@@ -389,10 +390,6 @@ func TestAzureRecordStoreArgsAreLocked(t *testing.T) {
 		if got[k] != v {
 			t.Errorf("record_store %s = %q, want %s", k, got[k], v)
 		}
-	}
-	scenario := readFile(t, "smoke/drafts/az-records-in-a-storage-account.sh")
-	if !strings.Contains(scenario, `floci_az_record_store_args "$AZURE_HOST"`) {
-		t.Error(`az-records-in-a-storage-account.sh's record_store "azurerm" does not take floci_az_record_store_args`)
 	}
 }
 
@@ -474,7 +471,7 @@ func TestAzureHarnessEnvIsLocked(t *testing.T) {
 		}
 	}
 	// Every variable the sweep's credential chain reads (it mirrors both
-	// providers', internal/live/azsweep's envDefaults) is either set here
+	// providers', pkg/azsweep's envDefaults) is either set here
 	// or scrubbed.
 	handled := map[string]bool{}
 	for k := range want {
@@ -485,7 +482,7 @@ func TestAzureHarnessEnvIsLocked(t *testing.T) {
 	}
 	for _, k := range azsweep.EnvNames() {
 		if !handled[k] {
-			t.Errorf("%s, which azurerm or azapi reads (internal/live/azsweep's envDefaults), is neither set nor scrubbed by floci_az_provider_env", k)
+			t.Errorf("%s, which azurerm or azapi reads (pkg/azsweep's envDefaults), is neither set nor scrubbed by floci_az_provider_env", k)
 		}
 	}
 	for k, v := range env {

@@ -182,7 +182,7 @@ generator reads, regenerate and diff. Do not reason about what should have
 moved.
 
 **Two artifacts under `live/` have embedded copies** in
-`internal/live/registry/` (`registry.json`, `mapping.json`). Regenerating the
+`pkg/registry/` (`registry.json`, `mapping.json`). Regenerating the
 live one without re-copying leaves `TestEmbeddedArtifactsMatchLive` red.
 
 **Never read a verification command's result through a pipe.** `just ci |

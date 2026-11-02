@@ -130,7 +130,7 @@ func discoverableFallbackRoster(ratified map[string]identity.TypeIdentity, surve
 // discoverableFallbackTableRel is the generated roster's home, beside
 // markerless_generated.go for the same reason that file sits beside the
 // identity table: it answers a question about the same admitted rows.
-const discoverableFallbackTableRel = "internal/live/identity/discoverablefallback_generated.go"
+const discoverableFallbackTableRel = "pkg/identity/discoverablefallback_generated.go"
 
 // renderDiscoverableFallbackFile renders internal/live/identity's marker-
 // fallback roster.

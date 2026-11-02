@@ -16,8 +16,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // This file is the Kubernetes half of GitHub issue #1371's cross-estate

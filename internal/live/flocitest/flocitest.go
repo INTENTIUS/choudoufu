@@ -41,12 +41,13 @@ import (
 	"github.com/intentius/choudoufu/internal/live/cohorts"
 	"github.com/intentius/choudoufu/internal/live/pins"
 	"github.com/intentius/choudoufu/internal/live/plugincache"
+	"github.com/intentius/choudoufu/internal/live/scenarioestate"
 )
 
 // defaultImage is the emulator every test in this tier runs against:
 // lex00/floci, not upstream floci/floci — the fork carries lex00/floci#24
 // (iam:GetRole/GetUser/GetPolicy now return Tags, which retired the
-// standing unowned-role residue live/e2e/run.sh's floci-tier tests used to
+// standing unowned-role residue the retired live/e2e/run.sh's floci-tier tests used to
 // tolerate) and lex00/floci#25 (ecr:CreateRepository no longer needs a
 // Docker daemon), neither merged upstream yet. Pinned by digest rather than
 // `:latest` so a later push to the fork's main cannot silently change what
@@ -62,7 +63,7 @@ import (
 // CapabilityGate/ServiceCapabilityGate's skips meaning anything for it - see
 // that tool's own doc comment for the probe/merge workflow.
 // The pin's single source of truth is live/floci-image (#98), which
-// live/e2e/run.sh and the Makefile read too; this harness reads it at
+// the e2e harnesses and the Makefile read too; this harness reads it at
 // runtime rather than carrying a const copy that drifts.
 const imageFileRel = "live/floci-image"
 
@@ -250,6 +251,46 @@ func GenerateCohorts(t *testing.T) []string {
 		dirs = append(dirs, dir)
 	}
 	return dirs
+}
+
+// ScenarioEstate renders a stock estate of scale copies of the default
+// scenario tree (live/e2e/estate) into dir with names under prefix, and
+// returns what it declares (internal/live/scenarioestate). It is what the
+// floci tests that used tools/terralith-gen run against now: ruling A on
+// INTENTIUS/chant#4586 keeps the terralith for the scale ladder only
+// (choudoufu#2303). It needs no network, binary or emulator.
+func ScenarioEstate(t testing.TB, dir string, scale int, prefix string) scenarioestate.Summary {
+	t.Helper()
+
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot resolve the repository root: runtime.Caller failed")
+	}
+	root := filepath.Join(filepath.Dir(file), "..", "..", "..")
+	s, err := scenarioestate.Render(scenarioestate.Options{RepoRoot: root, Scale: scale, Prefix: prefix, Out: dir})
+	if err != nil {
+		t.Fatalf("rendering the scenario estate at scale %d, prefix %s: %v", scale, prefix, err)
+	}
+	t.Logf("%s", s)
+	return s
+}
+
+// ScenarioResources is how many resource instances ScenarioEstate declares
+// at scale, without rendering anything.
+func ScenarioResources(t testing.TB, scale int) int {
+	t.Helper()
+	if scale <= 0 {
+		return 0
+	}
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot resolve the repository root: runtime.Caller failed")
+	}
+	s, err := scenarioestate.Count(filepath.Join(filepath.Dir(file), "..", "..", ".."), "", scale)
+	if err != nil {
+		t.Fatalf("counting the scenario estate: %v", err)
+	}
+	return s.Resources
 }
 
 func fixtureDir(t *testing.T, rel string) string {

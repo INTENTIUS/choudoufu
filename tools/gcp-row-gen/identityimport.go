@@ -278,7 +278,7 @@ func sortedCopy(ss []string) []string {
 
 // IdentityImportsGoRel is the generated identity-import table
 // (INTENTIUS/choudoufu#2145 item 4).
-const IdentityImportsGoRel = "internal/live/identity/identityimports_generated_google.go"
+const IdentityImportsGoRel = "pkg/identity/identityimports_generated_google.go"
 
 // IdentityImportDecision is one composite-identity type's verdict: the
 // attributes a record must carry for its importer to take the record as an

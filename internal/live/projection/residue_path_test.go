@@ -18,9 +18,9 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // This file is GitHub issue #401 family 2's own fixture and tests:

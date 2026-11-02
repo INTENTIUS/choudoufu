@@ -137,7 +137,6 @@ func checkSigpipe(t *testing.T, root string) {
 	t.Helper()
 	var paths []string
 	for _, pat := range []string{
-		filepath.Join(root, "live", "e2e", "run.sh"),
 		filepath.Join(root, "live", "e2e", "*", "run.sh"),
 		filepath.Join(root, "live", "e2e", "lib", "*.sh"),
 	} {

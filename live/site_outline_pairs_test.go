@@ -37,7 +37,6 @@ var siteOutlinePairs = []string{
 	"compatibility",
 	"gate",
 	"operate",
-	"proof",
 }
 
 // level2Headings returns a Markdown file's `##` headings, in file order,

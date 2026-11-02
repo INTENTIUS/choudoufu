@@ -56,7 +56,7 @@ import (
 
 // providerStringRoots are the directories scanned, relative to the module
 // root.
-var providerStringRoots = []string{"internal", "tools"}
+var providerStringRoots = []string{"internal", "pkg", "tools"}
 
 // providerStringExcludedDirs are subtrees the walk skips outright,
 // relative to the module root. internal/live/substrate is the seam this
@@ -109,7 +109,7 @@ var providerStringAllowed = map[string]providerStringException{
 	// --- the audit's five named categories ---
 
 	// identity/parent.go aws_ affinity.
-	"internal/live/identity/parent.go:tfServicePrefix": {Why: "the Terraform-prefix affinity fallback (issue #129) for when no ServiceOf is supplied: every logical type is non-aws_ by construction, so this is not a substrate dispatch, it is the one convention (\"aws_<service>_...\") the fallback can read at all"},
+	"pkg/identity/parent.go:tfServicePrefix": {Why: "the Terraform-prefix affinity fallback (issue #129) for when no ServiceOf is supplied: every logical type is non-aws_ by construction, so this is not a substrate dispatch, it is the one convention (\"aws_<service>_...\") the fallback can read at all"},
 
 	// discovery AWS-leg default adopters.
 	"internal/live/discovery/discovery.go:defaultAdopterSiblings":             {Why: "the aws_default_* adoption pairing (issue #302); the AWS provider's own naming convention for a default-object adopter, read only from the AWS discovery leg per the file-level exemption already recorded for this file in seams_test.go"},
@@ -126,6 +126,11 @@ var providerStringAllowed = map[string]providerStringException{
 	"internal/live/projection/store.go:newRecordStore":              {Why: "the record_store kind switch's projection-side counterpart; same enum as configs/live.go's, not a Substrate dispatch"},
 	"internal/command/live_cluster.go:liveClusterSubject":           {Why: "reports which record_store \"kubernetes\" block (if any) supplies the connection this run inspects; record stores are their own enum, not a Substrate dispatch (see configs/live.go's entry)"},
 	"internal/command/live_bucket_contract.go:bucketWaiverWarnings": {Why: "warns once per waived allow_insecure setting, named per record_store kind (the bucket's three settings, the cluster's four); same record-store enum as configs/live.go's, not a Substrate dispatch"},
+	"internal/command/live_record_store_report.go:liveSetupStore":   {Why: "the setup line every run prints (#2293) names where each record_store kind keeps records (a bucket, a storage container, a namespace, a directory); same record-store enum as configs/live.go's, not a Substrate dispatch"},
+	"internal/command/views/live_setup.go:LiveSetupLine":            {Why: "renders that same setup line, worded per record_store kind; same record-store enum as configs/live.go's, not a Substrate dispatch"},
+
+	// aws-tag-count lint (#2131).
+	"internal/live/lint/aws_tag_count.go:isAWSProvider": {Why: "the 50-tag count reads the tags map hashicorp/aws writes; substrate.ForProvider has already picked the AWS substrate, and the type name only separates aws from awscc, whose tags are a list of key/value objects, inside that one substrate"},
 
 	// uniquename regex.
 	// managed control plane recognition (#1524).
@@ -133,6 +138,8 @@ var providerStringAllowed = map[string]providerStringException{
 	"internal/live/uniquename/uniquename.go:listingScopes": {Why: "issue #51's Cloud Control listing-scope word list, read only from AWS provider argument descriptions (Asserted's only caller is the AWS-only row-gen path); \"aws\" is a scope word (\"unique to your AWS account\") like \"account\" and \"region\", not a substrate dispatch"},
 
 	// --- sites this guard's own first run found beyond the seed list ---
+
+	"internal/live/scenarioestate/scenarioestate.go:countInstances": {Why: "#2303's scenario estate renderer counts instances in its own hand-written AWS tree (live/e2e/estate); \"aws_\" tells a for_each over another resource in that tree from one over a var or local, a fixture render with no Kubernetes leg, not a substrate dispatch"},
 
 	"tools/estate-gen/gen.go": {Why: "a generator over the AWS provider's survey (same file-level reason already recorded in seams_test.go); it has no Kubernetes leg to pick between"},
 
@@ -149,6 +156,10 @@ var providerStringAllowed = map[string]providerStringException{
 
 	"tools/estate-plan/main.go:nonAWS": {Why: "live/survey-full.json describes exactly one provider (AWS); a type's prefix is checked against \"aws\" to report what estate-plan cannot mark, the survey's own scope, not a dispatch between substrates"},
 	"tools/estate-plan/main.go:anyAWS": {Why: "the same single-provider survey scope as nonAWS, asked the other way"},
+
+	// live-import -adopt (#2287).
+	"internal/live/liveimport/adopt.go:adoptOne":      {Why: "switches on the first segment of a behold index node id (<substrate>/<scopeId>/..., chant#4536's adoption schema), whose vocabulary is aws/azure/gcp/kubernetes: it names the inventory API the node was listed from, not a provider, and azure and gcp are not this package's spellings (azurerm, google). Each inventory has its own type join (Cloud Control types for aws, a type the selection names for the rest), which is a choice about the adoption file's format, not a marker-surface dispatch"},
+	"internal/live/liveimport/adopt.go:adoptImportID": {Why: "the same index-id substrate segment as adoptOne, picking the translation from each inventory's native id (a Cloud Control identifier, a Cloud Asset name, an ARM id, a namespace/name) to a Terraform import id; kubernetes_manifest is the one Kubernetes type whose import id is not the native id"},
 
 	"tools/gauntlet/livecert.go:PlanLiveCertWrites":   {Why: "target selects the live-cert harness (the floci emulator or a real AWS account, issue #1150/#1151), not a marker-surface dispatch; live-cert has no Kubernetes leg"},
 	"tools/gauntlet/livecert.go:RunLiveCert":          {Why: "same target selection as PlanLiveCertWrites, validated once at the entry point"},

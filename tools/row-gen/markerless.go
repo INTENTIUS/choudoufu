@@ -357,7 +357,7 @@ func serverAssignmentVerdicts(proposals []proposal, importGrammar map[string]imp
 // (live/admission_coverage_test.go) has to read both to know that a type
 // outside the identity table is outside it for a recorded reason rather
 // than because nobody has looked.
-const markerlessTableRel = "internal/live/identity/markerless_generated.go"
+const markerlessTableRel = "pkg/identity/markerless_generated.go"
 
 // renderMarkerlessFile renders internal/live/identity's veto roster.
 func renderMarkerlessFile(types []string) ([]byte, error) {

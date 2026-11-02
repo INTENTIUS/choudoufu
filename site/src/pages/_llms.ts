@@ -28,7 +28,7 @@ export async function pages() {
 
 export const PREAMBLE = `# choudoufu
 
-> choudoufu is OpenTofu that tags each resource with its owner. Your cloud's own permissions decide who can change it.
+> Per-resource locking for OpenTofu.
 
 The source, and the reference material the site links to, is at https://github.com/INTENTIUS/choudoufu.
 

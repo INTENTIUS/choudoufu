@@ -14,16 +14,16 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/armtypes"
-	"github.com/intentius/choudoufu/internal/live/azsweep"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/markers"
 	"github.com/intentius/choudoufu/internal/live/substrate"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/azsweep"
 )
 
 // The Azure leg of the estate sweep (GitHub issue #1120, unit 11, under
 // #1122's ruling of 2026-10-19). One Azure Resource Graph query per
-// subscription the estate's resources resolve to (internal/live/azsweep),
+// subscription the estate's resources resolve to (pkg/azsweep),
 // matching the tofu-estate tag case-insensitively; every resource that
 // comes back carries this estate's marker, and is filed through the same
 // per-resource rules the AWS tag sweep applies to a tagged candidate
@@ -143,6 +143,11 @@ type ResourceGraphSweep struct {
 	// files a resource.
 	Self   addrs.AbsProviderConfig
 	Family []FamilyConfig
+	// Cone, when non-nil, runs the leg for live-plan -resource's cone
+	// (GitHub issue #2260): only these types are listed, each listing is a
+	// scan rather than a sweep, and nothing undeclared is filed as an
+	// orphan. See conelegs.go.
+	Cone map[string]bool
 }
 
 // FamilyConfig is one Azure provider configuration of the run and the
@@ -164,8 +169,27 @@ type UntaggableType struct {
 // Leg is [substrate.SweepResourceGraph].
 func (ResourceGraphSweep) Leg() substrate.Sweep { return substrate.SweepResourceGraph }
 
+// ScansDeclared reports whether this leg, rather than the config-driven
+// scan, finds the declared needs-discovery instances of typeName. Only the
+// cone leg does (GitHub issue #2260): live-plan -resource finds a cone
+// instance through the type-narrowed Resource Graph query, and hashicorp/
+// azurerm lists little, so leaving the type with the config-driven scan
+// refused it as unlistable before the leg ran. A type with no known ARM
+// type stays with the config-driven scan, since the leg cannot narrow its
+// query to it and files a gap instead.
+func (g ResourceGraphSweep) ScansDeclared(typeName string) bool {
+	if !g.Cone[typeName] || len(g.Coverage) == 0 {
+		return false
+	}
+	_, ok := armtypes.AzurermARMType(typeName)
+	return ok
+}
+
 // Sweep runs the leg.
 func (g ResourceGraphSweep) Sweep(ctx context.Context, in *SweepInput) tfdiags.Diagnostics {
+	if g.Cone != nil {
+		return g.sweepCone(ctx, in)
+	}
 	var diags tfdiags.Diagnostics
 	req, res, decl := in.Request, in.Result, in.decl
 	untaggable := g.recordUntaggable(res)

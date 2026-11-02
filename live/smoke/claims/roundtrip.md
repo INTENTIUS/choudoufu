@@ -40,6 +40,19 @@ are equal and the request counts are identical. `BREAK=1` plans the
 choudoufu leg with the live block on, and the measurement must show the
 difference.
 
+### terragucci row: smoke, choudoufu/migrate
+
+terragucci's smoke claim `choudoufu/migrate` (scenario `smoke`) brings a
+root on s3 state into an estate from a pipeline: the migration is proved
+and approved by its digest, the resources are stamped, the old state stays
+the version it was, and the next plan of every root shows no change.
+
+A terragucci row counts toward the claim when it ran choudoufu 0.31.0,
+the newest release in `live/history`, and `live/CLAIMS.md` gives each
+row's state. The rows stand beside the scenarios above, whose `BREAK=1`
+arms rebuild choudoufu from source, which a pipeline running a release
+cannot do.
+
 ## On Kubernetes
 
 ### k8s-roundtrip

@@ -186,6 +186,16 @@ type Options struct {
 	// visible rather than silent.
 	RecordStore *RecordStore
 
+	// KeyedRecordsOnly reads [Options.RecordStore] by key and never lists
+	// it: [builder.discoverOrphanedRecords] is skipped, so a record-backed
+	// instance whose block was deleted is not found and not proposed for
+	// destruction. It is for a run that plans a cone and reports on the
+	// cone alone - live-plan -resource (GitHub issue #2245) - where a
+	// listing of the whole namespace is the estate-wide read the run exists
+	// to avoid, and a removal outside the cone is not its question. False,
+	// the default, is every plan that can apply.
+	KeyedRecordsOnly bool
+
 	// DataResults is GitHub issue #179's data-read phase output
 	// (internal/command's liveDataReads, the same map
 	// identity.Context.DataResults takes and [identity.DataLookupFor]
@@ -756,7 +766,9 @@ func (b *builder) run(ctx context.Context, resolutions []identity.Resolution) {
 		declaredRecordBacked[r.Addr.String()] = true
 		b.materializeRecord(ctx, r.Addr, false)
 	}
-	b.discoverOrphanedRecords(ctx, declaredRecordBacked)
+	if !b.opts.KeyedRecordsOnly {
+		b.discoverOrphanedRecords(ctx, declaredRecordBacked)
+	}
 
 	// GitHub issue #270's located instances run before the concrete ones so
 	// that a parent-derived formula naming a located parent finds it in
@@ -2386,6 +2398,11 @@ func (b *builder) prepareRead(ctx context.Context, w wanted) readPrep {
 		attrsSeed[name] = val
 	}
 
+	// INTENTIUS/choudoufu#2269: an Optional+Computed attribute configuration
+	// sets and no record seeded above is probed with a second read when the
+	// first leaves it null. See optionalcomputedprobe.go.
+	attrsSeed = withOptionalComputedProbe(attrsSeed, configuredOptionalComputedProbe(ctx, seedEval, modPath, rc, schema, entry.schema.DataSources, attrsSeed))
+
 	var fieldGranularDeclared map[string]cty.Value
 	if b.opts.Ownership != nil && fieldGranularOwned("", schema) {
 		// GitHub issue #1863: what the configuration writes, kept before
@@ -3344,7 +3361,7 @@ func notFoundDiagnostics(diags tfdiags.Diagnostics, object absent.Object) (bool,
 // block showed a permanent, spurious "tags" in-place diff, re-adding the
 // same keys on every single plan. Verified directly against a live floci
 // build rather than inferred from the plan output (see the issue and
-// live/e2e/corpus-cncf-k8s-infra-aws-capa-ami/run.sh): CreateRole and
+// live/e2e/corpus-cncf-k8s-infra-aws-capa-ami/run.sh, deleted under #2288): CreateRole and
 // GetRole both correctly return every tag, default_tags merged client-side
 // by terraform-provider-aws before the request ever reaches the emulator.
 // The gap is upstream of both. [providers.Configured.ImportResourceState]
@@ -3732,7 +3749,7 @@ func dataSensitivePath(traversals []hcl.Traversal, dataSchemas map[string]provid
 //
 // The mechanism, verified directly against a live floci build rather than
 // inferred from the plan output (see the issue and
-// live/e2e/corpus-cncf-k8s-infra-aws-capa-ami/run.sh): CreateRole and
+// live/e2e/corpus-cncf-k8s-infra-aws-capa-ami/run.sh, deleted under #2288): CreateRole and
 // GetRole both correctly return every tag, default_tags merged client-side
 // by terraform-provider-aws before the request ever reaches the emulator.
 // The gap is upstream of both. [providers.Configured.ImportResourceState]
@@ -4222,6 +4239,12 @@ func readFailedDetail(typeName, importID string, readDiags tfdiags.Diagnostics, 
 // conformance-checking rules an ordinarily-imported instance already gets,
 // with no second copy to drift from the first.
 func readImported(ctx context.Context, provider providers.Interface, schema providers.Schema, typeName, importID string, obj *states.ResourceInstanceObject, attrsSeed map[string]cty.Value, configMarks []cty.PathValueMarks, manifestKeys *manifestKeyLookup, diags tfdiags.Diagnostics) (*states.ResourceInstanceObject, cty.Value, materializeStatus, tfdiags.Diagnostics) {
+	if names, rest, ok := takeOptionalComputedProbe(attrsSeed); ok {
+		// INTENTIUS/choudoufu#2269: see optionalcomputedprobe.go.
+		return readImportedProbing(ctx, provider, schema, typeName, importID, obj, names, rest, configMarks, manifestKeys, diags)
+	} else if _, has := attrsSeed[optionalComputedProbeKey]; has {
+		attrsSeed = rest
+	}
 	// GitHub issue #287 item 8 (tags), #395 and #376 (every other
 	// non-Computed attribute - see [configuredAttrsSeed]'s doc comment).
 	// ImportResourceState commonly leaves a non-Computed argument null or

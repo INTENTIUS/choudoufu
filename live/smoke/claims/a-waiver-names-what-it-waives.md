@@ -6,5 +6,6 @@ retired: 30
 # Claim 30 is part of claim 29
 
 Since #1817 claim 30 is one of the proofs of claim 29, "The record store refuses what it can't trust":
-see [claim 29 on AWS](a-wrong-bucket-is-refused.md#on-aws). The scenario
-is unchanged: `just smoke a-waiver-names-what-it-waives`.
+see [claim 29 on AWS](a-wrong-bucket-is-refused.md#on-aws). Its scenario
+was removed in #2288, and the cell cites `TestAWaiverReachesOnlyWhatItNames`
+and `TestAWaiverWarnsOnEveryRunOfAnEstate` instead.

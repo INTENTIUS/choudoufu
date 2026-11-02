@@ -193,6 +193,10 @@ type Meta struct {
 	// than the joint plan in the session's temporary directory.
 	jointPlanFile string
 	jointRerun    string
+	// jointSensitive is set when that joint plan left out its sensitive
+	// planned values (#2277): the apply checks its own plan's values
+	// against the hashes the file kept.
+	jointSensitive *jointSensitiveCheck
 
 	// The fields below are expected to be set by the command via
 	// command line flags. See the Apply command for an example.

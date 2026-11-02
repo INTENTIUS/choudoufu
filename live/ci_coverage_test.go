@@ -41,7 +41,7 @@ import (
 // site/ is not listed: since the Astro cutover (#2092) it holds no Go at all,
 // only the docs site and its node_modules, and the site workflow is what
 // builds and checks it.
-var forkOwnedRoots = []string{"internal/live", "tools", "live", "cmd"}
+var forkOwnedRoots = []string{"internal/live", "pkg", "tools", "live", "cmd"}
 
 // forkOwnedMixedRoots are packages upstream owns that this fork has added
 // files to. internal/command is the one: 21 live_*.go files, 11 of them

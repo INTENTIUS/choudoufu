@@ -3,9 +3,9 @@
   "fork_point_short": "2b6193043d",
   "fork_point_subject": "Bump version v1.13.0",
   "fork_point_url": "https://github.com/opentofu/opentofu/commit/2b6193043d500dcfef1f3b4f4819b938b667099f",
-  "measured_at_head": "84a2fa6abfba21b47795b6942f304743267bbcaa",
-  "measured_at_head_short": "84a2fa6abf",
-  "generated_at": "2026-10-04T01:29:24Z",
+  "measured_at_head": "1c86dd56a151233ddacb59e536e85b78ee07bc8d",
+  "measured_at_head_short": "1c86dd56a1",
+  "generated_at": "2026-10-28T05:27:36Z",
   "base_opentofu_version": "1.13.0",
   "named_roots": [
     "internal/live/",
@@ -16,20 +16,20 @@
   ],
   "other_bucket": "other",
   "counts": {
-    ".github/": 36,
-    "internal/live/": 1692,
-    "live/": 551,
-    "other": 1298,
-    "site/": 129,
-    "tools/": 488
+    ".github/": 25,
+    "internal/live/": 1875,
+    "live/": 677,
+    "other": 1716,
+    "site/": 96,
+    "tools/": 580
   },
-  "named_total": 2896,
-  "other_count": 1298,
-  "total": 4194,
+  "named_total": 3253,
+  "other_count": 1716,
+  "total": 4969,
   "module_path_old": "github.com/opentofu/opentofu",
   "module_path_new": "github.com/intentius/choudoufu",
   "mechanical_module_rename": {
-    "excluded_count": 1176,
+    "excluded_count": 1145,
     "scope": "internal/**/*.go files (M-status) that would otherwise land in the other bucket",
     "note": "excluded because every changed line, order-independently, is the quoted Go import path moving from github.com/opentofu/opentofu to github.com/intentius/choudoufu - see the package doc's Limits section"
   }

@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/projection"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // TestRecordStoreOpenDiagNamesTheEstateBoundary is GitHub issue #1448 section

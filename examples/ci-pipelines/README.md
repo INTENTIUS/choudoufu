@@ -581,7 +581,7 @@ showed why. `live-plan`, `live-check` and `live-ls` read live state through
 two paths that neither "describe the declared types" nor `tag:GetResources`
 covers: choudoufu's own Cloud Control fallback
 (`cloudformation:ListResources`, `cloudformation:GetResource` -
-`internal/live/cloudcontrol/client.go`, also in "Permissions a run needs"
+`pkg/cloudcontrol/client.go`, also in "Permissions a run needs"
 below), and the AWS provider's own list resource for `aws_iam_role` and
 `aws_iam_policy`, which GitHub issue #1039 found carries no filter argument
 and therefore lists the *whole account's* roles and policies

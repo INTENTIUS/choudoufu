@@ -10,7 +10,7 @@
 # documentation page shows its output and a test holds the two together.
 #
 # The default rendering is the grant: an apply identity, with every verb
-# internal/live/staterecord/kubernetescontract.go's KubernetesRecordVerbs
+# pkg/staterecord/kubernetescontract.go's KubernetesRecordVerbs
 # names (get, list, create, update, delete). --read-only renders the same
 # manifest for a plan identity instead, with only KubernetesPlanVerbs (get,
 # list) - the same "plans and never applies" distinction
@@ -54,7 +54,7 @@ done
 [[ "$estate" =~ ^[a-z][a-z0-9-]{0,127}$ ]] || { echo "not an estate name: $estate" >&2; exit 2; }
 
 if [ -z "$namespace" ]; then
-  # internal/live/staterecord's KubernetesRecordNamespacePrefix, plus the
+  # pkg/staterecord's KubernetesRecordNamespacePrefix, plus the
   # estate: what `record_store "kubernetes" {}` resolves to with no
   # `namespace` argument.
   namespace="tofu-records-${estate}"

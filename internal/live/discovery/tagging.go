@@ -15,11 +15,11 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/live/cloudcontrol"
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/listclient"
-	"github.com/intentius/choudoufu/internal/live/registry"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
+	"github.com/intentius/choudoufu/pkg/registry"
 )
 
 // This file is issue #51's follow-up to #47: wiring
@@ -55,7 +55,7 @@ import (
 // by the classic and v2 CFN services, distinguishable only by counting the
 // id's own "/"-separated parts - AWS's documented ARN grammar, not a guess.
 // [arnJoinTable] states each of these outcomes explicitly rather than
-// deriving them, the same way internal/live/identity/table.go states each
+// deriving them, the same way pkg/identity's DefaultTable states each
 // type's Components by hand instead of inferring them from a schema.
 
 // arnJoinEntry is what one (ARN service, ARN resource-type segment) pair

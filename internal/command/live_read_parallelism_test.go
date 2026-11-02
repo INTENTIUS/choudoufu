@@ -520,7 +520,7 @@ func TestEveryProjectionOptionsInTheTreeIsWiredOrExcluded(t *testing.T) {
 }
 
 // repoRootFromCommandTest resolves this checkout's root from this file's own
-// location, the same approach internal/live/registry's own repoRoot uses, and
+// location, the same approach pkg/registry's own repoRoot uses, and
 // then proves it is a checkout rather than trusting the arithmetic.
 func repoRootFromCommandTest(t *testing.T) string {
 	t.Helper()

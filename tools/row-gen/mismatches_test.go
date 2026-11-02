@@ -55,7 +55,7 @@ import (
 // ratify-remainder, so one final regeneration applied them across the
 // whole admitted set rather than only the part that predated the batch.
 // Measured over all 846 admitted types (836 hand-written entries in
-// internal/live/identity/table.go plus the 10 record-backed types in
+// the identity table (pkg/identity now) plus the 10 record-backed types in
 // table_recordbacked.go), that closed 26 of REMAINDER's mismatches
 // outright - 241 down to 215, of which 117 are scrape-gap, down from 158 -
 // and lifted adopted-unchanged from 70.79% to 73.94%. So 215 is a measured

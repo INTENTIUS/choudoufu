@@ -192,11 +192,10 @@ var gauntletCrossingScriptPattern = regexp.MustCompile(`^e2e/[^/]+/run\.sh$`)
 //   - speaksGauntletProtocol: calls gauntlet_begin, the one call every
 //     script in the actual gauntlet (as opposed to a pre-protocol legacy
 //     demo, per live/e2e/lib/gauntlet.sh's own doc comment) makes. The 20
-//     legacy demo scripts under e2e/corpus-*/run.sh that predate the
-//     protocol (corpus-cloudfront, corpus-crossing and others - never
-//     registered in live/gauntlet/estates.json, never run by `tools/gauntlet
-//     run`) do not, and are out of scope here the same way they are out of
-//     scope for the artifact.
+//     legacy demo scripts under e2e/corpus-*/run.sh that predated the
+//     protocol (corpus-cloudfront, corpus-crossing and others, never
+//     registered in live/gauntlet/estates.json) did not; they were
+//     deleted under #2288.
 //   - copiesACorpusModule: references a real .corpus/<something> path -
 //     the pristine corpus checkout `just corpus-fetch` populates. This is
 //     what separates an actual corpus crossing from a script like
@@ -449,7 +448,8 @@ var exactVersionPinLiteral = regexp.MustCompile(`version\s*=\s*"\s*=\s*[0-9]+\.[
 //
 //   - Scripts that never call the helper are not checked here. The ~15
 //     pre-protocol legacy demos under e2e/corpus-*/run.sh (corpus-
-//     cloudfront, corpus-crossing, corpus-message-queue and siblings) each
+//     cloudfront, corpus-crossing, corpus-message-queue and siblings,
+//     deleted under #2288) each
 //     rewrite a corpus module's own constraint to a literal they choose,
 //     read that same literal back, and are self-consistent; they are not
 //     registered in live/gauntlet/estates.json, `tools/gauntlet run` never

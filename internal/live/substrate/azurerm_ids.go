@@ -24,7 +24,7 @@ import (
 // pinned 5.10.0.
 //
 // The artifact is embedded as a byte-for-byte copy, the way
-// internal/live/registry embeds live/registry.json (go:embed cannot reach
+// pkg/registry embeds live/registry.json (go:embed cannot reach
 // outside the package directory), and TestEmbeddedAzurermIDsMatchLive holds
 // the copy to the original, so regenerating live/azurerm-ids.json fails the
 // suite until the copy here is refreshed:

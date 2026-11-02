@@ -681,7 +681,7 @@ print(json.dumps(r))')" || return 1
 # GAUNTLET_FLOCI_AZ_RECORD_LIFECYCLE is the account's one lifecycle rule:
 # block blobs' previous versions deleted after 30 days, current blobs never
 # touched, no prefix filter, so it covers every container in the account
-# (internal/live/staterecord/azurecontract.go's lifecycle_management
+# (pkg/staterecord/azurecontract.go's lifecycle_management
 # assertion; examples/record-store-azurerm/CONTRACT.md).
 GAUNTLET_FLOCI_AZ_RECORD_LIFECYCLE='{"properties":{"policy":{"rules":[{"name":"expire-previous-record-versions","enabled":true,"type":"Lifecycle","definition":{"filters":{"blobTypes":["blockBlob"]},"actions":{"version":{"delete":{"daysAfterCreationGreaterThan":30}}}}}]}}}'
 

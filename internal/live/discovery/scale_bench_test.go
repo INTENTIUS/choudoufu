@@ -228,7 +228,7 @@ func (r scaleReport) String() string {
 // request either process sends is counted.
 //
 // Both steps matter, not just Discover: aws_s3_bucket is a client-named
-// type (internal/live/identity/table.go: Components: []Component{attr
+// type (pkg/identity's DefaultTable: Components: []Component{attr
 // ("bucket")}), so its import ID is already known from configuration and
 // identity.Resolve hands back a Concrete resolution directly - it is never
 // a "needs discovery" instance, never appears in res.Bindings, and

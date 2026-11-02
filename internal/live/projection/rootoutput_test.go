@@ -12,8 +12,8 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/live/staterecord"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 func newRootOutputStore(t *testing.T, estate string) (*RootOutputStore, staterecord.Store) {

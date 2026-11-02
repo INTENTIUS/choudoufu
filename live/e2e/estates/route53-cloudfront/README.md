@@ -8,7 +8,7 @@ and `live/e2e/estates/lambda/README.md` for the first registry-backed
 cohort this one follows).
 
 This cohort exercises every type this batch ratified into
-`internal/live/lint/admission.go` and `internal/live/identity/table.go`: 30
+`internal/live/lint/admission.go` and `pkg/identity/table.go`: 30
 types across five CFN services (Route53, Route53Profiles,
 Route53RecoveryControl, Route53Resolver, CloudFront), rejecting 13 more and
 landing one, `aws_cloudfront_origin_access_control`, that briefly looked
@@ -290,7 +290,7 @@ checks it by static HCL parse — `TestAdmissionTableCoversEstate` and
 to cover exactly the union of `live/e2e/estate/` and every `estates/*`
 cohort, this one included.
 
-`live/e2e/run.sh` and the gated `internal/live/discovery` floci integration
+`live/e2e/run.sh` (retired under #2288) and the gated `internal/live/discovery` floci integration
 test still stand up only the demo estate. Wiring cohort estates into the
 gated apply-against-floci tier is separate follow-on work, the same note
 every earlier cohort's README already makes.

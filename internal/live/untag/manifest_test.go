@@ -14,8 +14,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/intentius/choudoufu/internal/live/kubesweep"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/pkg/kubesweep"
 )
 
 // GitHub issue #1656: undeclared_tagged = "untag" on a manifest-declared

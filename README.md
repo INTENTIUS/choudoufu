@@ -2,29 +2,39 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/intentius/choudoufu.svg)](https://pkg.go.dev/github.com/intentius/choudoufu)
 
-**OpenTofu that respects the owner tag on each resource.** <img src="site/public/brand/cube-160.png" width="32" height="32" alt="">
+**Per-resource locking for OpenTofu.** <img src="site/public/brand/cube-160.png" width="32" height="32" alt="">
+
+The engine terragucci can run with `binary: choudoufu`.
 
 Each resource carries its identity as a marker the platform can select on.
 On AWS that is two resource tags. The apply writes the marker and the next
 plan reads it back live. The state file becomes a cache you may lose. The
-policy engine you already run decides who may read or change what.
+policy engine you already run decides who may read or change each resource.
+
+Your OpenTofu or Terraform configuration runs as it is, and
+[Undo](https://intentius.io/choudoufu/docs/use/migrate/#undo) returns the
+estate to your own backend. chant and terragucci can run choudoufu as their
+engine.
 
 It runs on four platforms:
 
-- [AWS](https://intentius.io/choudoufu/aws/): two tags, scoped by IAM tag conditions.
-- [Kubernetes](https://intentius.io/choudoufu/kubernetes/): one label, fenced by one admission policy.
-- [GCP](https://intentius.io/choudoufu/gcp/): two labels, one project per estate.
-- [Azure](https://intentius.io/choudoufu/azure/): two tags, resource groups and Azure Policy.
+| Platform | Marker |
+| --- | --- |
+| [AWS](https://intentius.io/choudoufu/aws/) | two tags, scoped by IAM tag conditions |
+| [Kubernetes](https://intentius.io/choudoufu/kubernetes/) | one label, fenced by one admission policy |
+| [GCP](https://intentius.io/choudoufu/gcp/) | two labels, one project per estate |
+| [Azure](https://intentius.io/choudoufu/azure/) | two tags, scoped by resource groups and Azure Policy |
 
 Three things persist between runs. A tag on the resource says which real
 resource an address refers to. Values with no home in AWS go in a
-`record_store`: an S3 bucket you own, or a local directory. Effects with
-nothing to read back get a receipt that tracks their staleness.
+`record_store`, which is a local directory by default. It can instead be a
+Kubernetes namespace you own or an object store you own (S3, GCS or Azure Blob). Effects with nothing to read back get a receipt that tracks their
+staleness.
 
 AWS already scopes IAM by tag. choudoufu derives each marker from the
 configuration address and writes it in the create call, so every resource
-that exists carries one. Your IAM is the whole permission model. Concurrent
-runs settle at the API, with no lock table. Whoever inherits an estate can
+that exists carries one. Your IAM is the permission model. Concurrent
+runs settle at the API, one resource at a time. Whoever inherits an estate can
 list it with any cloud tool before running the binary.
 
 Handover is granting a role. Adoption and renames are tag writes.
@@ -36,20 +46,19 @@ Built on OpenTofu v1.13.0 (fork point
 [`2b6193043d`](https://github.com/opentofu/opentofu/commit/2b6193043d)). The
 exact upstream version lives in [`version/VERSION`](version/VERSION), and
 each [release](https://github.com/INTENTIUS/choudoufu/releases)'s notes name
-both. Live markers are the only change from stock OpenTofu.
+both. Live markers are the only change from the stock release.
 
 ## Where this stands
 
-Most commonly used AWS resource types are admitted. `aws_ecs_service` is
-proven end to end (deploy, migrate, drift, rename, remove) on a real
-ECS/Fargate estate. `aws_lambda_permission` takes no tags, so it is
+Most commonly used AWS resource types are admitted. `aws_lambda_permission` takes no tags, so it is
 [declaration-carried](https://intentius.io/choudoufu/docs/use/resource-tiers/):
 its identity is recomputed from the configuration on every run.
-[The gauntlet](https://intentius.io/choudoufu/docs/progress/) records which
-estates clear which stages against a real emulator.
 
-Constructs such as a `backend "s3"` block stop a configuration more often
-than types do. A saved plan file (`-out` plus `apply <planfile>`) works:
+Some constructs stop a configuration more often than types do. One example
+is `count.index` in a resource argument, and another is a child module call.
+A `backend` block does not stop one. It is ignored with a warning. An `s3`,
+`gcs` or `azurerm` backend holds the records when no `record_store` is
+declared, so keep it. A saved plan file (`-out` plus `apply <planfile>`) works:
 the apply re-reads the live system and refuses by name if it differs from
 the approved file ([#878](https://github.com/INTENTIUS/choudoufu/issues/878)).
 
@@ -64,16 +73,16 @@ choudoufu live-check
 covers the same ground. [`live/LIMITATIONS.md`](live/LIMITATIONS.md) lists
 every limit with its reasoning.
 
-## See it prove itself
+## Try it
 
 The smoke stack is the demo and the test suite. One `docker compose` stack
-runs the pinned emulator and a stock OpenTofu oracle. Each step prints a
-verdict line, and the run exits 0 when every claim held. A scenario needs
+runs the pinned emulator and a stock `tofu` oracle. Each step prints a
+verdict line, and the run exits 0 when every step passed. A scenario needs
 Docker and takes about two minutes.
 
 ```
 just smoke roundtrip    # stock estate -> live-import -> no state file -> back to stock
-just smoke full         # the comprehensive 15-step harness
+just smoke             # lists every scenario
 ```
 
 Or paste this to a coding agent:
@@ -97,8 +106,9 @@ every knob.
 
 ## Install
 
-Every tagged release publishes binaries for macOS, Linux and Windows (amd64
-and arm64) with a `SHA256SUMS` file on the
+Every tagged release publishes binaries for macOS and Linux. Windows binaries are published too,
+and each platform has amd64 and arm64 builds.
+A `SHA256SUMS` file sits on the
 [releases page](https://github.com/INTENTIUS/choudoufu/releases). This
 fetches the latest on macOS or Linux.
 
@@ -139,12 +149,12 @@ The integration tier needs Docker and `TF_FLOCI_TEST=1`.
 ## Docs
 
 The user guides live at https://intentius.io/choudoufu/. The repository
-holds the specs: [`live/MARKERS.md`](live/MARKERS.md) for marker tags,
-[`live/LIMITATIONS.md`](live/LIMITATIONS.md) for every bounded construct,
-[`live/RECEIPTS.md`](live/RECEIPTS.md) for receipts, and
-[`live/e2e/README.md`](live/e2e/README.md) for the demo harness.
+holds the specs. [`live/MARKERS.md`](live/MARKERS.md) covers marker tags and
+[`live/LIMITATIONS.md`](live/LIMITATIONS.md) covers every bounded construct.
+[`live/RECEIPTS.md`](live/RECEIPTS.md) covers receipts. The demo harness is in
+[`live/e2e/README.md`](live/e2e/README.md).
 
-Stock OpenTofu documentation lives at [opentofu.org](https://opentofu.org/docs/).
+The upstream documentation lives at [opentofu.org](https://opentofu.org/docs/).
 
 <p align="center">
   <img src="site/public/brand/cube-160.png" width="160" alt="a pixel-art block of dark fried tofu">

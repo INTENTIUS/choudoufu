@@ -21,8 +21,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/live/k8stest"
-	"github.com/intentius/choudoufu/internal/live/staterecord"
+	"github.com/intentius/choudoufu/pkg/k8stest"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // GitHub issue #1448 section C, measured end to end against a real API

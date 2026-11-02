@@ -29,6 +29,40 @@ type LiveImportReport struct {
 	Estate    string
 	StatePath string
 	Entries   []LiveImportEntry
+
+	// Adopt is set for a run from an adoption file (-adopt, GitHub issue
+	// #2287) in place of a state file; StatePath is then empty.
+	Adopt *LiveImportAdoption
+}
+
+// LiveImportAdoption is what a -adopt run adds to the report: the file and
+// index version it read, the selections it refused, and every marker write
+// -approve would make, each a tags-only write.
+type LiveImportAdoption struct {
+	AdoptPath    string
+	ScopeKey     string
+	IndexVersion string
+	Refused      []LiveImportAdoptRefusal
+	Writes       []LiveImportMarkerWrite
+}
+
+// LiveImportAdoptRefusal is one selection a -adopt run will not adopt.
+type LiveImportAdoptRefusal struct {
+	Node     string
+	As       string
+	TypeName string
+	ImportID string
+	Reason   string
+}
+
+// LiveImportMarkerWrite is one tags-only write -approve would make.
+type LiveImportMarkerWrite struct {
+	Addr     string
+	TypeName string
+	Node     string
+	ImportID string
+	// Tags is every key the write sets, rendered key=value, sorted.
+	Tags []string
 }
 
 // LiveImportOutcome is one resource instance's stamp outcome, in a form
@@ -93,6 +127,10 @@ var liveImportStatusHeadline = map[string]string{
 }
 
 func (v *LiveImportHuman) Ratification(rep LiveImportReport) {
+	if rep.Adopt != nil {
+		v.adoption(rep)
+		return
+	}
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "\nRatifying %s for estate %q against the live system. This was read-only: nothing was written.\n\n", rep.StatePath, rep.Estate)
@@ -217,5 +255,70 @@ func (v *LiveImportHuman) Stamped(rep LiveImportStamped) {
 		b.WriteString("Nothing about a FAILED resource's live tags was changed; it is exactly as it was before this run. Re-running live-import is safe: STAMPED and ALREADY_STAMPED resources are no-ops the second time.\n")
 	}
 
+	v.view.streams.Print(b.String())
+}
+
+// adoption is [LiveImportHuman.Ratification] for a -adopt run. Every marker
+// write is listed as what it is, a tags-only write (Q3 of the ruling on
+// GitHub issue #2284), and every refused selection is named with its reason.
+func (v *LiveImportHuman) adoption(rep LiveImportReport) {
+	var b strings.Builder
+	a := rep.Adopt
+
+	fmt.Fprintf(&b, "\nAdopting from %s (index %s, version %s) into estate %q. Each object was read again from the live system; the index only named it. This was read-only: nothing was written.\n\n",
+		a.AdoptPath, a.ScopeKey, a.IndexVersion, rep.Estate)
+
+	if len(a.Refused) > 0 {
+		refused := append([]LiveImportAdoptRefusal(nil), a.Refused...)
+		sort.Slice(refused, func(i, j int) bool { return refused[i].Node < refused[j].Node })
+		fmt.Fprintf(&b, "REFUSED (%d) - will not be adopted:\n", len(refused))
+		for _, r := range refused {
+			typeName := r.TypeName
+			if typeName == "" {
+				typeName = "-"
+			}
+			fmt.Fprintf(&b, "  %-42s %-24s node: %s\n", r.As, typeName, r.Node)
+			fmt.Fprintf(&b, "    %s\n", r.Reason)
+		}
+		b.WriteString("\n")
+	}
+
+	byStatus := make(map[string][]LiveImportEntry)
+	for _, e := range rep.Entries {
+		byStatus[e.Status] = append(byStatus[e.Status], e)
+	}
+	for _, status := range liveImportStatusOrder {
+		entries := byStatus[status]
+		if len(entries) == 0 {
+			continue
+		}
+		sort.Slice(entries, func(i, j int) bool { return entries[i].Addr < entries[j].Addr })
+		fmt.Fprintf(&b, "%s (%d) - %s:\n", status, len(entries), liveImportStatusHeadline[status])
+		for _, e := range entries {
+			liveID := e.LiveID
+			if liveID == "" {
+				liveID = "-"
+			}
+			fmt.Fprintf(&b, "  %-42s %-24s live id: %s\n", e.Addr, e.TypeName, liveID)
+			fmt.Fprintf(&b, "    %s\n", e.Detail)
+		}
+		b.WriteString("\n")
+	}
+
+	if len(a.Writes) > 0 {
+		fmt.Fprintf(&b, "Marker writes -approve would make (%d), each a tags-only write that changes nothing else on the object:\n", len(a.Writes))
+		for _, w := range a.Writes {
+			fmt.Fprintf(&b, "  %-42s %-24s import id: %s\n", w.Addr, w.TypeName, w.ImportID)
+			fmt.Fprintf(&b, "    tags only: %s\n", strings.Join(w.Tags, ", "))
+		}
+		b.WriteString("\n")
+	}
+
+	fmt.Fprintf(&b, "%d selection(s) refused, %d instance(s) eligible for a marker write.\n", len(a.Refused), len(a.Writes))
+	if len(a.Writes) > 0 {
+		b.WriteString("No tag has been written. Rerun with -approve to make the marker writes above. A plan that would replace an object or change anything besides its tags is still refused at -approve.\n")
+	} else {
+		b.WriteString("No tag has been written, and none would be: nothing above is eligible for a marker write.\n")
+	}
 	v.view.streams.Print(b.String())
 }
