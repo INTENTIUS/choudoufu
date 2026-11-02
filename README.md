@@ -2,7 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/intentius/choudoufu.svg)](https://pkg.go.dev/github.com/intentius/choudoufu)
 
-**OpenTofu with per-resource locking.** <img src="site/public/brand/cube-160.png" width="32" height="32" alt="">
+**Per-resource locking for OpenTofu.** <img src="site/public/brand/cube-160.png" width="32" height="32" alt="">
 
 The engine terragucci can run with `binary: choudoufu`.
 
