@@ -283,6 +283,10 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// Analyze, inside no stage, and refuses nothing; the identity layer
 		// decides what those values settle.
 		"offlineplan": true,
+		// GitHub issue #2309's provider behaviour overrides: a wrapper around
+		// every provider call, on every backend. It is not a pass a
+		// configuration has to survive and refuses nothing a stage reports.
+		"override": true,
 	}
 
 	classified := map[string]bool{}

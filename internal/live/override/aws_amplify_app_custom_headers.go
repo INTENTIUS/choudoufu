@@ -44,7 +44,7 @@ var _ = register(Override{
 // its text, which is what Amplify sends as a header. Anything that does not
 // decode to one plain document is never equal.
 func sameCustomHeaders(prior, config cty.Value) bool {
-	if prior.Type() != cty.String || config.Type() != cty.String {
+	if prior.IsMarked() || config.IsMarked() || prior.Type() != cty.String || config.Type() != cty.String {
 		return false
 	}
 	p, ok := customHeadersValue(prior.AsString())

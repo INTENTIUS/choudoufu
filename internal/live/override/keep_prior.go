@@ -64,7 +64,7 @@ func setAt(v cty.Value, path cty.Path, nv cty.Value) (cty.Value, bool) {
 	if len(path) == 0 {
 		return nv, true
 	}
-	if v.IsNull() || !v.IsKnown() {
+	if v.IsNull() || !v.IsKnown() || v.IsMarked() {
 		return v, false
 	}
 	switch step := path[0].(type) {
@@ -81,7 +81,7 @@ func setAt(v cty.Value, path cty.Path, nv cty.Value) (cty.Value, bool) {
 		return cty.ObjectVal(attrs), true
 	case cty.IndexStep:
 		ty := v.Type()
-		if (!ty.IsListType() && !ty.IsTupleType()) || step.Key.Type() != cty.Number {
+		if (!ty.IsListType() && !ty.IsTupleType()) || step.Key.IsMarked() || step.Key.Type() != cty.Number {
 			return v, false
 		}
 		i, acc := step.Key.AsBigFloat().Int64()
@@ -119,13 +119,13 @@ func SameStrings(prior, config cty.Value) bool {
 }
 
 func sortedStrings(v cty.Value) ([]string, bool) {
-	if !v.CanIterateElements() {
+	if v.IsMarked() || !v.CanIterateElements() {
 		return nil, false
 	}
 	var out []string
 	for it := v.ElementIterator(); it.Next(); {
 		_, e := it.Element()
-		if e.IsNull() || !e.IsKnown() || e.Type() != cty.String {
+		if e.IsNull() || !e.IsKnown() || e.IsMarked() || e.Type() != cty.String {
 			return nil, false
 		}
 		out = append(out, e.AsString())

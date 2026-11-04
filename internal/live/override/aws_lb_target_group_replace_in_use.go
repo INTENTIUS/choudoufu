@@ -77,7 +77,7 @@ func tgKnownString(obj cty.Value, attr string) (string, bool) {
 		return "", false
 	}
 	v := obj.GetAttr(attr)
-	if !v.IsKnown() || v.IsNull() || v.Type() != cty.String {
+	if !v.IsKnown() || v.IsNull() || v.IsMarked() || v.Type() != cty.String {
 		return "", false
 	}
 	return v.AsString(), true

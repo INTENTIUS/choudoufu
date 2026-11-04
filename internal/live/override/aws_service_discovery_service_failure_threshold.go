@@ -40,8 +40,12 @@ var _ = register(Override{
 // serviceDiscoveryThresholdIgnored is true when AWS stored 1, the only value
 // it now keeps, whatever number is configured.
 func serviceDiscoveryThresholdIgnored(prior, config cty.Value) bool {
-	if prior.Type() != cty.Number || config.Type() != cty.Number {
+	if prior.IsMarked() || config.IsMarked() || prior.Type() != cty.Number || config.Type() != cty.Number {
 		return false
 	}
-	return prior.Equals(cty.NumberIntVal(1)).True()
+	eq := prior.Equals(cty.NumberIntVal(1))
+	if eq.IsMarked() || !eq.IsKnown() {
+		return false
+	}
+	return eq.True()
 }

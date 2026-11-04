@@ -49,7 +49,7 @@ var appConfigInjectedKeys = []string{"_createdAt", "_updatedAt"}
 // replacement. It is false when nothing was stripped: a difference that is
 // not the injection is not this override's to judge.
 func sameFlagContent(prior, config cty.Value) bool {
-	if prior.Type() != cty.String || config.Type() != cty.String {
+	if prior.IsMarked() || config.IsMarked() || prior.Type() != cty.String || config.Type() != cty.String {
 		return false
 	}
 	p, ok := decodeJSONObject(prior.AsString())

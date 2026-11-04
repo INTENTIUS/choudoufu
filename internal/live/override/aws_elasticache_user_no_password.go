@@ -38,7 +38,7 @@ var _ = register(Override{
 // elasticacheNoPasswordSame is true only for prior "no-password" against
 // configured "no-password-required".
 func elasticacheNoPasswordSame(prior, config cty.Value) bool {
-	if prior.Type() != cty.String || config.Type() != cty.String {
+	if prior.IsMarked() || config.IsMarked() || prior.Type() != cty.String || config.Type() != cty.String {
 		return false
 	}
 	return prior.AsString() == "no-password" && config.AsString() == "no-password-required"

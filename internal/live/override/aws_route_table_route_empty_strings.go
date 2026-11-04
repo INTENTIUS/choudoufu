@@ -103,7 +103,7 @@ func routeTableRouteEmptyStrings(ctx context.Context, inner providers.Interface,
 // an unset field is "". With no prior elements there is nothing to match and
 // it returns nothing.
 func storedAsEmpty(prior cty.Value) map[string]bool {
-	if prior.IsNull() || !prior.IsWhollyKnown() || !prior.Type().IsSetType() || prior.LengthInt() == 0 {
+	if prior.IsNull() || prior.IsMarked() || !prior.IsWhollyKnown() || !prior.Type().IsSetType() || prior.LengthInt() == 0 {
 		return nil
 	}
 	out := map[string]bool{}
@@ -133,18 +133,18 @@ func storedAsEmpty(prior cty.Value) map[string]bool {
 // and unknown or non-null attributes are left as they are. It reports
 // whether anything changed.
 func emptyNullStrings(obj cty.Value, stored map[string]bool) (cty.Value, bool) {
-	if obj.IsNull() || !obj.IsKnown() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute("route") {
+	if obj.IsNull() || !obj.IsKnown() || obj.IsMarked() || !obj.Type().IsObjectType() || !obj.Type().HasAttribute("route") {
 		return obj, false
 	}
 	routes := obj.GetAttr("route")
-	if routes.IsNull() || !routes.IsKnown() || !routes.Type().IsSetType() || routes.LengthInt() == 0 {
+	if routes.IsNull() || !routes.IsKnown() || routes.IsMarked() || !routes.Type().IsSetType() || routes.LengthInt() == 0 {
 		return obj, false
 	}
 	changed := false
 	var elems []cty.Value
 	for it := routes.ElementIterator(); it.Next(); {
 		_, e := it.Element()
-		if e.IsNull() || !e.IsKnown() || !e.Type().IsObjectType() {
+		if e.IsNull() || !e.IsKnown() || e.IsMarked() || !e.Type().IsObjectType() {
 			elems = append(elems, e)
 			continue
 		}

@@ -42,7 +42,7 @@ var _ = register(Override{
 // key that is missing from prior, or has a different value there, is a real
 // change.
 func configuredKeysMatchPrior(prior, config cty.Value) bool {
-	if !prior.Type().IsMapType() || !config.Type().IsMapType() ||
+	if prior.IsMarked() || config.IsMarked() || !prior.Type().IsMapType() || !config.Type().IsMapType() ||
 		!prior.Type().ElementType().Equals(config.Type().ElementType()) {
 		return false
 	}
