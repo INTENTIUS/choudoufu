@@ -16,7 +16,7 @@ inside them.
 <!-- board-gen:begin banner -->
 Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 1 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-21T20:52:35Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
-The engine is built on OpenTofu `1.13.0` (`version/VERSION`). Of the 43 estates measured so far, 43 recorded running on it.
+The engine is built on OpenTofu `1.13.2` (`version/VERSION`). Of the 43 estates measured so far, 0 recorded running on it; 43 are engine-stale: measured on a different base, or predating `last_run.upstream_version` and so measured on `1.13.0-dev` - stale evidence, not a failure, and `go run ./tools/gauntlet next` surfaces it as work.
 
 Estates were last measured against different hashicorp/aws versions: 19 against `6.63.0` (current pin), 1 against `5.100.0`, 1 against `6.59.0`. The current pin is `6.63.0`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work. Estates were last measured against different hashicorp/kubernetes versions: 16 against `3.2.1` (current pin), 1 against `3.3.0`. The current pin is `3.2.1`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 

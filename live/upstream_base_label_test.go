@@ -97,6 +97,9 @@ var changelogPastBases = map[string]string{
 	// v0.1.0-v0.20.0: upstream main before the v1.13.0 tag. #1778 moved the
 	// base to 2b6193043d.
 	"03743ce6e8": "1.13.0-dev",
+	// v0.21.0-v0.32.0: the v1.13.0 tag. #2242 moved the base to 765062032c
+	// (the v1.13.2 tag).
+	"2b6193043d": "1.13.0",
 }
 
 // TestChangelogBuiltOnLinesNameTheForkPointVersion holds every CHANGELOG

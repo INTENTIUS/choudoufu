@@ -12,14 +12,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/posener/complete"
-
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/clistate"
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/states/statefile"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 func WorkspaceNewCommander(legacyName bool) Command {
@@ -237,19 +235,6 @@ func (c WorkspaceNewCommand) Execute(args *arguments.WorkspaceNew, view views.Wo
 	}
 
 	return 0
-}
-
-func (c *WorkspaceNewCommand) AutocompleteArgs() complete.Predictor {
-	return completePredictSequence{
-		complete.PredictAnything,
-		complete.PredictDirs(""),
-	}
-}
-
-func (c *WorkspaceNewCommand) AutocompleteFlags() complete.Flags {
-	return complete.Flags{
-		"-state": complete.PredictFiles("*.tfstate"),
-	}
 }
 
 func (c *WorkspaceNewCommand) Help() string {

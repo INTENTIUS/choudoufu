@@ -46,6 +46,15 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.33.0 (Unreleased)
 
+Built on OpenTofu 1.13.2 (upstream tag v1.13.2 `765062032c`), up from 1.13.0 (#2242). The two upstream patch releases bring:
+
+- Go 1.27.3, which filters out compromised intermediate certificates (GO-2026-6809).
+- Ephemeral output values are re-evaluated during apply instead of sometimes reusing a stale plan-time value.
+- Plan files made from a configuration that uses symbol libraries now carry those files and apply again.
+- `choudoufu -chdir=DIR -version` prints the version instead of failing.
+- Autocompletion for `workspace select` and `workspace delete` predicts existing workspace names again.
+- `show -json` on a plan file works again when the configuration has ephemeral resources, and a `lifecycle` `destroy` expression with references reports an error rather than crashing.
+
 - New: provider behaviour overrides (#2309, #2317). choudoufu carries fixes for long-standing `hashicorp/aws` provider bugs in the engine, with the stock provider unchanged: no provider fork, no patched build, on every backend (`live`, S3 or local state). They are on by default. Every override that acts on a resource adds a warning to the plan naming itself, the upstream issue it stands in for and how to turn it off: `CHOUDOUFU_PROVIDER_OVERRIDES=off` turns all of them off for a run, and `CHOUDOUFU_PROVIDER_OVERRIDES=-name` turns off one. An override declares the provider attributes it reads and is skipped, with a warning, when the installed provider's schema differs. None adds an argument or writes state that stock OpenTofu would not, so turning them off, or going back to stock OpenTofu, brings back the stock plan and nothing else. Each was reproduced and then proven on real AWS with provider 6.71.0; the reproductions are in `live/override-repro`, and the table, with each override's upstream issue, its stock alternative and its credits, is `live/overrides.json`.
 - New: destroy-time arguments from configuration (#2317, #2320). Changing `skip_final_snapshot`, `force_destroy` or `force_delete` in configuration and then destroying now uses the configured value, where stock OpenTofu destroys with the value last applied and fails (`opentofu/opentofu#3472`). This covers `aws_rds_cluster`, `aws_db_instance`, `aws_s3_bucket`, `aws_iam_user`, `aws_route53_zone` and `aws_ecr_repository`, while the resource is still in configuration. The destroy plan shows the value it will use. This runs on the current runtime only.
 - Changed: examples name the cloud they run on instead of saying AWS-only (#2241). The site and README use the product's new short phrase (#2316), the home page's top comes from the shared product data, and the README's prose lint now fails the build.
@@ -2835,6 +2844,29 @@ EXPERIMENTS:
 Everything below this line is upstream OpenTofu's changelog for the version this fork is built on. Fork changes are recorded in the choudoufu section above.
 
 The v1.13.x release series is supported until **August 1 2027**.
+
+## 1.13.3 (Unreleased)
+
+## 1.13.2
+
+SECURITY ADVISORIES:
+
+- Previous versions of OpenTofu could potentially experience excessive CPU usage if connecting to an attacker-controlled HTTP2 server while installing dependencies in `tofu init`. ([#4681](https://github.com/opentofu/opentofu/pull/4681))
+- Filter out compromised intermediate certificates ([#4750](https://github.com/opentofu/opentofu/pull/4750))
+
+BUG FIXES:
+
+- Lifecycle destroy will no longer crash when given an expression with references ([#4648](https://github.com/opentofu/opentofu/pull/4648))
+- `tofu workspace select` and `tofu workspace delete` autocompletion predicts from the existing workspaces. This restores the behavior pre-v1.13 ([#4706](https://github.com/opentofu/opentofu/pull/4706))
+- Combined usage of `-chdir` and `-version` flags does not show an error anymore but instead shows the version of the `tofu` binary ([#4707](https://github.com/opentofu/opentofu/pull/4707))
+- Symbol libraries are now saved in plan files and no-longer prevent applying of plan files ([#4734](https://github.com/opentofu/opentofu/pull/4734))
+
+## 1.13.1
+
+BUG FIXES:
+
+- `tofu show -json <planfile>` now works again when ephemeral resources are present in the configuration. ([#4623](https://github.com/opentofu/opentofu/pull/4623))
+-  Ephemeral output values are now always re-evaluated during the apply phase, instead of sometimes using stale values from the planning phase. ([#4582](https://github.com/opentofu/opentofu/issues/4582))
 
 ## 1.13.0
 

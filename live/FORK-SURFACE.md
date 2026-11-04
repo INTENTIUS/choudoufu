@@ -10,17 +10,17 @@ against the current HEAD. Edit the text around the generated markers, never
 inside them.
 
 <!-- forkdiff-gen:begin fork-surface -->
-Counted at choudoufu commit `39a628b128` on 2026-11-04T20:11:39Z, against stock OpenTofu `1.13.0` at fork point [`2b6193043d`](https://github.com/opentofu/opentofu/commit/2b6193043d500dcfef1f3b4f4819b938b667099f) ("Bump version v1.13.0").
+Counted at choudoufu commit `c0ac752568` on 2026-11-04T21:45:17Z, against stock OpenTofu `1.13.2` at fork point [`765062032c`](https://github.com/opentofu/opentofu/commit/765062032c46cacab116b36d714db098b806dede) ("Prepare v1.13.2 release (#4753)").
 
-5045 files diverge. 3328 of them sit under the 5 fork-owned roots below; the other 1717 are outside those roots, each named with its own reason in [`live/forkdiff_test.go`](forkdiff_test.go). A further 1145 files, not counted here, change only the Go module import path from `github.com/opentofu/opentofu` to `github.com/intentius/choudoufu`.
+5066 files diverge. 3349 of them sit under the 5 fork-owned roots below; the other 1717 are outside those roots, each named with its own reason in [`live/forkdiff_test.go`](forkdiff_test.go). A further 1145 files, not counted here, change only the Go module import path from `github.com/opentofu/opentofu` to `github.com/intentius/choudoufu`.
 
 | Root | Files |
 |---|---|
 | `internal/live/` | 1903 |
 | `tools/` | 583 |
-| `live/` | 723 |
+| `live/` | 744 |
 | `site/` | 94 |
 | `.github/` | 25 |
 | other (each justified) | 1717 |
-| Total | 5045 |
+| Total | 5066 |
 <!-- forkdiff-gen:end fork-surface -->

@@ -1,6 +1,6 @@
 module github.com/intentius/choudoufu
 
-go 1.27.1
+go 1.27.3
 
 // At the time of adding this configuration, the new Go feature introduced here https://github.com/golang/go/issues/67061,
 // was having a good amount of issues linked to, affecting AWS Firewall, GCP various services and a lot more.
@@ -105,15 +105,15 @@ require (
 	go.opentelemetry.io/otel/sdk v1.45.0
 	go.opentelemetry.io/otel/trace v1.45.0
 	go.uber.org/mock v0.6.0
-	golang.org/x/crypto v0.56.0
-	golang.org/x/mod v0.39.0
-	golang.org/x/net v0.58.0
+	golang.org/x/crypto v0.57.0
+	golang.org/x/mod v0.41.0
+	golang.org/x/net v0.59.0
 	golang.org/x/oauth2 v0.36.0
-	golang.org/x/sync v0.22.0
-	golang.org/x/sys v0.47.0
-	golang.org/x/term v0.45.0
-	golang.org/x/text v0.41.0
-	golang.org/x/tools v0.48.0
+	golang.org/x/sync v0.23.0
+	golang.org/x/sys v0.48.0
+	golang.org/x/term v0.46.0
+	golang.org/x/text v0.42.0
+	golang.org/x/tools v0.50.0
 	google.golang.org/api v0.293.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12

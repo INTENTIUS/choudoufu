@@ -1,15 +1,15 @@
 {
   "generated_by": "tools/forkdiff-gen (go run ./tools/forkdiff-gen)",
-  "fork_point": "2b6193043d500dcfef1f3b4f4819b938b667099f",
-  "fork_point_short": "2b6193043d",
-  "fork_point_subject": "Bump version v1.13.0",
-  "measured_at_head": "39a628b128cca82dbfae3ed66f8c04ef6379e19c",
-  "generated_at": "2026-11-04T20:11:39Z",
-  "base_opentofu_version": "1.13.0",
+  "fork_point": "765062032c46cacab116b36d714db098b806dede",
+  "fork_point_short": "765062032c",
+  "fork_point_subject": "Prepare v1.13.2 release (#4753)",
+  "measured_at_head": "c0ac752568be4f4b67806b3e555c1058909b79aa",
+  "generated_at": "2026-11-04T21:45:17Z",
+  "base_opentofu_version": "1.13.2",
   "counts": {
     ".github/": 25,
     "internal/live/": 1903,
-    "live/": 723,
+    "live/": 744,
     "other": 1717,
     "site/": 94,
     "tools/": 583
@@ -5731,6 +5731,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/override/aws_destroy_from_config.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_destroy_from_config_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/override/aws_elasticache_user_no_password.go",
         "status": "A"
       },
@@ -5768,14 +5776,6 @@
       },
       {
         "path": "internal/live/override/aws_security_group_rule_cidr_order_test.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/override/aws_service_discovery_service_failure_threshold.go",
-        "status": "A"
-      },
-      {
-        "path": "internal/live/override/aws_service_discovery_service_failure_threshold_test.go",
         "status": "A"
       },
       {
@@ -9593,7 +9593,43 @@
         "status": "A"
       },
       {
+        "path": "live/override-repro/db-instance-snapshot/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/db-instance-snapshot/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/db-instance-snapshot/v1/net.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/db-instance-snapshot/v2/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/db-instance-snapshot/v2/net.tf",
+        "status": "A"
+      },
+      {
         "path": "live/override-repro/drive.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/ecr-force-delete/between.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/ecr-force-delete/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/ecr-force-delete/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/ecr-force-delete/v2/main.tf",
         "status": "A"
       },
       {
@@ -9610,6 +9646,22 @@
       },
       {
         "path": "live/override-repro/elasticache-user-42712/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/iam-user-force-destroy/between.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/iam-user-force-destroy/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/iam-user-force-destroy/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/iam-user-force-destroy/v2/main.tf",
         "status": "A"
       },
       {
@@ -9674,6 +9726,38 @@
       },
       {
         "path": "live/override-repro/route-table-17198/v2/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/route53-zone-force-destroy/between.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/route53-zone-force-destroy/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/route53-zone-force-destroy/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/route53-zone-force-destroy/v2/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/s3-force-destroy/between.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/s3-force-destroy/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/s3-force-destroy/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/s3-force-destroy/v2/main.tf",
         "status": "A"
       },
       {
