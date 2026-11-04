@@ -185,8 +185,8 @@ func TestRegistryIsComplete(t *testing.T) {
 		if strings.Count(o.Provider, "/") != 1 {
 			t.Errorf("%s: provider %q is not namespace/type", o.Name, o.Provider)
 		}
-		if o.Type == "" || o.Summary == "" || o.ProvenOn == "" || (o.Plan == nil && o.Apply == nil) {
-			t.Errorf("%s: Type, Summary, ProvenOn and a Plan or Apply hook are all required", o.Name)
+		if o.Type == "" || o.Summary == "" || o.ProvenOn == "" || (o.Plan == nil && o.Apply == nil && len(o.DestroyFromConfig) == 0) {
+			t.Errorf("%s: Type, Summary, ProvenOn and a Plan, Apply or DestroyFromConfig hook are all required", o.Name)
 		}
 		switch o.Approach {
 		case RewriteConfig, RewriteDiff, AroundCall, Refuse, HandleItself:

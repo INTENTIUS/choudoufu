@@ -52,6 +52,9 @@ func TableJSON() ([]byte, error) {
 		if o.Apply != nil {
 			r.Hooks = append(r.Hooks, "apply")
 		}
+		if len(o.DestroyFromConfig) > 0 {
+			r.Hooks = append(r.Hooks, "destroy-from-config")
+		}
 		for path, ty := range o.Requires {
 			r.Requires[path] = ty.FriendlyName()
 		}

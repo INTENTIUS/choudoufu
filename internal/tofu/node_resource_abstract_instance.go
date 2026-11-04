@@ -27,6 +27,7 @@ import (
 	"github.com/intentius/choudoufu/internal/lang/evalchecks"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/absent"
+	"github.com/intentius/choudoufu/internal/live/override"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -848,7 +849,7 @@ func (n *NodeAbstractResourceInstance) planDestroy(ctx context.Context, evalCtx 
 	// operation.
 	nullVal := cty.NullVal(unmarkedPriorVal.Type())
 
-	provider, _, err := n.getProvider(ctx, evalCtx)
+	provider, providerSchema, err := n.getProvider(ctx, evalCtx)
 	if err != nil {
 		return plan, diags.Append(err)
 	}
@@ -857,6 +858,31 @@ func (n *NodeAbstractResourceInstance) planDestroy(ctx context.Context, evalCtx 
 	diags = diags.Append(metaDiags)
 	if diags.HasErrors() {
 		return plan, diags
+	}
+
+	// GitHub issue #2309 (hashicorp/terraform-provider-aws#2588): a provider
+	// override can name destroy-time arguments, such as skip_final_snapshot,
+	// whose configured value the delete should use in place of the one last
+	// applied. Only for a current object whose configuration still exists;
+	// configuration that does not evaluate leaves the stock destroy alone.
+	before := currentState.Value
+	if n.Config != nil && deposedKey == states.NotDeposed {
+		typeName := n.Addr.Resource.Resource.Type
+		if len(override.DestroyAttributes(ctx, provider, typeName)) > 0 {
+			schema, _ := providerSchema.SchemaForResourceAddr(n.Addr.Resource.Resource)
+			forEach, _ := evaluateForEachExpression(ctx, n.Config.ForEach, evalCtx, n.Addr)
+			keyData := EvalDataForInstanceKey(n.ResourceInstanceAddr().Resource.Key, forEach)
+			if schema.Block != nil {
+				configVal, _, configDiags := evalCtx.EvaluateBlock(ctx, n.Config.Config, schema.Block, nil, keyData)
+				if !configDiags.HasErrors() {
+					var overrideDiags tfdiags.Diagnostics
+					unmarkedPriorVal, overrideDiags = override.DestroyConfig(ctx, provider, typeName, unmarkedPriorVal, configVal)
+					diags = diags.Append(overrideDiags.InConfigBody(n.Config.Config, n.Addr.String()))
+					_, priorPaths := currentState.Value.UnmarkDeepWithPaths()
+					before = unmarkedPriorVal.MarkWithPaths(priorPaths)
+				}
+			}
+		}
 	}
 
 	// Allow the provider to check the destroy plan, and insert any necessary
@@ -902,7 +928,7 @@ func (n *NodeAbstractResourceInstance) planDestroy(ctx context.Context, evalCtx 
 		DeposedKey:  deposedKey,
 		Change: plans.Change{
 			Action:         plans.Delete,
-			Before:         currentState.Value,
+			Before:         before,
 			After:          nullVal,
 			AfterIdentity:  resp.PlannedIdentity,
 			BeforeIdentity: currentState.Identity,

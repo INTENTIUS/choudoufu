@@ -94,9 +94,17 @@ type Override struct {
 	// Plan is the override's PlanResourceChange hook, if it has one.
 	Plan PlanFunc
 
-	// Apply is the override's ApplyResourceChange hook, if it has one. An
-	// override has at least one of Plan and Apply.
+	// Apply is the override's ApplyResourceChange hook, if it has one.
 	Apply ApplyFunc
+
+	// DestroyFromConfig names top-level attributes that, when a resource
+	// still in configuration is destroyed, take their configured value in
+	// place of the one in state before the provider deletes it. Stock
+	// OpenTofu sends a delete only the state, so flipping one of these in
+	// configuration and running destroy does nothing (see [DestroyConfig]).
+	//
+	// An override has at least one of Plan, Apply and DestroyFromConfig.
+	DestroyFromConfig []string
 }
 
 var registry = map[string]Override{}

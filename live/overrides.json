@@ -103,6 +103,23 @@
       }
     },
     {
+      "name": "aws-rds-cluster-destroy-from-config",
+      "provider": "hashicorp/aws",
+      "type": "aws_rds_cluster",
+      "approach": "A",
+      "sdk": "SDKv2",
+      "upstream": "hashicorp/terraform-provider-aws#2588",
+      "summary": "Destroy ignores skip_final_snapshot and final_snapshot_identifier as configured, using the values last applied",
+      "proven_on": "6.71.0",
+      "hooks": [
+        "destroy-from-config"
+      ],
+      "requires": {
+        "final_snapshot_identifier": "string",
+        "skip_final_snapshot": "bool"
+      }
+    },
+    {
       "name": "aws-route-table-route-empty-strings",
       "provider": "hashicorp/aws",
       "type": "aws_route_table",
