@@ -7,9 +7,9 @@
 // the claim every release repeats and nothing had measured: "everything
 // outside live resource markers is stock OpenTofu."
 //
-// It diffs HEAD against the fork point - upstream commit 2b6193043d, the
-// OpenTofu v1.13.0 tag, the upstream tree this checkout last merged from
-// github.com/opentofu/opentofu (#1778) - and
+// It diffs HEAD against the fork point - upstream commit 765062032c, the
+// OpenTofu v1.13.2 tag, the upstream tree this checkout last merged from
+// github.com/opentofu/opentofu (#2242; v1.13.0 came in with #1778) - and
 // groups every changed path (added, modified, deleted) by top-level root:
 // internal/live/, tools/, live/, site/, .github/, and a catch-all
 // "other" for anything not under one of those. live/forkdiff_test.go (issue
@@ -46,14 +46,15 @@
 // reckoning - `git merge-base --is-ancestor` says no. Upstream trees enter
 // this history as grafts instead (#1778, ruling 5): v1.13.0's tree was
 // committed as 2958e54f45 with the re-rooted original fork point
-// (46ee2e77a3, a copy of upstream 03743ce6e8) as its parent, and merged.
-// The graft's tree is byte-identical to 2b6193043d's (53f60e3359), so
-// diffing against either gives the same surface. This tool names
-// 2b6193043d because it is the hash a reader can look up in
+// (46ee2e77a3, a copy of upstream 03743ce6e8) as its parent, and merged;
+// v1.13.2's tree was then committed as 93bb2800b4 on top of 2958e54f45 and
+// merged the same way (#2242). The graft's tree is byte-identical to
+// 765062032c's, so diffing against either gives the same surface. This
+// tool names 765062032c because it is the hash a reader can look up in
 // opentofu/opentofu; live/ci_coverage_test.go's upstreamBaseCommit names
 // the graft because a CI guard needs a commit on HEAD's ancestry. What this
 // tool runs is a content diff between two fixed commits
-// (`git diff 2b6193043d HEAD`), which needs no ancestry at all and is
+// (`git diff 765062032c HEAD`), which needs no ancestry at all and is
 // unaffected by how the history in between is shaped. But it also
 // means the fork point never advances by itself. If choudoufu ever
 // backports an upstream commit into internal/ outside internal/live/, that
@@ -107,10 +108,11 @@ const (
 	forkSurfaceJSONRel = "live/fork-surface.json"
 
 	// forkPointCommit is the upstream opentofu/opentofu commit whose tree
-	// this fork last merged: the v1.13.0 tag (#1778). Until that merge it
-	// was 03743ce6e8, upstream main at 1.13.0-dev. See the package doc for
-	// why it is a literal hash rather than something derived from ancestry.
-	forkPointCommit = "2b6193043d"
+	// this fork last merged: the v1.13.2 tag (#2242). Before that it was
+	// 2b6193043d, the v1.13.0 tag (#1778), and before that 03743ce6e8,
+	// upstream main at 1.13.0-dev. See the package doc for why it is a
+	// literal hash rather than something derived from ancestry.
+	forkPointCommit = "765062032c"
 
 	// modulePathOld and modulePathNew are the two ends of the module-path
 	// rename the mechanical-change filter recognizes, quoted-import-only

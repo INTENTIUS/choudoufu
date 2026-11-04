@@ -41,6 +41,15 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.33.0 (Unreleased)
 
+Built on OpenTofu 1.13.2 (upstream tag v1.13.2 `765062032c`), up from 1.13.0 (#2242). The two upstream patch releases bring:
+
+- Go 1.27.3, which filters out compromised intermediate certificates (GO-2026-6809).
+- Ephemeral output values are re-evaluated during apply instead of sometimes reusing a stale plan-time value.
+- Plan files made from a configuration that uses symbol libraries now carry those files and apply again.
+- `choudoufu -chdir=DIR -version` prints the version instead of failing.
+- Autocompletion for `workspace select` and `workspace delete` predicts existing workspace names again.
+- `show -json` on a plan file works again when the configuration has ephemeral resources, and a `lifecycle` `destroy` expression with references reports an error rather than crashing.
+
 ## choudoufu v0.32.0 (2026-10-29)
 
 Built on OpenTofu 1.13.0 (upstream tag v1.13.0 `2b6193043d`). Board snapshot: [`live/history/v0.32.0.json`](live/history/v0.32.0.json).

@@ -148,11 +148,10 @@ var forkOwnedMixedRoots = []string{
 // this commit's tree was added by this fork, which is what makes "does the
 // fork own this subpackage" a measurement rather than a claim in a comment.
 //
-// It is the graft from #1778 (ruling 5): OpenTofu v1.13.0's tree (upstream
-// 2b6193043d, the commit tools/forkdiff-gen calls the fork point) committed
-// with the re-rooted original fork point 46ee2e77a3 as its parent, then
-// merged into this fork. Same tree as 2b6193043d (53f60e3359), different
-// SHA. forkdiff-gen names upstream's own commit because it runs a content
+// It is the graft from #2242: OpenTofu v1.13.2's tree (upstream
+// 765062032c, the commit tools/forkdiff-gen calls the fork point) committed
+// with #1778's v1.13.0 graft 2958e54f45 as its parent, then merged into
+// this fork. Same tree as 765062032c, different SHA. forkdiff-gen names upstream's own commit because it runs a content
 // diff and wants a hash a reader can find in opentofu/opentofu; that commit
 // is in this checkout only through the `upstream` remote. The graft is an
 // ancestor of HEAD, so the workflow's existing fetch-depth: 0 is enough and
@@ -165,7 +164,7 @@ var forkOwnedMixedRoots = []string{
 // checkUpstreamBase below asserts the ancestry rather than trusting this
 // comment, so a repin to a commit only a local clone can see fails here
 // instead of only in CI.
-const upstreamBaseCommit = "2958e54f45f2072c9d2389b38aec969903ef051e"
+const upstreamBaseCommit = "93bb2800b4face7cac17f04fb52f758c71ed7a2f"
 
 // ciExcludedPackages names a fork-owned test package CI deliberately does
 // not run, and why. Empty is the intended state. An entry here is a
@@ -415,7 +414,7 @@ func forkOwnedTestPackages(t *testing.T) []string {
 // That is what makes the pin CI-reachable: `actions/checkout` fetches this
 // repository, so a commit on HEAD's ancestry is guaranteed present under the
 // workflow's fetch-depth: 0 and a commit off it is not. forkdiff-gen's
-// 2b6193043d is the second kind - resolvable here only because a developer
+// 765062032c is the second kind - resolvable here only because a developer
 // clone carries an `upstream` remote - and repinning to something like it
 // would pass every local run and fail every CI one.
 func checkUpstreamBase(t *testing.T) {
@@ -426,7 +425,7 @@ func checkUpstreamBase(t *testing.T) {
 		t.Fatalf("upstreamBaseCommit %s is not an ancestor of HEAD (%v).\n"+
 			"This guard classifies mixed-root subpackages against that commit's tree, and CI reaches "+
 			"it only through this repository's own history. Pin it to the last upstream commit that is "+
-			"on HEAD's ancestry - the graft, not tools/forkdiff-gen's upstream 2b6193043d - "+
+			"on HEAD's ancestry - the graft, not tools/forkdiff-gen's upstream 765062032c - "+
 			"or, if the checkout is shallow, deepen it.",
 			upstreamBaseCommit, err)
 	}
