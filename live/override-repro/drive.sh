@@ -36,6 +36,15 @@ if [ $a -eq 0 ]; then
     mutate-plan) cp "$R/$X/v2/"* "$W/"; step plan -detailed-exitcode; v "plan after mutation rc=$? (2 = a diff)";;
     mutate-apply) step plan -detailed-exitcode; v "plan after apply rc=$?"; cp "$R/$X/v2/"* "$W/"; step plan -detailed-exitcode; v "plan v2 rc=$?"; step apply -auto-approve; v "apply v2 rc=$?";;
     mutate-destroy) cp "$R/$X/v2/"* "$W/"; step destroy -auto-approve; v "destroy with v2 config rc=$?"; step apply -auto-approve; v "apply v2 rc=$?";;
+    mutate-destroy-offon)
+      # The destroy-from-config proof in one workspace: something made
+      # outside OpenTofu (between.sh) blocks the delete, the flag that
+      # allows it is flipped in v2, and destroy runs without overrides
+      # (the bug: it should fail) and then with them.
+      if [ -x "$R/$X/between.sh" ]; then SFX=cdf2309 "$R/$X/between.sh" >>"$L" 2>&1; v "between.sh rc=$?"; fi
+      cp "$R/$X/v2/"* "$W/"
+      CHOUDOUFU_PROVIDER_OVERRIDES=off step destroy -auto-approve; v "destroy, overrides off, v2 config rc=$? (stock: expect 1)"
+      step destroy -auto-approve; v "destroy, overrides on, v2 config rc=$? (expect 0)";;
     apply-only) :;;
   esac
 fi

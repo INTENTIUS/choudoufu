@@ -75,6 +75,42 @@
       }
     },
     {
+      "name": "aws-db-instance-destroy-from-config",
+      "provider": "hashicorp/aws",
+      "type": "aws_db_instance",
+      "approach": "A",
+      "sdk": "SDKv2",
+      "upstream": "opentofu/opentofu#3472",
+      "summary": "Destroy ignores skip_final_snapshot, final_snapshot_identifier and delete_automated_backups as configured, using the values last applied",
+      "stock_alternative": "Applying the argument before destroying works in stock OpenTofu, as two runs; the provider documents that for force_destroy. OpenTofu treats destroy as state-only by design (opentofu/opentofu#3472, blocked).",
+      "proven_on": "6.71.0",
+      "hooks": [
+        "destroy-from-config"
+      ],
+      "requires": {
+        "delete_automated_backups": "bool",
+        "final_snapshot_identifier": "string",
+        "skip_final_snapshot": "bool"
+      }
+    },
+    {
+      "name": "aws-ecr-repository-destroy-from-config",
+      "provider": "hashicorp/aws",
+      "type": "aws_ecr_repository",
+      "approach": "A",
+      "sdk": "SDKv2",
+      "upstream": "opentofu/opentofu#3472",
+      "summary": "Destroy ignores force_delete as configured, so a repository with images fails to delete until it has been applied",
+      "stock_alternative": "Applying the argument before destroying works in stock OpenTofu, as two runs; the provider documents that for force_destroy. OpenTofu treats destroy as state-only by design (opentofu/opentofu#3472, blocked).",
+      "proven_on": "6.71.0",
+      "hooks": [
+        "destroy-from-config"
+      ],
+      "requires": {
+        "force_delete": "bool"
+      }
+    },
+    {
       "name": "aws-elasticache-user-no-password",
       "provider": "hashicorp/aws",
       "type": "aws_elasticache_user",
@@ -89,6 +125,23 @@
       ],
       "requires": {
         "authentication_mode.type": "string"
+      }
+    },
+    {
+      "name": "aws-iam-user-destroy-from-config",
+      "provider": "hashicorp/aws",
+      "type": "aws_iam_user",
+      "approach": "A",
+      "sdk": "SDKv2",
+      "upstream": "opentofu/opentofu#3472",
+      "summary": "Destroy ignores force_destroy as configured, so a user with keys or a login profile made outside OpenTofu fails to delete until it has been applied",
+      "stock_alternative": "Applying the argument before destroying works in stock OpenTofu, as two runs; the provider documents that for force_destroy. OpenTofu treats destroy as state-only by design (opentofu/opentofu#3472, blocked).",
+      "proven_on": "6.71.0",
+      "hooks": [
+        "destroy-from-config"
+      ],
+      "requires": {
+        "force_destroy": "bool"
       }
     },
     {
@@ -144,6 +197,40 @@
       ],
       "requires": {
         "route": "set of object"
+      }
+    },
+    {
+      "name": "aws-route53-zone-destroy-from-config",
+      "provider": "hashicorp/aws",
+      "type": "aws_route53_zone",
+      "approach": "A",
+      "sdk": "SDKv2",
+      "upstream": "opentofu/opentofu#3472",
+      "summary": "Destroy ignores force_destroy as configured, so a zone with records made outside OpenTofu fails to delete until it has been applied",
+      "stock_alternative": "Applying the argument before destroying works in stock OpenTofu, as two runs; the provider documents that for force_destroy. OpenTofu treats destroy as state-only by design (opentofu/opentofu#3472, blocked).",
+      "proven_on": "6.71.0",
+      "hooks": [
+        "destroy-from-config"
+      ],
+      "requires": {
+        "force_destroy": "bool"
+      }
+    },
+    {
+      "name": "aws-s3-bucket-destroy-from-config",
+      "provider": "hashicorp/aws",
+      "type": "aws_s3_bucket",
+      "approach": "A",
+      "sdk": "SDKv2",
+      "upstream": "opentofu/opentofu#3472",
+      "summary": "Destroy ignores force_destroy as configured, so a bucket with objects fails to delete until force_destroy has been applied",
+      "stock_alternative": "Applying the argument before destroying works in stock OpenTofu, as two runs; the provider documents that for force_destroy. OpenTofu treats destroy as state-only by design (opentofu/opentofu#3472, blocked).",
+      "proven_on": "6.71.0",
+      "hooks": [
+        "destroy-from-config"
+      ],
+      "requires": {
+        "force_destroy": "bool"
       }
     },
     {
