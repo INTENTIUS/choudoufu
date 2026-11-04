@@ -64,11 +64,16 @@ Every platform is fully compatible with the stock provider for that
 platform, as published at the pin: `hashicorp/aws`, `hashicorp/kubernetes`,
 `hashicorp/google` and `google-beta`, `hashicorp/azurerm`, `azure/azapi`.
 
-- No provider fork, patch or wrapper.
+- No provider fork or patch. The one wrapper is the declared provider
+  overrides (#2309, `internal/live/override`, table in `live/overrides.json`).
 - The marker goes in only through arguments the stock provider already
   accepts, on the create call it already makes.
-- Apart from that argument, the plan is what stock would show. No resources
-  are synthesized.
+- Apart from that argument and the overrides, the plan is what stock would
+  show. No resources are synthesized. Each override that changes a plan says
+  so in that plan, by name.
+- An override adds no argument to the provider's schema and writes no state
+  stock would not write, so `CHOUDOUFU_PROVIDER_OVERRIDES=off` gives the stock
+  plan, and stock OpenTofu reads whatever an override left behind.
 - The exit holds: delete `estate.chdf.hcl` (or the `live` block), keep the cache, and stock
   OpenTofu with the same provider carries on.
 - Every configuration stock accepts either works or is refused by name with

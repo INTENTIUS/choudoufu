@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/live/override"
 )
 
 // This file makes the project's most-repeated standing rule mechanical.
@@ -1219,6 +1221,10 @@ func walkTypeLiterals(t *testing.T) (map[string]typeLiteralCensus, int) {
 
 	forEachHandWrittenGoFile(t, func(rel string, f *ast.File, fset *token.FileSet) {
 		files++
+		if strings.HasPrefix(rel, overrideRegistryDir) {
+			// Counted by TestOverrideTypeLiteralsAreTheRegistry instead.
+			return
+		}
 		c := out[rel]
 		parents := parentMap(f)
 		ast.Inspect(f, func(n ast.Node) bool {
@@ -1246,6 +1252,63 @@ func walkTypeLiterals(t *testing.T) (map[string]typeLiteralCensus, int) {
 		}
 	})
 	return out, files
+}
+
+// overrideRegistryDir holds the provider behaviour overrides (GitHub issue
+// #2309). Each one is a hand-written fact about one named resource type by
+// definition: it stands in for one upstream bug on that type, and the reason
+// it cannot be derived is the upstream issue each row must cite. So the
+// directory is not registered file by file in typeLiteralSurfaces, which
+// would put a shared edit in every parallel override unit. Its literals are
+// held to the registry instead: [TestOverrideTypeLiteralsAreTheRegistry].
+const overrideRegistryDir = "internal/live/override/"
+
+// TestOverrideTypeLiteralsAreTheRegistry is the override directory's form of
+// this guard: outside tests, the only provider type literals are the Type of
+// a registered override, one per override, and each override cites the
+// upstream issue it stands in for (override.TestRegistryIsComplete). A type
+// named anywhere else in the package - inside control flow, in a helper - is
+// hand-wiring this guard catches.
+func TestOverrideTypeLiteralsAreTheRegistry(t *testing.T) {
+	registered := map[string]int{}
+	for _, o := range override.All() {
+		registered[o.Type]++
+	}
+	found := map[string]int{}
+	forEachHandWrittenGoFile(t, func(rel string, f *ast.File, fset *token.FileSet) {
+		if !strings.HasPrefix(rel, overrideRegistryDir) || strings.HasSuffix(rel, "_test.go") {
+			return
+		}
+		parents := parentMap(f)
+		ast.Inspect(f, func(n ast.Node) bool {
+			bl, ok := n.(*ast.BasicLit)
+			if !ok || bl.Kind != token.STRING {
+				return true
+			}
+			v, err := strconv.Unquote(bl.Value)
+			if err != nil || !providerTypeLiteral.MatchString(v) {
+				return true
+			}
+			if inFunctionBody(parents, bl) {
+				t.Errorf("%s:%d names %q inside a function body; an override names its type only in its registry entry", rel, fset.Position(bl.Pos()).Line, v)
+			}
+			found[v]++
+			return true
+		})
+	})
+	if len(registered) == 0 {
+		t.Fatal("no overrides registered; the walk or the registry is broken")
+	}
+	for typ, n := range found {
+		if registered[typ] != n {
+			t.Errorf("%s names %q %d times outside tests and %d registered overrides act on it", overrideRegistryDir, typ, n, registered[typ])
+		}
+	}
+	for typ, n := range registered {
+		if found[typ] != n {
+			t.Errorf("%d registered overrides act on %q and the walk finds %d literals for it", n, typ, found[typ])
+		}
+	}
 }
 
 // typeLiteralRoots is the same "what this fork owns" list ci_coverage_test.go
