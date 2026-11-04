@@ -2808,6 +2808,29 @@ Everything below this line is upstream OpenTofu's changelog for the version this
 
 The v1.13.x release series is supported until **August 1 2027**.
 
+## 1.13.3 (Unreleased)
+
+## 1.13.2
+
+SECURITY ADVISORIES:
+
+- Previous versions of OpenTofu could potentially experience excessive CPU usage if connecting to an attacker-controlled HTTP2 server while installing dependencies in `tofu init`. ([#4681](https://github.com/opentofu/opentofu/pull/4681))
+- Filter out compromised intermediate certificates ([#4750](https://github.com/opentofu/opentofu/pull/4750))
+
+BUG FIXES:
+
+- Lifecycle destroy will no longer crash when given an expression with references ([#4648](https://github.com/opentofu/opentofu/pull/4648))
+- `tofu workspace select` and `tofu workspace delete` autocompletion predicts from the existing workspaces. This restores the behavior pre-v1.13 ([#4706](https://github.com/opentofu/opentofu/pull/4706))
+- Combined usage of `-chdir` and `-version` flags does not show an error anymore but instead shows the version of the `tofu` binary ([#4707](https://github.com/opentofu/opentofu/pull/4707))
+- Symbol libraries are now saved in plan files and no-longer prevent applying of plan files ([#4734](https://github.com/opentofu/opentofu/pull/4734))
+
+## 1.13.1
+
+BUG FIXES:
+
+- `tofu show -json <planfile>` now works again when ephemeral resources are present in the configuration. ([#4623](https://github.com/opentofu/opentofu/pull/4623))
+-  Ephemeral output values are now always re-evaluated during the apply phase, instead of sometimes using stale values from the planning phase. ([#4582](https://github.com/opentofu/opentofu/issues/4582))
+
 ## 1.13.0
 
 UPGRADE NOTES:
