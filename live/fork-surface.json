@@ -3,16 +3,16 @@
   "fork_point": "2b6193043d500dcfef1f3b4f4819b938b667099f",
   "fork_point_short": "2b6193043d",
   "fork_point_subject": "Bump version v1.13.0",
-  "measured_at_head": "1c86dd56a151233ddacb59e536e85b78ee07bc8d",
-  "generated_at": "2026-10-28T05:27:36Z",
+  "measured_at_head": "39a628b128cca82dbfae3ed66f8c04ef6379e19c",
+  "generated_at": "2026-11-04T20:11:39Z",
   "base_opentofu_version": "1.13.0",
   "counts": {
     ".github/": 25,
-    "internal/live/": 1875,
-    "live/": 677,
-    "other": 1716,
-    "site/": 96,
-    "tools/": 580
+    "internal/live/": 1903,
+    "live/": 723,
+    "other": 1717,
+    "site/": 94,
+    "tools/": 583
   },
   "files": {
     ".github/": [
@@ -5707,6 +5707,110 @@
         "status": "A"
       },
       {
+        "path": "internal/live/override/aws_amplify_app_custom_headers.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_amplify_app_custom_headers_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_appconfig_hosted_configuration_version_flag_timestamps.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_appconfig_hosted_configuration_version_flag_timestamps_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_backup_region_settings_subset.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_backup_region_settings_subset_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_elasticache_user_no_password.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_elasticache_user_no_password_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_lb_target_group_replace_in_use.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_lb_target_group_replace_in_use_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_rds_cluster_destroy_from_config.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_rds_cluster_destroy_from_config_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_route_table_route_empty_strings.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_route_table_route_empty_strings_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_security_group_rule_cidr_order.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_security_group_rule_cidr_order_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_service_discovery_service_failure_threshold.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/aws_service_discovery_service_failure_threshold_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/destroy_config.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/doc.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/enabled.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/keep_prior.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/override.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/override_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/table.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/override/wrap.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/passthrough/refusals.go",
         "status": "A"
       },
@@ -7035,6 +7139,14 @@
         "status": "A"
       },
       {
+        "path": "internal/live/scenarioestate/scenarioestate.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/scenarioestate/scenarioestate_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/servicetags/doc.go",
         "status": "A"
       },
@@ -8010,6 +8122,10 @@
       },
       {
         "path": "live/e2e/corpus-eks-basic/run.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/e2e/corpus-eks-managed-node-group/run.sh",
         "status": "A"
       },
       {
@@ -9209,6 +9325,10 @@
         "status": "A"
       },
       {
+        "path": "live/history/v0.32.0.json",
+        "status": "A"
+      },
+      {
         "path": "live/history/v0.4.0.json",
         "status": "A"
       },
@@ -9250,10 +9370,6 @@
       },
       {
         "path": "live/import-grammar.json",
-        "status": "A"
-      },
-      {
-        "path": "live/indexwait_partition_test.go",
         "status": "A"
       },
       {
@@ -9349,43 +9465,11 @@
         "status": "A"
       },
       {
-        "path": "live/live-cert/selftest-heartbeat.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/live-cert/selftest-hold-resume.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/live-cert/selftest-iam-headroom.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/live-cert/selftest-index-wait.sh",
-        "status": "A"
-      },
-      {
         "path": "live/live-cert/selftest-kill.sh",
         "status": "A"
       },
       {
         "path": "live/live-cert/selftest-pagination.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/live-cert/selftest-prefix-count.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/live-cert/selftest-record-store-s3.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/live-cert/selftest-teardown-timeout.sh",
-        "status": "A"
-      },
-      {
-        "path": "live/live-cert/terralith-scale.sh",
         "status": "A"
       },
       {
@@ -9446,6 +9530,210 @@
       },
       {
         "path": "live/oracle-versions.json",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/README.md",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/_common/net.tf.inc",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/_common/versions.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/amplify-headers-34318/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/amplify-headers-34318/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/appautoscaling-tags-31839/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/appautoscaling-tags-31839/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/appautoscaling-tags-31839/v1/net.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/appconfig-44847-20273/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/appconfig-44847-20273/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/appconfig-44847-20273/v2/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/backup-region-22744/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/backup-region-22744/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/cfn-noecho-10300/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/cfn-noecho-10300/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/drive.sh",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/ecs-taskdef-11526/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/ecs-taskdef-11526/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/elasticache-user-42712/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/elasticache-user-42712/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/kms-policy-30232/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/kms-policy-30232/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/lambda-iam-29828/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/lambda-iam-29828/v1/fn.zip",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/lambda-iam-29828/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/policy-order-22314/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/policy-order-22314/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/policy-order-22314/v2/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/rds-snapshot-2588/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/rds-snapshot-2588/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/rds-snapshot-2588/v1/net.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/rds-snapshot-2588/v2/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/rds-snapshot-2588/v2/net.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/route-table-17198/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/route-table-17198/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/route-table-17198/v2/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/servicediscovery-35559/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/servicediscovery-35559/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/sg-rule-19082/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/sg-rule-19082/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/sg-rule-19082/v2/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/ssm-doc-42125/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/ssm-doc-42125/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/tg-listener-16889/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/tg-listener-16889/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/tg-listener-16889/v1/net.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/tg-listener-16889/v2/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/tg-listener-16889/v2/net.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/wafv2-drift-33124/kind",
+        "status": "A"
+      },
+      {
+        "path": "live/override-repro/wafv2-drift-33124/v1/main.tf",
+        "status": "A"
+      },
+      {
+        "path": "live/overrides.json",
         "status": "A"
       },
       {
@@ -10257,6 +10545,14 @@
         "status": "A"
       },
       {
+        "path": "live/smoke_claims_product_test.go",
+        "status": "A"
+      },
+      {
+        "path": "live/smoke_claims_terragucci_test.go",
+        "status": "A"
+      },
+      {
         "path": "live/smoke_claims_test.go",
         "status": "A"
       },
@@ -10409,6 +10705,10 @@
       {
         "path": "CONTRIBUTING.md",
         "status": "M"
+      },
+      {
+        "path": "EVIDENCE.md",
+        "status": "A"
       },
       {
         "path": "GOVERNANCE.md",
@@ -17337,6 +17637,10 @@
         "status": "A"
       },
       {
+        "path": "site/src/components/ProductHome.astro",
+        "status": "A"
+      },
+      {
         "path": "site/src/components/Room.astro",
         "status": "A"
       },
@@ -17385,10 +17689,6 @@
         "status": "A"
       },
       {
-        "path": "site/src/content/docs/aws/proof.mdx",
-        "status": "A"
-      },
-      {
         "path": "site/src/content/docs/azure/adopt.mdx",
         "status": "A"
       },
@@ -17406,10 +17706,6 @@
       },
       {
         "path": "site/src/content/docs/azure/operate.mdx",
-        "status": "A"
-      },
-      {
-        "path": "site/src/content/docs/azure/proof.mdx",
         "status": "A"
       },
       {
@@ -17485,10 +17781,6 @@
         "status": "A"
       },
       {
-        "path": "site/src/content/docs/gcp/proof.mdx",
-        "status": "A"
-      },
-      {
         "path": "site/src/content/docs/how-it-works/across-estates.md",
         "status": "A"
       },
@@ -17537,7 +17829,7 @@
         "status": "A"
       },
       {
-        "path": "site/src/content/docs/kubernetes/proof.mdx",
+        "path": "site/src/data/products.mjs",
         "status": "A"
       },
       {
@@ -19151,6 +19443,10 @@
         "status": "A"
       },
       {
+        "path": "tools/override-gen/main.go",
+        "status": "A"
+      },
+      {
         "path": "tools/provider-bump-report/main.go",
         "status": "A"
       },
@@ -19659,6 +19955,10 @@
         "status": "A"
       },
       {
+        "path": "tools/scenario-estate/main.go",
+        "status": "A"
+      },
+      {
         "path": "tools/statpages/board.go",
         "status": "A"
       },
@@ -19672,6 +19972,10 @@
       },
       {
         "path": "tools/statpages/iam.go",
+        "status": "A"
+      },
+      {
+        "path": "tools/statpages/productscenario.go",
         "status": "A"
       },
       {

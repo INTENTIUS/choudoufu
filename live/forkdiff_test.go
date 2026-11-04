@@ -129,6 +129,7 @@ var otherAllowlist = []otherAllowEntry{
 	{"CONTRIBUTING.md", "root governance/identity doc rewritten for choudoufu; content, not code"},
 	{"GOVERNANCE.md", "root governance/identity doc rewritten for choudoufu; content, not code"},
 	{"MAINTAINERS.md", "root governance/identity doc rewritten for choudoufu; content, not code"},
+	{"EVIDENCE.md", "fork-authored root doc (d66fd6a8ee): what choudoufu has been checked against and where the records are, updated each release; content, not code"},
 	{"SECURITY.md", "root governance/identity doc rewritten for choudoufu; content, not code"},
 	{"CODEOWNERS", "deleted: choudoufu does not carry GitHub's per-path review-routing file; HANDOFF.md and the gauntlet briefs are this fork's routing instead"},
 	{"HANDOFF.md", "new: this fork's single entry point, described in its own header"},
