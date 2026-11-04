@@ -53,14 +53,15 @@ func routeTableRouteType() cty.Type {
 // and re-added. Reproduced on real AWS with provider 6.71.0 on 2026-11-04
 // (#2309, live/override-repro/route-table-17198).
 var _ = register(Override{
-	Name:     "aws-route-table-route-empty-strings",
-	Provider: awsProvider,
-	Type:     "aws_route_table",
-	Approach: RewriteConfig,
-	SDK:      SDKv2,
-	Upstream: "hashicorp/terraform-provider-aws#17198",
-	Summary:  "Changing one inline route lists every route removed and re-added, because unset route fields are null in configuration and \"\" in state",
-	ProvenOn: "6.71.0",
+	Name:             "aws-route-table-route-empty-strings",
+	Provider:         awsProvider,
+	Type:             "aws_route_table",
+	Approach:         RewriteConfig,
+	SDK:              SDKv2,
+	Upstream:         "hashicorp/terraform-provider-aws#17198",
+	StockAlternative: "Declaring routes as separate aws_route resources avoids the churn in stock OpenTofu, at the cost of restructuring the configuration; inline routes are common in modules users do not own.",
+	Summary:          "Changing one inline route lists every route removed and re-added, because unset route fields are null in configuration and \"\" in state",
+	ProvenOn:         "6.71.0",
 	Requires: map[string]cty.Type{
 		"route": routeTableRouteType(),
 	},

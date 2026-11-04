@@ -18,14 +18,15 @@ import "github.com/zclconf/go-cty/cty"
 // and read by the same code, and AWS returns both of its types (DynamoDB,
 // EFS) whether or not they are configured.
 var _ = register(Override{
-	Name:     "aws-backup-region-settings-subset",
-	Provider: awsProvider,
-	Type:     "aws_backup_region_settings",
-	Approach: RewriteDiff,
-	SDK:      SDKv2,
-	Upstream: "hashicorp/terraform-provider-aws#22744",
-	Summary:  "Configuring some resource types in resource_type_opt_in_preference or resource_type_management_preference plans every other type AWS returns as removed on every plan",
-	ProvenOn: "6.71.0",
+	Name:             "aws-backup-region-settings-subset",
+	Provider:         awsProvider,
+	Type:             "aws_backup_region_settings",
+	Approach:         RewriteDiff,
+	SDK:              SDKv2,
+	Upstream:         "hashicorp/terraform-provider-aws#22744",
+	StockAlternative: "Listing every resource type AWS returns stops the diff in stock OpenTofu until AWS adds a type, as it did with DSQL; the configuration then drifts again.",
+	Summary:          "Configuring some resource types in resource_type_opt_in_preference or resource_type_management_preference plans every other type AWS returns as removed on every plan",
+	ProvenOn:         "6.71.0",
 	Requires: map[string]cty.Type{
 		"resource_type_opt_in_preference":     cty.Map(cty.Bool),
 		"resource_type_management_preference": cty.Map(cty.Bool),

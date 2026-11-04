@@ -13,6 +13,7 @@
       "sdk": "SDKv2",
       "upstream": "hashicorp/terraform-provider-aws#16889",
       "summary": "Replacing a target group that keeps its name deletes it first, which fails with ResourceInUse while a listener or rule forwards to it",
+      "stock_alternative": "Stock OpenTofu reports the same problem only after the apply has failed. name_prefix with create_before_destroy avoids it; the warning names that before apply.",
       "proven_on": "6.71.0",
       "hooks": [
         "plan"
@@ -29,6 +30,7 @@
       "sdk": "SDKv2",
       "upstream": "hashicorp/terraform-provider-aws#34318",
       "summary": "custom_headers written as YAML plans an update on every plan, because AWS returns the same headers as JSON without the customHeaders root key",
+      "stock_alternative": "None: AWS rejects the form it returns (no customHeaders root key), so no configuration matches what is read back.",
       "proven_on": "6.71.0",
       "hooks": [
         "plan"
@@ -45,6 +47,7 @@
       "sdk": "SDKv2",
       "upstream": "hashicorp/terraform-provider-aws#44847",
       "summary": "The _createdAt and _updatedAt keys AppConfig adds to feature-flag content replace an unchanged version on every plan",
+      "stock_alternative": "Stock OpenTofu offers only lifecycle { ignore_changes = [content] }, which also hides every real content change.",
       "proven_on": "6.71.0",
       "hooks": [
         "plan"
@@ -61,6 +64,7 @@
       "sdk": "SDKv2",
       "upstream": "hashicorp/terraform-provider-aws#22744",
       "summary": "Configuring some resource types in resource_type_opt_in_preference or resource_type_management_preference plans every other type AWS returns as removed on every plan",
+      "stock_alternative": "Listing every resource type AWS returns stops the diff in stock OpenTofu until AWS adds a type, as it did with DSQL; the configuration then drifts again.",
       "proven_on": "6.71.0",
       "hooks": [
         "plan"
@@ -78,6 +82,7 @@
       "sdk": "SDKv2",
       "upstream": "hashicorp/terraform-provider-aws#42712",
       "summary": "authentication_mode type \"no-password-required\" plans an update to \"no-password\" on every plan",
+      "stock_alternative": "None: the provider rejects no-password, the value AWS returns, in configuration, so stock users can only ignore_changes the whole authentication_mode block.",
       "proven_on": "6.71.0",
       "hooks": [
         "plan"
@@ -94,6 +99,7 @@
       "sdk": "SDKv2",
       "upstream": "hashicorp/terraform-provider-aws#16889",
       "summary": "Replacing a target group that keeps its name deletes it first, which fails with ResourceInUse while a listener or rule forwards to it",
+      "stock_alternative": "Stock OpenTofu reports the same problem only after the apply has failed. name_prefix with create_before_destroy avoids it; the warning names that before apply.",
       "proven_on": "6.71.0",
       "hooks": [
         "plan"
@@ -110,6 +116,10 @@
       "sdk": "SDKv2",
       "upstream": "hashicorp/terraform-provider-aws#2588",
       "summary": "Destroy ignores skip_final_snapshot and final_snapshot_identifier as configured, using the values last applied",
+      "stock_alternative": "Applying the flag before destroying works in stock OpenTofu, as two runs. OpenTofu treats destroy as state-only by design and calls the real fix a protocol-level destroy-time argument (opentofu/opentofu#3472, blocked).",
+      "also_tracks": [
+        "opentofu/opentofu#3472"
+      ],
       "proven_on": "6.71.0",
       "hooks": [
         "destroy-from-config"
@@ -127,6 +137,7 @@
       "sdk": "SDKv2",
       "upstream": "hashicorp/terraform-provider-aws#17198",
       "summary": "Changing one inline route lists every route removed and re-added, because unset route fields are null in configuration and \"\" in state",
+      "stock_alternative": "Declaring routes as separate aws_route resources avoids the churn in stock OpenTofu, at the cost of restructuring the configuration; inline routes are common in modules users do not own.",
       "proven_on": "6.71.0",
       "hooks": [
         "plan"
@@ -143,6 +154,7 @@
       "sdk": "SDKv2",
       "upstream": "hashicorp/terraform-provider-aws#19082",
       "summary": "Reordering the same CIDRs in cidr_blocks or ipv6_cidr_blocks replaces the rule",
+      "stock_alternative": "Wrapping a list you write in sort() keeps its order stable in stock OpenTofu, and aws_vpc_security_group_ingress_rule takes one CIDR per rule. Neither helps when the list comes from a module or data source whose order changes, which is where the replace bites.",
       "proven_on": "6.71.0",
       "hooks": [
         "plan"
@@ -160,6 +172,7 @@
       "sdk": "SDKv2",
       "upstream": "hashicorp/terraform-provider-aws#35559",
       "summary": "A configured health_check_custom_config failure_threshold other than 1 replaces the service on every plan",
+      "stock_alternative": "Setting failure_threshold = 1 stops the replacement in stock OpenTofu, and the provider's deprecation warning says AWS always stores 1. The override only saves editing that one argument.",
       "proven_on": "6.71.0",
       "hooks": [
         "plan"

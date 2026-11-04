@@ -20,14 +20,15 @@ import "github.com/zclconf/go-cty/cty"
 // than 1 (a service AWS stored a different value for) still plans the
 // change, and so does every other attribute of the service.
 var _ = register(Override{
-	Name:     "aws-service-discovery-service-failure-threshold",
-	Provider: awsProvider,
-	Type:     "aws_service_discovery_service",
-	Approach: RewriteDiff,
-	SDK:      SDKv2,
-	Upstream: "hashicorp/terraform-provider-aws#35559",
-	Summary:  "A configured health_check_custom_config failure_threshold other than 1 replaces the service on every plan",
-	ProvenOn: "6.71.0",
+	Name:             "aws-service-discovery-service-failure-threshold",
+	Provider:         awsProvider,
+	Type:             "aws_service_discovery_service",
+	Approach:         RewriteDiff,
+	SDK:              SDKv2,
+	Upstream:         "hashicorp/terraform-provider-aws#35559",
+	StockAlternative: "Setting failure_threshold = 1 stops the replacement in stock OpenTofu, and the provider's deprecation warning says AWS always stores 1. The override only saves editing that one argument.",
+	Summary:          "A configured health_check_custom_config failure_threshold other than 1 replaces the service on every plan",
+	ProvenOn:         "6.71.0",
 	Requires: map[string]cty.Type{
 		"health_check_custom_config.failure_threshold": cty.Number,
 	},

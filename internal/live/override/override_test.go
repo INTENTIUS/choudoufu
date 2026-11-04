@@ -199,6 +199,14 @@ func TestRegistryIsComplete(t *testing.T) {
 		if o.Approach == RewriteDiff && o.SDK == Framework {
 			t.Errorf("%s: a B rewrite on a Plugin Framework resource is a hard \"Provider produced inconsistent result\" error", o.Name)
 		}
+		if len(o.StockAlternative) < 40 {
+			t.Errorf("%s: StockAlternative must say what stock OpenTofu offers for this problem and why the override is still worth carrying", o.Name)
+		}
+		for _, ref := range o.AlsoTracks {
+			if !strings.HasPrefix(ref, "opentofu/opentofu#") || !upstream.MatchString(ref) {
+				t.Errorf("%s: AlsoTracks entry %q is not opentofu/opentofu#number", o.Name, ref)
+			}
+		}
 		if !upstream.MatchString(o.Upstream) {
 			t.Errorf("%s: upstream %q is not owner/repo#number", o.Name, o.Upstream)
 		}

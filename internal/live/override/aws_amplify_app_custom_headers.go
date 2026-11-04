@@ -21,14 +21,15 @@ import (
 // compares the strings, so every plan shows the JSON being replaced by the
 // YAML. Reproduced on real AWS with provider 6.71.0 on 2026-11-04 (#2309).
 var _ = register(Override{
-	Name:     "aws-amplify-app-custom-headers",
-	Provider: awsProvider,
-	Type:     "aws_amplify_app",
-	Approach: RewriteDiff,
-	SDK:      SDKv2,
-	Upstream: "hashicorp/terraform-provider-aws#34318",
-	Summary:  "custom_headers written as YAML plans an update on every plan, because AWS returns the same headers as JSON without the customHeaders root key",
-	ProvenOn: "6.71.0",
+	Name:             "aws-amplify-app-custom-headers",
+	Provider:         awsProvider,
+	Type:             "aws_amplify_app",
+	Approach:         RewriteDiff,
+	SDK:              SDKv2,
+	Upstream:         "hashicorp/terraform-provider-aws#34318",
+	StockAlternative: "None: AWS rejects the form it returns (no customHeaders root key), so no configuration matches what is read back.",
+	Summary:          "custom_headers written as YAML plans an update on every plan, because AWS returns the same headers as JSON without the customHeaders root key",
+	ProvenOn:         "6.71.0",
 	Requires: map[string]cty.Type{
 		"custom_headers": cty.String,
 	},

@@ -82,6 +82,20 @@ type Override struct {
 	// Summary is one sentence: what users see without the override.
 	Summary string
 
+	// StockAlternative says what a user can do about the problem in stock
+	// OpenTofu today, in configuration or with a stock feature, and why the
+	// override is still worth carrying. An override must never re-fix
+	// something OpenTofu already does: if stock has a feature that solves
+	// the problem, the override is not built (lifecycle { destroy = false }
+	// already keeps an object on replace, which is why
+	// hashicorp/terraform-provider-aws#20273 has no override).
+	StockAlternative string
+
+	// AlsoTracks lists OpenTofu issues, as "opentofu/opentofu#number", whose
+	// fix would make the override redundant. Like Upstream, it is a
+	// retirement trigger: when one closes as fixed, the override goes.
+	AlsoTracks []string
+
 	// ProvenOn is the provider version the override's proof was run
 	// against. It is a record, not a gate: [Requires] is the gate.
 	ProvenOn string
