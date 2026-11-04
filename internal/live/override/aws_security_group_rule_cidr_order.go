@@ -22,6 +22,7 @@ var _ = register(Override{
 	Approach:         RewriteDiff,
 	SDK:              SDKv2,
 	Upstream:         "hashicorp/terraform-provider-aws#19082",
+	Credits:          []Credit{{Login: "Gowiem", For: "reported the bug"}},
 	StockAlternative: "Wrapping a list you write in sort() keeps its order stable in stock OpenTofu, and aws_vpc_security_group_ingress_rule takes one CIDR per rule. Neither helps when the list comes from a module or data source whose order changes, which is where the replace bites.",
 	Summary:          "Reordering the same CIDRs in cidr_blocks or ipv6_cidr_blocks replaces the rule",
 	ProvenOn:         "6.71.0",

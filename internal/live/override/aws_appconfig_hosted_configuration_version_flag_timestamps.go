@@ -28,6 +28,7 @@ var _ = register(Override{
 	Approach:         RewriteDiff,
 	SDK:              SDKv2,
 	Upstream:         "hashicorp/terraform-provider-aws#44847",
+	Credits:          []Credit{{Login: "KyMidd", For: "reported the bug and wrote the fix in the upstream pull request"}},
 	StockAlternative: "Stock OpenTofu offers only lifecycle { ignore_changes = [content] }, which also hides every real content change.",
 	Summary:          "The _createdAt and _updatedAt keys AppConfig adds to feature-flag content replace an unchanged version on every plan",
 	ProvenOn:         "6.71.0",

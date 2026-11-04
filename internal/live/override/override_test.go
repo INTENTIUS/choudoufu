@@ -202,6 +202,17 @@ func TestRegistryIsComplete(t *testing.T) {
 		if len(o.StockAlternative) < 40 {
 			t.Errorf("%s: StockAlternative must say what stock OpenTofu offers for this problem and why the override is still worth carrying", o.Name)
 		}
+		if len(o.Credits) == 0 {
+			t.Errorf("%s: Credits is empty; name who reported the bug, and whose fix it mirrors if an upstream PR has one", o.Name)
+		}
+		for _, c := range o.Credits {
+			if !regexp.MustCompile(`^[A-Za-z0-9](-?[A-Za-z0-9])*$`).MatchString(c.Login) {
+				t.Errorf("%s: credit login %q is not a bare GitHub login (no @, which would notify them)", o.Name, c.Login)
+			}
+			if c.For == "" {
+				t.Errorf("%s: credit %s says nothing about what they did", o.Name, c.Login)
+			}
+		}
 		for _, ref := range o.AlsoTracks {
 			if !strings.HasPrefix(ref, "opentofu/opentofu#") || !upstream.MatchString(ref) {
 				t.Errorf("%s: AlsoTracks entry %q is not opentofu/opentofu#number", o.Name, ref)
