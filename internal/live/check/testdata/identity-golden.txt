@@ -9,14 +9,14 @@
 # touched now renders a different identity. An ADDED line is the
 # campaign working, and its value is still worth reading.
 #
-# shape: dirs=742 instances=2552
+# shape: dirs=766 instances=2601
 # shape: class CONCRETE=1577
-# shape: class NEEDS_DISCOVERY=810
+# shape: class NEEDS_DISCOVERY=859
 # shape: class PARENT_DERIVED=138
 # shape: class RECORD_BACKED=27
-# shape: fixture-dirs=711 fixture-instances=1848
+# shape: fixture-dirs=735 fixture-instances=1897
 # shape: cohort-dirs=31 cohort-instances=704
-# shape: body-sha256=86854ddad0d5f07b35103b77955cf8a974ee526b68af6f5eea6da12a93ba6eaa
+# shape: body-sha256=9c6fd67fe74e5758a0e092eba0490a23f765ad28a0f8ec3a32c3c75ef4531cb2
 #
 # dir <TAB> address <TAB> class <TAB> rendered identity <TAB> identity attributes
 #
@@ -1869,6 +1869,55 @@ live/e2e/record-store	time_static.created	RECORD_BACKED
 live/e2e/tagging-sweep/declared	aws_iam_role.demo	CONCRETE	tagging-sweep-e2e-demo	name=tagging-sweep-e2e-demo
 live/e2e/tagging-sweep/declared	aws_iam_role.keeper	CONCRETE	tagging-sweep-e2e-keeper	name=tagging-sweep-e2e-keeper
 live/e2e/tagging-sweep/removed	aws_iam_role.keeper	CONCRETE	tagging-sweep-e2e-keeper	name=tagging-sweep-e2e-keeper
+live/override-repro/amplify-headers-34318/v1	aws_amplify_app.a	NEEDS_DISCOVERY		
+live/override-repro/appautoscaling-tags-31839/v1	aws_appautoscaling_target.t	NEEDS_DISCOVERY		
+live/override-repro/appautoscaling-tags-31839/v1	aws_ecs_task_definition.t	NEEDS_DISCOVERY		
+live/override-repro/appautoscaling-tags-31839/v1	aws_subnet.a	NEEDS_DISCOVERY		
+live/override-repro/appautoscaling-tags-31839/v1	aws_subnet.b	NEEDS_DISCOVERY		
+live/override-repro/appautoscaling-tags-31839/v1	aws_vpc.v	NEEDS_DISCOVERY		
+live/override-repro/appconfig-44847-20273/v1	aws_appconfig_application.a	NEEDS_DISCOVERY		
+live/override-repro/appconfig-44847-20273/v1	aws_appconfig_configuration_profile.p	NEEDS_DISCOVERY		
+live/override-repro/appconfig-44847-20273/v2	aws_appconfig_application.a	NEEDS_DISCOVERY		
+live/override-repro/appconfig-44847-20273/v2	aws_appconfig_configuration_profile.p	NEEDS_DISCOVERY		
+live/override-repro/ecs-taskdef-11526/v1	aws_ecs_task_definition.t	NEEDS_DISCOVERY		
+live/override-repro/kms-policy-30232/v1	aws_kms_key.k	NEEDS_DISCOVERY		
+live/override-repro/policy-order-22314/v1	aws_iam_policy.ip	NEEDS_DISCOVERY		
+live/override-repro/policy-order-22314/v2	aws_iam_policy.ip	NEEDS_DISCOVERY		
+live/override-repro/rds-snapshot-2588/v1	aws_subnet.a	NEEDS_DISCOVERY		
+live/override-repro/rds-snapshot-2588/v1	aws_subnet.b	NEEDS_DISCOVERY		
+live/override-repro/rds-snapshot-2588/v1	aws_vpc.v	NEEDS_DISCOVERY		
+live/override-repro/rds-snapshot-2588/v2	aws_subnet.a	NEEDS_DISCOVERY		
+live/override-repro/rds-snapshot-2588/v2	aws_subnet.b	NEEDS_DISCOVERY		
+live/override-repro/rds-snapshot-2588/v2	aws_vpc.v	NEEDS_DISCOVERY		
+live/override-repro/route-table-17198/v1	aws_internet_gateway.g	NEEDS_DISCOVERY		
+live/override-repro/route-table-17198/v1	aws_route_table.rt	NEEDS_DISCOVERY		
+live/override-repro/route-table-17198/v1	aws_vpc.peer	NEEDS_DISCOVERY		
+live/override-repro/route-table-17198/v1	aws_vpc.v	NEEDS_DISCOVERY		
+live/override-repro/route-table-17198/v1	aws_vpc_peering_connection.p	NEEDS_DISCOVERY		
+live/override-repro/route-table-17198/v2	aws_internet_gateway.g	NEEDS_DISCOVERY		
+live/override-repro/route-table-17198/v2	aws_route_table.rt	NEEDS_DISCOVERY		
+live/override-repro/route-table-17198/v2	aws_vpc.peer	NEEDS_DISCOVERY		
+live/override-repro/route-table-17198/v2	aws_vpc.v	NEEDS_DISCOVERY		
+live/override-repro/route-table-17198/v2	aws_vpc_peering_connection.p	NEEDS_DISCOVERY		
+live/override-repro/servicediscovery-35559/v1	aws_service_discovery_http_namespace.n	NEEDS_DISCOVERY		
+live/override-repro/servicediscovery-35559/v1	aws_service_discovery_service.s	NEEDS_DISCOVERY		
+live/override-repro/sg-rule-19082/v1	aws_security_group.sg	NEEDS_DISCOVERY		
+live/override-repro/sg-rule-19082/v1	aws_vpc.v	NEEDS_DISCOVERY		
+live/override-repro/sg-rule-19082/v2	aws_security_group.sg	NEEDS_DISCOVERY		
+live/override-repro/sg-rule-19082/v2	aws_vpc.v	NEEDS_DISCOVERY		
+live/override-repro/tg-listener-16889/v1	aws_lb.l	NEEDS_DISCOVERY		
+live/override-repro/tg-listener-16889/v1	aws_lb_listener.x	NEEDS_DISCOVERY		
+live/override-repro/tg-listener-16889/v1	aws_lb_target_group.t	NEEDS_DISCOVERY		
+live/override-repro/tg-listener-16889/v1	aws_subnet.a	NEEDS_DISCOVERY		
+live/override-repro/tg-listener-16889/v1	aws_subnet.b	NEEDS_DISCOVERY		
+live/override-repro/tg-listener-16889/v1	aws_vpc.v	NEEDS_DISCOVERY		
+live/override-repro/tg-listener-16889/v2	aws_lb.l	NEEDS_DISCOVERY		
+live/override-repro/tg-listener-16889/v2	aws_lb_listener.x	NEEDS_DISCOVERY		
+live/override-repro/tg-listener-16889/v2	aws_lb_target_group.t	NEEDS_DISCOVERY		
+live/override-repro/tg-listener-16889/v2	aws_subnet.a	NEEDS_DISCOVERY		
+live/override-repro/tg-listener-16889/v2	aws_subnet.b	NEEDS_DISCOVERY		
+live/override-repro/tg-listener-16889/v2	aws_vpc.v	NEEDS_DISCOVERY		
+live/override-repro/wafv2-drift-33124/v1	aws_wafv2_web_acl.w	NEEDS_DISCOVERY		
 #
 # --- section: verification cohorts, rendered by `go run ./tools/estate-gen -all` from internal/live/cohorts ---
 <cohorts>/ai-location	aws_bedrock_guardrail.app	NEEDS_DISCOVERY		

@@ -43,6 +43,10 @@ var pkgUnscanned = map[string]string{
 // from it. That is the population issue #240's eight panics came from.
 var guardedPackages = []string{
 	"acceptance",
+	// GitHub issue #2309's provider overrides read provider requests and
+	// responses. Core unmarks every value before a provider call, so none
+	// should carry a mark; held to zero unproven sites all the same.
+	"override",
 	// GitHub issue #1751's live-affected reads module calls, provider
 	// constraints and cross-estate filters from configuration it builds
 	// statically; it takes strings off the config structs and evaluates no

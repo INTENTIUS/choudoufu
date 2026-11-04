@@ -123,6 +123,7 @@ tmp
 /modcompat
 /modcompat-gen
 /oracle-bump-report
+/override-gen
 /protobuf-compile
 /provider-bump-report
 /readiness-gen

@@ -21,6 +21,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	terraformProvider "github.com/intentius/choudoufu/internal/builtin/providers/tf"
 	"github.com/intentius/choudoufu/internal/getproviders"
+	"github.com/intentius/choudoufu/internal/live/override"
 	"github.com/intentius/choudoufu/internal/logging"
 	tfplugin "github.com/intentius/choudoufu/internal/plugin"
 	tfplugin6 "github.com/intentius/choudoufu/internal/plugin6"
@@ -376,7 +377,42 @@ func (m *Meta) providerPluginsIn(rootDir string, cacheDirPath string) (map[addrs
 	if len(errs) > 0 {
 		err = providerPluginErrors(errs)
 	}
+
+	// GitHub issue #2309: provider behaviour overrides, applied around every
+	// provider this command starts, whatever backend holds the state.
+	enabled, overrideErr := override.Enabled(os.Getenv(override.EnvVar))
+	if overrideErr != nil {
+		return factories, launchers, errors.Join(err, overrideErr)
+	}
+	wrapProviderOverrides(factories, launchers, enabled)
 	return factories, launchers, err
+}
+
+// wrapProviderOverrides puts each provider's overrides around its factory
+// and launcher. A provider no enabled override names is left as it was.
+func wrapProviderOverrides(factories map[addrs.Provider]providers.Factory, launchers map[addrs.Provider]providers.Launcher, enabled []override.Override) {
+	for provider, factory := range factories {
+		byType := override.ForProvider(provider, enabled)
+		if len(byType) == 0 {
+			continue
+		}
+		factories[provider] = func() (providers.Interface, error) {
+			p, err := factory()
+			if err != nil {
+				return p, err
+			}
+			return override.Wrap(p, byType), nil
+		}
+		if launch, ok := launchers[provider]; ok {
+			launchers[provider] = func(ctx context.Context) (providers.Interface, error) {
+				p, err := launch(ctx)
+				if err != nil {
+					return p, err
+				}
+				return override.Wrap(p, byType), nil
+			}
+		}
+	}
 }
 
 // launcherFactory is the [providers.Factory] form of a launcher.
