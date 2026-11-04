@@ -3,9 +3,9 @@
   "fork_point_short": "765062032c",
   "fork_point_subject": "Prepare v1.13.2 release (#4753)",
   "fork_point_url": "https://github.com/opentofu/opentofu/commit/765062032c46cacab116b36d714db098b806dede",
-  "measured_at_head": "d8b3da2a3c129d0191682a38913eaf95518e02a6",
-  "measured_at_head_short": "d8b3da2a3c",
-  "generated_at": "2026-11-04T21:37:24Z",
+  "measured_at_head": "c0ac752568be4f4b67806b3e555c1058909b79aa",
+  "measured_at_head_short": "c0ac752568",
+  "generated_at": "2026-11-04T21:45:17Z",
   "base_opentofu_version": "1.13.2",
   "named_roots": [
     "internal/live/",
