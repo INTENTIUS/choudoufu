@@ -91,6 +91,12 @@ type Override struct {
 	// hashicorp/terraform-provider-aws#20273 has no override).
 	StockAlternative string
 
+	// Credits names the upstream people the override is built on: who
+	// reported the bug, and whose fix it mirrors when an upstream pull
+	// request has one. Release notes thank them by login with no "@", so
+	// nobody is notified (tools/override-gen -release-notes).
+	Credits []Credit
+
 	// AlsoTracks lists OpenTofu issues, as "opentofu/opentofu#number", whose
 	// fix would make the override redundant. Like Upstream, it is a
 	// retirement trigger: when one closes as fixed, the override goes.
@@ -119,6 +125,15 @@ type Override struct {
 	//
 	// An override has at least one of Plan, Apply and DestroyFromConfig.
 	DestroyFromConfig []string
+}
+
+// Credit is one upstream person and what they did.
+type Credit struct {
+	// Login is their GitHub login, without "@".
+	Login string `json:"login"`
+	// For is what they did, as a phrase: "reported the bug",
+	// "wrote the fix in the upstream pull request".
+	For string `json:"for"`
 }
 
 var registry = map[string]Override{}

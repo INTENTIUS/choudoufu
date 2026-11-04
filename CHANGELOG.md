@@ -17,6 +17,11 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    live/history/vX.Y.Z.json` (`just gauntlet-notes ...`) prints the board
    movement paragraph above; date the previous `(Unreleased)` heading and
    open a fresh empty one above it, as the paragraph above says.
+   `go run ./tools/override-gen -release-notes <previous tag>` prints the
+   PROVIDER OVERRIDES section for the release: each override added since,
+   the upstream issue in a code span, the upstream people it builds on by
+   bare login (an `@` would notify them), and the commit that added it.
+   Paste it into the release's section as printed.
 4. Commit as `release: cut vX.Y.Z`, open a pull request from `release/vX.Y.Z`,
    run the gate (`scripts/ci-gate.sh run` / `check`) at the branch's tip, and
    merge.
@@ -49,6 +54,29 @@ Built on OpenTofu 1.13.2 (upstream tag v1.13.2 `765062032c`), up from 1.13.0 (#2
 - `choudoufu -chdir=DIR -version` prints the version instead of failing.
 - Autocompletion for `workspace select` and `workspace delete` predicts existing workspace names again.
 - `show -json` on a plan file works again when the configuration has ephemeral resources, and a `lifecycle` `destroy` expression with references reports an error rather than crashing.
+
+- New: provider behaviour overrides (#2309, #2317). choudoufu carries fixes for long-standing `hashicorp/aws` provider bugs in the engine, with the stock provider unchanged: no provider fork, no patched build, on every backend (`live`, S3 or local state). They are on by default. Every override that acts on a resource adds a warning to the plan naming itself, the upstream issue it stands in for and how to turn it off: `CHOUDOUFU_PROVIDER_OVERRIDES=off` turns all of them off for a run, and `CHOUDOUFU_PROVIDER_OVERRIDES=-name` turns off one. An override declares the provider attributes it reads and is skipped, with a warning, when the installed provider's schema differs. None adds an argument or writes state that stock OpenTofu would not, so turning them off, or going back to stock OpenTofu, brings back the stock plan and nothing else. Each was reproduced and then proven on real AWS with provider 6.71.0; the reproductions are in `live/override-repro`, and the table, with each override's upstream issue, its stock alternative and its credits, is `live/overrides.json`.
+- New: destroy-time arguments from configuration (#2317, #2320). Changing `skip_final_snapshot`, `force_destroy` or `force_delete` in configuration and then destroying now uses the configured value, where stock OpenTofu destroys with the value last applied and fails (`opentofu/opentofu#3472`). This covers `aws_rds_cluster`, `aws_db_instance`, `aws_s3_bucket`, `aws_iam_user`, `aws_route53_zone` and `aws_ecr_repository`, while the resource is still in configuration. The destroy plan shows the value it will use. This runs on the current runtime only.
+- Changed: examples name the cloud they run on instead of saying AWS-only (#2241). The site and README use the product's new short phrase (#2316), the home page's top comes from the shared product data, and the README's prose lint now fails the build.
+
+PROVIDER OVERRIDES:
+
+On by default; `CHOUDOUFU_PROVIDER_OVERRIDES=-name` turns one off, `CHOUDOUFU_PROVIDER_OVERRIDES=off` all of them (#2309).
+
+- `aws-alb-target-group-replace-in-use`: Replacing a target group that keeps its name deletes it first, which fails with ResourceInUse while a listener or rule forwards to it. Stands in for `hashicorp/terraform-provider-aws#16889`. Thanks to Zogoo (reported the bug). Added in 6c73918bd7.
+- `aws-amplify-app-custom-headers`: custom_headers written as YAML plans an update on every plan, because AWS returns the same headers as JSON without the customHeaders root key. Stands in for `hashicorp/terraform-provider-aws#34318`. Thanks to KholdStare (reported the bug). Added in 0f111cd7c0.
+- `aws-appconfig-hosted-configuration-version-flag-timestamps`: The _createdAt and _updatedAt keys AppConfig adds to feature-flag content replace an unchanged version on every plan. Stands in for `hashicorp/terraform-provider-aws#44847`. Thanks to KyMidd (reported the bug and wrote the fix in the upstream pull request). Added in 6d61494f9a.
+- `aws-backup-region-settings-subset`: Configuring some resource types in resource_type_opt_in_preference or resource_type_management_preference plans every other type AWS returns as removed on every plan. Stands in for `hashicorp/terraform-provider-aws#22744`. Thanks to MitchellGerdisch (reported the bug). Added in 0f111cd7c0.
+- `aws-db-instance-destroy-from-config`: Destroy ignores skip_final_snapshot, final_snapshot_identifier and delete_automated_backups as configured, using the values last applied. Stands in for `opentofu/opentofu#3472`. Thanks to progloto (reported the bug to OpenTofu). Added in d36b28b81b.
+- `aws-ecr-repository-destroy-from-config`: Destroy ignores force_delete as configured, so a repository with images fails to delete until it has been applied. Stands in for `opentofu/opentofu#3472`. Thanks to progloto (reported the bug to OpenTofu). Added in d36b28b81b.
+- `aws-elasticache-user-no-password`: authentication_mode type "no-password-required" plans an update to "no-password" on every plan. Stands in for `hashicorp/terraform-provider-aws#42712`. Thanks to rickychew77 (reported the bug) and linkvt (wrote the fix in the upstream pull request). Added in a4d3e98d49.
+- `aws-iam-user-destroy-from-config`: Destroy ignores force_destroy as configured, so a user with keys or a login profile made outside OpenTofu fails to delete until it has been applied. Stands in for `opentofu/opentofu#3472`. Thanks to progloto (reported the bug to OpenTofu). Added in d36b28b81b.
+- `aws-lb-target-group-replace-in-use`: Replacing a target group that keeps its name deletes it first, which fails with ResourceInUse while a listener or rule forwards to it. Stands in for `hashicorp/terraform-provider-aws#16889`. Thanks to Zogoo (reported the bug). Added in 77b9ff09b3.
+- `aws-rds-cluster-destroy-from-config`: Destroy ignores skip_final_snapshot and final_snapshot_identifier as configured, using the values last applied. Stands in for `hashicorp/terraform-provider-aws#2588`. Thanks to andrei-dascalu (reported the bug) and progloto (reported the bug to OpenTofu). Added in 97417ffca9.
+- `aws-route-table-route-empty-strings`: Changing one inline route lists every route removed and re-added, because unset route fields are null in configuration and "" in state. Stands in for `hashicorp/terraform-provider-aws#17198`. Thanks to rajaie-sg (reported the bug). Added in 1d6662e720.
+- `aws-route53-zone-destroy-from-config`: Destroy ignores force_destroy as configured, so a zone with records made outside OpenTofu fails to delete until it has been applied. Stands in for `opentofu/opentofu#3472`. Thanks to progloto (reported the bug to OpenTofu). Added in d36b28b81b.
+- `aws-s3-bucket-destroy-from-config`: Destroy ignores force_destroy as configured, so a bucket with objects fails to delete until force_destroy has been applied. Stands in for `opentofu/opentofu#3472`. Thanks to progloto (reported the bug to OpenTofu). Added in d36b28b81b.
+- `aws-security-group-rule-cidr-order`: Reordering the same CIDRs in cidr_blocks or ipv6_cidr_blocks replaces the rule. Stands in for `hashicorp/terraform-provider-aws#19082`. Thanks to Gowiem (reported the bug). Added in 7e3f4b0632.
 
 ## choudoufu v0.32.0 (2026-10-29)
 

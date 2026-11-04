@@ -106,8 +106,18 @@ jobs:
           cat > NOTES.md <<EOF
           choudoufu $GITHUB_REF_NAME, built on OpenTofu $upstream (fork point [\`$fork\`](https://github.com/opentofu/opentofu/commit/$fork)).
 
-          Everything outside live resource markers is stock OpenTofu $upstream. Binaries below are macOS, Linux and Windows, amd64 and arm64; macOS and Linux are \`.tar.gz\`, Windows is \`.zip\`; verify with \`SHA256SUMS\`.
+          Everything outside live resource markers and the declared provider overrides is stock OpenTofu $upstream. The overrides are listed below and in \`live/overrides.json\`; \`CHOUDOUFU_PROVIDER_OVERRIDES=off\` turns them all off. Binaries below are macOS, Linux and Windows, amd64 and arm64; macOS and Linux are \`.tar.gz\`, Windows is \`.zip\`; verify with \`SHA256SUMS\`.
           EOF
+          # The release's own CHANGELOG section (#2309), so the release page
+          # carries the full notes: the provider overrides with their
+          # credits, and everything else the section lists. A tag with no
+          # section stops the release rather than publishing without notes.
+          awk -v h="## choudoufu $GITHUB_REF_NAME " 'index($0, h) == 1 { f = 1; next } f && /^## / { exit } f' src/CHANGELOG.md > section.md
+          if ! grep -q '[^[:space:]]' section.md; then
+            echo "::error::CHANGELOG.md has no section for $GITHUB_REF_NAME (a heading starting '## choudoufu $GITHUB_REF_NAME ')" >&2
+            exit 1
+          fi
+          { echo; cat section.md; } >> NOTES.md
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" --notes-file NOTES.md --generate-notes \
             ./*.tar.gz ./*.zip SHA256SUMS

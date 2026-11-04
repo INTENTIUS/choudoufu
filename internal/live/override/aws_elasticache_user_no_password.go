@@ -24,6 +24,7 @@ var _ = register(Override{
 	Approach:         RewriteDiff,
 	SDK:              SDKv2,
 	Upstream:         "hashicorp/terraform-provider-aws#42712",
+	Credits:          []Credit{{Login: "rickychew77", For: "reported the bug"}, {Login: "linkvt", For: "wrote the fix in the upstream pull request"}},
 	StockAlternative: "None: the provider rejects no-password, the value AWS returns, in configuration, so stock users can only ignore_changes the whole authentication_mode block.",
 	Summary:          "authentication_mode type \"no-password-required\" plans an update to \"no-password\" on every plan",
 	ProvenOn:         "6.71.0",

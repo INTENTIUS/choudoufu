@@ -59,6 +59,7 @@ var _ = register(Override{
 	Approach:         RewriteConfig,
 	SDK:              SDKv2,
 	Upstream:         "hashicorp/terraform-provider-aws#17198",
+	Credits:          []Credit{{Login: "rajaie-sg", For: "reported the bug"}},
 	StockAlternative: "Declaring routes as separate aws_route resources avoids the churn in stock OpenTofu, at the cost of restructuring the configuration; inline routes are common in modules users do not own.",
 	Summary:          "Changing one inline route lists every route removed and re-added, because unset route fields are null in configuration and \"\" in state",
 	ProvenOn:         "6.71.0",
