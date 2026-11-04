@@ -11,7 +11,7 @@
     "kubernetes": "3.2.1",
     "google": "8.6.0"
   },
-  "upstream_version": "1.13.0",
+  "upstream_version": "1.13.2",
   "stages": [
     {
       "id": "cold_deploy",
