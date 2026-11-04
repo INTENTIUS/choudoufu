@@ -41,6 +41,7 @@ func init() {
 		}),
 		check: checkTargetGroupReplaceWarning,
 	}
+	proofs["aws-alb-target-group-replace-in-use"] = proofs["aws-lb-target-group-replace-in-use"]
 }
 
 // checkTargetGroupReplaceWarning is red-then-green: without the override a

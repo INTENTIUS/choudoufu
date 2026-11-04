@@ -6,6 +6,22 @@
   ],
   "overrides": [
     {
+      "name": "aws-alb-target-group-replace-in-use",
+      "provider": "hashicorp/aws",
+      "type": "aws_alb_target_group",
+      "approach": "D",
+      "sdk": "SDKv2",
+      "upstream": "hashicorp/terraform-provider-aws#16889",
+      "summary": "Replacing a target group that keeps its name deletes it first, which fails with ResourceInUse while a listener or rule forwards to it",
+      "proven_on": "6.71.0",
+      "hooks": [
+        "plan"
+      ],
+      "requires": {
+        "name": "string"
+      }
+    },
+    {
       "name": "aws-amplify-app-custom-headers",
       "provider": "hashicorp/aws",
       "type": "aws_amplify_app",

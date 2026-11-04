@@ -49,6 +49,23 @@ var _ = register(Override{
 	Plan: warnFixedNameReplace,
 })
 
+// aws_alb_target_group is the provider's older name for the same resource,
+// with the same schema and the same replace.
+var _ = register(Override{
+	Name:     "aws-alb-target-group-replace-in-use",
+	Provider: awsProvider,
+	Type:     "aws_alb_target_group",
+	Approach: Refuse,
+	SDK:      SDKv2,
+	Upstream: "hashicorp/terraform-provider-aws#16889",
+	Summary:  "Replacing a target group that keeps its name deletes it first, which fails with ResourceInUse while a listener or rule forwards to it",
+	ProvenOn: "6.71.0",
+	Requires: map[string]cty.Type{
+		"name": cty.String,
+	},
+	Plan: warnFixedNameReplace,
+})
+
 // warnFixedNameReplace adds a warning to the provider's own plan when that
 // plan replaces the target group and the configured name is the one it
 // already has. The response is otherwise the provider's, unchanged.
