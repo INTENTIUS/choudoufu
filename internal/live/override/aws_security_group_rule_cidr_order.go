@@ -16,14 +16,15 @@ const awsProvider = "hashicorp/aws"
 // floci with provider 6.71.0 on 2026-11-04 (#2309): swapping two CIDRs
 // planned "-/+ ... # forces replacement".
 var _ = register(Override{
-	Name:     "aws-security-group-rule-cidr-order",
-	Provider: awsProvider,
-	Type:     "aws_security_group_rule",
-	Approach: RewriteDiff,
-	SDK:      SDKv2,
-	Upstream: "hashicorp/terraform-provider-aws#19082",
-	Summary:  "Reordering the same CIDRs in cidr_blocks or ipv6_cidr_blocks replaces the rule",
-	ProvenOn: "6.71.0",
+	Name:             "aws-security-group-rule-cidr-order",
+	Provider:         awsProvider,
+	Type:             "aws_security_group_rule",
+	Approach:         RewriteDiff,
+	SDK:              SDKv2,
+	Upstream:         "hashicorp/terraform-provider-aws#19082",
+	StockAlternative: "Wrapping a list you write in sort() keeps its order stable in stock OpenTofu, and aws_vpc_security_group_ingress_rule takes one CIDR per rule. Neither helps when the list comes from a module or data source whose order changes, which is where the replace bites.",
+	Summary:          "Reordering the same CIDRs in cidr_blocks or ipv6_cidr_blocks replaces the rule",
+	ProvenOn:         "6.71.0",
 	Requires: map[string]cty.Type{
 		"cidr_blocks":      cty.List(cty.String),
 		"ipv6_cidr_blocks": cty.List(cty.String),

@@ -15,16 +15,18 @@ const TablePath = "live/overrides.json"
 
 // Row is one override as live/overrides.json records it.
 type Row struct {
-	Name     string            `json:"name"`
-	Provider string            `json:"provider"`
-	Type     string            `json:"type"`
-	Approach string            `json:"approach"`
-	SDK      string            `json:"sdk"`
-	Upstream string            `json:"upstream"`
-	Summary  string            `json:"summary"`
-	ProvenOn string            `json:"proven_on"`
-	Hooks    []string          `json:"hooks"`
-	Requires map[string]string `json:"requires"`
+	Name             string            `json:"name"`
+	Provider         string            `json:"provider"`
+	Type             string            `json:"type"`
+	Approach         string            `json:"approach"`
+	SDK              string            `json:"sdk"`
+	Upstream         string            `json:"upstream"`
+	Summary          string            `json:"summary"`
+	StockAlternative string            `json:"stock_alternative"`
+	AlsoTracks       []string          `json:"also_tracks,omitempty"`
+	ProvenOn         string            `json:"proven_on"`
+	Hooks            []string          `json:"hooks"`
+	Requires         map[string]string `json:"requires"`
 }
 
 type table struct {
@@ -45,6 +47,7 @@ func TableJSON() ([]byte, error) {
 			Name: o.Name, Provider: o.Provider, Type: o.Type,
 			Approach: string(o.Approach), SDK: string(o.SDK), Upstream: o.Upstream,
 			Summary: o.Summary, ProvenOn: o.ProvenOn, Requires: map[string]string{},
+			StockAlternative: o.StockAlternative, AlsoTracks: o.AlsoTracks,
 		}
 		if o.Plan != nil {
 			r.Hooks = append(r.Hooks, "plan")

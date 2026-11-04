@@ -15,14 +15,16 @@ import "github.com/zclconf/go-cty/cty"
 // skip_final_snapshot is false". The same bug from the core side is
 // opentofu/opentofu#3472.
 var _ = register(Override{
-	Name:     "aws-rds-cluster-destroy-from-config",
-	Provider: awsProvider,
-	Type:     "aws_rds_cluster",
-	Approach: RewriteConfig,
-	SDK:      SDKv2,
-	Upstream: "hashicorp/terraform-provider-aws#2588",
-	Summary:  "Destroy ignores skip_final_snapshot and final_snapshot_identifier as configured, using the values last applied",
-	ProvenOn: "6.71.0",
+	Name:             "aws-rds-cluster-destroy-from-config",
+	Provider:         awsProvider,
+	Type:             "aws_rds_cluster",
+	Approach:         RewriteConfig,
+	SDK:              SDKv2,
+	Upstream:         "hashicorp/terraform-provider-aws#2588",
+	StockAlternative: "Applying the flag before destroying works in stock OpenTofu, as two runs. OpenTofu treats destroy as state-only by design and calls the real fix a protocol-level destroy-time argument (opentofu/opentofu#3472, blocked).",
+	AlsoTracks:       []string{"opentofu/opentofu#3472"},
+	Summary:          "Destroy ignores skip_final_snapshot and final_snapshot_identifier as configured, using the values last applied",
+	ProvenOn:         "6.71.0",
 	Requires: map[string]cty.Type{
 		"skip_final_snapshot":       cty.Bool,
 		"final_snapshot_identifier": cty.String,

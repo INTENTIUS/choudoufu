@@ -22,14 +22,15 @@ import (
 // plan. Reproduced on real AWS with provider 6.71.0 on 2026-11-04 (#2309,
 // live/override-repro/appconfig-44847-20273/v1).
 var _ = register(Override{
-	Name:     "aws-appconfig-hosted-configuration-version-flag-timestamps",
-	Provider: awsProvider,
-	Type:     "aws_appconfig_hosted_configuration_version",
-	Approach: RewriteDiff,
-	SDK:      SDKv2,
-	Upstream: "hashicorp/terraform-provider-aws#44847",
-	Summary:  "The _createdAt and _updatedAt keys AppConfig adds to feature-flag content replace an unchanged version on every plan",
-	ProvenOn: "6.71.0",
+	Name:             "aws-appconfig-hosted-configuration-version-flag-timestamps",
+	Provider:         awsProvider,
+	Type:             "aws_appconfig_hosted_configuration_version",
+	Approach:         RewriteDiff,
+	SDK:              SDKv2,
+	Upstream:         "hashicorp/terraform-provider-aws#44847",
+	StockAlternative: "Stock OpenTofu offers only lifecycle { ignore_changes = [content] }, which also hides every real content change.",
+	Summary:          "The _createdAt and _updatedAt keys AppConfig adds to feature-flag content replace an unchanged version on every plan",
+	ProvenOn:         "6.71.0",
 	Requires: map[string]cty.Type{
 		"content": cty.String,
 	},

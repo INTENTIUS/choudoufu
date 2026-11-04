@@ -35,14 +35,15 @@ import (
 // A replacement under name_prefix, under a generated name, or one that
 // changes the name too can create first, so it gets no warning.
 var _ = register(Override{
-	Name:     "aws-lb-target-group-replace-in-use",
-	Provider: awsProvider,
-	Type:     "aws_lb_target_group",
-	Approach: Refuse,
-	SDK:      SDKv2,
-	Upstream: "hashicorp/terraform-provider-aws#16889",
-	Summary:  "Replacing a target group that keeps its name deletes it first, which fails with ResourceInUse while a listener or rule forwards to it",
-	ProvenOn: "6.71.0",
+	Name:             "aws-lb-target-group-replace-in-use",
+	Provider:         awsProvider,
+	Type:             "aws_lb_target_group",
+	Approach:         Refuse,
+	SDK:              SDKv2,
+	Upstream:         "hashicorp/terraform-provider-aws#16889",
+	StockAlternative: "Stock OpenTofu reports the same problem only after the apply has failed. name_prefix with create_before_destroy avoids it; the warning names that before apply.",
+	Summary:          "Replacing a target group that keeps its name deletes it first, which fails with ResourceInUse while a listener or rule forwards to it",
+	ProvenOn:         "6.71.0",
 	Requires: map[string]cty.Type{
 		"name": cty.String,
 	},
@@ -52,14 +53,15 @@ var _ = register(Override{
 // aws_alb_target_group is the provider's older name for the same resource,
 // with the same schema and the same replace.
 var _ = register(Override{
-	Name:     "aws-alb-target-group-replace-in-use",
-	Provider: awsProvider,
-	Type:     "aws_alb_target_group",
-	Approach: Refuse,
-	SDK:      SDKv2,
-	Upstream: "hashicorp/terraform-provider-aws#16889",
-	Summary:  "Replacing a target group that keeps its name deletes it first, which fails with ResourceInUse while a listener or rule forwards to it",
-	ProvenOn: "6.71.0",
+	Name:             "aws-alb-target-group-replace-in-use",
+	Provider:         awsProvider,
+	Type:             "aws_alb_target_group",
+	Approach:         Refuse,
+	SDK:              SDKv2,
+	Upstream:         "hashicorp/terraform-provider-aws#16889",
+	StockAlternative: "Stock OpenTofu reports the same problem only after the apply has failed. name_prefix with create_before_destroy avoids it; the warning names that before apply.",
+	Summary:          "Replacing a target group that keeps its name deletes it first, which fails with ResourceInUse while a listener or rule forwards to it",
+	ProvenOn:         "6.71.0",
 	Requires: map[string]cty.Type{
 		"name": cty.String,
 	},

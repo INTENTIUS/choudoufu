@@ -18,14 +18,15 @@ import "github.com/zclconf/go-cty/cty"
 // "no-password" can only have come from "no-password-required"; any other
 // configured type ("password", "iam") still plans the change.
 var _ = register(Override{
-	Name:     "aws-elasticache-user-no-password",
-	Provider: awsProvider,
-	Type:     "aws_elasticache_user",
-	Approach: RewriteDiff,
-	SDK:      SDKv2,
-	Upstream: "hashicorp/terraform-provider-aws#42712",
-	Summary:  "authentication_mode type \"no-password-required\" plans an update to \"no-password\" on every plan",
-	ProvenOn: "6.71.0",
+	Name:             "aws-elasticache-user-no-password",
+	Provider:         awsProvider,
+	Type:             "aws_elasticache_user",
+	Approach:         RewriteDiff,
+	SDK:              SDKv2,
+	Upstream:         "hashicorp/terraform-provider-aws#42712",
+	StockAlternative: "None: the provider rejects no-password, the value AWS returns, in configuration, so stock users can only ignore_changes the whole authentication_mode block.",
+	Summary:          "authentication_mode type \"no-password-required\" plans an update to \"no-password\" on every plan",
+	ProvenOn:         "6.71.0",
 	Requires: map[string]cty.Type{
 		"authentication_mode.type": cty.String,
 	},
