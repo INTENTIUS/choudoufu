@@ -21,6 +21,7 @@ var _ = register(Override{
 	Approach:         RewriteConfig,
 	SDK:              SDKv2,
 	Upstream:         "hashicorp/terraform-provider-aws#2588",
+	Credits:          []Credit{{Login: "andrei-dascalu", For: "reported the bug"}, {Login: "progloto", For: "reported the bug to OpenTofu"}},
 	StockAlternative: "Applying the flag before destroying works in stock OpenTofu, as two runs. OpenTofu treats destroy as state-only by design and calls the real fix a protocol-level destroy-time argument (opentofu/opentofu#3472, blocked).",
 	AlsoTracks:       []string{"opentofu/opentofu#3472"},
 	Summary:          "Destroy ignores skip_final_snapshot and final_snapshot_identifier as configured, using the values last applied",

@@ -27,6 +27,7 @@ var _ = register(Override{
 	Approach:         RewriteDiff,
 	SDK:              SDKv2,
 	Upstream:         "hashicorp/terraform-provider-aws#34318",
+	Credits:          []Credit{{Login: "KholdStare", For: "reported the bug"}},
 	StockAlternative: "None: AWS rejects the form it returns (no customHeaders root key), so no configuration matches what is read back.",
 	Summary:          "custom_headers written as YAML plans an update on every plan, because AWS returns the same headers as JSON without the customHeaders root key",
 	ProvenOn:         "6.71.0",

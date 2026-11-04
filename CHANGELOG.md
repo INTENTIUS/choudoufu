@@ -17,6 +17,11 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
    live/history/vX.Y.Z.json` (`just gauntlet-notes ...`) prints the board
    movement paragraph above; date the previous `(Unreleased)` heading and
    open a fresh empty one above it, as the paragraph above says.
+   `go run ./tools/override-gen -release-notes <previous tag>` prints the
+   PROVIDER OVERRIDES section for the release: each override added since,
+   the upstream issue in a code span, the upstream people it builds on by
+   bare login (an `@` would notify them), and the commit that added it.
+   Paste it into the release's section as printed.
 4. Commit as `release: cut vX.Y.Z`, open a pull request from `release/vX.Y.Z`,
    run the gate (`scripts/ci-gate.sh run` / `check`) at the branch's tip, and
    merge.

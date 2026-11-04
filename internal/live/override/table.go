@@ -24,6 +24,7 @@ type Row struct {
 	Summary          string            `json:"summary"`
 	StockAlternative string            `json:"stock_alternative"`
 	AlsoTracks       []string          `json:"also_tracks,omitempty"`
+	Credits          []Credit          `json:"credits"`
 	ProvenOn         string            `json:"proven_on"`
 	Hooks            []string          `json:"hooks"`
 	Requires         map[string]string `json:"requires"`
@@ -47,7 +48,7 @@ func TableJSON() ([]byte, error) {
 			Name: o.Name, Provider: o.Provider, Type: o.Type,
 			Approach: string(o.Approach), SDK: string(o.SDK), Upstream: o.Upstream,
 			Summary: o.Summary, ProvenOn: o.ProvenOn, Requires: map[string]string{},
-			StockAlternative: o.StockAlternative, AlsoTracks: o.AlsoTracks,
+			StockAlternative: o.StockAlternative, AlsoTracks: o.AlsoTracks, Credits: o.Credits,
 		}
 		if o.Plan != nil {
 			r.Hooks = append(r.Hooks, "plan")

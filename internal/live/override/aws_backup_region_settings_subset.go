@@ -24,6 +24,7 @@ var _ = register(Override{
 	Approach:         RewriteDiff,
 	SDK:              SDKv2,
 	Upstream:         "hashicorp/terraform-provider-aws#22744",
+	Credits:          []Credit{{Login: "MitchellGerdisch", For: "reported the bug"}},
 	StockAlternative: "Listing every resource type AWS returns stops the diff in stock OpenTofu until AWS adds a type, as it did with DSQL; the configuration then drifts again.",
 	Summary:          "Configuring some resource types in resource_type_opt_in_preference or resource_type_management_preference plans every other type AWS returns as removed on every plan",
 	ProvenOn:         "6.71.0",
