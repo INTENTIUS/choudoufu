@@ -93,15 +93,16 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 	// value, exactly as a stock state file's stored output is. An output
 	// the estate never recorded is left unset and plans as a create. Only
 	// the outputs [recordIsAuthoritative] excludes go on to be evaluated.
-	var evaluate []string
+	var evaluate, fromRecord []string
 	for name, output := range config.Module.Outputs {
 		if recordIsAuthoritative(recorded, name, output) {
 			applyRecordedRootOutput(root, name, output, recorded)
+			fromRecord = append(fromRecord, name)
 			continue
 		}
 		evaluate = append(evaluate, name)
 	}
-	if len(evaluate) == 0 {
+	if len(evaluate) == 0 && len(fromRecord) == 0 {
 		return diags
 	}
 
@@ -125,6 +126,36 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 	// exact risk GitHub issue #349's scoping named for the data-source half
 	// of this, and it was already live for the evaluation half.
 	scope, _ := core.Eval(ctx, config, withOutputEvalSeeds(ctx, core, config, state, dataValues), addrs.RootModuleInstance, &tofu.EvalOpts{SetVariables: variables})
+
+	// A recorded value is the before side, but the record came off an
+	// apply's final state and the after side is evaluated against the
+	// projection, and a legacy-SDK provider answers an unset string as ""
+	// in one and null in the other. The provider treats the two as one
+	// value, so the resource plans no change, but an output exposing the
+	// whole object compared them strictly and planned an update on every
+	// run (corpus-vpc-complete's this_customer_gateway, measured for the
+	// v0.33.0 cut). Where the record and the evaluation differ only that
+	// way, the evaluation is the before side; any other difference keeps
+	// the record, which is what #2073 is for.
+	for _, name := range fromRecord {
+		if scope == nil {
+			break
+		}
+		rec, ok := recorded.Value(name)
+		if !ok || rec == cty.NilVal || !rec.IsWhollyKnown() {
+			continue
+		}
+		output := config.Module.Outputs[name]
+		val, valDiags := scope.EvalExpr(ctx, output.Expr, cty.DynamicPseudoType)
+		if valDiags.HasErrors() || !val.IsWhollyKnown() {
+			continue
+		}
+		val, _ = val.UnmarkDeep()
+		rec, _ = rec.UnmarkDeep()
+		if !val.RawEquals(rec) && sameUpToLegacyEmptyStrings(rec, val) {
+			root.SetOutputValue(name, val, output.Sensitive, output.Deprecated)
+		}
+	}
 
 	for _, name := range evaluate {
 		output := config.Module.Outputs[name]
@@ -373,4 +404,26 @@ func withZeroInstanceBlocks(ctx context.Context, config *configs.Config, state *
 		seeded.EnsureModule(block.Addr.Module).SetResourceProvider(block.Addr.Resource, block.Provider)
 	}
 	return seeded
+}
+
+// sameUpToLegacyEmptyStrings reports whether a and b are equal once every
+// known empty string in each is read as a null string, the equivalence a
+// legacy-SDK provider applies to an unset string attribute.
+func sameUpToLegacyEmptyStrings(a, b cty.Value) bool {
+	na, errA := nullLegacyEmptyStrings(a)
+	nb, errB := nullLegacyEmptyStrings(b)
+	if errA != nil || errB != nil || !na.Type().Equals(nb.Type()) {
+		return false
+	}
+	eq := na.Equals(nb)
+	return eq.IsKnown() && eq.True()
+}
+
+func nullLegacyEmptyStrings(v cty.Value) (cty.Value, error) {
+	return cty.Transform(v, func(_ cty.Path, v cty.Value) (cty.Value, error) {
+		if v.Type() == cty.String && v.IsKnown() && !v.IsNull() && v.AsString() == "" {
+			return cty.NullVal(cty.String), nil
+		}
+		return v, nil
+	})
 }
