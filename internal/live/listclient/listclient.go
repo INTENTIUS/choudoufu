@@ -180,8 +180,13 @@ func Stream(ctx context.Context, provider any, req Request, emit func(Result) bo
 	// fails every later call to it in the run: reference-azure's
 	// no_local_state, whose -refresh=false plan lists the cached types to
 	// vouch for them, measured exactly that (#1120, run seven). The refusal
-	// is an ordinary list failure, which every caller already handles: the
-	// type is not listed, and nothing else the run asks the provider breaks.
+	// is an ordinary list failure: the type is not listed, and nothing else
+	// the run asks the provider breaks. A sweep files it as a gap and the
+	// cache-vouch pass drops it. A DECLARED type's scan cannot treat it that
+	// way, because its failure fails the plan; internal/live/discovery's
+	// scanType checks the same condition first and finds a taggable type
+	// through the estate's tag index instead, so the refusal reaches a
+	// declared scan only when no tag index is available.
 	if schemas, schemaDiags := ListSchemas(ctx, lister); !schemaDiags.HasErrors() {
 		if ts, ok := schemas.Get(req.TypeName); ok {
 			if missing := ts.MissingRequired(config); len(missing) > 0 {

@@ -1038,9 +1038,13 @@ type fakeCloud struct {
 	// for import) when a test wants the provider's own identity shape rather
 	// than the {id, region, account_id} default - what lets the schema-aware
 	// resolver synthesize an identity-object-only entry for the type.
-	requiredAttr  map[string]map[string]bool
-	identityAttrs map[string][]string
-	accountID     string
+	requiredAttr map[string]map[string]bool
+	// requiredListAttr is a required string argument on a type's LIST
+	// configuration schema: a child type's parent, the way aws_lb_listener
+	// requires load_balancer_arn to be listed at all.
+	requiredListAttr map[string]map[string]bool
+	identityAttrs    map[string][]string
+	accountID        string
 
 	// truncateAt is issue #1046's fixture knob: when set for a type, the
 	// stream stops after that many matching objects have been emitted and
@@ -1081,14 +1085,15 @@ type fakeCloud struct {
 
 func newFakeCloud() *fakeCloud {
 	return &fakeCloud{
-		extraAttr:      make(map[string]map[string]bool),
-		extraListAttr:  make(map[string]map[string]bool),
-		requiredAttr:   make(map[string]map[string]bool),
-		identityAttrs:  make(map[string][]string),
-		truncateAt:     make(map[string]int),
-		truncateSilent: make(map[string]bool),
-		ignoreFilter:   make(map[string]bool),
-		objects:        make(map[string][]*fakeObject),
+		extraAttr:        make(map[string]map[string]bool),
+		extraListAttr:    make(map[string]map[string]bool),
+		requiredAttr:     make(map[string]map[string]bool),
+		requiredListAttr: make(map[string]map[string]bool),
+		identityAttrs:    make(map[string][]string),
+		truncateAt:       make(map[string]int),
+		truncateSilent:   make(map[string]bool),
+		ignoreFilter:     make(map[string]bool),
+		objects:          make(map[string][]*fakeObject),
 		types: []string{
 			"aws_vpc", "aws_subnet", "aws_security_group", "aws_route_table",
 			"aws_internet_gateway", "aws_eip",
@@ -1178,6 +1183,15 @@ func (c *fakeCloud) withRequiredAttr(typeName, attr string) {
 		c.requiredAttr[typeName] = make(map[string]bool)
 	}
 	c.requiredAttr[typeName][attr] = true
+}
+
+// withRequiredListAttr adds a required string argument to a type's LIST
+// configuration schema, which discovery's estate-wide scan never sets.
+func (c *fakeCloud) withRequiredListAttr(typeName, attr string) {
+	if c.requiredListAttr[typeName] == nil {
+		c.requiredListAttr[typeName] = make(map[string]bool)
+	}
+	c.requiredListAttr[typeName][attr] = true
 }
 
 // withIdentitySchema replaces a type's identity schema with the given
@@ -1423,6 +1437,9 @@ func (c *fakeCloud) GetProviderSchema(context.Context) providers.GetProviderSche
 		}
 		for attr := range c.extraListAttr[name] {
 			block.Attributes[attr] = &configschema.Attribute{Type: cty.String, Optional: true}
+		}
+		for attr := range c.requiredListAttr[name] {
+			block.Attributes[attr] = &configschema.Attribute{Type: cty.String, Required: true}
 		}
 		if !c.unfilter[name] {
 			block.BlockTypes["filter"] = &configschema.NestedBlock{
