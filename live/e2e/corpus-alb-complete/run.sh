@@ -919,6 +919,7 @@ GREEN_PLAN_OUT="$(cd "$GREEN_EST" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" 
 if ! grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT"; then
   NONEMPTY_ITEMS="$(grep -E '^  # .+ will be' <<< "$GREEN_PLAN_OUT" | sed 's/^  # //' | tr '\n' '; ')"
   log "  the replan is NOT empty: $NONEMPTY_ITEMS"
+  printf -- '--- greenfield replan output ---\n%s\n--- end replan output ---\n' "$GREEN_PLAN_OUT"
   gauntlet_stage greenfield fail "$(gauntlet_replan_actions_verdict "$INSTANCES objects were created and the ALB's own marker verified fine (see the earlier PART GREENFIELD steps in the same run), so this is narrower than a total apply failure" <<< "$GREEN_PLAN_OUT")"
   gauntlet_end_stage
   gauntlet_floci_teardown "$FLOCI_GREEN_NAME"
