@@ -616,6 +616,12 @@ func TestApplyRootOutputValuesPlansAgainstTheRecords(t *testing.T) {
 		got := planOutputs(t, &RootOutputRecords{Values: map[string]cty.Value{
 			"recorded_same": cty.NumberIntVal(14),
 			"recorded_diff": cty.NumberIntVal(7),
+			"recorded_legacy_empty": cty.ObjectVal(map[string]cty.Value{
+				"id": cty.StringVal("lg-1"), "kms_key_id": cty.StringVal(""),
+			}),
+			"recorded_empty_changed": cty.ObjectVal(map[string]cty.Value{
+				"id": cty.StringVal("lg-2"), "name": cty.StringVal(""),
+			}),
 		}})
 		for name, want := range map[string]struct {
 			action plans.Action
@@ -625,6 +631,16 @@ func TestApplyRootOutputValuesPlansAgainstTheRecords(t *testing.T) {
 			"recorded_same":  {plans.NoOp, cty.NumberIntVal(14)},
 			"recorded_diff":  {plans.Update, cty.NumberIntVal(7)},
 			"secret":         {plans.NoOp, cty.StringVal("s3cr3t")},
+			// The record and the projection differ only by "" against a
+			// null string, which the legacy SDK treats as one value: no-op,
+			// with the projection's value as the before side.
+			"recorded_legacy_empty": {plans.NoOp, cty.ObjectVal(map[string]cty.Value{
+				"id": cty.StringVal("lg-1"), "kms_key_id": cty.NullVal(cty.String),
+			})},
+			// "" to "named" is a real change and still plans as one.
+			"recorded_empty_changed": {plans.Update, cty.ObjectVal(map[string]cty.Value{
+				"id": cty.StringVal("lg-2"), "name": cty.StringVal(""),
+			})},
 		} {
 			oc, ok := got[name]
 			if !ok {

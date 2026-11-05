@@ -21,3 +21,15 @@ output "secret" {
   value     = "s3cr3t"
   sensitive = true
 }
+
+# A resource-shaped output: the apply recorded kms_key_id as "", the legacy
+# SDK's answer for an unset string, and the projection evaluates it as a
+# null string. Same value to the provider, so the plan is a no-op.
+output "recorded_legacy_empty" {
+  value = { id = "lg-1", kms_key_id = tostring(null) }
+}
+
+# Recorded with name = "", configured as "named": a real change.
+output "recorded_empty_changed" {
+  value = { id = "lg-2", name = "named" }
+}
