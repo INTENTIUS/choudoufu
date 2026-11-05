@@ -2829,7 +2829,7 @@ log "=== G4. the next plan proposes nothing ==="
 GREEN_PLAN_OUT="$(green_tofu_run plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
 [ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -60; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
 grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
-  || { grep -E '^  #' <<< "$GREEN_PLAN_OUT"; fail "the greenfield replan is not empty"; }
+  || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -40; fail "the greenfield replan is not empty"; }
 log "  No changes."
 
 log "=== G5. stock oracle - the identical corpus example applied fresh in its own namespace ==="
