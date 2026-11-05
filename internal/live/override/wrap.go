@@ -24,7 +24,30 @@ func Wrap(inner providers.Interface, byType map[string][]Override) providers.Int
 	if len(byType) == 0 {
 		return inner
 	}
-	return &wrapped{Interface: inner, byType: byType}
+	w := &wrapped{Interface: inner, byType: byType}
+	if l, ok := inner.(lister); ok {
+		return &wrappedLister{wrapped: w, lister: l}
+	}
+	return w
+}
+
+// lister is the optional list capability of a plugin-backed provider,
+// the method set listclient.Lister asserts for. Embedding
+// providers.Interface hides it, so a wrapped provider that can list
+// says so explicitly, and one that cannot still fails that assertion.
+type lister interface {
+	ListResourceStream(ctx context.Context, req providers.ListResourceRequest, emit func(providers.ListResourceEvent) bool) tfdiags.Diagnostics
+}
+
+// wrappedLister is [wrapped] for a provider that can list. Listing reads
+// nothing an override changes, so it goes straight to the provider.
+type wrappedLister struct {
+	*wrapped
+	lister lister
+}
+
+func (w *wrappedLister) ListResourceStream(ctx context.Context, req providers.ListResourceRequest, emit func(providers.ListResourceEvent) bool) tfdiags.Diagnostics {
+	return w.lister.ListResourceStream(ctx, req, emit)
 }
 
 type wrapped struct {
