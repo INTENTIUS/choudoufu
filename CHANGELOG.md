@@ -44,9 +44,11 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 7. Update the numbers in `EVIDENCE.md` at the cut, from `live/CLAIMS.md` and
    `live/BOARD.md`, on the release branch before step 4's commit.
 
-## choudoufu v0.33.0 (Unreleased)
+## choudoufu v0.34.0 (Unreleased)
 
-Built on OpenTofu 1.13.2 (upstream tag v1.13.2 `765062032c`), up from 1.13.0 (#2242). The two upstream patch releases bring:
+## choudoufu v0.33.0 (2026-11-05)
+
+Built on OpenTofu 1.13.2 (upstream tag v1.13.2 `765062032c`), up from 1.13.0 (#2242). Board snapshot: [`live/history/v0.33.0.json`](live/history/v0.33.0.json). The two upstream patch releases bring:
 
 - Go 1.27.3, which filters out compromised intermediate certificates (GO-2026-6809).
 - Ephemeral output values are re-evaluated during apply instead of sometimes reusing a stale plan-time value.
@@ -55,9 +57,28 @@ Built on OpenTofu 1.13.2 (upstream tag v1.13.2 `765062032c`), up from 1.13.0 (#2
 - Autocompletion for `workspace select` and `workspace delete` predicts existing workspace names again.
 - `show -json` on a plan file works again when the configuration has ephemeral resources, and a `lifecycle` `destroy` expression with references reports an error rather than crashing.
 
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.32.0.json live/history/v0.33.0.json`):
+
+### Board movement
+
+- Core estates: 22/23 clear -> 22/23 clear (0)
+- All estates: 24/25 clear -> 24/25 clear (0)
+
+### Newly cleared
+
+- none
+
+### Regressed
+
+- none
+
+Every board row was last measured on OpenTofu 1.13.0; none was re-measured on 1.13.2 for this release, as at v0.20.0. Spot checks of four estates on 1.13.2 (corpus-vpc-complete, corpus-alb-complete, corpus-rds-complete-postgres, corpus-s3-bucket-complete) found two of the bugs fixed below, and one in the new overrides that never shipped (#2324); they are not board evidence.
+
 - New: provider behaviour overrides (#2309, #2317). choudoufu carries fixes for long-standing `hashicorp/aws` provider bugs in the engine, with the stock provider unchanged: no provider fork, no patched build, on every backend (`live`, S3 or local state). They are on by default. Every override that acts on a resource adds a warning to the plan naming itself, the upstream issue it stands in for and how to turn it off: `CHOUDOUFU_PROVIDER_OVERRIDES=off` turns all of them off for a run, and `CHOUDOUFU_PROVIDER_OVERRIDES=-name` turns off one. An override declares the provider attributes it reads and is skipped, with a warning, when the installed provider's schema differs. None adds an argument or writes state that stock OpenTofu would not, so turning them off, or going back to stock OpenTofu, brings back the stock plan and nothing else. Each was reproduced and then proven on real AWS with provider 6.71.0; the reproductions are in `live/override-repro`, and the table, with each override's upstream issue, its stock alternative and its credits, is `live/overrides.json`.
 - New: destroy-time arguments from configuration (#2317, #2320). Changing `skip_final_snapshot`, `force_destroy` or `force_delete` in configuration and then destroying now uses the configured value, where stock OpenTofu destroys with the value last applied and fails (`opentofu/opentofu#3472`). This covers `aws_rds_cluster`, `aws_db_instance`, `aws_s3_bucket`, `aws_iam_user`, `aws_route53_zone` and `aws_ecr_repository`, while the resource is still in configuration. The destroy plan shows the value it will use. This runs on the current runtime only.
 - Changed: examples name the cloud they run on instead of saying AWS-only (#2241). The site and README use the product's new short phrase (#2316), the home page's top comes from the shared product data, and the README's prose lint now fails the build.
+- Fixed: a declared type whose list call needs a parent, such as `aws_lb_listener` and `aws_lb_listener_rule`, is found through the estate's tag index instead of failing discovery with "Missing required list argument" (#2327).
+- Fixed: a root output whose recorded value differs from the plan only by `""` against `null` in a string attribute, as the AWS provider reports unset strings, no longer plans an update on every run (#2330).
 
 PROVIDER OVERRIDES:
 
