@@ -681,7 +681,7 @@ log "=== PART F: 4. the next plan proposes nothing ==="
 GREEN_PLAN_OUT="$(cd "$GREEN/blueprints/landing-zone-basic" && AWS_ENDPOINT_URL="$GREEN_ENDPOINT" "$TOFU" plan -input=false -no-color 2>&1)"; GREEN_PLAN_RC=$?
 [ "$GREEN_PLAN_RC" -eq 0 ] || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -30; fail "the greenfield replan exited $GREEN_PLAN_RC"; }
 grep -qF "No changes. Your infrastructure matches the configuration." <<< "$GREEN_PLAN_OUT" \
-  || { printf '%s\n' "$GREEN_PLAN_OUT" | tail -40; fail "the greenfield replan is not empty"; }
+  || { printf '%s\n' "$GREEN_PLAN_OUT" | awk '/^(Warning|Error): /{exit} {print}' | tail -80; printf -- '--- plan tail ---\n'; printf '%s\n' "$GREEN_PLAN_OUT" | tail -15; fail "the greenfield replan is not empty"; }
 log "  No changes."
 
 log "=== PART F: 5. object-by-object comparison against stock's cold deploy, still pristine on \$ENDPOINT ==="
