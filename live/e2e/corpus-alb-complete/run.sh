@@ -449,7 +449,7 @@ set -uo pipefail
 #   stage 1  cold deploy   PASS - real, unmarked infrastructure, all 80
 #                          resources, once for real (no manual retries) with
 #                          the fixed floci image.
-#   stage 2  migrate       PASS - real: 41 VERIFIED + 10 DRIFTED = 51 of 80
+#   stage 2  migrate       PASS - real: 45 VERIFIED + 6 DRIFTED = 51 of 80
 #                          resource instances eligible (#305's fix moved the
 #                          default-object trio from unadmitted into this
 #                          count); all 51 newly stamped, 0 FAILED (floci#65
@@ -584,8 +584,15 @@ PKG_HASH="$(printf '%s' "$PKG_URL" | md5 2>/dev/null || printf '%s' "$PKG_URL" |
 PKG_FILE="downloaded_package_${PKG_HASH}.zip"
 
 INSTANCES=80
-VERIFIED_WANT=41
-DRIFTED_WANT=10
+# 45 + 6 since floci@sha256:5ec92ae8 (repinned 2026-10-17); 41 + 10 before
+# it, with the same 51 eligible. Measured at becd4a89e4, the six that drift
+# are module.alb.aws_lb_target_group.this["ex-instance"] and
+# ["ex-lambda-with-trigger"], module.alb.aws_security_group.this[0],
+# module.log_bucket.aws_s3_bucket.this[0],
+# module.vpc.aws_default_network_acl.this[0] and
+# module.vpc.aws_route_table.public[0].
+VERIFIED_WANT=45
+DRIFTED_WANT=6
 UNTAGGABLE_WANT=29
 UNADMITTED_WANT=0
 ELIGIBLE=$((VERIFIED_WANT + DRIFTED_WANT))
