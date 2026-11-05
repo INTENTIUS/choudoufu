@@ -409,19 +409,30 @@ func withZeroInstanceBlocks(ctx context.Context, config *configs.Config, state *
 // sameUpToLegacyEmptyStrings reports whether a and b are equal once every
 // known empty string in each is read as a null string, the equivalence a
 // legacy-SDK provider applies to an unset string attribute.
+// A marked value anywhere refuses (false): the caller unmarks both sides
+// first, so a mark here means something else changed.
 func sameUpToLegacyEmptyStrings(a, b cty.Value) bool {
+	if a.ContainsMarked() || b.ContainsMarked() {
+		return false
+	}
 	na, errA := nullLegacyEmptyStrings(a)
 	nb, errB := nullLegacyEmptyStrings(b)
 	if errA != nil || errB != nil || !na.Type().Equals(nb.Type()) {
 		return false
 	}
 	eq := na.Equals(nb)
-	return eq.IsKnown() && eq.True()
+	if !eq.IsKnown() || eq.IsMarked() {
+		return false
+	}
+	return eq.True()
 }
 
 func nullLegacyEmptyStrings(v cty.Value) (cty.Value, error) {
 	return cty.Transform(v, func(_ cty.Path, v cty.Value) (cty.Value, error) {
-		if v.Type() == cty.String && v.IsKnown() && !v.IsNull() && v.AsString() == "" {
+		if v.IsMarked() || v.Type() != cty.String || !v.IsKnown() || v.IsNull() {
+			return v, nil
+		}
+		if v.AsString() == "" {
 			return cty.NullVal(cty.String), nil
 		}
 		return v, nil
