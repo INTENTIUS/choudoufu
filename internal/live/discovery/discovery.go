@@ -2177,6 +2177,30 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		return diags
 	}
 
+	// A declared type whose list schema requires an argument this scan does
+	// not set - a child type's parent: aws_lb_listener's load_balancer_arn,
+	// aws_lb_listener_rule's listener_arn, aws_route's route_table_id - can
+	// never be listed estate-wide. listclient refuses to send that call (a
+	// provider can crash on it), and the service would reject it anyway:
+	// ELBv2 DescribeListeners needs a load balancer or listener ARN. Failing
+	// the scan fails the whole plan, greenfield included, for a type whose
+	// own objects carry this estate's marker. So a taggable type takes the
+	// same route an unlistable one does ([scanTypeMarkerFallback]): the
+	// estate's tag index finds each of its objects by marker and ARN, with
+	// no per-type list call at all. An empty index answer is "none exist
+	// yet" and the instances plan create; no index at all (no Tagging
+	// client, or its call failed) falls through to the list call below and
+	// its refusal, which is the honest answer then. The sweep is untouched:
+	// it files SweepGapListFailed for the same refusal, as before.
+	if !sweep && typeTaggable(schemas, typeName) {
+		if missing := ts.MissingRequired(config); len(missing) > 0 {
+			if fbDiags, ok := scanTypeMarkerFallback(ctx, req, decl, typeName, res); ok {
+				log.Printf("[DEBUG] live/discovery: %s cannot be listed without %s; found by the estate's tag index instead", typeName, strings.Join(missing, ", "))
+				return diags.Append(fbDiags)
+			}
+		}
+	}
+
 	if scan.Filtering == FilterClientSide {
 		log.Printf("[DEBUG] live/discovery: listing %s unfiltered (%s)", typeName, scan.FilterReason)
 	}
