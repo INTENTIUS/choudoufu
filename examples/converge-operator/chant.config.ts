@@ -3,15 +3,14 @@ import "@intentius/chant-lexicon-terraform";
 
 /**
  * One project, one live root, two Ops: a `ConvergeOp` (the loop) and the
- * `TerraformApplyOp` it dispatches (the gated write). `examples/ci-pipelines`
- * is the same estate shape driven by five forge-triggered Ops; this project
- * drives the one root instead from `chant operator` ticking on an interval,
+ * `TerraformApplyOp` it dispatches (the gated write). This project drives the
+ * one root from `chant operator` ticking on an interval, not from forge
+ * triggers,
  * which is issue #1033's whole point — the replan-and-converge loop, shown
  * live rather than generated into someone else's CI.
  *
  * `binary: "choudoufu"` plus the `estate.chdf.hcl` sidecar under `./terraform`
- * is what makes this root live, exactly as in `examples/ci-pipelines`; see
- * that project's own `chant.config.ts` for the longer version of this note.
+ * is what makes this root live.
  *
  * `environments: ["dev"]` names the environment `dev-converge.op.ts` converges
  * and `dev-apply.op.ts` is dispatched into. Nothing here binds "dev" to the

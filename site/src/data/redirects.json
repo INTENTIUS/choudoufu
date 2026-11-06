@@ -141,5 +141,6 @@
  "/docs/what-you-pay/": "https://github.com/INTENTIUS/choudoufu/blob/main/live/PLAN-CONE.md",
  "/evidence/": "/choudoufu/",
  "/how-it-works/effects/": "https://github.com/INTENTIUS/choudoufu/blob/main/live/RECEIPTS.md",
- "/start/": "/choudoufu/docs/use/start/"
+ "/start/": "/choudoufu/docs/use/start/",
+ "/docs/use/cicd/": "/choudoufu/docs/terragucci/"
 }

@@ -13,7 +13,7 @@
 #
 # ## Why a scratch repository, not this worktree
 #
-# Same reason as `examples/ci-pipelines/scripts/smoke.sh`: chant's gate and
+# chant's gate and
 # converge ledgers live on the orphan `chant/lifecycle` branch, and
 # `pushLifecycle` pushes it to the first configured remote after every
 # ledger write, force-with-lease, swallowing the failure. This script builds
@@ -100,12 +100,11 @@ verdict() {
 }
 
 # run_status <file>: the run record chant writes as the last JSON *line* of
-# a `chant run <op> --json` invocation's stdout — the same convention
-# ci-pipelines/scripts/smoke.sh reads by, and for the same reason: the
+# a `chant run <op> --json` invocation's stdout, because the
 # human-readable render `report()` echoes ahead of it, and `chant run
 # <op> --json`'s own final record is already one minified line, so scanning
 # backward for the last line starting with `{` that parses as a run record
-# is sufficient here, same as smoke.sh.
+# is sufficient here.
 run_status() {
   node -e '
     const fs = require("fs");
@@ -123,8 +122,8 @@ run_status() {
 }
 
 # last_top_level_json <file>: takes the last top-level JSON object on
-# stdout, the same defense ci-pipelines' smoke.sh applies at the line level
-# for a multi-line `--json` stream, just at the object level. Unused now
+# stdout: the line-level defense for a multi-line `--json` stream, at the
+# object level. Unused now
 # that chant 0.68.1 (chant#2395) no longer echoes a subprocess blob ahead of
 # its own document on a live root's `--json` read; kept for any subcommand
 # that still concatenates documents on stdout.

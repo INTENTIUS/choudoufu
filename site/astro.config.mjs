@@ -190,9 +190,9 @@ export default defineConfig({
 						{ label: 'Remove a resource', slug: 'docs/use/remove-a-resource' },
 						{ label: 'Recover an estate', slug: 'docs/use/recover-an-estate' },
 						{ label: 'Record store bucket', slug: 'docs/use/bucket' },
-						{ label: 'CI/CD', slug: 'docs/use/cicd' },
 					],
 				},
+				{ label: 'CI with terragucci', slug: 'docs/terragucci' },
 				{
 					label: 'Reference',
 					collapsed: true,

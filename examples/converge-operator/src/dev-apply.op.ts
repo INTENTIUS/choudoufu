@@ -1,11 +1,9 @@
 /**
  * `dev-apply`: the only Op in this project allowed to change the estate, and
  * the dispatch target `dev-converge`'s rule table names. Init, `plan
- * -out=chant.tfplan`, Gate on the `show` of that file, `apply chant.tfplan` —
- * the same four-phase shape `examples/ci-pipelines/src/live-apply.op.ts`
- * documents at length; see that file for the mechanics of what the approval
- * covers on a live root and why the plan file crosses the gate rather than
- * being replayed.
+ * -out=chant.tfplan`, Gate on the `show` of that file, `apply chant.tfplan`.
+ * The plan file crosses the gate rather than being replayed, so the approval
+ * covers exactly the plan that is applied.
  *
  * `gate: "always"` for the same reason as that example: this is the
  * authoritative position on the lifecycle dial for `dev`, so every apply

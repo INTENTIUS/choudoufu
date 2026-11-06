@@ -789,30 +789,6 @@ func TestCIGofmtCoversTheSameRootsAsTheTestStep(t *testing.T) {
 	}
 }
 
-// workflowJob returns the body of a named job in a GitHub Actions workflow:
-// the lines indented under `  <name>:` up to the next line at that same
-// two-space indent. Deliberately textual, like justRecipe above - these
-// guards are about what a human reading the file would see, and a YAML
-// round-trip would let a semantically-equal rewrite pass while the comments
-// explaining the job were deleted.
-func workflowJob(doc, name string) (string, bool) {
-	lines := strings.Split(doc, "\n")
-	for i, line := range lines {
-		if strings.TrimRight(line, " \t") != "  "+name+":" {
-			continue
-		}
-		var body []string
-		for _, l := range lines[i+1:] {
-			if strings.TrimSpace(l) != "" && !strings.HasPrefix(l, "   ") {
-				break
-			}
-			body = append(body, l)
-		}
-		return strings.Join(body, "\n"), true
-	}
-	return "", false
-}
-
 // TestCIValidationRunsOnOrdinaryEvents keeps ci.yml on the ordinary path. A
 // check that only a human can trigger is the same as no check; #578's
 // acceptance says it in as many words - "it must execute on an ordinary CI
@@ -838,46 +814,5 @@ func TestCIValidationRunsOnOrdinaryEvents(t *testing.T) {
 	if strings.Contains(triggers, "workflow_dispatch") && !strings.Contains(triggers, "pull_request") {
 		t.Errorf("%s is dispatch-only; CI would then run only when a human asks, which is the state #578 found",
 			ciWorkflowRel)
-	}
-}
-
-// exampleCIPipelinesJobName is the ci.yml job that runs examples/ci-pipelines'
-// own `npm test` - the byte-for-byte regeneration proof described atop
-// live/ci_pipelines_test.go, which otherwise only ever ran on a laptop
-// (issue #1022, issue #807).
-const exampleCIPipelinesJobName = "example-ci-pipelines"
-
-// TestCIRunsTheCIPipelinesExampleTests is issue #1022's guard: it stops the
-// job that runs examples/ci-pipelines' own currency proof from quietly going
-// away, or from drifting off the pinned node version, the lock-file cache
-// key, or the exact command the issue asked for.
-func TestCIRunsTheCIPipelinesExampleTests(t *testing.T) {
-	data, err := os.ReadFile(ciWorkflowRel)
-	if err != nil {
-		t.Fatalf("reading %s: %v", ciWorkflowRel, err)
-	}
-	job, ok := workflowJob(string(data), exampleCIPipelinesJobName)
-	if !ok {
-		t.Fatalf("%s has no `%s:` job.\n"+
-			"examples/ci-pipelines' own `npm test` is the byte-for-byte regeneration proof for all three "+
-			"forges (see the header of live/ci_pipelines_test.go); without this job it runs only on a "+
-			"laptop, which is exactly the state issue #1022 found it in.",
-			ciWorkflowRel, exampleCIPipelinesJobName)
-	}
-
-	for _, want := range []struct {
-		substr string
-		why    string
-	}{
-		{"actions/setup-node", "the job needs node to run the example's generator and its test suite"},
-		{"cache: npm", "issue #1022 asks for the install to be cached"},
-		{"examples/ci-pipelines/package-lock.json", "the cache must be keyed on the example's own lock file, not the whole repo's"},
-		{"npm ci --no-audit --no-fund", "issue #1022 names this exact install command"},
-		{"npm test", "the install alone proves nothing; the job must run the example's suite"},
-		{"examples/ci-pipelines", "the job must run inside the example, not the repo root"},
-	} {
-		if !strings.Contains(job, want.substr) {
-			t.Errorf("the %s job in %s does not contain %q: %s", exampleCIPipelinesJobName, ciWorkflowRel, want.substr, want.why)
-		}
 	}
 }

@@ -25,7 +25,7 @@
 # `keepalive` keeps `resources` non-empty regardless of what happens to
 # `app`, which is the whole reason it is here — it is otherwise inert.
 #
-# No backend block, same reason as examples/ci-pipelines/terraform/main.tf:
+# No backend block:
 # choudoufu refuses one on a live root, since ownership is the marker tags on
 # the resource itself rather than an entry in a state file.
 
@@ -36,9 +36,8 @@ terraform {
     aws = {
       source = "hashicorp/aws"
       # Pinned to the provider version choudoufu's own admission evidence was
-      # surveyed against, the same pin examples/ci-pipelines/terraform/main.tf
-      # carries and for the same reason: a marker's identity derives from the
-      # provider's own identity schema.
+      # surveyed against: a marker's identity derives from the provider's own
+      # identity schema.
       version = "~> 6.59.0"
     }
   }
