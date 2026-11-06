@@ -1,8 +1,6 @@
 # The live configuration for this root, as a sidecar rather than a `live`
-# block inside terraform{} — see examples/ci-pipelines/terraform/estate.chdf.hcl
-# for the longer version of this note. Same shape here, a different estate
-# name so the two examples can run against the same floci account without
-# colliding.
+# block inside terraform{}, with its own estate name so it can run against a
+# shared floci account without colliding with another example.
 #
 # No `record_store` block: this example runs from one long-lived working
 # directory for the length of one demo, never a fresh-runner-per-invocation

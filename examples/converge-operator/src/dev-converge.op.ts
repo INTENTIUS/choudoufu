@@ -30,8 +30,7 @@
  * `live-plan -json`, and — unlike a stock root's `terraform show -json` —
  * that read is presence/ownership-only: `bound[]`/`unowned[]`/`adoptable[]`/
  * `omissions[]` (`@intentius/chant-lexicon-terraform`'s
- * `describe-resources.ts`), never a property tree. `examples/ci-pipelines`'s
- * README says the same thing under "What is not here": no
+ * `describe-resources.ts`), never a property tree: no
  * `observeResourcesDeep()`, so no property-level drift and no claimed-field
  * set, for a live root specifically.
  *
@@ -57,8 +56,8 @@
  * resource created at an address this root doesn't declare: `describeResources`
  * only ever asks about the entity names the build declares, so an
  * out-of-band resource under a name this root never mentions is invisible to
- * `chant lifecycle plan` entirely (that is `live-discover`'s job — see
- * `examples/ci-pipelines`'s README — not a converge tick's). Even stripping
+ * `chant lifecycle plan` entirely (that is `choudoufu live-discover`'s job,
+ * not a converge tick's). Even stripping
  * the ownership tags from the *declared* resource, so choudoufu's own
  * `live-plan` no longer recognizes it as this estate's, left it `noop`: it is
  * still present at a declared identity, and chant's plan-action crosswalk

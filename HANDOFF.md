@@ -294,7 +294,7 @@ Rules are tests. The ones that hold this document to the tree:
 
 Ruled by the maintainer on 2026-10-11: CI (`.github/workflows/ci.yml`) is
 unit tests and linting only. It runs gofmt over the fork-owned files, the
-build, the Go fast test tier and `examples/ci-pipelines`' own tests. No
+build and the Go fast test tier. No
 smoke, claims or gauntlet workflow exists; the scripts under `live/smoke`,
 `live/e2e` and `live/live-cert` are run by hand.
 

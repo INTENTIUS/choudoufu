@@ -3,8 +3,7 @@
  * green proof that `chant lint`'s OPS014 check actually guards the shape
  * this example's own safety argument depends on.
  *
- * `examples/ci-pipelines/tests/currency.test.ts` regenerates a checked-in
- * tree and diffs it; this project has no generated tree (no forge output,
+ * This project has no generated tree (no forge output,
  * nothing checked in that a generator produces), so there is nothing to
  * regenerate. What can rot silently instead is the *shape* of the two Ops —
  * `dev-converge`'s rule table and dial, `dev-apply`'s gate and verb class —

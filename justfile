@@ -32,11 +32,6 @@ test-sse:
 # care about. TestCIRunsEveryForkOwnedTestPackage (live/ci_coverage_test.go)
 # keeps the package list here and in the workflow from drifting apart.
 #
-# It also runs the example-ci-pipelines job's check (issue #1022): that job
-# is a separate job from `fast` in the workflow (see its comment in ci.yml for
-# why), but there is one local gate, so it runs here too, needing `npm ci`
-# first.
-#
 # Run exactly what CI runs, in order, before pushing.
 ci:
     #!/usr/bin/env bash
@@ -48,8 +43,6 @@ ci:
     go build ./cmd/choudoufu
     echo "==> fast test tier"
     env -u PWD go test ./internal/live/... ./pkg/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/backend/remote-state/azure/auth/ ./internal/configs/ ./internal/plans/ ./internal/plans/planfile/ ./internal/plugin/ ./internal/plugin6/ ./internal/plugins/ ./internal/states/statemgr/ ./internal/tracing/... ./internal/builtin/providers/tf/
-    echo "==> examples/ci-pipelines tests"
-    (cd examples/ci-pipelines && npm ci --no-audit --no-fund && npm test)
     echo "==> CI steps passed"
 
 # Check whether background subagents (dispatched via the Agent tool) are
@@ -83,24 +76,6 @@ smoke-selftest:
     bash live/smoke/selftest-teardown.sh
     bash live/smoke/selftest-bounds.sh
     bash live/smoke/selftest-verdict.sh
-
-# The five Ops of examples/ci-pipelines, actually run (issue #1026): the
-# pinned floci image, then live-check, live-plan, live-apply (gated, then
-# approved, then applied), a plan-moved re-run of live-apply that a
-# chant#2300 digest mismatch gates again (#1038), live-adopt (the
-# gate/approve/apply trio), live-discover, and the exit-3 refusal that
-# guards a saved plan. One `SMOKE op=... verdict=...` line each, read off
-# each run's own --json status. ~2 minutes.
-#
-# It is not a live/smoke scenario because those are shell against choudoufu
-# and the aws CLI, and this one needs node and the example's own
-# node_modules to have a `chant` to run at all. Without docker it stops and
-# says why rather than passing. There is no CI half any more (#2018
-# deleted ci-pipelines-smoke.yml): this is run by hand, on a machine with
-# Docker. BREAK=1 proves three of its assertions can fail.
-smoke-ci-pipelines:
-    @docker info >/dev/null 2>&1 || { echo "SMOKE skipped: the docker daemon is not running, and this smoke needs the pinned floci emulator. Start Docker and re-run." >&2; exit 1; }
-    bash examples/ci-pipelines/scripts/smoke.sh
 
 # One recipe for every named e2e demo: `just demo-run corpus-vpc-complete`
 # runs live/e2e/corpus-vpc-complete/run.sh. This replaced ~54 hand-cloned

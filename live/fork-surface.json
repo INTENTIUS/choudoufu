@@ -3,14 +3,14 @@
   "fork_point": "765062032c46cacab116b36d714db098b806dede",
   "fork_point_short": "765062032c",
   "fork_point_subject": "Prepare v1.13.2 release (#4753)",
-  "measured_at_head": "c0ac752568be4f4b67806b3e555c1058909b79aa",
-  "generated_at": "2026-11-04T21:45:17Z",
+  "measured_at_head": "7354086d911a5d9cb1d5cb3169a192aa2ae2aa8a",
+  "generated_at": "2026-11-06T20:15:37Z",
   "base_opentofu_version": "1.13.2",
   "counts": {
     ".github/": 25,
-    "internal/live/": 1903,
-    "live/": 744,
-    "other": 1717,
+    "internal/live/": 1905,
+    "live/": 741,
+    "other": 1672,
     "site/": 94,
     "tools/": 583
   },
@@ -1104,6 +1104,10 @@
       },
       {
         "path": "internal/live/discovery/declared_diagnostics_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/live/discovery/declared_list_needs_parent_test.go",
         "status": "A"
       },
       {
@@ -5811,6 +5815,10 @@
         "status": "A"
       },
       {
+        "path": "internal/live/override/wrap_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/live/passthrough/refusals.go",
         "status": "A"
       },
@@ -7981,14 +7989,6 @@
         "status": "A"
       },
       {
-        "path": "live/ci_pipelines_backend_prepare_test.go",
-        "status": "A"
-      },
-      {
-        "path": "live/ci_pipelines_test.go",
-        "status": "A"
-      },
-      {
         "path": "live/claims_last_run_test.go",
         "status": "A"
       },
@@ -9329,6 +9329,10 @@
         "status": "A"
       },
       {
+        "path": "live/history/v0.33.0.json",
+        "status": "A"
+      },
+      {
         "path": "live/history/v0.4.0.json",
         "status": "A"
       },
@@ -9522,10 +9526,6 @@
       },
       {
         "path": "live/no_state_absence_claims_test.go",
-        "status": "A"
-      },
-      {
-        "path": "live/oidc_bootstrap_selftest_test.go",
         "status": "A"
       },
       {
@@ -9822,10 +9822,6 @@
       },
       {
         "path": "live/pins_drift_test.go",
-        "status": "A"
-      },
-      {
-        "path": "live/pipeline_governance_test.go",
         "status": "A"
       },
       {
@@ -11035,170 +11031,6 @@
         "status": "A"
       },
       {
-        "path": "examples/ci-pipelines/.gitignore",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/PIPELINE.md",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/README.md",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/chant.config.ts",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/e2e/gitlab/README.md",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/e2e/gitlab/bootstrap.sh",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/e2e/gitlab/docker-compose.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/e2e/gitlab/overlay/.gitlab-ci.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/forgejo/.forgejo/workflows/backend-prepare.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/forgejo/.forgejo/workflows/live-adopt.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/forgejo/.forgejo/workflows/live-apply.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/forgejo/.forgejo/workflows/live-check.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/forgejo/.forgejo/workflows/live-discover.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/forgejo/.forgejo/workflows/live-plan.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/generate.ts",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/generated-from.json",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/github/.github/workflows/backend-prepare.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/github/.github/workflows/live-adopt.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/github/.github/workflows/live-apply.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/github/.github/workflows/live-check.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/github/.github/workflows/live-discover.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/github/.github/workflows/live-plan.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/gitlab/ops.gitlab-ci.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/package-lock.json",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/package.json",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/scripts/backend-prepare.sh",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/scripts/oidc-bootstrap.sh",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/scripts/selftest-oidc-bootstrap.sh",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/scripts/smoke.sh",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/src/backend-prepare.op.ts",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/src/forge.ts",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/src/live-adopt.op.ts",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/src/live-apply.op.ts",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/src/live-check.op.ts",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/src/live-discover.op.ts",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/src/live-plan.op.ts",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/terraform/.terraform.lock.hcl",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/terraform/estate.chdf.hcl",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/terraform/main.tf",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/tests/currency.test.ts",
-        "status": "A"
-      },
-      {
-        "path": "examples/ci-pipelines/tests/pipelines.test.ts",
-        "status": "A"
-      },
-      {
         "path": "examples/converge-operator/.gitignore",
         "status": "A"
       },
@@ -11840,22 +11672,6 @@
       },
       {
         "path": "examples/live-mv-workbench/workbench.py",
-        "status": "A"
-      },
-      {
-        "path": "examples/pipeline-governance/README.md",
-        "status": "A"
-      },
-      {
-        "path": "examples/pipeline-governance/forgejo/governance.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/pipeline-governance/github/governance.yml",
-        "status": "A"
-      },
-      {
-        "path": "examples/pipeline-governance/gitlab/governance.yml",
         "status": "A"
       },
       {
@@ -17793,6 +17609,10 @@
         "status": "A"
       },
       {
+        "path": "site/src/content/docs/docs/terragucci.md",
+        "status": "A"
+      },
+      {
         "path": "site/src/content/docs/docs/tutorial.md",
         "status": "A"
       },
@@ -17802,10 +17622,6 @@
       },
       {
         "path": "site/src/content/docs/docs/use/bucket.md",
-        "status": "A"
-      },
-      {
-        "path": "site/src/content/docs/docs/use/cicd.md",
         "status": "A"
       },
       {

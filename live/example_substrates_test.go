@@ -14,7 +14,8 @@ import (
 // TestExamplesStateTheirSubstrate is GitHub issue #1603: every example under
 // examples/ hard-codes `provider "aws"` somewhere or names AWS in its
 // prose, and four of them (pipeline-governance, cross-estate-dependency,
-// ci-pipelines, converge-operator) said so nowhere - a reader had no way to
+// ci-pipelines, converge-operator; pipeline-governance and ci-pipelines have
+// since been removed) said so nowhere - a reader had no way to
 // tell "AWS-only, deliberately" from "AWS-only, nobody got to the rest yet".
 //
 // The maintainer's 2026-09-26 ruling: each README states which substrates it
@@ -38,16 +39,8 @@ func TestExamplesStateTheirSubstrate(t *testing.T) {
 		says   []string
 	}{
 		{
-			"../examples/pipeline-governance/README.md",
-			[]string{"## Substrate", "runs on AWS", "ci-pipelines"},
-		},
-		{
 			"../examples/cross-estate-dependency/README.md",
 			[]string{"## Substrate", "runs on AWS", "tag:tofu-estate"},
-		},
-		{
-			"../examples/ci-pipelines/README.md",
-			[]string{"## Substrate", "runs on AWS", "Resource Groups Tagging API"},
 		},
 		{
 			"../examples/converge-operator/README.md",

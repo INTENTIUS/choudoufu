@@ -6,12 +6,12 @@
     "input change moves no output byte. live/cross_estate_dependency_test.go re-hashes these and compares."
   ],
   "inputs": {
-    "chant.config.ts": "1ee50708987b437b4acf375b789ef7ab694371fd180d523de063350c42a4d268",
-    "generate.ts": "617316e8e07354df815a23133010416dd2115be9d9c8579fd345bf93df5087f6",
+    "chant.config.ts": "f2a5736dc717990f36e024af587ed1b6e819f8f3753e52dad3c945947f154aa1",
+    "generate.ts": "a3da4c324dcfb3a350d545ded06bf392c9233e97b4507bcb565d4d557333967f",
     "package-lock.json": "972833332f1318319f3dde38a38f76f94d7aa39d085abb817171d2a22de168d3",
     "package.json": "783ca716c80a9991a24bec1663a8131472fd221c8cdc6261a2ad70828594f457",
     "src/estates-apply.op.ts": "7ea8870dd00dfffb9300704a3cb7b0ed153da3a77beed6eb8adc93f1065b8076",
-    "src/estates-plan.op.ts": "1b66ed3a61330981a100a54ca79f97b5e7b6e38a48442cd363b97c4b10aa34de",
-    "src/forge.ts": "af97709b5da99493d52e64d859b4322eff5ba4837da1aee903fbc1290767de51"
+    "src/estates-plan.op.ts": "11bea2597f7919ff1fd534c063960a0ed241b37837e454b700ee29521a056a82",
+    "src/forge.ts": "1f5abc90e56338f1bec1af288f4d2cd129088f0050e003792682de3f28216bb4"
   }
 }

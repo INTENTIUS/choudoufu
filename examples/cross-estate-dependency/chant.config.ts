@@ -29,7 +29,7 @@ import "@intentius/chant-lexicon-terraform";
  * `undeclared_tagged` quadrant, and it is what this project wants: an
  * orphaned resource still carrying this estate's markers is this estate's to
  * remove. `"gated"` would promise an approval gate, and neither Op here
- * builds one - the gated-apply shape is examples/ci-pipelines' `live-apply`.
+ * builds one.
  */
 export default {
   lexicons: ["terraform"],

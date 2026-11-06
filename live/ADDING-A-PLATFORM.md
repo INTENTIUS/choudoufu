@@ -40,7 +40,7 @@ restating it:
   (`tools/gauntlet/manualrun.go`, `live/e2e/lib/gauntlet.sh`). Never fake a
   terminal.
 - Claims and test benches need a person at a terminal. Since the 2026-10-11
-  ruling GitHub CI is gofmt, the Go unit tier and the ci-pipelines npm test;
+  ruling GitHub CI is gofmt and the Go unit tier;
   no workflow runs a smoke scenario or a lane. Build the scenario, merge it,
   and tell the maintainer it is ready to run.
 - Agents file issues on their own platform's floci fork and do nothing

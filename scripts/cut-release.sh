@@ -14,9 +14,7 @@
 # movement is read from the two snapshot files. Whatever the board says on
 # main is what the release records.
 #
-# The release pull request's GitHub CI is its gate. After the tag, the
-# examples/ci-pipelines pin is still the follow-up pull request CHANGELOG.md's
-# step 6 describes.
+# The release pull request's GitHub CI is its gate.
 set -euo pipefail
 
 usage() { echo "usage: $0 cut|tag vX.Y.Z" >&2; exit 2; }
@@ -96,7 +94,7 @@ Board movement against $prev:
 
 $movement
 
-After merge: \`scripts/cut-release.sh tag $V\`, then the examples/ci-pipelines pin pull request (CHANGELOG.md, step 6)."
+After merge: \`scripts/cut-release.sh tag $V\`."
   echo "cut-release: $V is in a pull request from $BRANCH (worktree $wt). When it merges: $0 tag $V"
 }
 

@@ -21,8 +21,8 @@ import (
 // Control list handler's own read - xray:GetGroups for AWS::XRay::Group,
 // access-analyzer:ListAnalyzers for AWS::AccessAnalyzer::Analyzer - gets
 // AccessDeniedException per type, and the sweep used to raise one
-// "Incomplete sweep" warning per type. The first real-AWS run of
-// examples/ci-pipelines printed hundreds of them, and the one fatal error
+// "Incomplete sweep" warning per type. The first real-AWS run of a CI
+// pipeline example (since removed) printed hundreds of them, and the one fatal error
 // of that run sat underneath.
 //
 // The ruling (2026-09-21): one warning, grouped by cause. Every AccessDenied

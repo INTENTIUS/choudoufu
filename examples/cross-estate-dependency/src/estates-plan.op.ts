@@ -17,9 +17,8 @@
  *
  * No `findingMode`, so both jobs generate at chant's default `"report"`: this
  * Op prints its plan and posts nothing. Posting a plan comment on the pull
- * request is examples/ci-pipelines' `live-plan`, and adding it here would
- * bring that project's whole per-forge finding-mode table along with it
- * without teaching anything new about cross-estate ordering.
+ * request would bring a per-forge finding-mode table along with it without
+ * teaching anything new about cross-estate ordering.
  */
 
 import { Op, phase } from "@intentius/chant/op";

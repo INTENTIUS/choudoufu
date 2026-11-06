@@ -69,8 +69,7 @@ const IMAGE = "node:22";
  * action; GitLab's OIDC surface is a job-level `id_tokens:` declaration that
  * lands the JWT in `$CHANT_ID_TOKEN`, so the token is written to a file and
  * the two environment variables every AWS SDK's web-identity provider already
- * reads are pointed at it. `examples/ci-pipelines/generate.ts` carries the
- * full reasoning; this is the same code with three roles collapsed to two.
+ * reads are pointed at it.
  */
 function assumeRole(roleVariable: string): NonNullable<ScheduledOpSpec["setup"]> {
   if (forge === "gitlab") {
@@ -116,8 +115,7 @@ function forgejoKeyPair(name: "PLAN" | "APPLY"): NonNullable<ScheduledOpSpec["va
  *
  * Neither carries a `findingMode`, so both generate at chant's default
  * `"report"`: they print what they found and post nothing. See
- * `src/estates-plan.op.ts` for why this project does not bring
- * ci-pipelines' per-forge posting table along.
+ * `src/estates-plan.op.ts` for why this project posts nothing.
  */
 export function specs(): ScheduledOpSpec[] {
   const oidcForge = forge === "github" || forge === "gitlab";
@@ -200,8 +198,7 @@ const GENERATOR_INPUTS = ["chant.config.ts", "generate.ts", "package-lock.json",
  * because an input change that moves no output byte leaves nothing to commit
  * and the proxy then reports stale forever with a remedy that produces no
  * commit. So the run records what it read, and the Go side re-hashes the same
- * files and compares. Copied from examples/ci-pipelines, whose
- * `generated-from.json` doc comment carries the longer version.
+ * files and compares.
  */
 const STAMP_FILE = "generated-from.json";
 

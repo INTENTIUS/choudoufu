@@ -6,14 +6,12 @@ introduced from the AWS CLI, classified against a typed rule table, dispatched
 to a gated apply, and the resulting gate proven to hold as a fact on the
 `chant/lifecycle` git ledger across a restart of the operator process itself.
 
-`examples/ci-pipelines` shows Ops on forge triggers; `examples/live-mv-workbench`
-shows the tag-based split. Neither shows `chant operator` ticking on its own
+`examples/live-mv-workbench` shows the tag-based split. It does not show `chant operator` ticking on its own
 interval, off git alone, with nothing watching it fire — that is this project's
 whole point (issue #1033, refs chant#2314).
 
 This project pins chant **0.68.1**, which carries the fixes for both
-upstream findings below (chant#2395, chant#2396) — `examples/ci-pipelines`
-still pins 0.63.0, unrelated to this repin.
+upstream findings below (chant#2395, chant#2396).
 
 ## Substrate
 
@@ -288,15 +286,13 @@ own `scripts/`/`node_modules/.bin` carries no workaround for either any
 more; `scripts/chant-json-shim` is gone, and `node_modules/@intentius/chant`
 is never touched by this project regardless. And the `chant/lifecycle`
 ledger this example writes never reaches a remote: `scripts/demo.sh` builds
-its own throwaway git repository with no remote configured, the same reason
-`examples/ci-pipelines/scripts/smoke.sh` does — see that script's own doc
-comment, quoted in this project's `scripts/demo.sh` too.
+its own throwaway git repository with no remote configured; `scripts/demo.sh`'s
+doc comment says why.
 
 ## Pinning
 
 `package.json` pins `@intentius/chant` and `@intentius/chant-lexicon-terraform`
-to `0.68.1`, which carries the fixes for chant#2395 and chant#2396 (closed);
-`examples/ci-pipelines` still pins `0.63.0`, unaffected by this repin.
+to `0.68.1`, which carries the fixes for chant#2395 and chant#2396 (closed).
 `@cdktf/hcl2json` is a `devDependency` here (not a chant dependency — chant's
 own `terraform/parse.ts` deliberately does not carry the ~1.8MB wasm blob it
 needs) because without it `chant build` cannot parse `terraform/*.tf` into

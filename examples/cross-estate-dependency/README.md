@@ -162,16 +162,13 @@ gitlab/ops.gitlab-ci.yml     both jobs in one file
 
 `estates-plan` runs on a pull request to `main` and writes nothing.
 `estates-apply` runs on a push to `main`. The generated job names are the
-names a branch-protection rule can require;
-`examples/pipeline-governance` is what a policy naming them looks like.
+names a branch-protection rule can require.
 
 Credentials are per Op, not per repository: the pull-request job assumes a role
 that can only read, and only the push job holds one that can write to both
 estates. GitHub and GitLab mint theirs per job over OIDC; Forgejo Actions mints
 no OIDC token, so its jobs carry a static key pair each, declared on the Op's
 own spec rather than workflow-wide.
-`examples/ci-pipelines/generate.ts` carries the long version of all of that —
-this project is the same wiring with three roles collapsed to two.
 
 Regenerate with `npm run generate`. The checked-in trees must be what the
 generator emits, byte for byte: `tests/pipelines.test.ts` regenerates into a
@@ -184,8 +181,7 @@ Two things about the generated YAML worth knowing before you copy it:
 - Neither Op declares a gate, so neither run ever stops for an approval. The
   forge generators still emit a `*-gate-notice` job that fires only when a run
   comes back `gated`, which for these two Ops is never. If you add a gate,
-  that job becomes live and needs `gh` on the image —
-  `examples/ci-pipelines`' `live-apply` is the shape to copy.
+  that job becomes live and needs `gh` on the image.
 - Neither root sets a `workspace` and neither declares a `backend` or `cloud`
   block. TF025 refuses a non-default workspace on a live root and TF024
   refuses a backend, both for the same underlying reason: those are state-file
@@ -269,5 +265,3 @@ stays until terragucci records the row (choudoufu#2302), and then goes; the
 - `internal/live/lifecycle/cross_estate_live_test.go` — the same estate pair
   proved against floci in Go, which is the shape these two roots are copied
   from.
-- `examples/ci-pipelines` — one estate, five Ops, gated applies, and the
-  per-forge posting table this project deliberately does not repeat.

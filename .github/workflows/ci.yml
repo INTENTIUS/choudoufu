@@ -14,8 +14,7 @@ permissions:
   contents: read
 
 # Unit tests only on pull_request, push and release: gofmt, build and the Go
-# unit test tier. example-ci-pipelines is not a unit test, so it runs only on
-# workflow_dispatch (it is skipped, not removed, so its guard test still holds).
+# unit test tier.
 jobs:
   fast:
     runs-on: ubuntu-latest
@@ -145,8 +144,7 @@ jobs:
       # issue #1382). It reads the built template because the TypeScript can
       # say anything and what CloudFormation receives is the template. It
       # fails rather than skips without node_modules, so they are installed
-      # here. This does let a registry outage redden the Go tier, which is
-      # why examples/ci-pipelines keeps its own job. The cache is keyed on
+      # here. This does let a registry outage redden the Go tier. The cache is keyed on
       # the lock file so that an ordinary run reaches the registry for
       # nothing, and `npm ci` installs exactly the locked tree.
       - uses: actions/setup-node@v4
@@ -161,24 +159,3 @@ jobs:
         run: npm ci --no-audit --no-fund && node prose-lint.mjs -fail README.md
       - name: Fast test tier
         run: go test ./internal/live/... ./pkg/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/tofu/... ./internal/backend/local/ ./internal/backend/remote-state/azure/auth/ ./internal/configs/ ./internal/plans/ ./internal/plans/planfile/ ./internal/plugin/ ./internal/plugin6/ ./internal/plugins/ ./internal/states/statemgr/ ./internal/tracing/... ./internal/builtin/providers/tf/
-
-  # examples/ci-pipelines' byte-for-byte regeneration proof (issue #807, #1022)
-  # is the example's own `npm test`: it re-runs generate.ts for all three
-  # forges into a scratch directory and diffs the result against what is
-  # checked in. Manual only, so pull requests, pushes and releases skip it.
-  # Cache is keyed on the example's own lock file.
-  example-ci-pipelines:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: examples/ci-pipelines/package-lock.json
-      - name: npm ci && npm test
-        working-directory: examples/ci-pipelines
-        run: |
-          npm ci --no-audit --no-fund
-          npm test

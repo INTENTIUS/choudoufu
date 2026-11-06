@@ -28,23 +28,13 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 5. Tag the merge commit `vX.Y.Z` and push the tag.
    `.github/workflows/release.yml` triggers on the pushed tag - not on the
    merge - builds the six platform binaries, and publishes the GitHub
-   release with its `SHA256SUMS`. This is the first point the checksum
-   `examples/ci-pipelines` pins can be known: the workflow only runs once the
-   tag exists, so it cannot finish inside the release pull request itself.
-6. In a follow-up pull request - the "first PR after the tag" that
-   `live/ci_pipelines_test.go`'s `TestCIPipelinePinIsTiedToRelease` exists to
-   tolerate being one release behind for - bump `CHOUDOUFU_VERSION` and
-   `CHOUDOUFU_SHA256` in `examples/ci-pipelines/generate.ts` to the new tag
-   and the `linux_amd64` line of its published `SHA256SUMS` (`tests/pipelines.test.ts`
-   reads both back out of `generate.ts` rather than repeating them, so there
-   is nothing to edit there), run `npm run generate` in
-   `examples/ci-pipelines`, and commit the three regenerated trees plus
-   `generated-from.json` alongside the pin. Skipping this step for more than
-   one release cycle is what `TestCIPipelinePinIsTiedToRelease` turns red for.
-7. Update the numbers in `EVIDENCE.md` at the cut, from `live/CLAIMS.md` and
+   release with its `SHA256SUMS`.
+6. Update the numbers in `EVIDENCE.md` at the cut, from `live/CLAIMS.md` and
    `live/BOARD.md`, on the release branch before step 4's commit.
 
 ## choudoufu v0.34.0 (Unreleased)
+
+- Removed: `examples/ci-pipelines` and `examples/pipeline-governance`. terragucci runs choudoufu from CI, so the docs' CI/CD how-to is now [CI with terragucci](https://intentius.io/choudoufu/docs/terragucci/), and `/docs/use/cicd/` redirects there. Releases no longer need a follow-up pin pull request.
 
 ## choudoufu v0.33.0 (2026-11-05)
 
