@@ -522,6 +522,10 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// provider process is started or a single live call is made. See
 	// [readParallelismSetting] for the setting, the refusal and the default
 	// decision.
+	if moreDiags := c.liveRefusesNewRuntime(); moreDiags.HasErrors() {
+		return 1, false, diags.Append(moreDiags)
+	}
+
 	readPar, readParDiags := readParallelismSetting()
 	diags = diags.Append(readParDiags)
 	if readParDiags.HasErrors() {

@@ -213,6 +213,9 @@ func (c ApplyCommand) Execute(args *arguments.Apply, view views.Apply) int {
 	}
 
 	if liveCfg != nil && !diags.HasErrors() {
+		diags = diags.Append(c.liveRefusesNewRuntime())
+	}
+	if liveCfg != nil && !diags.HasErrors() {
 		// Never adoption-only: GitHub issue #587's flag is a way of READING
 		// a plan, and there is no such thing as applying only the adoption
 		// question. arguments.Apply does not carry it and this passes false
