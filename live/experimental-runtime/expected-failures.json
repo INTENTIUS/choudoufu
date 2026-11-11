@@ -9,7 +9,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestApply_concise",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -98,21 +98,6 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestEstateOutputsDeniedRefusesNamingTheOtherEstate",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740). The estate-outputs data source (terraform_estate_outputs) is a data source; live in-run estates wait on the same row."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestEstateOutputsNotRecordedRefusesByName",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740). The estate-outputs data source (terraform_estate_outputs) is a data source; live in-run estates wait on the same row."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestEstateOutputsReadCrossesEstates",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740). The estate-outputs data source (terraform_estate_outputs) is a data source; live in-run estates wait on the same row."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestImportModuleInputVariableEvaluation",
       "reason": "Upstream's new runtime, in an internal/command test upstream's own experimental lane does not run (it runs internal/tofu only): the import command into a module instance gets \"Import returned no resources\"."
     },
@@ -143,33 +128,23 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestLiveCompose_eachEstateAssumesItsOwnRole",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740). The estate-outputs data source (terraform_estate_outputs) is a data source; live in-run estates wait on the same row."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestLiveCompose_oneApplyTwoEstates",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740). The estate-outputs data source (terraform_estate_outputs) is a data source; live in-run estates wait on the same row."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestLivePlan_rootOutputsChangeWhenResourceIsCreated",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360). The estate-outputs data source (terraform_estate_outputs) is a data source; live in-run estates wait on the same row."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360). Its fixture has a sensitive output; it reads no estate outputs."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestLivePlan_rootOutputsNoOpWhenUnchanged",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360). The estate-outputs data source (terraform_estate_outputs) is a data source; live in-run estates wait on the same row."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360). Its fixture has a sensitive output; it reads no estate outputs."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_concise",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -179,12 +154,12 @@
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_destroy",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_detailedExitcode",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -194,17 +169,17 @@
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_noState",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_outPath",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_outPathNoChange",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -214,7 +189,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_providerArgumentUnset",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -224,17 +199,17 @@
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_refreshFalse",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_refreshFalseRefreshTrue",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_refreshTrue",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -259,12 +234,12 @@
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_state",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_stateDefault",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -274,7 +249,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_warnings",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -285,11 +260,6 @@
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_withoutShowSensitiveArg",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestProducerDestroyDeletesItsRecordedOutputs",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740). The estate-outputs data source (terraform_estate_outputs) is a data source; live in-run estates wait on the same row."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -479,7 +449,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Apply_destroyWithConfiguredProvider",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -569,12 +539,12 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Apply_providerModuleIteration",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Apply_providerResourceIteration",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -624,12 +594,12 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Apply_variableValidateDataSource",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately; gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately; gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Apply_variableValidateReferences",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740); gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740); gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -654,7 +624,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Input_dataSourceRequiresRefresh",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -664,12 +634,12 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_computedInFunction",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_createBeforeDestroy_depends_datasource",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -679,27 +649,27 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_dataInModuleDependsOn",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_dataReferencesResourceInModules",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_dataReferencesResourceIndirectly",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_dataSchemaChange",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_dataSourceReadPlanError",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740). The refused plan is nil, so the test sees no errored plan."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740). The refused plan is nil, so the test sees no errored plan."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -744,7 +714,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_importIdDataSource",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -759,12 +729,12 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_importResourceWithSensitiveDataSource",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_importToDynamicAddress",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -778,38 +748,18 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_inRunEstatePartialOutputs",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_inRunEstateRead",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_inRunEstateReadNothingPending",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_inRunEstateSelfRead",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_invalidModuleOutput",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_invalidOutput",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_moduleDependsOnWithCheck",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"checks-conditions\": checks and conditions, waits for upstream (upstream #4390); gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"checks-conditions\": checks and conditions, waits for upstream (upstream #4390); gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -854,17 +804,17 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_noChangeDataPlan",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_noChangeDataSourceAddingModuleInstance",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_noChangeDataSourceSensitiveNestedSet",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740); gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740); gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -874,7 +824,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_orphanDataInstance",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -884,7 +834,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_planDataSourceSensitiveNested",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -904,7 +854,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_preventDestroy_dynamicFromDataResource",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -944,22 +894,22 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Refresh_dataCount",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Refresh_dataResourceDependsOn",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Refresh_dataState",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Refresh_dataValidation",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -999,7 +949,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext_contextValuesPropagation",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",

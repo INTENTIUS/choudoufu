@@ -21,6 +21,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/engine/applying"
+	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/planning"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
@@ -288,11 +289,19 @@ func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, pre
 		// choudoufu identity resolution (#2256 U6): a nil resolver stays a
 		// nil interface here, so the engine never asks.
 		IdentityResolver: c.resourceIdentityResolver,
+
+		// choudoufu fork port (#2370): remove when upstream #4058 lands.
+		InRunEstates: inrunestates.New(c.inRunEstates),
 	}
 
 	plan, moreDiags := planning.PlanChanges(ctx, newOpts, prevRoundState, configInst, plugins)
 	if plan != nil {
 		plan.Timestamp = timestamp
+		// choudoufu (#2370): upstream's planning engine always reports
+		// NormalMode (its TODO in planning.PlanChanges). The live
+		// write-back reads the plan's mode to tell a whole destroy, which
+		// deletes the estate's recorded root outputs, from any other apply.
+		plan.UIMode = opts.Mode
 	}
 	diags = diags.Append(moreDiags)
 	return plan, diags
@@ -435,6 +444,8 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 	newState, moreDiags := applying.ApplyPlannedChanges(ctx, plan, configInst, plugins, persistState, &applying.ApplyOpts{
 		ConfigValueAdjuster: c.configValueAdjuster,
 		InstanceStateUpdate: c.newEngineInstanceStateUpdate, // choudoufu: #2341
+		// choudoufu fork port (#2370): remove when upstream #4058 lands.
+		InRunEstates: inrunestates.New(c.inRunEstates),
 	})
 	diags = diags.Append(moreDiags)
 

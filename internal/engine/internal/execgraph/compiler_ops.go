@@ -455,6 +455,10 @@ func (c *compiler) compileOpManagedChangeAddr(operands *compilerOperands) nodeEx
 }
 
 func (c *compiler) compileOpDataRead(operands *compilerOperands) nodeExecuteRaw {
+	// choudoufu fork port (#2370): remove when upstream #4058 lands. The
+	// builder and unmarshal give opDataRead a metadata operand first, which
+	// upstream's compiler did not consume.
+	_ = nextOperand[*exec.ResourceInstanceObjectMeta](operands)
 	getDesired := nextOperand[*eval.DesiredResourceInstance](operands)
 	getInitialPlanned := nextOperand[cty.Value](operands)
 	waitForDeps := operands.OperandWaiter()
