@@ -53,7 +53,8 @@ type Row struct {
 	// uses. Every such row must name one this package implements.
 	Construct string `json:"construct,omitempty"`
 	// Scope, for a post-plan row, is "live" (live mode only), "non_live"
-	// (outside live mode only) or "all".
+	// (outside live mode only) or "all". A preflight row may carry one too
+	// (#2256 U10); a preflight row without one applies in both modes.
 	Scope string `json:"scope,omitempty"`
 	// Interim says what happens meanwhile.
 	Interim string `json:"interim,omitempty"`
@@ -72,6 +73,18 @@ type Row struct {
 	// it set, what the port covers is refused again by the row that
 	// refused it before.
 	Switch string `json:"switch,omitempty"`
+}
+
+// InScope reports whether the row applies to a run, live saying whether the
+// run is in live mode. A row with no scope applies to every run.
+func (r Row) InScope(live bool) bool {
+	switch r.Scope {
+	case ScopeLive:
+		return live
+	case ScopeNonLive:
+		return !live
+	}
+	return true
 }
 
 // WaitsFor is how a refusal names what it is waiting for.
@@ -122,11 +135,22 @@ func parse(b []byte) ([]Row, error) {
 		if (r.ForkPort == "") != (r.Switch == "") {
 			return nil, fmt.Errorf("internal/live/newruntime/gaps.json: row %q must name both a fork_port and its switch, or neither", r.ID)
 		}
-		if r.Check == CheckPostPlan {
+		switch r.Check {
+		case CheckPostPlan:
 			switch r.Scope {
 			case ScopeLive, ScopeNonLive, ScopeAll:
 			default:
 				return nil, fmt.Errorf("internal/live/newruntime/gaps.json: post-plan row %q has unknown scope %q", r.ID, r.Scope)
+			}
+		case CheckPreflight:
+			switch r.Scope {
+			case "", ScopeLive, ScopeNonLive, ScopeAll:
+			default:
+				return nil, fmt.Errorf("internal/live/newruntime/gaps.json: preflight row %q has unknown scope %q", r.ID, r.Scope)
+			}
+		default:
+			if r.Scope != "" {
+				return nil, fmt.Errorf("internal/live/newruntime/gaps.json: row %q has check %q, which takes no scope", r.ID, r.Check)
 			}
 		}
 	}
