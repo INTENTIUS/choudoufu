@@ -104,6 +104,10 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// refuses nothing; its caller decides.
 		"armtypes":     true,
 		"check":        true, // this package: the instrument itself
+		// #2256's new-runtime gap table and the refusals generated from it.
+		// They run only with TOFU_X_EXPERIMENTAL_RUNTIME on, on any
+		// configuration, live or not, so they are not a live-path stage.
+		"newruntime": true,
 		"cloudcontrol": true, // a client for one AWS API
 		// The verification cohorts' pinned rosters (issue #699): 31 cohort
 		// names, each with the -types list tools/estate-gen renders and the
