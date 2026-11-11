@@ -407,6 +407,18 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 			))
 			return ret, diags
 		}
+	} else if ret.RefreshedState == nil && ret.UpgradedState != nil {
+		// choudoufu (#2256 end phase): with refresh skipped the prior object
+		// (from the prior state, a move or upgrade, or an import) stands
+		// unrefreshed, as the old runtime's refresh state does. Left nil,
+		// finalizePlan removes the object from the plan's PriorState, so the
+		// apply's ResourceInstancePrior reads nil for a NoOp and every
+		// dependent sees a null value ("azapi_resource.resourceGroup is
+		// null"). Live mode always plans with refresh skipped. The orphan
+		// path starts from the unchanged state the same way. A resolved
+		// import already set its own refreshed state in refreshResolvedImport.
+		ret.RefreshedState = ret.UpgradedState
+		ret.RefreshedValue = ret.UpgradedValue
 	}
 
 	if p.planCtx.refreshOnly {
