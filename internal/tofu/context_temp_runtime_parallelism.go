@@ -41,6 +41,10 @@ type parallelProvider struct {
 	sem Semaphore
 }
 
+// UnwrapProvider lets code that finds a provider wrapper by type, such as
+// internal/live/override's destroy-from-config, see through this one.
+func (p *parallelProvider) UnwrapProvider() providers.Configured { return p.Configured }
+
 func (p *parallelProvider) ReadResource(ctx context.Context, req providers.ReadResourceRequest) providers.ReadResourceResponse {
 	p.sem.Acquire()
 	defer p.sem.Release()
