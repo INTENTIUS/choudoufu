@@ -27,6 +27,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/encryption"
+	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/logging"
 	"github.com/intentius/choudoufu/internal/moduletest"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -67,6 +68,14 @@ type TestCommand struct {
 func (c TestCommand) Execute(args *arguments.Test, view views.Test) int {
 	var diags tfdiags.Diagnostics
 	ctx := c.CommandContext()
+
+	// choudoufu (#2256 U2): the test harness still evaluates on the default
+	// runtime, so with the new-runtime toggle on the command is refused
+	// rather than run on a mix of the two (gap "test-command").
+	if tofu.ExperimentalRuntimeEnabled() {
+		view.Diagnostics(nil, nil, newruntime.RefuseCommand("test"))
+		return 1
+	}
 
 	variables, variableDiags := c.collectVariableValuesWithTests(args.TestDirectory)
 	diags = diags.Append(variableDiags)

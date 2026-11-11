@@ -24,8 +24,8 @@ import (
 	"github.com/intentius/choudoufu/internal/engine/planning"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
-	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
+	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/shared"
@@ -79,6 +79,13 @@ func SetExperimentalRuntimeForcedForTesting(on bool) (restore func()) {
 	prev := experimentalRuntimeForcedForTesting
 	experimentalRuntimeForcedForTesting = on
 	return func() { experimentalRuntimeForcedForTesting = prev }
+}
+
+// ExperimentalRuntimeEnabled reports whether plan and apply run on the new
+// runtime, for callers outside this package that refuse what it cannot do
+// yet (#2256 U2: the test command).
+func ExperimentalRuntimeEnabled() bool {
+	return experimentalRuntimeEnabled()
 }
 
 func experimentalRuntimeWanted() bool {
