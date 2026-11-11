@@ -204,7 +204,7 @@ corpus init_bin="terraform":
 # ---------------------------------------------------------------------------
 
 # Regenerate every derived artifact, in dependency order (#133). No network.
-tables: mapping row-emit rowgen-mismatches schema-precedence identity-sources survey-render tagverbs-render limits harness toggles
+tables: mapping row-emit rowgen-mismatches schema-precedence identity-sources survey-render tagverbs-render limits harness toggles upstream-page
     @git status --porcelain || true
 
 # CloudFormation Registry schemas -> live/registry.json + its embedded copy. Network on a cold cache.
@@ -239,6 +239,12 @@ tagverbs-render:
 # `tables` rather than a fetch like tagverbs above it.
 toggles:
     env -u PWD go run ./tools/toggles-gen
+
+# internal/live/newruntime/gaps.json and live/fork-surface.json ->
+# live/NEW-RUNTIME.md (base and gap tables) and the base line of the site's
+# upstream page (site/src/content/docs/how-it-works/upstream.md). No network.
+upstream-page:
+    env -u PWD go run ./tools/upstreamdoc-gen
 
 # The record-store effects providers' own schemas -> live/logical-schemas.json,
 # the evidence every RecordBacked row is derived from (see

@@ -139,6 +139,7 @@ tmp
 /tagverbs-gen
 /terralith-gen
 /toggles-gen
+/upstreamdoc-gen
 /wo-sweep
 
 # The #102 corpus: third-party configurations pinned in live/corpus-manifest.json
