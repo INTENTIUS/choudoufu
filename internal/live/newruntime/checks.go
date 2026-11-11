@@ -222,16 +222,10 @@ func RefuseCommand(name string) tfdiags.Diagnostics {
 	return diags
 }
 
-// DestroyAttributesFunc reports the destroy-time attributes an enabled
-// destroy-from-config override (#2309) would set for a resource type of a
-// provider. It is empty when no override would act.
-type DestroyAttributesFunc func(provider addrs.Provider, typeName string) []string
-
 // PostPlan refuses, before a plan is shown or saved, every change the
 // table's post-plan rows name. live says whether the run is in live mode,
-// which decides the scope of a row. cfg is the configuration the plan was
-// made from; destroyAttrs may be nil when no override is configured.
-func PostPlan(plan *plans.Plan, cfg *configs.Config, live bool, destroyAttrs DestroyAttributesFunc) tfdiags.Diagnostics {
+// which decides the scope of a row.
+func PostPlan(plan *plans.Plan, live bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if plan == nil || plan.Changes == nil {
 		return diags
@@ -239,7 +233,7 @@ func PostPlan(plan *plans.Plan, cfg *configs.Config, live bool, destroyAttrs Des
 	changes := append([]*plans.ResourceInstanceChangeSrc(nil), plan.Changes.Resources...)
 	sort.Slice(changes, func(i, j int) bool { return changes[i].Addr.String() < changes[j].Addr.String() })
 
-	for _, construct := range []string{"replace", "destroy_override"} {
+	for _, construct := range []string{"replace"} {
 		var applicable []Row
 		for _, r := range RowsFor(CheckPostPlan) {
 			if r.Construct != construct {
@@ -265,60 +259,17 @@ func PostPlan(plan *plans.Plan, cfg *configs.Config, live bool, destroyAttrs Des
 				if ch.Action.IsReplace() {
 					diags = diags.Append(refusal(r, fmt.Sprintf("the plan replaces %s", ch.Addr), nil))
 				}
-			case "destroy_override":
-				if ch.Action != plans.Delete || destroyAttrs == nil {
-					continue
-				}
-				if set := configuredDestroyAttrs(cfg, ch.Addr, ch.ProviderAddr.Provider, destroyAttrs); len(set) > 0 {
-					diags = diags.Append(refusal(r, fmt.Sprintf("the plan deletes %s and its configuration sets %s, which a destroy-from-config override would send with the delete", ch.Addr, strings.Join(set, ", ")), nil))
-				}
 			default:
 				panic(fmt.Sprintf("gap %q: no post-plan detector for construct %q", r.ID, construct))
 			}
 		}
 	}
 	for _, r := range RowsFor(CheckPostPlan) {
-		if r.Construct != "replace" && r.Construct != "destroy_override" {
+		if r.Construct != "replace" {
 			panic(fmt.Sprintf("gap %q: no post-plan detector for construct %q", r.ID, r.Construct))
 		}
 	}
 	return diags
-}
-
-// configuredDestroyAttrs returns the override's destroy-time attributes the
-// resource's configuration sets. Destroy-from-config acts only when the
-// configuration still exists and sets the attribute.
-func configuredDestroyAttrs(cfg *configs.Config, addr addrs.AbsResourceInstance, provider addrs.Provider, destroyAttrs DestroyAttributesFunc) []string {
-	if cfg == nil {
-		return nil
-	}
-	names := destroyAttrs(provider, addr.Resource.Resource.Type)
-	if len(names) == 0 {
-		return nil
-	}
-	mc := cfg.DescendentForInstance(addr.Module)
-	if mc == nil || mc.Module == nil {
-		return nil
-	}
-	rc := mc.Module.ResourceByAddr(addr.Resource.Resource)
-	if rc == nil || rc.Config == nil {
-		return nil
-	}
-	schema := &hcl.BodySchema{}
-	for _, n := range names {
-		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: n})
-	}
-	content, _, _ := rc.Config.PartialContent(schema)
-	var out []string
-	for _, n := range names {
-		if content != nil {
-			if _, ok := content.Attributes[n]; ok {
-				out = append(out, n)
-			}
-		}
-	}
-	sort.Strings(out)
-	return out
 }
 
 // DeferralRefusal is the engine row's diagnostic: the new runtime deferred
