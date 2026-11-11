@@ -239,7 +239,7 @@ func PostPlan(plan *plans.Plan, live bool) tfdiags.Diagnostics {
 			if r.Construct != construct {
 				continue
 			}
-			if r.Scope == "live" && !live {
+			if (r.Scope == ScopeLive && !live) || (r.Scope == ScopeNonLive && live) {
 				continue
 			}
 			applicable = append(applicable, r)
@@ -247,8 +247,7 @@ func PostPlan(plan *plans.Plan, live bool) tfdiags.Diagnostics {
 		if len(applicable) == 0 {
 			continue
 		}
-		// The first applicable row in table order names the refusal: in
-		// live mode that is the live row, which says more.
+		// The first applicable row in table order names the refusal.
 		r := applicable[0]
 		for _, ch := range changes {
 			if ch.Addr.Resource.Resource.Mode != addrs.ManagedResourceMode || ch.DeposedKey != states.NotDeposed {
