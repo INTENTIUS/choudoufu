@@ -33,9 +33,19 @@ staleness.
 
 AWS already scopes IAM by tag. choudoufu derives each marker from the
 configuration address and writes it in the create call, so every resource
-that exists carries one. Your IAM is the permission model. Concurrent
-runs settle at the API, one resource at a time. Whoever inherits an estate can
-list it with any cloud tool before running the binary.
+that exists carries one. Your IAM is the permission model.
+
+No lock is held across a run. A race between two runs ends in a re-plan or a
+named collision, except that two plain applies changing one attribute are
+last-writer-wins at the cloud API. `apply <planfile>` refuses, before any
+change, if the live system moved since approval. Separate estates need no
+coordination ([CONCURRENCY.md](live/CONCURRENCY.md)). For concurrent applies
+inside one estate,
+[terragucci](https://intentius.io/terragucci/concepts/locking-and-staleness/#with-choudoufu)
+holds each resource a wave changes.
+
+Whoever inherits an estate can list it with any cloud tool before running the
+binary.
 
 Handover is granting a role. Adoption and renames are tag writes.
 
