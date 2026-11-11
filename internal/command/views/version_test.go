@@ -124,6 +124,7 @@ on darwin_arm64
 				})
 			},
 			wantStdout: `{
+  "choudoufu_version": "",
   "terraform_version": "0.1.0-dev",
   "platform": "darwin_arm64",
   "provider_selections": {},
@@ -192,6 +193,7 @@ on darwin_arm64
 				})
 			},
 			wantStdout: `{
+  "choudoufu_version": "",
   "terraform_version": "0.1.0-dev",
   "platform": "darwin_arm64",
   "provider_selections": {},

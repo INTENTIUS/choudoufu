@@ -299,7 +299,7 @@ type countingRegistry struct {
 
 func newCountingRegistry(t *testing.T) *countingRegistry {
 	t.Helper()
-	exe := e2e.GoBuild("github.com/intentius/choudoufu/internal/provider-simple-v6/main", filepath.Join(t.TempDir(), "terraform-provider-simple6"))
+	exe := e2e.GoBuild("github.com/intentius/choudoufu/internal/command/e2etest/provider-simple-v6/main", filepath.Join(t.TempDir(), "terraform-provider-simple6"))
 	bin, err := os.ReadFile(exe)
 	if err != nil {
 		t.Fatal(err)
