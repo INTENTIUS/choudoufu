@@ -270,6 +270,15 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 		// choudoufu (#2256 U6): an absent object plans a create.
 		var resolvedAbsent bool
 		prevState, ret.UpgradedState, resolvedAbsent, moreDiags = processResolvedImport(ctx, inst.Addr.CurrentObject(), providerInst, meta.Provider, resourceType, meta.ImportStatement)
+		if !resolvedAbsent && !moreDiags.HasErrors() && p.planCtx.skipRefresh {
+			prevState, ret.RefreshedState, resolvedAbsent, moreDiags = refreshResolvedImport(ctx, inst, providerInst, resourceType, prevState, ret.UpgradedState)
+			if prevState != nil {
+				ret.RefreshedValue = prevState.Value
+			}
+		}
+		if resolvedAbsent {
+			ret.UpgradedState = nil
+		}
 		importing = !resolvedAbsent
 	}
 	if importing {
