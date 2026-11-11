@@ -14,6 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/engine/forkport"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -79,6 +80,9 @@ var preflightFixtures = map[string]string{
 }
 
 func TestPreflightRefusesEachConfigurationRow(t *testing.T) {
+	// A row a fork port fills refuses only with the port off; each port's
+	// own test proves it admits its construct while on.
+	t.Setenv(forkport.AllOff, "1")
 	for id, src := range preflightFixtures {
 		t.Run(id, func(t *testing.T) {
 			r := row(t, id)

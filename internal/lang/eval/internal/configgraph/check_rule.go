@@ -15,6 +15,7 @@ import (
 	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/checks"
+	"github.com/intentius/choudoufu/internal/engine/forkport/conditions"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -66,6 +67,10 @@ type CheckRule struct {
 func (r *CheckRule) Check(ctx context.Context) (checks.Status, cty.ValueMarks, tfdiags.Diagnostics) {
 	rawResult, diags := r.ConditionValuer.Value(ctx)
 	rawResult, resultMarks := rawResult.Unmark()
+	// choudoufu fork port (#2379): remove when the variable-validation row
+	// closes. The old runtime discards a condition's sensitive and ephemeral
+	// marks rather than refusing the condition below.
+	conditions.Unmark(resultMarks)
 	if diags.HasErrors() {
 		resultMarks[exprs.EvalError] = struct{}{}
 		return checks.StatusError, resultMarks, diags
