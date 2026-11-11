@@ -71,6 +71,7 @@ var preflightFixtures = map[string]string{
 	"data-sources":        `data "test_object" "d" {}`,
 	"removed":             "removed {\n  from = test_object.gone\n}\n",
 	"moved":               cleanFixture + "moved {\n  from = test_object.old\n  to   = test_object.a\n}\n",
+	"moved-live":          cleanFixture + "resource \"test_object\" \"old\" {}\nmoved {\n  from = test_object.old\n  to   = test_object.a\n}\n",
 	"lifecycle-destroy":   "resource \"test_object\" \"a\" {\n  lifecycle {\n    destroy = false\n  }\n}\n",
 	"checks-conditions":   "variable \"x\" {\n  default = \"a\"\n}\ncheck \"c\" {\n  assert {\n    condition     = var.x != \"\"\n    error_message = \"x\"\n  }\n}\n",
 	"variable-validation": "variable \"v\" {\n  validation {\n    condition     = var.v != \"\"\n    error_message = \"x\"\n  }\n}\n",
@@ -81,11 +82,60 @@ func TestPreflightRefusesEachConfigurationRow(t *testing.T) {
 	for id, src := range preflightFixtures {
 		t.Run(id, func(t *testing.T) {
 			r := row(t, id)
-			diags := Preflight(loadConfig(t, src), states.NewState())
+			diags := Preflight(loadConfig(t, src), states.NewState(), r.Scope == ScopeLive)
 			if !refusedFor(diags, r) {
 				t.Fatalf("construct %q (gap %q) was not refused naming what it waits for (%s); diagnostics:\n%s", r.Construct, r.ID, r.WaitsFor(), diags.ErrWithWarnings())
 			}
 		})
+	}
+}
+
+// TestPreflightMovedIsScopedByLiveMode is #2256 U10 (#2374). Outside live
+// mode every moved block is refused by the moved row. In live mode the moved
+// row does not apply: a block internal/live/moved's Honourable admits passes,
+// because discovery has already bound the object to its new address, and
+// every other block is refused by the moved-live row, the same shapes
+// internal/live/lint refuses.
+func TestPreflightMovedIsScopedByLiveMode(t *testing.T) {
+	movedRow, liveRow := row(t, "moved"), row(t, "moved-live")
+	if movedRow.Scope != ScopeNonLive || liveRow.Scope != ScopeLive {
+		t.Fatalf("row moved has scope %q and moved-live %q, want %q and %q", movedRow.Scope, liveRow.Scope, ScopeNonLive, ScopeLive)
+	}
+
+	rename := cleanFixture + "moved {\n  from = test_object.old\n  to   = test_object.a\n}\n"
+	if diags := Preflight(loadConfig(t, rename), states.NewState(), false); !refusedFor(diags, movedRow) {
+		t.Errorf("outside live mode a rename was not refused under gap %q; diagnostics:\n%s", movedRow.ID, diags.ErrWithWarnings())
+	}
+	if diags := Preflight(loadConfig(t, rename), states.NewState(), true); len(diags) != 0 {
+		t.Errorf("in live mode an honourable rename was refused:\n%s", diags.ErrWithWarnings())
+	}
+
+	for name, src := range map[string]string{
+		// The old address is still declared: no vacated address to bind.
+		"source still declared": preflightFixtures["moved-live"],
+		// A marker names its own resource's type, so it cannot cross types.
+		"different types": cleanFixture + "moved {\n  from = other_object.old\n  to   = test_object.a\n}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			diags := Preflight(loadConfig(t, src), states.NewState(), true)
+			if !refusedFor(diags, liveRow) {
+				t.Errorf("in live mode a moved block lint refuses was not refused under gap %q; diagnostics:\n%s", liveRow.ID, diags.ErrWithWarnings())
+			}
+			if refusedFor(diags, movedRow) {
+				t.Errorf("in live mode the non-live moved row refused too:\n%s", diags.ErrWithWarnings())
+			}
+		})
+	}
+}
+
+func TestParseRefusesUnknownPreflightScope(t *testing.T) {
+	src := `{"comment": "", "rows": [{"id": "x", "gap": "x", "check": "preflight", "construct": "moved", "scope": "everywhere", "closed_by": "x", "upstream": []}]}`
+	if _, err := parse([]byte(src)); err == nil {
+		t.Error("a preflight row with an unknown scope was accepted")
+	}
+	src = `{"comment": "", "rows": [{"id": "x", "gap": "x", "check": "accepted", "scope": "live", "closed_by": "x", "upstream": []}]}`
+	if _, err := parse([]byte(src)); err == nil {
+		t.Error("an accepted row with a scope was accepted")
 	}
 }
 
@@ -96,7 +146,7 @@ func TestPreflightRefusesSensitiveFunctionAndOutputs(t *testing.T) {
 		"sensitive output": "output \"o\" {\n  value     = \"a\"\n  sensitive = true\n}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
-			if diags := Preflight(loadConfig(t, src), nil); !refusedFor(diags, r) {
+			if diags := Preflight(loadConfig(t, src), nil, false); !refusedFor(diags, r) {
 				t.Fatalf("%s was not refused; diagnostics:\n%s", name, diags.ErrWithWarnings())
 			}
 		})
@@ -106,7 +156,7 @@ func TestPreflightRefusesSensitiveFunctionAndOutputs(t *testing.T) {
 func TestPreflightRefusesConditionsOnResources(t *testing.T) {
 	r := row(t, "checks-conditions")
 	src := "variable \"x\" {\n  default = \"a\"\n}\nresource \"test_object\" \"a\" {\n  lifecycle {\n    precondition {\n      condition     = var.x != \"\"\n      error_message = \"x\"\n    }\n  }\n}\n"
-	if diags := Preflight(loadConfig(t, src), nil); !refusedFor(diags, r) {
+	if diags := Preflight(loadConfig(t, src), nil, false); !refusedFor(diags, r) {
 		t.Fatalf("a precondition was not refused; diagnostics:\n%s", diags.ErrWithWarnings())
 	}
 }
@@ -119,7 +169,7 @@ func TestPreflightRefusesDeposedState(t *testing.T) {
 			&states.ResourceInstanceObjectSrc{Status: states.ObjectReady, AttrsJSON: []byte(`{}`)},
 			addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("test"), Module: addrs.RootModule}, addrs.NoKey)
 	})
-	if diags := Preflight(loadConfig(t, cleanFixture), s); !refusedFor(diags, r) {
+	if diags := Preflight(loadConfig(t, cleanFixture), s, false); !refusedFor(diags, r) {
 		t.Fatalf("deposed state was not refused; diagnostics:\n%s", diags.ErrWithWarnings())
 	}
 }
@@ -134,7 +184,7 @@ func TestPreflightRefusesSkipDestroyInState(t *testing.T) {
 			&states.ResourceInstanceObjectSrc{Status: states.ObjectReady, AttrsJSON: []byte(`{}`), SkipDestroy: true},
 			addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("test"), Module: addrs.RootModule}, addrs.NoKey)
 	})
-	if diags := Preflight(loadConfig(t, cleanFixture), s); !refusedFor(diags, r) {
+	if diags := Preflight(loadConfig(t, cleanFixture), s, false); !refusedFor(diags, r) {
 		t.Fatalf("an orphan with destroy = false in state was not refused; diagnostics:\n%s", diags.ErrWithWarnings())
 	}
 }
@@ -149,7 +199,7 @@ func TestRefuseTestCommand(t *testing.T) {
 }
 
 func TestPreflightCleanFixturePasses(t *testing.T) {
-	if diags := Preflight(loadConfig(t, cleanFixture), states.NewState()); len(diags) != 0 {
+	if diags := Preflight(loadConfig(t, cleanFixture), states.NewState(), false); len(diags) != 0 {
 		t.Fatalf("a configuration with none of the refused constructs was refused:\n%s", diags.ErrWithWarnings())
 	}
 }

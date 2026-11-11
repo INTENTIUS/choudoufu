@@ -88,6 +88,11 @@ func (p *planGlue) planDesiredDataResourceInstance(ctx context.Context, inst *ev
 	// schema has changed since previous round.
 	ret.PrevRoundAddr = ret.Addr
 
+	// choudoufu fork port (#2370): remove when upstream #4058 lands.
+	if done, moreDiags := p.forkPlanEstateOutputs(ctx, inst, meta, providerInstAddr, unmarkedConfigVal, ret); done {
+		return ret, diags.Append(moreDiags)
+	}
+
 	// TODO: If the config value is not wholly known, or if any resource
 	// instance in inst.RequiredResourceInstances already has a planned change,
 	// then plan to read this during the apply phase and set ret.PlannedChange
@@ -138,6 +143,7 @@ func (p *planGlue) planDesiredDataResourceInstance(ctx context.Context, inst *ev
 	// we don't need a PlannedChange here and can instead just use the result
 	// as the PlaceholderValue.
 	ret.PlaceholderValue = resp.State
+	p.forkKeepDataRead(ctx, meta, providerInstAddr, ret) // choudoufu fork port (#2370): remove when upstream #4058 lands
 
 	return ret, diags
 }

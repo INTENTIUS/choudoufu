@@ -244,6 +244,8 @@ func (b *execGraphBuilder) resourceInstanceChangeSubgraph(
 	switch resourceMode {
 	case addrs.ManagedResourceMode:
 		return b.ManagedResourceInstanceSubgraph(change, effectiveReplaceOrder)
+	case addrs.DataResourceMode:
+		return b.forkDataReadSubgraph(change) // choudoufu fork port (#2370): remove when upstream #4058 lands
 
 	// TODO: DataResourceMode, and possibly also EphemeralResourceMode if
 	// we decide to handle those as "changes" (but it's currently looking
