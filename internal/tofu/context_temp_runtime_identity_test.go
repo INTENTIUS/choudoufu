@@ -7,6 +7,7 @@ package tofu
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -237,5 +238,67 @@ func TestNewRuntimeResolverAbsentWithRefreshSkipped(t *testing.T) {
 	assertNoErrors(t, diags)
 	if !p.ApplyResourceChangeCalled {
 		t.Errorf("the create was never applied")
+	}
+}
+
+// TestNewRuntimeRefreshSkippedPriorObjectReachesApply: with refresh skipped,
+// as live mode always plans, an object already in the prior state (where
+// live mode's projection puts every adopted object) must stay in the plan's
+// PriorState, because that is where the apply reads a NoOp object's value
+// for its dependents. It was dropped, so test_object.b's configuration read
+// test_object.a as null at apply ("Attempt to get attribute from null
+// value"), the failure TestLivePlan_azureRecordBoundIdentityIsNotAnImport
+// showed in internal/command.
+func TestNewRuntimeRefreshSkippedPriorObjectReachesApply(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
+	forceExperimentalRuntimeForTesting(t)
+	a := mustResourceInstanceAddr("test_object.a")
+	b := mustResourceInstanceAddr("test_object.b")
+	m := testModuleInline(t, map[string]string{"main.tf": `
+resource "test_object" "a" {
+  test_string = "foo"
+}
+
+resource "test_object" "b" {
+  test_string = "${test_object.a.test_string}-b"
+}
+`})
+	provider := addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("test"), Module: addrs.RootModule}
+	prior := states.BuildState(func(s *states.SyncState) {
+		s.SetResourceInstanceCurrent(a, &states.ResourceInstanceObjectSrc{Status: states.ObjectReady, AttrsJSON: []byte(`{"test_string":"foo"}`)}, provider, addrs.NoKey)
+		s.SetResourceInstanceCurrent(b, &states.ResourceInstanceObjectSrc{Status: states.ObjectReady, AttrsJSON: []byte(`{"test_string":"old"}`)}, provider, addrs.NoKey)
+	})
+	p := newRuntimeIdentityProvider()
+
+	opts := *DefaultPlanOpts
+	opts.SkipRefresh = true
+	ctx := newRuntimeIdentityContext(t, p, nil)
+	plan, diags := ctx.Plan(context.Background(), m, prior, &opts)
+	assertNoErrors(t, diags)
+	if !hasNewRuntimeWarning(diags) {
+		t.Fatalf("the plan did not run on the new runtime; diagnostics:\n%s", diags.ErrWithWarnings())
+	}
+	if change := plan.Changes.ResourceInstance(a); change == nil || change.Action != plans.NoOp {
+		t.Fatalf("test_object.a planned %v, want %s", change, plans.NoOp)
+	}
+	if change := plan.Changes.ResourceInstance(b); change == nil || change.Action != plans.Update {
+		t.Fatalf("test_object.b planned %v, want %s", change, plans.Update)
+	}
+	if plan.PriorState.ResourceInstance(a) == nil {
+		t.Fatalf("test_object.a, in the prior state and planned NoOp with refresh skipped, is missing from the plan's PriorState")
+	}
+	if len(plan.DriftedResources) != 0 {
+		t.Errorf("refresh was skipped, so nothing can have drifted; got %d drifted resources", len(plan.DriftedResources))
+	}
+
+	ctx = newRuntimeIdentityContext(t, p, nil)
+	state, diags := ctx.Apply(context.Background(), plan, m, nil)
+	assertNoErrors(t, diags)
+	got := state.ResourceInstance(b)
+	if got == nil || got.Current == nil {
+		t.Fatalf("test_object.b is not in the applied state")
+	}
+	if want := `"test_string":"foo-b"`; !strings.Contains(string(got.Current.AttrsJSON), want) {
+		t.Errorf("test_object.b applied as %s, want %s", got.Current.AttrsJSON, want)
 	}
 }
