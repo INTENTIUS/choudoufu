@@ -24,6 +24,7 @@ import (
 	"github.com/intentius/choudoufu/internal/engine/planning"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
+	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -200,10 +201,22 @@ func (c *Context) newEngineValidate(ctx context.Context, config *configs.Config,
 	return diags
 }
 
+// newRuntimeWarning is the toggle's warning: the variable and the accepted
+// risks in the gap table (internal/live/newruntime/gaps.json).
+func newRuntimeWarning() tfdiags.Diagnostic {
+	return tfdiags.Sourceless(tfdiags.Warning, newruntime.WarningSummary, newruntime.WarningDetail())
+}
+
 func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, prevRoundState *states.State, opts *PlanOpts) (*plans.Plan, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	log.Println("[WARN] Using plan implementation from the experimental language runtime")
+
+	// #2256 U2: the toggle's warning, emitted only where plan and apply enter
+	// the engine. Not from newEngineShim: validate, and the validate pass the
+	// local backend runs before every plan, go through that too. So the
+	// warning in a run's output means internal/engine planned or applied it.
+	diags = diags.Append(newRuntimeWarning())
 
 	timestamp := time.Now().UTC()
 
@@ -340,6 +353,12 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 	var diags tfdiags.Diagnostics
 
 	log.Println("[WARN] Using apply implementation from the experimental language runtime")
+
+	// #2256 U2: the toggle's warning, emitted only where plan and apply enter
+	// the engine. Not from newEngineShim: validate, and the validate pass the
+	// local backend runs before every plan, go through that too. So the
+	// warning in a run's output means internal/engine planned or applied it.
+	diags = diags.Append(newRuntimeWarning())
 
 	if len(plan.ExecutionGraph) == 0 && !plan.Changes.ResourcesEmpty() {
 		diags = diags.Append(tfdiags.Sourceless(
