@@ -30,7 +30,6 @@ import (
 	"github.com/intentius/choudoufu/internal/shared"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/version"
 )
 
 // ///////////////////////
@@ -51,15 +50,14 @@ func experimentalRuntimeEnabled() bool {
 	if experimentalRuntimeForcedForTesting {
 		return true
 	}
-	// choudoufu (GitHub issue #2336): closed in release builds, read from
-	// the release linker flag rather than the version string. Releases
-	// between upstream tags are built on upstream main's 1.14.0-dev VERSION,
-	// so a release reads as IsDev and a version-string gate would honour
-	// the variable in every release. #2256 U2 opens it deliberately.
-	if version.IsReleaseBuild() {
-		return false
-	}
-
+	// choudoufu (#2256 U2, #2337, ruling 4): TOFU_X_EXPERIMENTAL_RUNTIME is
+	// the new-runtime toggle in every build, release builds included. #2336
+	// closed it in release builds; this opens it deliberately, and for this
+	// variable only: TOFU_X_EXPERIMENTAL_RUNTIME_NEXT (the command layer,
+	// Meta.NewRuntimeEnabled) stays closed in release builds. What the new
+	// runtime cannot handle yet is refused before planning, from the gap
+	// table in internal/live/newruntime, and live mode is refused by G
+	// (#2339) whatever switched the runtime on.
 	return experimentalRuntimeWanted()
 }
 
