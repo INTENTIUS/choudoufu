@@ -1,0 +1,336 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
+package newruntime
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+
+	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
+)
+
+// RefusalSummary is the summary of every refusal this package raises.
+// Tests match on it.
+const RefusalSummary = "Not supported on the new runtime yet"
+
+func refusal(r Row, what string, subject *hcl.Range) *hcl.Diagnostic {
+	return &hcl.Diagnostic{
+		Severity: hcl.DiagError,
+		Summary:  RefusalSummary,
+		Detail: fmt.Sprintf("%s is set, and %s. The new runtime cannot handle %s yet, so it is refused rather than planned wrongly (gap %q in internal/live/newruntime/gaps.json). It waits for %s. Unset %s to use the default runtime.",
+			Variable, what, r.Gap, r.ID, r.WaitsFor(), Variable),
+		Subject: subject,
+	}
+}
+
+// preflightDetectors maps a preflight row's construct to what finds it in a
+// module. Each returns a description and range for every occurrence.
+var preflightDetectors = map[string]func(m *configs.Module) []occurrence{
+	"data": func(m *configs.Module) (out []occurrence) {
+		for _, r := range m.DataResources {
+			out = append(out, occurrence{fmt.Sprintf("the configuration declares data source %s", r.Addr()), r.DeclRange})
+		}
+		return out
+	},
+	"removed": func(m *configs.Module) (out []occurrence) {
+		for _, r := range m.Removed {
+			out = append(out, occurrence{"the configuration has a removed block", r.DeclRange})
+		}
+		return out
+	},
+	"moved": func(m *configs.Module) (out []occurrence) {
+		for _, r := range m.Moved {
+			out = append(out, occurrence{"the configuration has a moved block", r.DeclRange})
+		}
+		return out
+	},
+	"lifecycle_destroy": func(m *configs.Module) (out []occurrence) {
+		for _, r := range m.ManagedResources {
+			if r.Managed != nil && r.Managed.Destroy != nil {
+				out = append(out, occurrence{fmt.Sprintf("%s sets lifecycle destroy", r.Addr()), r.Managed.Destroy.Range()})
+			}
+		}
+		return out
+	},
+	"checks_conditions": func(m *configs.Module) (out []occurrence) {
+		for _, c := range m.Checks {
+			out = append(out, occurrence{fmt.Sprintf("the configuration has check block %q", c.Name), c.DeclRange})
+		}
+		for _, set := range []map[string]*configs.Resource{m.ManagedResources, m.DataResources, m.EphemeralResources} {
+			for _, r := range set {
+				for _, cr := range append(append([]*configs.CheckRule(nil), r.Preconditions...), r.Postconditions...) {
+					out = append(out, occurrence{fmt.Sprintf("%s has a precondition or postcondition", r.Addr()), cr.DeclRange})
+				}
+			}
+		}
+		for _, o := range m.Outputs {
+			for _, cr := range o.Preconditions {
+				out = append(out, occurrence{fmt.Sprintf("output %q has a precondition", o.Name), cr.DeclRange})
+			}
+		}
+		return out
+	},
+	"variable_validation": func(m *configs.Module) (out []occurrence) {
+		for _, v := range m.Variables {
+			for _, cr := range v.Validations {
+				out = append(out, occurrence{fmt.Sprintf("variable %q has a validation block", v.Name), cr.DeclRange})
+			}
+		}
+		return out
+	},
+	"sensitive": func(m *configs.Module) (out []occurrence) {
+		for _, v := range m.Variables {
+			if v.Sensitive {
+				out = append(out, occurrence{fmt.Sprintf("variable %q is sensitive", v.Name), v.DeclRange})
+			}
+		}
+		for _, o := range m.Outputs {
+			if o.Sensitive {
+				out = append(out, occurrence{fmt.Sprintf("output %q is sensitive", o.Name), o.DeclRange})
+			}
+		}
+		return append(out, sensitiveCalls(m.SourceDir)...)
+	},
+}
+
+type occurrence struct {
+	what string
+	rng  hcl.Range
+}
+
+// sensitiveCalls finds calls to the sensitive() function in a module's
+// native-syntax files. The loaded configuration keeps expressions but not
+// a list of them, so the files are read again; a module with no source
+// directory (built in memory) has none to read.
+func sensitiveCalls(dir string) []occurrence {
+	if dir == "" {
+		return nil
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "*.tf"))
+	more, _ := filepath.Glob(filepath.Join(dir, "*.tofu"))
+	files = append(files, more...)
+	sort.Strings(files)
+	var out []occurrence
+	for _, name := range files {
+		src, err := os.ReadFile(name)
+		if err != nil {
+			continue
+		}
+		f, diags := hclsyntax.ParseConfig(src, name, hcl.InitialPos)
+		if diags.HasErrors() {
+			continue
+		}
+		body, ok := f.Body.(*hclsyntax.Body)
+		if !ok {
+			continue
+		}
+		_ = hclsyntax.VisitAll(body, func(n hclsyntax.Node) hcl.Diagnostics {
+			if call, ok := n.(*hclsyntax.FunctionCallExpr); ok && (call.Name == "sensitive" || strings.HasSuffix(call.Name, "::sensitive")) {
+				out = append(out, occurrence{"the configuration calls sensitive()", call.NameRange})
+			}
+			return nil
+		})
+	}
+	return out
+}
+
+// stateDetectors are preflight constructs found in the prior state.
+var stateDetectors = map[string]func(s *states.State) []string{
+	"deposed_state": func(s *states.State) (out []string) {
+		if s == nil {
+			return nil
+		}
+		for _, ms := range s.Modules {
+			for _, rs := range ms.Resources {
+				for key, is := range rs.Instances {
+					for dk := range is.Deposed {
+						out = append(out, fmt.Sprintf("the state holds deposed object %s of %s", dk, rs.Addr.Instance(key)))
+					}
+				}
+			}
+		}
+		sort.Strings(out)
+		return out
+	},
+}
+
+// commandConstructs are preflight constructs that are a command rather
+// than something in the configuration.
+var commandConstructs = map[string]bool{"test_command": true}
+
+// Preflight refuses, before planning, every construct the table's preflight
+// rows name that the configuration or the prior state holds. It is run on
+// plan with the toggle on, and on apply of a saved plan with the plan's
+// configuration snapshot and prior state.
+func Preflight(cfg *configs.Config, prior *states.State) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	for _, r := range RowsFor(CheckPreflight) {
+		if commandConstructs[r.Construct] {
+			continue
+		}
+		if detect, ok := stateDetectors[r.Construct]; ok {
+			for _, what := range detect(prior) {
+				diags = diags.Append(refusal(r, what, nil))
+			}
+			continue
+		}
+		detect, ok := preflightDetectors[r.Construct]
+		if !ok {
+			panic(fmt.Sprintf("gap %q: no preflight detector for construct %q", r.ID, r.Construct))
+		}
+		if cfg == nil {
+			continue
+		}
+		cfg.DeepEach(func(c *configs.Config) {
+			if c.Module == nil {
+				return
+			}
+			occ := detect(c.Module)
+			sort.Slice(occ, func(i, j int) bool { return occ[i].rng.String() < occ[j].rng.String() })
+			for _, o := range occ {
+				rng := o.rng
+				diags = diags.Append(refusal(r, o.what, &rng))
+			}
+		})
+	}
+	return diags
+}
+
+// RefuseCommand refuses a command one of the table's preflight rows names,
+// such as "test". The test harness still evaluates on the default runtime.
+func RefuseCommand(name string) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	construct := name + "_command"
+	for _, r := range RowsFor(CheckPreflight) {
+		if r.Construct == construct {
+			diags = diags.Append(refusal(r, fmt.Sprintf("the %q command was run", name), nil))
+		}
+	}
+	return diags
+}
+
+// DestroyAttributesFunc reports the destroy-time attributes an enabled
+// destroy-from-config override (#2309) would set for a resource type of a
+// provider. It is empty when no override would act.
+type DestroyAttributesFunc func(provider addrs.Provider, typeName string) []string
+
+// PostPlan refuses, before a plan is shown or saved, every change the
+// table's post-plan rows name. live says whether the run is in live mode,
+// which decides the scope of a row. cfg is the configuration the plan was
+// made from; destroyAttrs may be nil when no override is configured.
+func PostPlan(plan *plans.Plan, cfg *configs.Config, live bool, destroyAttrs DestroyAttributesFunc) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if plan == nil || plan.Changes == nil {
+		return diags
+	}
+	changes := append([]*plans.ResourceInstanceChangeSrc(nil), plan.Changes.Resources...)
+	sort.Slice(changes, func(i, j int) bool { return changes[i].Addr.String() < changes[j].Addr.String() })
+
+	for _, construct := range []string{"replace", "destroy_override"} {
+		var applicable []Row
+		for _, r := range RowsFor(CheckPostPlan) {
+			if r.Construct != construct {
+				continue
+			}
+			if r.Scope == "live" && !live {
+				continue
+			}
+			applicable = append(applicable, r)
+		}
+		if len(applicable) == 0 {
+			continue
+		}
+		// The first applicable row in table order names the refusal: in
+		// live mode that is the live row, which says more.
+		r := applicable[0]
+		for _, ch := range changes {
+			if ch.Addr.Resource.Resource.Mode != addrs.ManagedResourceMode || ch.DeposedKey != states.NotDeposed {
+				continue
+			}
+			switch construct {
+			case "replace":
+				if ch.Action.IsReplace() {
+					diags = diags.Append(refusal(r, fmt.Sprintf("the plan replaces %s", ch.Addr), nil))
+				}
+			case "destroy_override":
+				if ch.Action != plans.Delete || destroyAttrs == nil {
+					continue
+				}
+				if set := configuredDestroyAttrs(cfg, ch.Addr, ch.ProviderAddr.Provider, destroyAttrs); len(set) > 0 {
+					diags = diags.Append(refusal(r, fmt.Sprintf("the plan deletes %s and its configuration sets %s, which a destroy-from-config override would send with the delete", ch.Addr, strings.Join(set, ", ")), nil))
+				}
+			default:
+				panic(fmt.Sprintf("gap %q: no post-plan detector for construct %q", r.ID, construct))
+			}
+		}
+	}
+	for _, r := range RowsFor(CheckPostPlan) {
+		if r.Construct != "replace" && r.Construct != "destroy_override" {
+			panic(fmt.Sprintf("gap %q: no post-plan detector for construct %q", r.ID, r.Construct))
+		}
+	}
+	return diags
+}
+
+// configuredDestroyAttrs returns the override's destroy-time attributes the
+// resource's configuration sets. Destroy-from-config acts only when the
+// configuration still exists and sets the attribute.
+func configuredDestroyAttrs(cfg *configs.Config, addr addrs.AbsResourceInstance, provider addrs.Provider, destroyAttrs DestroyAttributesFunc) []string {
+	if cfg == nil {
+		return nil
+	}
+	names := destroyAttrs(provider, addr.Resource.Resource.Type)
+	if len(names) == 0 {
+		return nil
+	}
+	mc := cfg.DescendentForInstance(addr.Module)
+	if mc == nil || mc.Module == nil {
+		return nil
+	}
+	rc := mc.Module.ResourceByAddr(addr.Resource.Resource)
+	if rc == nil || rc.Config == nil {
+		return nil
+	}
+	schema := &hcl.BodySchema{}
+	for _, n := range names {
+		schema.Attributes = append(schema.Attributes, hcl.AttributeSchema{Name: n})
+	}
+	content, _, _ := rc.Config.PartialContent(schema)
+	var out []string
+	for _, n := range names {
+		if content != nil {
+			if _, ok := content.Attributes[n]; ok {
+				out = append(out, n)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// DeferralRefusal is the engine row's diagnostic: the new runtime deferred
+// an instance for a reason other than -target or -exclude. Plans have no
+// record of deferral (a deferred instance simply has no planned change), so
+// this is raised inside planning rather than by a post-plan check.
+func DeferralRefusal(addr addrs.AbsResourceInstance) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	for _, r := range RowsFor(CheckEngine) {
+		if r.Construct == "deferral" {
+			diags = diags.Append(refusal(r, fmt.Sprintf("planning deferred %s for a reason other than -target or -exclude", addr), nil))
+		}
+	}
+	return diags
+}
