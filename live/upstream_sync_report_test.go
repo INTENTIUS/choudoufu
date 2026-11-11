@@ -22,7 +22,8 @@ import (
 // so no network) and the committed gap table, for every registered fork port
 // (#2376): with its expiry issues open there is no EXPIRE line, with any
 // unknown there is none, and with all of them closed there is exactly
-// "EXPIRE: remove port <name> (upstream #N closed)".
+// "EXPIRE: remove port <name> (upstream #N closed)". A port with no expiry
+// issue is never flagged.
 func TestUpstreamSyncReportFlagsExpiredForkPorts(t *testing.T) {
 	if _, err := exec.LookPath("jq"); err != nil {
 		t.Fatal("scripts/upstream-sync.sh needs jq on PATH")
@@ -76,6 +77,14 @@ func TestUpstreamSyncReportFlagsExpiredForkPorts(t *testing.T) {
 	}
 	out := report(t, "closed")
 	for _, p := range forkport.Ports {
+		if len(p.Expiry) == 0 {
+			// No upstream issue is filed: the port goes when its rows
+			// close, and the report never flags it.
+			if strings.Contains(out, "EXPIRE: remove port "+p.Name+" ") {
+				t.Errorf("port %q has no expiry issue, but the report flags it:\n%s", p.Name, out)
+			}
+			continue
+		}
 		if !strings.Contains(out, "\n"+expire(p)+"\n") {
 			t.Errorf("with every expiry issue closed, the report lacks %q:\n%s", expire(p), out)
 		}

@@ -83,11 +83,6 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestApply_shutdown",
-      "reason": "Gap table row \"cancel\" (accepted): cancel and stop during apply. The apply is not cancelled on the new runtime."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestApply_targetedDestroy",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
     },
@@ -225,11 +220,6 @@
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_showSensitiveArg",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestPlan_shutdown",
-      "reason": "Gap table row \"cancel\" (accepted): Ctrl-C and stop may not stop the operation cleanly on the new runtime."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -935,16 +925,6 @@
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Refresh_tainted",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2_tracingAggregate",
-      "reason": "Gap table row \"tracing-spans\" (accepted): the default runtime's per-resource tracing spans. Fork test of the default runtime's spans."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2_tracingPerResourceInstance",
-      "reason": "Gap table row \"tracing-spans\" (accepted): the default runtime's per-resource tracing spans. Fork test of the default runtime's spans."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",

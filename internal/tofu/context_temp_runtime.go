@@ -21,7 +21,9 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/engine/applying"
+	"github.com/intentius/choudoufu/internal/engine/forkport/cancel"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
+	tracingport "github.com/intentius/choudoufu/internal/engine/forkport/tracing"
 	"github.com/intentius/choudoufu/internal/engine/planning"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
@@ -247,6 +249,15 @@ func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, pre
 
 	timestamp := time.Now().UTC()
 
+	// choudoufu fork port (#2381): remove when the row closes. Context.Stop
+	// asks the run's providers and provisioners to stop, as the default
+	// runtime's watchStop does.
+	defer cancel.Watch(c.runContext, c.stopPlugins)()
+	// choudoufu fork port (#2381): remove when the row closes. The default
+	// runtime's per-walk span (#1898).
+	ctx, endWalk := tracingport.Walk(ctx, traceNameGraphWalk, traceAttrWalkOperation, walkPlan.String())
+	defer func() { endWalk(diags) }()
+
 	tracer := c.newEnginePlanTracer()
 	ctx = planning.ContextWithTracer(ctx, tracer)
 
@@ -295,6 +306,10 @@ func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, pre
 	}
 
 	plan, moreDiags := planning.PlanChanges(ctx, newOpts, prevRoundState, configInst, plugins)
+	// choudoufu fork port (#2381): remove when the row closes.
+	if err := cancel.Halted(c.sh.Stopped()); err != nil {
+		moreDiags = moreDiags.Append(err)
+	}
 	if plan != nil {
 		plan.Timestamp = timestamp
 		// choudoufu (#2370): upstream's planning engine always reports
@@ -347,6 +362,8 @@ func (c *Context) newEnginePlanTracer() *planning.Tracer {
 		StartManagedResourceInstanceObjectPlanChanges: func(ctx context.Context, addr addrs.AbsResourceInstanceObject, priorVal, configVal cty.Value) context.Context {
 			inst := addr.InstanceAddr
 			gen := addr.DeposedKey.Generation()
+			// choudoufu fork port (#2381): remove when the row closes.
+			ctx = tracingport.StartInstance(ctx, resourceInstanceDetail(traceNamePlanResourceInstance, inst), inst.String(), inst.Resource.Resource.Type, "")
 			c.eachHook(func(h Hook) (HookAction, error) {
 				// TODO: We're sending the configVal in the slot where the
 				// Hook API expects the "proposed new value", and that isn't
@@ -363,6 +380,8 @@ func (c *Context) newEnginePlanTracer() *planning.Tracer {
 		EndManagedResourceInstanceObjectPlanChanges: func(ctx context.Context, addr addrs.AbsResourceInstanceObject, action plans.Action, priorVal, plannedVal cty.Value, diags tfdiags.Diagnostics) {
 			inst := addr.InstanceAddr
 			gen := addr.DeposedKey.Generation()
+			// choudoufu fork port (#2381): remove when the row closes.
+			tracingport.EndInstance(ctx, action.String(), diags)
 			c.eachHook(func(h Hook) (HookAction, error) {
 				return h.PostDiff(inst, gen, action, priorVal, plannedVal)
 			})
@@ -412,6 +431,15 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 		return nil, diags
 	}
 
+	// choudoufu fork port (#2381): remove when the row closes. Context.Stop
+	// asks the run's providers and provisioners to stop, as the default
+	// runtime's watchStop does.
+	defer cancel.Watch(c.runContext, c.stopPlugins)()
+	// choudoufu fork port (#2381): remove when the row closes. The default
+	// runtime's per-walk span (#1898).
+	ctx, endWalk := tracingport.Walk(ctx, traceNameGraphWalk, traceAttrWalkOperation, walkApply.String())
+	defer func() { endWalk(diags) }()
+
 	tracer := c.newEngineApplyTracer()
 	ctx = applying.ContextWithTracer(ctx, tracer)
 
@@ -448,6 +476,10 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 		InRunEstates: inrunestates.New(c.inRunEstates),
 	})
 	diags = diags.Append(moreDiags)
+	// choudoufu fork port (#2381): remove when the row closes.
+	if err := cancel.Halted(c.sh.Stopped()); err != nil {
+		diags = diags.Append(err)
+	}
 
 	if len(plan.TargetAddrs) > 0 || len(plan.ExcludeAddrs) > 0 {
 		diags = diags.Append(tfdiags.Sourceless(
@@ -522,6 +554,8 @@ func (c *Context) newEngineApplyTracer() *applying.Tracer {
 		StartManagedResourceInstanceObjectApply: func(ctx context.Context, addr addrs.AbsResourceInstanceObject, priorVal, plannedVal cty.Value) context.Context {
 			inst := addr.InstanceAddr
 			gen := addr.DeposedKey.Generation()
+			// choudoufu fork port (#2381): remove when the row closes.
+			ctx = tracingport.StartInstance(ctx, resourceInstanceDetail(traceNameApplyResourceInstance, inst), inst.String(), inst.Resource.Resource.Type, shimPlanAction(priorVal, plannedVal).String())
 			c.eachHook(func(h Hook) (HookAction, error) {
 				return h.PreApply(inst, gen, shimPlanAction(priorVal, plannedVal), priorVal, plannedVal)
 			})
@@ -533,6 +567,8 @@ func (c *Context) newEngineApplyTracer() *applying.Tracer {
 			c.eachHook(func(h Hook) (HookAction, error) {
 				return h.PostApply(inst, gen, resultVal, diags.Err())
 			})
+			// choudoufu fork port (#2381): remove when the row closes.
+			tracingport.EndInstance(ctx, "", diags)
 			// TODO: the CLI layer and some of our tests also expect to get a
 			// PostStateUpdate call each time the state might have changed,
 			// but supporting that here would require us to either expose the
@@ -626,6 +662,18 @@ func (c *Context) newEngineSharedTracer() shared.Tracer {
 			})
 		},
 	}
+}
+
+// stopPlugins asks every provider and provisioner the run opened to stop
+// gracefully, as [Context.watchStop] does for the default runtime.
+// choudoufu fork port (#2381): remove when the row closes.
+func (c *Context) stopPlugins() {
+	log.Printf("[TRACE] Context: requesting providers and provisioners to gracefully stop")
+	// The providers.Interface API contract requires that the context passed
+	// to Stop is never canceled and has no deadline. Errors are ignored, as
+	// watchStop ignores them: the stop is advisory.
+	_ = c.plugins.providers.StopAll(context.WithoutCancel(context.TODO()))
+	_ = c.plugins.provisioners.StopAll()
 }
 
 func (c *Context) eachHook(fn func(Hook) (HookAction, error)) {

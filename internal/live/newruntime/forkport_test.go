@@ -26,8 +26,8 @@ var portName = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
 
 // TestForkPortRegistry holds the fork-port registry (#2376), the port
 // packages and the gap table to each other: every fork_port row names a
-// registered port with its switch, every registered port has its rows, a
-// package and at least one expiry issue, its expiry issues are exactly its
+// registered port with its switch, every registered port has its rows and a
+// package, its expiry issues (none while upstream has filed none) are exactly its
 // rows' upstream issues (what scripts/upstream-sync.sh --report reads), and
 // every package under internal/engine/forkport is registered.
 func TestForkPortRegistry(t *testing.T) {
@@ -76,9 +76,6 @@ func TestForkPortRegistry(t *testing.T) {
 		seen[p.Name] = true
 		if gofiles, _ := filepath.Glob(filepath.Join(forkPortDir, p.Name, "*.go")); len(gofiles) == 0 {
 			t.Errorf("port %q: no package at %s%s", p.Name, forkPortPrefix, p.Name)
-		}
-		if len(p.Expiry) == 0 {
-			t.Errorf("port %q has no expiry issue; every port is removed when upstream closes one", p.Name)
 		}
 		if len(p.Rows) == 0 {
 			t.Errorf("port %q fills no gap row", p.Name)

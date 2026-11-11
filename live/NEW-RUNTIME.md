@@ -45,12 +45,10 @@ Every run on the new runtime prints `Running on OpenTofu's experimental new runt
 
 | Row | Warning line | Waits for |
 |---|---|---|
-| `cancel` | Ctrl-C and stop may not stop an apply cleanly | upstream, not yet filed separately |
 | `apply-errors` | state after a failed or partial apply may differ from the default runtime's | upstream, not yet filed separately |
 | `uncategorised` | behaviours upstream's own tests still skip without a category (TestContext2Apply_inconsistentWithPlan, TestContext2Apply_multiProviderDestroy and others) | upstream |
 | `deprecation-warnings` | deprecation warnings on variables and outputs are not shown | upstream [`#4688`](https://github.com/opentofu/opentofu/issues/4688) |
 | `lint-rules` | built-in lint rules do not run | upstream [`#4746`](https://github.com/opentofu/opentofu/issues/4746) |
-| `tracing-spans` | OpenTelemetry traces do not carry the default runtime's per-resource-instance planning spans | upstream's own tracing in internal/engine |
 | `sensitive` | attributes a provider schema marks sensitive may not be handled as sensitive | upstream [`#4360`](https://github.com/opentofu/opentofu/issues/4360) |
 
 ### Runs, with no refusal
@@ -63,11 +61,13 @@ Every run on the new runtime prints `Running on OpenTofu's experimental new runt
 | `replace-live` | markers on the create half of a replace | none needed: U7 ([#2343](https://github.com/INTENTIUS/choudoufu/issues/2343)) ported it; the create half of a replace is planned and final-planned through the create entry point in both orderings, and live mode no longer refuses a replace | U7 ([#2343](https://github.com/INTENTIUS/choudoufu/issues/2343)) |
 | `destroy-override` | destroy-from-config overrides ([#2309](https://github.com/INTENTIUS/choudoufu/issues/2309)) | ported by U8 ([#2344](https://github.com/INTENTIUS/choudoufu/issues/2344)): the new runtime's planning engine writes the configured destroy-time arguments into the delete's prior state, and its apply engine sends them from the plan | U8 ([#2344](https://github.com/INTENTIUS/choudoufu/issues/2344)), then upstream; upstream [`#3472`](https://github.com/opentofu/opentofu/issues/3472) |
 | `in-run-estates` | in-run estates and the terraform_estate_outputs data source | a fork port ([#2370](https://github.com/INTENTIUS/choudoufu/issues/2370)), not upstream's code: a data "terraform_estate_outputs" block of the builtin terraform provider plans on the new runtime. One naming an estate the run applies as a module is answered from that module's outputs and deferred to the apply while the module has changes pending; any other is read from the record store during the plan. Every other data block stays refused by the data-sources row. With the switch set the port is off and the data-sources row refuses these blocks again | removed, package and call sites and this row, when upstream's data-resource support lands; upstream [`#4058`](https://github.com/opentofu/opentofu/issues/4058) |
+| `cancel` | cancel and stop during apply | a fork port ([#2381](https://github.com/INTENTIUS/choudoufu/issues/2381)), not upstream's code: Context.Stop (Ctrl-C) asks every provider and provisioner the run opened to stop, as the default runtime's watchStop does, and a stopped plan or apply fails with "execution halted", as the default runtime's stop hook makes it. The engine does not check for the stop between operations, so one that has not started may still start: the provider was asked to stop and is expected to refuse or finish quickly. With the switch set the port is off and a stop reaches neither the providers nor the run's result | removed, package and call sites and this row, when upstream ties its engine to the run's stop |
 | `input-prompts` | interactive input prompts | a missing input fails loudly | upstream [`#4695`](https://github.com/opentofu/opentofu/issues/4695) |
 | `taint-on-create` | taint on create failure | none needed | upstream [`#4768`](https://github.com/opentofu/opentofu/issues/4768); see [#2336](https://github.com/INTENTIUS/choudoufu/issues/2336) for the taint decision; upstream [`#4691`](https://github.com/opentofu/opentofu/issues/4691), [`#4687`](https://github.com/opentofu/opentofu/issues/4687) |
 | `imports` | imports, config-driven and plan-option | none needed | upstream [`#4726`](https://github.com/opentofu/opentofu/issues/4726), [`#4727`](https://github.com/opentofu/opentofu/issues/4727), [`#4745`](https://github.com/opentofu/opentofu/issues/4745), [`#4683`](https://github.com/opentofu/opentofu/issues/4683) |
 | `provisioner-self-marks` | provisioner self marks | none needed: ours, already carried | ours |
 | `saved-plan-cross-runtime` | a plan saved on the default runtime, applied with the toggle on | apply refuses loudly with "Saved plan contains no execution graph": upstream's apply engine applies only plans its own planner made. Re-plan with the toggle on. | upstream |
+| `tracing-spans` | the default runtime's per-resource tracing spans | a fork port ([#2381](https://github.com/INTENTIUS/choudoufu/issues/2381)), not upstream's code: plan and apply each open the default runtime's Graph walk span, and under it a plan or apply span per managed resource instance, from the engine's tracer callbacks, with the span budget and aggregate summaries of [#1898](https://github.com/INTENTIUS/choudoufu/issues/1898). With the switch set the port is off and traces carry none of these spans | removed, package and call sites and this row, when upstream's own tracing in internal/engine lands |
 
 ## Fork ports
 
@@ -81,3 +81,5 @@ port's expiry issues have all closed.
 | Port | Switch | Gap rows | Expires with |
 |---|---|---|---|
 | [`inrunestates`](../internal/engine/forkport/inrunestates) | `CHOUDOUFU_NEW_RUNTIME_NO_PORT_INRUNESTATES=1` | `in-run-estates` | upstream [`#4058`](https://github.com/opentofu/opentofu/issues/4058) |
+| [`cancel`](../internal/engine/forkport/cancel) | `CHOUDOUFU_NEW_RUNTIME_NO_PORT_CANCEL=1` | `cancel` | its rows closing (none filed upstream) |
+| [`tracing`](../internal/engine/forkport/tracing) | `CHOUDOUFU_NEW_RUNTIME_NO_PORT_TRACING=1` | `tracing-spans` | its rows closing (none filed upstream) |

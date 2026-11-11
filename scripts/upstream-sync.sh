@@ -484,7 +484,7 @@ fork_port_report() {
 			[ "$state" = closed ] || closed=0
 			states="$states $n $state,"
 		done
-		[ -n "$issues" ] || closed=0
+		[ -n "$issues" ] || { closed=0; states=" none filed upstream, removed when its rows close"; }
 		printf '  %s  rows %s  off with %s  expires on:%s\n' "$name" "$ids" "$switch" "${states%,}"
 		if [ "$closed" = 1 ]; then
 			echo "EXPIRE: remove port $name (upstream ${issues// /, } closed)"

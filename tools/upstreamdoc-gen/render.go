@@ -111,8 +111,12 @@ func renderPorts(ports []forkport.Port) string {
 		for i, u := range p.Expiry {
 			issues[i] = fmt.Sprintf("[`%s`](%s/issues/%s)", u, upstreamRepo, u[1:])
 		}
-		fmt.Fprintf(&b, "| [`%s`](../internal/engine/forkport/%s) | `%s=1` | %s | upstream %s |\n",
-			p.Name, p.Name, forkport.Switch(p.Name), strings.Join(ids, ", "), strings.Join(issues, ", "))
+		expires := "upstream " + strings.Join(issues, ", ")
+		if len(issues) == 0 {
+			expires = "its rows closing (none filed upstream)"
+		}
+		fmt.Fprintf(&b, "| [`%s`](../internal/engine/forkport/%s) | `%s=1` | %s | %s |\n",
+			p.Name, p.Name, forkport.Switch(p.Name), strings.Join(ids, ", "), expires)
 	}
 	return b.String()
 }
