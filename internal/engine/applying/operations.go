@@ -11,6 +11,7 @@ import (
 	"log"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/configadjust"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/engine/internal/execgraph"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
@@ -62,6 +63,9 @@ type execOperations struct {
 	// plugins are the provider and provisioner plugins we have available for
 	// use during the apply phase.
 	plugins plugins.Plugins
+
+	// configValueAdjuster is [ApplyOpts.ConfigValueAdjuster]; nil when none.
+	configValueAdjuster configadjust.ConfigValueAdjuster
 }
 
 // The main operation methods of execOperations are spread across the separate

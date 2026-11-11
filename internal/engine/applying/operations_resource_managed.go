@@ -14,6 +14,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/configadjust"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/lang/eval"
@@ -127,12 +128,33 @@ func (ops *execOperations) ManagedFinalPlan(
 		currentPrivate = prior.State.Private
 	}
 
+	// choudoufu ownership markers (#2256 U4): this re-plans from freshly
+	// evaluated configuration, so it must see the value the planning engine
+	// planned with, or ValidateFinalPlan reports every marked object as
+	// inconsistent. A replace's create half arrives here with no prior and
+	// takes the create entry point, as the planning engine's CreateConfig did.
+	var extraIgnoreChanges []cty.Path
+	if desired != nil && ops.configValueAdjuster != nil {
+		priorVal := cty.NilVal
+		if currentVal != cty.NilVal {
+			priorVal, _ = currentVal.UnmarkDeep()
+		}
+		adjusted, moreDiags := configadjust.Adjust(ctx, ops.configValueAdjuster, instAddr, desiredVal, priorVal, resourceType.LoadSchema)
+		diags = diags.Append(moreDiags)
+		if moreDiags.HasErrors() {
+			return nil, diags
+		}
+		desiredVal = adjusted.Config
+		extraIgnoreChanges = adjusted.ExtraIgnoreChanges
+	}
+
 	resp, moreDiags := resourceType.PlanChanges(ctx, &resources.ManagedResourcePlanRequest{
 		Current: resources.ValueWithPrivate{
 			Value:   currentVal,
 			Private: currentPrivate,
 		},
-		DesiredValue: desiredVal,
+		DesiredValue:       desiredVal,
+		IgnoreChangesPaths: extraIgnoreChanges,
 	}, objAddr)
 	diags = diags.Append(moreDiags)
 	if moreDiags.HasErrors() {
