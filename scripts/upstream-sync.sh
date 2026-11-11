@@ -418,7 +418,29 @@ repin() {
 
 # ---------------------------------------------------------------- step 5
 
+# list_diff prints how the experimental-runtime lane's expected-failures
+# list (#2256 U3) differs from main's, for the sync PR's description. A sync
+# PR re-measures the list with `make test-experimental-ratchet` and commits
+# it; run `scripts/upstream-sync.sh --report` again afterwards to print the
+# diff.
+EXPECTED_FAILURES=live/experimental-runtime/expected-failures.json
+list_diff() {
+	local base
+	base=$(git merge-base HEAD origin/main 2>/dev/null) || base=
+	if [ -z "$base" ]; then
+		say "expected-failures list: no merge base with origin/main to diff against"
+		return
+	fi
+	say "expected-failures list ($EXPECTED_FAILURES) against main, for the sync PR's description:"
+	if git diff --quiet "$base" -- "$EXPECTED_FAILURES"; then
+		echo "  (unchanged)"
+	else
+		git diff "$base" -- "$EXPECTED_FAILURES" | sed 's/^/  /'
+	fi
+}
+
 report() {
+	list_diff
 	say "upstream gap-table issues ($UPSTREAM_REPO, read-only):"
 	local n line
 	for n in $(gap_upstream_numbers); do

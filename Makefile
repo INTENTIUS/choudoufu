@@ -34,10 +34,24 @@ build-experimental:
 	TOFU_X_EXPERIMENTAL_RUNTIME=1 go build -gcflags=all="-N -l" -ldflags "-X main.version=$(shell git describe --tags --always --dirty) -X main.experimentsAllowed=yes" -o choudoufu$(EXT) ./cmd/choudoufu
 
 # Experimental engine testing
+# EXPERIMENTAL_RUNTIME_PACKAGES are the packages the experimental-runtime lane
+# runs under TOFU_X_EXPERIMENTAL_RUNTIME (#2256 U3): upstream's internal/tofu,
+# plus the live packages, which upstream's own lane never sees.
+EXPERIMENTAL_RUNTIME_PACKAGES ?= ./internal/tofu ./internal/command ./internal/live/...
+
 .PHONY: test-experimental
 test-experimental:
 # 	TOFU_X_EXPERIMENTAL_RUNTIME=1 go test -ldflags "-X main.experimentsAllowed=yes" -v ./...
-	TOFU_X_EXPERIMENTAL_RUNTIME=1 go test -count=1 -v -ldflags "-X main.experimentsAllowed=yes" -v ./internal/tofu
+	TOFU_X_EXPERIMENTAL_RUNTIME=1 go test -count=1 -v -ldflags "-X main.experimentsAllowed=yes" -v $(EXPERIMENTAL_RUNTIME_PACKAGES)
+
+# test-experimental-ratchet runs the same packages with -json and checks the
+# result against live/experimental-runtime/expected-failures.json. The test
+# run's own exit status is ignored on purpose: expected failures fail it, and
+# the ratchet is what decides. Its last line is the verdict.
+.PHONY: test-experimental-ratchet
+test-experimental-ratchet:
+	-TOFU_X_EXPERIMENTAL_RUNTIME=1 go test -count=1 -json -ldflags "-X main.experimentsAllowed=yes" $(EXPERIMENTAL_RUNTIME_PACKAGES) > experimental-runtime-results.json
+	go run ./tools/expruntime-ratchet -results experimental-runtime-results.json
 
 # generate runs `go generate` to build the dynamically generated
 # source files, except the protobuf stubs which are built instead with
