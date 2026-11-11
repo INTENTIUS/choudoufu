@@ -7,11 +7,10 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-OpenTofu and Terraform protect each state file with a lock, which keeps every
-apply to it safe. choudoufu keeps one record per resource in a
+OpenTofu and Terraform lock each state file. choudoufu keeps one record per resource in a
 [record store](../values/), so two applies that touch different resources can
-run at the same time. A run's write to a record fails if another run wrote that
-record first, which keeps the records consistent without a lock.
+run at the same time. A run's write to a record fails if another run wrote it
+first, so no lock is needed.
 
 ## Two applies, one estate
 
@@ -49,13 +48,16 @@ written conditionally on its `resourceVersion`.
 
 ## What it does not do
 
-A run that fails or loses part way does not undo the records it already wrote.
-Every write stands alone, so nothing rolls back across records.
+A run that fails or loses part way keeps the records it already wrote: nothing
+rolls back across records.
 
 A record holds only what a read of the resource leaves out, such as a generated
 password. An attribute the provider reads back has no record, so two plain
 applies that change it without a saved plan are last writer wins at the cloud
-API. Keep one apply at a time per estate in CI anyway.
+API. Keep one apply at a time per estate in CI anyway. In
+[terragucci](https://intentius.io/terragucci/concepts/locking-and-staleness/#with-choudoufu)
+each wave holds the resources it changes, so applies to different resources of
+one estate run at once.
 
 ## Across states
 
