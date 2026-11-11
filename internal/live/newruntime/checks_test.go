@@ -166,33 +166,31 @@ func TestPostPlanRefusesReplace(t *testing.T) {
 	}{{true, "replace-live"}, {false, "replace-cbd-cycle"}} {
 		for _, action := range []plans.Action{plans.DeleteThenCreate, plans.CreateThenDelete} {
 			p := planOf(changeFor(t, "test_object.a[0]", action))
-			diags := PostPlan(p, loadConfig(t, cleanFixture), tc.live, nil)
+			diags := PostPlan(p, tc.live)
 			if !refusedFor(diags, row(t, tc.row)) {
 				t.Errorf("live=%v %s was not refused under gap %q; diagnostics:\n%s", tc.live, action, tc.row, diags.ErrWithWarnings())
 			}
 		}
 	}
 	p := planOf(changeFor(t, "test_object.a[0]", plans.Update), changeFor(t, "test_object.a[1]", plans.Create))
-	if diags := PostPlan(p, loadConfig(t, cleanFixture), true, nil); len(diags) != 0 {
+	if diags := PostPlan(p, true); len(diags) != 0 {
 		t.Errorf("an update and a create were refused: %s", diags.ErrWithWarnings())
 	}
 }
 
-func TestPostPlanRefusesDeleteWithDestroyOverride(t *testing.T) {
-	r := row(t, "destroy-override")
-	src := "resource \"test_object\" \"a\" {\n  test_string = \"x\"\n}\n"
-	attrs := func(addrs.Provider, string) []string { return []string{"test_string"} }
+// TestPostPlanDoesNotRefuseDelete: the destroy-override row was lifted
+// when U8 (#2344) ported destroy-from-config overrides to the new runtime,
+// so a delete is no longer refused in or out of live mode, and the row
+// stays in the table as a closed gap with no check.
+func TestPostPlanDoesNotRefuseDelete(t *testing.T) {
+	if r := row(t, "destroy-override"); r.Check != CheckNone {
+		t.Fatalf("row destroy-override has check %q, want %q", r.Check, CheckNone)
+	}
 	p := planOf(changeFor(t, "test_object.a", plans.Delete))
-	if diags := PostPlan(p, loadConfig(t, src), false, attrs); !refusedFor(diags, r) {
-		t.Fatalf("a delete an override would act on was not refused; diagnostics:\n%s", diags.ErrWithWarnings())
-	}
-	// The configuration does not set the attribute: the override does not act.
-	if diags := PostPlan(p, loadConfig(t, "resource \"test_object\" \"a\" {}\n"), false, attrs); len(diags) != 0 {
-		t.Fatalf("a delete whose configuration does not set the override's attribute was refused: %s", diags.ErrWithWarnings())
-	}
-	// No override for the type.
-	if diags := PostPlan(p, loadConfig(t, src), false, func(addrs.Provider, string) []string { return nil }); len(diags) != 0 {
-		t.Fatalf("a delete with no override was refused: %s", diags.ErrWithWarnings())
+	for _, live := range []bool{false, true} {
+		if diags := PostPlan(p, live); len(diags) != 0 {
+			t.Errorf("live=%v: a delete was refused: %s", live, diags.ErrWithWarnings())
+		}
 	}
 }
 
@@ -207,7 +205,7 @@ func TestDeferralRefusal(t *testing.T) {
 // a row that refuses must have a detector and a test, and a construct a
 // detector knows must have a row.
 func TestEveryRefusingRowHasAFixture(t *testing.T) {
-	tested := map[string]bool{"deposed": true, "test-command": true, "replace-live": true, "replace-cbd-cycle": true, "destroy-override": true, "deferral": true}
+	tested := map[string]bool{"deposed": true, "test-command": true, "replace-live": true, "replace-cbd-cycle": true, "deferral": true}
 	for id := range preflightFixtures {
 		tested[id] = true
 	}

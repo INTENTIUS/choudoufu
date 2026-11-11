@@ -26,7 +26,6 @@ import (
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
 	"github.com/intentius/choudoufu/internal/live/newruntime"
-	"github.com/intentius/choudoufu/internal/live/override"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/shared"
@@ -211,24 +210,9 @@ func (c *Context) newEngineValidate(ctx context.Context, config *configs.Config,
 
 // newRuntimePostPlan runs the gap table's post-plan check on a plan for the
 // new runtime (#2256 U2). Live mode is any run with a ConfigValueAdjuster,
-// the same test G uses. A destroy-from-config override (#2309) wraps the
-// provider factory, so the override's destroy-time attributes are read from
-// a provider instance the Context's own manager starts and tracks.
-func (c *Context) newRuntimePostPlan(ctx context.Context, plan *plans.Plan, config *configs.Config) tfdiags.Diagnostics {
-	cache := map[string][]string{}
-	destroyAttrs := func(provider addrs.Provider, typeName string) []string {
-		key := provider.String() + "|" + typeName
-		if got, ok := cache[key]; ok {
-			return got
-		}
-		var attrs []string
-		if p, pDiags := c.plugins.providers.NewProvider(ctx, provider); !pDiags.HasErrors() && p != nil {
-			attrs = override.DestroyAttributes(ctx, p, typeName)
-		}
-		cache[key] = attrs
-		return attrs
-	}
-	return newruntime.PostPlan(plan, config, c.configValueAdjuster != nil, destroyAttrs)
+// the same test G uses.
+func (c *Context) newRuntimePostPlan(_ context.Context, plan *plans.Plan, _ *configs.Config) tfdiags.Diagnostics {
+	return newruntime.PostPlan(plan, c.configValueAdjuster != nil)
 }
 
 // newRuntimeWarning is the toggle's warning: the variable and the accepted
