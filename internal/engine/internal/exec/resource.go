@@ -6,6 +6,7 @@
 package exec
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/zclconf/go-cty/cty"
@@ -306,6 +307,11 @@ type ResourceInstanceObjectMeta struct {
 	Status states.ObjectStatus
 
 	OrphanActionReason plans.ResourceInstanceChangeActionReason
+
+	// DestroyConfigValue is choudoufu's (GitHub issue #2309, #2344), from
+	// [eval.ConfiguredResourceInstanceObjectMeta.DestroyConfigValue]. Only
+	// the planning engine calls it.
+	DestroyConfigValue func(ctx context.Context) cty.Value
 }
 
 // BuildResourceInstanceObjectMeta constructs a [ResourceInstanceObjectMeta]
@@ -398,6 +404,10 @@ func BuildResourceInstanceObjectMeta[SV states.ValueOrJSONEquivalent](
 
 		if fromModule.DeletionInvalid != nil {
 			ret.DeletionInvalid = fromModule.DeletionInvalid
+		}
+
+		if fromModule.DestroyConfigValue != nil {
+			ret.DestroyConfigValue = fromModule.DestroyConfigValue
 		}
 
 		if fromModule.ImportStatement != nil {

@@ -23,6 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/lang/globalref"
+	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/refactoring"
 	"github.com/intentius/choudoufu/internal/states"
@@ -805,8 +806,22 @@ func (c *Context) planWalk(ctx context.Context, config *configs.Config, prevRunS
 		if moreDiags := c.refuseLiveOnNewRuntime(); moreDiags.HasErrors() {
 			return nil, diags.Append(moreDiags)
 		}
+		// #2256 U2: the preflight refuses, from the gap table, every
+		// construct in the configuration or prior state the new runtime
+		// cannot handle yet. It runs before newEnginePlan, so a refused run
+		// never prints the toggle's warning.
+		if moreDiags := newruntime.Preflight(config, prevRunState); moreDiags.HasErrors() {
+			return nil, diags.Append(moreDiags)
+		}
 		plan, moreDiags := c.newEnginePlan(ctx, config, prevRunState, opts)
-		return plan, diags.Append(moreDiags)
+		diags = diags.Append(moreDiags)
+		// #2256 U2: the post-plan check refuses, from the gap table, any
+		// change the new runtime cannot apply correctly yet, before the
+		// plan is shown or saved.
+		if postDiags := c.newRuntimePostPlan(ctx, plan, config); postDiags.HasErrors() {
+			return nil, diags.Append(postDiags)
+		}
+		return plan, diags
 	}
 
 	prevRunState = prevRunState.DeepCopy() // don't modify the caller's object when we process the moves

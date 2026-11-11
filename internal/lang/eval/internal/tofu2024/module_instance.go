@@ -253,6 +253,12 @@ func (c *CompiledModuleInstance) ResourceInstanceObjectMeta(ctx context.Context,
 
 	ret.PostCreateProvisioners = prepareResourceProvisioners(inst.CreateProvisioners)
 
+	// choudoufu (GitHub issue #2344): destroy-from-config overrides.
+	ret.DestroyConfigValue = func(ctx context.Context) cty.Value {
+		v, _ := inst.ConfigValue(ctx)
+		return v
+	}
+
 	// TODO: All of the other fields of ConfiguredResourceInstanceObjectMeta
 
 	return ret

@@ -66,6 +66,10 @@ type execOperations struct {
 
 	// configValueAdjuster is [ApplyOpts.ConfigValueAdjuster]; nil when none.
 	configValueAdjuster configadjust.ConfigValueAdjuster
+
+	// plannedChanges are the plan's changes, read only by choudoufu's
+	// destroy-from-config hook (GitHub issue #2344, destroyFromPlan).
+	plannedChanges *plans.Changes
 }
 
 // The main operation methods of execOperations are spread across the separate
@@ -108,6 +112,7 @@ func compileExecutionGraph(ctx context.Context, plan *plans.Plan, oracle *eval.A
 	ops.workingState = NewPersistingState(plan.PriorState.DeepCopy(), persistState)
 	ops.configOracle = oracle
 	ops.plugins = plugins
+	ops.plannedChanges = plan.Changes
 
 	return compiledGraph, ops, diags
 }
