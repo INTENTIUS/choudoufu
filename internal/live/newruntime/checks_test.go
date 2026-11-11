@@ -124,6 +124,21 @@ func TestPreflightRefusesDeposedState(t *testing.T) {
 	}
 }
 
+// An orphaned object whose state records lifecycle destroy = false: the
+// resource block is gone, so only the state says not to delete it.
+func TestPreflightRefusesSkipDestroyInState(t *testing.T) {
+	r := row(t, "lifecycle-destroy")
+	addr := addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "test_object", Name: "gone"}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance)
+	s := states.BuildState(func(ss *states.SyncState) {
+		ss.SetResourceInstanceCurrent(addr,
+			&states.ResourceInstanceObjectSrc{Status: states.ObjectReady, AttrsJSON: []byte(`{}`), SkipDestroy: true},
+			addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("test"), Module: addrs.RootModule}, addrs.NoKey)
+	})
+	if diags := Preflight(loadConfig(t, cleanFixture), s); !refusedFor(diags, r) {
+		t.Fatalf("an orphan with destroy = false in state was not refused; diagnostics:\n%s", diags.ErrWithWarnings())
+	}
+}
+
 func TestRefuseTestCommand(t *testing.T) {
 	if diags := RefuseCommand("test"); !refusedFor(diags, row(t, "test-command")) {
 		t.Fatalf("the test command was not refused; diagnostics:\n%s", diags.ErrWithWarnings())

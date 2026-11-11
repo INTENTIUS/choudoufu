@@ -147,8 +147,34 @@ func sensitiveCalls(dir string) []occurrence {
 	return out
 }
 
-// stateDetectors are preflight constructs found in the prior state.
+// stateDetectors are preflight constructs found in the prior state. A
+// construct may have both a state and a configuration detector; both run.
 var stateDetectors = map[string]func(s *states.State) []string{
+	// lifecycle { destroy = false } is also recorded on the object in state,
+	// where it outlives the resource block: an orphaned object carrying it
+	// must be forgotten, not deleted. The configuration detector cannot see
+	// an orphan, so the state is read too.
+	"lifecycle_destroy": func(s *states.State) (out []string) {
+		if s == nil {
+			return nil
+		}
+		for _, ms := range s.Modules {
+			for _, rs := range ms.Resources {
+				for key, is := range rs.Instances {
+					if is.Current != nil && is.Current.SkipDestroy {
+						out = append(out, fmt.Sprintf("the state records lifecycle destroy = false on %s", rs.Addr.Instance(key)))
+					}
+					for dk, obj := range is.Deposed {
+						if obj != nil && obj.SkipDestroy {
+							out = append(out, fmt.Sprintf("the state records lifecycle destroy = false on deposed object %s of %s", dk, rs.Addr.Instance(key)))
+						}
+					}
+				}
+			}
+		}
+		sort.Strings(out)
+		return out
+	},
 	"deposed_state": func(s *states.State) (out []string) {
 		if s == nil {
 			return nil
@@ -181,14 +207,17 @@ func Preflight(cfg *configs.Config, prior *states.State) tfdiags.Diagnostics {
 		if commandConstructs[r.Construct] {
 			continue
 		}
-		if detect, ok := stateDetectors[r.Construct]; ok {
-			for _, what := range detect(prior) {
+		stateDetect, hasState := stateDetectors[r.Construct]
+		if hasState {
+			for _, what := range stateDetect(prior) {
 				diags = diags.Append(refusal(r, what, nil))
 			}
-			continue
 		}
 		detect, ok := preflightDetectors[r.Construct]
 		if !ok {
+			if hasState {
+				continue
+			}
 			panic(fmt.Sprintf("gap %q: no preflight detector for construct %q", r.ID, r.Construct))
 		}
 		if cfg == nil {
