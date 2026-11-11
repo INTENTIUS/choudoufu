@@ -192,7 +192,7 @@ type forkSurfaceDoc struct {
 // It moved from 03743ce6e8 (upstream main, 1.13.0-dev) to 2b6193043d (the
 // v1.13.0 tag) with #1778's upgrade, then to 765062032c (the v1.13.2 tag)
 // with #2242's.
-const forkSurfaceForkPoint = "765062032c46cacab116b36d714db098b806dede"
+const forkSurfaceForkPoint = "aa3eb66a0c1c792b7751e6ffeef7ca0cd8693f66"
 
 func loadForkSurface(t *testing.T) forkSurfaceDoc {
 	t.Helper()

@@ -8,7 +8,7 @@ package jsonconfig
 import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/tofu"
+	"github.com/intentius/choudoufu/internal/plugins"
 )
 
 // MarshalSingleModule is a variant of [Marshal] that describes only a single
@@ -76,5 +76,5 @@ func mapSchema[In, Out schemaObject](schema In, f func(In) Out) Out {
 // generic over the different nilable schema types used by different parts
 // of the implementation in this package.
 type schemaObject interface {
-	*tofu.Schemas | *configschema.Block
+	*plugins.Schemas | *configschema.Block
 }

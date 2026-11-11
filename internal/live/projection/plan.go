@@ -404,12 +404,6 @@ func planOne(ctx context.Context, eval *configs.StaticEvaluator, modPath addrs.M
 		PriorState:       prior,
 		ProposedNewState: proposed,
 		Config:           unmarkedConfigVal,
-		// A null of the dynamic pseudo-type rather than the zero cty.Value:
-		// the plugin client marshals ProviderMeta whenever the provider
-		// declares a provider_meta schema, and a value with no type at all
-		// panics the conformance check. Same call, same reason, as
-		// liveimport's stamp.go.
-		ProviderMeta: cty.NullVal(cty.DynamicPseudoType),
 	})
 	if resp.Diagnostics.HasErrors() {
 		return cty.NilVal, false

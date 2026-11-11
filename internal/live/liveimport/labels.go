@@ -255,7 +255,6 @@ func planAndApplyMarker(ctx context.Context, e *eligible, desired cty.Value, not
 			ProposedNewState: objchange.ProposedNew(e.schema.Block, e.applied, candidate),
 			Config:           candidate,
 			PriorPrivate:     e.private,
-			ProviderMeta:     cty.NullVal(cty.DynamicPseudoType),
 			PriorIdentity:    e.identity,
 		})
 		if why := notClean(resp); why != "" {
@@ -274,7 +273,6 @@ func planAndApplyMarker(ctx context.Context, e *eligible, desired cty.Value, not
 		PlannedState:    planResp.PlannedState,
 		Config:          configVal,
 		PlannedPrivate:  planResp.PlannedPrivate,
-		ProviderMeta:    cty.NullVal(cty.DynamicPseudoType),
 		PlannedIdentity: planResp.PlannedIdentity,
 	})
 	if applyResp.Diagnostics.HasErrors() {

@@ -16,9 +16,12 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
-// liveGuardOptInVariables are the variables that can switch the new runtime
-// on for plan and apply. #2256 U1 adds TOFU_X_EXPERIMENTAL_RUNTIME_NEXT
-// when it takes upstream's split (`#4823`).
+// liveGuardOptInVariables are the variables that switch this package's
+// runtime for plan and apply. After upstream's split (`#4823`, taken in
+// #2256 U1) that is TOFU_X_EXPERIMENTAL_RUNTIME only.
+// TOFU_X_EXPERIMENTAL_RUNTIME_NEXT is the command layer's
+// (Meta.NewRuntimeEnabled) and is covered in internal/command's
+// live_new_runtime_guard_test.go.
 var liveGuardOptInVariables = []string{"TOFU_X_EXPERIMENTAL_RUNTIME"}
 
 // liveGuardSwitches are the ways a test switches the new runtime on: each

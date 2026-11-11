@@ -164,7 +164,7 @@ var forkOwnedMixedRoots = []string{
 // checkUpstreamBase below asserts the ancestry rather than trusting this
 // comment, so a repin to a commit only a local clone can see fails here
 // instead of only in CI.
-const upstreamBaseCommit = "93bb2800b4face7cac17f04fb52f758c71ed7a2f"
+const upstreamBaseCommit = "5d5d38aed5f40820295ec9afb0664f80669e1b75"
 
 // ciExcludedPackages names a fork-owned test package CI deliberately does
 // not run, and why. Empty is the intended state. An entry here is a

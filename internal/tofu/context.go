@@ -17,7 +17,6 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/logging"
 	"github.com/intentius/choudoufu/internal/plugins"
@@ -45,7 +44,6 @@ type ContextOpts struct {
 	Hooks       []Hook
 	Parallelism int
 	Plugins     plugins.Library
-	Encryption  encryption.Encryption
 	Modules     eval.ExternalModules
 
 	UIInput UIInput
@@ -115,8 +113,6 @@ type Context struct {
 	runContext          context.Context
 	runContextCancel    context.CancelFunc
 
-	encryption encryption.Encryption
-
 	resourceIdentityResolver ResourceIdentityResolver
 	configValueAdjuster      ConfigValueAdjuster
 	inRunEstates             map[string]addrs.Module
@@ -176,8 +172,6 @@ func NewContext(opts *ContextOpts) (*Context, tfdiags.Diagnostics) {
 		parallelSem:         NewSemaphore(par),
 		providerInputConfig: make(map[string]map[string]cty.Value),
 		sh:                  sh,
-
-		encryption: opts.Encryption,
 
 		resourceIdentityResolver: opts.ResourceIdentityResolver,
 		configValueAdjuster:      opts.ConfigValueAdjuster,

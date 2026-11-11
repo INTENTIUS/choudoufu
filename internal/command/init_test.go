@@ -24,7 +24,6 @@ import (
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/flags"
 	"github.com/intentius/choudoufu/internal/command/workdir"
-	"github.com/mitchellh/cli"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -81,7 +80,7 @@ func TestInit_multipleArgs(t *testing.T) {
 	}
 	code := RunCommander(t, InitCommander(), meta, args)
 	output := done(t)
-	if code != cli.RunResultHelp {
+	if code != RunResultHelp {
 		t.Fatalf("bad: \n%s", output.Stdout())
 	}
 }
@@ -481,7 +480,7 @@ func TestInit_backendConfigFilePowershellConfusion(t *testing.T) {
 	args := []string{"-backend-config=", "./input.config"}
 	code := RunCommander(t, InitCommander(), meta, args)
 	output := done(t)
-	if code != cli.RunResultHelp {
+	if code != RunResultHelp {
 		t.Fatalf("got exit status %d; want 1\nstderr:\n%s\n\nstdout:\n%s", code, output.Stderr(), output.Stdout())
 	}
 

@@ -13,7 +13,6 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 
-	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/providers"
 )
@@ -110,11 +109,9 @@ func (p *Provider) ConfigureProvider(context.Context, providers.ConfigureProvide
 }
 
 // ReadDataSource returns the data source's current state.
-func (p *Provider) ReadDataSource(_ context.Context, req providers.ReadDataSourceRequest) providers.ReadDataSourceResponse {
-	panic("Should not be called directly, special case for terraform_remote_state")
-}
+func (p *Provider) ReadDataSource(ctx context.Context, req providers.ReadDataSourceRequest) providers.ReadDataSourceResponse {
+	enc := encryption.ContextEncryption(ctx)
 
-func (p *Provider) ReadDataSourceEncrypted(ctx context.Context, req providers.ReadDataSourceRequest, path addrs.AbsResourceInstance, enc encryption.Encryption) providers.ReadDataSourceResponse {
 	// call function
 	var res providers.ReadDataSourceResponse
 
@@ -128,6 +125,8 @@ func (p *Provider) ReadDataSourceEncrypted(ctx context.Context, req providers.Re
 		res.Diagnostics.Append(fmt.Errorf("Error: unsupported data source %s", req.TypeName))
 		return res
 	}
+
+	path := req.ResourceAddr
 
 	// These string manipulations are kind of funky
 	key := path.String()

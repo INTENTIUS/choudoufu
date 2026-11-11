@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mitchellh/cli"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -470,7 +469,7 @@ func TestLiveMv_badArguments(t *testing.T) {
 		"no addresses":  {[]string{}, "Two resource addresses are required", 1},
 		"one address":   {[]string{"aws_vpc.main"}, "Two resource addresses are required", 1},
 		"three":         {[]string{"a.b", "c.d", "e.f"}, "Two resource addresses are required", 1},
-		"unknown flag":  {[]string{"-nope", "aws_vpc.main", "aws_vpc.other"}, "flag provided but not defined: -nope", cli.RunResultHelp},
+		"unknown flag":  {[]string{"-nope", "aws_vpc.main", "aws_vpc.other"}, "flag provided but not defined: -nope", RunResultHelp},
 		"unparseable":   {[]string{"aws_vpc", "aws_vpc.main"}, "Invalid address", 1},
 		"same address":  {[]string{"aws_vpc.main", "aws_vpc.main"}, "Identical source and destination addresses", 1},
 		"data resource": {[]string{"data.aws_vpc.a", "data.aws_vpc.b"}, "Unsupported address for a rename", 1},

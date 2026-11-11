@@ -50,7 +50,8 @@ func estateOutputsConfig(estate string, names ...string) cty.Value {
 
 func readEstateOutputs(p providers.Interface, cfg cty.Value) providers.ReadDataSourceResponse {
 	addr := addrs.Resource{Mode: addrs.DataResourceMode, Type: EstateOutputsTypeName, Name: "network"}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance)
-	return p.(*Provider).ReadDataSourceEncrypted(context.Background(), providers.ReadDataSourceRequest{TypeName: EstateOutputsTypeName, Config: cfg}, addr, encryption.Disabled())
+	ctx := encryption.ContextWithEncryption(context.Background(), encryption.Disabled())
+	return p.ReadDataSource(ctx, providers.ReadDataSourceRequest{TypeName: EstateOutputsTypeName, Config: cfg, ResourceAddr: addr})
 }
 
 func TestEstateOutputsDataSourceReadsThroughTheReader(t *testing.T) {

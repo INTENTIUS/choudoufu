@@ -18,7 +18,6 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/checks"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -75,7 +74,6 @@ type BuiltinEvalContext struct {
 	InstanceExpanderValue   *instances.Expander
 	MoveResultsValue        refactoring.MoveResults
 	ImportResolverValue     *ImportResolver
-	Encryption              encryption.Encryption
 	ProviderFunctionTracker ProviderFunctionMapping
 
 	// ResourceIdentityResolverValue and ConfigValueAdjusterValue are the
@@ -459,10 +457,6 @@ func (c *BuiltinEvalContext) MoveResults() refactoring.MoveResults {
 
 func (c *BuiltinEvalContext) ImportResolver() *ImportResolver {
 	return c.ImportResolverValue
-}
-
-func (c *BuiltinEvalContext) GetEncryption() encryption.Encryption {
-	return c.Encryption
 }
 
 func (c *BuiltinEvalContext) ResourceIdentityResolver() ResourceIdentityResolver {

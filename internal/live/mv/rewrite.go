@@ -163,14 +163,7 @@ func (m *mover) planAndApply(ctx context.Context, prior *states.ResourceInstance
 			ProposedNewState: objchange.ProposedNew(m.schema.Block, priorVal, candidate),
 			Config:           candidate,
 			PriorPrivate:     prior.Private,
-			// A null of the dynamic pseudo-type rather than the zero cty.Value,
-			// for the same reason the projection's read passes one: the plugin
-			// client marshals ProviderMeta whenever the provider declares a
-			// provider_meta schema, and a value with no type at all panics the
-			// conformance check. A rename has no provider_meta block to
-			// evaluate, so null is also the correct answer.
-			ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
-			PriorIdentity: prior.Identity,
+			PriorIdentity:    prior.Identity,
 		})
 		if resp.Diagnostics.HasErrors() {
 			// Kept, not returned: if no candidate produces a clean plan, the
@@ -202,7 +195,6 @@ func (m *mover) planAndApply(ctx context.Context, prior *states.ResourceInstance
 		PlannedState:    planResp.PlannedState,
 		Config:          configVal,
 		PlannedPrivate:  planResp.PlannedPrivate,
-		ProviderMeta:    cty.NullVal(cty.DynamicPseudoType),
 		PlannedIdentity: planResp.PlannedIdentity,
 	})
 	if applyResp.Diagnostics.HasErrors() {

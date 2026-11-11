@@ -1680,10 +1680,6 @@ func (b *builder) normalizeIdentityAttrs(ctx context.Context, provider providers
 		PriorState:       priorNull,
 		ProposedNewState: proposed,
 		Config:           cfgVal,
-		// See importAndRead's identical call: a null of the dynamic
-		// pseudo-type, never the zero cty.Value, or a provider that
-		// declares a provider_meta schema panics its own conformance check.
-		ProviderMeta: cty.NullVal(cty.DynamicPseudoType),
 	})
 	if planResp.Diagnostics.HasErrors() {
 		log.Printf("[TRACE] projection: %s's identity-bearing attributes could not be checked against the provider's own create-time plan (%s); left as ReadResource returned them",
@@ -4281,18 +4277,9 @@ func readImported(ctx context.Context, provider providers.Interface, schema prov
 	importStub := obj.Value
 
 	readResp := provider.ReadResource(ctx, providers.ReadResourceRequest{
-		TypeName:   typeName,
-		PriorState: obj.Value,
-		Private:    obj.Private,
-		// A null of the dynamic pseudo-type, not the zero cty.Value: the
-		// plugin client marshals ProviderMeta whenever the provider
-		// declares a provider_meta schema (the AWS provider does), and
-		// marshalling starts with a conformance check that panics on a
-		// value with no type at all. This is the same value
-		// NodeAbstractResourceInstance.providerMetas defaults to. A
-		// projection has no provider_meta block to evaluate, so null is
-		// also the correct answer.
-		ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
+		TypeName:      typeName,
+		PriorState:    obj.Value,
+		Private:       obj.Private,
 		PriorIdentity: obj.Identity,
 	})
 	if readResp.Diagnostics.HasErrors() {

@@ -219,8 +219,6 @@ func (s *stubConfigValueAdjuster) AdjustConfigValue(_ context.Context, addr addr
 // PlanResourceChange, which #3016 forbids outright), this test's ignored
 // key would show the adjuster's value instead of the prior one.
 func TestContext2Plan_configValueAdjusterHonoursIgnoreChanges(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureIgnoreChanges)
-
 	addr := mustResourceInstanceAddr("test_object.a")
 
 	m := testModuleInline(t, map[string]string{

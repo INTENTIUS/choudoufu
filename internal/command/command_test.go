@@ -28,7 +28,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/intentius/choudoufu/internal/command/arguments"
-	"github.com/mitchellh/cli"
 	"github.com/opentofu/svchost"
 	"github.com/opentofu/svchost/disco"
 	"github.com/zclconf/go-cty/cty"
@@ -1260,14 +1259,14 @@ func TestVarsParsing(t *testing.T) {
 		t.Chdir(td)
 		t.Cleanup(testStdinPipe(t, strings.NewReader("var.foo\nvar.snack\n")))
 		streams, done := terminal.StreamsForTesting(t)
-		c := &ConsoleCommand{
+		m := Meta{
 			WorkingDir:       workdir.NewDir("."),
 			testingOverrides: metaOverridesForProvider(p),
 			View:             views.NewView(streams),
 		}
 
 		args := append([]string{"-no-color", "-lock=false"}, varArgs...)
-		code := c.Run(args)
+		code := RunCommander(t, ConsoleCommander(), m, args)
 		output := done(t)
 		if code != 0 {
 			t.Fatalf("bad: %d\n\n%s", code, output.Stderr())
@@ -1283,35 +1282,25 @@ func TestVarsParsing(t *testing.T) {
 	})
 
 	cases := map[string]struct {
-		cmdBuilder      func(m Meta) cli.Command
+		cmd             Command
 		expectedContent []string
 		confirmation    bool
 	}{
 		"plan": {
-			cmdBuilder: func(m Meta) cli.Command {
-				return &PlanCommand{m}
-			},
+			cmd: PlanCommander(),
 		},
 		"apply": {
-			cmdBuilder: func(m Meta) cli.Command {
-				return &ApplyCommand{Meta: m}
-			},
+			cmd:          ApplyCommander(),
 			confirmation: true,
 		},
 		"output": {
-			cmdBuilder: func(m Meta) cli.Command {
-				return &OutputCommand{m}
-			},
+			cmd: OutputCommander(),
 		},
 		"show": {
-			cmdBuilder: func(m Meta) cli.Command {
-				return &ShowCommand{Meta: m}
-			},
+			cmd: ShowCommander(),
 		},
 		"refresh": {
-			cmdBuilder: func(m Meta) cli.Command {
-				return &RefreshCommand{m}
-			},
+			cmd: RefreshCommander(),
 		},
 	}
 	for name, tc := range cases {
@@ -1325,13 +1314,12 @@ func TestVarsParsing(t *testing.T) {
 				testingOverrides: metaOverridesForProvider(p),
 				View:             view,
 			}
-			c := tc.cmdBuilder(m)
 
 			args := append([]string{"-no-color"}, varArgs...)
 			if tc.confirmation {
 				t.Cleanup(testInputMap(t, map[string]string{"approve": "yes"}))
 			}
-			code := c.Run(args)
+			code := RunCommander(t, tc.cmd, m, args)
 			output := done(t)
 			if code != 0 {
 				t.Fatalf("bad: %d\n\n%s", code, output.Stderr())

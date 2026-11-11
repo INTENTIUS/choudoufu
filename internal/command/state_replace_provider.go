@@ -8,7 +8,6 @@ package command
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/command/arguments"
@@ -44,14 +43,15 @@ type StateReplaceProviderCommand struct {
 	StateMeta
 }
 
-func (c *StateReplaceProviderCommand) Run(rawArgs []string) int {
-	return RunCommand(StateReplaceProviderCommander(), c.Meta, rawArgs)
-}
 func (c StateReplaceProviderCommand) Execute(args *arguments.StateReplaceProvider, view views.State) int {
 	var diags tfdiags.Diagnostics
 
 	ctx := c.CommandContext()
 
+	// This is safe to be done since the execution engine contexts are created by ignoring the cancellation from the parent context.
+	// internal/backend/local/backend.go
+	ctx, cancel := c.InterruptibleContext(ctx)
+	defer cancel()
 	// See liveStateGuard: refused before anything reaches a state manager.
 	if guardDiags := c.liveStateGuard(ctx, "replace-provider"); guardDiags.HasErrors() {
 		view.Diagnostics(diags.Append(guardDiags))
@@ -209,52 +209,4 @@ func (c StateReplaceProviderCommand) Execute(args *arguments.StateReplaceProvide
 	view.Diagnostics(diags)
 	view.ProviderReplaced(len(willReplace))
 	return 0
-}
-
-func (c *StateReplaceProviderCommand) Help() string {
-	helpText := `
-Usage: choudoufu [global options] state replace-provider [options] FROM_PROVIDER_FQN TO_PROVIDER_FQN
-
-  Replace provider for resources in the OpenTofu state.
-
-Options:
-
-  -auto-approve           Skip interactive approval.
-
-  -lock=false             Don't hold a state lock during the operation. This is
-                          dangerous if others might concurrently run commands
-                          against the same workspace.
-
-  -lock-timeout=0s        Duration to retry a state lock.
-
-  -ignore-remote-version  A rare option used for the remote backend only. See
-                          the remote backend documentation for more information.
-
-  -var 'foo=bar'          Set a value for one of the input variables in the root
-                          module of the configuration. Use this option more than
-                          once to set more than one variable.
-
-  -var-file=filename      Load variable values from the given file, in addition
-                          to the default files terraform.tfvars and *.auto.tfvars.
-                          Use this option more than once to include more than one
-                          variables file.
-
-  -json                   Produce output in a machine-readable JSON format, 
-                          suitable for use in text editor integrations and other 
-                          automated systems. Always disables color.
-
-  -json-into=out.json     Produce the same output as -json, but sent directly
-                          to the given file. This allows automation to preserve
-                          the original human-readable output streams, while
-                          capturing more detailed logs for machine analysis.
-
-  -state, state-out, and -backup are legacy options supported for the local
-  backend only. For more information, see the local backend's documentation.
-
-`
-	return strings.TrimSpace(helpText)
-}
-
-func (c *StateReplaceProviderCommand) Synopsis() string {
-	return "Replace provider in the state"
 }

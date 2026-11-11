@@ -13,9 +13,10 @@ import (
 )
 
 // liveGuardCommandVariables are the opt-in variables a live run must refuse
-// at every entry point. #2256 U1 adds TOFU_X_EXPERIMENTAL_RUNTIME_NEXT when
-// it takes upstream's split (`#4823`).
-var liveGuardCommandVariables = []string{"TOFU_X_EXPERIMENTAL_RUNTIME"}
+// at every entry point. Since upstream's split (`#4823`, taken in #2256 U1)
+// TOFU_X_EXPERIMENTAL_RUNTIME switches plan and apply in internal/tofu and
+// TOFU_X_EXPERIMENTAL_RUNTIME_NEXT switches this layer (Meta.NewRuntimeEnabled).
+var liveGuardCommandVariables = []string{"TOFU_X_EXPERIMENTAL_RUNTIME", "TOFU_X_EXPERIMENTAL_RUNTIME_NEXT"}
 
 // liveNewRuntimeRefusals are the two summaries #2256 G produces: the
 // command-layer check here, and the runtime-decision check in internal/tofu.

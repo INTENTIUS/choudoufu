@@ -15,7 +15,6 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/checks"
 	"github.com/intentius/choudoufu/internal/configs"
-	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/refactoring"
@@ -43,7 +42,6 @@ type ContextGraphWalker struct {
 	RootVariableValues      InputValues
 	Config                  *configs.Config
 	PlanTimestamp           time.Time
-	Encryption              encryption.Encryption
 	ProviderFunctionTracker ProviderFunctionMapping
 
 	// ResourceIdentityResolver and ConfigValueAdjuster are the plan-node
@@ -120,7 +118,6 @@ func (w *ContextGraphWalker) EvalContext() EvalContext {
 		Evaluator:               evaluator,
 		VariableValues:          w.variableValues,
 		VariableValuesLock:      &w.variableValuesLock,
-		Encryption:              w.Encryption,
 		ProviderFunctionTracker: w.ProviderFunctionTracker,
 
 		ResourceIdentityResolverValue: w.ResourceIdentityResolver,

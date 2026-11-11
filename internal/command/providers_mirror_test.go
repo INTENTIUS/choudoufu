@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/command/workdir"
-	"github.com/mitchellh/cli"
 )
 
 // More thorough tests for providers mirror can be found in the e2etest
@@ -39,7 +38,7 @@ func TestProvidersMirror(t *testing.T) {
 		}
 		code := RunCommander(t, ProvidersMirrorCommander(), meta, []string{"-no-color"})
 		output := done(t)
-		if code != cli.RunResultHelp {
+		if code != RunResultHelp {
 			t.Fatalf("wrong exit code. expected 1, got %d", code)
 		}
 
