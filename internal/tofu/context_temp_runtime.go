@@ -302,6 +302,11 @@ func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, pre
 		// write-back reads the plan's mode to tell a whole destroy, which
 		// deletes the estate's recorded root outputs, from any other apply.
 		plan.UIMode = opts.Mode
+		// choudoufu (#2387): Context.Plan records the targets on the plan
+		// only after planWalk returns, so the post-plan check would not see
+		// them. The destroy-target row needs them, and they are the same
+		// value Context.Plan writes afterwards.
+		plan.TargetAddrs = opts.Targets
 	}
 	diags = diags.Append(moreDiags)
 	return plan, diags

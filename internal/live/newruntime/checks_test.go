@@ -291,6 +291,73 @@ func TestPostPlanDoesNotRefuseDelete(t *testing.T) {
 	}
 }
 
+// destroyTargetPlan is a destroy plan over a chain a <- b <- c (c depends
+// on b, b on a, as the prior state records), targeting targets and deleting
+// deleted.
+func destroyTargetPlan(t *testing.T, mode plans.Mode, targets []string, deleted ...string) *plans.Plan {
+	t.Helper()
+	provider := addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("test"), Module: addrs.RootModule}
+	prior := states.BuildState(func(s *states.SyncState) {
+		deps := map[string][]addrs.ConfigResource{
+			"test_object.a": nil,
+			"test_object.b": {addrs.MustParseResourceAddr("test_object.a")},
+			"test_object.c": {addrs.MustParseResourceAddr("test_object.b")},
+		}
+		for name, d := range deps {
+			addr, diags := addrs.ParseAbsResourceInstanceStr(name)
+			if diags.HasErrors() {
+				t.Fatal(diags.Err())
+			}
+			s.SetResourceInstanceCurrent(addr, &states.ResourceInstanceObjectSrc{Status: states.ObjectReady, AttrsJSON: []byte(`{}`), Dependencies: d}, provider, addrs.NoKey)
+		}
+	})
+	var changes []*plans.ResourceInstanceChangeSrc
+	for _, d := range deleted {
+		changes = append(changes, changeFor(t, d, plans.Delete))
+	}
+	p := planOf(changes...)
+	p.UIMode = mode
+	p.PrevRunState = prior
+	p.PriorState = prior.DeepCopy()
+	for _, tgt := range targets {
+		ta, diags := addrs.ParseTargetStr(tgt)
+		if diags.HasErrors() {
+			t.Fatal(diags.Err())
+		}
+		p.TargetAddrs = append(p.TargetAddrs, ta.Subject)
+	}
+	return p
+}
+
+// TestPostPlanRefusesTargetedOverDestroy: the destroy-target row (#2387).
+// A destroy with -target may delete the targets and, transitively, what the
+// prior state records as depending on them, and nothing else.
+func TestPostPlanRefusesTargetedOverDestroy(t *testing.T) {
+	r := row(t, "destroy-target")
+	for _, live := range []bool{false, true} {
+		// The new runtime's over-destroy: targeting c also deletes b and a.
+		if diags := PostPlan(destroyTargetPlan(t, plans.DestroyMode, []string{"test_object.c"}, "test_object.a", "test_object.b", "test_object.c"), live); !refusedFor(diags, r) || len(diags) != 2 {
+			t.Errorf("live=%v: deleting a and b for -target c was not refused twice under %q: %s", live, r.ID, diags.ErrWithWarnings())
+		}
+		admitted := []struct {
+			mode    plans.Mode
+			targets []string
+			deleted []string
+		}{
+			{plans.DestroyMode, []string{"test_object.a"}, []string{"test_object.a", "test_object.b", "test_object.c"}},
+			{plans.DestroyMode, []string{"test_object.b"}, []string{"test_object.b", "test_object.c"}},
+			{plans.DestroyMode, []string{"test_object.c"}, []string{"test_object.c"}},
+			{plans.DestroyMode, nil, []string{"test_object.a", "test_object.b", "test_object.c"}},
+			{plans.NormalMode, []string{"test_object.c"}, []string{"test_object.a"}},
+		}
+		for _, c := range admitted {
+			if diags := PostPlan(destroyTargetPlan(t, c.mode, c.targets, c.deleted...), live); len(diags) != 0 {
+				t.Errorf("live=%v: %s -target %v deleting %v was refused: %s", live, c.mode, c.targets, c.deleted, diags.ErrWithWarnings())
+			}
+		}
+	}
+}
+
 func TestDeferralRefusal(t *testing.T) {
 	addr, _ := addrs.ParseAbsResourceInstanceStr("test_object.a")
 	if diags := DeferralRefusal(addr); !refusedFor(diags, row(t, "deferral")) {
@@ -302,7 +369,7 @@ func TestDeferralRefusal(t *testing.T) {
 // a row that refuses must have a detector and a test, and a construct a
 // detector knows must have a row.
 func TestEveryRefusingRowHasAFixture(t *testing.T) {
-	tested := map[string]bool{"deposed": true, "test-command": true, "replace-cbd-cycle": true, "deferral": true}
+	tested := map[string]bool{"deposed": true, "test-command": true, "replace-cbd-cycle": true, "deferral": true, "destroy-target": true}
 	for id := range preflightFixtures {
 		tested[id] = true
 	}

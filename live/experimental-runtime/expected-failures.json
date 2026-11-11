@@ -89,7 +89,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestApply_targetedDestroy",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: subtest \"Targeted Destroy\" by gap \"destroy-target\": destroy -target deleting what the target depends on, waits for upstream, not yet filed (#2387); subtest \"Targeted Destroy with exclude of root\" by gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
