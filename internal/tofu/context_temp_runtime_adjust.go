@@ -20,8 +20,12 @@ var (
 	_ configadjust.CreateConfigValueAdjuster = CreateConfigValueAdjuster(nil)
 	_ configadjust.PriorConfigValueAdjuster  = PriorConfigValueAdjuster(nil)
 	_ configadjust.IgnoreChangesAdjuster     = IgnoreChangesAdjuster(nil)
+	_ configadjust.AppliedMarkerVerifier     = AppliedMarkerVerifier(nil)
+	_ configadjust.AppliedMarkerWriter       = AppliedMarkerWriter(nil)
 
 	_ CreateConfigValueAdjuster = configadjust.CreateConfigValueAdjuster(nil)
 	_ PriorConfigValueAdjuster  = configadjust.PriorConfigValueAdjuster(nil)
 	_ IgnoreChangesAdjuster     = configadjust.IgnoreChangesAdjuster(nil)
+	_ AppliedMarkerVerifier     = configadjust.AppliedMarkerVerifier(nil)
+	_ AppliedMarkerWriter       = configadjust.AppliedMarkerWriter(nil)
 )

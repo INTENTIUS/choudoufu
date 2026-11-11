@@ -25,6 +25,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -53,6 +54,20 @@ type PriorConfigValueAdjuster interface {
 // issue #451).
 type IgnoreChangesAdjuster interface {
 	AdjustIgnoreChanges(ctx context.Context, addr addrs.AbsResourceInstance, schema providers.Schema) []cty.Path
+}
+
+// AppliedMarkerVerifier is internal/tofu's AppliedMarkerVerifier (GitHub
+// issue #1192, #2256 U5). It is asked after a create or an update, never a
+// delete, whether the applied object still carries the marker the plan did.
+type AppliedMarkerVerifier interface {
+	VerifyAppliedMarkers(ctx context.Context, addr addrs.AbsResourceInstance, action plans.Action, planned, applied cty.Value, schema providers.Schema) tfdiags.Diagnostics
+}
+
+// AppliedMarkerWriter is internal/tofu's AppliedMarkerWriter (GitHub issue
+// #1084, #2256 U5). It is called only for a create that has succeeded so
+// far, and the value it returns is the one stored in state.
+type AppliedMarkerWriter interface {
+	WriteAppliedMarkers(ctx context.Context, addr addrs.AbsResourceInstance, provider addrs.AbsProviderConfig, action plans.Action, applied cty.Value, schema providers.Schema) (cty.Value, tfdiags.Diagnostics)
 }
 
 // Adjusted is what [Adjust] returns.

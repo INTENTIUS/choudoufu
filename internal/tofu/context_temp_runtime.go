@@ -417,6 +417,7 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 	}
 	newState, moreDiags := applying.ApplyPlannedChanges(ctx, plan, configInst, plugins, persistState, &applying.ApplyOpts{
 		ConfigValueAdjuster: c.configValueAdjuster,
+		InstanceStateUpdate: c.newEngineInstanceStateUpdate, // choudoufu: #2341
 	})
 	diags = diags.Append(moreDiags)
 

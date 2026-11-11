@@ -59,6 +59,7 @@ func ApplyPlannedChanges(ctx context.Context, plan *plans.Plan, configInst *eval
 	glue.ops = execOps
 	if opts != nil {
 		execOps.configValueAdjuster = opts.ConfigValueAdjuster
+		execOps.instanceStateUpdate = opts.InstanceStateUpdate
 	}
 
 	moreDiags = execGraph.Execute(ctx)
@@ -84,6 +85,15 @@ type ApplyOpts struct {
 	// capabilities (AppliedMarkerWriter, AppliedMarkerVerifier) can be found
 	// on it with a type assertion.
 	ConfigValueAdjuster configadjust.ConfigValueAdjuster
+
+	// InstanceStateUpdate, when set, is called once for each managed
+	// resource instance object the engine applies (#2256 U5, #2341). It is
+	// internal/tofu's InstanceStateHook (GitHub issue #1944) on this runtime,
+	// which a live run uses to write each instance's record as it returns.
+	// See [InstanceStateUpdate] and ManagedApply in fork_apply_markers.go
+	// for when it runs and what it is given. An error fails that instance's
+	// apply step.
+	InstanceStateUpdate InstanceStateUpdate
 }
 
 type evalGlue struct {

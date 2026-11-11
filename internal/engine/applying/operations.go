@@ -70,6 +70,9 @@ type execOperations struct {
 	// plannedChanges are the plan's changes, read only by choudoufu's
 	// destroy-from-config hook (GitHub issue #2344, destroyFromPlan).
 	plannedChanges *plans.Changes
+
+	// instanceStateUpdate is [ApplyOpts.InstanceStateUpdate]; nil when none.
+	instanceStateUpdate InstanceStateUpdate
 }
 
 // The main operation methods of execOperations are spread across the separate
