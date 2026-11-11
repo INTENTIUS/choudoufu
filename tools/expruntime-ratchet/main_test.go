@@ -147,8 +147,8 @@ func TestRatchetRedUnfinishedTest(t *testing.T) {
 	up, _ := FindSkipSites(map[string][]byte{"internal/tofu/upstream_test.go": []byte(upstreamSrc)})
 	r := Check(results, baseline(), head, up)
 	wantProblem(t, r, "internal/tofu.TestPanics started and never finished")
-	if r.Unfinished != 1 {
-		t.Errorf("Unfinished = %d, want 1", r.Unfinished)
+	if r.Unfinished < 1 {
+		t.Errorf("Unfinished = %d, want at least 1 (the panicking test, and the aborted package)", r.Unfinished)
 	}
 }
 
@@ -163,4 +163,22 @@ func TestRatchetRedPackageLevelTimeout(t *testing.T) {
 	head, _ := FindSkipSites(map[string][]byte{"internal/tofu/upstream_test.go": []byte(upstreamSrc), "internal/tofu/fork_test.go": []byte(forkSrc)})
 	up, _ := FindSkipSites(map[string][]byte{"internal/tofu/upstream_test.go": []byte(upstreamSrc)})
 	wantProblem(t, Check(results, baseline(), head, up), "(package aborted) started and never finished")
+}
+
+// A panic attributed to a test marks that test failed and silently stops
+// every later test in the package; the run is still incomplete.
+func TestRatchetRedPanicAttributedToATest(t *testing.T) {
+	stream := run2json + `{"Action":"run","Package":"` + tofuPkg + `","Test":"TestPanicsVisibly"}
+{"Action":"output","Package":"` + tofuPkg + `","Test":"TestPanicsVisibly","Output":"panic: State.Module on nil *State [recovered, repanicked]\n"}
+{"Action":"fail","Package":"` + tofuPkg + `","Test":"TestPanicsVisibly"}
+`
+	results, err := ParseResults(strings.NewReader(stream))
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := baseline()
+	list.Failures = append(list.Failures, Entry{Package: tofuPkg, Test: "TestPanicsVisibly", Reason: "listed, but the panic still aborts the package"})
+	head, _ := FindSkipSites(map[string][]byte{"internal/tofu/upstream_test.go": []byte(upstreamSrc), "internal/tofu/fork_test.go": []byte(forkSrc)})
+	up, _ := FindSkipSites(map[string][]byte{"internal/tofu/upstream_test.go": []byte(upstreamSrc)})
+	wantProblem(t, Check(results, list, head, up), "(package aborted) started and never finished")
 }

@@ -136,6 +136,16 @@ func ParseResults(r io.Reader) (map[testKey]*Outcome, error) {
 			if strings.Contains(ev.Output, skipMessagePrefix) {
 				o.ExperimentalSkip = true
 			}
+			// A panic Go attributes to this test still aborts the whole
+			// package binary: the test reads as failed, and the tests that
+			// would have run after it never start, so nothing else shows
+			// they are missing.
+			if strings.HasPrefix(ev.Output, "panic: ") {
+				ak := testKey{ev.Package, packageAbortKey}
+				if out[ak] == nil {
+					out[ak] = &Outcome{}
+				}
+			}
 		case "pass", "fail", "skip":
 			if ev.Test == top {
 				o.Result = ev.Action
