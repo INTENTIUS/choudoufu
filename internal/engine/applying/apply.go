@@ -29,7 +29,9 @@ import (
 // right for what we need here. A future version of this function will hopefully
 // have a signature more tailored to the needs of the new apply engine, once
 // we have a stronger understanding of what those needs are.
-func ApplyPlannedChanges(ctx context.Context, plan *plans.Plan, configInst *eval.ConfigInstance, plugins plugins.Plugins, persistState PersistState) (*states.State, tfdiags.Diagnostics) {
+//
+// opts is a choudoufu addition (#2341, fork_apply_markers.go) and may be nil.
+func ApplyPlannedChanges(ctx context.Context, plan *plans.Plan, configInst *eval.ConfigInstance, plugins plugins.Plugins, persistState PersistState, opts *ApplyOpts) (*states.State, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	// We'll make the "shared" tracer also available to everything we call.
@@ -56,6 +58,7 @@ func ApplyPlannedChanges(ctx context.Context, plan *plans.Plan, configInst *eval
 	}
 	glue.graph = execGraph
 	glue.ops = execOps
+	execOps.opts = opts
 
 	moreDiags = execGraph.Execute(ctx)
 	diags = diags.Append(moreDiags)

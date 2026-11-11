@@ -381,7 +381,7 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 		}
 		return errors.Join(errs...)
 	}
-	newState, moreDiags := applying.ApplyPlannedChanges(ctx, plan, configInst, plugins, persistState)
+	newState, moreDiags := applying.ApplyPlannedChanges(ctx, plan, configInst, plugins, persistState, c.newEngineApplyOpts()) // choudoufu: opts (#2341)
 	diags = diags.Append(moreDiags)
 
 	if len(plan.TargetAddrs) > 0 || len(plan.ExcludeAddrs) > 0 {

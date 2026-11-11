@@ -62,6 +62,9 @@ type execOperations struct {
 	// plugins are the provider and provisioner plugins we have available for
 	// use during the apply phase.
 	plugins plugins.Plugins
+
+	// opts is choudoufu's ApplyOpts (fork_apply_markers.go, #2341), or nil.
+	opts *ApplyOpts
 }
 
 // The main operation methods of execOperations are spread across the separate

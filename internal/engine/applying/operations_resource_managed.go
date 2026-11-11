@@ -242,8 +242,10 @@ func (ops *execOperations) ManagedFinalPlanForget(
 	}, diags
 }
 
-// ManagedApply implements [exec.Operations].
-func (ops *execOperations) ManagedApply(
+// managedApply is upstream's ManagedApply. choudoufu renames it so that
+// ManagedApply (fork_apply_markers.go) can report the instance's state once
+// it returns (#2341).
+func (ops *execOperations) managedApply(
 	ctx context.Context,
 	plan *exec.ManagedResourceObjectFinalPlan,
 	fallback *exec.ResourceInstanceObject,
@@ -405,6 +407,13 @@ func (ops *execOperations) ManagedApply(
 		diags = diags.Append(moreDiags)
 		return result, diags
 	}
+
+	// choudoufu (#2341): verify the ownership marker the plan carried and
+	// write any the create call withheld, before provisioners see the
+	// object and before it is stored. See appliedMarkers.
+	markedNewState, markerDiags := ops.appliedMarkers(ctx, plan, plannedValUnmarked, resp.NewState, schema, diags)
+	diags = diags.Append(markerDiags)
+	resp.NewState = markedNewState
 
 	if provs := plan.ProvisionersAfter; len(provs) != 0 {
 		log.Printf("[TRACE] apply phase: ManagedApply running %d post-apply provisioner(s) for %s", len(provs), plan.Addr)
