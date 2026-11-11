@@ -102,12 +102,12 @@ func TestLayersClassifyEveryLivePackage(t *testing.T) {
 		// The Azure epic's (#1120) azapi type-capability table: data the
 		// stamp consults before writing tags on an azapi resource. It
 		// refuses nothing; its caller decides.
-		"armtypes":     true,
-		"check":        true, // this package: the instrument itself
+		"armtypes": true,
+		"check":    true, // this package: the instrument itself
 		// #2256's new-runtime gap table and the refusals generated from it.
 		// They run only with TOFU_X_EXPERIMENTAL_RUNTIME on, on any
 		// configuration, live or not, so they are not a live-path stage.
-		"newruntime": true,
+		"newruntime":   true,
 		"cloudcontrol": true, // a client for one AWS API
 		// The verification cohorts' pinned rosters (issue #699): 31 cohort
 		// names, each with the -types list tools/estate-gen renders and the
