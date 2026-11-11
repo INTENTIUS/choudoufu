@@ -939,9 +939,23 @@ func pathValueMarksFromTfplan(paths []*planproto.Path, marks cty.ValueMarks) ([]
 	return ret, nil
 }
 
+// pathValueMarksToTfplan writes the paths that carry a sensitive mark, and
+// only those. The plan file has one kind of marked path, "sensitive", and
+// [pathValueMarksFromTfplan] reads every path back as sensitive, so a path
+// written for any other mark would come back as a secret it never was.
+//
+// The experimental runtime is what makes this matter: its planner marks
+// everything a change will write with objchange.PendingChange (the whole
+// object for a create), so before this filter a saved plan read back with
+// every planned value sensitive. That flipped the after-values of a
+// reloaded plan to digests and made the live approval guard (#878) refuse
+// a plan identical to the one it approved (`#2256`).
 func pathValueMarksToTfplan(pvm []cty.PathValueMarks) ([]*planproto.Path, error) {
 	ret := make([]*planproto.Path, 0, len(pvm))
 	for _, p := range pvm {
+		if !p.Marks.Has(marks.Sensitive) {
+			continue
+		}
 		path, err := pathToTfplan(p.Path)
 		if err != nil {
 			return nil, err
