@@ -16,7 +16,7 @@ Built on upstream OpenTofu [`aa3eb66a0c`](https://github.com/opentofu/opentofu/c
 |---|---|---|
 | `TOFU_X_EXPERIMENTAL_RUNTIME` | dev, nightly | every build, live mode included |
 | `TOFU_X_EXPERIMENTAL_RUNTIME_NEXT` | dev, nightly | non-release builds, by linker flag |
-| `CHOUDOUFU_NEW_RUNTIME_NO_FORK_PORTS` | none | ports off, with [#2372](https://github.com/INTENTIUS/choudoufu/pull/2372) |
+| `CHOUDOUFU_NEW_RUNTIME_NO_FORK_PORTS` | none | ports off ([#2372](https://github.com/INTENTIUS/choudoufu/pull/2372)) |
 
 | Patch | Replaced by |
 |---|---|
@@ -24,12 +24,12 @@ Built on upstream OpenTofu [`aa3eb66a0c`](https://github.com/opentofu/opentofu/c
 | Destroy-from-config | [#3472](https://github.com/opentofu/opentofu/issues/3472) |
 | Taint failed creates only | fork rule |
 | Deferral error | [#4697](https://github.com/opentofu/opentofu/issues/4697) |
-| In-run estates, with #2372 | [#4058](https://github.com/opentofu/opentofu/issues/4058) |
+| In-run estates ([#2372](https://github.com/INTENTIUS/choudoufu/pull/2372)) | [#4058](https://github.com/opentofu/opentofu/issues/4058) |
 
 ## Already done by choudoufu
 
 - Records: one per resource, a [conditional write](../locking/), written per instance from upstream's whole-snapshot `PersistingState` ([#4767](https://github.com/opentofu/opentofu/issues/4767)).
 - Refresh: prior state is read live; plans skip refresh ([Identity](../identity/)).
-- `moved`: found by its old-address marker, applied as a tag update, with [#2374](https://github.com/INTENTIUS/choudoufu/issues/2374).
+- `moved`: found by its old-address marker, applied as a tag update ([#2374](https://github.com/INTENTIUS/choudoufu/issues/2374)).
 
 Gaps: [`live/NEW-RUNTIME.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/NEW-RUNTIME.md).
