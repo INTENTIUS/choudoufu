@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/lang/evalchecks"
@@ -88,14 +89,34 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 		// plan, and no post-plan check could see it. A deferral -target or
 		// -exclude caused is expected; any other is refused here. An
 		// evaluation error has already been reported for its own reason.
-		if !p.allResourcesDeferred && !p.isExcluded(inst.Addr) && !exprs.IsEvalError(inst.ConfigVal) {
+		byTargeting := p.allResourcesDeferred || p.isExcluded(inst.Addr)
+		refuse := !byTargeting && !exprs.IsEvalError(inst.ConfigVal)
+		// choudoufu fork port (#2382): remove when upstream #4697 lands.
+		// A deferral -target or -exclude caused, directly or through a
+		// value derived only from one, is marked as such and not refused,
+		// as the old runtime leaves it out of the plan. An unknown count or
+		// for_each gets the old runtime's error instead of the refusal.
+		if port := p.planCtx.deferral; port != nil && refuse {
+			if deferral.DerivedFromDeferred(inst.ConfigVal) && !inst.ConfigVal.HasMarkDeep(deferredMark) {
+				byTargeting, refuse = true, false
+			} else if inst.IsPlaceholder() {
+				if expansionDiags := port.UnknownExpansion(inst.Addr); expansionDiags.HasErrors() {
+					diags, refuse = diags.Append(expansionDiags), false
+				}
+			}
+		}
+		if refuse {
 			diags = diags.Append(newruntime.DeferralRefusal(inst.Addr))
 		}
 		// For now, we emulate the original engine, which treats
 		// deferral as not-touching the resource at all.
 		// See notes below for potential future enhancements.
+		placeholder := deferredVal(cty.DynamicVal)
+		if p.planCtx.deferral != nil && byTargeting {
+			placeholder = deferral.Deferred(cty.DynamicVal) // choudoufu fork port (#2382): remove when upstream #4697 lands
+		}
 		return &resourceInstanceObject{
-			PlaceholderValue: deferredVal(cty.DynamicVal),
+			PlaceholderValue: placeholder,
 		}, diags
 		// We intentionally continue anyway, because we'll make a best effort
 		// to produce a speculative plan based on the information we _do_ know

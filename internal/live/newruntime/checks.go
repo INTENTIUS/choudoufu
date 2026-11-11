@@ -18,7 +18,9 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/conditions"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
+	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
@@ -62,12 +64,6 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 		m := c.Module
 		for _, r := range m.Removed {
 			out = append(out, occurrence{what: "the configuration has a removed block", rng: r.DeclRange})
-		}
-		return out
-	},
-	"moved": func(c *configs.Config) (out []occurrence) {
-		for _, r := range c.Module.Moved {
-			out = append(out, occurrence{what: "the configuration has a moved block", rng: r.DeclRange})
 		}
 		return out
 	},
@@ -129,7 +125,9 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 		m := c.Module
 		for _, v := range m.Variables {
 			for _, cr := range v.Validations {
-				out = append(out, occurrence{what: fmt.Sprintf("variable %q has a validation block", v.Name), rng: cr.DeclRange})
+				// choudoufu fork port (#2379): remove when the
+				// variable-validation row closes.
+				out = append(out, occurrence{what: fmt.Sprintf("variable %q has a validation block", v.Name), rng: cr.DeclRange, port: conditions.Name})
 			}
 		}
 		return out
@@ -217,22 +215,6 @@ var stateDetectors = map[string]func(s *states.State) []string{
 						if obj != nil && obj.SkipDestroy {
 							out = append(out, fmt.Sprintf("the state records lifecycle destroy = false on deposed object %s of %s", dk, rs.Addr.Instance(key)))
 						}
-					}
-				}
-			}
-		}
-		sort.Strings(out)
-		return out
-	},
-	"deposed_state": func(s *states.State) (out []string) {
-		if s == nil {
-			return nil
-		}
-		for _, ms := range s.Modules {
-			for _, rs := range ms.Resources {
-				for key, is := range rs.Instances {
-					for dk := range is.Deposed {
-						out = append(out, fmt.Sprintf("the state holds deposed object %s of %s", dk, rs.Addr.Instance(key)))
 					}
 				}
 			}
@@ -340,7 +322,10 @@ func PostPlan(plan *plans.Plan, live bool) tfdiags.Diagnostics {
 			}
 			switch construct {
 			case "replace":
-				if ch.Action.IsReplace() {
+				// choudoufu fork port (#2380): remove when upstream #4714
+				// lands. While the port is on, planning refuses a cyclic
+				// execution graph itself, so a replace is not refused here.
+				if ch.Action.IsReplace() && !forkport.Enabled(replacecycle.Name) {
 					diags = diags.Append(refusal(r, fmt.Sprintf("the plan replaces %s", ch.Addr), nil))
 				}
 			default:

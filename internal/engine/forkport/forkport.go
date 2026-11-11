@@ -48,7 +48,7 @@ type Port struct {
 	Rows []string
 	// Expiry lists the upstream opentofu/opentofu issues, as "#NNNN", that
 	// end the port: when every one has closed, upstream's code replaces it.
-	// Empty when none is filed: the port is removed when its rows close.
+	// Empty when no upstream issue is filed: the port goes when its rows close.
 	Expiry []string
 }
 
@@ -58,6 +58,9 @@ var Ports = []Port{
 	{Name: "inrunestates", Rows: []string{"in-run-estates"}, Expiry: []string{"#4058"}},
 	{Name: "cancel", Rows: []string{"cancel"}},
 	{Name: "tracing", Rows: []string{"tracing-spans"}},
+	{Name: "replacecycle", Rows: []string{"replace-cbd-cycle"}, Expiry: []string{"#4714"}},
+	{Name: "deferral", Rows: []string{"deferral"}, Expiry: []string{"#4697"}},
+	{Name: "conditions", Rows: []string{"variable-validation"}},
 }
 
 // Lookup returns the registered port with name, and whether there is one.

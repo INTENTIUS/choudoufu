@@ -142,6 +142,9 @@ var forkOwnedMixedRoots = []string{
 	"internal/engine/forkport",
 	// #2256 U6: the identity resolver's interface and its shared rules.
 	"internal/engine/identityresolve",
+	// #2380 (#2256 W3): fork_replacecycle.go, the execution graph's cycle
+	// walk for the replacecycle fork port (its tables are unexported).
+	"internal/engine/internal/execgraph",
 	// #2256 U6 and U8: plan_managed_identity.go (identity resolution
 	// through upstream's import path) and destroy_from_config.go.
 	"internal/engine/planning",

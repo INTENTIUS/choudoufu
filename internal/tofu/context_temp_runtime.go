@@ -22,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/engine/applying"
 	"github.com/intentius/choudoufu/internal/engine/forkport/cancel"
+	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	tracingport "github.com/intentius/choudoufu/internal/engine/forkport/tracing"
 	"github.com/intentius/choudoufu/internal/engine/planning"
@@ -303,6 +304,9 @@ func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, pre
 
 		// choudoufu fork port (#2370): remove when upstream #4058 lands.
 		InRunEstates: inrunestates.New(c.inRunEstates),
+
+		// choudoufu fork port (#2382): remove when upstream #4697 lands.
+		Deferral: deferral.New(config),
 	}
 
 	plan, moreDiags := planning.PlanChanges(ctx, newOpts, prevRoundState, configInst, plugins)

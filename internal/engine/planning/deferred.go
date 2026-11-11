@@ -7,6 +7,8 @@ package planning
 
 import (
 	"github.com/zclconf/go-cty/cty"
+
+	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
 )
 
 type ctyMark rune
@@ -35,12 +37,15 @@ func deferredVal(v cty.Value) cty.Value {
 }
 
 func isDeferredVal(v cty.Value) bool {
-	return v.HasMark(deferredMark)
+	// choudoufu fork port (#2382): remove when upstream #4697 lands. A
+	// deferral -target or -exclude caused carries the port's own mark.
+	return v.HasMark(deferredMark) || deferral.IsDeferred(v)
 }
 
 // derivedFromDeferredVal returns true if any part of the given value is
 // derived from something that was previously produced by a call to
 // deferredVal.
 func derivedFromDeferredVal(v cty.Value) bool {
-	return v.HasMarkDeep(deferredMark)
+	// choudoufu fork port (#2382): remove when upstream #4697 lands.
+	return v.HasMarkDeep(deferredMark) || deferral.DerivedFromDeferred(v)
 }

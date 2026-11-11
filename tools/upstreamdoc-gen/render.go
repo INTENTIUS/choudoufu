@@ -113,7 +113,7 @@ func renderPorts(ports []forkport.Port) string {
 		}
 		expires := "upstream " + strings.Join(issues, ", ")
 		if len(issues) == 0 {
-			expires = "its rows closing (none filed upstream)"
+			expires = "its rows closing (no upstream issue is filed)"
 		}
 		fmt.Fprintf(&b, "| [`%s`](../internal/engine/forkport/%s) | `%s=1` | %s | %s |\n",
 			p.Name, p.Name, forkport.Switch(p.Name), strings.Join(ids, ", "), expires)

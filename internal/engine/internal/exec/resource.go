@@ -93,6 +93,12 @@ type ManagedResourceObjectFinalPlan struct {
 	// then if they fail the object is left in a "tainted" state so that the
 	// next plan/apply round knows that the object is not yet ready to use.
 	ProvisionersBefore, ProvisionersAfter []*eval.ResourceProvisioner
+
+	// CreateBeforeDestroy is choudoufu fork port (#2380): remove when
+	// upstream #4714 lands. It is what the applied object records in state:
+	// the configured create_before_destroy, or the effective one the
+	// planning engine recorded on the prior object.
+	CreateBeforeDestroy bool
 }
 
 // IntoDeposed returns a new [ManagedResourceObjectFinalPlan] that represents

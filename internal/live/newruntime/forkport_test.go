@@ -27,9 +27,10 @@ var portName = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
 // TestForkPortRegistry holds the fork-port registry (#2376), the port
 // packages and the gap table to each other: every fork_port row names a
 // registered port with its switch, every registered port has its rows and a
-// package, its expiry issues (none while upstream has filed none) are exactly its
-// rows' upstream issues (what scripts/upstream-sync.sh --report reads), and
-// every package under internal/engine/forkport is registered.
+// package, its expiry issues are exactly its rows' upstream issues (what
+// scripts/upstream-sync.sh --report reads), and every package under
+// internal/engine/forkport is registered. A port with no upstream issue
+// (#2379) has none, and is removed when its row closes.
 func TestForkPortRegistry(t *testing.T) {
 	if len(forkport.Ports) == 0 {
 		t.Fatal("no fork port is registered; this test would check nothing")
