@@ -216,6 +216,15 @@ func (c *Context) newRuntimePostPlan(_ context.Context, plan *plans.Plan, _ *con
 	return newruntime.PostPlan(plan, c.configValueAdjuster != nil)
 }
 
+// newRuntimeWarningHiddenForTesting keeps the toggle's warning out of this
+// package's own test binary (set in TestMain). Upstream's engine tests count
+// diagnostics exactly, and the experimental-runtime lane runs them with the
+// toggle on: with the warning they would fail on the fork's banner, not on
+// anything the engine did. Tests that are about the warning turn it back on
+// with showNewRuntimeWarningForTesting. Other packages' tests, and every
+// real run, always get it.
+var newRuntimeWarningHiddenForTesting bool
+
 // newRuntimeWarning is the toggle's warning: the variable and the accepted
 // risks in the gap table (internal/live/newruntime/gaps.json).
 func newRuntimeWarning() tfdiags.Diagnostic {
@@ -231,7 +240,9 @@ func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, pre
 	// the engine. Not from newEngineShim: validate, and the validate pass the
 	// local backend runs before every plan, go through that too. So the
 	// warning in a run's output means internal/engine planned or applied it.
-	diags = diags.Append(newRuntimeWarning())
+	if !newRuntimeWarningHiddenForTesting {
+		diags = diags.Append(newRuntimeWarning())
+	}
 
 	timestamp := time.Now().UTC()
 
@@ -379,7 +390,9 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 	// the engine. Not from newEngineShim: validate, and the validate pass the
 	// local backend runs before every plan, go through that too. So the
 	// warning in a run's output means internal/engine planned or applied it.
-	diags = diags.Append(newRuntimeWarning())
+	if !newRuntimeWarningHiddenForTesting {
+		diags = diags.Append(newRuntimeWarning())
+	}
 
 	if len(plan.ExecutionGraph) == 0 && !plan.Changes.ResourcesEmpty() {
 		diags = diags.Append(tfdiags.Sourceless(

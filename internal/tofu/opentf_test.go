@@ -44,6 +44,9 @@ func TestMain(m *testing.M) {
 	// abstractions.
 	spew.Config.DisableMethods = true
 
+	// choudoufu (#2256 U3): see newRuntimeWarningHiddenForTesting.
+	newRuntimeWarningHiddenForTesting = true
+
 	// TEMP: If the appropriate environment variable is set then we'll apply this
 	// package's tests to the experimental new language runtime instead, through
 	// some shims. Refer to this function's documentation for more information.

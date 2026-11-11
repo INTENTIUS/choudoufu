@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/live/absent"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -235,6 +236,13 @@ func (rt *ManagedResourceType) RefreshState(ctx context.Context, req *ManagedRes
 	}
 
 	resp := rt.client.ReadResource(ctx, providerReq)
+	if resp.Diagnostics.HasErrors() && absent.RemovedWithoutIdentity(providerReq.PriorIdentity, resp.NewState, resp.Diagnostics) {
+		// choudoufu (#2256): the provider removed the object and the plugin
+		// framework then complained that the removed object had no
+		// identity. That is "no object exists", as on the old runtime
+		// (internal/tofu's refresh); see absent.RemovedWithoutIdentity.
+		resp.Diagnostics = absent.WithoutErrors(resp.Diagnostics)
+	}
 	diags = diags.Append(resp.Diagnostics)
 	if diags.HasErrors() {
 		return nil, diags

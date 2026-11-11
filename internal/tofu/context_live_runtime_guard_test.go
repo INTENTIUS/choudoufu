@@ -73,6 +73,7 @@ func liveGuardOpts(adjuster ConfigValueAdjuster) *ContextOpts {
 // warning, so it is checked for the refusal and for errors only. Apply is
 // given a plan made on the new runtime with the adjuster set.
 func TestContextLiveOnNewRuntimeNotRefused(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
 	src := map[string]string{
 		"main.tf": `
 resource "test_object" "a" {
