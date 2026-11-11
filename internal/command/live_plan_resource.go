@@ -300,6 +300,10 @@ func (c *LivePlanCommand) executeResource(ctx context.Context, args *arguments.L
 func (c *LivePlanCommand) livePlanResource(ctx context.Context, args *arguments.LivePlan, estateFlag string, view views.Plan, drift *views.LiveDrift) (int, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
+	if moreDiags := c.liveRefusesNewRuntime(); moreDiags.HasErrors() {
+		return 1, moreDiags
+	}
+
 	readPar, readParDiags := readParallelismSetting()
 	diags = diags.Append(readParDiags)
 	if readParDiags.HasErrors() {

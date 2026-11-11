@@ -217,6 +217,10 @@ func (c PlanCommand) Execute(args *arguments.Plan, view views.Plan) int {
 	}
 
 	if liveCfg != nil {
+		if moreDiags := c.liveRefusesNewRuntime(); moreDiags.HasErrors() {
+			view.Diagnostics(diags.Append(moreDiags))
+			return 1
+		}
 		moreDiags := liveBegin(be, opReq, liveCfg, c.View, args.AdoptionOnly, args.Filter, c.liveEstateOutputs(),
 			liveRejections(surfaceLiveBlock, args.Operation, args.State, args.View, args.OutPath, args.GenerateConfigPath, ""))
 		diags = diags.Append(moreDiags)
