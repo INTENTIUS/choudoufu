@@ -24,12 +24,11 @@ import (
 // These tests are #2256 U5 (#2341): the applied-marker verifier and writer
 // on the new runtime.
 //
-// Any run with a ConfigValueAdjuster on the new runtime is refused by
-// refuseLiveOnNewRuntime (#2339) until U6 (#2342), at plan and at apply.
-// So these tests plan with no adjuster set, then set it and call
-// newEngineApply directly, which is the code below that guard. No bypass of
-// the guard is added. Planning with no adjuster is also what these tests
-// want: marker stamping at plan time is U4 (#2340), and here the plan
+// They were written while G's runtime-decision check (#2339) refused any run
+// with a ConfigValueAdjuster on the new runtime, which #2256 U6 (#2342)
+// lifted. So these tests plan with no adjuster set, then set it and call
+// newEngineApply directly. Planning with no adjuster is also what these
+// tests want: marker stamping at plan time is U4 (#2340), and here the plan
 // carries no marker, which is the tag_on_create false shape the writer
 // exists for (GitHub issue #1084).
 

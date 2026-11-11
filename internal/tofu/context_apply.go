@@ -119,9 +119,6 @@ func (c *Context) Apply(ctx context.Context, plan *plans.Plan, config *configs.C
 	// TEMP: Opt-in support for testing with the new experimental language
 	// runtime. Refer to backend_temp_new_runtime.go for more information.
 	if experimentalRuntimeEnabled() {
-		if moreDiags := c.refuseLiveOnNewRuntime(); moreDiags.HasErrors() {
-			return nil, diags.Append(moreDiags)
-		}
 		// #2256 U2: applying a saved plan with the toggle on runs both
 		// gap-table checks against the plan's changes and the configuration
 		// it was made from (for apply PLANFILE, the plan file's snapshot), so

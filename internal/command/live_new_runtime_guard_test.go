@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/tofu"
 )
 
@@ -16,14 +17,19 @@ import (
 // at every entry point. Since upstream's split (`#4823`, taken in #2256 U1)
 // TOFU_X_EXPERIMENTAL_RUNTIME switches plan and apply in internal/tofu and
 // TOFU_X_EXPERIMENTAL_RUNTIME_NEXT switches this layer (Meta.NewRuntimeEnabled).
-var liveGuardCommandVariables = []string{"TOFU_X_EXPERIMENTAL_RUNTIME", "TOFU_X_EXPERIMENTAL_RUNTIME_NEXT"}
+// #2256 U6 lifted G's check on the first, so only the second is refused, by
+// this layer's check, until upstream calls `_NEXT` stable.
+var liveGuardCommandVariables = []string{"TOFU_X_EXPERIMENTAL_RUNTIME_NEXT"}
 
-// liveNewRuntimeRefusals are the two summaries #2256 G produces: the
-// command-layer check here, and the runtime-decision check in internal/tofu.
+// liveNewRuntimeRefusals is the summary #2256 G's command-layer check
+// produces, the one of G's two checks that remains after U6.
 var liveNewRuntimeRefusals = []string{
 	liveCommandLayerOnNewRuntimeSummary,
-	tofu.LiveOnNewRuntimeSummary,
 }
+
+// liveRuntimeDecisionRefusalSummary is the summary G's runtime-decision
+// check in internal/tofu gave before #2256 U6 lifted it.
+const liveRuntimeDecisionRefusalSummary = "Live mode cannot run on the new runtime yet"
 
 // liveGuardEntryPoints are the four live entry points #2339 names. Each
 // sets up its own fixture in the current directory and runs the command.
@@ -83,9 +89,9 @@ func liveGuardRun(t *testing.T, run func(t *testing.T, td string, meta func() Me
 	return code, strings.Join(strings.Fields(out.Stderr()+out.Stdout()), " ")
 }
 
-// TestLiveRefusesNewRuntime_variables: with an opt-in variable set, every
-// live entry point is refused with one of #2256 G's two refusals, and
-// exits 1.
+// TestLiveRefusesNewRuntime_variables: with TOFU_X_EXPERIMENTAL_RUNTIME_NEXT
+// set, every live entry point is refused by #2256 G's command-layer check,
+// and exits 1.
 func TestLiveRefusesNewRuntime_variables(t *testing.T) {
 	for _, variable := range liveGuardCommandVariables {
 		for _, ep := range liveGuardEntryPoints() {
@@ -107,21 +113,27 @@ func TestLiveRefusesNewRuntime_variables(t *testing.T) {
 	}
 }
 
-// TestLiveRefusesNewRuntime_testHook switches the new runtime on through the
+// TestLiveNotRefusedOnNewRuntime_testHook switches the new runtime on through the
 // test hook in internal/tofu with no variable set. The command-layer check
-// cannot see that, so the refusal has to come from the runtime-decision
-// check: that is what shows G does not depend on a variable's name.
-func TestLiveRefusesNewRuntime_testHook(t *testing.T) {
+// cannot see that, and since #2256 U6 nothing at the runtime decision refuses
+// live mode either: no entry point names either refusal, and one that
+// succeeds did so on internal/engine (the toggle's warning). An entry point
+// may still fail for a reason of its own on the new runtime, which is the
+// gap table's business, not this test's.
+func TestLiveNotRefusedOnNewRuntime_testHook(t *testing.T) {
 	for _, ep := range liveGuardEntryPoints() {
 		t.Run(ep.name, func(t *testing.T) {
 			t.Cleanup(tofu.SetExperimentalRuntimeForcedForTesting(true))
 			code, got := liveGuardRun(t, ep.run)
-			if code != 1 {
-				t.Errorf("exit code %d, want 1", code)
+			for _, s := range append([]string{liveRuntimeDecisionRefusalSummary}, liveNewRuntimeRefusals...) {
+				if strings.Contains(got, s) {
+					t.Fatalf("%s with the new runtime forced on was refused (%q); output:\n%s", ep.name, s, got)
+				}
 			}
-			if !strings.Contains(got, tofu.LiveOnNewRuntimeSummary) {
-				t.Fatalf("%s with the new runtime forced on was not refused at the runtime decision; output:\n%s", ep.name, got)
+			if code == 0 && !strings.Contains(got, newruntime.WarningSummary) {
+				t.Errorf("%s succeeded with the new runtime forced on but shows no %q warning; output:\n%s", ep.name, newruntime.WarningSummary, got)
 			}
+			t.Logf("%s exited %d", ep.name, code)
 		})
 	}
 }

@@ -57,17 +57,18 @@ func experimentalRuntimeEnabled() bool {
 	// variable only: TOFU_X_EXPERIMENTAL_RUNTIME_NEXT (the command layer,
 	// Meta.NewRuntimeEnabled) stays closed in release builds. What the new
 	// runtime cannot handle yet is refused before planning, from the gap
-	// table in internal/live/newruntime, and live mode is refused by G
-	// (#2339) whatever switched the runtime on.
+	// table in internal/live/newruntime. Live mode runs on it since #2256 U6
+	// lifted G's runtime-decision check (#2339); G's command-layer check on
+	// TOFU_X_EXPERIMENTAL_RUNTIME_NEXT stays.
 	return experimentalRuntimeWanted()
 }
 
 // experimentalRuntimeForcedForTesting switches the new runtime on with no
-// environment variable at all. It exists so a test can show that a guard on
-// the runtime decision (see [Context.refuseLiveOnNewRuntime]) holds however
-// the runtime gets chosen, not only when one particular variable is set:
-// upstream renamed and split its opt-in once already (`#4823`). Only tests
-// set it, through [forceExperimentalRuntimeForTesting].
+// environment variable at all, so a test can show that behaviour keyed on
+// the runtime decision holds however the runtime gets chosen, not only when
+// one particular variable is set: upstream renamed and split its opt-in once
+// already (`#4823`). Only tests set it, through
+// [forceExperimentalRuntimeForTesting].
 var experimentalRuntimeForcedForTesting bool
 
 // SetExperimentalRuntimeForcedForTesting is the cross-package form of the

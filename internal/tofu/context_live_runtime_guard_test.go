@@ -38,9 +38,14 @@ func liveGuardSwitches() map[string]func(t *testing.T) {
 	return out
 }
 
+// liveOnNewRuntimeRefusalSummary is the summary G's runtime-decision check
+// (#2339) gave before #2256 U6 lifted it, kept so the tests below can show
+// it is gone.
+const liveOnNewRuntimeRefusalSummary = "Live mode cannot run on the new runtime yet"
+
 func hasLiveOnNewRuntimeRefusal(diags tfdiags.Diagnostics) bool {
 	for _, d := range diags {
-		if d.Severity() == tfdiags.Error && d.Description().Summary == LiveOnNewRuntimeSummary {
+		if d.Severity() == tfdiags.Error && d.Description().Summary == liveOnNewRuntimeRefusalSummary {
 			return true
 		}
 	}
@@ -60,12 +65,14 @@ func liveGuardOpts(adjuster ConfigValueAdjuster) *ContextOpts {
 	}
 }
 
-// TestContextLiveOnNewRuntimeRefused is the internal/tofu half of #2256 G:
-// with a ConfigValueAdjuster set (every live entry point sets one) and the
-// new runtime chosen by any means, Plan, Apply and Validate refuse before
-// routing to internal/engine. Apply is given a plan made with the runtime
-// off, which is the saved-plan case.
-func TestContextLiveOnNewRuntimeRefused(t *testing.T) {
+// TestContextLiveOnNewRuntimeNotRefused is the internal/tofu half of #2256
+// G as #2256 U6 left it: with a ConfigValueAdjuster set (every live entry
+// point sets one) and the new runtime chosen by any means, Plan and Apply are
+// no longer refused and reach internal/engine, which the toggle's warning
+// shows (only newEnginePlan and newEngineApply emit it). Validate emits no
+// warning, so it is checked for the refusal and for errors only. Apply is
+// given a plan made on the new runtime with the adjuster set.
+func TestContextLiveOnNewRuntimeNotRefused(t *testing.T) {
 	src := map[string]string{
 		"main.tf": `
 resource "test_object" "a" {
@@ -73,51 +80,49 @@ resource "test_object" "a" {
 }
 `,
 	}
-	adjuster := &stubConfigValueAdjuster{attr: "test_map", key: "marker_key", value: "v"}
 
 	for name, switchOn := range liveGuardSwitches() {
 		t.Run(name, func(t *testing.T) {
 			m := testModuleInline(t, src)
+			switchOn(t)
+			adjuster := &stubConfigValueAdjuster{attr: "test_map", key: "marker_key", value: "v"}
 
-			t.Run("plan", func(t *testing.T) {
-				switchOn(t)
-				ctx := testContext2(t, liveGuardOpts(adjuster))
-				_, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-				if !hasLiveOnNewRuntimeRefusal(diags) {
-					t.Fatalf("plan reached the new runtime with a ConfigValueAdjuster set; diagnostics:\n%s", diags.ErrWithWarnings())
-				}
-			})
+			ctx := testContext2(t, liveGuardOpts(adjuster))
+			plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
+			if hasLiveOnNewRuntimeRefusal(diags) {
+				t.Fatalf("plan with a ConfigValueAdjuster was refused on the new runtime; diagnostics:\n%s", diags.ErrWithWarnings())
+			}
+			assertNoErrors(t, diags)
+			if !hasNewRuntimeWarning(diags) {
+				t.Fatalf("plan did not reach internal/engine; diagnostics:\n%s", diags.ErrWithWarnings())
+			}
+			if len(adjuster.calls) == 0 {
+				t.Errorf("the new runtime planned without asking the ConfigValueAdjuster")
+			}
 
-			t.Run("apply of a plan made on the old runtime", func(t *testing.T) {
-				ctx := testContext2(t, liveGuardOpts(adjuster))
-				plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-				if diags.HasErrors() {
-					t.Fatalf("plan on the old runtime failed: %s", diags.Err())
-				}
-				switchOn(t)
-				ctx = testContext2(t, liveGuardOpts(adjuster))
-				_, diags = ctx.Apply(context.Background(), plan, m, nil)
-				if !hasLiveOnNewRuntimeRefusal(diags) {
-					t.Fatalf("apply reached the new runtime with a ConfigValueAdjuster set; diagnostics:\n%s", diags.ErrWithWarnings())
-				}
-			})
+			ctx = testContext2(t, liveGuardOpts(adjuster))
+			_, diags = ctx.Apply(context.Background(), plan, m, nil)
+			if hasLiveOnNewRuntimeRefusal(diags) {
+				t.Fatalf("apply with a ConfigValueAdjuster was refused on the new runtime; diagnostics:\n%s", diags.ErrWithWarnings())
+			}
+			assertNoErrors(t, diags)
+			if !hasNewRuntimeWarning(diags) {
+				t.Fatalf("apply did not reach internal/engine; diagnostics:\n%s", diags.ErrWithWarnings())
+			}
 
-			t.Run("validate", func(t *testing.T) {
-				switchOn(t)
-				ctx := testContext2(t, liveGuardOpts(adjuster))
-				diags := ctx.Validate(context.Background(), m)
-				if !hasLiveOnNewRuntimeRefusal(diags) {
-					t.Fatalf("validate reached the new runtime with a ConfigValueAdjuster set; diagnostics:\n%s", diags.ErrWithWarnings())
-				}
-			})
+			ctx = testContext2(t, liveGuardOpts(adjuster))
+			diags = ctx.Validate(context.Background(), m)
+			if hasLiveOnNewRuntimeRefusal(diags) {
+				t.Fatalf("validate with a ConfigValueAdjuster was refused on the new runtime; diagnostics:\n%s", diags.ErrWithWarnings())
+			}
+			assertNoErrors(t, diags)
 		})
 	}
 }
 
-// TestContextLiveOnNewRuntimeNotRefusedWithoutAdjuster is the control: the
-// guard is about live mode, so with no adjuster the new runtime is chosen
-// as before and nothing names the refusal. The run's own result on the new
-// runtime is not this test's business.
+// TestContextLiveOnNewRuntimeNotRefusedWithoutAdjuster: with no adjuster the
+// new runtime is chosen as before and nothing names the refusal. The run's
+// own result on the new runtime is not this test's business.
 func TestContextLiveOnNewRuntimeNotRefusedWithoutAdjuster(t *testing.T) {
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `

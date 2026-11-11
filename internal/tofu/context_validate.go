@@ -70,9 +70,6 @@ func (c *Context) Validate(ctx context.Context, config *configs.Config) tfdiags.
 	// TEMP: Opt-in support for testing with the new experimental language
 	// runtime. Refer to backend_temp_new_runtime.go for more information.
 	if experimentalRuntimeEnabled() {
-		if moreDiags := c.refuseLiveOnNewRuntime(); moreDiags.HasErrors() {
-			return diags.Append(moreDiags)
-		}
 		moreDiags := c.newEngineValidate(ctx, config, varValues)
 		return diags.Append(moreDiags)
 	}
