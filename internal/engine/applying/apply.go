@@ -11,6 +11,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/configadjust"
 	"github.com/intentius/choudoufu/internal/engine/internal/execgraph"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
@@ -29,7 +30,7 @@ import (
 // right for what we need here. A future version of this function will hopefully
 // have a signature more tailored to the needs of the new apply engine, once
 // we have a stronger understanding of what those needs are.
-func ApplyPlannedChanges(ctx context.Context, plan *plans.Plan, configInst *eval.ConfigInstance, plugins plugins.Plugins, persistState PersistState) (*states.State, tfdiags.Diagnostics) {
+func ApplyPlannedChanges(ctx context.Context, plan *plans.Plan, configInst *eval.ConfigInstance, plugins plugins.Plugins, persistState PersistState, opts *ApplyOpts) (*states.State, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	// We'll make the "shared" tracer also available to everything we call.
@@ -56,6 +57,9 @@ func ApplyPlannedChanges(ctx context.Context, plan *plans.Plan, configInst *eval
 	}
 	glue.graph = execGraph
 	glue.ops = execOps
+	if opts != nil {
+		execOps.configValueAdjuster = opts.ConfigValueAdjuster
+	}
 
 	moreDiags = execGraph.Execute(ctx)
 	diags = diags.Append(moreDiags)
@@ -67,6 +71,19 @@ func ApplyPlannedChanges(ctx context.Context, plan *plans.Plan, configInst *eval
 	diags = diags.Append(moreDiags)
 
 	return newState, diags
+}
+
+// ApplyOpts are choudoufu's options for [ApplyPlannedChanges]. nil means
+// none are set.
+type ApplyOpts struct {
+	// ConfigValueAdjuster is the ownership-marker seam (#2256 U4): the
+	// adjuster [ManagedFinalPlan] applies to the desired configuration value
+	// so that the final plan matches the initial one, which the planning
+	// engine made from the adjusted value. It is the same value internal/tofu
+	// holds as its Context's ConfigValueAdjuster, so the apply-time optional
+	// capabilities (AppliedMarkerWriter, AppliedMarkerVerifier) can be found
+	// on it with a type assertion.
+	ConfigValueAdjuster configadjust.ConfigValueAdjuster
 }
 
 type evalGlue struct {

@@ -286,6 +286,9 @@ func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, pre
 		// than directly during planning.
 		Targets:  opts.Targets,
 		Excludes: opts.Excludes,
+
+		// choudoufu ownership markers (#2256 U4).
+		ConfigValueAdjuster: c.configValueAdjuster,
 	}
 
 	plan, moreDiags := planning.PlanChanges(ctx, newOpts, prevRoundState, configInst, plugins)
@@ -428,7 +431,9 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 		}
 		return errors.Join(errs...)
 	}
-	newState, moreDiags := applying.ApplyPlannedChanges(ctx, plan, configInst, plugins, persistState)
+	newState, moreDiags := applying.ApplyPlannedChanges(ctx, plan, configInst, plugins, persistState, &applying.ApplyOpts{
+		ConfigValueAdjuster: c.configValueAdjuster,
+	})
 	diags = diags.Append(moreDiags)
 
 	if len(plan.TargetAddrs) > 0 || len(plan.ExcludeAddrs) > 0 {

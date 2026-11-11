@@ -9,11 +9,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"slices"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/configadjust"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/lang/evalchecks"
@@ -375,6 +377,30 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 		return ret, diags
 	}
 
+	// choudoufu ownership markers (#2256 U4): the adjuster rewrites the
+	// evaluated configuration now that the prior object is known, before
+	// ignore_changes and before the provider plans. See package configadjust.
+	createConfigVal := unmarkedConfigVal
+	var extraIgnoreChanges []cty.Path
+	if adj := p.planCtx.configValueAdjuster; adj != nil && !isGeneratingConfiguration {
+		priorVal := cty.NilVal
+		if prevState != nil {
+			priorVal, _ = prevState.Value.UnmarkDeep()
+		}
+		adjusted, moreDiags := configadjust.Adjust(ctx, adj, inst.Addr, inst.ConfigVal, priorVal, resourceType.LoadSchema)
+		diags = diags.Append(moreDiags)
+		if diags.HasErrors() {
+			return ret, diags
+		}
+		diags = diags.Append(resourceType.ValidateConfig(ctx, adjusted.Config))
+		if diags.HasErrors() {
+			return ret, diags
+		}
+		unmarkedConfigVal, _ = adjusted.Config.UnmarkDeep()
+		createConfigVal, _ = adjusted.CreateConfig.UnmarkDeep()
+		extraIgnoreChanges = adjusted.ExtraIgnoreChanges
+	}
+
 	// Our best guess as to what the current value is (probably cty.NullVal)
 	current := resources.ValueWithPrivate{Value: ret.PlaceholderValue}
 	if prevState != nil {
@@ -388,7 +414,7 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 	planResp, planDiags := resourceType.PlanChanges(planChangesCtx, &resources.ManagedResourcePlanRequest{
 		Current:            current,
 		DesiredValue:       unmarkedConfigVal,
-		IgnoreChangesPaths: inst.IgnoreChangesPaths,
+		IgnoreChangesPaths: slices.Concat(inst.IgnoreChangesPaths, extraIgnoreChanges),
 	}, ret.Addr)
 	diags = diags.Append(planDiags)
 	if planDiags.HasErrors() {
@@ -474,7 +500,7 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 		createPlanResp, planDiags := resourceType.PlanChanges(ctx, &resources.ManagedResourcePlanRequest{
 			// "Current" is intentionally not set here, because we're asking
 			// for a plan to create a new object matching the configuration.
-			DesiredValue: unmarkedConfigVal,
+			DesiredValue: createConfigVal,
 		}, ret.Addr)
 		diags = diags.Append(planDiags)
 		if planDiags.HasErrors() {
