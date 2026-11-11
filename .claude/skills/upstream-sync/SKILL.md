@@ -99,9 +99,14 @@ The fork's patches in `internal/engine`:
   and U8's destroy-from-config.
 - `configadjust/` and `identityresolve/`: fork-only packages. They conflict
   only through the interfaces they call; see section 4.
+- `forkport/` (#2376): the fork-port registry, `forkport.Ports` in
+  `forkport/forkport.go`, and one package per port. Every port is listed
+  there with its gap rows and expiry issues, is switched off alone by
+  `CHOUDOUFU_NEW_RUNTIME_NO_PORT_<NAME>=1`, and with every other port by
+  `CHOUDOUFU_NEW_RUNTIME_NO_FORK_PORTS=1`. `live/NEW-RUNTIME.md` lists them.
 - `forkport/inrunestates/` (#2370): the in-run estates and
   `terraform_estate_outputs` fork port, gap row `in-run-estates`, switched
-  off by `CHOUDOUFU_NEW_RUNTIME_NO_FORK_PORTS=1`. Its call sites are each
+  off by `CHOUDOUFU_NEW_RUNTIME_NO_PORT_INRUNESTATES=1`. Its call sites are each
   commented `choudoufu fork port (#2370): remove when upstream #4058
   lands`: `grep -rn "fork port (#2370)" internal/` lists them, in
   `planning/` (`plan_data.go`, `execgraph_resource.go`, `plan.go`,
@@ -170,6 +175,27 @@ upstream issue closed or merged:
 - regenerate `live/NEW-RUNTIME.md` and the site's upstream page,
   `go run ./tools/upstreamdoc-gen`, and drop the patch from the page's
   hand-written patches table if the row was a fork port.
+
+Fork ports. The same `--report` lists each port in
+`internal/engine/forkport` with the state of the upstream issues that expire
+it, and prints `EXPIRE: remove port <name> (upstream #N closed)` when they
+have all closed. On each EXPIRE line:
+
+- check that upstream's code covers what the port does: with the port off
+  (`CHOUDOUFU_NEW_RUNTIME_NO_PORT_<NAME>=1`) and the refusal its row
+  narrowed lifted, the port's tests must pass on upstream's code. If one
+  still needs the port, keep it and say why in the PR;
+- remove the port: its package, its entry in `forkport.Ports`, every call
+  site (`grep -rn "fork port (#<issue>)" internal/`), its gap row, and the
+  refusal its row narrowed if upstream's code now handles that too;
+- `go test ./internal/live/newruntime` (`TestForkPortRegistry` holds the
+  registry, packages and rows to each other), regenerate with
+  `go run ./tools/upstreamdoc-gen`, and re-run the ratchet: the port's tests
+  must still pass, now on upstream's code.
+
+Too big for the sync PR, file it as a unit under #2256 and link it from the
+PR description. `UPSTREAM_SYNC_ISSUE_STATES=<file.json>` (`{"4058": "closed"}`)
+replaces the API lookup; `live/upstream_sync_report_test.go` uses it.
 
 Toggle semantics. Confirm these still hold after the merge:
 

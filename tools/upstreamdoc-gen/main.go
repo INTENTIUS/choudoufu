@@ -14,7 +14,8 @@
 //   - live/NEW-RUNTIME.md, whole: the same base and the new runtime's gap
 //     tables, from internal/live/newruntime/gaps.json through that
 //     package's own parser, so the file shows exactly the rows the refusal
-//     checks read. The tables live in the repository, not on the site,
+//     checks read, and the fork ports registered in internal/engine/forkport
+//     with their switches and expiry issues. The tables live in the repository, not on the site,
 //     because the site is held to a word limit (live/site_size_test.go).
 //
 // Like tools/toggles-gen it reads only committed sources: no git, no

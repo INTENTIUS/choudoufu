@@ -137,9 +137,9 @@ var forkOwnedMixedRoots = []string{
 	// #2256 U4/U5: copies of internal/tofu's adjuster and marker
 	// interfaces, so internal/engine never imports internal/tofu.
 	"internal/engine/configadjust",
-	// #2370 (#2256 U9): the in-run estates fork port, removed when upstream
-	// #4058 lands.
-	"internal/engine/forkport/inrunestates",
+	// #2376 (#2256 F0): the fork-port registry and one package per port
+	// (#2370's in-run estates first), each removed when upstream's lands.
+	"internal/engine/forkport",
 	// #2256 U6: the identity resolver's interface and its shared rules.
 	"internal/engine/identityresolve",
 	// #2256 U6 and U8: plan_managed_identity.go (identity resolution

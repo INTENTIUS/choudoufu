@@ -12,29 +12,35 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/engine/forkport"
 )
 
 func TestSwitchTurnsThePortOff(t *testing.T) {
 	r := &configs.Resource{Mode: addrs.DataResourceMode, Type: TypeName, Name: "net", Provider: addrs.NewBuiltInProvider("terraform")}
 	other := &configs.Resource{Mode: addrs.DataResourceMode, Type: TypeName, Name: "net", Provider: addrs.NewDefaultProvider("terraform")}
 	remote := &configs.Resource{Mode: addrs.DataResourceMode, Type: "terraform_remote_state", Name: "net", Provider: addrs.NewBuiltInProvider("terraform")}
-
-	t.Setenv(SwitchVariable, "")
-	if !Enabled() || New(nil) == nil || !Covers(r) {
-		t.Fatal("with the switch unset the port must be on and cover terraform_estate_outputs")
-	}
-	if Covers(other) || Covers(remote) {
+	if !Covers(r) || Covers(other) || Covers(remote) {
 		t.Fatal("the port covers only the builtin provider's terraform_estate_outputs")
 	}
 
-	t.Setenv(SwitchVariable, "1")
-	if Enabled() || New(nil) != nil || Covers(r) {
-		t.Fatalf("with %s=1 the port must be off and cover nothing", SwitchVariable)
+	for name, env := range map[string]string{"all ports off": forkport.AllOff, "this port off": forkport.Switch(Name)} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv(forkport.AllOff, "")
+			t.Setenv(forkport.Switch(Name), "")
+			if New(nil) == nil {
+				t.Fatal("with no switch set the port must be on")
+			}
+			t.Setenv(env, "1")
+			if New(nil) != nil {
+				t.Fatalf("with %s=1 the port must be off", env)
+			}
+		})
 	}
 }
 
 func TestPlanDefersWhileTheModuleIsPending(t *testing.T) {
-	t.Setenv(SwitchVariable, "")
+	t.Setenv(forkport.AllOff, "")
+	t.Setenv(forkport.Switch(Name), "")
 	port := New(map[string]addrs.Module{"net": {"net"}})
 	addr := addrs.Resource{Mode: addrs.DataResourceMode, Type: TypeName, Name: "net"}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance.Child("app", addrs.NoKey))
 	config := cty.ObjectVal(map[string]cty.Value{

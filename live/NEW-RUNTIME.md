@@ -68,3 +68,16 @@ Every run on the new runtime prints `Running on OpenTofu's experimental new runt
 | `imports` | imports, config-driven and plan-option | none needed | upstream [`#4726`](https://github.com/opentofu/opentofu/issues/4726), [`#4727`](https://github.com/opentofu/opentofu/issues/4727), [`#4745`](https://github.com/opentofu/opentofu/issues/4745), [`#4683`](https://github.com/opentofu/opentofu/issues/4683) |
 | `provisioner-self-marks` | provisioner self marks | none needed: ours, already carried | ours |
 | `saved-plan-cross-runtime` | a plan saved on the default runtime, applied with the toggle on | apply refuses loudly with "Saved plan contains no execution graph": upstream's apply engine applies only plans its own planner made. Re-plan with the toggle on. | upstream |
+
+## Fork ports
+
+A fork port fills a gap with choudoufu's own code in
+`internal/engine/forkport/<name>` until upstream's lands. `CHOUDOUFU_NEW_RUNTIME_NO_FORK_PORTS=1`
+turns every port off, and a port's own switch turns it off alone; off, the gap
+row that refused the construct before the port refuses it again.
+`scripts/upstream-sync.sh --report` prints `EXPIRE: remove port <name>` once a
+port's expiry issues have all closed.
+
+| Port | Switch | Gap rows | Expires with |
+|---|---|---|---|
+| [`inrunestates`](../internal/engine/forkport/inrunestates) | `CHOUDOUFU_NEW_RUNTIME_NO_PORT_INRUNESTATES=1` | `in-run-estates` | upstream [`#4058`](https://github.com/opentofu/opentofu/issues/4058) |

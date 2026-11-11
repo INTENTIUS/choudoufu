@@ -17,6 +17,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/engine/forkport"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -47,26 +48,26 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 	"data": func(c *configs.Config) (out []occurrence) {
 		m := c.Module
 		for _, r := range m.DataResources {
+			o := occurrence{what: fmt.Sprintf("the configuration declares data source %s", r.Addr()), rng: r.DeclRange}
 			// choudoufu fork port (#2370): remove when upstream #4058
-			// lands. Gap "in-run-estates": what the port covers passes
-			// while it is on, and is refused here when it is switched off.
+			// lands. Gap "in-run-estates".
 			if inrunestates.Covers(r) {
-				continue
+				o.port = inrunestates.Name
 			}
-			out = append(out, occurrence{fmt.Sprintf("the configuration declares data source %s", r.Addr()), r.DeclRange})
+			out = append(out, o)
 		}
 		return out
 	},
 	"removed": func(c *configs.Config) (out []occurrence) {
 		m := c.Module
 		for _, r := range m.Removed {
-			out = append(out, occurrence{"the configuration has a removed block", r.DeclRange})
+			out = append(out, occurrence{what: "the configuration has a removed block", rng: r.DeclRange})
 		}
 		return out
 	},
 	"moved": func(c *configs.Config) (out []occurrence) {
 		for _, r := range c.Module.Moved {
-			out = append(out, occurrence{"the configuration has a moved block", r.DeclRange})
+			out = append(out, occurrence{what: "the configuration has a moved block", rng: r.DeclRange})
 		}
 		return out
 	},
@@ -84,14 +85,14 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 		for _, stmt := range moved.StatementsIn(c.Module, c.Path) {
 			seen[stmt.DeclRange] = true
 			if reason, ok := moved.Honourable(c, stmt); !ok {
-				out = append(out, occurrence{"the configuration has a moved block an ownership marker cannot follow: " + reason, stmt.DeclRange})
+				out = append(out, occurrence{what: "the configuration has a moved block an ownership marker cannot follow: " + reason, rng: stmt.DeclRange})
 			}
 		}
 		// A block whose endpoints did not decode or unify has no Statement,
 		// so discovery never aliases it. It is refused rather than skipped.
 		for _, r := range c.Module.Moved {
 			if !seen[r.DeclRange] {
-				out = append(out, occurrence{"the configuration has a moved block whose endpoints could not be resolved to addresses", r.DeclRange})
+				out = append(out, occurrence{what: "the configuration has a moved block whose endpoints could not be resolved to addresses", rng: r.DeclRange})
 			}
 		}
 		return out
@@ -100,7 +101,7 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 		m := c.Module
 		for _, r := range m.ManagedResources {
 			if r.Managed != nil && r.Managed.Destroy != nil {
-				out = append(out, occurrence{fmt.Sprintf("%s sets lifecycle destroy", r.Addr()), r.Managed.Destroy.Range()})
+				out = append(out, occurrence{what: fmt.Sprintf("%s sets lifecycle destroy", r.Addr()), rng: r.Managed.Destroy.Range()})
 			}
 		}
 		return out
@@ -108,18 +109,18 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 	"checks_conditions": func(c *configs.Config) (out []occurrence) {
 		m := c.Module
 		for _, c := range m.Checks {
-			out = append(out, occurrence{fmt.Sprintf("the configuration has check block %q", c.Name), c.DeclRange})
+			out = append(out, occurrence{what: fmt.Sprintf("the configuration has check block %q", c.Name), rng: c.DeclRange})
 		}
 		for _, set := range []map[string]*configs.Resource{m.ManagedResources, m.DataResources, m.EphemeralResources} {
 			for _, r := range set {
 				for _, cr := range append(append([]*configs.CheckRule(nil), r.Preconditions...), r.Postconditions...) {
-					out = append(out, occurrence{fmt.Sprintf("%s has a precondition or postcondition", r.Addr()), cr.DeclRange})
+					out = append(out, occurrence{what: fmt.Sprintf("%s has a precondition or postcondition", r.Addr()), rng: cr.DeclRange})
 				}
 			}
 		}
 		for _, o := range m.Outputs {
 			for _, cr := range o.Preconditions {
-				out = append(out, occurrence{fmt.Sprintf("output %q has a precondition", o.Name), cr.DeclRange})
+				out = append(out, occurrence{what: fmt.Sprintf("output %q has a precondition", o.Name), rng: cr.DeclRange})
 			}
 		}
 		return out
@@ -128,7 +129,7 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 		m := c.Module
 		for _, v := range m.Variables {
 			for _, cr := range v.Validations {
-				out = append(out, occurrence{fmt.Sprintf("variable %q has a validation block", v.Name), cr.DeclRange})
+				out = append(out, occurrence{what: fmt.Sprintf("variable %q has a validation block", v.Name), rng: cr.DeclRange})
 			}
 		}
 		return out
@@ -137,12 +138,12 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 		m := c.Module
 		for _, v := range m.Variables {
 			if v.Sensitive {
-				out = append(out, occurrence{fmt.Sprintf("variable %q is sensitive", v.Name), v.DeclRange})
+				out = append(out, occurrence{what: fmt.Sprintf("variable %q is sensitive", v.Name), rng: v.DeclRange})
 			}
 		}
 		for _, o := range m.Outputs {
 			if o.Sensitive {
-				out = append(out, occurrence{fmt.Sprintf("output %q is sensitive", o.Name), o.DeclRange})
+				out = append(out, occurrence{what: fmt.Sprintf("output %q is sensitive", o.Name), rng: o.DeclRange})
 			}
 		}
 		return append(out, sensitiveCalls(m.SourceDir)...)
@@ -152,6 +153,11 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 type occurrence struct {
 	what string
 	rng  hcl.Range
+	// port, when set, names the registered fork port (internal/engine/forkport)
+	// that handles this occurrence on the new runtime. Preflight admits it
+	// while forkport.Enabled(port), and refuses it under the detector's row
+	// when the port is switched off. A port only has to tag what it covers.
+	port string
 }
 
 // sensitiveCalls finds calls to the sensitive() function in a module's
@@ -182,7 +188,7 @@ func sensitiveCalls(dir string) []occurrence {
 		}
 		_ = hclsyntax.VisitAll(body, func(n hclsyntax.Node) hcl.Diagnostics {
 			if call, ok := n.(*hclsyntax.FunctionCallExpr); ok && (call.Name == "sensitive" || strings.HasSuffix(call.Name, "::sensitive")) {
-				out = append(out, occurrence{"the configuration calls sensitive()", call.NameRange})
+				out = append(out, occurrence{what: "the configuration calls sensitive()", rng: call.NameRange})
 			}
 			return nil
 		})
@@ -277,6 +283,9 @@ func Preflight(cfg *configs.Config, prior *states.State, live bool) tfdiags.Diag
 			occ := detect(c)
 			sort.Slice(occ, func(i, j int) bool { return occ[i].rng.String() < occ[j].rng.String() })
 			for _, o := range occ {
+				if o.port != "" && forkport.Enabled(o.port) {
+					continue
+				}
 				rng := o.rng
 				diags = diags.Append(refusal(r, o.what, &rng))
 			}

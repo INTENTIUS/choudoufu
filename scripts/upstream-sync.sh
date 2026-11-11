@@ -22,7 +22,10 @@
 #   scripts/upstream-sync.sh --graft-only [options] <upstream-ref>
 #       Step 1 only. Prints the graft commit's sha. Changes nothing else.
 #   scripts/upstream-sync.sh --report
-#       Step 5 only: the state of every upstream issue in the gap table.
+#       Step 5 only: the state of every upstream issue in the gap table, and
+#       each fork port with the upstream issues that expire it. A port whose
+#       expiry issues have all closed gets a line
+#       "EXPIRE: remove port <name> (upstream #N closed)" (#2376).
 #
 # Options:
 #   --prev-graft <commit>  Previous graft. Default: the most recent commit
@@ -75,6 +78,11 @@
 #
 # Gap table source: internal/live/newruntime/gaps.json (see
 # gap_upstream_numbers below); UPSTREAM_SYNC_GAP_FILE overrides it.
+#
+# Issue states: step 5 reads them from the GitHub API. UPSTREAM_SYNC_ISSUE_STATES
+# names a JSON file such as {"4058": "closed"} to read them from instead, so a
+# test can show the EXPIRE flag red and green without the network
+# (live/upstream_sync_report_test.go). A number the file lacks reads as unknown.
 
 set -euo pipefail
 
@@ -437,17 +445,65 @@ list_diff() {
 	fi
 }
 
+# issue_line prints one upstream issue or PR as tab-separated kind, state,
+# merged date, updated date and title, from UPSTREAM_SYNC_ISSUE_STATES when it
+# is set and otherwise from the GitHub API. It fails when it cannot read one.
+issue_line() {
+	local n=$1 state
+	if [ -n "${UPSTREAM_SYNC_ISSUE_STATES:-}" ]; then
+		state=$(jq -r --arg n "$n" '.[$n] // empty' "$UPSTREAM_SYNC_ISSUE_STATES") || return 1
+		[ -n "$state" ] || return 1
+		printf 'issue\t%s\t\t\t(canned, %s)\n' "$state" "$UPSTREAM_SYNC_ISSUE_STATES"
+		return 0
+	fi
+	gh api "repos/$UPSTREAM_REPO/issues/$n" --jq '[(if .pull_request then "pr" else "issue" end), .state, (if .pull_request.merged_at then "merged " + .pull_request.merged_at[0:10] else "" end), "updated " + .updated_at[0:10], .title] | @tsv' 2>/dev/null
+}
+
+# fork_port_report prints each fork port (#2376) from the gap table's
+# fork_port rows, with its switch and the state of each upstream issue that
+# expires it, and an EXPIRE line for a port whose issues have all closed.
+# internal/live/newruntime's TestForkPortRegistry holds these rows to the
+# registry in internal/engine/forkport.
+fork_port_report() {
+	local f=${UPSTREAM_SYNC_GAP_FILE:-$GAP_FILE_DEFAULT}
+	local ports name switch ids issues n line state closed states
+	ports=$(jq -r '[.rows[] | select((.fork_port // "") != "")] | group_by(.fork_port)[] | [(.[0].fork_port | sub(".*/"; "")), .[0].switch, ([.[].id] | join(",")), ([.[].upstream[]] | unique | join(" "))] | @tsv' "$f")
+	say "fork ports (internal/engine/forkport) and the upstream issues that expire them:"
+	if [ -z "$ports" ]; then
+		echo "  (none)"
+		return
+	fi
+	while IFS=$'\t' read -r name switch ids issues; do
+		closed=1
+		states=
+		for n in $issues; do
+			state=unknown
+			if line=$(issue_line "${n#\#}"); then
+				state=$(printf '%s\n' "$line" | cut -f2)
+			fi
+			[ "$state" = closed ] || closed=0
+			states="$states $n $state,"
+		done
+		[ -n "$issues" ] || closed=0
+		printf '  %s  rows %s  off with %s  expires on:%s\n' "$name" "$ids" "$switch" "${states%,}"
+		if [ "$closed" = 1 ]; then
+			echo "EXPIRE: remove port $name (upstream ${issues// /, } closed)"
+		fi
+	done <<<"$ports"
+}
+
 report() {
 	list_diff
 	say "upstream gap-table issues ($UPSTREAM_REPO, read-only):"
 	local n line
 	for n in $(gap_upstream_numbers); do
-		if line=$(gh api "repos/$UPSTREAM_REPO/issues/$n" --jq '[(if .pull_request then "pr" else "issue" end), .state, (if .pull_request.merged_at then "merged " + .pull_request.merged_at[0:10] else "" end), "updated " + .updated_at[0:10], .title] | @tsv' 2>/dev/null); then
+		if line=$(issue_line "$n"); then
 			printf '  %-6s %s\n' "$n" "$line"
 		else
-			printf '  %-6s (could not read; gh api failed)\n' "$n"
+			printf '  %-6s (could not read; gh api failed, or not in UPSTREAM_SYNC_ISSUE_STATES)\n' "$n"
 		fi
 	done
+	fork_port_report
 }
 
 # ---------------------------------------------------------------- modes

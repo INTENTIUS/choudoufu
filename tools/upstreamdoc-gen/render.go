@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/intentius/choudoufu/internal/engine/forkport"
 	"github.com/intentius/choudoufu/internal/live/mdspan"
 	"github.com/intentius/choudoufu/internal/live/newruntime"
 )
@@ -83,6 +84,36 @@ func renderRepoDoc(fs forkSurface, rows []newruntime.Row) string {
 	b.WriteString("what closes it. Numbers link to opentofu/opentofu when the row lists them as\n")
 	b.WriteString("upstream, and to choudoufu otherwise.\n\n")
 	b.WriteString(renderGaps(rows))
+	b.WriteString("\n## Fork ports\n\n")
+	b.WriteString(renderPorts(forkport.Ports))
+	return b.String()
+}
+
+// renderPorts is the fork-port table (#2376): each port registered in
+// internal/engine/forkport, the variable that turns it off, the gap rows it
+// fills and the upstream issues whose closing removes it. Pure, so
+// render_test.go can compare without writing.
+func renderPorts(ports []forkport.Port) string {
+	var b strings.Builder
+	b.WriteString("A fork port fills a gap with choudoufu's own code in\n")
+	b.WriteString("`internal/engine/forkport/<name>` until upstream's lands. `" + forkport.AllOff + "=1`\n")
+	b.WriteString("turns every port off, and a port's own switch turns it off alone; off, the gap\n")
+	b.WriteString("row that refused the construct before the port refuses it again.\n")
+	b.WriteString("`scripts/upstream-sync.sh --report` prints `EXPIRE: remove port <name>` once a\n")
+	b.WriteString("port's expiry issues have all closed.\n\n")
+	b.WriteString("| Port | Switch | Gap rows | Expires with |\n|---|---|---|---|\n")
+	for _, p := range ports {
+		ids := make([]string, len(p.Rows))
+		for i, id := range p.Rows {
+			ids[i] = "`" + id + "`"
+		}
+		issues := make([]string, len(p.Expiry))
+		for i, u := range p.Expiry {
+			issues[i] = fmt.Sprintf("[`%s`](%s/issues/%s)", u, upstreamRepo, u[1:])
+		}
+		fmt.Fprintf(&b, "| [`%s`](../internal/engine/forkport/%s) | `%s=1` | %s | upstream %s |\n",
+			p.Name, p.Name, forkport.Switch(p.Name), strings.Join(ids, ", "), strings.Join(issues, ", "))
+	}
 	return b.String()
 }
 
