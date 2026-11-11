@@ -565,11 +565,14 @@ func (p *planGlue) validateMoves(ctx context.Context) tfdiags.Diagnostics {
 	}
 
 	if !empty {
+		// choudoufu fork patch (#2387): the binary is choudoufu, so the
+		// warning names "choudoufu state", as the default runtime's copy in
+		// internal/tofu/context_plan.go does. Upstream says "tofu state".
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Warning,
 			"Unresolved resource instance address changes",
 			fmt.Sprintf(
-				"OpenTofu tried to adjust resource instance addresses in the prior state based on change information recorded in the configuration, but some adjustments did not succeed due to existing objects already at the intended addresses:%s\n\nOpenTofu has planned to destroy these objects. If OpenTofu's proposed changes aren't appropriate, you must first resolve the conflicts using the \"tofu state\" subcommands and then create a new plan.",
+				"OpenTofu tried to adjust resource instance addresses in the prior state based on change information recorded in the configuration, but some adjustments did not succeed due to existing objects already at the intended addresses:%s\n\nOpenTofu has planned to destroy these objects. If OpenTofu's proposed changes aren't appropriate, you must first resolve the conflicts using the \"choudoufu state\" subcommands and then create a new plan.",
 				itemsBuf.String(),
 			),
 		))

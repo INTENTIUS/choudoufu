@@ -79,7 +79,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestApply_targetedDestroy",
-      "reason": "Upstream's new runtime, in an internal/command test upstream's own experimental lane does not run (it runs internal/tofu only): subtest \"Targeted Destroy\", a destroy with -target of a resource also destroys the resources it depends on, which the default runtime keeps. Not a refusal: it fails the same way with the deferral fork port (#2382) on or off. Its -exclude subtest passes since that port."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: subtest \"Targeted Destroy\" by gap \"destroy-target\": destroy -target deleting what the target depends on, waits for upstream, not yet filed (#2387); subtest \"Targeted Destroy with exclude of root\" by gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -510,16 +510,6 @@
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_moduleDependsOnWithCheck",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"checks-conditions\": checks and conditions, waits for upstream (upstream #4390); gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_movedResourceCollision",
-      "reason": "Upstream's new runtime, wording only (#2378 verified the move itself): its \"Unresolved resource instance address changes\" warning (internal/engine/planning/plan_moved.go) names the \"tofu state\" subcommands, where the fork's default runtime names \"choudoufu state\"."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_movedResourceCollisionDestroy",
-      "reason": "Upstream's new runtime, wording only (#2378 verified the move itself): its \"Unresolved resource instance address changes\" warning (internal/engine/planning/plan_moved.go) names the \"tofu state\" subcommands, where the fork's default runtime names \"choudoufu state\"."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
