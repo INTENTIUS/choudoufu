@@ -89,6 +89,7 @@ func newRuntimeIdentityContext(t *testing.T, p *MockProvider, resolver ResourceI
 // Without the planning engine's resolver call the plan is a Create with no
 // import.
 func TestNewRuntimeResolverAdoptsWithoutCreate(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
 	forceExperimentalRuntimeForTesting(t)
 	addr := mustResourceInstanceAddr("test_object.a")
 	m := testModuleInline(t, map[string]string{"main.tf": newRuntimeIdentitySrc})
@@ -134,6 +135,7 @@ func TestNewRuntimeResolverAdoptsWithoutCreate(t *testing.T) {
 // guess, so an import that finds nothing plans an ordinary create instead of
 // failing with "Import returned no resources", as on the old runtime.
 func TestNewRuntimeResolverAbsentTargetPlansCreate(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
 	forceExperimentalRuntimeForTesting(t)
 	addr := mustResourceInstanceAddr("test_object.a")
 	m := testModuleInline(t, map[string]string{"main.tf": newRuntimeIdentitySrc})
@@ -162,6 +164,7 @@ func TestNewRuntimeResolverAbsentTargetPlansCreate(t *testing.T) {
 // "No source for this instance's identity", say) fails the plan on the new
 // runtime as it does on the old one.
 func TestNewRuntimeResolverErrorFailsThePlan(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
 	forceExperimentalRuntimeForTesting(t)
 	m := testModuleInline(t, map[string]string{"main.tf": newRuntimeIdentitySrc})
 	p := newRuntimeIdentityProvider()
@@ -200,6 +203,7 @@ func (refusingResolver) ResolveResourceIdentity(_ context.Context, addr addrs.Ab
 // says; the new runtime must too, or it plans an update of the stub and the
 // apply re-plans a create ("Provider produced inconsistent final plan").
 func TestNewRuntimeResolverAbsentWithRefreshSkipped(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
 	forceExperimentalRuntimeForTesting(t)
 	addr := mustResourceInstanceAddr("test_object.a")
 	m := testModuleInline(t, map[string]string{"main.tf": newRuntimeIdentitySrc})

@@ -81,6 +81,15 @@ func hasDiag(diags tfdiags.Diagnostics, sev tfdiags.Severity, summary string) bo
 	return false
 }
 
+// showNewRuntimeWarningForTesting turns the toggle's warning back on for a
+// test that is about it; TestMain hides it for the rest of this package.
+func showNewRuntimeWarningForTesting(t *testing.T) {
+	t.Helper()
+	prev := newRuntimeWarningHiddenForTesting
+	newRuntimeWarningHiddenForTesting = false
+	t.Cleanup(func() { newRuntimeWarningHiddenForTesting = prev })
+}
+
 func toggleOn(t *testing.T) {
 	t.Helper()
 	t.Setenv(newruntime.Variable, "1")
@@ -102,6 +111,7 @@ func stateWith(name string) *states.State {
 // refused before planning, and no warning is printed. This is also the
 // second negative control: a refused run never reaches the engine.
 func TestNewRuntimeToggle_preflightRefuses(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
 	toggleOn(t)
 	m := testModuleInline(t, map[string]string{"main.tf": `
 data "test_object" "d" {}
@@ -122,6 +132,7 @@ resource "test_object" "a" {
 // plan the new runtime makes with a replace in it is refused before it is
 // returned.
 func TestNewRuntimeToggle_postPlanRefusesReplace(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
 	toggleOn(t)
 	m := testModuleInline(t, map[string]string{"main.tf": `
 resource "test_object" "a" {
@@ -141,6 +152,10 @@ resource "test_object" "a" {
 // kind. A plan made with the toggle off, holding a replace, is applied with
 // the toggle on: both checks run against it before the engine.
 func TestNewRuntimeToggle_savedPlanApplyRefuses(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
+	// The plan is made on the default runtime: clear the toggle even when
+	// the experimental-runtime lane sets it for the whole package.
+	t.Setenv(newruntime.Variable, "")
 	m := testModuleInline(t, map[string]string{"main.tf": `
 resource "test_object" "a" {
   name = "new"
@@ -166,6 +181,7 @@ resource "test_object" "a" {
 // for_each over a value only known after apply makes the new runtime defer
 // the instance, for a reason that is neither -target nor -exclude.
 func TestNewRuntimeToggle_engineRefusesDeferral(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
 	toggleOn(t)
 	m := testModuleInline(t, map[string]string{"main.tf": `
 resource "test_object" "a" {
@@ -188,6 +204,7 @@ resource "test_object" "b" {
 // resources across a module, with count and for_each. Both carry the
 // warning.
 func TestNewRuntimeToggle_releaseModeCleanFixture(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
 	if version.Prerelease != "dev" {
 		t.Fatalf("VERSION prerelease is %q, want dev (1.14.0-dev)", version.Prerelease)
 	}
@@ -243,6 +260,7 @@ resource "test_object" "each" {
 // TestNewRuntimeToggle_offPrintsNoWarning is the first negative control:
 // with the toggle off, the same plan carries no warning.
 func TestNewRuntimeToggle_offPrintsNoWarning(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
 	t.Setenv(newruntime.Variable, "")
 	m := testModuleInline(t, map[string]string{"main.tf": `
 resource "test_object" "a" {
