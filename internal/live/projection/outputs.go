@@ -125,10 +125,14 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 	// whose absence renders as an ordinary "+ name = ..." line. That is the
 	// exact risk GitHub issue #349's scoping named for the data-source half
 	// of this, and it was already live for the evaluation half.
-	scope, done, _ := core.Eval(ctx, config, withOutputEvalSeeds(ctx, core, config, state, dataValues), addrs.RootModuleInstance, &tofu.EvalOpts{SetVariables: variables})
-	// Upstream's Eval (1.14) hands back the provider shutdown it used to run
-	// itself; the scope's provider instances live until this returns.
-	defer func() { _ = done(ctx) }()
+	// Upstream's Eval (1.14, 8830c516e0) returns a done func that shuts down
+	// core's whole provider manager, written for "tofu console", which never
+	// uses its context again. This core goes on to plan, and a shut-down
+	// manager refuses every schema read after it ("manager is shutdown").
+	// So done is deliberately not called: any provider instance Eval starts
+	// is tracked by core's manager and closed by core's owner through
+	// (*tofu.Context).Close, like every other instance core starts.
+	scope, _, _ := core.Eval(ctx, config, withOutputEvalSeeds(ctx, core, config, state, dataValues), addrs.RootModuleInstance, &tofu.EvalOpts{SetVariables: variables})
 
 	// A recorded value is the before side, but the record came off an
 	// apply's final state and the after side is evaluated against the
