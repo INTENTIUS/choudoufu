@@ -38,5 +38,15 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      # internal/live/check's TestIdentityGolden renders cohorts with
+      # tools/estate-gen, which shells out to a literal "terraform". Pinned
+      # from live/oracle-versions.json, as ci.yml does (issue #544).
+      - name: Read the pinned stock oracle version (issue #544)
+        id: oracle
+        run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.oracle.outputs.terraform }}
+          terraform_wrapper: false
       - name: Tests under TOFU_X_EXPERIMENTAL_RUNTIME, checked by the ratchet
         run: make test-experimental-ratchet
