@@ -16,15 +16,15 @@ Built on upstream OpenTofu [`aa3eb66a0c`](https://github.com/opentofu/opentofu/c
 |---|---|---|
 | `TOFU_X_EXPERIMENTAL_RUNTIME` | dev, nightly | every build, live mode included |
 | `TOFU_X_EXPERIMENTAL_RUNTIME_NEXT` | dev, nightly | non-release builds, by linker flag |
-| `CHOUDOUFU_NEW_RUNTIME_NO_FORK_PORTS` | none | ports off ([#2372](https://github.com/INTENTIUS/choudoufu/pull/2372)) |
+| `CHOUDOUFU_NEW_RUNTIME_NO_FORK_PORTS` | none | all fork ports off |
 
 | Patch | Replaced by |
 |---|---|
 | Markers, identity, replace create half | fork-only |
 | Destroy-from-config | [#3472](https://github.com/opentofu/opentofu/issues/3472) |
 | Taint failed creates only | fork rule |
-| Deferral error | [#4697](https://github.com/opentofu/opentofu/issues/4697) |
-| In-run estates ([#2372](https://github.com/INTENTIUS/choudoufu/pull/2372)) | [#4058](https://github.com/opentofu/opentofu/issues/4058) |
+
+Gap fills, each switchable and expiring with upstream: [fork ports](https://github.com/INTENTIUS/choudoufu/blob/main/live/NEW-RUNTIME.md#fork-ports).
 
 ## Already done by choudoufu
 
