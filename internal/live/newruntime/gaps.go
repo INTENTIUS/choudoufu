@@ -31,6 +31,13 @@ const (
 	CheckNone      = "none"
 )
 
+// The scopes a post-plan row can carry.
+const (
+	ScopeLive    = "live"
+	ScopeNonLive = "non_live"
+	ScopeAll     = "all"
+)
+
 // Variable is the opt-in that switches plan and apply onto the new runtime.
 // It is upstream's own name (#2256 ruling 4).
 const Variable = "TOFU_X_EXPERIMENTAL_RUNTIME"
@@ -45,7 +52,8 @@ type Row struct {
 	// Construct names the detector a preflight, post-plan or engine row
 	// uses. Every such row must name one this package implements.
 	Construct string `json:"construct,omitempty"`
-	// Scope, for a post-plan row, is "live" (live mode only) or "all".
+	// Scope, for a post-plan row, is "live" (live mode only), "non_live"
+	// (outside live mode only) or "all".
 	Scope string `json:"scope,omitempty"`
 	// Interim says what happens meanwhile.
 	Interim string `json:"interim,omitempty"`
@@ -101,6 +109,13 @@ func parse(b []byte) ([]Row, error) {
 		case CheckLive, CheckPreflight, CheckPostPlan, CheckEngine, CheckAccepted, CheckNone:
 		default:
 			return nil, fmt.Errorf("internal/live/newruntime/gaps.json: row %q has unknown check %q", r.ID, r.Check)
+		}
+		if r.Check == CheckPostPlan {
+			switch r.Scope {
+			case ScopeLive, ScopeNonLive, ScopeAll:
+			default:
+				return nil, fmt.Errorf("internal/live/newruntime/gaps.json: post-plan row %q has unknown scope %q", r.ID, r.Scope)
+			}
 		}
 	}
 	return t.Rows, nil
