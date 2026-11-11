@@ -51,7 +51,12 @@ func experimentalRuntimeEnabled() bool {
 	if experimentalRuntimeForcedForTesting {
 		return true
 	}
-	if !version.IsNightly() && !version.IsDev() {
+	// choudoufu (GitHub issue #2336): closed in release builds, read from
+	// the release linker flag rather than the version string. Releases
+	// between upstream tags are built on upstream main's 1.14.0-dev VERSION,
+	// so a release reads as IsDev and a version-string gate would honour
+	// the variable in every release. #2256 U2 opens it deliberately.
+	if version.IsReleaseBuild() {
 		return false
 	}
 

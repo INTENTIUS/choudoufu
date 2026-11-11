@@ -26,7 +26,11 @@ import (
 )
 
 func (m *Meta) NewRuntimeEnabled() bool {
-	if !version.IsNightly() && !version.IsDev() {
+	// choudoufu (GitHub issue #2336): closed in release builds, read from
+	// the release linker flag rather than the version string, which reads
+	// as -dev in a release built on upstream main. See
+	// internal/tofu's experimentalRuntimeEnabled.
+	if version.IsReleaseBuild() {
 		return false
 	}
 	// This is not yet stable enough for day to day use and actively
