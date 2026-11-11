@@ -44,6 +44,9 @@ const (
 	// the project derives the name from the account it is standing the bucket
 	// up in, and that is exactly why the name alone defends nothing.
 	iamAccount = "111122223333"
+	// The ssm block path under strict { secrets = "ssm" } (GitHub issue
+	// #2393).
+	iamSSMPath = "/choudoufu/prod/secrets"
 )
 
 func renderIAMPolicy(t *testing.T, args ...string) []byte {
@@ -200,6 +203,11 @@ type iamRender struct {
 	// readOnly is --read-only (GitHub issue #1370): the rendering for a role
 	// that plans and never applies.
 	readOnly bool
+
+	// ssmPath and ssmKMS are --ssm-path (without a trailing slash) and
+	// --ssm-kms, strict { secrets = "ssm" } (GitHub issue #2393).
+	// ssmRegion and ssmViaService are written out, for viaService's reason.
+	ssmPath, ssmKMS, ssmRegion, ssmViaService string
 }
 
 // iamWantedPolicy is the whole document render-policy.sh must print for an
@@ -341,6 +349,48 @@ func iamWantedPolicy(r iamRender) map[string]any {
 			Condition: map[string]any{"StringEquals": map[string]any{"kms:ViaService": r.viaService}},
 		})
 	}
+	// GitHub issue #2393: strict { secrets = "ssm" }. A plan role reads a
+	// secret value and decrypts it through SSM, the read it has on a record.
+	// An apply role also creates a value, deletes a superseded one, lists
+	// the path for the orphan sweep, encrypts through SSM (Encrypt for a
+	// standard parameter, GenerateDataKey for an advanced one), and describes
+	// the key for the first-contact contract, which a plan never makes.
+	if r.ssmPath != "" {
+		acct := account
+		if acct == "" {
+			acct = "*"
+		}
+		param := "arn:" + partition + ":ssm:" + r.ssmRegion + ":" + acct + ":parameter" + r.ssmPath
+		if r.readOnly {
+			st = append(st, iamWantStatement{
+				Sid: "ReadThisEstatesSecretParameters", Effect: "Allow",
+				Action: "ssm:GetParameters", Resource: param + "/*",
+			})
+		} else {
+			st = append(st, iamWantStatement{
+				Sid: "KeepThisEstatesSecretParameters", Effect: "Allow",
+				Action: []string{"ssm:GetParameters", "ssm:PutParameter", "ssm:DeleteParameter"}, Resource: param + "/*",
+			}, iamWantStatement{
+				Sid: "SweepThisEstatesSecretParameters", Effect: "Allow",
+				Action: "ssm:GetParametersByPath", Resource: []string{param, param + "/*"},
+			})
+		}
+		keyActions := []string{"kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"}
+		if r.readOnly {
+			keyActions = []string{"kms:Decrypt"}
+		}
+		st = append(st, iamWantStatement{
+			Sid: "UseTheSecretParametersKey", Effect: "Allow",
+			Action: keyActions, Resource: r.ssmKMS,
+			Condition: map[string]any{"StringEquals": map[string]any{"kms:ViaService": r.ssmViaService}},
+		})
+		if !r.readOnly {
+			st = append(st, iamWantStatement{
+				Sid: "CheckTheSecretParametersKey", Effect: "Allow",
+				Action: "kms:DescribeKey", Resource: r.ssmKMS,
+			})
+		}
+	}
 	// GitHub issue #1381: with an account, every Allow also requires
 	// aws:ResourceAccount, MERGED into the StringEquals it already had. IAM
 	// takes one StringEquals object per statement, so a second one would
@@ -437,6 +487,17 @@ func TestIAMTemplateIsExactlyThisPolicy(t *testing.T) {
 			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, readOnly: true, account: iamAccount, kms: iamKMSKey, viaService: iamKMSViaService, others: []string{"network"}, keyPrefix: "team/prod/"})},
 		{"--read-only --partition aws-cn", []string{"prod", iamCNBucket, "--read-only", "--partition", "aws-cn", "--kms", iamCNKMSKey},
 			iamWantedPolicy(iamRender{estate: "prod", bucket: iamCNBucket, readOnly: true, partition: "aws-cn", kms: iamCNKMSKey, viaService: "s3.cn-north-1.amazonaws.com.cn"})},
+		// GitHub issue #2393: strict { secrets = "ssm" }, for the role that
+		// applies and the role that plans, with and without the owner pin,
+		// and in the partition whose service principal differs.
+		{"--ssm-path --ssm-kms", []string{"prod", iamBucket, "--ssm-path", iamSSMPath + "/", "--ssm-kms", iamKMSKey},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, ssmPath: iamSSMPath, ssmKMS: iamKMSKey, ssmRegion: "us-east-2", ssmViaService: "ssm.us-east-2.amazonaws.com"})},
+		{"--ssm-path --ssm-kms --account", []string{"prod", iamBucket, "--account", iamAccount, "--ssm-path", iamSSMPath, "--ssm-kms", iamKMSKey},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, account: iamAccount, ssmPath: iamSSMPath, ssmKMS: iamKMSKey, ssmRegion: "us-east-2", ssmViaService: "ssm.us-east-2.amazonaws.com"})},
+		{"--read-only --ssm-path --ssm-kms", []string{"prod", iamBucket, "--read-only", "--ssm-path", iamSSMPath, "--ssm-kms", iamKMSKey},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamBucket, readOnly: true, ssmPath: iamSSMPath, ssmKMS: iamKMSKey, ssmRegion: "us-east-2", ssmViaService: "ssm.us-east-2.amazonaws.com"})},
+		{"--read-only --ssm --partition aws-cn", []string{"prod", iamCNBucket, "--read-only", "--partition", "aws-cn", "--account", iamAccount, "--ssm-path", iamSSMPath, "--ssm-kms", iamCNKMSKey},
+			iamWantedPolicy(iamRender{estate: "prod", bucket: iamCNBucket, readOnly: true, partition: "aws-cn", account: iamAccount, ssmPath: iamSSMPath, ssmKMS: iamCNKMSKey, ssmRegion: "cn-north-1", ssmViaService: "ssm.cn-north-1.amazonaws.com.cn"})},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			wantRaw, err := json.Marshal(tc.want)
@@ -744,6 +805,10 @@ var iamWritingActions = []string{
 	"s3:DeleteObjectVersionTagging", "s3:AbortMultipartUpload",
 	"s3:PutBucketVersioning", "s3:PutLifecycleConfiguration", "s3:PutBucketPublicAccessBlock",
 	"kms:GenerateDataKey", "kms:GenerateDataKeyWithoutPlaintext", "kms:Encrypt", "kms:ReEncryptTo",
+	// strict { secrets = "ssm" } (GitHub issue #2393): creating or deleting a
+	// secret value is a write, and so is the sweep listing the path, which
+	// only an apply makes.
+	"ssm:PutParameter", "ssm:DeleteParameter", "ssm:DeleteParameters", "ssm:GetParametersByPath",
 }
 
 // iamAllowedActions is every action a rendering ALLOWS, across all of its
@@ -792,6 +857,7 @@ func TestIAMReadOnlyRenderingAllowsNoWrite(t *testing.T) {
 		{"--kms", []string{"prod", iamBucket, "--kms", iamKMSKey}},
 		{"--account and a dependency", []string{"prod", iamBucket, "--account", iamAccount, "--reads-outputs-of", "network"}},
 		{"--key-prefix", []string{"prod", iamBucket, "--key-prefix", "team/prod"}},
+		{"--ssm-path --ssm-kms", []string{"prod", iamBucket, "--ssm-path", iamSSMPath, "--ssm-kms", iamKMSKey}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			readOnly := iamAllowedActions(t, renderIAMPolicy(t, append(append([]string{}, tc.args...), "--read-only")...))
@@ -824,6 +890,21 @@ func TestIAMReadOnlyRenderingAllowsNoWrite(t *testing.T) {
 				}
 				if !readOnly["kms:Decrypt"] {
 					t.Error("the --read-only rendering with --kms does not allow kms:Decrypt, so it cannot read an encrypted record")
+				}
+			}
+			// The SSM half (#2393): an apply creates and deletes secret
+			// values, a plan reads them.
+			if strings.Contains(strings.Join(tc.args, " "), "--ssm-path") {
+				for _, a := range []string{"ssm:PutParameter", "ssm:DeleteParameter", "ssm:GetParametersByPath", "kms:Encrypt"} {
+					if !full[a] {
+						t.Errorf("the full rendering with --ssm-path does not allow %s", a)
+					}
+				}
+				if !readOnly["ssm:GetParameters"] || !readOnly["kms:Decrypt"] {
+					t.Errorf("the --read-only rendering with --ssm-path cannot read a secret value back: %v", readOnly)
+				}
+				if readOnly["kms:DescribeKey"] {
+					t.Error("the --read-only rendering allows kms:DescribeKey, which only the first-contact contract asks for")
 				}
 			}
 		})
@@ -1295,6 +1376,8 @@ func TestIAMRendererRefusesABucketOrKeyThatIsNotOne(t *testing.T) {
 		{"prod", iamBucket, "--account", iamAccount, "--kms", iamKMSKey, "--reads-outputs-of", "network"},
 		{"prod", iamBucket, "--read-only"},
 		{"prod", iamBucket, "--read-only", "--account", iamAccount, "--kms", iamKMSKey, "--reads-outputs-of", "network", "--key-prefix", "team/prod"},
+		{"prod", iamBucket, "--ssm-path", "/a", "--ssm-kms", iamKMSKey},
+		{"prod", iamBucket, "--ssm-path", "/team.prod/secret_values-1/", "--ssm-kms", iamKMSKey},
 	} {
 		if out, err := exec.Command("bash", append([]string{iamRenderer}, good...)...).CombinedOutput(); err != nil {
 			t.Errorf("render-policy.sh refused %v: %v\n%s", good, err, out)
@@ -1307,6 +1390,16 @@ func TestIAMRendererRefusesABucketOrKeyThatIsNotOne(t *testing.T) {
 		{"prod", iamBucket, "--read-only", "true"},
 		{"prod", iamBucket, "--read-only=true"},
 		{"prod", iamBucket, "--readonly"},
+		// GitHub issue #2393. The ssm path and key go into Resource ARNs as
+		// they stand, and each is useless without the other.
+		{"prod", iamBucket, "--ssm-path", iamSSMPath},
+		{"prod", iamBucket, "--ssm-kms", iamKMSKey},
+		{"prod", iamBucket, "--ssm-path", "choudoufu/prod", "--ssm-kms", iamKMSKey},
+		{"prod", iamBucket, "--ssm-path", "/choudoufu/*", "--ssm-kms", iamKMSKey},
+		{"prod", iamBucket, "--ssm-path", "/choudoufu//prod", "--ssm-kms", iamKMSKey},
+		{"prod", iamBucket, "--ssm-path", "/choudoufu/../prod", "--ssm-kms", iamKMSKey},
+		{"prod", iamBucket, "--ssm-path", iamSSMPath, "--ssm-kms", "alias/team-secrets"},
+		{"prod", iamBucket, "--ssm-path", iamSSMPath, "--ssm-kms", iamGovKMSKey},
 	} {
 		if out, err := exec.Command("bash", append([]string{iamRenderer}, bad...)...).CombinedOutput(); err == nil {
 			t.Errorf("render-policy.sh accepted %v:\n%s", bad, out)

@@ -352,6 +352,37 @@ the action, the role, and which policy AWS blamed.
 measures the refusal and its message on real AWS, for an estate with no root
 outputs.
 
+## Secret values in SSM
+
+```
+render-policy.sh prod <bucket> --ssm-path /choudoufu/prod/secrets \
+  --ssm-kms arn:aws:kms:us-east-2:111122223333:key/<key-id>
+```
+
+is for an estate under `strict { secrets = "ssm" }`
+([#1515](https://github.com/INTENTIUS/choudoufu/issues/1515)), with the
+`ssm` block's `path` and its customer managed key, as a key ARN. It adds:
+
+| Statement | Actions | Resource | `--read-only` |
+|---|---|---|---|
+| `KeepThisEstatesSecretParameters` | `ssm:GetParameters`, `ssm:PutParameter`, `ssm:DeleteParameter` | `parameter<path>/*` | `ssm:GetParameters` alone, as `ReadThisEstatesSecretParameters` |
+| `SweepThisEstatesSecretParameters` | `ssm:GetParametersByPath` | `parameter<path>` and `parameter<path>/*` | dropped |
+| `UseTheSecretParametersKey` | `kms:Decrypt`, `kms:Encrypt`, `kms:GenerateDataKey`, conditioned on `kms:ViaService` being SSM in the key's region | the key | `kms:Decrypt` alone |
+| `CheckTheSecretParametersKey` | `kms:DescribeKey` | the key | dropped |
+
+A plan reads a secret value and decrypts it through SSM, the same read it
+has on a record. An apply also creates a value, deletes a superseded one,
+and lists the path for the sweep that removes orphans. SSM calls
+`kms:Encrypt` for a standard parameter and `kms:GenerateDataKey` for an
+advanced one. `kms:DescribeKey` is for the first-contact contract, which
+checks that the key is customer managed and calls KMS directly, so it
+carries no `kms:ViaService`; a plan never makes first contact.
+
+The parameter ARNs take the key's region, since SSM encrypts with a key in
+its own region, and the account from `--account`, or `*` without it. The
+key policy has to name the role too, as for the bucket's key above.
+[`live/SECRETS.md`](../../../live/SECRETS.md) has the arrangement.
+
 ## GovCloud and China
 
 ```

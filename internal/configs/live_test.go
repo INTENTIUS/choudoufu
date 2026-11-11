@@ -715,7 +715,7 @@ func TestModule_liveRecordStoreRetired(t *testing.T) {
 				"examples/record-store-bucket",
 				"not migrated",
 				"no estate was on this backend",
-				"planned (#1515) and not available yet",
+				`strict { secrets = "ssm" }`,
 				`strict { secrets = "refuse" }`,
 			} {
 				if !strings.Contains(got, want) {
