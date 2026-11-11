@@ -73,9 +73,8 @@
 # skips step 2 (twins are the raw trees). The twin check must then fail with
 # E_REWRITE_INCOMPLETE; that is the red case proving the check can fail.
 #
-# Gap table source: see gap_upstream_numbers below. Set
-# UPSTREAM_SYNC_GAP_FILE to a file to read the numbers from it instead
-# (every `#NNNN` code span in it), which is where U2 repoints it.
+# Gap table source: internal/live/newruntime/gaps.json (see
+# gap_upstream_numbers below); UPSTREAM_SYNC_GAP_FILE overrides it.
 
 set -euo pipefail
 
@@ -95,15 +94,14 @@ die() {
 say() { echo "upstream-sync: $*"; }
 
 # gap_upstream_numbers prints the upstream issue and PR numbers named in the
-# gap table, one per line. Until U2 (#2337) moves the table into the repo it
-# lives in #2256's body, and this list is copied from it (2026-11-11).
+# gap table, one per line. Since U2 (#2337) the table is
+# internal/live/newruntime/gaps.json, and each row's "upstream" list holds
+# them as "#NNNN". UPSTREAM_SYNC_GAP_FILE points at another copy of that file.
+GAP_FILE_DEFAULT=internal/live/newruntime/gaps.json
 gap_upstream_numbers() {
-	if [ -n "${UPSTREAM_SYNC_GAP_FILE:-}" ]; then
-		[ -r "$UPSTREAM_SYNC_GAP_FILE" ] || die E_USAGE "UPSTREAM_SYNC_GAP_FILE=$UPSTREAM_SYNC_GAP_FILE is not readable"
-		grep -oE '`#[0-9]+`' "$UPSTREAM_SYNC_GAP_FILE" | tr -d '`#' | awk '!seen[$0]++'
-		return
-	fi
-	printf '%s\n' 4714 3472 4058 4740 4686 4693 4682 4390 4360 4697 4741 4695 4688 4746 4768 4691 4687 4726 4727 4745 4683
+	local f=${UPSTREAM_SYNC_GAP_FILE:-$GAP_FILE_DEFAULT}
+	[ -r "$f" ] || die E_USAGE "gap table $f is not readable"
+	jq -r '.rows[].upstream[]' "$f" | tr -d '#' | awk 'NF && !seen[$0]++'
 }
 
 # ---------------------------------------------------------------- arguments

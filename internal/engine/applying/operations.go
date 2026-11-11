@@ -11,6 +11,7 @@ import (
 	"log"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/configadjust"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/engine/internal/execgraph"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
@@ -63,8 +64,15 @@ type execOperations struct {
 	// use during the apply phase.
 	plugins plugins.Plugins
 
-	// opts is choudoufu's ApplyOpts (fork_apply_markers.go, #2341), or nil.
-	opts *ApplyOpts
+	// configValueAdjuster is [ApplyOpts.ConfigValueAdjuster]; nil when none.
+	configValueAdjuster configadjust.ConfigValueAdjuster
+
+	// plannedChanges are the plan's changes, read only by choudoufu's
+	// destroy-from-config hook (GitHub issue #2344, destroyFromPlan).
+	plannedChanges *plans.Changes
+
+	// instanceStateUpdate is [ApplyOpts.InstanceStateUpdate]; nil when none.
+	instanceStateUpdate InstanceStateUpdate
 }
 
 // The main operation methods of execOperations are spread across the separate
@@ -107,6 +115,7 @@ func compileExecutionGraph(ctx context.Context, plan *plans.Plan, oracle *eval.A
 	ops.workingState = NewPersistingState(plan.PriorState.DeepCopy(), persistState)
 	ops.configOracle = oracle
 	ops.plugins = plugins
+	ops.plannedChanges = plan.Changes
 
 	return compiledGraph, ops, diags
 }

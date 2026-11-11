@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/configadjust"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/lang/globalref"
@@ -66,6 +67,8 @@ type planContext struct {
 	generateConfigPath   string
 
 	driftCausingChanges map[driftMark]struct{}
+
+	configValueAdjuster configadjust.ConfigValueAdjuster // see PlanOpts
 }
 
 func newPlanContext(evalCtx *eval.EvalContext, prevRoundState *states.State, providers plugins.Providers, opts *PlanOpts) *planContext {
@@ -89,6 +92,8 @@ func newPlanContext(evalCtx *eval.EvalContext, prevRoundState *states.State, pro
 		generateConfigPath:   opts.GenerateConfigPath,
 
 		driftCausingChanges: map[driftMark]struct{}{},
+
+		configValueAdjuster: opts.ConfigValueAdjuster,
 	}
 }
 

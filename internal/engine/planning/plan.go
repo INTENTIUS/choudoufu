@@ -14,6 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/collections"
+	"github.com/intentius/choudoufu/internal/engine/configadjust"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/lang/grapheval"
@@ -49,6 +50,11 @@ type PlanOpts struct {
 	// ImportCommandTargets specified on the command line
 	ImportCommandTargets []*eval.ImportStatement
 	GenerateConfigPath   string
+
+	// ConfigValueAdjuster is choudoufu's ownership-marker seam (#2256 U4):
+	// when set, each desired managed resource instance's configuration value
+	// is adjusted before it is planned. See package configadjust.
+	ConfigValueAdjuster configadjust.ConfigValueAdjuster
 }
 
 // PlanChanges is the main entry point, taking a state snapshot from the end
