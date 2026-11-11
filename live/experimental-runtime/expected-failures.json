@@ -1,0 +1,5 @@
+{
+  "comment": "The experimental-runtime lane's expected failures (#2256 U3, #2338), read by tools/expruntime-ratchet. A placeholder until the epic's end phase measures the first list by running the lane: every entry is measured, never estimated, and carries a reason. failures: tests that fail with TOFU_X_EXPERIMENTAL_RUNTIME=1. skips: fork-owned tests that call SkipExperimental. The list only shrinks.",
+  "failures": [],
+  "skips": []
+}
