@@ -191,3 +191,47 @@ func (refusingResolver) ResolveResourceIdentity(_ context.Context, addr addrs.Ab
 	var diags tfdiags.Diagnostics
 	return providers.ImportTarget{}, false, diags.Append(tfdiags.Sourceless(tfdiags.Error, "No source for this instance's identity", addr.String()))
 }
+
+// TestNewRuntimeResolverAbsentWithRefreshSkipped: live mode always plans with
+// refresh skipped (internal/backend/local). A provider may answer the import
+// of a resolved target that does not exist with a stub, as the AWS provider
+// does for a guessed bucket name, so only the read shows the object is
+// absent. The old runtime's importState reads every import whatever -refresh
+// says; the new runtime must too, or it plans an update of the stub and the
+// apply re-plans a create ("Provider produced inconsistent final plan").
+func TestNewRuntimeResolverAbsentWithRefreshSkipped(t *testing.T) {
+	forceExperimentalRuntimeForTesting(t)
+	addr := mustResourceInstanceAddr("test_object.a")
+	m := testModuleInline(t, map[string]string{"main.tf": newRuntimeIdentitySrc})
+	p := newRuntimeIdentityProvider()
+	p.ReadResourceFn = func(req providers.ReadResourceRequest) providers.ReadResourceResponse {
+		return providers.ReadResourceResponse{NewState: cty.NullVal(req.PriorState.Type())}
+	}
+	resolver := &stubResourceIdentityResolver{addr: addr, target: providers.ImportTarget{ID: "existing-1"}}
+
+	opts := *DefaultPlanOpts
+	opts.SkipRefresh = true
+	ctx := newRuntimeIdentityContext(t, p, resolver)
+	plan, diags := ctx.Plan(context.Background(), m, states.NewState(), &opts)
+	assertNoErrors(t, diags)
+	if !hasNewRuntimeWarning(diags) {
+		t.Fatalf("the plan did not run on the new runtime; diagnostics:\n%s", diags.ErrWithWarnings())
+	}
+	change := plan.Changes.ResourceInstance(addr)
+	if change == nil {
+		t.Fatalf("no planned change for %s", addr)
+	}
+	if change.Action != plans.Create || change.Importing != nil {
+		t.Fatalf("a resolved target that reads back absent planned %s with importing %#v, want a plain create", change.Action, change.Importing)
+	}
+	if !p.ReadResourceCalled {
+		t.Errorf("the resolved import was never read, with refresh skipped")
+	}
+
+	ctx = newRuntimeIdentityContext(t, p, resolver)
+	_, diags = ctx.Apply(context.Background(), plan, m, nil)
+	assertNoErrors(t, diags)
+	if !p.ApplyResourceChangeCalled {
+		t.Errorf("the create was never applied")
+	}
+}

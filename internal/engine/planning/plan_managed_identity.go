@@ -103,3 +103,34 @@ func processResolvedImport(
 	}
 	return nil, nil, false, diags
 }
+
+// refreshResolvedImport refreshes a resolved import when the plan skips
+// refresh. The old runtime's importState refreshes every import it makes,
+// whatever -refresh says, and judges a resolved object that reads back null
+// absent ("Cannot import non-existent remote object", one of
+// [identityresolve.ImportAbsent]'s shapes). Live mode always plans with
+// refresh skipped, because its prior state was read from the cloud a moment
+// before (internal/backend/local), so without this an import the provider
+// answers with a stub for an object that does not exist is planned as an
+// update of that stub, and the apply re-plans it as a create.
+//
+// absent is true, with nil state, when the object reads back null; the
+// caller plans a create. Otherwise the refreshed state and its encoding are
+// returned, to stand as the plan's refreshed state for the instance.
+func refreshResolvedImport(
+	ctx context.Context,
+	inst *eval.DesiredResourceInstance,
+	providerInst addrs.AbsProviderInstanceCorrect,
+	resourceType *resources.ManagedResourceType,
+	imported *resources.ManagedResourceStateWithIdentity,
+	importedFull *states.ResourceInstanceObjectFullSrc,
+) (state *resources.ManagedResourceStateWithIdentity, full *states.ResourceInstanceObjectFullSrc, absent bool, diags tfdiags.Diagnostics) {
+	state, full, diags = processRefresh(ctx, inst.Addr.CurrentObject(), providerInst, resourceType, inst.RequiredResourceInstances, imported, importedFull)
+	if diags.HasErrors() {
+		return nil, nil, false, diags
+	}
+	if state == nil || state.Value.IsNull() {
+		return nil, nil, true, diags
+	}
+	return state, full, false, diags
+}
