@@ -238,6 +238,18 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 		ret.PlaceholderValue = prevState.Value
 	}
 
+	// choudoufu identity resolution (#2256 U6): the resolver's answer for an
+	// instance with no prior object becomes an import statement.
+	resolvedImport := false
+	if meta.ImportStatement == nil && prevState == nil && !p.planCtx.skipImport && p.planCtx.identityResolver != nil && !isGeneratingConfiguration {
+		stmt, moreDiags := p.resolveImportStatement(ctx, inst, resourceType)
+		diags = diags.Append(moreDiags)
+		if diags.HasErrors() {
+			return ret, diags
+		}
+		meta.ImportStatement, resolvedImport = stmt, stmt != nil
+	}
+
 	importing := !p.planCtx.skipImport && meta.ImportStatement != nil
 	if importing && prevState != nil {
 		if !meta.ImportStatement.FromConfig() {
@@ -254,14 +266,22 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 
 	var planImport *plans.Importing
 	var planGenConfig string
+	if importing && resolvedImport {
+		// choudoufu (#2256 U6): an absent object plans a create.
+		var resolvedAbsent bool
+		prevState, ret.UpgradedState, resolvedAbsent, moreDiags = processResolvedImport(ctx, inst.Addr.CurrentObject(), providerInst, meta.Provider, resourceType, meta.ImportStatement)
+		importing = !resolvedAbsent
+	}
 	if importing {
-		prevState, ret.UpgradedState, moreDiags = processImport(
-			ctx,
-			inst.Addr.CurrentObject(),
-			providerInst,
-			resourceType,
-			meta.ImportStatement,
-		)
+		if !resolvedImport {
+			prevState, ret.UpgradedState, moreDiags = processImport(
+				ctx,
+				inst.Addr.CurrentObject(),
+				providerInst,
+				resourceType,
+				meta.ImportStatement,
+			)
+		}
 		diags = diags.Append(moreDiags)
 		if diags.HasErrors() {
 			return ret, diags
@@ -350,6 +370,16 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 			ret.PlaceholderValue = prevState.Value
 		}
 
+		// choudoufu (#2256 U6): a resolved object gone by refresh plans a create.
+		if importing && resolvedImport && (prevState == nil || prevState.Value.IsNull()) {
+			importing, planImport, prevState = false, nil, nil
+			ret.UpgradedState, ret.RefreshedState, ret.UpgradedValue, ret.RefreshedValue = nil, nil, cty.NilVal, cty.NilVal
+			ret.PlaceholderValue, moreDiags = resourceType.NullValue(ctx)
+			diags = diags.Append(moreDiags)
+			if diags.HasErrors() {
+				return ret, diags
+			}
+		}
 		// verify the existence of the imported resource
 		if importing && (prevState == nil || prevState.Value.IsNull()) {
 			var diags tfdiags.Diagnostics

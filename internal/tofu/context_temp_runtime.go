@@ -273,6 +273,9 @@ func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, pre
 
 		// choudoufu ownership markers (#2256 U4).
 		ConfigValueAdjuster: c.configValueAdjuster,
+		// choudoufu identity resolution (#2256 U6): a nil resolver stays a
+		// nil interface here, so the engine never asks.
+		IdentityResolver: c.resourceIdentityResolver,
 	}
 
 	plan, moreDiags := planning.PlanChanges(ctx, newOpts, prevRoundState, configInst, plugins)
