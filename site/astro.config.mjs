@@ -162,6 +162,7 @@ export default defineConfig({
 						{ label: 'Identity', slug: 'how-it-works/identity' },
 						{ label: 'Records', slug: 'how-it-works/values' },
 						{ label: 'The cache', slug: 'how-it-works/cache' },
+						{ label: 'Upstream OpenTofu', slug: 'how-it-works/upstream' },
 					],
 				},
 				// Working across states. Locking comes first, since a state lock is why
