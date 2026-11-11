@@ -743,8 +743,13 @@ func (p *planGlue) planUnwantedManagedResourceInstanceObject(
 		return ret, diags
 	}
 
+	// choudoufu (GitHub issue #2344): destroy-from-config provider overrides.
+	deleteCurrent := prevState.ValueWithPrivate
+	deleteCurrent.Value, moreDiags = p.destroyFromConfig(ctx, meta, providerInstAddr, addr, deleteCurrent.Value)
+	diags = diags.Append(moreDiags)
+
 	planResp, planDiags := resourceType.PlanChanges(ctx, &resources.ManagedResourcePlanRequest{
-		Current:      prevState.ValueWithPrivate,
+		Current:      deleteCurrent,
 		DesiredValue: cty.NilVal, // we want to destroy this object
 	}, addr)
 	diags = diags.Append(planDiags)
@@ -770,7 +775,7 @@ func (p *planGlue) planUnwantedManagedResourceInstanceObject(
 		RequiredReplace: planResp.RequiresReplace,
 		Private:         planResp.Planned.Private,
 		Action:          plans.Delete,
-		Before:          prevState.Value,
+		Before:          deleteCurrent.Value,
 		After:           planResp.Planned.Value,
 
 		// TODO: ActionReason, but need to figure out how to get the information

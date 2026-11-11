@@ -101,6 +101,15 @@ type ConfiguredResourceInstanceObjectMeta struct {
 	ImportStatement *ImportStatement
 
 	OrphanActionReason plans.ResourceInstanceChangeActionReason
+
+	// DestroyConfigValue is choudoufu's (GitHub issue #2309, #2344): it
+	// returns the evaluated configuration of a resource instance that is
+	// still declared, so that destroy-from-config provider overrides can use
+	// configured destroy-time arguments when the object is deleted. It is a
+	// function so that only the planning engine evaluates it; the apply
+	// engine must not, since a dependency of the configuration may itself be
+	// being deleted. Nil when the instance is not declared in this module.
+	DestroyConfigValue func(ctx context.Context) cty.Value
 }
 
 // ResourceInstanceObjectProvider describes the provider-related metadata
