@@ -299,7 +299,6 @@ func adoptOne(ctx context.Context, req AdoptRequest, roster *registry.Roster, e 
 		TypeName:      tfType,
 		PriorState:    imported.State,
 		Private:       imported.Private,
-		ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
 		PriorIdentity: imported.Identity,
 	})
 	if read.Diagnostics.HasErrors() {

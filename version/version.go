@@ -73,6 +73,38 @@ func IsDev() bool {
 	return Prerelease == "dev"
 }
 
+// IsReleaseBuild reports whether this binary was built for release: the
+// linker set dev to "no", as .github/workflows/release.yml does. choudoufu
+// addition (GitHub issue #2336).
+//
+// It is not the same question as IsDev, which reads the version string.
+// Releases between upstream tags are built on upstream main, whose VERSION
+// reads like 1.14.0-dev, and init copies that prerelease when dev is "no",
+// so a release build has Prerelease "dev" and IsDev is true. Anything that
+// must stay closed in a release, such as the new runtime's opt-in
+// variables, asks this instead.
+func IsReleaseBuild() bool {
+	if releaseBuildForTesting != nil {
+		return *releaseBuildForTesting
+	}
+	return dev == "no"
+}
+
+// releaseBuildForTesting overrides IsReleaseBuild when non-nil. Only tests
+// set it, through SetReleaseBuildForTesting.
+var releaseBuildForTesting *bool
+
+// SetReleaseBuildForTesting makes IsReleaseBuild return on, so a test in
+// any package can check what a release build does without building one with
+// linker flags. It changes nothing else: Version and Prerelease keep what
+// init computed. It returns a function that restores the previous setting.
+// Never call it outside a test.
+func SetReleaseBuildForTesting(on bool) (restore func()) {
+	prev := releaseBuildForTesting
+	releaseBuildForTesting = &on
+	return func() { releaseBuildForTesting = prev }
+}
+
 func IsNightly() bool {
 	// Nightlies are technically pre-releases
 	return strings.HasPrefix(Prerelease, "nightly")

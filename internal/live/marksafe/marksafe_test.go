@@ -43,6 +43,9 @@ var pkgUnscanned = map[string]string{
 // from it. That is the population issue #240's eight panics came from.
 var guardedPackages = []string{
 	"acceptance",
+	// #2256's new-runtime gap table and refusals read configuration
+	// structure, plan actions and state shape, and make no cty value calls.
+	"newruntime",
 	// GitHub issue #2309's provider overrides read provider requests and
 	// responses. Core unmarks every value before a provider call, so none
 	// should carry a mark; held to zero unproven sites all the same.

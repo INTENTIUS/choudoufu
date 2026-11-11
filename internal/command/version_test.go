@@ -11,18 +11,16 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/hashicorp/go-version"
+	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/command/workdir"
-	"github.com/mitchellh/cli"
+	"github.com/intentius/choudoufu/internal/modsdir"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/depsfile"
 	"github.com/intentius/choudoufu/internal/getproviders"
 	tfversion "github.com/intentius/choudoufu/version"
 )
-
-func TestVersionCommand_implements(t *testing.T) {
-	var _ cli.Command = &VersionCommand{}
-}
 
 func TestVersion(t *testing.T) {
 	td := t.TempDir()
@@ -46,17 +44,18 @@ func TestVersion(t *testing.T) {
 	)
 
 	view, done := testView(t)
-	c := &VersionCommand{
-		WorkingDir:        workdir.NewDir("."),
-		View:              view,
-		Version:           "4.5.6",
-		VersionPrerelease: "foo",
-		Platform:          getproviders.Platform{OS: "aros", Arch: "riscv64"},
+	meta := Meta{
+		WorkingDir: workdir.NewDir("."),
+		View:       view,
 	}
-	if err := c.replaceLockedDependencies(context.Background(), locks); err != nil {
+	if err := meta.replaceLockedDependencies(context.Background(), locks); err != nil {
 		t.Fatal(err)
 	}
-	code := c.Run([]string{})
+
+	version := "4.5.6"
+	versionPrerelease := "foo"
+	platform := getproviders.Platform{OS: "aros", Arch: "riscv64"}
+	code := RunCommander(t, VersionCommander(version, versionPrerelease, platform), meta, []string{})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("bad: \n%s", output.Stderr())
@@ -72,20 +71,16 @@ func TestVersion(t *testing.T) {
 
 func TestVersion_flags(t *testing.T) {
 	view, done := testView(t)
-	m := Meta{
+	meta := Meta{
 		WorkingDir: workdir.NewDir("."),
 		View:       view,
 	}
 
-	// `tofu version`
-	c := &VersionCommand{
-		Meta:              m,
-		Version:           "4.5.6",
-		VersionPrerelease: "foo",
-		Platform:          getproviders.Platform{OS: "aros", Arch: "riscv64"},
-	}
+	version := "4.5.6"
+	versionPrerelease := "foo"
+	platform := getproviders.Platform{OS: "aros", Arch: "riscv64"}
 
-	code := c.Run([]string{"-v", "-version"})
+	code := RunCommander(t, VersionCommander(version, versionPrerelease, platform), meta, []string{"-v", "-version"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("bad: \n%s", output.Stderr())
@@ -151,12 +146,9 @@ func TestVersion_json(t *testing.T) {
 	}
 
 	// `tofu version -json` without prerelease
-	c := &VersionCommand{
-		Meta:     meta,
-		Version:  "4.5.6",
-		Platform: getproviders.Platform{OS: "aros", Arch: "riscv64"},
-	}
-	code := c.Run([]string{"-json"})
+	version := "4.5.6"
+	platform := getproviders.Platform{OS: "aros", Arch: "riscv64"}
+	code := RunCommander(t, VersionCommander(version, "", platform), meta, []string{"-json"})
 	output := done(t)
 	if code != 0 {
 		t.Fatalf("bad: \n%s", output.Stderr())
@@ -197,16 +189,13 @@ func TestVersion_json(t *testing.T) {
 	)
 
 	// `tofu version -json` with prerelease and provider dependencies
-	c = &VersionCommand{
-		Meta:              meta,
-		Version:           "4.5.6",
-		VersionPrerelease: "foo",
-		Platform:          getproviders.Platform{OS: "aros", Arch: "riscv64"},
-	}
-	if err := c.replaceLockedDependencies(context.Background(), locks); err != nil {
+	if err := meta.replaceLockedDependencies(context.Background(), locks); err != nil {
 		t.Fatal(err)
 	}
-	code = c.Run([]string{"-json"})
+	version = "4.5.6"
+	versionPrerelease := "foo"
+	platform = getproviders.Platform{OS: "aros", Arch: "riscv64"}
+	code = RunCommander(t, VersionCommander(version, versionPrerelease, platform), meta, []string{"-json"})
 	output = done(t)
 	if code != 0 {
 		t.Fatalf("bad: \n%s", output.Stderr())
@@ -226,5 +215,78 @@ func TestVersion_json(t *testing.T) {
 `)
 	if diff := cmp.Diff(expected, actual); diff != "" {
 		t.Fatalf("wrong output\n%s", diff)
+	}
+}
+
+func TestModuleVersions(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		records []modsdir.Record
+		expect  []views.ModuleVersion
+	}{
+		{
+			name: "one module",
+			records: []modsdir.Record{
+				{
+					Key:        "eks_cluster",
+					SourceAddr: "registry.opentofu.org/terraform-aws-modules/eks/aws",
+					Version:    version.Must(version.NewVersion("0.1.0")),
+				},
+			},
+			expect: []views.ModuleVersion{
+				{
+					Source:  "registry.opentofu.org/terraform-aws-modules/eks/aws",
+					Version: "0.1.0",
+				},
+			},
+		},
+		{
+			name: "module and submodule",
+			records: []modsdir.Record{
+				{
+					Key:        "eks_cluster",
+					SourceAddr: "registry.opentofu.org/terraform-aws-modules/eks/aws",
+					Version:    version.Must(version.NewVersion("0.1.0")),
+				},
+				{
+					Key:        "eks_cluster.hello",
+					SourceAddr: "./modules/hello",
+				},
+			},
+			expect: []views.ModuleVersion{
+				{
+					Source:  "registry.opentofu.org/terraform-aws-modules/eks/aws",
+					Version: "0.1.0",
+				},
+				{
+					Source:  "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/hello",
+					Version: "0.1.0",
+				},
+			},
+		},
+		{
+			name: "no parent",
+			records: []modsdir.Record{
+				{
+					Key:        "eks_cluster.hello",
+					SourceAddr: "./modules/hello",
+				},
+			},
+			expect: []views.ModuleVersion{
+				{Source: "./modules/hello"},
+			},
+		},
+		{
+			name:    "no modules",
+			records: []modsdir.Record{},
+			expect:  nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mv := readModuleVersions(tc.records)
+			if diff := cmp.Diff(tc.expect, mv); diff != "" {
+				t.Fatalf("wrong output\n%s", diff)
+			}
+		})
 	}
 }

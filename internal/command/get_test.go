@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/intentius/choudoufu/internal/getmodules"
-	"github.com/mitchellh/cli"
 )
 
 func TestGet(t *testing.T) {
@@ -57,7 +56,7 @@ func TestGet_multipleArgs(t *testing.T) {
 	}
 	code := RunCommander(t, GetCommander(), meta, args)
 	getOutput := getDone(t)
-	if code != cli.RunResultHelp {
+	if code != RunResultHelp {
 		t.Fatalf("bad: \n%s", getOutput.Stdout())
 	}
 }
@@ -193,7 +192,7 @@ func TestGetCommand_InvalidArgs(t *testing.T) {
 
 			code := RunCommander(t, GetCommander(), meta, tc.args)
 			getOutput := getDone(t)
-			if code != cli.RunResultHelp {
+			if code != RunResultHelp {
 				t.Errorf("Expected error code 1 for invalid arguments, got %d", code)
 			}
 

@@ -16,7 +16,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mitchellh/cli"
 	"github.com/zclconf/go-cty/cty/convert"
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
@@ -61,21 +60,13 @@ import (
 // of each unit (by module call) whose tool selected a non-default one.
 var jointPublishWorkspaces map[string]string
 
+// jointCommand is one plan, apply, show or output invocation offered to the
+// joint run. command_main.go hands each one to JointIntercept before the
+// ordinary command runs; there is no wrapped command to fall back to, since
+// upstream removed mitchellh/cli's command factories in 1.14.
 type jointCommand struct {
-	cli.Command
 	name string
 	meta Meta
-}
-
-// JointWrap wraps the factory of plan, apply, show or output.
-func JointWrap(name string, meta Meta, f func() (cli.Command, error)) func() (cli.Command, error) {
-	return func() (cli.Command, error) {
-		inner, err := f()
-		if err != nil {
-			return nil, err
-		}
-		return &jointCommand{Command: inner, name: name, meta: meta}, nil
-	}
 }
 
 // JointIntercept offers an invocation to the joint run before the ordinary
@@ -83,13 +74,6 @@ func JointWrap(name string, meta Meta, f func() (cli.Command, error)) func() (cl
 // invocation that is not part of a multi-unit Terragrunt or Atmos run.
 func JointIntercept(name string, meta Meta, args []string) (int, bool) {
 	return (&jointCommand{name: name, meta: meta}).try(args)
-}
-
-func (c *jointCommand) Run(args []string) int {
-	if code, ok := c.try(args); ok {
-		return code
-	}
-	return c.Command.Run(args)
 }
 
 func (c *jointCommand) try(args []string) (int, bool) {

@@ -698,15 +698,9 @@ func recordResidueFor(ctx context.Context, store *projection.RecordStore, secret
 	}
 	read := func(prior cty.Value) (cty.Value, error) {
 		resp := e.provider.ReadResource(ctx, providers.ReadResourceRequest{
-			TypeName:   e.typeName,
-			PriorState: prior,
-			Private:    e.private,
-			// The same null-of-dynamic every other read in this package and
-			// projection's own residue path pass, and for the same reason:
-			// the plugin client marshals ProviderMeta whenever the provider
-			// declares a provider_meta schema, and a value with no type at
-			// all panics the conformance check.
-			ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
+			TypeName:      e.typeName,
+			PriorState:    prior,
+			Private:       e.private,
 			PriorIdentity: e.identity,
 		})
 		if resp.Diagnostics.HasErrors() {
@@ -895,12 +889,7 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 			ProposedNewState: objchange.ProposedNew(e.schema.Block, e.applied, candidate),
 			Config:           candidate,
 			PriorPrivate:     e.private,
-			// A null of the dynamic pseudo-type, not the zero cty.Value: the
-			// plugin client marshals ProviderMeta whenever the provider declares
-			// a provider_meta schema, and a value with no type at all panics the
-			// conformance check. See mv's rewrite.go, same call.
-			ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
-			PriorIdentity: e.identity,
+			PriorIdentity:    e.identity,
 		})
 		if why := notATagsOnlyPlan(e.schema.Block, e.applied, e.typeName, resp, e.armInBody); why != "" {
 			// Kept, not returned: if no candidate produces a clean plan, the
@@ -925,7 +914,6 @@ func approveOne(ctx context.Context, estate string, addr addrs.AbsResourceInstan
 		PlannedState:    planResp.PlannedState,
 		Config:          configVal,
 		PlannedPrivate:  planResp.PlannedPrivate,
-		ProviderMeta:    cty.NullVal(cty.DynamicPseudoType),
 		PlannedIdentity: planResp.PlannedIdentity,
 	})
 	if applyResp.Diagnostics.HasErrors() {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/shared"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -52,6 +53,17 @@ type Tracer struct {
 	StartManagedResourceInstanceObjectPlanning func(ctx context.Context, addr addrs.AbsResourceInstanceObject) context.Context
 	EndManagedResourceInstanceObjectPlanning   func(ctx context.Context, addr addrs.AbsResourceInstanceObject, diags tfdiags.Diagnostics)
 
+	// StartManagedResourceInstanceObjectMove and
+	// EndManagedResourceInstanceObjectMove mark the beginning and end
+	// of the "state move" step for the identified managed resource instance
+	// object.
+	//
+	// These events always occur between calls to
+	// StartManagedResourceInstanceObjectPlanning and
+	// EndManagedResourceInstanceObjectPlanning for the same object address.
+	StartManagedResourceInstanceObjectMove func(ctx context.Context, addr addrs.AbsResourceInstanceObject) context.Context
+	EndManagedResourceInstanceObjectMove   func(ctx context.Context, addr addrs.AbsResourceInstanceObject, upgradedVal cty.Value, diags tfdiags.Diagnostics)
+
 	// StartManagedResourceInstanceObjectUpgrade and
 	// EndManagedResourceInstanceObjectUpgrade mark the beginning and end
 	// of the "state upgrade" step for the identified managed resource instance
@@ -73,6 +85,17 @@ type Tracer struct {
 	// EndManagedResourceInstanceObjectPlanning for the same object address.
 	StartManagedResourceInstanceObjectRefresh func(ctx context.Context, addr addrs.AbsResourceInstanceObject, prevRoundVal cty.Value) context.Context
 	EndManagedResourceInstanceObjectRefresh   func(ctx context.Context, addr addrs.AbsResourceInstanceObject, prevRoundVal, refreshedVal cty.Value, diags tfdiags.Diagnostics)
+
+	// StartManagedResourceInstanceObjectImport and
+	// EndManagedResourceInstanceObjectImport mark the beginning and end
+	// of the "import" step for the identified managed resource instance
+	// object.
+	//
+	// These events always occur between calls to
+	// StartManagedResourceInstanceObjectPlanning and
+	// EndManagedResourceInstanceObjectPlanning for the same object address.
+	StartManagedResourceInstanceObjectImport func(ctx context.Context, addr addrs.AbsResourceInstanceObject, identity providers.ImportTarget) context.Context
+	EndManagedResourceInstanceObjectImport   func(ctx context.Context, addr addrs.AbsResourceInstanceObject)
 
 	// StartManagedResourceInstanceObjectPlanChanges and
 	// EndManagedResourceInstanceObjectPlanChanges mark the beginning and end

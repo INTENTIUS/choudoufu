@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -425,6 +426,26 @@ func (c *Context) Import(ctx context.Context, config *configs.Config, prevRunSta
 
 	// Hold a lock since we can modify our own state here
 	defer c.acquireRun("import")()
+
+	// TEMP: Opt-in support for testing with the new experimental language
+	// runtime. Refer to backend_temp_new_runtime.go for more information.
+	if experimentalRuntimeEnabled() {
+		// choudoufu (#2256 end phase): the import command passes no state
+		// when none exists yet, which the old runtime tolerates and the new
+		// planner dereferences; and a failed plan may be nil.
+		if prevRunState == nil {
+			prevRunState = states.NewState()
+		}
+		plan, diags := c.newEnginePlan(ctx, config, prevRunState, &PlanOpts{
+			Mode:          plans.RefreshOnlyMode,
+			SetVariables:  opts.SetVariables,
+			ImportTargets: opts.Targets,
+		})
+		if plan == nil || plan.Errored || diags.HasErrors() {
+			return prevRunState, diags
+		}
+		return plan.PriorState, diags
+	}
 
 	// Don't modify our caller's state
 	state := prevRunState.DeepCopy()

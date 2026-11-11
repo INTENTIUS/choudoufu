@@ -18,10 +18,10 @@ import (
 	"github.com/intentius/choudoufu/internal/terminal"
 )
 
-// liveCommandNames are this fork's thirteen live-* commands. Under OpenTofu
-// v1.13.0 the default CLI is commandMain's urfave/cli tree, built from
-// command.RootCommander rather than from the legacy commands map, so each
-// has to be reachable there as well as in initCommands.
+// liveCommandNames are this fork's live-* commands (and investigate, mcp).
+// The CLI is commandMain's urfave/cli tree, built from
+// command.RootCommander; upstream removed the legacy mitchellh/cli commands
+// map in 1.14, so RootCommander is the only place each has to be reachable.
 var liveCommandNames = []string{"live-check", "live-plan", "live-mv", "live-import", "live-ls", "live-bucket", "live-cluster", "live-summary", "live-affected", "live-cone", "live-history", "live-graph", "live-plan-set", "live-waves", "live-wave-apply", "investigate", "mcp"}
 
 // TestCommandMainRoutesLiveCommands is the routing half of GitHub issue
@@ -45,24 +45,13 @@ func TestCommandMainRoutesLiveCommands(t *testing.T) {
 			t.Errorf("the new CLI routes %q to %q, so the default CLI cannot run it", name, got)
 		}
 	}
-
-	// The legacy CLI (TOFU_EXPERIMENTAL_CLI_ENABLED=false) is v1.13.x's
-	// fallback and keeps its own map.
-	oldCommands := commands
-	t.Cleanup(func() { commands = oldCommands })
-	initCommands(command.Meta{})
-	for _, name := range liveCommandNames {
-		if _, ok := commands[name]; !ok {
-			t.Errorf("%s is missing from the legacy CLI's command map", name)
-		}
-	}
 }
 
 // TestCommandMainRunsLiveCommands runs commands end to end through
 // commandToCli, the function commandMain hands os.Args to, over the
 // live-block fixture: live-check -json, which needs neither a cloud nor a
 // provider, and force-unlock, which liveCommandGuard must refuse before
-// any backend is opened. Neither path consults the legacy commands map.
+// any backend is opened.
 func TestCommandMainRunsLiveCommands(t *testing.T) {
 	fixture, err := filepath.Abs(filepath.Join("..", "..", "internal", "command", "testdata", "live-block"))
 	if err != nil {

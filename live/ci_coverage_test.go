@@ -134,6 +134,14 @@ var forkOwnedMixedRoots = []string{
 	"internal/configs",
 	"internal/e2e",
 	"internal/engine/applying",
+	// #2256 U4/U5: copies of internal/tofu's adjuster and marker
+	// interfaces, so internal/engine never imports internal/tofu.
+	"internal/engine/configadjust",
+	// #2256 U6: the identity resolver's interface and its shared rules.
+	"internal/engine/identityresolve",
+	// #2256 U6 and U8: plan_managed_identity.go (identity resolution
+	// through upstream's import path) and destroy_from_config.go.
+	"internal/engine/planning",
 	"internal/plans",
 	"internal/plugin",
 	"internal/plugin6",
@@ -164,7 +172,7 @@ var forkOwnedMixedRoots = []string{
 // checkUpstreamBase below asserts the ancestry rather than trusting this
 // comment, so a repin to a commit only a local clone can see fails here
 // instead of only in CI.
-const upstreamBaseCommit = "93bb2800b4face7cac17f04fb52f758c71ed7a2f"
+const upstreamBaseCommit = "5d5d38aed5f40820295ec9afb0664f80669e1b75"
 
 // ciExcludedPackages names a fork-owned test package CI deliberately does
 // not run, and why. Empty is the intended state. An entry here is a

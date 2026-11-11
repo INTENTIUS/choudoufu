@@ -26,10 +26,18 @@ import (
 )
 
 func (m *Meta) NewRuntimeEnabled() bool {
-	if !version.IsNightly() && !version.IsDev() {
+	// choudoufu (GitHub issue #2336): closed in release builds, read from
+	// the release linker flag rather than the version string, which reads
+	// as -dev in a release built on upstream main. See
+	// internal/tofu's experimentalRuntimeEnabled.
+	if version.IsReleaseBuild() {
 		return false
 	}
-	optIn := os.Getenv("TOFU_X_EXPERIMENTAL_RUNTIME")
+	// This is not yet stable enough for day to day use and actively
+	// hampers testing the rest of the new runtime that we actually
+	// plan to ship. This will likely be focused on during the release
+	// after the new runtime is marked as stable.
+	optIn := os.Getenv("TOFU_X_EXPERIMENTAL_RUNTIME_NEXT")
 	return optIn != ""
 }
 

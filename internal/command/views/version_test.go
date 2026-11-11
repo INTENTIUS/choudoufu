@@ -26,7 +26,7 @@ func TestVersionViews(t *testing.T) {
 			viewCall: func(v Version) {
 				v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, map[string]string{
 					"registry.opentofu.org/test/test": "0.2.0",
-				})
+				}, nil)
 			},
 			wantStdout: `OpenTofu v0.1.0-dev
 on darwin_arm64
@@ -39,7 +39,7 @@ on darwin_arm64
 			viewCall: func(v Version) {
 				v.PrintVersion("0.1.0", "dev", "darwin_arm64", true, map[string]string{
 					"registry.opentofu.org/test/test": "0.2.0",
-				})
+				}, nil)
 			},
 			wantStdout: `OpenTofu v0.1.0-dev
 on darwin_arm64
@@ -53,7 +53,7 @@ running in FIPS 140-3 mode (not yet supported)
 			viewCall: func(v Version) {
 				v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, map[string]string{
 					"registry.opentofu.org/test/test": "0.0.0",
-				})
+				}, nil)
 			},
 			wantStdout: `OpenTofu v0.1.0-dev
 on darwin_arm64
@@ -66,7 +66,7 @@ on darwin_arm64
 			viewCall: func(v Version) {
 				v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, map[string]string{
 					"registry.opentofu.org/test/test": "0.2.0",
-				})
+				}, nil)
 			},
 			wantStdout: `{
   "choudoufu_version": "",
@@ -84,7 +84,7 @@ on darwin_arm64
 			viewCall: func(v Version) {
 				v.PrintVersion("0.1.0", "dev", "darwin_arm64", true, map[string]string{
 					"registry.opentofu.org/test/test": "0.2.0",
-				})
+				}, nil)
 			},
 			wantStdout: `{
   "choudoufu_version": "",
@@ -103,7 +103,7 @@ on darwin_arm64
 			viewCall: func(v Version) {
 				v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, map[string]string{
 					"registry.opentofu.org/test/test": "0.0.0",
-				})
+				}, nil)
 			},
 			wantStdout: `{
   "choudoufu_version": "",
@@ -116,6 +116,126 @@ on darwin_arm64
 `,
 			wantStderr: "",
 		},
+		"json printVersion with modules": {
+			viewType: arguments.ViewJSON,
+			viewCall: func(v Version) {
+				v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, map[string]string{}, []ModuleVersion{
+					{Source: "registry.opentofu.org/terraform-aws-modules/eks/aws", Version: "20.24.0"},
+				})
+			},
+			wantStdout: `{
+  "choudoufu_version": "",
+  "terraform_version": "0.1.0-dev",
+  "platform": "darwin_arm64",
+  "provider_selections": {},
+  "module_selections": [
+    {
+      "source": "registry.opentofu.org/terraform-aws-modules/eks/aws",
+      "version": "20.24.0"
+    }
+  ]
+}
+`,
+			wantStderr: "",
+		},
+		"human printVersion with modules": {
+			viewType: arguments.ViewHuman,
+			viewCall: func(v Version) {
+				v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, map[string]string{}, []ModuleVersion{
+					{Source: "registry.opentofu.org/terraform-aws-modules/eks/aws", Version: "20.24.0"},
+				})
+			},
+			wantStdout: `OpenTofu v0.1.0-dev
+on darwin_arm64
++ module registry.opentofu.org/terraform-aws-modules/eks/aws v20.24.0
+`,
+			wantStderr: "",
+		},
+		"human printVersion with nested modules": {
+			viewType: arguments.ViewHuman,
+			viewCall: func(v Version) {
+				v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, map[string]string{}, []ModuleVersion{
+					{Source: "registry.opentofu.org/terraform-aws-modules/eks/aws", Version: "20.24.0"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/_user_data", Version: "20.24.0"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/eks-managed-node-group", Version: "20.24.0"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/fargate-profile", Version: "20.24.0"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/self-managed-node-group", Version: "20.24.0"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/iam/aws//modules/iam-policy", Version: "6.8.1"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/kms/aws", Version: "2.1.0"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/vpc/aws", Version: "6.7.2"},
+				})
+			},
+			wantStdout: `OpenTofu v0.1.0-dev
+on darwin_arm64
++ module registry.opentofu.org/terraform-aws-modules/eks/aws v20.24.0
++ module registry.opentofu.org/terraform-aws-modules/eks/aws//modules/_user_data v20.24.0
++ module registry.opentofu.org/terraform-aws-modules/eks/aws//modules/eks-managed-node-group v20.24.0
++ module registry.opentofu.org/terraform-aws-modules/eks/aws//modules/fargate-profile v20.24.0
++ module registry.opentofu.org/terraform-aws-modules/eks/aws//modules/self-managed-node-group v20.24.0
++ module registry.opentofu.org/terraform-aws-modules/iam/aws//modules/iam-policy v6.8.1
++ module registry.opentofu.org/terraform-aws-modules/kms/aws v2.1.0
++ module registry.opentofu.org/terraform-aws-modules/vpc/aws v6.7.2
+`,
+			wantStderr: "",
+		},
+		"json printVersion with nested modules": {
+			viewType: arguments.ViewJSON,
+			viewCall: func(v Version) {
+				v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, map[string]string{}, []ModuleVersion{
+					{Source: "registry.opentofu.org/terraform-aws-modules/eks/aws", Version: "20.24.0"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/_user_data", Version: "20.24.0"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/eks-managed-node-group", Version: "20.24.0"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/fargate-profile", Version: "20.24.0"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/self-managed-node-group", Version: "20.24.0"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/iam/aws//modules/iam-policy", Version: "6.8.1"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/kms/aws", Version: "2.1.0"},
+					{Source: "registry.opentofu.org/terraform-aws-modules/vpc/aws", Version: "6.7.2"},
+				})
+			},
+			wantStdout: `{
+  "choudoufu_version": "",
+  "terraform_version": "0.1.0-dev",
+  "platform": "darwin_arm64",
+  "provider_selections": {},
+  "module_selections": [
+    {
+      "source": "registry.opentofu.org/terraform-aws-modules/eks/aws",
+      "version": "20.24.0"
+    },
+    {
+      "source": "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/_user_data",
+      "version": "20.24.0"
+    },
+    {
+      "source": "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/eks-managed-node-group",
+      "version": "20.24.0"
+    },
+    {
+      "source": "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/fargate-profile",
+      "version": "20.24.0"
+    },
+    {
+      "source": "registry.opentofu.org/terraform-aws-modules/eks/aws//modules/self-managed-node-group",
+      "version": "20.24.0"
+    },
+    {
+      "source": "registry.opentofu.org/terraform-aws-modules/iam/aws//modules/iam-policy",
+      "version": "6.8.1"
+    },
+    {
+      "source": "registry.opentofu.org/terraform-aws-modules/kms/aws",
+      "version": "2.1.0"
+    },
+    {
+      "source": "registry.opentofu.org/terraform-aws-modules/vpc/aws",
+      "version": "6.7.2"
+    }
+  ]
+}
+`,
+			wantStderr: "",
+		},
+
 		// Diagnostics
 		"warning": {
 			viewType: arguments.ViewHuman,
@@ -193,14 +313,14 @@ func TestVersionViews_fork(t *testing.T) {
 	t.Run("human on a release build", func(t *testing.T) {
 		tfversion.Fork = "v0.2.0"
 		testVersionHuman(t, arguments.ViewHuman, func(v Version) {
-			v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, nil)
+			v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, nil, nil)
 		}, "choudoufu v0.2.0 (based on OpenTofu v0.1.0-dev)\non darwin_arm64\n", "")
 	})
 
 	t.Run("json on a release build", func(t *testing.T) {
 		tfversion.Fork = "v0.2.0"
 		testVersionHuman(t, arguments.ViewJSON, func(v Version) {
-			v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, nil)
+			v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, nil, nil)
 		}, `{
   "choudoufu_version": "v0.2.0",
   "terraform_version": "0.1.0-dev",
@@ -213,7 +333,7 @@ func TestVersionViews_fork(t *testing.T) {
 	t.Run("json on a development build", func(t *testing.T) {
 		tfversion.Fork = ""
 		testVersionHuman(t, arguments.ViewJSON, func(v Version) {
-			v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, nil)
+			v.PrintVersion("0.1.0", "dev", "darwin_arm64", false, nil, nil)
 		}, `{
   "choudoufu_version": "",
   "terraform_version": "0.1.0-dev",

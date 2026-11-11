@@ -11,7 +11,6 @@ import (
 	"iter"
 	"maps"
 
-	"github.com/apparentlymart/go-workgraph/workgraph"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
@@ -21,6 +20,8 @@ import (
 	"github.com/intentius/choudoufu/internal/lang/eval/internal/evalglue"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
 	"github.com/intentius/choudoufu/internal/lang/grapheval"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/refactoring"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -29,8 +30,7 @@ import (
 // uses to interact with tofu2024-edition modules.
 type CompiledModuleInstance struct {
 	// Any other kinds of "node" we add in future will likely need coverage
-	// added in both [CompiledModuleInstance.CheckAll] and
-	// [CompiledModuleInstance.AnnounceAllGraphevalRequests].
+	// added in [CompiledModuleInstance.CheckAll]
 	moduleInstanceNode  *configgraph.ModuleInstance
 	inputVariableNodes  map[addrs.InputVariable]*configgraph.InputVariable
 	localValueNodes     map[addrs.LocalValue]*configgraph.LocalValue
@@ -39,6 +39,9 @@ type CompiledModuleInstance struct {
 	moduleCallNodes     map[addrs.ModuleCall]*configgraph.ModuleCall
 	providerConfigNodes map[addrs.LocalProviderConfig]*configgraph.ProviderConfig
 	providerLocalNames  map[addrs.Provider]string
+
+	moveStatements []refactoring.MoveStatement
+	importNodes    []*configgraph.Import
 
 	missingProviders rootMissingProviders
 
@@ -87,6 +90,9 @@ func (c *CompiledModuleInstance) CheckAll(ctx context.Context) tfdiags.Diagnosti
 	for _, n := range c.providerConfigNodes {
 		cg.CheckChild(ctx, n)
 	}
+	for _, n := range c.importNodes {
+		cg.CheckChild(ctx, n)
+	}
 	// TODO: Once we have support for module calls we'll need to check both
 	// the calls _and_ the nested [evalglue.CompiledModuleInstance] objects
 	// that encapsulate the child contents, which might potentially use a
@@ -104,69 +110,154 @@ func (c *CompiledModuleInstance) ResultValuer(ctx context.Context) exprs.Valuer 
 }
 
 // ResourceInstanceObjectMeta implements [evalglue.CompiledModuleInstance].
-func (c *CompiledModuleInstance) ResourceInstanceObjectMeta(ctx context.Context, addr addrs.ResourceInstanceObject) *evalglue.ConfiguredResourceInstanceObjectMeta {
+func (c *CompiledModuleInstance) ResourceInstanceObjectMeta(ctx context.Context, relativeModuleInst []addrs.ModuleInstanceStep, addr addrs.AbsResourceInstanceObject) *evalglue.ConfiguredResourceInstanceObjectMeta {
+	// Start with everything we know about the resource from the module context
+	var ret *evalglue.ConfiguredResourceInstanceObjectMeta
+	// We'll populate the Provider fields below only once we have
+	// a specific resource and resource instance in mind.
+
+	if len(c.moveStatements) != 0 {
+		if ret == nil {
+			ret = new(evalglue.ConfiguredResourceInstanceObjectMeta)
+		}
+		ret.MoveStatements = c.moveStatements
+	}
+	// Add all applicable import identities from this module
+	configAddr := addr.InstanceAddr.ConfigResource()
+	for _, importNode := range c.importNodes {
+		if !importNode.Addr.Equal(configAddr) {
+			continue
+		}
+		instances, _ := importNode.Instances(ctx)
+		for _, instance := range instances {
+			statement, _ := instance.Statement(ctx)
+			if statement != nil && statement.Addr.Equal(addr.InstanceAddr) {
+				if ret == nil {
+					ret = new(evalglue.ConfiguredResourceInstanceObjectMeta)
+				}
+				// Conflicts are handled by callers of c.ImportStatements()
+				ret.ImportStatement = &evalglue.ImportStatement{
+					Addr:      statement.Addr,
+					DeclRange: &statement.DeclRange,
+					ID:        statement.ID,
+					Identity:  statement.Identity,
+				}
+
+				// Inject information that's only used in the GenConfig path
+				ret.DeclRange = statement.DeclRange
+				ret.Provider = &evalglue.ResourceInstanceObjectProvider{
+					Provider: instance.Provider,
+
+					// In this language edition the author-specified resource type always
+					// matches the provider's chosen resource type name, so we can just
+					// derive these directly from the resource address.
+					ResourceMode: addr.InstanceAddr.Resource.Resource.Mode,
+					ResourceType: addr.InstanceAddr.Resource.Resource.Type,
+				}
+
+				providerInst, _ := instance.ProviderInstance(ctx)
+				providerInstAddr, _ := providerInst.Derive(func(providerInst *configgraph.ProviderInstance) (addrs.AbsProviderInstanceCorrect, error) {
+					return providerInst.Addr, nil
+				})
+				ret.Provider.Instance = &providerInstAddr
+			}
+		}
+	}
+	// TODO: Implement collection of ancillary metadata like "removed" and "import"
+	// blocks that relate to the requested object.
+
+	if len(relativeModuleInst) != 0 {
+		return ret
+	}
+
+	// Ensure that ret exists, regarless of module statements
+	if ret == nil {
+		ret = new(evalglue.ConfiguredResourceInstanceObjectMeta)
+	}
+
+	rsrc, ok := c.resourceNodes[addr.InstanceAddr.Resource.Resource]
+	if !ok {
+		// If there's no mention of this resource in this module at all then
+		// we have nothing to say about it, and so any metadata will need to
+		// come either from an ancestor module or from the previous run state.
+		ret.OrphanActionReason = plans.ResourceInstanceDeleteBecauseNoResourceConfig
+		return ret
+	}
+
 	// We'll start with a suitable placeholder to use if there's no mention
 	// of this object in the configuration at all, and then improve it gradually
 	// as we find relevant information in the configuration.
-	ret := &evalglue.ConfiguredResourceInstanceObjectMeta{
+	ret.Provider = &evalglue.ResourceInstanceObjectProvider{
+		Provider: rsrc.Provider,
+
 		// In this language edition the author-specified resource type always
 		// matches the provider's chosen resource type name, so we can just
 		// derive these directly from the resource address.
-		Provider:     addrs.ImpliedProviderForUnqualifiedType(addr.InstanceAddr.Resource.ImpliedProvider()),
-		ResourceMode: addr.InstanceAddr.Resource.Mode,
-		ResourceType: addr.InstanceAddr.Resource.Type,
-
-		// An undeclared resource has no configured provider instance, which
-		// means that a caller can know to fall back to an address specified in
-		// the prior state, if any.
-		ProviderInstance: exprs.Known[*addrs.AbsProviderInstanceCorrect](nil),
+		ResourceMode: addr.InstanceAddr.Resource.Resource.Mode,
+		ResourceType: addr.InstanceAddr.Resource.Resource.Type,
 	}
 
-	// TODO: The logic here should also consider whether any "removed" block
-	// matches the requested object, and incorporate information derived from
-	// that block if so.
-
-	rsrc, ok := c.resourceNodes[addr.InstanceAddr.Resource]
-	if !ok {
-		// We'll just return the placeholder, then!
-		return ret
-	}
+	ret.DeclRange = rsrc.DeclRange
 
 	// In the remaining code we intentionally ignore all diagnostics from
 	// accessing the configgraph.Resource and configgraph.ResourceInstance
 	// methods because our caller is expected to collect them separately
 	// using [CompiledModuleInstance.CheckAll].
 
-	preventDestroyVal, _, _ := rsrc.PreventDestroy(ctx)
-	preventDestroy, _ := exprs.DeriveFromValue(preventDestroyVal, func(v cty.Value) (bool, error) {
-		if v.True() {
-			return true, nil
-		}
-		if v.False() {
-			return false, nil
-		}
-		// No other value is expected, based on the documentation of [configgraph.Resource.PreventDestroy].
-		panic(fmt.Sprintf("method PreventDestroy for %s returned unexpected value %#v", addr.InstanceAddr.Resource, v))
-	})
-	ret.DeletionInvalid = preventDestroy
+	preventDestroy, _ := rsrc.PreventDestroy(ctx)
+	ret.DeletionInvalid = &preventDestroy
 
-	destroyProvisioners := rsrc.DestroyProvisioners(ctx, addr.InstanceAddr)
-	ret.PreDestroyProvisioners = prepareResourceProvisioners(destroyProvisioners)
+	destroyProvisioners := rsrc.DestroyProvisioners(ctx, addr.InstanceAddr.Resource)
+	ret.PreDeleteProvisioners = prepareResourceProvisioners(destroyProvisioners)
 
 	insts := rsrc.Instances(ctx)
-	inst, ok := insts[addr.InstanceAddr.Key]
+	inst, ok := insts[addr.InstanceAddr.Resource.Key]
 	if !ok {
 		// Only the resource-level settings are used when we're dealing with
 		// a resource instance that is not currently declared in the configuration.
+		ret.OrphanActionReason = configgraph.OrphanActionForInstanceKey(rsrc.InstanceSelector, addr.InstanceAddr.Resource.Key)
+
 		return ret
 	}
 
+	// TODO: Should ReplaceOrder actually be modeled as a resource-level
+	// setting rather than an instance-level setting? For now assuming not
+	// because for non-desired objects we'll use the value from the prior state
+	// instead anyway, but we should check whether the old runtime let the
+	// resource-level config "win" for an orphaned resource instance.
+	replaceOrder, _, _ := inst.ReplaceOrder(ctx)
+	ret.ReplaceOrder = &replaceOrder
+
+	if !inst.Provider.Equals(rsrc.Provider) {
+		// If this happens then it's a bug in the code that constructed this
+		// pair of Resource and ResourceInstance, because all instances of a
+		// resource are required to agree about which provider and resource
+		// type they are associated with.
+		panic(fmt.Sprintf("resource %s uses %s, but its instance %s uses %s", rsrc.Addr, rsrc.Provider, inst.Addr, inst.Provider))
+	}
 	providerInst, _ := inst.ProviderInstance(ctx)
-	ret.ProviderInstance, _ = providerInst.Derive(func(providerInst *configgraph.ProviderInstance) (*addrs.AbsProviderInstanceCorrect, error) {
-		return &providerInst.Addr, nil
+	providerInstAddr, _ := providerInst.Derive(func(providerInst *configgraph.ProviderInstance) (addrs.AbsProviderInstanceCorrect, error) {
+		if !providerInst.Addr.Config.Config.Provider.Equals(rsrc.Provider) {
+			// If this happens then it's a bug in [ResourceInstance.ProviderInstance],
+			// because it's supposed to treat a user selecting a different
+			// provider for each instance as an evaluation error and thus return
+			// an unknown value with diagnostics, which would prevent us from
+			// getting into this callback. (This matching is also statically
+			// enforced by how the "providers sidechannel" in tofu2024 works,
+			// so even that dynamic failure is not possible in that case.)
+			panic(fmt.Sprintf("resource %s uses %s, but its instance %s selects an instance of %s", rsrc.Addr, rsrc.Provider, inst.Addr, inst.Provider))
+		}
+		return providerInst.Addr, nil
 	})
+	ret.Provider.Instance = &providerInstAddr
 
 	ret.PostCreateProvisioners = prepareResourceProvisioners(inst.CreateProvisioners)
+
+	// choudoufu (GitHub issue #2344): destroy-from-config overrides.
+	ret.DestroyConfigValue = func(ctx context.Context) cty.Value {
+		v, _ := inst.ConfigValue(ctx)
+		return v
+	}
 
 	// TODO: All of the other fields of ConfiguredResourceInstanceObjectMeta
 
@@ -349,30 +440,90 @@ func (c *CompiledModuleInstance) ResourceInstancesForResource(ctx context.Contex
 	}
 }
 
-// ResourceInstancesForResource implements evalglue.ProviderRequirements.
+// ResourceInstancesForResource implements evalglue.CompiledModuleInstance.
 func (c *CompiledModuleInstance) ProviderRequirements(ctx context.Context) (getproviders.Requirements, *getproviders.ProvidersQualification, tfdiags.Diagnostics) {
 	return c.providerRequirements(ctx)
 }
 
-// AnnounceAllGraphevalRequests implements evalglue.CompiledModuleInstance.
-func (c *CompiledModuleInstance) AnnounceAllGraphevalRequests(announce func(workgraph.RequestID, grapheval.RequestInfo)) {
-	c.moduleInstanceNode.AnnounceAllGraphevalRequests(announce)
-	for _, n := range c.inputVariableNodes {
-		n.AnnounceAllGraphevalRequests(announce)
+// ImportStatements implements evalglue.CompiledModuleInstance.
+func (c *CompiledModuleInstance) ImportStatements(ctx context.Context) []*configgraph.ImportStatement {
+	var statements []*configgraph.ImportStatement
+	for _, importNode := range c.importNodes {
+		instances, _ := importNode.Instances(ctx)
+		for _, instance := range instances {
+			statement, _ := instance.Statement(ctx)
+			if statement != nil {
+				statements = append(statements, statement)
+			}
+		}
 	}
-	for _, n := range c.localValueNodes {
-		n.AnnounceAllGraphevalRequests(announce)
+
+	return statements
+}
+
+func (c *CompiledModuleInstance) DetectImplicitMoveForAddress(ctx context.Context, addr addrs.AbsResourceInstance) *addrs.AbsResourceInstance {
+	invertKey := func(normal addrs.InstanceKey, currentType addrs.InstanceKeyType) addrs.InstanceKey {
+		switch currentType {
+		case addrs.NoKeyType:
+			if ik, ok := normal.(addrs.IntKey); ok && ik == 0 {
+				return addrs.NoKey
+			}
+		case addrs.IntKeyType:
+			if normal == addrs.NoKey {
+				return addrs.IntKey(0)
+			}
+		}
+		return normal
 	}
-	for _, n := range c.outputValueNodes {
-		n.AnnounceAllGraphevalRequests(announce)
+
+	if len(c.moduleInstanceNode.Addr) < len(addr.Module) {
+		// Find child module and recurse
+		childStep := addr.Module[len(c.moduleInstanceNode.Addr)]
+		childCall := addrs.ModuleCall{Name: childStep.Name}
+		callInstance := addrs.ModuleCallInstance{Call: childCall, Key: childStep.InstanceKey}
+
+		if instance := c.ChildModuleInstance(ctx, callInstance); instance != nil {
+			return instance.DetectImplicitMoveForAddress(ctx, addr)
+		}
+
+		call, ok := c.moduleCallNodes[childCall]
+		if !ok {
+			// Child call not found
+			return nil
+		}
+
+		callInstance.Key = invertKey(callInstance.Key, call.InstanceSelector.InstanceKeyType())
+
+		if instance := c.ChildModuleInstance(ctx, callInstance); instance != nil {
+			return instance.DetectImplicitMoveForAddress(ctx, addr)
+		}
+
+		// No child instance found
+		return nil
 	}
-	for _, n := range c.resourceNodes {
-		n.AnnounceAllGraphevalRequests(announce)
+
+	resource := c.Resource(ctx, addr.Resource.Resource)
+	if resource == nil {
+		return nil
 	}
-	for _, n := range c.moduleCallNodes {
-		n.AnnounceAllGraphevalRequests(announce)
+
+	// Find potential instances
+	normal := addr.Resource
+	invert := addr.Resource
+	invert.Key = invertKey(normal.Key, resource.InstanceSelector.InstanceKeyType())
+
+	instances := resource.Instances(ctx)
+	if len(instances) == 0 && invert.Key != normal.Key {
+		// count == 0 || enabled == false
+		return new(resource.Addr.Instance(invert.Key))
 	}
-	for _, n := range c.providerConfigNodes {
-		n.AnnounceAllGraphevalRequests(announce)
+
+	if ri, ok := instances[normal.Key]; ok {
+		return new(ri.Addr)
 	}
+	if ri, ok := instances[invert.Key]; ok {
+		return new(ri.Addr)
+	}
+
+	return nil
 }

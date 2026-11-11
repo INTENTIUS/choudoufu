@@ -11,47 +11,22 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/terminal"
-	"github.com/mitchellh/cli"
 )
 
 func TestViewUiHuman_OutputStreams(t *testing.T) {
 	testCases := []struct {
 		name         string
-		fn           func(ui cli.Ui)
+		fn           func(ui Ui)
 		expectStdout string
 		expectStderr string
 	}{
 		{
 			name: "Output goes to stdout",
-			fn: func(ui cli.Ui) {
+			fn: func(ui Ui) {
 				ui.Output("test output message")
 			},
 			expectStdout: withNewline("test output message"),
 			expectStderr: "",
-		},
-		{
-			name: "Info goes to stdout",
-			fn: func(ui cli.Ui) {
-				ui.Info("test info message")
-			},
-			expectStdout: withNewline("test info message"),
-			expectStderr: "",
-		},
-		{
-			name: "Warn goes to stdout",
-			fn: func(ui cli.Ui) {
-				ui.Warn("test warning message")
-			},
-			expectStdout: withNewline("test warning message"),
-			expectStderr: "",
-		},
-		{
-			name: "Error goes to stderr",
-			fn: func(ui cli.Ui) {
-				ui.Error("test error message")
-			},
-			expectStdout: "",
-			expectStderr: withNewline("test error message"),
 		},
 	}
 
@@ -77,57 +52,18 @@ func TestViewUiHuman_OutputStreams(t *testing.T) {
 func TestViewUiJSON_OutputStreams(t *testing.T) {
 	testCases := []struct {
 		name         string
-		fn           func(ui cli.Ui)
+		fn           func(ui Ui)
 		expectStdout []map[string]any
 	}{
 		{
 			name: "Output goes to stdout",
-			fn: func(ui cli.Ui) {
+			fn: func(ui Ui) {
 				ui.Output("test output")
 			},
 			expectStdout: []map[string]any{
 				{
 					"@level":   "info",
 					"@message": "test output",
-					"@module":  "tofu.ui",
-				},
-			},
-		},
-		{
-			name: "Info goes to stdout",
-			fn: func(ui cli.Ui) {
-				ui.Info("test info")
-			},
-			expectStdout: []map[string]any{
-				{
-					"@level":   "info",
-					"@message": "test info",
-					"@module":  "tofu.ui",
-				},
-			},
-		},
-		{
-			name: "Warn goes to stdout",
-			fn: func(ui cli.Ui) {
-				ui.Warn("test warning")
-			},
-			expectStdout: []map[string]any{
-				{
-					"@level":   "warn",
-					"@message": "test warning",
-					"@module":  "tofu.ui",
-				},
-			},
-		},
-		{
-			name: "Error goes to stderr (via JSON view)",
-			fn: func(ui cli.Ui) {
-				ui.Error("test error")
-			},
-			expectStdout: []map[string]any{
-				{
-					"@level":   "error",
-					"@message": "test error",
 					"@module":  "tofu.ui",
 				},
 			},

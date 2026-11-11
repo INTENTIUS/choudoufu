@@ -93,8 +93,6 @@ var otherAllowlist = []otherAllowEntry{
 	{"internal/resources/", "managed_plan.go shares the RequiresReplacePathIsDegenerate handling internal/plans/ adds below with internal/tofu's marker-safe replace logic"},
 	{"internal/plans/", "requires_replace_path.go (new file): RequiresReplacePathIsDegenerate, the empty-attribute-name check a provider's RequiresReplace path can carry"},
 	{"internal/providers/", "the Provider interface grew ListResourceTypes, the schema the plugin clients above populate"},
-	{"internal/provider-simple/", "the module-path rename plus the same ListResourceTypes plumbing, in the in-process test provider double"},
-	{"internal/provider-simple-v6/", "the protocol v6 counterpart of internal/provider-simple/ above"},
 	{"internal/tfdiags/", "hcl.go: a diagnostic's ExtraInfo now survives the round trip through configs' static evaluator (issue #178) instead of being silently dropped"},
 	{"internal/builtin/", "internal/builtin/providers/tf/provider.go: the module-path rename plus a blank-line cleanup; no logic change"},
 	{"internal/e2e/", "e2e.go: the module-path rename, including a `-coverpkg=` build-flag string value the quoted-import filter does not reach because it is not itself a quoted import line"},
@@ -137,9 +135,8 @@ var otherAllowlist = []otherAllowEntry{
 	{"CLAUDE.md", "new: the repository-wide rules every agent session loads, alongside HANDOFF.md; content, not code"},
 	{"justfile", "new: `just <recipe>` is how every generator, `just ci` and `just contribute` are run in this fork"},
 	{"Makefile", "build targets renamed or added for the fork (the choudoufu binary, floci/gauntlet targets); stock's own targets are unchanged where they still apply"},
-	{".goreleaser.yaml", "release artifact naming (choudoufu, not tofu) and the Fork version ldflag from version/version.go"},
+	{"release/.goreleaser.yaml", "upstream moved it under release/; release artifact naming (choudoufu, not tofu) and the Fork version ldflag from version/version.go"},
 	{".gitignore", "fork-specific build/output and .claude/ scratch paths added"},
-	{".tfdev", "the dev-mode version_var/prerelease_var paths, renamed the same way scripts/build.sh's LD_FLAGS is"},
 	{".sc.png", "new: an image asset the fork's own docs reference"},
 	{"go.mod", "the module path rename (github.com/opentofu/opentofu -> github.com/intentius/choudoufu) plus the dependencies live/ code needs"},
 	{"go.sum", "checksums for the go.mod entry above"},
@@ -155,7 +152,7 @@ var otherAllowlist = []otherAllowEntry{
 	// fork-owned subtree sitting inside a stock-owned root.
 	{"examples/", "docs-adjacent demo projects: examples/live-mv-workbench (uv/Python, package tlmig) drives the terralith-migration demo and the live-mv workbench over a real or floci-emulated account - wholly new, no stock counterpart"},
 	{".gitattributes", "stock's four eol rules kept; appended: `*.sh text eol=lf diff` so `git grep` reads shell scripts in full (#1294), and the gauntlet-rendered merge driver for the five files tools/gauntlet render writes (#1308, #2092)"},
-	{"CONTRIBUTING.RELEASE.md", "upstream's release manual kept whole, with one prepended warning pointing a choudoufu release at CHANGELOG.md's \"Cutting a release\" paragraph instead"},
+	{"release/README.md", "upstream moved CONTRIBUTING.RELEASE.md here; upstream's release manual kept whole, with one prepended warning pointing a choudoufu release at CHANGELOG.md's \"Cutting a release\" paragraph instead"},
 	// GitHub issue #2281: the public, engine-neutral packages plunge
 	// imports. pkg/identity came first (#2244); the sweeps, the record
 	// store, their test suites and fakes, and the marker vocabulary moved
@@ -192,7 +189,7 @@ type forkSurfaceDoc struct {
 // It moved from 03743ce6e8 (upstream main, 1.13.0-dev) to 2b6193043d (the
 // v1.13.0 tag) with #1778's upgrade, then to 765062032c (the v1.13.2 tag)
 // with #2242's.
-const forkSurfaceForkPoint = "765062032c46cacab116b36d714db098b806dede"
+const forkSurfaceForkPoint = "aa3eb66a0c1c792b7751e6ffeef7ca0cd8693f66"
 
 func loadForkSurface(t *testing.T) forkSurfaceDoc {
 	t.Helper()

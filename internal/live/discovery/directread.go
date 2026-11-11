@@ -536,10 +536,9 @@ func directReadProbe(ctx context.Context, req Request, typeName, candidateARN st
 
 	imported := importResp.ImportedResources[0]
 	readResp := provider.ReadResource(ctx, providers.ReadResourceRequest{
-		TypeName:     typeName,
-		PriorState:   imported.State,
-		Private:      imported.Private,
-		ProviderMeta: cty.NullVal(cty.DynamicPseudoType),
+		TypeName:   typeName,
+		PriorState: imported.State,
+		Private:    imported.Private,
 	})
 	if readResp.Diagnostics.HasErrors() {
 		return nil, false, false, false

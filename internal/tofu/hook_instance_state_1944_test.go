@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
@@ -25,6 +27,25 @@ type instanceStateRecorder struct {
 	mu    sync.Mutex
 	calls map[string][]*states.ResourceInstance
 	provs map[string]*addrs.AbsProviderConfig
+
+	// postApplied holds the addresses PostApply has reported and no
+	// PostInstanceStateUpdate has consumed yet, and early counts the calls
+	// that arrived for an address PostApply had not reported. A live run's
+	// record hook (internal/backend/local) writes only for an instance
+	// PostApply has marked, so on either runtime the order is PostApply,
+	// then the instance's state.
+	postApplied map[string]bool
+	early       []string
+}
+
+func (h *instanceStateRecorder) PostApply(addr addrs.AbsResourceInstance, _ states.Generation, _ cty.Value, _ error) (HookAction, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.postApplied == nil {
+		h.postApplied = map[string]bool{}
+	}
+	h.postApplied[addr.String()] = true
+	return HookActionContinue, nil
 }
 
 func (h *instanceStateRecorder) PostInstanceStateUpdate(addr addrs.AbsResourceInstance, inst *states.ResourceInstance, provider *addrs.AbsProviderConfig) (HookAction, error) {
@@ -36,6 +57,10 @@ func (h *instanceStateRecorder) PostInstanceStateUpdate(addr addrs.AbsResourceIn
 	}
 	h.calls[addr.String()] = append(h.calls[addr.String()], inst)
 	h.provs[addr.String()] = provider
+	if !h.postApplied[addr.String()] {
+		h.early = append(h.early, addr.String())
+	}
+	delete(h.postApplied, addr.String())
 	return HookActionContinue, nil
 }
 
@@ -44,6 +69,8 @@ func (h *instanceStateRecorder) reset() {
 	defer h.mu.Unlock()
 	h.calls = nil
 	h.provs = nil
+	h.postApplied = nil
+	h.early = nil
 }
 
 // TestInstanceStateHookFiresOncePerInstance is GitHub issue #1944's fork
@@ -52,6 +79,22 @@ func (h *instanceStateRecorder) reset() {
 // step wrote - here across seven instances the graph applies in parallel,
 // and then their destroys, where the instance is gone.
 func TestInstanceStateHookFiresOncePerInstance(t *testing.T) {
+	testInstanceStateHookFiresOncePerInstance(t)
+}
+
+// TestInstanceStateHookFiresOncePerInstance_newRuntime is the same test on
+// the new runtime (#2256 U5, #2341), where the call comes from
+// internal/engine/applying's ManagedApply through ApplyOpts.InstanceStateUpdate
+// rather than from updateStateHook. Without that wiring the new runtime
+// makes no PostInstanceStateUpdate call at all and this fails on its first
+// assertion.
+func TestInstanceStateHookFiresOncePerInstance_newRuntime(t *testing.T) {
+	forceExperimentalRuntimeForTesting(t)
+	testInstanceStateHookFiresOncePerInstance(t)
+}
+
+func testInstanceStateHookFiresOncePerInstance(t *testing.T) {
+	t.Helper()
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 resource "aws_instance" "pool" {
@@ -109,7 +152,11 @@ resource "aws_instance" "solo" {
 			t.Errorf("%s: handed provider %v, want the aws provider", addr, prov)
 		}
 	}
+	early := hook.early
 	hook.mu.Unlock()
+	if len(early) != 0 {
+		t.Errorf("on create PostInstanceStateUpdate came before PostApply for %v", early)
+	}
 	sort.Strings(got)
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("PostInstanceStateUpdate saw %v, want exactly %v", got, want)
@@ -123,6 +170,9 @@ resource "aws_instance" "solo" {
 
 	hook.mu.Lock()
 	defer hook.mu.Unlock()
+	if len(hook.early) != 0 {
+		t.Errorf("on destroy PostInstanceStateUpdate came before PostApply for %v", hook.early)
+	}
 	got = got[:0]
 	for addr, calls := range hook.calls {
 		got = append(got, addr)

@@ -25,7 +25,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/zclconf/go-cty-debug/ctydebug"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/gocty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
@@ -349,8 +348,6 @@ aws_instance.bar:
 }
 
 func TestContext2Apply_resourceCountOneList(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-resource-count-one-list")
 	p := testProvider("null")
 	p.PlanResourceChangeFn = testDiffFn
@@ -380,8 +377,6 @@ test = [foo]`)
 	}
 }
 func TestContext2Apply_resourceCountZeroList(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-resource-count-zero-list")
 	p := testProvider("null")
 	p.PlanResourceChangeFn = testDiffFn
@@ -410,8 +405,6 @@ test = []`)
 }
 
 func TestContext2Apply_resourceDependsOnModule(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDependsOn)
-
 	m := testModule(t, "apply-resource-depends-on-module")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -464,8 +457,6 @@ func TestContext2Apply_resourceDependsOnModule(t *testing.T) {
 // Test that without a config, the Dependencies in the state are enough
 // to maintain proper ordering.
 func TestContext2Apply_resourceDependsOnModuleStateOnly(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDependsOn, ExperimentalBugStateProvider)
-
 	m := testModule(t, "apply-resource-depends-on-module-empty")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -537,8 +528,6 @@ func TestContext2Apply_resourceDependsOnModuleStateOnly(t *testing.T) {
 }
 
 func TestContext2Apply_resourceDependsOnModuleDestroy(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDependsOn, ExperimentalFeatureDestroy)
-
 	m := testModule(t, "apply-resource-depends-on-module")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -611,8 +600,6 @@ func TestContext2Apply_resourceDependsOnModuleDestroy(t *testing.T) {
 }
 
 func TestContext2Apply_resourceDependsOnModuleGrandchild(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDependsOn)
-
 	m := testModule(t, "apply-resource-depends-on-module-deep")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -664,8 +651,6 @@ func TestContext2Apply_resourceDependsOnModuleGrandchild(t *testing.T) {
 }
 
 func TestContext2Apply_resourceDependsOnModuleInModule(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureDependsOn)
-
 	m := testModule(t, "apply-resource-depends-on-module-in-module")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -717,7 +702,7 @@ func TestContext2Apply_resourceDependsOnModuleInModule(t *testing.T) {
 }
 
 func TestContext2Apply_mapVarBetweenModules(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalChangeModuleOutput)
+	SkipExperimental(t, ExperimentalChangeModuleOutput)
 
 	m := testModule(t, "apply-map-var-through-module")
 	p := testProvider("null")
@@ -757,7 +742,7 @@ module.test:
 }
 
 func TestContext2Apply_refCount(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureStateDependencies, ExperimentalChangeDependencies)
+	SkipExperimental(t, ExperimentalChangeDependencies)
 
 	m := testModule(t, "apply-ref-count")
 	p := testProvider("aws")
@@ -934,8 +919,6 @@ aws_instance.foo:
 }
 
 func TestContext2Apply_emptyModule(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	// A module with only outputs (no resources)
 	m := testModule(t, "apply-empty-module")
 	p := testProvider("aws")
@@ -963,8 +946,6 @@ func TestContext2Apply_emptyModule(t *testing.T) {
 }
 
 func TestContext2Apply_createBeforeDestroy(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureCBD)
-
 	m := testModule(t, "apply-good-create-before")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -993,7 +974,6 @@ func TestContext2Apply_createBeforeDestroy(t *testing.T) {
 		t.Logf("%s", legacyDiffComparisonString(plan.Changes))
 	}
 
-	SkipExperimental(t, ExperimentalBugMissingProvider)
 	state, diags = ctx.Apply(context.Background(), plan, m, nil)
 	if diags.HasErrors() {
 		t.Fatalf("diags: %s", diags.Err())
@@ -1069,7 +1049,6 @@ func TestContext2Apply_createBeforeDestroyUpdate(t *testing.T) {
 		}, nil),
 	})
 
-	SkipExperimental(t, ExperimentalBugMissingProvider)
 	plan, diags := ctx.Plan(context.Background(), m, state, DefaultPlanOpts)
 	if diags.HasErrors() {
 		t.Fatalf("diags: %s", diags.Err())
@@ -1097,8 +1076,6 @@ func TestContext2Apply_createBeforeDestroyUpdate(t *testing.T) {
 // This tests that when a CBD resource depends on a non-CBD resource,
 // we can still properly apply changes that require new for both.
 func TestContext2Apply_createBeforeDestroy_dependsNonCBD(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureCBD)
-
 	m := testModule(t, "apply-cbd-depends-non-cbd")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -1138,7 +1115,6 @@ func TestContext2Apply_createBeforeDestroy_dependsNonCBD(t *testing.T) {
 		t.Logf("%s", legacyDiffComparisonString(plan.Changes))
 	}
 
-	SkipExperimental(t, ExperimentalBugMissingProvider)
 	state, diags = ctx.Apply(context.Background(), plan, m, nil)
 	if diags.HasErrors() {
 		t.Fatalf("diags: %s", diags.Err())
@@ -1170,8 +1146,6 @@ aws_instance.foo:
 }
 
 func TestContext2Apply_createBeforeDestroy_hook(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureCBD, ExperimentalFeatureHooks)
-
 	h := new(MockHook)
 	m := testModule(t, "apply-good-create-before")
 	p := testProvider("aws")
@@ -1288,7 +1262,6 @@ func TestContext2Apply_createBeforeDestroy_deposedCount(t *testing.T) {
 		}, nil),
 	})
 
-	SkipExperimental(t, ExperimentalFeatureCBD)
 	plan, diags := ctx.Plan(context.Background(), m, state, DefaultPlanOpts)
 	if diags.HasErrors() {
 		t.Fatalf("diags: %s", diags.Err())
@@ -1351,7 +1324,6 @@ func TestContext2Apply_createBeforeDestroy_deposedOnly(t *testing.T) {
 		}, nil),
 	})
 
-	SkipExperimental(t, ExperimentalFeatureCBD)
 	plan, diags := ctx.Plan(context.Background(), m, state, DefaultPlanOpts)
 	if diags.HasErrors() {
 		t.Fatalf("diags: %s", diags.Err())
@@ -1359,7 +1331,6 @@ func TestContext2Apply_createBeforeDestroy_deposedOnly(t *testing.T) {
 		t.Logf("%s", legacyDiffComparisonString(plan.Changes))
 	}
 
-	SkipExperimental(t, ExperimentalBugMissingProvider)
 	state, diags = ctx.Apply(context.Background(), plan, m, nil)
 	if diags.HasErrors() {
 		t.Fatalf("diags: %s", diags.Err())
@@ -1374,8 +1345,6 @@ aws_instance.bar:
 }
 
 func TestContext2Apply_destroyComputed(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDestroy)
-
 	m := testModule(t, "apply-destroy-computed")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -1414,8 +1383,6 @@ func TestContext2Apply_destroyComputed(t *testing.T) {
 
 // Test that the destroy operation uses depends_on as a source of ordering.
 func TestContext2Apply_destroyDependsOn(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDependsOn)
-
 	// It is possible for this to be racy, so we loop a number of times
 	// just to check.
 	for i := 0; i < 10; i++ {
@@ -1424,7 +1391,6 @@ func TestContext2Apply_destroyDependsOn(t *testing.T) {
 }
 
 func testContext2Apply_destroyDependsOn(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDestroy)
 	m := testModule(t, "apply-destroy-depends-on")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -1488,8 +1454,6 @@ func testContext2Apply_destroyDependsOn(t *testing.T) {
 // Test that destroy ordering is correct with dependencies only
 // in the state.
 func TestContext2Apply_destroyDependsOnStateOnly(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDependsOn, ExperimentalBugStateProvider)
-
 	newState := states.NewState()
 	root := newState.EnsureModule(addrs.RootModuleInstance)
 	root.SetResourceInstanceCurrent(
@@ -1546,8 +1510,6 @@ func TestContext2Apply_destroyDependsOnStateOnly(t *testing.T) {
 }
 
 func testContext2Apply_destroyDependsOnStateOnly(t *testing.T, state *states.State) {
-	SkipExperimental(t, ExperimentalFeatureDependsOn)
-
 	state = state.DeepCopy()
 	m := testModule(t, "empty")
 	p := testProvider("aws")
@@ -1588,8 +1550,6 @@ func testContext2Apply_destroyDependsOnStateOnly(t *testing.T, state *states.Sta
 // Test that destroy ordering is correct with dependencies only
 // in the state within a module (GH-11749)
 func TestContext2Apply_destroyDependsOnStateOnlyModule(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDependsOn, ExperimentalBugStateProvider)
-
 	newState := states.NewState()
 	child := newState.EnsureModule(addrs.RootModuleInstance.Child("child", addrs.NoKey))
 	child.SetResourceInstanceCurrent(
@@ -1646,8 +1606,6 @@ func TestContext2Apply_destroyDependsOnStateOnlyModule(t *testing.T) {
 }
 
 func testContext2Apply_destroyDependsOnStateOnlyModule(t *testing.T, state *states.State) {
-	SkipExperimental(t, ExperimentalFeatureDependsOn)
-
 	state = state.DeepCopy()
 	m := testModule(t, "empty")
 	p := testProvider("aws")
@@ -1792,7 +1750,6 @@ func TestContext2Apply_destroyData(t *testing.T) {
 		t.Fatalf("state has %d resources after destroy; want 0", got)
 	}
 
-	SkipExperimental(t, ExperimentalFeatureHooks)
 	wantHookCalls := []*testHookCall{
 		{"PreApply", "data.null_data_source.testing"},
 		{"PostApply", "data.null_data_source.testing"},
@@ -1805,8 +1762,6 @@ func TestContext2Apply_destroyData(t *testing.T) {
 
 // https://github.com/hashicorp/terraform/pull/5096
 func TestContext2Apply_destroySkipsCBD(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureCBD)
-
 	// Config contains CBD resource depending on non-CBD resource, which triggers
 	// a cycle if they are both replaced, but should _not_ trigger a cycle when
 	// just doing a `tofu destroy`.
@@ -1855,8 +1810,6 @@ func TestContext2Apply_destroySkipsCBD(t *testing.T) {
 }
 
 func TestContext2Apply_destroyModuleVarProviderConfig(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDestroy)
-
 	m := testModule(t, "apply-destroy-mod-var-provider-config")
 	p := func() (providers.Interface, error) {
 		p := testProvider("aws")
@@ -1940,8 +1893,6 @@ func TestContext2Apply_destroyCrossProviders(t *testing.T) {
 }
 
 func getContextForApply_destroyCrossProviders(t *testing.T, m *configs.Config, providerFactories map[addrs.Provider]providers.Factory) (*Context, *configs.Config, *states.State) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	state := states.NewState()
 	root := state.EnsureModule(addrs.RootModuleInstance)
 	root.SetResourceInstanceCurrent(
@@ -2146,7 +2097,7 @@ aws_instance.foo:
 }
 
 func TestContext2Apply_cancelProvisioner(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner, ExperimentalBugCancel)
+	SkipExperimental(t, ExperimentalBugCancel)
 
 	m := testModule(t, "apply-cancel-provisioner")
 	p := testProvider("aws")
@@ -2228,8 +2179,6 @@ aws_instance.foo: (tainted)
 }
 
 func TestContext2Apply_compute(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureStateDependencies)
-
 	m := testModule(t, "apply-compute")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -2354,7 +2303,7 @@ func TestContext2Apply_countDecrease(t *testing.T) {
 }
 
 func TestContext2Apply_countDecreaseToOneX(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugStateProvider, ExperimentalFeatureMoved)
+	SkipExperimental(t, ExperimentalFeatureMoved)
 	m := testModule(t, "apply-count-dec-one")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -2428,8 +2377,6 @@ func TestContext2Apply_countDecreaseToOneX(t *testing.T) {
 // ignore the statement, in the same way as it would if an explicit move
 // statement specified the same situation.
 func TestContext2Apply_countDecreaseToOneCorrupted(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "apply-count-dec-one")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -2477,6 +2424,7 @@ func TestContext2Apply_countDecreaseToOneCorrupted(t *testing.T) {
 		if got, want := change.Action, plans.Delete; got != want {
 			t.Errorf("wrong action for instance zero %s; want %s", got, want)
 		}
+		SkipExperimental(t, ExperimentalFeatureActionReason)
 		if got, want := change.ActionReason, plans.ResourceInstanceDeleteBecauseWrongRepetition; got != want {
 			t.Errorf("wrong action reason for instance zero %s; want %s", got, want)
 		}
@@ -2507,7 +2455,7 @@ func TestContext2Apply_countDecreaseToOneCorrupted(t *testing.T) {
 }
 
 func TestContext2Apply_countTainted(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
+	SkipExperimental(t, ExperimentalFeatureTaint)
 
 	m := testModule(t, "apply-count-tainted")
 	p := testProvider("aws")
@@ -2597,7 +2545,7 @@ func TestContext2Apply_countVariable(t *testing.T) {
 }
 
 func TestContext2Apply_countVariableRef(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureStateDependencies, ExperimentalChangeDependencies)
+	SkipExperimental(t, ExperimentalChangeDependencies)
 
 	m := testModule(t, "apply-count-variable-ref")
 	p := testProvider("aws")
@@ -2625,8 +2573,6 @@ func TestContext2Apply_countVariableRef(t *testing.T) {
 }
 
 func TestContext2Apply_provisionerInterpCount(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	// This test ensures that a provisioner can interpolate a resource count
 	// even though the provisioner expression is evaluated during the plan
 	// walk. https://github.com/hashicorp/terraform/issues/16840
@@ -2678,7 +2624,7 @@ func TestContext2Apply_provisionerInterpCount(t *testing.T) {
 }
 
 func TestContext2Apply_winrmConnectionMigrationMessage(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner, ExperimentalChangeDiagWording)
+	SkipExperimental(t, ExperimentalChangeDiagWording)
 
 	// This is testing for an error diagnostic we've added temporarily
 	// for the v1.13 series to help folks migrate from the no-longer-supported
@@ -2750,8 +2696,6 @@ func TestContext2Apply_winrmConnectionMigrationMessage(t *testing.T) {
 }
 
 func TestContext2Apply_foreachVariable(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureStateDependencies)
-
 	m := testModule(t, "plan-for-each-unknown-value")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -2811,8 +2755,6 @@ func TestContext2Apply_moduleBasic(t *testing.T) {
 }
 
 func TestContext2Apply_moduleDestroyOrder(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugExecGraph, ExperimentalFeatureDestroy)
-
 	m := testModule(t, "apply-module-destroy-order")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -2948,7 +2890,7 @@ module.child:
 }
 
 func TestContext2Apply_orphanResource(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugStateProvider, ExperimentalFeatureChecks)
+	SkipExperimental(t, ExperimentalFeatureChecks)
 
 	// This is a two-step test:
 	// 1. Apply a configuration with resources that have count set.
@@ -3095,7 +3037,13 @@ func TestContext2Apply_moduleOrphanInheritAlias(t *testing.T) {
 		// This should ideally be ResourceInstanceDeleteBecauseNoModule, but
 		// the codepath deciding this doesn't currently have enough information
 		// to differentiate, and so this is a compromise.
-		if got, want := change.ActionReason, plans.ResourceInstanceDeleteBecauseNoResourceConfig; got != want {
+		SkipExperimental(t, ExperimentalFeatureActionReason)
+		expected := plans.ResourceInstanceDeleteBecauseNoResourceConfig
+		if experimentalRuntimeEnabled() {
+			// Fixed in the new runtime
+			expected = plans.ResourceInstanceDeleteBecauseNoModule
+		}
+		if got, want := change.ActionReason, expected; got != want {
 			t.Errorf("wrong action for %s %s; want %s", addr, got, want)
 		}
 	}
@@ -3154,8 +3102,6 @@ func TestContext2Apply_moduleOrphanProvider(t *testing.T) {
 }
 
 func TestContext2Apply_moduleOrphanGrandchildProvider(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "apply-module-orphan-provider-inherit")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -3197,8 +3143,6 @@ func TestContext2Apply_moduleOrphanGrandchildProvider(t *testing.T) {
 }
 
 func TestContext2Apply_moduleGrandchildProvider(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "apply-module-grandchild-provider-inherit")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -3243,8 +3187,6 @@ func TestContext2Apply_moduleGrandchildProvider(t *testing.T) {
 // case: aws is explicitly added to root, but "test" should be added to.
 // With the bug, it wasn't.
 func TestContext2Apply_moduleOnlyProvider(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider)
-
 	m := testModule(t, "apply-module-only-provider")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -3276,8 +3218,6 @@ func TestContext2Apply_moduleOnlyProvider(t *testing.T) {
 }
 
 func TestContext2Apply_moduleProviderAlias(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugReferenceProvider)
-
 	m := testModule(t, "apply-module-provider-alias")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -3345,8 +3285,6 @@ func TestContext2Apply_moduleProviderAliasTargets(t *testing.T) {
 }
 
 func TestContext2Apply_moduleProviderCloseNested(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugStateProvider)
-
 	m := testModule(t, "apply-module-provider-close-nested")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -3384,8 +3322,6 @@ func TestContext2Apply_moduleProviderCloseNested(t *testing.T) {
 // accessing "non-existent" resources (they existed, just not in the graph
 // cause they weren't in the diff).
 func TestContext2Apply_moduleVarRefExisting(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugExecGraph, ExperimentalFeatureStateDependencies, ExperimentalFeatureUpgradeState)
-
 	m := testModule(t, "apply-ref-existing")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -3424,8 +3360,6 @@ func TestContext2Apply_moduleVarRefExisting(t *testing.T) {
 }
 
 func TestContext2Apply_moduleVarResourceCount(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider)
-
 	m := testModule(t, "apply-module-var-resource-count")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -3526,7 +3460,28 @@ func TestContext2Apply_moduleTarget(t *testing.T) {
 		t.Fatalf("diags: %s", diags.Err())
 	}
 
-	checkStateString(t, state, `
+	if experimentalRuntimeEnabled() {
+		// Module outputs are not saved in state (other than root) in the new runtime
+		checkStateString(t, state, `
+<no state>
+module.A:
+  aws_instance.foo:
+    ID = foo
+    provider = provider["registry.opentofu.org/hashicorp/aws"]
+    foo = bar
+    type = aws_instance
+module.B:
+  aws_instance.bar:
+    ID = foo
+    provider = provider["registry.opentofu.org/hashicorp/aws"]
+    foo = foo
+    type = aws_instance
+
+    Dependencies:
+      module.A.aws_instance.foo
+	`)
+	} else {
+		checkStateString(t, state, `
 <no state>
 module.A:
   aws_instance.foo:
@@ -3548,6 +3503,7 @@ module.B:
     Dependencies:
       module.A.aws_instance.foo
 	`)
+	}
 }
 
 func TestContext2Apply_multiProvider(t *testing.T) {
@@ -3820,8 +3776,6 @@ func TestContext2Apply_multiProviderDestroyChild(t *testing.T) {
 }
 
 func TestContext2Apply_multiVar(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-multi-var")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -3904,8 +3858,6 @@ func TestContext2Apply_multiVar(t *testing.T) {
 // parts of OpenTofu and so here we want to assert the expected behavior and
 // ensure that it remains consistent in future.
 func TestContext2Apply_multiVarComprehensive(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-multi-var-comprehensive")
 	p := testProvider("test")
 
@@ -4130,8 +4082,6 @@ func TestContext2Apply_multiVarComprehensive(t *testing.T) {
 // Test that multi-var (splat) access is ordered by count, not by
 // value.
 func TestContext2Apply_multiVarOrder(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-multi-var-order")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -4166,8 +4116,6 @@ func TestContext2Apply_multiVarOrder(t *testing.T) {
 // Test that multi-var (splat) access is ordered by count, not by
 // value, through interpolations.
 func TestContext2Apply_multiVarOrderInterp(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugExecGraph, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-multi-var-order-interp")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -4346,8 +4294,6 @@ func TestContext2Apply_multiVarCountDec(t *testing.T) {
 // exist yet.
 // https://github.com/hashicorp/terraform/issues/14438
 func TestContext2Apply_multiVarMissingState(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider)
-
 	m := testModule(t, "apply-multi-var-missing-state")
 	p := testProvider("test")
 	p.PlanResourceChangeFn = testDiffFn
@@ -4381,8 +4327,6 @@ func TestContext2Apply_multiVarMissingState(t *testing.T) {
 }
 
 func TestContext2Apply_outputOrphan(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-output-orphan")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -4414,7 +4358,6 @@ func TestContext2Apply_outputOrphan(t *testing.T) {
 }
 
 func TestContext2Apply_outputOrphanModule(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown, ExperimentalFeatureRootOutput)
 
 	m := testModule(t, "apply-output-orphan-module")
 	p := testProvider("aws")
@@ -4451,6 +4394,8 @@ func TestContext2Apply_outputOrphanModule(t *testing.T) {
 	})
 
 	emptyConfig := configs.NewEmptyConfig()
+	// New runtime requires a dir
+	emptyConfig.Module.SourceDir = t.TempDir()
 
 	// NOTE: While updating this test to pass the state in as a Plan argument,
 	// rather than into the testContext2 call above, it previously said
@@ -4472,8 +4417,6 @@ func TestContext2Apply_outputOrphanModule(t *testing.T) {
 }
 
 func TestContext2Apply_providerComputedVar(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "apply-provider-computed")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -4507,8 +4450,6 @@ func TestContext2Apply_providerComputedVar(t *testing.T) {
 }
 
 func TestContext2Apply_providerConfigureDisabled(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "apply-provider-configure-disabled")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -4541,8 +4482,6 @@ func TestContext2Apply_providerConfigureDisabled(t *testing.T) {
 }
 
 func TestContext2Apply_provisionerModule(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-module")
 
 	p := testProvider("aws")
@@ -4587,8 +4526,6 @@ func TestContext2Apply_provisionerModule(t *testing.T) {
 }
 
 func TestContext2Apply_Provisioner_compute(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-compute")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -4651,8 +4588,6 @@ func TestContext2Apply_Provisioner_compute(t *testing.T) {
 }
 
 func TestContext2Apply_provisionerCreateFail(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-fail-create")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -4689,8 +4624,6 @@ func TestContext2Apply_provisionerCreateFail(t *testing.T) {
 }
 
 func TestContext2Apply_provisionerCreateFailNoId(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-fail-create")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -4725,8 +4658,6 @@ func TestContext2Apply_provisionerCreateFailNoId(t *testing.T) {
 }
 
 func TestContext2Apply_provisionerFail(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-fail")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -4761,8 +4692,6 @@ func TestContext2Apply_provisionerFail(t *testing.T) {
 }
 
 func TestContext2Apply_provisionerFail_createBeforeDestroy(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureCBD, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-fail-create-before")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -4809,8 +4738,6 @@ func TestContext2Apply_provisionerFail_createBeforeDestroy(t *testing.T) {
 }
 
 func TestContext2Apply_error_createBeforeDestroy(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureCBD)
-
 	m := testModule(t, "apply-error-create-before")
 	p := testProvider("aws")
 
@@ -4858,8 +4785,6 @@ func TestContext2Apply_error_createBeforeDestroy(t *testing.T) {
 }
 
 func TestContext2Apply_errorDestroy_createBeforeDestroy(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureCBD)
-
 	m := testModule(t, "apply-error-create-before")
 	p := testProvider("aws")
 
@@ -4909,8 +4834,6 @@ func TestContext2Apply_errorDestroy_createBeforeDestroy(t *testing.T) {
 }
 
 func TestContext2Apply_multiDepose_createBeforeDestroy(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureCBD)
-
 	m := testModule(t, "apply-multi-depose-create-before-destroy")
 	p := testProvider("aws")
 	ps := map[addrs.Provider]providers.Factory{addrs.NewDefaultProvider("aws"): testProviderFuncFixed(p)}
@@ -5122,8 +5045,6 @@ aws_instance.web:
 // Verify that a normal provisioner with on_failure "continue" set won't
 // taint the resource and continues executing.
 func TestContext2Apply_provisionerFailContinue(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-fail-continue")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -5168,8 +5089,6 @@ aws_instance.foo:
 // Verify that a normal provisioner with on_failure "continue" records
 // the error with the hook.
 func TestContext2Apply_provisionerFailContinueHook(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	h := new(MockHook)
 	m := testModule(t, "apply-provisioner-fail-continue")
 	p := testProvider("aws")
@@ -5205,8 +5124,6 @@ func TestContext2Apply_provisionerFailContinueHook(t *testing.T) {
 }
 
 func TestContext2Apply_provisionerDestroy(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-destroy")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -5258,8 +5175,6 @@ func TestContext2Apply_provisionerDestroy(t *testing.T) {
 
 // Verify that on destroy provisioner failure, nothing happens to the instance
 func TestContext2Apply_provisionerDestroyFail(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-destroy")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -5313,8 +5228,6 @@ aws_instance.foo["a"]:
 // Verify that on destroy provisioner failure with "continue" that
 // we continue to the next provisioner.
 func TestContext2Apply_provisionerDestroyFailContinue(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-destroy-continue")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -5382,8 +5295,6 @@ func TestContext2Apply_provisionerDestroyFailContinue(t *testing.T) {
 // we continue to the next provisioner. But if the next provisioner defines
 // to fail, then we fail after running it.
 func TestContext2Apply_provisionerDestroyFailContinueFail(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-destroy-fail")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -5453,7 +5364,7 @@ aws_instance.foo:
 
 // Verify destroy provisioners are not run for tainted instances.
 func TestContext2Apply_provisionerDestroyTainted(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner, ExperimentalFeatureTaint)
+	SkipExperimental(t, ExperimentalFeatureTaint)
 
 	m := testModule(t, "apply-provisioner-destroy")
 	p := testProvider("aws")
@@ -5529,8 +5440,6 @@ aws_instance.foo["a"]:
 }
 
 func TestContext2Apply_provisionerResourceRef(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-resource-ref")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -5575,8 +5484,6 @@ func TestContext2Apply_provisionerResourceRef(t *testing.T) {
 }
 
 func TestContext2Apply_provisionerSelfRef(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-self-ref")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -5620,8 +5527,6 @@ func TestContext2Apply_provisionerSelfRef(t *testing.T) {
 }
 
 func TestContext2Apply_provisionerMultiSelfRef(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	var lock sync.Mutex
 	commands := make([]string, 0, 5)
 
@@ -5679,7 +5584,7 @@ func TestContext2Apply_provisionerMultiSelfRef(t *testing.T) {
 }
 
 func TestContext2Apply_provisionerMultiSelfRefSingle(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner, ExperimentalChangeCursedSelfRef)
+	SkipExperimental(t, ExperimentalChangeCursedSelfRef)
 
 	var lock sync.Mutex
 	order := make([]string, 0, 5)
@@ -5738,8 +5643,6 @@ func TestContext2Apply_provisionerMultiSelfRefSingle(t *testing.T) {
 }
 
 func TestContext2Apply_provisionerExplicitSelfRef(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-explicit-self-ref")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -5838,8 +5741,6 @@ func TestContext2Apply_provisionerForEachSelfRef(t *testing.T) {
 
 // Provisioner should NOT run on a diff, only create
 func TestContext2Apply_Provisioner_Diff(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-diff")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -5918,18 +5819,6 @@ func TestContext2Apply_Provisioner_Diff(t *testing.T) {
 }
 
 func TestContext2Apply_outputDiffVars(t *testing.T) {
-	// Unfortunately in experimental mode this test is currently flaking with
-	// errors like this, but not consistently on every run:
-	//
-	//     [ERROR] Provider instance not available: Cannot plan aws_instance.bar because its associated provider instance provider["registry.opentofu.org/hashicorp/aws"] cannot initialize.
-	//     [ERROR] Provider instance not available: Cannot plan aws_instance.bar because its associated provider instance provider["registry.opentofu.org/hashicorp/aws"] cannot initialize.
-	//     [ERROR] Provider instance not available: Cannot plan aws_instance.bar because its associated provider instance provider["registry.opentofu.org/hashicorp/aws"] cannot initialize.
-	//
-	// When this occurs it's raised from the check for diagnostics just after
-	// the call to ctx.Plan below, so it seems like something's not working
-	// quite right in how the plan phase handles provider configurations.
-	SkipExperimental(t, ExperimentalBugMissingProvider)
-
 	m := testModule(t, "apply-good")
 	p := testProvider("aws")
 
@@ -6034,7 +5923,6 @@ func TestContext2Apply_destroyX(t *testing.T) {
 	}
 
 	// Test that things were destroyed _in the right order_
-	SkipExperimental(t, ExperimentalFeatureHooks)
 	expected2 := []string{"aws_instance.bar", "aws_instance.foo"}
 	actual2 := h.IDs
 	if !reflect.DeepEqual(actual2, expected2) {
@@ -6091,7 +5979,6 @@ func TestContext2Apply_destroyOrder(t *testing.T) {
 		t.Fatalf("wrong result\n\ngot:\n%s\n\nwant:\n%s", actual, expected)
 	}
 
-	SkipExperimental(t, ExperimentalFeatureHooks)
 	// Test that things were destroyed _in the right order_
 	expected2 := []string{"aws_instance.bar", "aws_instance.foo"}
 	actual2 := h.IDs
@@ -6102,8 +5989,6 @@ func TestContext2Apply_destroyOrder(t *testing.T) {
 
 // https://github.com/hashicorp/terraform/issues/2767
 func TestContext2Apply_destroyModulePrefix(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugStateProvider, ExperimentalFeatureHooks)
-
 	m := testModule(t, "apply-destroy-module-resource-prefix")
 	h := new(MockHook)
 	p := testProvider("aws")
@@ -6155,8 +6040,6 @@ func TestContext2Apply_destroyModulePrefix(t *testing.T) {
 }
 
 func TestContext2Apply_destroyNestedModule(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugStateProvider)
-
 	m := testModule(t, "apply-destroy-nested-module")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -6196,8 +6079,6 @@ func TestContext2Apply_destroyNestedModule(t *testing.T) {
 }
 
 func TestContext2Apply_destroyDeeplyNestedModule(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugStateProvider)
-
 	m := testModule(t, "apply-destroy-deeply-nested-module")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -6237,8 +6118,6 @@ func TestContext2Apply_destroyDeeplyNestedModule(t *testing.T) {
 
 // https://github.com/hashicorp/terraform/issues/5440
 func TestContext2Apply_destroyModuleWithAttrsReferencingResource(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureDestroy, ExperimentalFeatureHooks)
-
 	m, snap := testModuleWithSnapshot(t, "apply-destroy-module-with-attrs")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -6317,8 +6196,6 @@ func TestContext2Apply_destroyModuleWithAttrsReferencingResource(t *testing.T) {
 }
 
 func TestContext2Apply_destroyWithModuleVariableAndCount(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureDestroy, ExperimentalFeatureHooks)
-
 	m, snap := testModuleWithSnapshot(t, "apply-destroy-mod-var-and-count")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -6467,8 +6344,6 @@ func TestContext2Apply_destroyTargetWithModuleVariableAndCount(t *testing.T) {
 }
 
 func TestContext2Apply_destroyWithModuleVariableAndCountNested(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureDestroy, ExperimentalFeatureHooks)
-
 	m, snap := testModuleWithSnapshot(t, "apply-destroy-mod-var-and-count-nested")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -6539,7 +6414,7 @@ func TestContext2Apply_destroyWithModuleVariableAndCountNested(t *testing.T) {
 }
 
 func TestContext2Apply_destroyOutputs(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugMissingResource)
+	SkipExperimental(t, ExperimentalBugDataResource)
 
 	m := testModule(t, "apply-destroy-outputs")
 	p := testProvider("test")
@@ -6607,8 +6482,6 @@ func TestContext2Apply_destroyOutputs(t *testing.T) {
 }
 
 func TestContext2Apply_destroyOrphan(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "apply-error")
 	p := testProvider("aws")
 	state := states.NewState()
@@ -6645,8 +6518,6 @@ func TestContext2Apply_destroyOrphan(t *testing.T) {
 }
 
 func TestContext2Apply_destroyTaintedProvisioner(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-destroy-provisioner")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -6733,8 +6604,6 @@ func TestContext2Apply_error(t *testing.T) {
 }
 
 func TestContext2Apply_errorDestroy(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugStateProvider)
-
 	m := testModule(t, "empty")
 	p := testProvider("test")
 
@@ -7121,8 +6990,6 @@ func TestContext2Apply_idAttr(t *testing.T) {
 }
 
 func TestContext2Apply_outputBasic(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-output")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -7149,8 +7016,6 @@ func TestContext2Apply_outputBasic(t *testing.T) {
 }
 
 func TestContext2Apply_outputAdd(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m1 := testModule(t, "apply-output-add-before")
 	p1 := testProvider("aws")
 	p1.ApplyResourceChangeFn = testApplyFn
@@ -7196,8 +7061,6 @@ func TestContext2Apply_outputAdd(t *testing.T) {
 }
 
 func TestContext2Apply_outputList(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-output-list")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -7224,8 +7087,6 @@ func TestContext2Apply_outputList(t *testing.T) {
 }
 
 func TestContext2Apply_outputMulti(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-output-multi")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -7252,8 +7113,6 @@ func TestContext2Apply_outputMulti(t *testing.T) {
 }
 
 func TestContext2Apply_outputMultiIndex(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-output-multi-index")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -7398,7 +7257,7 @@ func TestContext2Apply_taintDep(t *testing.T) {
 }
 
 func TestContext2Apply_taintDepRequiresNew(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugExecGraph, ExperimentalFeatureTaint)
+	SkipExperimental(t, ExperimentalFeatureTaint, ExperimentalFlagUnknown)
 
 	m := testModule(t, "apply-taint-dep-requires-new")
 	p := testProvider("aws")
@@ -7649,13 +7508,20 @@ func TestContext2Apply_targetedDestroy(t *testing.T) {
 	// TODO: Future refactoring may enable us to remove the output from state in
 	// this case, and that would be Just Fine - this test can be modified to
 	// expect 0 outputs.
-	if len(mod.OutputValues) != 1 {
-		t.Fatalf("expected 1 outputs, got: %#v", mod.OutputValues)
+	if experimentalRuntimeEnabled() {
+		if len(mod.OutputValues) != 0 {
+			t.Fatalf("expected 0 outputs, got: %#v", mod.OutputValues)
+		}
+	} else {
+		if len(mod.OutputValues) != 1 {
+			t.Fatalf("expected 1 outputs, got: %#v", mod.OutputValues)
+		}
 	}
 
 	// the module instance should not remain
 	mod = state.Module(addrs.RootModuleInstance.Child("child", addrs.NoKey))
 	if mod != nil {
+		t.Log(state.String())
 		t.Fatalf("expected child module to not exist in state, but it does")
 	}
 }
@@ -7975,7 +7841,26 @@ func TestContext2Apply_targetedModuleDep(t *testing.T) {
 		t.Fatalf("diags: %s", diags.Err())
 	}
 
-	checkStateString(t, state, `
+	if experimentalRuntimeEnabled() {
+		// Module outputs are not saved in state (other than root) in the new runtime
+		checkStateString(t, state, `
+aws_instance.foo:
+  ID = foo
+  provider = provider["registry.opentofu.org/hashicorp/aws"]
+  foo = foo
+  type = aws_instance
+
+  Dependencies:
+    module.child.aws_instance.mod
+
+module.child:
+  aws_instance.mod:
+    ID = foo
+    provider = provider["registry.opentofu.org/hashicorp/aws"]
+    type = aws_instance
+	`)
+	} else {
+		checkStateString(t, state, `
 aws_instance.foo:
   ID = foo
   provider = provider["registry.opentofu.org/hashicorp/aws"]
@@ -7995,6 +7880,7 @@ module.child:
 
   output = foo
 	`)
+	}
 }
 
 // GH-10911 untargeted outputs should not be in the graph, and therefore
@@ -8030,11 +7916,29 @@ func TestContext2Apply_targetedModuleUnrelatedOutputs(t *testing.T) {
 		t.Fatalf("diags: %s", diags.Err())
 	}
 
-	// - module.child1's instance_id output is dropped because we don't preserve
-	//   non-root module outputs between runs (they can be recalculated from config)
-	// - module.child2's instance_id is updated because its dependency is updated
-	// - child2_id is updated because if its transitive dependency via module.child2
-	checkStateString(t, s, `
+	if experimentalRuntimeEnabled() {
+		// Module outputs are not saved in state (other than root) in the new runtime
+		// - module.child1's instance_id output is dropped because we don't preserve
+		//   non-root module outputs between runs (they can be recalculated from config)
+		// - child2_id is updated because if its transitive dependency via module.child2
+		checkStateString(t, s, `
+<no state>
+Outputs:
+
+child2_id = foo
+
+module.child2:
+  aws_instance.foo:
+    ID = foo
+    provider = provider["registry.opentofu.org/hashicorp/aws"]
+    type = aws_instance
+`)
+	} else {
+		// - module.child1's instance_id output is dropped because we don't preserve
+		//   non-root module outputs between runs (they can be recalculated from config)
+		// - module.child2's instance_id is updated because its dependency is updated
+		// - child2_id is updated because if its transitive dependency via module.child2
+		checkStateString(t, s, `
 <no state>
 Outputs:
 
@@ -8050,6 +7954,7 @@ module.child2:
 
   instance_id = foo
 `)
+	}
 }
 
 func TestContext2Apply_targetedModuleResource(t *testing.T) {
@@ -8193,6 +8098,8 @@ func TestContext2Apply_unknownAttribute(t *testing.T) {
 		t.Error("should error, because attribute 'unknown' is still unknown after apply")
 	}
 
+	t.Log(diags.Err().Error())
+
 	actual := strings.TrimSpace(state.String())
 	expected := strings.TrimSpace(testTofuApplyUnknownAttrStr)
 	if actual != expected {
@@ -8330,8 +8237,6 @@ func TestContext2Apply_varsEnv(t *testing.T) {
 }
 
 func TestContext2Apply_createBefore_depends(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureHooks)
-
 	m := testModule(t, "apply-depends-create-before")
 	h := new(HookRecordApplyOrder)
 	p := testProvider("aws")
@@ -8442,7 +8347,6 @@ func TestContext2Apply_createBefore_depends(t *testing.T) {
 }
 
 func TestContext2Apply_singleDestroy(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
 	m := testModule(t, "apply-depends-create-before")
 	h := new(HookRecordApplyOrder)
 	p := testProvider("aws")
@@ -8544,8 +8448,6 @@ func TestContext2Apply_singleDestroy(t *testing.T) {
 
 // GH-7824
 func TestContext2Apply_issue7824(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	p := testProvider("template")
 	p.PlanResourceChangeFn = testDiffFn
 	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(&ProviderSchema{
@@ -8598,19 +8500,6 @@ func TestContext2Apply_issue7824(t *testing.T) {
 // This deals with the situation where a splat expression is used referring
 // to another resource whose count is non-constant.
 func TestContext2Apply_issue5254(t *testing.T) {
-	// Unfortunately in experimental mode this test is currently flaking with
-	// errors like this, but not consistently on every run:
-	//
-	//     err: 2 problems:
-	//
-	//     - missing configuration for provider["registry.opentofu.org/hashicorp/template"]
-	//     - missing configuration for provider["registry.opentofu.org/hashicorp/template"]
-	//
-	// When this occurs it's raised from the check for diagnostics just after
-	// the call to ctx.Apply below, so it seems like something's not working
-	// quite right in how the apply phase handles provider configurations.
-	SkipExperimental(t, ExperimentalBugMissingProvider)
-
 	// Create a provider. We use "template" here just to match the repro
 	// we got from the issue itself.
 	p := testProvider("template")
@@ -8828,8 +8717,6 @@ aws_instance.foo:
 }
 
 func TestContext2Apply_ignoreChangesWithDep(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureIgnoreChanges)
-
 	m := testModule(t, "apply-ignore-changes-dep")
 	p := testProvider("aws")
 
@@ -8975,8 +8862,6 @@ aws_instance.foo:
 
 // https://github.com/hashicorp/terraform/issues/7378
 func TestContext2Apply_destroyNestedModuleWithAttrsReferencingResource(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureDestroy)
-
 	m, snap := testModuleWithSnapshot(t, "apply-destroy-nested-module-with-attrs")
 	p := testProvider("null")
 	p.PlanResourceChangeFn = testDiffFn
@@ -9041,7 +8926,7 @@ func TestContext2Apply_destroyNestedModuleWithAttrsReferencingResource(t *testin
 // If a data source explicitly depends on another resource, it's because we need
 // that resource to be applied first.
 func TestContext2Apply_dataDependsOn(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDependsOn, ExperimentalBugDataResource)
+	SkipExperimental(t, ExperimentalBugDataResource)
 
 	p := testProvider("null")
 	m := testModuleInline(t, map[string]string{
@@ -9170,8 +9055,6 @@ resource "null_instance" "depends" {
 }
 
 func TestContext2Apply_tfWorkspace(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeaturePathAttrs, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-tf-workspace")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -9199,8 +9082,6 @@ func TestContext2Apply_tfWorkspace(t *testing.T) {
 }
 
 func TestContext2Apply_tofuWorkspace(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeaturePathAttrs, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-tofu-workspace")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -9229,7 +9110,7 @@ func TestContext2Apply_tofuWorkspace(t *testing.T) {
 
 // verify that multiple config references only create a single depends_on entry
 func TestContext2Apply_multiRef(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureTarget, ExperimentalFeatureDependsOn)
+	SkipExperimental(t, ExperimentalFeatureTarget)
 
 	m := testModule(t, "apply-multi-ref")
 	p := testProvider("aws")
@@ -9255,7 +9136,7 @@ func TestContext2Apply_multiRef(t *testing.T) {
 }
 
 func TestContext2Apply_targetedModuleRecursive(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureTarget, ExperimentalBugDeclareProvider)
+	SkipExperimental(t, ExperimentalFeatureTarget)
 
 	m := testModule(t, "apply-targeted-module-recursive")
 	p := testProvider("aws")
@@ -9302,8 +9183,6 @@ module.child.subchild:
 }
 
 func TestContext2Apply_localVal(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-local-val")
 	ctx := testContext2(t, &ContextOpts{
 		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{}, nil),
@@ -9331,8 +9210,6 @@ result_3 = hello world
 }
 
 func TestContext2Apply_destroyWithLocals(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModule(t, "apply-destroy-with-locals")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -9374,8 +9251,6 @@ func TestContext2Apply_destroyWithLocals(t *testing.T) {
 }
 
 func TestContext2Apply_providerWithLocals(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDestroy)
-
 	m := testModule(t, "provider-with-locals")
 	p := testProvider("aws")
 
@@ -9486,8 +9361,6 @@ func TestContext2Apply_destroyWithProviders(t *testing.T) {
 }
 
 func TestContext2Apply_providersFromState(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugStateProvider)
-
 	m := configs.NewEmptyConfig()
 	// Hack for new engine
 	m.Module.SourceDir = "."
@@ -9589,20 +9462,6 @@ func TestContext2Apply_providersFromState(t *testing.T) {
 }
 
 func TestContext2Apply_plannedInterpolatedCount(t *testing.T) {
-	// Unfortunately in experimental mode this test is currently flaking with
-	// errors like this, but not consistently on every run:
-	//
-	//     err: 3 problems:
-	//
-	//     - missing configuration for provider["registry.opentofu.org/hashicorp/aws"]
-	//     - missing configuration for provider["registry.opentofu.org/hashicorp/aws"]
-	//     - missing configuration for provider["registry.opentofu.org/hashicorp/aws"]
-	//
-	// When this occurs it's raised from the check for diagnostics just after
-	// the call to ctx.Apply below, so it seems like something's not working
-	// quite right in how the apply phase handles provider configurations.
-	SkipExperimental(t, ExperimentalBugMissingProvider)
-
 	m, snap := testModuleWithSnapshot(t, "apply-interpolated-count")
 
 	p := testProvider("aws")
@@ -9655,8 +9514,6 @@ func TestContext2Apply_plannedInterpolatedCount(t *testing.T) {
 }
 
 func TestContext2Apply_plannedDestroyInterpolatedCount(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m, snap := testModuleWithSnapshot(t, "plan-destroy-interpolated-count")
 
 	p := testProvider("aws")
@@ -9784,6 +9641,8 @@ func TestContext2Apply_scaleInMultivarRef(t *testing.T) {
 		if got, want := change.Action, plans.Delete; got != want {
 			t.Errorf("wrong action for %s %s; want %s", addr, got, want)
 		}
+		// Note: by skipping here, we still check for the errors and failures above!
+		SkipExperimental(t, ExperimentalFeatureActionReason)
 		if got, want := change.ActionReason, plans.ResourceInstanceDeleteBecauseCountIndex; got != want {
 			t.Errorf("wrong action reason for %s %s; want %s", addr, got, want)
 		}
@@ -9985,7 +9844,7 @@ func TestContext2Apply_invalidIndexRef(t *testing.T) {
 }
 
 func TestContext2Apply_moduleReplaceCycle(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
+	SkipExperimental(t, ExperimentalNewStrategyNeeded)
 
 	for _, mode := range []string{"normal", "cbd"} {
 		var m *configs.Config
@@ -10140,7 +9999,7 @@ func TestContext2Apply_moduleReplaceCycle(t *testing.T) {
 }
 
 func TestContext2Apply_destroyDataCycle(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDestroy, ExperimentalFlagUnknown)
+	SkipExperimental(t, ExperimentalBugDataResource)
 
 	m, snap := testModuleWithSnapshot(t, "apply-destroy-data-cycle")
 	p := testProvider("null")
@@ -10494,8 +10353,6 @@ func TestContext2Apply_plannedConnectionRefs(t *testing.T) {
 }
 
 func TestContext2Apply_cbdCycle(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureCBD, ExperimentalFlagUnknown)
-
 	m, snap := testModuleWithSnapshot(t, "apply-cbd-cycle")
 	p := testProvider("test")
 	p.PlanResourceChangeFn = testDiffFn
@@ -10614,859 +10471,8 @@ func TestContext2Apply_cbdCycle(t *testing.T) {
 	}
 }
 
-func TestContext2Apply_ProviderMeta_apply_set(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-set")
-	p := testProvider("test")
-	p.PlanResourceChangeFn = testDiffFn
-	schema := p.ProviderSchema()
-	schema.ProviderMeta = &configschema.Block{
-		Attributes: map[string]*configschema.Attribute{
-			"baz": {
-				Type:     cty.String,
-				Required: true,
-			},
-		},
-	}
-
-	var pmMu sync.Mutex
-	arcPMs := map[string]cty.Value{}
-
-	p.ApplyResourceChangeFn = func(req providers.ApplyResourceChangeRequest) providers.ApplyResourceChangeResponse {
-		pmMu.Lock()
-		defer pmMu.Unlock()
-		arcPMs[req.TypeName] = req.ProviderMeta
-
-		s := req.PlannedState.AsValueMap()
-		s["id"] = cty.StringVal("ID")
-		if ty, ok := s["type"]; ok && !ty.IsKnown() {
-			s["type"] = cty.StringVal(req.TypeName)
-		}
-		return providers.ApplyResourceChangeResponse{
-			NewState: cty.ObjectVal(s),
-		}
-	}
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-
-	plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	assertNoErrors(t, diags)
-
-	_, diags = ctx.Apply(context.Background(), plan, m, nil)
-	assertNoErrors(t, diags)
-
-	if !p.ApplyResourceChangeCalled {
-		t.Fatalf("ApplyResourceChange not called")
-	}
-
-	expectations := map[string]cty.Value{}
-
-	if pm, ok := arcPMs["test_resource"]; !ok {
-		t.Fatalf("sub-module ApplyResourceChange not called")
-	} else if pm.IsNull() {
-		t.Fatalf("null ProviderMeta in sub-module ApplyResourceChange")
-	} else {
-		expectations["quux-submodule"] = pm
-	}
-
-	if pm, ok := arcPMs["test_instance"]; !ok {
-		t.Fatalf("root module ApplyResourceChange not called")
-	} else if pm.IsNull() {
-		t.Fatalf("null ProviderMeta in root module ApplyResourceChange")
-	} else {
-		expectations["quux"] = pm
-	}
-
-	type metaStruct struct {
-		Baz string `cty:"baz"`
-	}
-
-	for expected, v := range expectations {
-		var meta metaStruct
-		err := gocty.FromCtyValue(v, &meta)
-		if err != nil {
-			t.Fatalf("Error parsing cty value: %s", err)
-		}
-		if meta.Baz != expected {
-			t.Fatalf("Expected meta.Baz to be %q, got %q", expected, meta.Baz)
-		}
-	}
-}
-
-func TestContext2Apply_ProviderMeta_apply_unset(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-unset")
-	p := testProvider("test")
-	p.PlanResourceChangeFn = testDiffFn
-	schema := p.ProviderSchema()
-	schema.ProviderMeta = &configschema.Block{
-		Attributes: map[string]*configschema.Attribute{
-			"baz": {
-				Type:     cty.String,
-				Required: true,
-			},
-		},
-	}
-	var pmMu sync.Mutex
-	arcPMs := map[string]cty.Value{}
-	p.ApplyResourceChangeFn = func(req providers.ApplyResourceChangeRequest) providers.ApplyResourceChangeResponse {
-		pmMu.Lock()
-		defer pmMu.Unlock()
-		arcPMs[req.TypeName] = req.ProviderMeta
-
-		s := req.PlannedState.AsValueMap()
-		s["id"] = cty.StringVal("ID")
-		if ty, ok := s["type"]; ok && !ty.IsKnown() {
-			s["type"] = cty.StringVal(req.TypeName)
-		}
-		return providers.ApplyResourceChangeResponse{
-			NewState: cty.ObjectVal(s),
-		}
-	}
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-
-	plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	assertNoErrors(t, diags)
-
-	_, diags = ctx.Apply(context.Background(), plan, m, nil)
-	assertNoErrors(t, diags)
-
-	if !p.ApplyResourceChangeCalled {
-		t.Fatalf("ApplyResourceChange not called")
-	}
-
-	if pm, ok := arcPMs["test_resource"]; !ok {
-		t.Fatalf("sub-module ApplyResourceChange not called")
-	} else if !pm.IsNull() {
-		t.Fatalf("non-null ProviderMeta in sub-module ApplyResourceChange: %+v", pm)
-	}
-
-	if pm, ok := arcPMs["test_instance"]; !ok {
-		t.Fatalf("root module ApplyResourceChange not called")
-	} else if !pm.IsNull() {
-		t.Fatalf("non-null ProviderMeta in root module ApplyResourceChange: %+v", pm)
-	}
-}
-
-func TestContext2Apply_ProviderMeta_plan_set(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-set")
-	p := testProvider("test")
-	schema := p.ProviderSchema()
-	schema.ProviderMeta = &configschema.Block{
-		Attributes: map[string]*configschema.Attribute{
-			"baz": {
-				Type:     cty.String,
-				Required: true,
-			},
-		},
-	}
-	prcPMs := map[string]cty.Value{}
-	p.PlanResourceChangeFn = func(req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
-		prcPMs[req.TypeName] = req.ProviderMeta
-		return providers.PlanResourceChangeResponse{
-			PlannedState: req.ProposedNewState,
-		}
-	}
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-
-	_, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	assertNoErrors(t, diags)
-
-	if !p.PlanResourceChangeCalled {
-		t.Fatalf("PlanResourceChange not called")
-	}
-
-	expectations := map[string]cty.Value{}
-
-	if pm, ok := prcPMs["test_resource"]; !ok {
-		t.Fatalf("sub-module PlanResourceChange not called")
-	} else if pm.IsNull() {
-		t.Fatalf("null ProviderMeta in sub-module PlanResourceChange")
-	} else {
-		expectations["quux-submodule"] = pm
-	}
-
-	if pm, ok := prcPMs["test_instance"]; !ok {
-		t.Fatalf("root module PlanResourceChange not called")
-	} else if pm.IsNull() {
-		t.Fatalf("null ProviderMeta in root module PlanResourceChange")
-	} else {
-		expectations["quux"] = pm
-	}
-
-	type metaStruct struct {
-		Baz string `cty:"baz"`
-	}
-
-	for expected, v := range expectations {
-		var meta metaStruct
-		err := gocty.FromCtyValue(v, &meta)
-		if err != nil {
-			t.Fatalf("Error parsing cty value: %s", err)
-		}
-		if meta.Baz != expected {
-			t.Fatalf("Expected meta.Baz to be %q, got %q", expected, meta.Baz)
-		}
-	}
-}
-
-func TestContext2Apply_ProviderMeta_plan_unset(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-unset")
-	p := testProvider("test")
-	schema := p.ProviderSchema()
-	schema.ProviderMeta = &configschema.Block{
-		Attributes: map[string]*configschema.Attribute{
-			"baz": {
-				Type:     cty.String,
-				Required: true,
-			},
-		},
-	}
-	prcPMs := map[string]cty.Value{}
-	p.PlanResourceChangeFn = func(req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
-		prcPMs[req.TypeName] = req.ProviderMeta
-		return providers.PlanResourceChangeResponse{
-			PlannedState: req.ProposedNewState,
-		}
-	}
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-
-	_, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	assertNoErrors(t, diags)
-
-	if !p.PlanResourceChangeCalled {
-		t.Fatalf("PlanResourceChange not called")
-	}
-
-	if pm, ok := prcPMs["test_resource"]; !ok {
-		t.Fatalf("sub-module PlanResourceChange not called")
-	} else if !pm.IsNull() {
-		t.Fatalf("non-null ProviderMeta in sub-module PlanResourceChange: %+v", pm)
-	}
-
-	if pm, ok := prcPMs["test_instance"]; !ok {
-		t.Fatalf("root module PlanResourceChange not called")
-	} else if !pm.IsNull() {
-		t.Fatalf("non-null ProviderMeta in root module PlanResourceChange: %+v", pm)
-	}
-}
-
-func TestContext2Apply_ProviderMeta_plan_setNoSchema(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-set")
-	p := testProvider("test")
-	p.PlanResourceChangeFn = testDiffFn
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-
-	_, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	if !diags.HasErrors() {
-		t.Fatalf("plan supposed to error, has no errors")
-	}
-
-	var rootErr, subErr bool
-	errorSummary := "The resource test_%s.bar belongs to a provider that doesn't support provider_meta blocks"
-	for _, diag := range diags {
-		if diag.Description().Summary != "Provider registry.opentofu.org/hashicorp/test doesn't support provider_meta" {
-			t.Errorf("Unexpected error: %+v", diag.Description())
-		}
-		switch diag.Description().Detail {
-		case fmt.Sprintf(errorSummary, "instance"):
-			rootErr = true
-		case fmt.Sprintf(errorSummary, "resource"):
-			subErr = true
-		default:
-			t.Errorf("Unexpected error: %s", diag.Description())
-		}
-	}
-	if !rootErr {
-		t.Errorf("Expected unsupported provider_meta block error for root module, none received")
-	}
-	if !subErr {
-		t.Errorf("Expected unsupported provider_meta block error for sub-module, none received")
-	}
-}
-
-func TestContext2Apply_ProviderMeta_plan_setInvalid(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-set")
-	p := testProvider("test")
-	p.PlanResourceChangeFn = testDiffFn
-	schema := p.ProviderSchema()
-	schema.ProviderMeta = &configschema.Block{
-		Attributes: map[string]*configschema.Attribute{
-			"quux": {
-				Type:     cty.String,
-				Required: true,
-			},
-		},
-	}
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-
-	_, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	if !diags.HasErrors() {
-		t.Fatalf("plan supposed to error, has no errors")
-	}
-
-	var reqErr, invalidErr bool
-	for _, diag := range diags {
-		switch diag.Description().Summary {
-		case "Missing required argument":
-			if diag.Description().Detail == `The argument "quux" is required, but no definition was found.` {
-				reqErr = true
-			} else {
-				t.Errorf("Unexpected error %+v", diag.Description())
-			}
-		case "Unsupported argument":
-			if diag.Description().Detail == `An argument named "baz" is not expected here.` {
-				invalidErr = true
-			} else {
-				t.Errorf("Unexpected error %+v", diag.Description())
-			}
-		default:
-			t.Errorf("Unexpected error %+v", diag.Description())
-		}
-	}
-	if !reqErr {
-		t.Errorf("Expected missing required argument error, none received")
-	}
-	if !invalidErr {
-		t.Errorf("Expected unsupported argument error, none received")
-	}
-}
-
-func TestContext2Apply_ProviderMeta_refresh_set(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-set")
-	p := testProvider("test")
-	p.PlanResourceChangeFn = testDiffFn
-	schema := p.ProviderSchema()
-	schema.ProviderMeta = &configschema.Block{
-		Attributes: map[string]*configschema.Attribute{
-			"baz": {
-				Type:     cty.String,
-				Required: true,
-			},
-		},
-	}
-	rrcPMs := map[string]cty.Value{}
-	p.ReadResourceFn = func(req providers.ReadResourceRequest) (resp providers.ReadResourceResponse) {
-		rrcPMs[req.TypeName] = req.ProviderMeta
-		newState, err := p.GetProviderSchemaResponse.ResourceTypes[req.TypeName].Block.CoerceValue(req.PriorState)
-		if err != nil {
-			panic(err)
-		}
-		resp.NewState = newState
-		return resp
-	}
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-
-	plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	assertNoErrors(t, diags)
-
-	state, diags := ctx.Apply(context.Background(), plan, m, nil)
-	assertNoErrors(t, diags)
-
-	_, diags = ctx.Refresh(context.Background(), m, state, DefaultPlanOpts)
-	assertNoErrors(t, diags)
-
-	if !p.ReadResourceCalled {
-		t.Fatalf("ReadResource not called")
-	}
-
-	expectations := map[string]cty.Value{}
-
-	if pm, ok := rrcPMs["test_resource"]; !ok {
-		t.Fatalf("sub-module ReadResource not called")
-	} else if pm.IsNull() {
-		t.Fatalf("null ProviderMeta in sub-module ReadResource")
-	} else {
-		expectations["quux-submodule"] = pm
-	}
-
-	if pm, ok := rrcPMs["test_instance"]; !ok {
-		t.Fatalf("root module ReadResource not called")
-	} else if pm.IsNull() {
-		t.Fatalf("null ProviderMeta in root module ReadResource")
-	} else {
-		expectations["quux"] = pm
-	}
-
-	type metaStruct struct {
-		Baz string `cty:"baz"`
-	}
-
-	for expected, v := range expectations {
-		var meta metaStruct
-		err := gocty.FromCtyValue(v, &meta)
-		if err != nil {
-			t.Fatalf("Error parsing cty value: %s", err)
-		}
-		if meta.Baz != expected {
-			t.Fatalf("Expected meta.Baz to be %q, got %q", expected, meta.Baz)
-		}
-	}
-}
-
-func TestContext2Apply_ProviderMeta_refresh_setNoSchema(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-set")
-	p := testProvider("test")
-	p.PlanResourceChangeFn = testDiffFn
-
-	// we need a schema for plan/apply so they don't error
-	schema := p.ProviderSchema()
-	schema.ProviderMeta = &configschema.Block{
-		Attributes: map[string]*configschema.Attribute{
-			"baz": {
-				Type:     cty.String,
-				Required: true,
-			},
-		},
-	}
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-
-	plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	assertNoErrors(t, diags)
-
-	state, diags := ctx.Apply(context.Background(), plan, m, nil)
-	assertNoErrors(t, diags)
-
-	// drop the schema before refresh, to test that it errors
-	schema.ProviderMeta = nil
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx = testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-
-	_, diags = ctx.Refresh(context.Background(), m, state, DefaultPlanOpts)
-	if !diags.HasErrors() {
-		t.Fatalf("refresh supposed to error, has no errors")
-	}
-
-	var rootErr, subErr bool
-	errorSummary := "The resource test_%s.bar belongs to a provider that doesn't support provider_meta blocks"
-	for _, diag := range diags {
-		if diag.Description().Summary != "Provider registry.opentofu.org/hashicorp/test doesn't support provider_meta" {
-			t.Errorf("Unexpected error: %+v", diag.Description())
-		}
-		switch diag.Description().Detail {
-		case fmt.Sprintf(errorSummary, "instance"):
-			rootErr = true
-		case fmt.Sprintf(errorSummary, "resource"):
-			subErr = true
-		default:
-			t.Errorf("Unexpected error: %s", diag.Description())
-		}
-	}
-	if !rootErr {
-		t.Errorf("Expected unsupported provider_meta block error for root module, none received")
-	}
-	if !subErr {
-		t.Errorf("Expected unsupported provider_meta block error for sub-module, none received")
-	}
-}
-
-func TestContext2Apply_ProviderMeta_refresh_setInvalid(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-set")
-	p := testProvider("test")
-	p.PlanResourceChangeFn = testDiffFn
-
-	// we need a matching schema for plan/apply so they don't error
-	schema := p.ProviderSchema()
-	schema.ProviderMeta = &configschema.Block{
-		Attributes: map[string]*configschema.Attribute{
-			"baz": {
-				Type:     cty.String,
-				Required: true,
-			},
-		},
-	}
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-
-	plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	assertNoErrors(t, diags)
-
-	state, diags := ctx.Apply(context.Background(), plan, m, nil)
-	assertNoErrors(t, diags)
-
-	// change the schema before refresh, to test that it errors
-	schema.ProviderMeta = &configschema.Block{
-		Attributes: map[string]*configschema.Attribute{
-			"quux": {
-				Type:     cty.String,
-				Required: true,
-			},
-		},
-	}
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx = testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-
-	_, diags = ctx.Refresh(context.Background(), m, state, DefaultPlanOpts)
-	if !diags.HasErrors() {
-		t.Fatalf("refresh supposed to error, has no errors")
-	}
-
-	var reqErr, invalidErr bool
-	for _, diag := range diags {
-		switch diag.Description().Summary {
-		case "Missing required argument":
-			if diag.Description().Detail == `The argument "quux" is required, but no definition was found.` {
-				reqErr = true
-			} else {
-				t.Errorf("Unexpected error %+v", diag.Description())
-			}
-		case "Unsupported argument":
-			if diag.Description().Detail == `An argument named "baz" is not expected here.` {
-				invalidErr = true
-			} else {
-				t.Errorf("Unexpected error %+v", diag.Description())
-			}
-		default:
-			t.Errorf("Unexpected error %+v", diag.Description())
-		}
-	}
-	if !reqErr {
-		t.Errorf("Expected missing required argument error, none received")
-	}
-	if !invalidErr {
-		t.Errorf("Expected unsupported argument error, none received")
-	}
-}
-
-func TestContext2Apply_ProviderMeta_refreshdata_set(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-data-set")
-	p := testProvider("test")
-	p.PlanResourceChangeFn = testDiffFn
-	schema := p.ProviderSchema()
-	schema.ProviderMeta = &configschema.Block{
-		Attributes: map[string]*configschema.Attribute{
-			"baz": {
-				Type:     cty.String,
-				Required: true,
-			},
-		},
-	}
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-	rdsPMs := map[string]cty.Value{}
-	p.ReadDataSourceFn = func(req providers.ReadDataSourceRequest) providers.ReadDataSourceResponse {
-		rdsPMs[req.TypeName] = req.ProviderMeta
-		switch req.TypeName {
-		case "test_data_source":
-			log.Printf("[TRACE] test_data_source RDSR returning")
-			return providers.ReadDataSourceResponse{
-				State: cty.ObjectVal(map[string]cty.Value{
-					"id":  cty.StringVal("yo"),
-					"foo": cty.StringVal("bar"),
-				}),
-			}
-		case "test_file":
-			log.Printf("[TRACE] test_file RDSR returning")
-			return providers.ReadDataSourceResponse{
-				State: cty.ObjectVal(map[string]cty.Value{
-					"id":       cty.StringVal("bar"),
-					"rendered": cty.StringVal("baz"),
-					"template": cty.StringVal(""),
-				}),
-			}
-		default:
-			// config drift, oops
-			log.Printf("[TRACE] unknown request TypeName: %q", req.TypeName)
-			return providers.ReadDataSourceResponse{}
-		}
-	}
-
-	plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	assertNoErrors(t, diags)
-
-	state, diags := ctx.Apply(context.Background(), plan, m, nil)
-	assertNoErrors(t, diags)
-
-	_, diags = ctx.Refresh(context.Background(), m, state, DefaultPlanOpts)
-	assertNoErrors(t, diags)
-
-	if !p.ReadDataSourceCalled {
-		t.Fatalf("ReadDataSource not called")
-	}
-
-	expectations := map[string]cty.Value{}
-
-	if pm, ok := rdsPMs["test_file"]; !ok {
-		t.Fatalf("sub-module ReadDataSource not called")
-	} else if pm.IsNull() {
-		t.Fatalf("null ProviderMeta in sub-module ReadDataSource")
-	} else {
-		expectations["quux-submodule"] = pm
-	}
-
-	if pm, ok := rdsPMs["test_data_source"]; !ok {
-		t.Fatalf("root module ReadDataSource not called")
-	} else if pm.IsNull() {
-		t.Fatalf("null ProviderMeta in root module ReadDataSource")
-	} else {
-		expectations["quux"] = pm
-	}
-
-	type metaStruct struct {
-		Baz string `cty:"baz"`
-	}
-
-	for expected, v := range expectations {
-		var meta metaStruct
-		err := gocty.FromCtyValue(v, &meta)
-		if err != nil {
-			t.Fatalf("Error parsing cty value: %s", err)
-		}
-		if meta.Baz != expected {
-			t.Fatalf("Expected meta.Baz to be %q, got %q", expected, meta.Baz)
-		}
-	}
-}
-
-func TestContext2Apply_ProviderMeta_refreshdata_unset(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-data-unset")
-	p := testProvider("test")
-	p.PlanResourceChangeFn = testDiffFn
-	schema := p.ProviderSchema()
-	schema.ProviderMeta = &configschema.Block{
-		Attributes: map[string]*configschema.Attribute{
-			"baz": {
-				Type:     cty.String,
-				Required: true,
-			},
-		},
-	}
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-	rdsPMs := map[string]cty.Value{}
-	p.ReadDataSourceFn = func(req providers.ReadDataSourceRequest) providers.ReadDataSourceResponse {
-		rdsPMs[req.TypeName] = req.ProviderMeta
-		switch req.TypeName {
-		case "test_data_source":
-			return providers.ReadDataSourceResponse{
-				State: cty.ObjectVal(map[string]cty.Value{
-					"id":  cty.StringVal("yo"),
-					"foo": cty.StringVal("bar"),
-				}),
-			}
-		case "test_file":
-			return providers.ReadDataSourceResponse{
-				State: cty.ObjectVal(map[string]cty.Value{
-					"id":       cty.StringVal("bar"),
-					"rendered": cty.StringVal("baz"),
-					"template": cty.StringVal(""),
-				}),
-			}
-		default:
-			// config drift, oops
-			return providers.ReadDataSourceResponse{}
-		}
-	}
-
-	plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	assertNoErrors(t, diags)
-
-	_, diags = ctx.Apply(context.Background(), plan, m, nil)
-	assertNoErrors(t, diags)
-
-	if !p.ReadDataSourceCalled {
-		t.Fatalf("ReadDataSource not called")
-	}
-
-	if pm, ok := rdsPMs["test_file"]; !ok {
-		t.Fatalf("sub-module ReadDataSource not called")
-	} else if !pm.IsNull() {
-		t.Fatalf("non-null ProviderMeta in sub-module ReadDataSource")
-	}
-
-	if pm, ok := rdsPMs["test_data_source"]; !ok {
-		t.Fatalf("root module ReadDataSource not called")
-	} else if !pm.IsNull() {
-		t.Fatalf("non-null ProviderMeta in root module ReadDataSource")
-	}
-}
-
-func TestContext2Apply_ProviderMeta_refreshdata_setNoSchema(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-data-set")
-	p := testProvider("test")
-	p.PlanResourceChangeFn = testDiffFn
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-	p.ReadDataSourceResponse = &providers.ReadDataSourceResponse{
-		State: cty.ObjectVal(map[string]cty.Value{
-			"id":  cty.StringVal("yo"),
-			"foo": cty.StringVal("bar"),
-		}),
-	}
-
-	_, diags := ctx.Refresh(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	if !diags.HasErrors() {
-		t.Fatalf("refresh supposed to error, has no errors")
-	}
-
-	var rootErr, subErr bool
-	errorSummary := "The resource data.test_%s.foo belongs to a provider that doesn't support provider_meta blocks"
-	for _, diag := range diags {
-		if diag.Description().Summary != "Provider registry.opentofu.org/hashicorp/test doesn't support provider_meta" {
-			t.Errorf("Unexpected error: %+v", diag.Description())
-		}
-		switch diag.Description().Detail {
-		case fmt.Sprintf(errorSummary, "data_source"):
-			rootErr = true
-		case fmt.Sprintf(errorSummary, "file"):
-			subErr = true
-		default:
-			t.Errorf("Unexpected error: %s", diag.Description())
-		}
-	}
-	if !rootErr {
-		t.Errorf("Expected unsupported provider_meta block error for root module, none received")
-	}
-	if !subErr {
-		t.Errorf("Expected unsupported provider_meta block error for sub-module, none received")
-	}
-}
-
-func TestContext2Apply_ProviderMeta_refreshdata_setInvalid(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProviderMeta)
-
-	m := testModule(t, "provider-meta-data-set")
-	p := testProvider("test")
-	p.PlanResourceChangeFn = testDiffFn
-	schema := p.ProviderSchema()
-	schema.ProviderMeta = &configschema.Block{
-		Attributes: map[string]*configschema.Attribute{
-			"quux": {
-				Type:     cty.String,
-				Required: true,
-			},
-		},
-	}
-	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(schema)
-	ctx := testContext2(t, &ContextOpts{
-		Plugins: plugins.NewLibrary(map[addrs.Provider]providers.Factory{
-			addrs.NewDefaultProvider("test"): testProviderFuncFixed(p),
-		}, nil),
-	})
-	p.ReadDataSourceResponse = &providers.ReadDataSourceResponse{
-		State: cty.ObjectVal(map[string]cty.Value{
-			"id":  cty.StringVal("yo"),
-			"foo": cty.StringVal("bar"),
-		}),
-	}
-
-	_, diags := ctx.Refresh(context.Background(), m, states.NewState(), DefaultPlanOpts)
-	if !diags.HasErrors() {
-		t.Fatalf("refresh supposed to error, has no errors")
-	}
-
-	var reqErr, invalidErr bool
-	for _, diag := range diags {
-		switch diag.Description().Summary {
-		case "Missing required argument":
-			if diag.Description().Detail == `The argument "quux" is required, but no definition was found.` {
-				reqErr = true
-			} else {
-				t.Errorf("Unexpected error %+v", diag.Description())
-			}
-		case "Unsupported argument":
-			if diag.Description().Detail == `An argument named "baz" is not expected here.` {
-				invalidErr = true
-			} else {
-				t.Errorf("Unexpected error %+v", diag.Description())
-			}
-		default:
-			t.Errorf("Unexpected error %+v", diag.Description())
-		}
-	}
-	if !reqErr {
-		t.Errorf("Expected missing required argument error, none received")
-	}
-	if !invalidErr {
-		t.Errorf("Expected unsupported argument error, none received")
-	}
-}
-
 func TestContext2Apply_expandModuleVariables(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureRootOutput, ExperimentalFeatureStateDependencies, ExperimentalChangeModuleOutput)
+	SkipExperimental(t, ExperimentalChangeModuleOutput)
 
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
@@ -11542,8 +10548,6 @@ module.mod2:
 }
 
 func TestContext2Apply_inheritAndStoreCBD(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureCBD)
-
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 resource "aws_instance" "foo" {
@@ -11584,7 +10588,7 @@ resource "aws_instance" "cbd" {
 }
 
 func TestContext2Apply_moduleDependsOn(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDependsOn, ExperimentalBugDataResource) // Requires data dependency status tracking
+	SkipExperimental(t, ExperimentalBugDataResource) // Requires data dependency status tracking
 
 	m := testModule(t, "apply-module-depends-on")
 
@@ -11734,8 +10738,6 @@ output "c" {
 }
 
 func TestContext2Apply_moduleExpandDependsOn(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDependsOn)
-
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 module "child" {
@@ -11797,15 +10799,12 @@ output "myoutput" {
 		t.Fatal(diags.ErrWithWarnings())
 	}
 
-	SkipExperimental(t, ExperimentalFeatureDestroy)
-
 	if !state.Empty() {
 		t.Fatal("expected empty state, got:", state)
 	}
 }
 
 func TestContext2Apply_scaleInCBD(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureCBD)
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 variable "ct" {
@@ -12189,7 +11188,7 @@ func TestContext2Apply_destroyProviderReference(t *testing.T) {
 // Destroying properly requires pruning out all unneeded config nodes to
 // prevent incorrect expansion evaluation.
 func TestContext2Apply_destroyInterModuleExpansion(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDestroy, ExperimentalFlagUnknown)
+	SkipExperimental(t, ExperimentalFlagUnknown)
 
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
@@ -12288,7 +11287,6 @@ output "outputs" {
 }
 
 func TestContext2Apply_createBeforeDestroyWithModule(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureCBD)
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 variable "v" {}
@@ -12368,7 +11366,6 @@ resource "test_resource" "a" {
 	})
 	assertNoErrors(t, diags)
 
-	SkipExperimental(t, ExperimentalBugMissingProvider)
 	_, diags = ctx.Apply(context.Background(), plan, m, nil)
 	if diags.HasErrors() {
 		t.Fatalf("apply errors: %s", diags.Err())
@@ -12376,19 +11373,6 @@ resource "test_resource" "a" {
 }
 
 func TestContext2Apply_forcedCBD(t *testing.T) {
-	// Unfortunately in experimental mode this test is currently flaking with
-	// errors like this, but not consistently on every run:
-	//
-	//     err: 2 problems:
-	//
-	//     - missing configuration for provider["registry.opentofu.org/hashicorp/template"]
-	//     - missing configuration for provider["registry.opentofu.org/hashicorp/template"]
-	//
-	// When this occurs it's raised from the check for diagnostics just after
-	// the call to ctx.Apply below, so it seems like something's not working
-	// quite right in how the apply phase handles provider configurations.
-	SkipExperimental(t, ExperimentalBugMissingProvider)
-
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 variable "v" {}
@@ -12452,7 +11436,6 @@ resource "test_instance" "b" {
 }
 
 func TestContext2Apply_removeReferencedResource(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDestroy)
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 variable "ct" {
@@ -12921,8 +11904,6 @@ resource "test_resource" "foo" {
 }
 
 func TestContext2Apply_moduleVariableOptionalAttributes(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 variable "in" {
@@ -12995,8 +11976,6 @@ output "out" {
 }
 
 func TestContext2Apply_moduleVariableOptionalAttributesDefault(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 variable "in" {
@@ -13047,8 +12026,6 @@ output "out" {
 }
 
 func TestContext2Apply_moduleVariableOptionalAttributesDefaultNull(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 variable "in" {
@@ -13095,8 +12072,6 @@ output "out" {
 }
 
 func TestContext2Apply_moduleVariableOptionalAttributesDefaultChild(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureRootOutput)
-
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 variable "in" {
@@ -13161,8 +12136,6 @@ output "out" {
 }
 
 func TestContext2Apply_provisionerSensitive(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
-
 	m := testModule(t, "apply-provisioner-sensitive")
 	p := testProvider("aws")
 
@@ -13376,8 +12349,6 @@ func TestContext2Apply_dataSensitive(t *testing.T) {
 }
 
 func TestContext2Apply_errorRestorePrivateData(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugStateProvider, ExperimentalFlagUnknown)
-
 	// empty config to remove our resource
 	m := testModuleInline(t, map[string]string{
 		"main.tf": "",
@@ -13418,7 +12389,7 @@ func TestContext2Apply_errorRestorePrivateData(t *testing.T) {
 }
 
 func TestContext2Apply_errorRestoreStatus(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugStateProvider, ExperimentalFeatureTaint)
+	SkipExperimental(t, ExperimentalFeatureTaint)
 
 	// empty config to remove our resource
 	m := testModuleInline(t, map[string]string{

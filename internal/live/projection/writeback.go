@@ -1373,7 +1373,6 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 									TypeName:      typeName,
 									PriorState:    prior,
 									Private:       obj.Private,
-									ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
 									PriorIdentity: obj.Identity,
 								})
 								if resp.Diagnostics.HasErrors() {

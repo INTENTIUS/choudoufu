@@ -15,9 +15,9 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 func TestMarshalAttributeValues(t *testing.T) {
@@ -375,8 +375,8 @@ func TestMarshalPlanValuesNoopDeposed(t *testing.T) {
 	}
 }
 
-func testSchemas() *tofu.Schemas {
-	return &tofu.Schemas{
+func testSchemas() *plugins.Schemas {
+	return &plugins.Schemas{
 		Providers: map[addrs.Provider]providers.ProviderSchema{
 			addrs.NewDefaultProvider("test"): providers.ProviderSchema{
 				ResourceTypes: map[string]providers.Schema{

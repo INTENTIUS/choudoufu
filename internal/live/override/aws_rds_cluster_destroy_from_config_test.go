@@ -99,3 +99,40 @@ func TestDestroyFromConfigNeverGuesses(t *testing.T) {
 		}
 	}
 }
+
+// unwrappingProvider stands in for internal/tofu's parallelProvider: a
+// provider wrapper above the override wrapper that hands back what it wraps.
+type unwrappingProvider struct{ providers.Configured }
+
+func (u unwrappingProvider) UnwrapProvider() providers.Configured { return u.Configured }
+
+// TestDestroyFromConfigFindsTheOverrideUnderAListerOrAnotherWrapper: every
+// plugin provider can list, so Wrap returns *wrappedLister for it (#2324),
+// and an engine may wrap the provider again. Destroy-from-config has to find
+// the overrides under both, or it silently never acts on a real provider.
+func TestDestroyFromConfigFindsTheOverrideUnderAListerOrAnotherWrapper(t *testing.T) {
+	ctx := context.Background()
+	var o Override
+	for _, c := range All() {
+		if c.Type == "aws_rds_cluster" && len(c.DestroyFromConfig) > 0 {
+			o = c
+		}
+	}
+	if o.Type == "" {
+		t.Fatal("no aws_rds_cluster destroy-from-config override registered")
+	}
+	lister := &listingFake{fakeProvider: fakeProvider{typeName: o.Type, proof: proof{schema: rdsClusterSchema}}}
+	underLister := Wrap(lister, map[string][]Override{o.Type: {o}})
+	for name, p := range map[string]providers.Interface{
+		"plugin provider that lists":     underLister,
+		"wrapped again above the lister": unwrappingProvider{underLister},
+	} {
+		if got := DestroyAttributes(ctx, p, o.Type); len(got) == 0 {
+			t.Errorf("%s: DestroyAttributes found no override", name)
+		}
+		on, _ := DestroyConfig(ctx, p, o.Type, rdsPrior, rdsConfig(cty.True))
+		if !on.GetAttr("skip_final_snapshot").RawEquals(cty.True) {
+			t.Errorf("%s: the destroy still sends skip_final_snapshot = %#v", name, on.GetAttr("skip_final_snapshot"))
+		}
+	}
+}

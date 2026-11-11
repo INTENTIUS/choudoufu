@@ -219,8 +219,6 @@ func (s *stubConfigValueAdjuster) AdjustConfigValue(_ context.Context, addr addr
 // PlanResourceChange, which #3016 forbids outright), this test's ignored
 // key would show the adjuster's value instead of the prior one.
 func TestContext2Plan_configValueAdjusterHonoursIgnoreChanges(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureIgnoreChanges)
-
 	addr := mustResourceInstanceAddr("test_object.a")
 
 	m := testModuleInline(t, map[string]string{
@@ -287,7 +285,9 @@ resource "test_object" "a" {
 		t.Fatalf("decoding the planned change: %s", err)
 	}
 
-	after := ric.After
+	// Unmarked: the new runtime's planner marks changed values as pending
+	// (objchange.MarkPendingChanges), and a marked value panics on AsString.
+	after, _ := ric.After.UnmarkDeep()
 	gotMap := after.GetAttr("test_map")
 	if gotMap.IsNull() || !gotMap.IsKnown() {
 		t.Fatalf("test_map is null or unknown in the planned value: %#v", gotMap)

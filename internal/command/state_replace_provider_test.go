@@ -6,8 +6,13 @@
 package command
 
 import (
+	"bytes"
+	"context"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/command/workdir"
@@ -175,11 +180,14 @@ func TestStateReplaceProvider(t *testing.T) {
 			WorkingDir: workdir.NewDir("."),
 			View:       view,
 		}
+		defer testInputMap(t, map[string]string{
+			"confirm": "no",
+		})()
 
 		args := []string{
 			"-state", statePath,
-			"hashicorp/google",
-			"acmecorp/google",
+			"hashicorp/aws",
+			"acmecorp/aws",
 		}
 		code := RunCommander(t, StateReplaceProviderCommander(), meta, args)
 		output := done(t)
@@ -193,6 +201,60 @@ func TestStateReplaceProvider(t *testing.T) {
 		if len(backups) != 0 {
 			t.Fatalf("unexpected backups: %#v", backups)
 		}
+	})
+
+	t.Run("cancel input at approval step", func(t *testing.T) {
+		statePath := testStateFile(t, state)
+
+		view, done := testView(t)
+
+		// Create a cancelled context to see if it is passed (next I will ask the input to be a pipe so it works)
+		ctx, cancel := context.WithCancel(t.Context())
+
+		meta := Meta{
+			WorkingDir: workdir.NewDir("."),
+			View:       view,
+
+			// make suer that the actual call will use the cancellable context
+			CallerContext: ctx,
+		}
+
+		// create a pipe that is idle
+		rx, tx := io.Pipe()
+
+		// cancel the context right before you start reading
+		var once sync.Once
+		rWrapped := notifyReader{
+			cancel: cancel,
+			once:   &once,
+			Reader: rx,
+		}
+
+		// and force the code to use it so it hangs on input for address
+		defaultInputReader = &rWrapped
+
+		// reset all things I set when done to not hog resources
+		defer func() {
+			defaultInputReader = os.Stdin
+			rx.Close()
+			tx.Close()
+		}()
+
+		args := []string{
+			"-state", statePath,
+			"hashicorp/aws",
+			"acmecorp/aws",
+		}
+		code := RunCommander(t, StateReplaceProviderCommander(), meta, args)
+		output := done(t).Stderr()
+		if code != 1 {
+			t.Fatalf("bad status code: %d\n\n%s", code, output)
+		}
+
+		if !strings.Contains(output, "interrupted: context canceled") {
+			t.Fatalf("error was not the one I expected to have, %s", output)
+		}
+
 	})
 
 	t.Run("invalid flags", func(t *testing.T) {
@@ -399,17 +461,20 @@ azurerm_virtual_machine.gamma:
   baz = value
 `
 
-// TestStateReplaceProvider_docs is the fork's: the legacy CLI's help for this
-// command names the binary it is, and upstream v1.13.0 deleted the test that
-// kept it so when the new CLI took over the help text for its own tree.
+// TestStateReplaceProvider_docs is the fork's: the help for this command
+// names the binary it is. It used to read the legacy CLI's Help(); upstream
+// removed that CLI in 1.14, so it now reads the usage the urfave/cli tree
+// prints (CommandUsage), which is the only help left.
 func TestStateReplaceProvider_docs(t *testing.T) {
-	c := &StateReplaceProviderCommand{}
+	cmd := StateReplaceProviderCommander()
 
-	if got, want := c.Help(), "Usage: choudoufu [global options] state replace-provider"; !strings.Contains(got, want) {
+	var buf bytes.Buffer
+	CommandUsage("state ", cmd, &buf)
+	if got, want := buf.String(), "Usage: choudoufu [global options] state replace-provider"; !strings.Contains(got, want) {
 		t.Fatalf("unexpected help text\nwant: %s\nfull output:\n%s", want, got)
 	}
 
-	if got, want := c.Synopsis(), "Replace provider in the state"; got != want {
+	if got, want := cmd.Short, "Replace provider in the state"; got != want {
 		t.Fatalf("unexpected synopsis\nwant: %s\nfull output:\n%s", want, got)
 	}
 }

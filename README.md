@@ -42,8 +42,8 @@ Handover is granting a role. Adoption and renames are tag writes.
 The name means stinky tofu, an acquired taste that suits a fork whose state
 may go stale.
 
-Built on OpenTofu v1.13.2 (fork point
-[`765062032c`](https://github.com/opentofu/opentofu/commit/765062032c)). The
+Built on OpenTofu 1.14.0-dev (fork point
+[`aa3eb66a0c`](https://github.com/opentofu/opentofu/commit/aa3eb66a0c)). The
 exact upstream version lives in [`version/VERSION`](version/VERSION), and
 each [release](https://github.com/INTENTIUS/choudoufu/releases)'s notes name
 both. Live markers are the only change from the stock release.
@@ -163,7 +163,7 @@ The upstream documentation lives at [opentofu.org](https://opentofu.org/docs/).
 ## License
 
 choudoufu is licensed MPL-2.0, forked from
-[opentofu/opentofu](https://github.com/opentofu/opentofu) at `765062032c`.
+[opentofu/opentofu](https://github.com/opentofu/opentofu) at `aa3eb66a0c`.
 LICENSE and all copyright headers match upstream.
 
 choudoufu is not affiliated with or endorsed by OpenTofu or the Linux

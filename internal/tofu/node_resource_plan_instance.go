@@ -15,14 +15,13 @@ import (
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
-	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/engine/identityresolve"
 	"github.com/intentius/choudoufu/internal/genconfig"
 	"github.com/intentius/choudoufu/internal/instances"
-	"github.com/intentius/choudoufu/internal/live/absent"
 	"github.com/intentius/choudoufu/internal/live/noimporter"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -712,105 +711,43 @@ func (n *NodePlannableResourceInstance) replaceTriggered(ctx context.Context, ev
 // keeps the dependency running the way ResourceIdentityResolver's doc
 // comment in resource_identity.go requires.
 
-// resolverImportSyntheticAbsentSummaries are importState's OWN
-// diagnostics - not the provider's - that already mean "there is nothing
-// here": an empty ImportedResources list, an imported object with a null
-// value, or a post-import refresh that comes back null (the object
-// existed a moment ago as far as ImportResourceState was concerned, but is
-// gone by the time refresh asks again). Matched on Summary, since
-// importState constructs these itself with fixed text rather than
-// forwarding a provider's free-form diagnostic.
-var resolverImportSyntheticAbsentSummaries = map[string]bool{
-	"Import returned no resources":             true,
-	"Import returned null resource":            true,
-	"Cannot import non-existent remote object": true,
-}
-
 // resolverImportAbsentDiagnostics reports whether every error-severity
 // diagnostic in diags describes an ordinary absence - either one of
-// importState's own synthetic "there is nothing here" diagnostics or a
-// provider's not-found-shaped error - rather than a genuine failure to
-// answer. It is edge 2 of the plan-node seam
+// importState's own synthetic "there is nothing here" diagnostics ("Import
+// returned no resources", "Import returned null resource", "Cannot import
+// non-existent remote object") or a provider's not-found-shaped error -
+// rather than a genuine failure to answer. It is edge 2 of the plan-node seam
 // (the foundation-order ruling (#388), ruling 3; issue #388): a
 // resolver-supplied target is a guess, not a promise the way an import
-// block's is, so an absent object here means the guess was wrong about
-// there being anything to import, not a reason to abort the plan.
+// block's is, so an absent object here means the guess was wrong about there
+// being anything to import, not a reason to abort the plan.
 //
 // A single diagnostic that does not match either shape - a credentials
 // problem, a malformed request, a genuine provider failure - makes this
 // report false, and the caller's existing hard stop applies untouched.
-// diags with no errors at all (only warnings, or empty) also reports
-// false, since the caller only consults this after confirming
-// HasErrors().
+// diags with no errors at all (only warnings, or empty) also reports false.
 //
-// target is the import that was asked for and providerType the type name
-// of the provider it was asked of: an Azure 404 reads as absence only
-// from an Azure provider and only when it is about that object
-// ([absent.Object], GitHub issues #2133 and #2140).
+// target is the import that was asked for and providerType the type name of
+// the provider it was asked of: an Azure 404 reads as absence only from an
+// Azure provider and only when it is about that object ([absent.Object],
+// GitHub issues #2133 and #2140).
+//
+// The rule lives in internal/engine/identityresolve since #2256 U6, so the
+// new runtime's planning engine applies the same one to the same targets.
 func resolverImportAbsentDiagnostics(diags tfdiags.Diagnostics, target providers.ImportTarget, providerType string) bool {
-	object := absent.Object{ID: target.ID, Identity: resolvedIdentityValues(target), Provider: providerType}
-	sawError := false
-	for _, d := range diags {
-		if d.Severity() != tfdiags.Error {
-			continue
-		}
-		sawError = true
-		desc := d.Description()
-		if resolverImportSyntheticAbsentSummaries[desc.Summary] {
-			continue
-		}
-		if !absent.Matches(desc.Summary, desc.Detail, object) {
-			return false
-		}
-	}
-	return sawError
+	return identityresolve.ImportAbsent(diags, target, providerType)
 }
 
 // resolvedIdentityValues extracts a resolved providers.ImportTarget's own
 // identity object as one string per attribute, keyed by the provider's own
 // name for it - the shape [noimporter.SynthesizeStub] needs to place a
-// no-classic-Importer stub, and the same shape
-// internal/live/projection/build.go's own identityValues parameter to
-// importAndRead carries for the pre-walk projection path.
-//
-// Only IsIdentityBased reports anything: an ID-based-only target is an
-// opaque string with no attribute breakdown to recover one from, and
-// inventing an attribute name for it (an "id" attribute, say) would be a
-// guess this run has no basis for - HANDOFF's safety rule names exactly
-// this shape of fabrication as the one thing worse than a refusal.
-// [providers.ImportTarget.IsIdentityBased] is only ever true for an
-// object this run itself resolved - an import block's own literal
-// identity, or a resolver's answer built from a real record, marker or
-// evaluated configuration value (see internal/live/projection/
-// noderesolver.go's ResolveResourceIdentity) - never a default, so every
-// value this returns is one the resolution path already stands behind.
-//
-// A null, unknown or unconvertible attribute is silently skipped rather
-// than forced to a string: [noimporter.SynthesizeStub] already leaves an
-// unnamed attribute null on the stub, the same place ImportResourceState's
-// own stub would have left it, so skipping here is not a loss of
-// information, only a refusal to fabricate one.
+// no-classic-Importer stub. Only an identity-based target reports anything:
+// an ID-based-only target is an opaque string, and inventing an attribute
+// name for it would be a guess this run has no basis for (HANDOFF's safety
+// rule). See [identityresolve.IdentityValues], shared with the new runtime
+// since #2256 U6.
 func resolvedIdentityValues(target providers.ImportTarget) map[string]string {
-	if !target.IsIdentityBased() {
-		return nil
-	}
-	ty := target.Identity.Type()
-	if !ty.IsObjectType() {
-		return nil
-	}
-	values := make(map[string]string, len(ty.AttributeTypes()))
-	for name := range ty.AttributeTypes() {
-		v := target.Identity.GetAttr(name)
-		if v.IsNull() || !v.IsKnown() {
-			continue
-		}
-		s, err := convert.Convert(v, cty.String)
-		if err != nil {
-			continue
-		}
-		values[name] = s.AsString()
-	}
-	return values
+	return identityresolve.IdentityValues(target)
 }
 
 func (n *NodePlannableResourceInstance) importState(ctx context.Context, evalCtx EvalContext, addr addrs.AbsResourceInstance, importTarget providers.ImportTarget, provider providers.Interface, providerSchema providers.ProviderSchema) (*states.ResourceInstanceObject, tfdiags.Diagnostics) {
@@ -861,14 +798,7 @@ func (n *NodePlannableResourceInstance) importState(ctx context.Context, evalCtx
 				}
 			}
 			if !stubbed {
-				diags = diags.Append(tfdiags.Sourceless(
-					tfdiags.Error,
-					"Resource type has no classic Importer",
-					fmt.Sprintf(
-						"The %s with %s cannot be imported: %s. This is not the provider erroring - it is answering that ImportResourceState is not implemented for this type at all, a fixed property of the provider's own code that no identity or retry changes.",
-						addr, importTarget.String(), detail,
-					),
-				))
+				diags = diags.Append(identityresolve.NoImporterRefusal(addr, importTarget, detail))
 				return nil, diags
 			}
 		}

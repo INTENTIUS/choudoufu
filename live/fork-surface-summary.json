@@ -1,12 +1,12 @@
 {
-  "fork_point": "765062032c46cacab116b36d714db098b806dede",
-  "fork_point_short": "765062032c",
-  "fork_point_subject": "Prepare v1.13.2 release (#4753)",
-  "fork_point_url": "https://github.com/opentofu/opentofu/commit/765062032c46cacab116b36d714db098b806dede",
-  "measured_at_head": "7354086d911a5d9cb1d5cb3169a192aa2ae2aa8a",
-  "measured_at_head_short": "7354086d91",
-  "generated_at": "2026-11-06T20:15:37Z",
-  "base_opentofu_version": "1.13.2",
+  "fork_point": "aa3eb66a0c1c792b7751e6ffeef7ca0cd8693f66",
+  "fork_point_short": "aa3eb66a0c",
+  "fork_point_subject": "[Govulncheck][GO-2026-6859][main] Upgrade Go toolchain to 1.27.4 (#4831)",
+  "fork_point_url": "https://github.com/opentofu/opentofu/commit/aa3eb66a0c1c792b7751e6ffeef7ca0cd8693f66",
+  "measured_at_head": "8ffa461f0b4d3d9d293adf09fe8480e409894430",
+  "measured_at_head_short": "8ffa461f0b",
+  "generated_at": "2026-11-11T17:50:06Z",
+  "base_opentofu_version": "1.14.0-dev",
   "named_roots": [
     "internal/live/",
     "tools/",
@@ -16,20 +16,20 @@
   ],
   "other_bucket": "other",
   "counts": {
-    ".github/": 25,
+    ".github/": 24,
     "internal/live/": 1905,
     "live/": 741,
-    "other": 1672,
+    "other": 1666,
     "site/": 94,
     "tools/": 583
   },
-  "named_total": 3348,
-  "other_count": 1672,
-  "total": 5020,
+  "named_total": 3347,
+  "other_count": 1666,
+  "total": 5013,
   "module_path_old": "github.com/opentofu/opentofu",
   "module_path_new": "github.com/intentius/choudoufu",
   "mechanical_module_rename": {
-    "excluded_count": 1145,
+    "excluded_count": 1167,
     "scope": "internal/**/*.go files (M-status) that would otherwise land in the other bucket",
     "note": "excluded because every changed line, order-independently, is the quoted Go import path moving from github.com/opentofu/opentofu to github.com/intentius/choudoufu - see the package doc's Limits section"
   }

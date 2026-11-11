@@ -14,6 +14,7 @@ import (
 	"github.com/intentius/choudoufu/internal/getproviders"
 	"github.com/intentius/choudoufu/internal/lang/eval/internal/configgraph"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
+	"github.com/intentius/choudoufu/internal/refactoring"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -162,6 +163,17 @@ func CompileModuleInstance(
 		call.EvaluationGlue.ResourceInstanceValue,
 		call.DependencyMarks,
 	)
+	ret.importNodes = compileImports(
+		ctx,
+		topScope,
+		call.EvalContext.Providers,
+		providersSidechannel,
+		module.Import,
+	)
+	ret.moveStatements = compileMoveStatements(
+		module,
+		call.CalleeAddr,
+	)
 
 	// Now that we've assembled all of the innards of the module instance,
 	// we'll wire the output values up to the top-level module instance
@@ -169,10 +181,21 @@ func CompileModuleInstance(
 	// instance.
 	ret.moduleInstanceNode.OutputValuers = make(map[addrs.OutputValue]*configgraph.OnceValuer, len(ret.outputValueNodes))
 	for addr, node := range ret.outputValueNodes {
-		ret.moduleInstanceNode.OutputValuers[addr] = configgraph.ValuerOnce(node)
+		ret.moduleInstanceNode.OutputValuers[addr] = configgraph.ValuerOnce(node, "Output values of %s", node.Addr)
 	}
 
 	return ret
+}
+
+func compileMoveStatements(module *configs.Module, moduleInstanceAddr addrs.ModuleInstance) []refactoring.MoveStatement {
+	// TODO add implicit move statements
+	// implicitMoveStmts := refactoring.ImpliedMoveStatements(config, prevRunState, explicitMoveStmts)
+	// Hmmm, do we do that here or do we do that "implicitly" at move-time during the plan phase?
+
+	// Note: this will have the same move statements for each instance of a given module.
+	// When collecting all move statements from the root module, be sure to
+	// only collect from one instance per module call made.
+	return refactoring.FindMoveStatementsShallow(module, moduleInstanceAddr.Module())
 }
 
 func compileCheckRules(configs []*configs.CheckRule, evalScope exprs.Scope) iter.Seq[*configgraph.CheckRule] {

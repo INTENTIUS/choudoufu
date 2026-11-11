@@ -6,7 +6,6 @@
 package arguments
 
 import (
-	"flag"
 	"fmt"
 	"strings"
 
@@ -59,9 +58,8 @@ func bindEstateOutputsFrom(c *CommandLine, dst *[]EstateOutputsFrom) *Flag {
 	value := estateOutputsFromFlag{dst: dst}
 	usage := `Under a live block, answer data "terraform_estate_outputs" reads of ESTATE from PATH, the "show -json" document of ESTATE's saved plan, rather than from what ESTATE recorded at its last apply. An output only known after apply, or sensitive, is refused. Repeatable, once per estate.`
 	f := c.Flag(&Flag{
-		Name:   "estate-outputs-from",
-		Usage:  usage,
-		Stdlib: func(fs *flag.FlagSet) { fs.Var(value, "estate-outputs-from", usage) },
+		Name:  "estate-outputs-from",
+		Usage: usage,
 	})
 	f.SetDisplay("=ESTATE=PATH")
 	f.Cli = func() cli.Flag {

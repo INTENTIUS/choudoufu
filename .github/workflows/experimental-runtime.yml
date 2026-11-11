@@ -1,0 +1,52 @@
+name: Experimental runtime
+
+# The fork's experimental-runtime lane (#2256 U3, #2338), adapted from
+# upstream's experimental-engine.yml. Three differences, each deliberate:
+#   - it runs on every pull request, not only on ones touching
+#     internal/engine, internal/lang or internal/resources: the fork's live
+#     packages can break on the new runtime from anywhere;
+#   - it sets Go up from go.mod with actions/setup-go, because the fork has
+#     no ./.github/actions/go-toolchain;
+#   - it is fork-owned: scripts/upstream-sync.sh strips .github/workflows/
+#     from every graft, so a restored copy of upstream's file would never
+#     receive upstream's changes.
+# It runs the live packages too, and checks the result against the shrink-only
+# list in live/experimental-runtime/expected-failures.json.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  experimental-runtime:
+    name: Tests on the new runtime, against the expected-failures list
+    runs-on: ubuntu-latest
+    env:
+      TF_APPEND_USER_AGENT: Integration-Test
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          # The ratchet finds the raw upstream graft in history to tell
+          # upstream's SkipExperimental calls from the fork's.
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # internal/live/check's TestIdentityGolden renders cohorts with
+      # tools/estate-gen, which shells out to a literal "terraform". Pinned
+      # from live/oracle-versions.json, as ci.yml does (issue #544).
+      - name: Read the pinned stock oracle version (issue #544)
+        id: oracle
+        run: echo "terraform=$(jq -r .terraform_version live/oracle-versions.json)" >> "$GITHUB_OUTPUT"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.oracle.outputs.terraform }}
+          terraform_wrapper: false
+      - name: Tests under TOFU_X_EXPERIMENTAL_RUNTIME, checked by the ratchet
+        run: make test-experimental-ratchet

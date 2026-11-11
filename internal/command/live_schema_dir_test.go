@@ -38,7 +38,7 @@ import (
 // dependency lock file naming one provider, and that provider's package
 // unpacked in dir's own provider cache.
 //
-// The package is internal/provider-simple, compiled here rather than
+// The package is internal/command/e2etest/provider-simple, compiled here rather than
 // downloaded, so this needs no network, no registry and no credentials -
 // and, more importantly, the provider it installs is a real plugin process
 // that serves a real schema, which is the only thing that can move the
@@ -77,7 +77,7 @@ func installSimpleProviderIn(t *testing.T, dir string) addrs.Provider {
 	if err != nil {
 		t.Fatalf("resolving the provider executable path: %v", err)
 	}
-	build := exec.Command("go", "build", "-o", absExe, "github.com/intentius/choudoufu/internal/provider-simple/main")
+	build := exec.Command("go", "build", "-o", absExe, "github.com/intentius/choudoufu/internal/command/e2etest/provider-simple/main")
 	// The module root, relative to this package's directory, which is
 	// where "go test" runs. PWD is dropped because the go command reads it
 	// when it is set and this process never chdir'd to it.

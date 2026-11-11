@@ -19,7 +19,7 @@ import (
 // empty for a provider no override wraps, so the caller can ask before it
 // spends anything evaluating configuration.
 func DestroyAttributes(ctx context.Context, p providers.Interface, typeName string) []string {
-	w, ok := p.(*wrapped)
+	w, ok := asWrapped(p)
 	if !ok {
 		return nil
 	}
@@ -40,7 +40,7 @@ func DestroyAttributes(ctx context.Context, p providers.Interface, typeName stri
 // value that is unknown, null or sensitive leaves the prior value alone:
 // stock behaviour, never a guess.
 func DestroyConfig(ctx context.Context, p providers.Interface, typeName string, prior, config cty.Value) (cty.Value, tfdiags.Diagnostics) {
-	w, ok := p.(*wrapped)
+	w, ok := asWrapped(p)
 	if !ok || prior.IsNull() || !prior.IsKnown() || prior.IsMarked() || config.IsNull() || !config.IsKnown() || config.IsMarked() {
 		return prior, nil
 	}
@@ -70,4 +70,31 @@ func DestroyConfig(ctx context.Context, p providers.Interface, typeName string, 
 		}
 	}
 	return cty.ObjectVal(attrs), diags
+}
+
+// Unwrapper is a provider wrapper that hands back the provider it wraps,
+// so the overrides below it are still found. internal/tofu's
+// parallelProvider (the new runtime's -parallelism) is one.
+type Unwrapper interface {
+	UnwrapProvider() providers.Configured
+}
+
+// asWrapped finds the override wrapper under p. Wrap returns *wrapped, or
+// *wrappedLister for a provider that can list, which every plugin provider
+// can (#2324); a type assertion on *wrapped alone missed every real
+// provider, so destroy-from-config never acted outside tests.
+func asWrapped(p providers.Configured) (*wrapped, bool) {
+	for i := 0; i < 8 && p != nil; i++ {
+		switch v := p.(type) {
+		case *wrapped:
+			return v, true
+		case *wrappedLister:
+			return v.wrapped, true
+		case Unwrapper:
+			p = v.UnwrapProvider()
+		default:
+			return nil, false
+		}
+	}
+	return nil, false
 }

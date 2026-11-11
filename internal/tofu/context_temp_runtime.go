@@ -7,6 +7,7 @@ package tofu
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -24,11 +25,12 @@ import (
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
+	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/shared"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
-	"github.com/intentius/choudoufu/version"
 )
 
 // ///////////////////////
@@ -46,11 +48,45 @@ import (
 // of that being necessary.
 // ///////////////////////
 func experimentalRuntimeEnabled() bool {
-	if !version.IsNightly() && !version.IsDev() {
-		return false
+	if experimentalRuntimeForcedForTesting {
+		return true
 	}
-
+	// choudoufu (#2256 U2, #2337, ruling 4): TOFU_X_EXPERIMENTAL_RUNTIME is
+	// the new-runtime toggle in every build, release builds included. #2336
+	// closed it in release builds; this opens it deliberately, and for this
+	// variable only: TOFU_X_EXPERIMENTAL_RUNTIME_NEXT (the command layer,
+	// Meta.NewRuntimeEnabled) stays closed in release builds. What the new
+	// runtime cannot handle yet is refused before planning, from the gap
+	// table in internal/live/newruntime. Live mode runs on it since #2256 U6
+	// lifted G's runtime-decision check (#2339); G's command-layer check on
+	// TOFU_X_EXPERIMENTAL_RUNTIME_NEXT stays.
 	return experimentalRuntimeWanted()
+}
+
+// experimentalRuntimeForcedForTesting switches the new runtime on with no
+// environment variable at all, so a test can show that behaviour keyed on
+// the runtime decision holds however the runtime gets chosen, not only when
+// one particular variable is set: upstream renamed and split its opt-in once
+// already (`#4823`). Only tests set it, through
+// [forceExperimentalRuntimeForTesting].
+var experimentalRuntimeForcedForTesting bool
+
+// SetExperimentalRuntimeForcedForTesting is the cross-package form of the
+// test hook above, for tests in other packages (internal/command's live-mode
+// guard tests) that must switch the new runtime on with no variable set. It
+// returns a function that restores the previous setting. Never call it
+// outside a test.
+func SetExperimentalRuntimeForcedForTesting(on bool) (restore func()) {
+	prev := experimentalRuntimeForcedForTesting
+	experimentalRuntimeForcedForTesting = on
+	return func() { experimentalRuntimeForcedForTesting = prev }
+}
+
+// ExperimentalRuntimeEnabled reports whether plan and apply run on the new
+// runtime, for callers outside this package that refuse what it cannot do
+// yet (#2256 U2: the test command).
+func ExperimentalRuntimeEnabled() bool {
+	return experimentalRuntimeEnabled()
 }
 
 func experimentalRuntimeWanted() bool {
@@ -98,7 +134,7 @@ func (c *Context) newEngineShim(ctx context.Context, config *configs.Config, inp
 		modules = newRuntimeModulesForTesting{config: config}
 	}
 
-	plugins := plugins.NewRuntimePluginsTemp(c.plugins.providers, c.plugins.provisioners)
+	plugins := plugins.NewRuntimePluginsTemp(parallelProviderManager{ProviderManager: c.plugins.providers, sem: c.parallelSem}, c.plugins.provisioners)
 	evalCtx := &eval.EvalContext{
 		RootModuleDir:      config.Module.SourceDir,
 		OriginalWorkingDir: owd,
@@ -173,10 +209,40 @@ func (c *Context) newEngineValidate(ctx context.Context, config *configs.Config,
 	return diags
 }
 
+// newRuntimePostPlan runs the gap table's post-plan check on a plan for the
+// new runtime (#2256 U2). Live mode is any run with a ConfigValueAdjuster,
+// the same test G uses.
+func (c *Context) newRuntimePostPlan(_ context.Context, plan *plans.Plan, _ *configs.Config) tfdiags.Diagnostics {
+	return newruntime.PostPlan(plan, c.configValueAdjuster != nil)
+}
+
+// newRuntimeWarningHiddenForTesting keeps the toggle's warning out of this
+// package's own test binary (set in TestMain). Upstream's engine tests count
+// diagnostics exactly, and the experimental-runtime lane runs them with the
+// toggle on: with the warning they would fail on the fork's banner, not on
+// anything the engine did. Tests that are about the warning turn it back on
+// with showNewRuntimeWarningForTesting. Other packages' tests, and every
+// real run, always get it.
+var newRuntimeWarningHiddenForTesting bool
+
+// newRuntimeWarning is the toggle's warning: the variable and the accepted
+// risks in the gap table (internal/live/newruntime/gaps.json).
+func newRuntimeWarning() tfdiags.Diagnostic {
+	return tfdiags.Sourceless(tfdiags.Warning, newruntime.WarningSummary, newruntime.WarningDetail())
+}
+
 func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, prevRoundState *states.State, opts *PlanOpts) (*plans.Plan, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	log.Println("[WARN] Using plan implementation from the experimental language runtime")
+
+	// #2256 U2: the toggle's warning, emitted only where plan and apply enter
+	// the engine. Not from newEngineShim: validate, and the validate pass the
+	// local backend runs before every plan, go through that too. So the
+	// warning in a run's output means internal/engine planned or applied it.
+	if !newRuntimeWarningHiddenForTesting {
+		diags = diags.Append(newRuntimeWarning())
+	}
 
 	timestamp := time.Now().UTC()
 
@@ -192,13 +258,36 @@ func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, pre
 
 	defer done()
 
+	var importTargets []*eval.ImportStatement
+	for _, target := range opts.ImportTargets {
+		if target.IsFromImportCommandLine() {
+			importTargets = append(importTargets, &eval.ImportStatement{
+				Addr: target.Addr,
+				ID:   target.ID,
+			})
+		}
+	}
+
 	newOpts := &planning.PlanOpts{
 		Mode:         opts.Mode,
 		ForceReplace: opts.ForceReplace,
+		SkipRefresh:  opts.SkipRefresh,
+
+		ImportCommandTargets: importTargets,
+		GenerateConfigPath:   opts.GenerateConfigPath,
+
 		// TODO: Most other things that are in this package's [PlanOpts]
 		// package, though notably not "SetVariables" because the new runtime
 		// deals with input variables during the module compilation step, rather
 		// than directly during planning.
+		Targets:  opts.Targets,
+		Excludes: opts.Excludes,
+
+		// choudoufu ownership markers (#2256 U4).
+		ConfigValueAdjuster: c.configValueAdjuster,
+		// choudoufu identity resolution (#2256 U6): a nil resolver stays a
+		// nil interface here, so the engine never asks.
+		IdentityResolver: c.resourceIdentityResolver,
 	}
 
 	plan, moreDiags := planning.PlanChanges(ctx, newOpts, prevRoundState, configInst, plugins)
@@ -231,6 +320,19 @@ func (c *Context) newEnginePlanTracer() *planning.Tracer {
 			gen := addr.DeposedKey.Generation()
 			c.eachHook(func(h Hook) (HookAction, error) {
 				return h.PostRefresh(inst, gen, prevRoundVal, refreshedVal)
+			})
+		},
+		StartManagedResourceInstanceObjectImport: func(ctx context.Context, addr addrs.AbsResourceInstanceObject, identity providers.ImportTarget) context.Context {
+			inst := addr.InstanceAddr
+			c.eachHook(func(h Hook) (HookAction, error) {
+				return h.PrePlanImport(inst, identity)
+			})
+			return ctx
+		},
+		EndManagedResourceInstanceObjectImport: func(ctx context.Context, addr addrs.AbsResourceInstanceObject) {
+			inst := addr.InstanceAddr
+			c.eachHook(func(h Hook) (HookAction, error) {
+				return h.PostPlanImport(inst, nil) // Practically speaking passing in the list of potential imports here does not make sense
 			})
 		},
 		StartManagedResourceInstanceObjectPlanChanges: func(ctx context.Context, addr addrs.AbsResourceInstanceObject, priorVal, configVal cty.Value) context.Context {
@@ -284,6 +386,14 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 
 	log.Println("[WARN] Using apply implementation from the experimental language runtime")
 
+	// #2256 U2: the toggle's warning, emitted only where plan and apply enter
+	// the engine. Not from newEngineShim: validate, and the validate pass the
+	// local backend runs before every plan, go through that too. So the
+	// warning in a run's output means internal/engine planned or applied it.
+	if !newRuntimeWarningHiddenForTesting {
+		diags = diags.Append(newRuntimeWarning())
+	}
+
 	if len(plan.ExecutionGraph) == 0 && !plan.Changes.ResourcesEmpty() {
 		diags = diags.Append(tfdiags.Sourceless(
 			tfdiags.Error,
@@ -305,8 +415,40 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 
 	defer done()
 
-	newState, moreDiags := applying.ApplyPlannedChanges(ctx, plan, configInst, plugins)
+	persistState := func(state *states.State) error {
+		var errs []error
+		for _, h := range c.hooks {
+			action, err := h.PostStateUpdate(func(mut *states.State) {
+				// Intentional struct copy
+				*mut = *state
+			})
+			errs = append(errs, err)
+			switch action {
+			case HookActionContinue:
+				continue
+			case HookActionHalt:
+				break
+			}
+		}
+		return errors.Join(errs...)
+	}
+	newState, moreDiags := applying.ApplyPlannedChanges(ctx, plan, configInst, plugins, persistState, &applying.ApplyOpts{
+		ConfigValueAdjuster: c.configValueAdjuster,
+		InstanceStateUpdate: c.newEngineInstanceStateUpdate, // choudoufu: #2341
+	})
 	diags = diags.Append(moreDiags)
+
+	if len(plan.TargetAddrs) > 0 || len(plan.ExcludeAddrs) > 0 {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"Applied changes may be incomplete",
+			`The plan was created with the -target or the -exclude option in effect, so some changes requested in the configuration may have been ignored and the output values may not be fully updated. Run the following command to verify that no other changes are pending:
+    tofu plan
+	
+Note that the -target and -exclude options are not suitable for routine use, and are provided only for exceptional situations such as recovering from errors or mistakes, or when OpenTofu specifically suggests to use it as part of an error message.`,
+		))
+	}
+
 	return newState, diags
 }
 

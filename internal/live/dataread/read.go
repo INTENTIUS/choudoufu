@@ -25,20 +25,6 @@ import (
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
-// encryptedDataSourceReader is the builtin terraform provider's special
-// read entry point for terraform_remote_state
-// (internal/builtin/providers/tf/provider.go, ReadDataSourceEncrypted): its
-// ordinary ReadDataSource panics deliberately, because a state read needs
-// the resource instance address (the encryption key name is derived from
-// it) and an [encryption.Encryption] that ReadDataSource's signature has no
-// room for. internal/tofu's own data-source eval draws the identical type
-// assertion (node_resource_abstract_instance.go, ProviderWithEncryption) -
-// this is a second, narrower copy of that interface rather than an import
-// of internal/tofu, which this package does not otherwise depend on.
-type encryptedDataSourceReader interface {
-	ReadDataSourceEncrypted(ctx context.Context, req providers.ReadDataSourceRequest, path addrs.AbsResourceInstance, enc encryption.Encryption) providers.ReadDataSourceResponse
-}
-
 // Providers is the one seam the read phase needs from its caller: a
 // configured provider instance per provider configuration. The command
 // layer's projectionProviders satisfies it - the same instances the
@@ -390,60 +376,33 @@ func (r *reader) callRead(src *Source, provider providers.Interface, dsSchema pr
 	req := providers.ReadDataSourceRequest{
 		TypeName: src.Resource.Type,
 		Config:   unmarked,
-		// ProviderMeta must be a real cty.Value, never the zero Value: the
-		// plugin client marshals it unconditionally whenever the provider
-		// declares a provider_meta schema (internal/plugin/grpc_provider.go's
-		// ReadDataSource), and msgpack.Marshal on cty.NilVal panics inside
-		// cty's own conformance check rather than returning an error. The aws
-		// provider declares one, so every real read from this phase crashed
-		// the process until this line existed; the offline tests could not see
-		// it because internal/tofu's MockProvider does no marshalling at all.
-		// A null is also the honest value: this phase does not evaluate a
-		// module's own provider_meta block, so it sends what a module that
-		// declares none sends. The same three lines appear in
-		// internal/live/liveimport, internal/live/untag and internal/live/mv
-		// for the same reason.
-		ProviderMeta: cty.NullVal(cty.DynamicPseudoType),
 	}
 	var resp providers.ReadDataSourceResponse
 	if src.RemoteState {
-		// terraform_remote_state's ReadDataSource panics deliberately
-		// (internal/builtin/providers/tf/provider.go): the real entry point
-		// needs the resource instance address and this run's own
-		// encryption setup, which ReadDataSource's signature has no room
-		// for. ConfiguredProvider already resolved this to the builtin
-		// "terraform" provider - the same instance terraform_data has used
-		// since #73 - so the type assertion always succeeds in practice;
-		// the error branch is a defensive backstop, not a live path.
-		tfp, ok := provider.(encryptedDataSourceReader)
-		if !ok {
-			return cty.NilVal, r.refuse(src, SummaryCrossStackStateUnavailable,
-				"%s's provider does not support the encrypted remote-state read path this stage requires; this is a defect in the calling code.",
-				src.Resource.String())
-		}
+		// terraform_remote_state needs the resource instance address (the
+		// encryption key name is derived from it) and this run's own
+		// encryption setup. Since upstream 1.14 the builtin "terraform"
+		// provider takes both through its ordinary ReadDataSource: the
+		// address on the request's ResourceAddr, the encryption on the
+		// context (encryption.ContextWithEncryption), which is how
+		// internal/tofu's own data-source eval passes them.
 		enc, encDiags := r.encryption()
 		if encDiags.HasErrors() {
 			return cty.NilVal, r.refuse(src, SummaryCrossStackStateUnavailable,
 				"%s's value is needed to resolve the identity of %s, and this configuration's own encryption block could not be built: %s.",
 				src.Resource.String(), src.NeededBy, encDiags.Error())
 		}
-		resp = tfp.ReadDataSourceEncrypted(r.ctx, req, r.representativeInstance(src, keys), enc)
+		req.ResourceAddr = r.representativeInstance(src, keys)
+		resp = provider.ReadDataSource(encryption.ContextWithEncryption(r.ctx, enc), req)
 	} else if src.EstateOutputs {
 		// GitHub issue #1575: terraform_estate_outputs is served by the same
-		// builtin provider, whose ordinary ReadDataSource panics for every
-		// type it serves; internal/tofu reaches this source through
-		// ReadDataSourceEncrypted too, which dispatches on the type name
-		// before touching the address or the encryption. Neither is used by
-		// an estate-outputs read, so this passes disabled encryption rather
-		// than building the configuration's own - a broken encryption block
-		// must not refuse a read that never decrypts anything.
-		tfp, ok := provider.(encryptedDataSourceReader)
-		if !ok {
-			return cty.NilVal, r.refuse(src, SummaryReadFailed,
-				"%s's provider does not support the builtin terraform provider's read path; this is a defect in the calling code.",
-				src.Resource.String())
-		}
-		resp = tfp.ReadDataSourceEncrypted(r.ctx, req, r.representativeInstance(src, keys), encryption.Disabled())
+		// builtin provider, which dispatches on the type name before touching
+		// the address or the encryption. Neither is used by an estate-outputs
+		// read, so this passes disabled encryption rather than building the
+		// configuration's own - a broken encryption block must not refuse a
+		// read that never decrypts anything.
+		req.ResourceAddr = r.representativeInstance(src, keys)
+		resp = provider.ReadDataSource(encryption.ContextWithEncryption(r.ctx, encryption.Disabled()), req)
 	} else {
 		resp = provider.ReadDataSource(r.ctx, req)
 	}
@@ -505,7 +464,7 @@ func (r *reader) callRead(src *Source, provider providers.Interface, dsSchema pr
 // representativeInstance picks one absolute instance address for a
 // terraform_remote_state read's encryption-key lookup
 // (encryption.Encryption.RemoteState keys by name, derived from this
-// address the same way [tf.Provider.ReadDataSourceEncrypted] derives it).
+// address the same way [tf.Provider.ReadDataSource] derives it).
 // One call serves every instance of a count- or for_each-expanded block
 // (the same "one honest answer, shared" rule [reader.readSource]'s doc
 // comment states), so any one instance's address is representative; the

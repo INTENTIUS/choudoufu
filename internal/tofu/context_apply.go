@@ -15,6 +15,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -57,6 +58,14 @@ type ApplyOpts struct {
 // resulting state which is likely to have been partially-updated.
 func (c *Context) Apply(ctx context.Context, plan *plans.Plan, config *configs.Config, opts *ApplyOpts) (*states.State, tfdiags.Diagnostics) {
 	defer c.acquireRun("apply")()
+
+	// choudoufu (#2256): with the new-runtime toggle on, the gap table's
+	// checks refuse a plan by returning none. A caller that applies a plan
+	// without checking Plan's errors then gets this error, not a panic.
+	if plan == nil {
+		var diags tfdiags.Diagnostics
+		return nil, diags.Append(tfdiags.Sourceless(tfdiags.Error, "No plan to apply", "Apply was called without a plan, because planning failed or was refused. Check the plan's diagnostics."))
+	}
 
 	log.Printf("[DEBUG] Building and walking apply graph for %s plan", plan.UIMode)
 
@@ -118,6 +127,20 @@ func (c *Context) Apply(ctx context.Context, plan *plans.Plan, config *configs.C
 	// TEMP: Opt-in support for testing with the new experimental language
 	// runtime. Refer to backend_temp_new_runtime.go for more information.
 	if experimentalRuntimeEnabled() {
+		// #2256 U2: applying a saved plan with the toggle on runs both
+		// gap-table checks against the plan's changes and the configuration
+		// it was made from (for apply PLANFILE, the plan file's snapshot), so
+		// a plan saved with the toggle off cannot slip past them.
+		priorForPreflight := plan.PriorState
+		if priorForPreflight == nil {
+			priorForPreflight = plan.PrevRunState
+		}
+		if moreDiags := newruntime.Preflight(config, priorForPreflight); moreDiags.HasErrors() {
+			return nil, diags.Append(moreDiags)
+		}
+		if moreDiags := c.newRuntimePostPlan(ctx, plan, config); moreDiags.HasErrors() {
+			return nil, diags.Append(moreDiags)
+		}
 		variables, vDiags := c.mergePlanAndApplyVariables(config, plan, opts)
 		diags = diags.Append(vDiags)
 		if diags.HasErrors() {

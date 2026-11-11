@@ -19,9 +19,11 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/command/format"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/lang/globalref"
+	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/refactoring"
 	"github.com/intentius/choudoufu/internal/states"
@@ -279,7 +281,7 @@ The -target and -exclude options are not for routine use, and are provided only 
 		panic("nil plan but no errors")
 	}
 
-	if plan != nil {
+	if plan != nil && !experimentalRuntimeEnabled() {
 		relevantAttrs, rDiags := c.relevantResourceAttrsForPlan(ctx, config, plan)
 		diags = diags.Append(rDiags)
 		plan.RelevantAttributes = relevantAttrs
@@ -298,7 +300,27 @@ The -target and -exclude options are not for routine use, and are provided only 
 
 	diags = diags.Append(c.checkApplyGraph(ctx, plan, config))
 
+	if planHasForgetChanges(plan) {
+		schemas, schemasDiags := c.Schemas(ctx, config, prevRunState)
+		diags = diags.Append(schemasDiags)
+		if !schemasDiags.HasErrors() {
+			diags = diags.Append(c.checkForgetWarnings(plan, schemas))
+		}
+	}
+
 	return plan, diags
+}
+
+func planHasForgetChanges(plan *plans.Plan) bool {
+	if plan == nil || plan.Changes == nil {
+		return false
+	}
+	for _, rc := range plan.Changes.Resources {
+		if rc.Action == plans.Forget || rc.Action == plans.ForgetThenCreate {
+			return true
+		}
+	}
+	return false
 }
 
 // checkApplyGraph builds the apply graph out of the current plan to
@@ -781,8 +803,22 @@ func (c *Context) planWalk(ctx context.Context, config *configs.Config, prevRunS
 	// TEMP: Opt-in support for testing with the new experimental language
 	// runtime. Refer to backend_temp_new_runtime.go for more information.
 	if experimentalRuntimeEnabled() {
+		// #2256 U2: the preflight refuses, from the gap table, every
+		// construct in the configuration or prior state the new runtime
+		// cannot handle yet. It runs before newEnginePlan, so a refused run
+		// never prints the toggle's warning.
+		if moreDiags := newruntime.Preflight(config, prevRunState); moreDiags.HasErrors() {
+			return nil, diags.Append(moreDiags)
+		}
 		plan, moreDiags := c.newEnginePlan(ctx, config, prevRunState, opts)
-		return plan, diags.Append(moreDiags)
+		diags = diags.Append(moreDiags)
+		// #2256 U2: the post-plan check refuses, from the gap table, any
+		// change the new runtime cannot apply correctly yet, before the
+		// plan is shown or saved.
+		if postDiags := c.newRuntimePostPlan(ctx, plan, config); postDiags.HasErrors() {
+			return nil, diags.Append(postDiags)
+		}
+		return plan, diags
 	}
 
 	prevRunState = prevRunState.DeepCopy() // don't modify the caller's object when we process the moves
@@ -1211,5 +1247,85 @@ func warnOnUsedDeprecatedVars(inputs InputValues, decls map[string]*configs.Vari
 			})
 		}
 	}
+	return diags
+}
+
+func (c *Context) checkForgetWarnings(plan *plans.Plan, schemas *Schemas) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+	if plan == nil || plan.Changes == nil {
+		return diags
+	}
+
+	type forgetItem struct {
+		addr    addrs.AbsResourceInstance
+		attrKey string
+		attrVal string
+	}
+	var items []forgetItem
+
+	for _, rc := range plan.Changes.Resources {
+		if rc.Action != plans.Forget && rc.Action != plans.ForgetThenCreate {
+			continue
+		}
+		schema, _ := schemas.ResourceTypeConfig(
+			rc.ProviderAddr.Provider,
+			rc.Addr.Resource.Resource.Mode,
+			rc.Addr.Resource.Resource.Type,
+		)
+		if schema == nil {
+			items = append(items, forgetItem{
+				addr: rc.Addr,
+			})
+			continue
+		}
+
+		changeV, err := rc.Decode(schema)
+		if err != nil || changeV.Before == cty.NilVal {
+			items = append(items, forgetItem{
+				addr: rc.Addr,
+			})
+			continue
+		}
+
+		k, v := format.ObjectValueBestGuess(changeV.Before)
+		items = append(items, forgetItem{
+			addr:    rc.Addr,
+			attrKey: k,
+			attrVal: v,
+		})
+	}
+
+	if len(items) == 0 {
+		return diags
+	}
+
+	// Sort items by address for deterministic output
+	slices.SortFunc(items, func(a, b forgetItem) int {
+		if a.addr.Less(b.addr) {
+			return -1
+		}
+		if b.addr.Less(a.addr) {
+			return 1
+		}
+		return 0
+	})
+
+	var sb strings.Builder
+	sb.WriteString("After this plan is applied, the objects associated with the following resource instances will no longer be managed by OpenTofu:\n")
+	for _, item := range items {
+		if item.attrVal != "" {
+			fmt.Fprintf(&sb, " - %s (%s=%q)\n", item.addr, item.attrKey, item.attrVal)
+		} else {
+			fmt.Fprintf(&sb, " - %s\n", item.addr)
+		}
+	}
+	sb.WriteString("\nThese objects will continue to exist in the remote system until you delete them outside of OpenTofu. If you wish to manage any of these objects with OpenTofu again in future then you will need to re-import them.")
+
+	diags = diags.Append(tfdiags.Sourceless(
+		tfdiags.Warning,
+		"Objects will be removed from state",
+		sb.String(),
+	))
+
 	return diags
 }

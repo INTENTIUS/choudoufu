@@ -19,9 +19,16 @@ import (
 	"github.com/intentius/choudoufu/internal/communicator"
 	"github.com/intentius/choudoufu/internal/communicator/remote"
 	"github.com/intentius/choudoufu/internal/provisioners"
-	"github.com/mitchellh/cli"
 	"github.com/zclconf/go-cty/cty"
 )
+
+type mockUI struct {
+	strings.Builder
+}
+
+func (m *mockUI) Output(str string) {
+	m.WriteString(str + "\n")
+}
 
 func TestResourceProvider_Validate_good(t *testing.T) {
 	c := cty.ObjectVal(map[string]cty.Value{
@@ -213,7 +220,7 @@ func TestResourceProvider_CollectScripts_scriptsEmpty(t *testing.T) {
 }
 
 func TestProvisionerTimeout(t *testing.T) {
-	o := cli.NewMockUi()
+	o := new(mockUI)
 	c := new(communicator.MockCommunicator)
 
 	disconnected := make(chan struct{})
@@ -288,7 +295,7 @@ func TestResourceProvisioner_connectionRequired(t *testing.T) {
 }
 
 func TestResourceProvisioner_nullsInOptionals(t *testing.T) {
-	output := cli.NewMockUi()
+	output := new(mockUI)
 	p := New()
 	schema := p.GetSchema().Provisioner
 

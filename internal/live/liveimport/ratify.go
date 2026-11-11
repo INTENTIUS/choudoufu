@@ -953,7 +953,6 @@ func ratifyOne(ctx context.Context, req Request, res *states.Resource, addr addr
 		TypeName:      typeName,
 		PriorState:    priorVal,
 		Private:       prior.Private,
-		ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
 		PriorIdentity: prior.Identity,
 	})
 	if readResp.Diagnostics.HasErrors() {

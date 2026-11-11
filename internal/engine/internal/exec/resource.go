@@ -6,6 +6,7 @@
 package exec
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/zclconf/go-cty/cty"
@@ -13,7 +14,10 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
+	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/resources"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // ManagedResourceObjectFinalPlan represents a final plan -- ready to actually
@@ -224,19 +228,26 @@ type ResourceInstanceObjectMeta struct {
 	// the course of the apply phase.
 	Addr addrs.AbsResourceInstanceObject
 
+	// Provider is the address of the provider that the resource type in
+	// [ResourceInstanceObjectMeta.ResourceType] belongs to.
+	Provider addrs.Provider
+	// ResourceType is the resource type of the object this metadata is for,
+	// as would be understood by the provider identified in
+	// [ResourceInstanceObjectMeta.Provider].
+	ResourceType string
+
+	DeclRange tfdiags.SourceRange
+
 	// ProviderInstance is the address of the provider instance that is
 	// currently considered responsible for this resource instance object.
+	// If populated, this is always an instance of the provider specified in the
+	// Provider field.
 	//
 	// A resource instance object is associated with a specific provider
 	// instance throughout a plan/apply round, but may change which provider
 	// instance it is associated with between rounds based on changes in the
 	// configuration.
 	ProviderInstance exprs.FromValue[addrs.AbsProviderInstanceCorrect]
-
-	// ResourceType is the resource type of the object this metadata is for,
-	// as would be understood by the provider identified in
-	// [ResourceInstanceObjectMeta.ProviderInstance].
-	ResourceType string
 
 	// PostCreateProvisioners are the provisioners to execute immediately after
 	// the resource instance object has been created.
@@ -253,6 +264,54 @@ type ResourceInstanceObjectMeta struct {
 	// the apply phase would delete a resource instance object at the associated
 	// address. Its contents are unspecified in other cases.
 	PreDeleteProvisioners []*eval.ResourceProvisioner
+
+	// ReplaceOrder describes the configured constraint on what order the
+	// create and delete steps of a  "replace" action for this resource instance
+	// object must happen in.
+	//
+	// The result can be [resources.ReplaceAnyOrder] for objects that have no
+	// such constraint, in which case the planning phase must decide on an
+	// ordering based on the constraints of other objects that are dependencies
+	// or dependents of this one.
+	//
+	// This setting also affects how actions for this object may be ordered
+	// with actions from other objects even when not replacing, in order to
+	// produce a well-defined execution order when this object's actions are
+	// combined with actions of other objects in the apply-time execution graph.
+	//
+	// This field is relevant only for managed resource mode and its value is
+	// unspecified for other resource modes.
+	ReplaceOrder exprs.FromValue[resources.ReplaceOrder]
+
+	// DeletionInvalid is true if the author has configured that any execution
+	// plan that involves deleting this object should be considered immediately
+	// invalid. If false then deleting is a valid action to include.
+	//
+	// This field is relevant only for managed resource mode and its value is
+	// unspecified for other resource modes.
+	DeletionInvalid *exprs.WithSourceRange[bool]
+
+	ImportStatement *eval.ImportStatement
+
+	// Note that we intentionally do not aggregate
+	// [eval.ConfiguredResourceInstanceObjectMeta.MoveStatements] elements
+	// here because by the time the caller knows enough to ask for the
+	// final aggregate metadata they must already have processed all of the
+	// relevant moved statements in order to know which previous run and
+	// desired object addresses to specify. There is a separate function in
+	// the planning engine that deals with aggregating those, and no other
+	// part of the system should be interacting with individual move statements
+	// because the planning engine should already have resolved them into a
+	// more convenient, finalized form.
+
+	Status states.ObjectStatus
+
+	OrphanActionReason plans.ResourceInstanceChangeActionReason
+
+	// DestroyConfigValue is choudoufu's (GitHub issue #2309, #2344), from
+	// [eval.ConfiguredResourceInstanceObjectMeta.DestroyConfigValue]. Only
+	// the planning engine calls it.
+	DestroyConfigValue func(ctx context.Context) cty.Value
 }
 
 // BuildResourceInstanceObjectMeta constructs a [ResourceInstanceObjectMeta]
@@ -270,19 +329,24 @@ type ResourceInstanceObjectMeta struct {
 // address will be the value of [ResourceInstanceObjectMeta.Addr] and so must
 // be consistent with the documentation of that field.
 //
-// At least one of fromConfig and state must be non-nil, or this function will
-// panic. There is no reason to ask for metadata for an object that exists in
-// neither the desired nor the prior state.
-func BuildResourceInstanceObjectMeta(
+// If there are no configuration objects and no the state object is nil then
+// this function will panic. There is no reason to ask for metadata for an
+// object that exists in neither the desired nor the prior state.
+func BuildResourceInstanceObjectMeta[SV states.ValueOrJSONEquivalent](
 	addr addrs.AbsResourceInstanceObject,
-	fromConfig *eval.ConfiguredResourceInstanceObjectMeta,
-	state *states.ResourceInstanceObjectFull,
+	fromConfig []eval.ModuleConfiguredResourceInstanceObjectMeta,
+	state *states.ResourceInstanceObjectRepr[SV], // We only care about metadata, so either the decoded or encoded variant is acceptable
 ) *ResourceInstanceObjectMeta {
-	if fromConfig == nil && state == nil {
+	if len(fromConfig) == 0 && state == nil {
 		panic(fmt.Sprintf("cannot build resource instance object metadata for %s with neither configured nor prior state metadata", addr))
 	}
 	ret := &ResourceInstanceObjectMeta{
 		Addr: addr,
+
+		// We'll start with the usual implied provider based on the resource
+		// type, but hopefully at least one of the sources we consider below
+		// will override this with something more explicit.
+		Provider: addrs.ImpliedProviderForUnqualifiedType(addr.InstanceAddr.Resource.Resource.ImpliedProvider()),
 	}
 
 	// If both state and fromConfig are present then we'll start with state
@@ -290,18 +354,66 @@ func BuildResourceInstanceObjectMeta(
 	if state != nil {
 		// Note that if this object is participating in a cross-resource-type
 		// move in this plan/apply round this will initially reflect the
-		// old resource type, but then we'll overwrite it with the new resource
-		// type from the configuration object below.
+		// old provider and resource type, but then we'll overwrite it with the
+		// new provider and resource type from the configuration object below.
+		ret.Provider = state.ProviderInstanceAddr.Config.Config.Provider
 		ret.ResourceType = state.ResourceType
+
+		ret.ProviderInstance = exprs.Known(state.ProviderInstanceAddr)
+
+		// TODO: Consider making state also model this as a
+		// [resources.ReplaceOrder] too, for consistency.
+		if state.CreateBeforeDestroy {
+			ret.ReplaceOrder = exprs.Known(resources.ReplaceCreateFirst)
+		} else {
+			ret.ReplaceOrder = exprs.Known(resources.ReplaceAnyOrder)
+		}
+
+		ret.Status = state.Status
 
 		// TODO: Everything else
 	}
 
-	if fromConfig != nil {
-		ret.ResourceType = fromConfig.ResourceType
+	for _, fromModule := range fromConfig {
+		if p := fromModule.Provider; p != nil {
+			ret.Provider = p.Provider
+			ret.ResourceType = p.ResourceType
+			if p.Instance != nil {
+				ret.ProviderInstance = *p.Instance
+			}
+		}
 
-		ret.PostCreateProvisioners = fromConfig.PostCreateProvisioners
-		ret.PreDeleteProvisioners = fromConfig.PreDestroyProvisioners
+		// FIXME: This is currently just taking the range from whatever is
+		// the deepest module that has any opinion about this resource instance,
+		// which doesn't seem right. We should probably refine what
+		// [eval.ConfiguredResourceInstanceMeta.DeclRange] actually means --
+		// e.g. specifying that it should only be populated when a module
+		// instance includes a declaration that the object is desired --
+		// and let it be nil for module instances where that isn't true.
+		ret.DeclRange = fromModule.DeclRange
+
+		if fromModule.OrphanActionReason != plans.ResourceInstanceChangeNoReason {
+			ret.OrphanActionReason = fromModule.OrphanActionReason
+		}
+
+		ret.PostCreateProvisioners = append(ret.PostCreateProvisioners, fromModule.PostCreateProvisioners...)
+		ret.PreDeleteProvisioners = append(ret.PreDeleteProvisioners, fromModule.PreDeleteProvisioners...)
+		if fromModule.ReplaceOrder != nil {
+			ret.ReplaceOrder = *fromModule.ReplaceOrder
+		}
+
+		if fromModule.DeletionInvalid != nil {
+			ret.DeletionInvalid = fromModule.DeletionInvalid
+		}
+
+		if fromModule.DestroyConfigValue != nil {
+			ret.DestroyConfigValue = fromModule.DestroyConfigValue
+		}
+
+		if fromModule.ImportStatement != nil {
+			// Conflicts are handled during plan finalize
+			ret.ImportStatement = fromModule.ImportStatement
+		}
 
 		// TODO: Everything else
 	}

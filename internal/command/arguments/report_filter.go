@@ -6,7 +6,6 @@
 package arguments
 
 import (
-	"flag"
 	"fmt"
 	"strings"
 
@@ -126,9 +125,8 @@ func bindReportFilter(c *CommandLine, dst *ReportFilter) *Flag {
 	value := reportFilterFlag{dst: dst}
 	usage := "Under a live block, narrow the report to the named category: " + strings.Join(ReportFilterWords, ", ") + ". Repeat to show more than one. Narrows the report, never the plan."
 	f := c.Flag(&Flag{
-		Name:   "filter",
-		Usage:  usage,
-		Stdlib: func(fs *flag.FlagSet) { fs.Var(value, "filter", usage) },
+		Name:  "filter",
+		Usage: usage,
 	})
 	f.SetDisplay("=category")
 	f.Cli = func() cli.Flag {

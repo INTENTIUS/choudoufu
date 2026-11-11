@@ -1,6 +1,6 @@
 module github.com/intentius/choudoufu
 
-go 1.27.3
+go 1.27.4
 
 // At the time of adding this configuration, the new Go feature introduced here https://github.com/golang/go/issues/67061,
 // was having a good amount of issues linked to, affecting AWS Firewall, GCP various services and a lot more.
@@ -66,14 +66,13 @@ require (
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/hashicorp/go-version v1.9.0
 	github.com/hashicorp/hcl v1.0.1-vault-7
-	github.com/hashicorp/hcl/v2 v2.20.1
+	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/hashicorp/jsonapi v1.5.0
 	github.com/jmespath/go-jmespath v0.4.0
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/lib/pq v1.12.3
 	github.com/mattn/go-isatty v0.0.24
 	github.com/mattn/go-shellwords v1.0.14
-	github.com/mitchellh/cli v1.1.5
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db
 	github.com/mitchellh/copystructure v1.2.0
 	github.com/mitchellh/go-homedir v1.1.0
@@ -107,7 +106,7 @@ require (
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.57.0
 	golang.org/x/mod v0.41.0
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.23.0
 	golang.org/x/sys v0.48.0
@@ -115,7 +114,7 @@ require (
 	golang.org/x/text v0.42.0
 	golang.org/x/tools v0.50.0
 	google.golang.org/api v0.293.0
-	google.golang.org/grpc v1.83.2
+	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.36.3
@@ -139,17 +138,13 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.33.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.34.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.57.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.57.0 // indirect
-	github.com/Masterminds/goutils v1.1.1 // indirect
-	github.com/Masterminds/semver/v3 v3.4.0 // indirect
-	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
-	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.17 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.36 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.36 // indirect
@@ -178,7 +173,7 @@ require (
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
@@ -201,11 +196,9 @@ require (
 	github.com/hashicorp/serf v0.10.4 // indirect
 	github.com/hashicorp/terraform-plugin-log v0.10.1-0.20260721164921-2f73dc013b2c // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
-	github.com/huandu/xstrings v1.3.3 // indirect
-	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
@@ -227,10 +220,8 @@ require (
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
-	github.com/shopspring/decimal v1.3.1 // indirect
-	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
-	github.com/spiffe/go-spiffe/v2 v2.7.0 // indirect
+	github.com/spiffe/go-spiffe/v2 v2.8.1 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
@@ -276,7 +267,7 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/hashicorp/hcl/v2 v2.20.1 => github.com/opentofu/hcl/v2 v2.20.2-0.20260427110253-11bc5ebf0f63
+replace github.com/hashicorp/hcl/v2 v2.25.0 => github.com/opentofu/hcl/v2 v2.20.2-0.20260930170621-c565166b0b3d
 
 tool (
 	github.com/intentius/choudoufu/cmd/choudoufu

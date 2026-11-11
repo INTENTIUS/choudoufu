@@ -107,6 +107,7 @@ tmp
 /estate-gen
 /estate-plan
 /estate-types
+/expruntime-ratchet
 /find-dep-upgrades
 /floci-capability-gen
 /forkdiff-gen
@@ -177,3 +178,4 @@ gate.launch.log
 /site/node_modules/
 /site/dist/
 /site/.astro/
+experimental-runtime-results.json

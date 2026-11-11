@@ -32,6 +32,7 @@ import (
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/legacy/hcl2shim"
 	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/provisioners"
@@ -66,12 +67,14 @@ func TestContext2Plan_basic(t *testing.T) {
 
 		switch i := ric.Addr.String(); i {
 		case "aws_instance.bar":
-			foo := ric.After.GetAttr("foo").AsString()
+			fooAttrUnmarked, _ := ric.After.GetAttr("foo").UnmarkDeep()
+			foo := fooAttrUnmarked.AsString()
 			if foo != "2" {
 				t.Fatalf("incorrect plan for 'bar': %#v", ric.After)
 			}
 		case "aws_instance.foo":
-			num, _ := ric.After.GetAttr("num").AsBigFloat().Int64()
+			numAttrUnmarked, _ := ric.After.GetAttr("num").UnmarkDeep()
+			num, _ := numAttrUnmarked.AsBigFloat().Int64()
 			if num != 2 {
 				t.Fatalf("incorrect plan for 'foo': %#v", ric.After)
 			}
@@ -119,7 +122,6 @@ func TestContext2Plan_createBefore_deposed(t *testing.T) {
 		}, nil),
 	})
 
-	SkipExperimental(t, ExperimentalFeatureCBD)
 	plan, diags := ctx.Plan(context.Background(), m, state, DefaultPlanOpts)
 	if diags.HasErrors() {
 		t.Fatalf("unexpected errors: %s", diags.Err())
@@ -519,8 +521,6 @@ func TestContext2Plan_moduleCycle(t *testing.T) {
 }
 
 func TestContext2Plan_moduleDeadlock(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider)
-
 	testCheckDeadlock(t, func() {
 		m := testModule(t, "plan-module-deadlock")
 		p := testProvider("aws")
@@ -798,7 +798,6 @@ func TestContext2Plan_moduleMultiVar(t *testing.T) {
 }
 
 func TestContext2Plan_moduleOrphans(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugStateProvider)
 	m := testModule(t, "plan-modules-remove")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -870,8 +869,6 @@ module.child:
 
 // https://github.com/hashicorp/terraform/issues/3114
 func TestContext2Plan_moduleOrphansWithProvisioner(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "plan-modules-remove-provisioners")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -1092,8 +1089,6 @@ func TestContext2Plan_moduleProviderInheritDeep(t *testing.T) {
 }
 
 func TestContext2Plan_moduleProviderDefaultsVar(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugReferenceProvider)
-
 	var l sync.Mutex
 	var calls []string
 
@@ -1166,8 +1161,6 @@ func TestContext2Plan_moduleProviderDefaultsVar(t *testing.T) {
 }
 
 func TestContext2Plan_moduleProviderVar(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugReferenceProvider)
-
 	m := testModule(t, "plan-module-provider-var")
 	p := testProvider("aws")
 	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(&ProviderSchema{
@@ -1370,8 +1363,6 @@ func TestContext2Plan_moduleVarComputed(t *testing.T) {
 }
 
 func TestContext2Plan_preventDestroy_bad(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeaturePreventDestroy)
-
 	m := testModule(t, "plan-prevent-destroy-bad")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -1405,6 +1396,12 @@ func TestContext2Plan_preventDestroy_bad(t *testing.T) {
 
 	// Plan should show the expected changes, even though prevent_destroy validation fails
 	// So we could see why the resource was attempted to be destroyed
+	if plan == nil {
+		// choudoufu (#2256): with TOFU_X_EXPERIMENTAL_RUNTIME set, the gap
+		// table's post-plan check refuses the replace and returns no plan.
+		// Fail here rather than panic, which would abort the whole package.
+		t.Fatalf("no plan returned; diagnostics: %s", err)
+	}
 	if got, want := 1, len(plan.Changes.Resources); got != want {
 		t.Fatalf("wrong number of planned resource changes %d; want %d\n%s", got, want, spew.Sdump(plan.Changes.Resources))
 	}
@@ -1444,8 +1441,6 @@ func TestContext2Plan_preventDestroy_good(t *testing.T) {
 }
 
 func TestContext2Plan_preventDestroy_dynamic(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeaturePreventDestroy)
-
 	// We'll run the same set of tests with equivalent configuration written
 	// with different syntaxes.
 	fixtures := map[string]string{
@@ -1595,8 +1590,6 @@ func TestContext2Plan_preventDestroy_dynamic(t *testing.T) {
 }
 
 func TestContext2Plan_preventDestroy_dynamicEphemeral(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeaturePreventDestroy)
-
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 			variable "prevent_destroy" {
@@ -1703,8 +1696,6 @@ func TestContext2Plan_preventDestroy_dynamicDeprecated(t *testing.T) {
 }
 
 func TestContext2Plan_preventDestroy_dynamicFromDataResource(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeaturePreventDestroy)
-
 	// This test is intentionally a little redundant with
 	// [TestContext2Plan_preventDestroy_dynamic], but intentionally involves
 	// a dependency on another resource so that we're more likely to catch
@@ -1825,8 +1816,6 @@ func TestContext2Plan_preventDestroy_dynamicFromDataResource(t *testing.T) {
 }
 
 func TestContext2Plan_preventDestroy_dynamicFromManagedResourceDestroyMode(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeaturePreventDestroy)
-
 	// This test is verifying that a prevent_destroy argument's dependencies
 	// are respected even when we're in plans.DestroyMode, which has separate
 	// rules for how its graph gets built.
@@ -1914,11 +1903,6 @@ func TestContext2Plan_preventDestroy_dynamicFromManagedResourceDestroyMode(t *te
 }
 
 func TestContext2Plan_preventDestroy_countBad(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeaturePreventDestroy)
-
-	// This test is quite buggy and relies on some old broken functionality in the old engine as far as I can tell.
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "plan-prevent-destroy-count-bad")
 	p := testProvider("aws")
 
@@ -2062,8 +2046,6 @@ func TestContext2Plan_preventDestroy_countGoodNoChange(t *testing.T) {
 }
 
 func TestContext2Plan_preventDestroy_destroyPlan(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeaturePreventDestroy)
-
 	m := testModule(t, "plan-prevent-destroy-good")
 	p := testProvider("aws")
 
@@ -2099,7 +2081,6 @@ func TestContext2Plan_preventDestroy_destroyPlan(t *testing.T) {
 }
 
 func TestContext2Plan_provisionerCycle(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureProvisioner)
 	m := testModule(t, "plan-provisioner-cycle")
 	p := testProvider("aws")
 	pr := testProvisioner()
@@ -2240,7 +2221,7 @@ func TestContext2Plan_blockNestingGroup(t *testing.T) {
 }
 
 func TestContext2Plan_computedDataResource(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
+	SkipExperimental(t, ExperimentalBugDataResource)
 
 	m := testModule(t, "plan-computed-data-resource")
 	p := testProvider("aws")
@@ -2304,8 +2285,6 @@ func TestContext2Plan_computedDataResource(t *testing.T) {
 }
 
 func TestContext2Plan_computedInFunction(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "plan-computed-in-function")
 	p := testProvider("aws")
 	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(&ProviderSchema{
@@ -2350,7 +2329,7 @@ func TestContext2Plan_computedInFunction(t *testing.T) {
 }
 
 func TestContext2Plan_computedDataCountResource(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
+	SkipExperimental(t, ExperimentalBugDataResource)
 
 	m := testModule(t, "plan-computed-data-count")
 	p := testProvider("aws")
@@ -2757,8 +2736,6 @@ func TestContext2Plan_countComputedModule(t *testing.T) {
 }
 
 func TestContext2Plan_countModuleStatic(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider)
-
 	m := testModule(t, "plan-count-module-static")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -2811,8 +2788,6 @@ func TestContext2Plan_countModuleStatic(t *testing.T) {
 }
 
 func TestContext2Plan_countModuleStaticGrandchild(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider)
-
 	m := testModule(t, "plan-count-module-static-grandchild")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -3029,7 +3004,7 @@ func TestContext2Plan_countZero(t *testing.T) {
 
 	expected := cty.TupleVal(nil)
 
-	foo := ric.After.GetAttr("foo")
+	foo := objchange.RemovePendingChangesMark(ric.After.GetAttr("foo"))
 
 	if !cmp.Equal(expected, foo, valueComparer) {
 		t.Fatal(cmp.Diff(expected, foo, valueComparer))
@@ -3190,8 +3165,6 @@ aws_instance.foo.2:
 }
 
 func TestContext2Plan_countIncreaseFromNotSet(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "plan-count-inc")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -3270,8 +3243,6 @@ func TestContext2Plan_countIncreaseFromNotSet(t *testing.T) {
 }
 
 func TestContext2Plan_countIncreaseFromOne(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "plan-count-inc")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -3354,8 +3325,6 @@ func TestContext2Plan_countIncreaseFromOne(t *testing.T) {
 // the state file, which apparently is a reasonable backwards compatibility
 // concern found in the above 3rd party repo.
 func TestContext2Plan_countIncreaseFromOneCorrupted(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "plan-count-inc")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -3455,8 +3424,6 @@ func TestContext2Plan_countIncreaseFromOneCorrupted(t *testing.T) {
 // count is increased. In that case, we should see only the create diffs
 // for the new instances and not any update diffs for the existing ones.
 func TestContext2Plan_countIncreaseWithSplatReference(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "plan-count-splat-reference")
 	p := testProvider("aws")
 	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(&ProviderSchema{
@@ -3543,7 +3510,8 @@ func TestContext2Plan_countIncreaseWithSplatReference(t *testing.T) {
 				t.Fatalf("expected resource create, got %s", res.Action)
 			}
 			// The instance ID changed, so just check that the name updated
-			if ric.After.GetAttr("foo_name") != cty.StringVal("foo 2") {
+			fooNameUnmarked, _ := ric.After.GetAttr("foo_name").Unmark()
+			if fooNameUnmarked != cty.StringVal("foo 2") {
 				t.Fatalf("resource %s attr \"foo_name\" should be changed", i)
 			}
 		case "aws_instance.foo[2]":
@@ -3551,7 +3519,8 @@ func TestContext2Plan_countIncreaseWithSplatReference(t *testing.T) {
 				t.Fatalf("expected resource create, got %s", res.Action)
 			}
 			// The instance ID changed, so just check that the name updated
-			if ric.After.GetAttr("name") != cty.StringVal("foo 2") {
+			nameUnmarked, _ := ric.After.GetAttr("name").Unmark()
+			if nameUnmarked != cty.StringVal("foo 2") {
 				t.Fatalf("resource %s attr \"name\" should be changed", i)
 			}
 		default:
@@ -3561,8 +3530,6 @@ func TestContext2Plan_countIncreaseWithSplatReference(t *testing.T) {
 }
 
 func TestContext2Plan_forEach(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugForEach)
-
 	m := testModule(t, "plan-for-each")
 	p := testProvider("aws")
 	ctx := testContext2(t, &ContextOpts{
@@ -3638,8 +3605,6 @@ func TestContext2Plan_forEachUnknownValue(t *testing.T) {
 }
 
 func TestContext2Plan_destroy(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDestroy)
-
 	m := testModule(t, "plan-destroy")
 	p := testProvider("aws")
 
@@ -3702,8 +3667,6 @@ func TestContext2Plan_destroy(t *testing.T) {
 }
 
 func TestContext2Plan_moduleDestroy(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureDestroy)
-
 	m := testModule(t, "plan-module-destroy")
 	p := testProvider("aws")
 
@@ -3767,8 +3730,6 @@ func TestContext2Plan_moduleDestroy(t *testing.T) {
 
 // GH-1835
 func TestContext2Plan_moduleDestroyCycle(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureDestroy)
-
 	m := testModule(t, "plan-module-destroy-gh-1835")
 	p := testProvider("aws")
 
@@ -3832,8 +3793,6 @@ func TestContext2Plan_moduleDestroyCycle(t *testing.T) {
 }
 
 func TestContext2Plan_moduleDestroyMultivar(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureDestroy)
-
 	m := testModule(t, "plan-module-destroy-multivar")
 	p := testProvider("aws")
 
@@ -3896,8 +3855,6 @@ func TestContext2Plan_moduleDestroyMultivar(t *testing.T) {
 }
 
 func TestContext2Plan_pathVar(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeaturePathAttrs)
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("err: %s", err)
@@ -3957,8 +3914,6 @@ func TestContext2Plan_pathVar(t *testing.T) {
 }
 
 func TestContext2Plan_diffVar(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "plan-diffvar")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -4028,8 +3983,6 @@ func TestContext2Plan_diffVar(t *testing.T) {
 }
 
 func TestContext2Plan_hook(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureHooks)
-
 	m := testModule(t, "plan-good")
 	h := new(MockHook)
 	p := testProvider("aws")
@@ -4054,8 +4007,6 @@ func TestContext2Plan_hook(t *testing.T) {
 }
 
 func TestContext2Plan_closeProvider(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugReferenceProvider)
-
 	// this fixture only has an aliased provider located in the module, to make
 	// sure that the provider name contains a path more complex than
 	// "provider.aws".
@@ -4078,8 +4029,6 @@ func TestContext2Plan_closeProvider(t *testing.T) {
 }
 
 func TestContext2Plan_orphan(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "plan-orphan")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -4123,6 +4072,8 @@ func TestContext2Plan_orphan(t *testing.T) {
 			if res.Action != plans.Delete {
 				t.Fatalf("resource %s should be removed", i)
 			}
+			SkipExperimental(t, ExperimentalFeatureActionReason)
+
 			if got, want := ric.ActionReason, plans.ResourceInstanceDeleteBecauseNoResourceConfig; got != want {
 				t.Errorf("wrong action reason\ngot:  %s\nwant: %s", got, want)
 			}
@@ -4162,8 +4113,6 @@ func TestContext2Plan_shadowUuid(t *testing.T) {
 }
 
 func TestContext2Plan_state(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "plan-good")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -4241,8 +4190,6 @@ func TestContext2Plan_state(t *testing.T) {
 }
 
 func TestContext2Plan_requiresReplace(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
-
 	m := testModule(t, "plan-requires-replace")
 	p := testProvider("test")
 	p.GetProviderSchemaResponse = &providers.GetProviderSchemaResponse{
@@ -4312,6 +4259,8 @@ func TestContext2Plan_requiresReplace(t *testing.T) {
 				if got, want := ric.Action, plans.DeleteThenCreate; got != want {
 					t.Errorf("wrong action\ngot:  %s\nwant: %s", got, want)
 				}
+				SkipExperimental(t, ExperimentalFeatureActionReason)
+
 				if got, want := ric.ActionReason, plans.ResourceInstanceReplaceBecauseCannotUpdate; got != want {
 					t.Errorf("wrong action reason\ngot:  %s\nwant: %s", got, want)
 				}
@@ -5021,7 +4970,7 @@ func TestContext2Plan_actionInteractions(t *testing.T) {
 }
 
 func TestContext2Plan_taint(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureChanges)
+	SkipExperimental(t, ExperimentalFeatureChanges, ExperimentalFeatureTaint)
 
 	m := testModule(t, "plan-taint")
 	p := testProvider("aws")
@@ -5099,7 +5048,7 @@ func TestContext2Plan_taint(t *testing.T) {
 }
 
 func TestContext2Plan_taintIgnoreChanges(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureIgnoreChanges, ExperimentalBugDeclareProvider, ExperimentalFeatureTaint)
+	SkipExperimental(t, ExperimentalFeatureTaint)
 
 	m := testModule(t, "plan-taint-ignore-changes")
 	p := testProvider("aws")
@@ -5176,7 +5125,7 @@ func TestContext2Plan_taintIgnoreChanges(t *testing.T) {
 
 // Fails about 50% of the time before the fix for GH-4982, covers the fix.
 func TestContext2Plan_taintDestroyInterpolatedCountRace(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureTaint)
+	SkipExperimental(t, ExperimentalFeatureTaint)
 
 	m := testModule(t, "plan-taint-interpolated-count")
 	p := testProvider("aws")
@@ -5340,6 +5289,9 @@ func TestContext2Plan_excluded(t *testing.T) {
 	schema := p.GetProviderSchemaResponse.ResourceTypes["aws_instance"]
 
 	if len(plan.Changes.Resources) != 1 {
+		for _, rc := range plan.Changes.Resources {
+			t.Logf("%s - %s", rc.Addr, rc.Action)
+		}
 		t.Fatal("expected 1 changes, got", len(plan.Changes.Resources))
 	}
 
@@ -6196,8 +6148,6 @@ func TestContext2Plan_varListErr(t *testing.T) {
 }
 
 func TestContext2Plan_ignoreChanges(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureIgnoreChanges)
-
 	m := testModule(t, "plan-ignore-changes")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -6235,12 +6185,6 @@ func TestContext2Plan_ignoreChanges(t *testing.T) {
 
 	schema := p.GetProviderSchemaResponse.ResourceTypes["aws_instance"]
 
-	if experimentalRuntimeEnabled() {
-		if len(plan.Changes.Resources) != 0 {
-			t.Fatal("expected 0 changes, got", len(plan.Changes.Resources))
-		}
-		return
-	}
 	if len(plan.Changes.Resources) != 1 {
 		t.Fatal("expected 1 changes, got", len(plan.Changes.Resources))
 	}
@@ -6263,8 +6207,6 @@ func TestContext2Plan_ignoreChanges(t *testing.T) {
 }
 
 func TestContext2Plan_ignoreChangesWildcard(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureIgnoreChanges)
-
 	m := testModule(t, "plan-ignore-changes-wildcard")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = func(req providers.PlanResourceChangeRequest) (resp providers.PlanResourceChangeResponse) {
@@ -6325,8 +6267,6 @@ func TestContext2Plan_ignoreChangesWildcard(t *testing.T) {
 }
 
 func TestContext2Plan_ignoreChangesInMap(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureIgnoreChanges)
-
 	p := testProvider("test")
 
 	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(&ProviderSchema{
@@ -6403,8 +6343,6 @@ func TestContext2Plan_ignoreChangesInMap(t *testing.T) {
 }
 
 func TestContext2Plan_ignoreChangesSensitive(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureIgnoreChanges)
-
 	m := testModule(t, "plan-ignore-changes-sensitive")
 	p := testProvider("aws")
 	p.PlanResourceChangeFn = testDiffFn
@@ -6442,12 +6380,6 @@ func TestContext2Plan_ignoreChangesSensitive(t *testing.T) {
 
 	schema := p.GetProviderSchemaResponse.ResourceTypes["aws_instance"]
 
-	if experimentalRuntimeEnabled() {
-		if len(plan.Changes.Resources) != 0 {
-			t.Fatal("expected 0 changes, got", len(plan.Changes.Resources))
-		}
-		return
-	}
 	if len(plan.Changes.Resources) != 1 {
 		t.Fatal("expected 1 changes, got", len(plan.Changes.Resources))
 	}
@@ -6470,8 +6402,6 @@ func TestContext2Plan_ignoreChangesSensitive(t *testing.T) {
 }
 
 func TestContext2Plan_moduleMapLiteral(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider)
-
 	m := testModule(t, "plan-module-map-literal")
 	p := testProvider("aws")
 	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(&ProviderSchema{
@@ -6583,8 +6513,6 @@ func TestContext2Plan_computedValueInMap(t *testing.T) {
 }
 
 func TestContext2Plan_moduleVariableFromSplat(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider)
-
 	m := testModule(t, "plan-module-variable-from-splat")
 	p := testProvider("aws")
 	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(&ProviderSchema{
@@ -6786,8 +6714,6 @@ func TestContext2Plan_listOrder(t *testing.T) {
 // ignored, we need to filter the diff properly to properly update rather than
 // replace.
 func TestContext2Plan_ignoreChangesWithFlatmaps(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureIgnoreChanges)
-
 	m := testModule(t, "plan-ignore-changes-with-flatmaps")
 	p := testProvider("aws")
 	p.GetProviderSchemaResponse = getProviderSchemaResponseFromProviderSchema(&ProviderSchema{
@@ -7320,7 +7246,7 @@ func TestContext2Plan_variableSensitivity(t *testing.T) {
 }
 
 func TestContext2Plan_variableSensitivityModule(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureSensitivity)
+	SkipExperimental(t, ExperimentalFeatureSensitivity)
 
 	m := testModule(t, "plan-variable-sensitivity-module")
 
@@ -7401,6 +7327,7 @@ func TestContext2Plan_variableSensitivityModule(t *testing.T) {
 }
 
 func checkVals(t *testing.T, expected, got cty.Value) {
+	got = objchange.RemovePendingChangesMark(got)
 	t.Helper()
 	// The GoStringer format seems to result in the closest thing to a useful
 	// diff for values with marks.
@@ -7550,7 +7477,7 @@ func TestContext2Plan_requiredModuleObject(t *testing.T) {
 }
 
 func TestContext2Plan_expandOrphan(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureChanges)
+	SkipExperimental(t, ExperimentalFeatureChanges)
 
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
@@ -7617,8 +7544,6 @@ resource "aws_instance" "foo" {
 }
 
 func TestContext2Plan_indexInVar(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider)
-
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 module "a" {
@@ -7661,7 +7586,7 @@ output"out" {
 }
 
 func TestContext2Plan_targetExpandedAddress(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureTarget)
+	SkipExperimental(t, ExperimentalFeatureTarget)
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 module "mod" {
@@ -7727,7 +7652,7 @@ resource "aws_instance" "foo" {
 }
 
 func TestContext2Plan_excludeExpandedAddress(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureTarget)
+	SkipExperimental(t, ExperimentalFeatureTarget)
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 module "mod" {
@@ -7794,7 +7719,7 @@ resource "aws_instance" "foo" {
 }
 
 func TestContext2Plan_targetResourceInModuleInstance(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureTarget)
+	SkipExperimental(t, ExperimentalFeatureTarget)
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 module "mod" {
@@ -7850,7 +7775,7 @@ resource "aws_instance" "foo" {
 }
 
 func TestContext2Plan_excludeResourceInModuleInstance(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider, ExperimentalFeatureTarget)
+	SkipExperimental(t, ExperimentalFeatureTarget)
 
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
@@ -7908,8 +7833,6 @@ resource "aws_instance" "foo" {
 }
 
 func TestContext2Plan_moduleRefIndex(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugVariableInput, ExperimentalBugDeclareProvider)
-
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 module "mod" {
@@ -8079,6 +8002,7 @@ resource "test_instance" "b" {
 		if got, want := change.Action, plans.Delete; got != want {
 			t.Errorf("wrong action for %s %s; want %s", instAddr, got, want)
 		}
+		SkipExperimental(t, ExperimentalFeatureActionReason)
 		if got, want := change.ActionReason, plans.ResourceInstanceDeleteBecauseWrongRepetition; got != want {
 			t.Errorf("wrong action reason for %s %s; want %s", instAddr, got, want)
 		}
@@ -8095,6 +8019,7 @@ resource "test_instance" "b" {
 		if got, want := change.Action, plans.Delete; got != want {
 			t.Errorf("wrong action for %s %s; want %s", instAddr, got, want)
 		}
+		SkipExperimental(t, ExperimentalFeatureActionReason)
 		if got, want := change.ActionReason, plans.ResourceInstanceDeleteBecauseWrongRepetition; got != want {
 			t.Errorf("wrong action reason for %s %s; want %s", instAddr, got, want)
 		}
@@ -8203,7 +8128,7 @@ func TestContext2Plan_excludedModuleInstance(t *testing.T) {
 }
 
 func TestContext2Plan_dataRefreshedInPlan(t *testing.T) {
-	SkipExperimental(t, ExperimentalFlagUnknown)
+	SkipExperimental(t, ExperimentalBugDataResource)
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 data "test_data_source" "d" {
@@ -8426,8 +8351,6 @@ resource "test_instance" "a" {
 }
 
 func TestContext2Plan_dataInModuleDependsOn(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDeclareProvider)
-
 	p := testProvider("test")
 
 	readDataSourceB := false
@@ -8532,7 +8455,6 @@ resource "test_instance" "a" {
 // ignore_changes needs to be re-applied to the planned value for provider
 // using the LegacyTypeSystem
 func TestContext2Plan_legacyProviderIgnoreChanges(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureIgnoreChanges)
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 resource "test_instance" "a" {
@@ -8654,7 +8576,6 @@ resource "test_instance" "a" {
 }
 
 func TestContext2Plan_legacyProviderIgnoreAll(t *testing.T) {
-	SkipExperimental(t, ExperimentalFeatureIgnoreChanges)
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 resource "test_instance" "a" {
@@ -8720,7 +8641,7 @@ resource "test_instance" "a" {
 }
 
 func TestContext2Plan_dataRemovalNoProvider(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugStateProvider, ExperimentalBugDataResource)
+	SkipExperimental(t, ExperimentalBugDataResource)
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `
 resource "test_instance" "a" {
