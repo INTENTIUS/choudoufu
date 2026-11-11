@@ -97,6 +97,9 @@ The fork's patches in `internal/engine`:
   (`newruntime.DeferralRefusal` in `planDesiredManagedResourceInstance`),
   the U4 adjuster calls, U6's identity resolver feeding the import path,
   and U8's destroy-from-config.
+- `planning/plan_moved.go`: the "Unresolved resource instance address
+  changes" warning names `"choudoufu state"` where upstream says
+  `"tofu state"` (#2387). Keep the fork's word.
 - `configadjust/` and `identityresolve/`: fork-only packages. They conflict
   only through the interfaces they call; see section 4.
 - `forkport/` (#2376): the fork-port registry, `forkport.Ports` in

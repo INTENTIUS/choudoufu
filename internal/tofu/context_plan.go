@@ -514,7 +514,11 @@ func (c *Context) destroyPlan(ctx context.Context, config *configs.Config, prevR
 		return destroyPlan, diags
 	}
 
-	if !opts.SkipRefresh {
+	// choudoufu fork port (#2387): on the new runtime the refresh plan above
+	// is skipped, so prevRunState is still the caller's unupgraded state, and
+	// the engine's plan already carries the upgraded previous run state.
+	// Keep the engine's: the overwrite below is only for the refresh plan.
+	if !opts.SkipRefresh && !experimentalRuntimeEnabled() {
 		// If we didn't skip refreshing then we want the previous run state to
 		// be the one we originally fed into the c.refreshOnlyPlan call above,
 		// not the refreshed version we used for the destroy planWalk.

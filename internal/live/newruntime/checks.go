@@ -334,11 +334,109 @@ func PostPlan(plan *plans.Plan, live bool) tfdiags.Diagnostics {
 		}
 	}
 	for _, r := range RowsFor(CheckPostPlan) {
-		if r.Construct != "replace" {
+		switch r.Construct {
+		case "replace":
+		case "targeted_destroy":
+			if r.InScope(live) {
+				for _, what := range overDestroys(plan, changes) {
+					diags = diags.Append(refusal(r, what, nil))
+				}
+			}
+		default:
 			panic(fmt.Sprintf("gap %q: no post-plan detector for construct %q", r.ID, r.Construct))
 		}
 	}
 	return diags
+}
+
+// overDestroys is the destroy-target row's detector (#2387). On the new
+// runtime, destroy -target X also deletes what X depends on. The default
+// runtime deletes the targets and, transitively, whatever the prior state
+// records as depending on them. Every delete of a managed object outside
+// that set is reported. Dependents are read from the state's recorded
+// dependencies, so an object whose dependencies were not recorded is not
+// counted as a dependent and its delete is refused rather than admitted.
+func overDestroys(plan *plans.Plan, changes []*plans.ResourceInstanceChangeSrc) []string {
+	if plan.UIMode != plans.DestroyMode || len(plan.TargetAddrs) == 0 {
+		return nil
+	}
+	targeted := func(addr addrs.AbsResourceInstance) bool {
+		for _, t := range plan.TargetAddrs {
+			if t.TargetContains(addr) {
+				return true
+			}
+		}
+		return false
+	}
+	// wanted holds the config resources of everything the destroy may
+	// delete, grown to a fixpoint over the state's recorded dependencies.
+	wanted := map[string]bool{}
+	var objs []*states.ResourceInstance
+	var addrsOf []addrs.AbsResourceInstance
+	// Both states are read: the refreshed prior state may hold objects
+	// without the dependencies the previous run recorded.
+	for _, prior := range []*states.State{plan.PrevRunState, plan.PriorState} {
+		if prior == nil {
+			continue
+		}
+		for _, ms := range prior.Modules {
+			for _, rs := range ms.Resources {
+				for key, is := range rs.Instances {
+					addr := rs.Addr.Instance(key)
+					if targeted(addr) {
+						wanted[addr.ConfigResource().String()] = true
+					}
+					objs = append(objs, is)
+					addrsOf = append(addrsOf, addr)
+				}
+			}
+		}
+	}
+	allowed := map[string]bool{}
+	for changed := true; changed; {
+		changed = false
+		for i, is := range objs {
+			key := addrsOf[i].String()
+			if allowed[key] {
+				continue
+			}
+			if !targeted(addrsOf[i]) && !dependsOnAny(is, wanted) {
+				continue
+			}
+			allowed[key] = true
+			wanted[addrsOf[i].ConfigResource().String()] = true
+			changed = true
+		}
+	}
+	var out []string
+	for _, ch := range changes {
+		if ch.Action != plans.Delete || ch.Addr.Resource.Resource.Mode != addrs.ManagedResourceMode {
+			continue
+		}
+		if allowed[ch.Addr.String()] || targeted(ch.Addr) {
+			continue
+		}
+		out = append(out, fmt.Sprintf("the destroy plan deletes %s, which is neither a -target nor something that depends on one", ch.Addr))
+	}
+	return out
+}
+
+func dependsOnAny(is *states.ResourceInstance, wanted map[string]bool) bool {
+	objs := []*states.ResourceInstanceObjectSrc{is.Current}
+	for _, d := range is.Deposed {
+		objs = append(objs, d)
+	}
+	for _, o := range objs {
+		if o == nil {
+			continue
+		}
+		for _, dep := range o.Dependencies {
+			if wanted[dep.String()] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // DeferralRefusal is the engine row's diagnostic: the new runtime deferred
