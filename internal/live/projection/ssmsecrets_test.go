@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
+	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/smithy-go"
@@ -42,6 +44,42 @@ type fakeSSM struct {
 	throttleGets int
 	getBatches   [][]string
 	puts         []*ssm.PutParameterInput
+	probes       []string
+	denyProbe    bool
+}
+
+func (f *fakeSSM) DeleteParameter(_ context.Context, in *ssm.DeleteParameterInput, _ ...func(*ssm.Options)) (*ssm.DeleteParameterOutput, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	name := aws.ToString(in.Name)
+	if _, ok := f.params[name]; !ok {
+		return nil, &ssmtypes.ParameterNotFound{Message: aws.String(name)}
+	}
+	delete(f.params, name)
+	return &ssm.DeleteParameterOutput{}, nil
+}
+
+// fakeKMS describes one key, customer managed and enabled unless told
+// otherwise.
+type fakeKMS struct {
+	manager kmstypes.KeyManagerType
+	calls   int
+}
+
+func (k *fakeKMS) DescribeKey(_ context.Context, in *kms.DescribeKeyInput, _ ...func(*kms.Options)) (*kms.DescribeKeyOutput, error) {
+	k.calls++
+	manager := k.manager
+	if manager == "" {
+		manager = kmstypes.KeyManagerTypeCustomer
+	}
+	return &kms.DescribeKeyOutput{KeyMetadata: &kmstypes.KeyMetadata{
+		Arn:        in.KeyId,
+		KeyId:      in.KeyId,
+		KeyManager: manager,
+		KeyState:   kmstypes.KeyStateEnabled,
+		KeySpec:    kmstypes.KeySpecSymmetricDefault,
+		KeyUsage:   kmstypes.KeyUsageTypeEncryptDecrypt,
+	}}, nil
 }
 
 type fakeParam struct {
@@ -61,8 +99,18 @@ func throttle() error {
 func (f *fakeSSM) PutParameter(_ context.Context, in *ssm.PutParameterInput, _ ...func(*ssm.Options)) (*ssm.PutParameterOutput, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.puts = append(f.puts, in)
 	name := aws.ToString(in.Name)
+	if strings.Contains(name, staterecord.SSMProbeNamePrefix) {
+		// The first-contact probe: kept apart from the secret writes the
+		// tests count.
+		f.probes = append(f.probes, name)
+		if f.denyProbe {
+			return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "denied"}
+		}
+		f.params[name] = &fakeParam{value: aws.ToString(in.Value), modified: f.now()}
+		return &ssm.PutParameterOutput{Version: 1}, nil
+	}
+	f.puts = append(f.puts, in)
 	if aws.ToBool(in.Overwrite) {
 		return nil, fmt.Errorf("fake SSM: Overwrite true on %s; this store must only ever create", name)
 	}
@@ -223,6 +271,8 @@ type ssmRig struct {
 	prefix string
 	sleeps []time.Duration
 	notes  []string
+	kms    *fakeKMS
+	waive  []string
 }
 
 func newSSMRig(t *testing.T) *ssmRig {
@@ -230,6 +280,7 @@ func newSSMRig(t *testing.T) *ssmRig {
 	r := &ssmRig{t: t, clock: &fakeClock{t: time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)}, prefix: RecordKeyPrefix("prod")}
 	r.ssm = newFakeSSM(r.clock.Now, &r.log)
 	r.s3 = &loggingStore{Store: newTestLocalStore(t), log: &r.log}
+	r.kms = &fakeKMS{}
 	return r
 }
 
@@ -237,13 +288,15 @@ func newSSMRig(t *testing.T) *ssmRig {
 func (r *ssmRig) open() *SSMSecretsStore {
 	r.t.Helper()
 	s, err := NewSSMSecretsStore(r.s3, SSMSecretsConfig{
-		Client:       r.ssm,
-		KMSKeyID:     testKMSKey,
-		Path:         "/choudoufu/prod/secrets",
-		RecordPrefix: r.prefix,
-		Now:          r.clock.Now,
-		Sleep:        func(d time.Duration) { r.sleeps = append(r.sleeps, d) },
-		Announce:     func(m string) { r.notes = append(r.notes, m) },
+		Client:        r.ssm,
+		KMS:           r.kms,
+		AllowInsecure: r.waive,
+		KMSKeyID:      testKMSKey,
+		Path:          "/choudoufu/prod/secrets",
+		RecordPrefix:  r.prefix,
+		Now:           r.clock.Now,
+		Sleep:         func(d time.Duration) { r.sleeps = append(r.sleeps, d) },
+		Announce:      func(m string) { r.notes = append(r.notes, m) },
 	})
 	if err != nil {
 		r.t.Fatal(err)
@@ -983,5 +1036,64 @@ func TestSSMSecretsStaleWriteCreatesNothing(t *testing.T) {
 	}
 	if raw := r.rawRecord("random_password.db"); bytes.Contains(raw, []byte("hunter2")) {
 		t.Errorf("the stale write's clear payload reached the bucket:\n%s", raw)
+	}
+}
+
+// TestSSMSecretsContractRunsOnceBeforeTheFirstParameter: the first-contact
+// contract (S2's staterecord.AssertSSMContract) runs in a run that writes,
+// once, before any secret parameter, and its probe is gone afterwards. A
+// run that only reads never runs it.
+func TestSSMSecretsContractRunsOnceBeforeTheFirstParameter(t *testing.T) {
+	ctx := context.Background()
+	r := newSSMRig(t)
+	rs := NewRecordEnvelopeStore(r.open(), r.prefix)
+	seedPassword(t, rs, "random_password.a", "one", nil)
+	seedPassword(t, rs, "random_password.b", "two", nil)
+	if r.kms.calls != 1 || len(r.ssm.probes) != 1 {
+		t.Fatalf("contract ran %d times with %d probes over two writes, want once", r.kms.calls, len(r.ssm.probes))
+	}
+	if !strings.HasPrefix(r.ssm.probes[0], r.open().Namespace()+"/") || r.ssm.has(r.ssm.probes[0]) {
+		t.Errorf("probe %s is outside the store's namespace or was left behind", r.ssm.probes[0])
+	}
+	if _, _, _, err := NewRecordEnvelopeStore(r.open(), r.prefix).getRaw(ctx, mustAddr(t, "random_password.a")); err != nil {
+		t.Fatal(err)
+	}
+	if r.kms.calls != 1 {
+		t.Errorf("a run that only reads ran the contract")
+	}
+}
+
+// TestSSMSecretsContractRefusalWritesNothing: an AWS managed key, and a
+// role that cannot create a parameter, refuse the run before any secret
+// parameter or record is written. A waived failure proceeds and says so.
+func TestSSMSecretsContractRefusalWritesNothing(t *testing.T) {
+	ctx := context.Background()
+	for name, setup := range map[string]func(*ssmRig){
+		"aws managed key":    func(r *ssmRig) { r.kms.manager = kmstypes.KeyManagerTypeAws },
+		"probe write denied": func(r *ssmRig) { r.ssm.denyProbe = true },
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := newSSMRig(t)
+			setup(r)
+			rs := NewRecordEnvelopeStore(r.open(), r.prefix)
+			for _, addr := range []string{"random_password.a", "random_password.b"} {
+				_, err := SeedRecordForInstance(ctx, rs, mustAddr(t, addr), nullProvider, passwordValue("x"), nil, states.ObjectReady)
+				var refusal *staterecord.SSMContractRefusalError
+				if !errors.As(err, &refusal) {
+					t.Fatalf("%s: err = %v, want SSMContractRefusalError", addr, err)
+				}
+			}
+			if r.ssm.putCount() != 0 || len(r.log) != 0 {
+				t.Errorf("writes after a contract refusal: %d creates, log %q", r.ssm.putCount(), r.log)
+			}
+		})
+	}
+
+	r := newSSMRig(t)
+	r.ssm.denyProbe = true
+	r.waive = []string{string(staterecord.SSMParameterAccess)}
+	seedPassword(t, NewRecordEnvelopeStore(r.open(), r.prefix), "random_password.a", "x", nil)
+	if len(r.notes) != 1 || !strings.Contains(r.notes[0], "parameter_access") {
+		t.Errorf("a waived contract failure said %q, want one warning naming it", r.notes)
 	}
 }

@@ -93,6 +93,8 @@ type SSMSecretsStore struct {
 	planned      *SecretParameterCount
 	capacityDone bool
 	capacityErr  error
+	contractDone bool
+	contractErr  error
 }
 
 type baseRefs struct {
@@ -106,6 +108,9 @@ type SSMSecretsAPI interface {
 	GetParameters(ctx context.Context, in *ssm.GetParametersInput, optFns ...func(*ssm.Options)) (*ssm.GetParametersOutput, error)
 	DeleteParameters(ctx context.Context, in *ssm.DeleteParametersInput, optFns ...func(*ssm.Options)) (*ssm.DeleteParametersOutput, error)
 	DescribeParameters(ctx context.Context, in *ssm.DescribeParametersInput, optFns ...func(*ssm.Options)) (*ssm.DescribeParametersOutput, error)
+	// DeleteParameter is the first-contact probe's, through
+	// [staterecord.AssertSSMContract].
+	DeleteParameter(ctx context.Context, in *ssm.DeleteParameterInput, optFns ...func(*ssm.Options)) (*ssm.DeleteParameterOutput, error)
 }
 
 // SSMSecretsConfig is what [NewSSMSecretsStore] needs.
@@ -115,6 +120,14 @@ type SSMSecretsConfig struct {
 	// KMSKeyID is the customer managed key every parameter is created
 	// under. Required.
 	KMSKeyID string
+
+	// KMS is what the first-contact contract describes the key with.
+	// Required: a run that writes never skips the contract.
+	KMS staterecord.SSMContractKMSAPI
+
+	// AllowInsecure is the ssm block's allow_insecure, the contract
+	// assertions this estate proceeds without.
+	AllowInsecure []string
 
 	// Path is the parameter hierarchy, from the ssm block or
 	// [DefaultSSMSecretsPath]. Required.
@@ -187,6 +200,9 @@ func NewSSMSecretsStore(inner staterecord.Store, cfg SSMSecretsConfig) (*SSMSecr
 	}
 	if cfg.KMSKeyID == "" {
 		return nil, errors.New("secrets in SSM: no kms_key_id; a customer managed key is required (GitHub issue #1515)")
+	}
+	if cfg.KMS == nil {
+		return nil, errors.New("secrets in SSM: no KMS client for the first-contact contract")
 	}
 	path := strings.TrimRight(cfg.Path, "/")
 	if !strings.HasPrefix(path, "/") || path == "" {
@@ -749,6 +765,9 @@ func (s *SSMSecretsStore) createParameters(ctx context.Context, key string, crea
 	if err := s.admitCapacity(create); err != nil {
 		return time.Time{}, err
 	}
+	if err := s.admitContract(ctx); err != nil {
+		return time.Time{}, err
+	}
 	started := s.cfg.Now()
 	for _, c := range create {
 		in := &ssm.PutParameterInput{
@@ -853,6 +872,42 @@ func (s *SSMSecretsStore) Delete(ctx context.Context, key string, expectedVersio
 	s.mu.Unlock()
 	if current {
 		s.deleteSuperseded(ctx, key, base, nil)
+	}
+	return nil
+}
+
+// admitContract is the first-contact contract (#2393 unit S2's
+// [staterecord.AssertSSMContract]): once per run, before the run's first
+// parameter, and only in a run that creates one, since a plan role holds
+// no kms:DescribeKey. A refusal is sticky, like the capacity refusal: it
+// holds for every write of the run. The probe is made under this store's
+// namespace, so a probe its delete left behind is an unreferenced
+// parameter the orphan sweep collects.
+func (s *SSMSecretsStore) admitContract(ctx context.Context) error {
+	s.mu.Lock()
+	if s.contractDone {
+		err := s.contractErr
+		s.mu.Unlock()
+		return err
+	}
+	s.mu.Unlock()
+	waived, err := staterecord.AssertSSMContract(ctx, s.cfg.Client, s.cfg.KMS, s.cfg.KMSKeyID, s.ns, s.cfg.AllowInsecure)
+	if err != nil {
+		var refusal *staterecord.SSMContractRefusalError
+		if !errors.As(err, &refusal) {
+			// The check could not be made; a later write may try again.
+			return fmt.Errorf("secrets in SSM: the first-contact contract could not be checked: %w", err)
+		}
+	}
+	s.mu.Lock()
+	s.contractDone = true
+	s.contractErr = err
+	s.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	for _, f := range waived {
+		s.cfg.Announce(fmt.Sprintf("Warning: secrets in SSM: the ssm block's allow_insecure waives %s, so %s.", f.Setting, staterecord.SSMWaiverCost(f.Setting)))
 	}
 	return nil
 }

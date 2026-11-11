@@ -3271,12 +3271,14 @@ refused, and each says so in its own entry.
 | - | - | projection | Residue record could not be read | error | `internal/live/projection` | "Residue record could not be read" |
 | - | - | projection | Resolved instance missing from the configuration | error | `internal/live/projection` | "Resolved instance missing from the configuration" |
 | - | - | projection | Resource type has no classic Importer | error | `internal/live/projection` | "Resource type has no classic Importer" |
+| - | - | projection | Secret parameters close to SSM's ceiling | warning | `internal/live/projection` | "Secret parameters close to SSM's ceiling" |
 | - | - | projection | Several moved-from addresses hold a record | error | `internal/live/projection` | "Several moved-from addresses hold a record" |
 | - | - | projection | The destroy left record-backed instances behind | error | `internal/live/projection` | "The destroy left record-backed instances behind" |
 | - | - | projection | The estate boundary policy refused this run's record write | error | `internal/live/projection` | "The estate boundary policy refused this run's record write" |
 | - | - | projection | The record store contradicts itself about a record | error | `internal/live/projection` | "The record store contradicts itself about a record" |
 | - | - | projection | This estate does not declare that it reads another estate's outputs | error | `internal/live/projection` | "This estate does not declare that it reads another estate's outputs" |
 | - | - | projection | This estate may not read another estate's outputs | error | `internal/live/projection` | "This estate may not read another estate's outputs" |
+| - | - | projection | Too many secret parameters for SSM | error | `internal/live/projection` | "Too many secret parameters for SSM" |
 | - | - | projection | Unlabelled live object holds the declared name | error | `internal/live/projection` | "Unlabelled live object holds the declared name" |
 | - | - | projection | Unmarked live object at the declared id would be overwritten | error | `internal/live/projection` | "Unmarked live object at the declared id would be overwritten" |
 | - | - | projection | Unrecorded live object at a declared identity | warning | `internal/live/projection` | "Unrecorded live object at a declared identity" |
@@ -3287,7 +3289,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**315 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**317 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -5431,6 +5433,14 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### Secret parameters close to SSM's ceiling
+
+**What.** Under strict { secrets = "ssm" }, the estate's records will reference at least nine tenths of a tier's per-account, per-region parameter ceiling. A warning, not a refusal: whether they fit depends on the account's other parameters, which the run does not read (GitHub issue #1515).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Several moved-from addresses hold a record
 
 **What.** A declared markerless instance with no record at its own address, under the 2026-10-20 ruling, is owned when exactly one address its honoured moved blocks lead from holds a record: a stock moved block does not re-key the record store, so after a rename the record sits at the old address. When more than one such address holds a record, nothing says which is this instance's, so the plan stops and names the instance and every recorded moved-from address rather than picking one or planning a create. Removing the stale records, or using live-mv, which moves a record to its new address, clears it.
@@ -5474,6 +5484,14 @@ reserved for the limits wing's fixture directories, and
 #### This estate may not read another estate's outputs
 
 **What.** A data "terraform_estate_outputs" block declares that this estate reads another estate's recorded root outputs, and the record store refused the read by policy. The refusal names the other estate and the grant to add (for an s3 store, render-policy.sh's --reads-outputs-of; for a kubernetes store, a Role granting get on the other estate's output Secrets by name in its namespace).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Too many secret parameters for SSM
+
+**What.** Under strict { secrets = "ssm" }, the estate's records would reference more SecureString parameters of one tier than an AWS account holds per region (10,000 standard, 100,000 advanced). Refused before the first parameter or record is written, since a run that reached the ceiling partway would commit some secrets and not others (GitHub issue #1515, #1309's arithmetic).
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/smithy-go/middleware"
@@ -294,10 +295,12 @@ func wrapSecretsInSSM(ctx context.Context, store staterecord.Store, rs *configs.
 		path = DefaultSSMSecretsPath(estate)
 	}
 	return NewSSMSecretsStore(store, SSMSecretsConfig{
-		Client:       ssm.NewFromConfig(awsCfg),
-		KMSKeyID:     sm.KMSKeyID,
-		Path:         path,
-		RecordPrefix: recordStoreKeyPrefix(rs, estate),
+		Client:        ssm.NewFromConfig(awsCfg),
+		KMS:           kms.NewFromConfig(awsCfg),
+		AllowInsecure: sm.AllowInsecure,
+		KMSKeyID:      sm.KMSKeyID,
+		Path:          path,
+		RecordPrefix:  recordStoreKeyPrefix(rs, estate),
 	})
 }
 
