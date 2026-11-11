@@ -125,6 +125,9 @@ func (ops *execOperations) ManagedFinalPlan(
 	if prior != nil {
 		currentVal = prior.State.Value
 		currentPrivate = prior.State.Private
+		if desired == nil { // choudoufu (GitHub issue #2344)
+			currentVal = ops.destroyFromPlan(ctx, providerClient, resourceTypeName, objAddr, currentVal)
+		}
 	}
 
 	resp, moreDiags := resourceType.PlanChanges(ctx, &resources.ManagedResourcePlanRequest{
