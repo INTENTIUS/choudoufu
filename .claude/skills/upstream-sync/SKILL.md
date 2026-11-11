@@ -99,6 +99,19 @@ The fork's patches in `internal/engine`:
   and U8's destroy-from-config.
 - `configadjust/` and `identityresolve/`: fork-only packages. They conflict
   only through the interfaces they call; see section 4.
+- `forkport/inrunestates/` (#2370): the in-run estates and
+  `terraform_estate_outputs` fork port, gap row `in-run-estates`, switched
+  off by `CHOUDOUFU_NEW_RUNTIME_NO_FORK_PORTS=1`. Its call sites are each
+  commented `choudoufu fork port (#2370): remove when upstream #4058
+  lands`: `grep -rn "fork port (#2370)" internal/` lists them, in
+  `planning/` (`plan_data.go`, `execgraph_resource.go`, `plan.go`,
+  `plan_context.go`, `fork_inrunestates.go`), `applying/` (`apply.go`,
+  `operations.go`, `operations_resource_data.go`, `fork_inrunestates.go`),
+  `internal/execgraph/compiler_ops.go` (`opDataRead`'s metadata operand),
+  `internal/lang/eval/fork_inrunestates.go`, `internal/tofu` and
+  `internal/live/newruntime/checks.go`. When upstream's data-resource work
+  (`#4058`) lands, delete the package, those sites and the row, take
+  upstream's `plan_data.go` and `DataRead`, and re-run the ratchet.
 
 `internal/command`'s live entry points: `plan.go` and `apply.go` keep the
 #894 live-plan alias in `Run` and the `liveRefusesNewRuntime()` call. Most

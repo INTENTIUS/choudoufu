@@ -23,5 +23,8 @@ func (ops *execOperations) DataRead(
 	plannedVal cty.Value,
 ) (*exec.ResourceInstanceObject, tfdiags.Diagnostics) {
 	log.Printf("[TRACE] apply phase: DataRead %s", desired.Addr)
+	if ops.inRunEstates != nil { // choudoufu fork port (#2370): remove when upstream #4058 lands
+		return ops.forkDataRead(ctx, desired)
+	}
 	panic("unimplemented")
 }

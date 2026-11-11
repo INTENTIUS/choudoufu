@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/internal/execgraph"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
@@ -60,6 +61,7 @@ func ApplyPlannedChanges(ctx context.Context, plan *plans.Plan, configInst *eval
 	if opts != nil {
 		execOps.configValueAdjuster = opts.ConfigValueAdjuster
 		execOps.instanceStateUpdate = opts.InstanceStateUpdate
+		execOps.inRunEstates = opts.InRunEstates // choudoufu fork port (#2370): remove when upstream #4058 lands
 	}
 
 	moreDiags = execGraph.Execute(ctx)
@@ -94,6 +96,10 @@ type ApplyOpts struct {
 	// for when it runs and what it is given. An error fails that instance's
 	// apply step.
 	InstanceStateUpdate InstanceStateUpdate
+
+	// InRunEstates is choudoufu fork port (#2370): remove when upstream
+	// #4058 lands. Nil is off. See package inrunestates.
+	InRunEstates *inrunestates.Port
 }
 
 type evalGlue struct {

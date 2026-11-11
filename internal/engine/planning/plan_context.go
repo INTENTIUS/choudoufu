@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/identityresolve"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
@@ -71,6 +72,8 @@ type planContext struct {
 
 	configValueAdjuster configadjust.ConfigValueAdjuster         // see PlanOpts
 	identityResolver    identityresolve.ResourceIdentityResolver // see PlanOpts
+
+	inRunEstates *inrunestates.Port // choudoufu fork port (#2370): remove when upstream #4058 lands
 }
 
 func newPlanContext(evalCtx *eval.EvalContext, prevRoundState *states.State, providers plugins.Providers, opts *PlanOpts) *planContext {
@@ -97,6 +100,8 @@ func newPlanContext(evalCtx *eval.EvalContext, prevRoundState *states.State, pro
 
 		configValueAdjuster: opts.ConfigValueAdjuster,
 		identityResolver:    opts.IdentityResolver,
+
+		inRunEstates: opts.InRunEstates, // choudoufu fork port (#2370): remove when upstream #4058 lands
 	}
 }
 

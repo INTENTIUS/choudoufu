@@ -63,6 +63,15 @@ type Row struct {
 	ClosedBy string `json:"closed_by"`
 	// Upstream lists opentofu/opentofu issues and PRs as "#NNNN".
 	Upstream []string `json:"upstream"`
+	// ForkPort, on a row choudoufu closes for now with its own code in
+	// place of upstream's, names the fork-owned package that holds it.
+	// Removing the port is deleting that package, its call sites (each
+	// commented with the row's unit) and the row.
+	ForkPort string `json:"fork_port,omitempty"`
+	// Switch is the environment setting that turns a fork port off. With
+	// it set, what the port covers is refused again by the row that
+	// refused it before.
+	Switch string `json:"switch,omitempty"`
 }
 
 // WaitsFor is how a refusal names what it is waiting for.
@@ -109,6 +118,9 @@ func parse(b []byte) ([]Row, error) {
 		case CheckLive, CheckPreflight, CheckPostPlan, CheckEngine, CheckAccepted, CheckNone:
 		default:
 			return nil, fmt.Errorf("internal/live/newruntime/gaps.json: row %q has unknown check %q", r.ID, r.Check)
+		}
+		if (r.ForkPort == "") != (r.Switch == "") {
+			return nil, fmt.Errorf("internal/live/newruntime/gaps.json: row %q must name both a fork_port and its switch, or neither", r.ID)
 		}
 		if r.Check == CheckPostPlan {
 			switch r.Scope {

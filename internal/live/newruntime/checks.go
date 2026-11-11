@@ -17,6 +17,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -41,6 +42,12 @@ func refusal(r Row, what string, subject *hcl.Range) *hcl.Diagnostic {
 var preflightDetectors = map[string]func(m *configs.Module) []occurrence{
 	"data": func(m *configs.Module) (out []occurrence) {
 		for _, r := range m.DataResources {
+			// choudoufu fork port (#2370): remove when upstream #4058
+			// lands. Gap "in-run-estates": what the port covers passes
+			// while it is on, and is refused here when it is switched off.
+			if inrunestates.Covers(r) {
+				continue
+			}
 			out = append(out, occurrence{fmt.Sprintf("the configuration declares data source %s", r.Addr()), r.DeclRange})
 		}
 		return out
