@@ -14,6 +14,8 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
@@ -162,10 +164,12 @@ moved {
 
 // TestNewRuntimeToggle_postPlanRefusesReplace: the post-plan check kind. A
 // plan the new runtime makes with a replace in it is refused before it is
-// returned.
+// returned. The replacecycle fork port (#2380) lifts that refusal while it
+// is on, so its switch is set here.
 func TestNewRuntimeToggle_postPlanRefusesReplace(t *testing.T) {
 	showNewRuntimeWarningForTesting(t)
 	toggleOn(t)
+	t.Setenv(forkport.Switch(replacecycle.Name), "1")
 	m := testModuleInline(t, map[string]string{"main.tf": `
 resource "test_object" "a" {
   name = "new"
@@ -182,9 +186,11 @@ resource "test_object" "a" {
 
 // TestNewRuntimeToggle_savedPlanApplyRefuses: the saved-plan apply check
 // kind. A plan made with the toggle off, holding a replace, is applied with
-// the toggle on: both checks run against it before the engine.
+// the toggle on: both checks run against it before the engine. The
+// replacecycle fork port (#2380) is switched off so a replace is refused.
 func TestNewRuntimeToggle_savedPlanApplyRefuses(t *testing.T) {
 	showNewRuntimeWarningForTesting(t)
+	t.Setenv(forkport.Switch(replacecycle.Name), "1")
 	// The plan is made on the default runtime: clear the toggle even when
 	// the experimental-runtime lane sets it for the whole package.
 	t.Setenv(newruntime.Variable, "")

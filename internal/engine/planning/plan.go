@@ -247,6 +247,8 @@ func finalizePlan(ctx context.Context, intermediate *planContextResult, provider
 			}
 		},
 	)
+	// choudoufu fork port (#2380): remove when upstream #4714 lands.
+	diags = diags.Append(forkReplaceCycle(refreshedState, intermediate.ResourceInstanceObjects, effectiveReplaceOrders, execGraph))
 	if logging.IsDebugOrHigher() {
 		// FIXME: This can potentially contain sensitive values from the
 		// configuration, so we should either remove this or change the

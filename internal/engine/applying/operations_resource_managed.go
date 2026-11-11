@@ -185,6 +185,8 @@ func (ops *execOperations) ManagedFinalPlan(
 		ProvisionersAfter:         provisionersAfter,
 		ProviderInstance:          providerConfigAddr,
 		ProviderPrivate:           resp.Planned.Private,
+		// choudoufu fork port (#2380): remove when upstream #4714 lands.
+		CreateBeforeDestroy: forkCreateBeforeDestroy(metadata, prior),
 	}, diags
 }
 
@@ -542,6 +544,10 @@ func (ops *execOperations) managedApply(
 			ProviderInstanceAddr: providerConfigAddr,
 			ResourceType:         plan.ResourceType,
 			SchemaVersion:        uint64(schema.Version),
+			// choudoufu fork port (#2380): remove when upstream #4714
+			// lands. A fallback is the deposed half of a create-first
+			// replace.
+			CreateBeforeDestroy: plan.CreateBeforeDestroy || forkReplacedCreateFirst(fallback),
 
 			// TODO: Propagate the dependencies from the desired object into
 			// the final plan and then populate "Dependencies" here.

@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/engine/forkport"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
+	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
@@ -340,7 +341,10 @@ func PostPlan(plan *plans.Plan, live bool) tfdiags.Diagnostics {
 			}
 			switch construct {
 			case "replace":
-				if ch.Action.IsReplace() {
+				// choudoufu fork port (#2380): remove when upstream #4714
+				// lands. While the port is on, planning refuses a cyclic
+				// execution graph itself, so a replace is not refused here.
+				if ch.Action.IsReplace() && !forkport.Enabled(replacecycle.Name) {
 					diags = diags.Append(refusal(r, fmt.Sprintf("the plan replaces %s", ch.Addr), nil))
 				}
 			default:

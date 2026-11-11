@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 )
 
 // maybeRunExperimentalNewRuntimeTests is called by this package's [TestMain]
@@ -77,7 +79,7 @@ var (
 	ExperimentalFlagUnknown = ExperimentalFlag{"Unknown", false}
 
 	ExperimentalBugCancel            = ExperimentalFlag{"Bug Context Cancel", false}
-	ExperimentalBugStateCBD          = ExperimentalFlag{"Bug CreateBeforeDestroy Not Tracked In State", false}
+	ExperimentalBugStateCBD          = ExperimentalFlag{"Bug CreateBeforeDestroy Not Tracked In State", replacecycle.Enabled()} // choudoufu fork port (#2380): remove when upstream #4714 lands
 	ExperimentalBugStateUpdateHook   = ExperimentalFlag{"Bug State Update Hook", true}
 	ExperimentalBugMissingResource   = ExperimentalFlag{"Bug Missing Configuration For Resource Instance", true}
 	ExperimentalBugResourceReadNull  = ExperimentalFlag{"Bug Read Resource Deleted", true}
