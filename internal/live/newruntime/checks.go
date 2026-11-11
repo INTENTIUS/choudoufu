@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/conditions"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -129,7 +130,9 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 		m := c.Module
 		for _, v := range m.Variables {
 			for _, cr := range v.Validations {
-				out = append(out, occurrence{what: fmt.Sprintf("variable %q has a validation block", v.Name), rng: cr.DeclRange})
+				// choudoufu fork port (#2379): remove when the
+				// variable-validation row closes.
+				out = append(out, occurrence{what: fmt.Sprintf("variable %q has a validation block", v.Name), rng: cr.DeclRange, port: conditions.Name})
 			}
 		}
 		return out

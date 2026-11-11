@@ -593,33 +593,8 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_variableValidateDataSource",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately; gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Apply_variableValidateReferences",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740); gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Functions_providerFunctionsCustom",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Functions_providerFunctionsForEachCount",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Functions_providerFunctionsStub",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Functions_providerFunctionsStubCustom",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately. The fixture module declares a variable validation block."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -950,11 +925,6 @@
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext_contextValuesPropagation",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestNodeModuleVariableConstraints",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",

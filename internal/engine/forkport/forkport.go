@@ -48,6 +48,7 @@ type Port struct {
 	Rows []string
 	// Expiry lists the upstream opentofu/opentofu issues, as "#NNNN", that
 	// end the port: when every one has closed, upstream's code replaces it.
+	// Empty when no upstream issue is filed: the port goes when its rows close.
 	Expiry []string
 }
 
@@ -55,6 +56,7 @@ type Port struct {
 // call sites and its gap row.
 var Ports = []Port{
 	{Name: "inrunestates", Rows: []string{"in-run-estates"}, Expiry: []string{"#4058"}},
+	{Name: "conditions", Rows: []string{"variable-validation"}},
 }
 
 // Lookup returns the registered port with name, and whether there is one.
