@@ -14,6 +14,8 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -70,7 +72,6 @@ resource "test_object" "a" {
 var preflightFixtures = map[string]string{
 	"data-sources":        `data "test_object" "d" {}`,
 	"removed":             "removed {\n  from = test_object.gone\n}\n",
-	"moved":               cleanFixture + "moved {\n  from = test_object.old\n  to   = test_object.a\n}\n",
 	"moved-live":          cleanFixture + "resource \"test_object\" \"old\" {}\nmoved {\n  from = test_object.old\n  to   = test_object.a\n}\n",
 	"lifecycle-destroy":   "resource \"test_object\" \"a\" {\n  lifecycle {\n    destroy = false\n  }\n}\n",
 	"checks-conditions":   "variable \"x\" {\n  default = \"a\"\n}\ncheck \"c\" {\n  assert {\n    condition     = var.x != \"\"\n    error_message = \"x\"\n  }\n}\n",
@@ -79,6 +80,9 @@ var preflightFixtures = map[string]string{
 }
 
 func TestPreflightRefusesEachConfigurationRow(t *testing.T) {
+	// A row a fork port fills refuses only with the port off; each port's
+	// own test proves it admits its construct while on.
+	t.Setenv(forkport.AllOff, "1")
 	for id, src := range preflightFixtures {
 		t.Run(id, func(t *testing.T) {
 			r := row(t, id)
@@ -90,24 +94,23 @@ func TestPreflightRefusesEachConfigurationRow(t *testing.T) {
 	}
 }
 
-// TestPreflightMovedIsScopedByLiveMode is #2256 U10 (#2374). Outside live
-// mode every moved block is refused by the moved row. In live mode the moved
-// row does not apply: a block internal/live/moved's Honourable admits passes,
-// because discovery has already bound the object to its new address, and
-// every other block is refused by the moved-live row, the same shapes
-// internal/live/lint refuses.
+// TestPreflightMovedIsScopedByLiveMode is #2256 U10 (#2374), with the moved
+// row closed by #2378. Outside live mode upstream's new runtime executes a
+// moved block, so none is refused. In live mode a block internal/live/moved's
+// Honourable admits passes, because discovery has already bound the object to
+// its new address, and every other block is refused by the moved-live row,
+// the same shapes internal/live/lint refuses.
 func TestPreflightMovedIsScopedByLiveMode(t *testing.T) {
 	movedRow, liveRow := row(t, "moved"), row(t, "moved-live")
-	if movedRow.Scope != ScopeNonLive || liveRow.Scope != ScopeLive {
-		t.Fatalf("row moved has scope %q and moved-live %q, want %q and %q", movedRow.Scope, liveRow.Scope, ScopeNonLive, ScopeLive)
+	if movedRow.Check != CheckNone || liveRow.Scope != ScopeLive {
+		t.Fatalf("row moved has check %q and moved-live scope %q, want %q and %q", movedRow.Check, liveRow.Scope, CheckNone, ScopeLive)
 	}
 
 	rename := cleanFixture + "moved {\n  from = test_object.old\n  to   = test_object.a\n}\n"
-	if diags := Preflight(loadConfig(t, rename), states.NewState(), false); !refusedFor(diags, movedRow) {
-		t.Errorf("outside live mode a rename was not refused under gap %q; diagnostics:\n%s", movedRow.ID, diags.ErrWithWarnings())
-	}
-	if diags := Preflight(loadConfig(t, rename), states.NewState(), true); len(diags) != 0 {
-		t.Errorf("in live mode an honourable rename was refused:\n%s", diags.ErrWithWarnings())
+	for _, live := range []bool{false, true} {
+		if diags := Preflight(loadConfig(t, rename), states.NewState(), live); len(diags) != 0 {
+			t.Errorf("live=%v: an honourable rename was refused:\n%s", live, diags.ErrWithWarnings())
+		}
 	}
 
 	for name, src := range map[string]string{
@@ -120,9 +123,6 @@ func TestPreflightMovedIsScopedByLiveMode(t *testing.T) {
 			diags := Preflight(loadConfig(t, src), states.NewState(), true)
 			if !refusedFor(diags, liveRow) {
 				t.Errorf("in live mode a moved block lint refuses was not refused under gap %q; diagnostics:\n%s", liveRow.ID, diags.ErrWithWarnings())
-			}
-			if refusedFor(diags, movedRow) {
-				t.Errorf("in live mode the non-live moved row refused too:\n%s", diags.ErrWithWarnings())
 			}
 		})
 	}
@@ -161,16 +161,27 @@ func TestPreflightRefusesConditionsOnResources(t *testing.T) {
 	}
 }
 
-func TestPreflightRefusesDeposedState(t *testing.T) {
-	r := row(t, "deposed")
+// TestPreflightAdmitsDeposedState: the deposed row is closed (#2378), since
+// upstream's new runtime plans deposed objects itself. A deposed object
+// recording lifecycle destroy = false is still refused, by lifecycle-destroy.
+func TestPreflightAdmitsDeposedState(t *testing.T) {
+	if r := row(t, "deposed"); r.Check != CheckNone {
+		t.Fatalf("row deposed has check %q, want %q", r.Check, CheckNone)
+	}
 	addr := addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "test_object", Name: "a"}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance)
-	s := states.BuildState(func(ss *states.SyncState) {
-		ss.SetResourceInstanceDeposed(addr, states.DeposedKey("00000001"),
-			&states.ResourceInstanceObjectSrc{Status: states.ObjectReady, AttrsJSON: []byte(`{}`)},
-			addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("test"), Module: addrs.RootModule}, addrs.NoKey)
-	})
-	if diags := Preflight(loadConfig(t, cleanFixture), s, false); !refusedFor(diags, r) {
-		t.Fatalf("deposed state was not refused; diagnostics:\n%s", diags.ErrWithWarnings())
+	for _, skip := range []bool{false, true} {
+		s := states.BuildState(func(ss *states.SyncState) {
+			ss.SetResourceInstanceDeposed(addr, states.DeposedKey("00000001"),
+				&states.ResourceInstanceObjectSrc{Status: states.ObjectReady, AttrsJSON: []byte(`{}`), SkipDestroy: skip},
+				addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("test"), Module: addrs.RootModule}, addrs.NoKey)
+		})
+		diags := Preflight(loadConfig(t, cleanFixture), s, false)
+		if !skip && len(diags) != 0 {
+			t.Errorf("deposed state was refused:\n%s", diags.ErrWithWarnings())
+		}
+		if skip && !refusedFor(diags, row(t, "lifecycle-destroy")) {
+			t.Errorf("a deposed object with destroy = false was not refused under lifecycle-destroy; diagnostics:\n%s", diags.ErrWithWarnings())
+		}
 	}
 }
 
@@ -226,11 +237,18 @@ func planOf(changes ...*plans.ResourceInstanceChangeSrc) *plans.Plan {
 
 func TestPostPlanRefusesReplace(t *testing.T) {
 	// Outside live mode a replace waits on upstream's create_before_destroy
-	// cycle, in either ordering.
+	// cycle, in either ordering, while the replacecycle fork port (#2380)
+	// is off; while it is on, planning refuses a cycle itself.
 	for _, action := range []plans.Action{plans.DeleteThenCreate, plans.CreateThenDelete} {
 		p := planOf(changeFor(t, "test_object.a[0]", action))
+		t.Setenv(forkport.AllOff, "")
+		t.Setenv(forkport.Switch(replacecycle.Name), "")
+		if diags := PostPlan(p, false); len(diags) != 0 {
+			t.Errorf("live=false %s was refused with the port on: %s", action, diags.ErrWithWarnings())
+		}
+		t.Setenv(forkport.Switch(replacecycle.Name), "1")
 		if diags := PostPlan(p, false); !refusedFor(diags, row(t, "replace-cbd-cycle")) {
-			t.Errorf("live=false %s was not refused under gap %q; diagnostics:\n%s", action, "replace-cbd-cycle", diags.ErrWithWarnings())
+			t.Errorf("live=false %s was not refused under gap %q with the port off; diagnostics:\n%s", action, "replace-cbd-cycle", diags.ErrWithWarnings())
 		}
 	}
 	// In live mode U7 (#2343) lifted the replace refusal: no row refuses it,
@@ -369,7 +387,7 @@ func TestDeferralRefusal(t *testing.T) {
 // a row that refuses must have a detector and a test, and a construct a
 // detector knows must have a row.
 func TestEveryRefusingRowHasAFixture(t *testing.T) {
-	tested := map[string]bool{"deposed": true, "test-command": true, "replace-cbd-cycle": true, "deferral": true, "destroy-target": true}
+	tested := map[string]bool{"test-command": true, "replace-cbd-cycle": true, "deferral": true, "destroy-target": true}
 	for id := range preflightFixtures {
 		tested[id] = true
 	}

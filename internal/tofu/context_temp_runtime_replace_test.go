@@ -13,6 +13,8 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
@@ -213,9 +215,10 @@ func TestNewRuntimeReplaceMarksNewObject(t *testing.T) {
 
 // TestNewRuntimeReplaceNotRefusedInLiveMode: U7 lifts the replace refusal in
 // live mode only. The post-plan check Plan and Apply run on the new runtime
-// passes a replace when an adjuster is set (live mode), in both orderings,
-// and the same plan is still refused outside live mode, where the
-// create_before_destroy cycle row (upstream `#4714`) still applies.
+// passes a replace when an adjuster is set (live mode), in both orderings.
+// Outside live mode the create_before_destroy cycle row (upstream `#4714`)
+// refuses the same plan only while the replacecycle fork port (#2380) is
+// switched off.
 func TestNewRuntimeReplaceNotRefusedInLiveMode(t *testing.T) {
 	for _, cbd := range []bool{false, true} {
 		t.Run(fmt.Sprintf("create_before_destroy=%v", cbd), func(t *testing.T) {
@@ -223,8 +226,14 @@ func TestNewRuntimeReplaceNotRefusedInLiveMode(t *testing.T) {
 			if diags := run.ctx.newRuntimePostPlan(context.Background(), run.plan, nil); diags.HasErrors() {
 				t.Errorf("a replace was refused in live mode: %s", diags.ErrWithWarnings())
 			}
+			t.Setenv(forkport.AllOff, "")
+			t.Setenv(forkport.Switch(replacecycle.Name), "")
+			if diags := newruntime.PostPlan(run.plan, false); diags.HasErrors() {
+				t.Errorf("with the replacecycle port on, a replace was refused outside live mode: %s", diags.ErrWithWarnings())
+			}
+			t.Setenv(forkport.Switch(replacecycle.Name), "1")
 			if diags := newruntime.PostPlan(run.plan, false); !hasDiag(diags, tfdiags.Error, newruntime.RefusalSummary) {
-				t.Errorf("a replace was not refused outside live mode; diagnostics:\n%s", diags.ErrWithWarnings())
+				t.Errorf("with the replacecycle port off, a replace was not refused outside live mode; diagnostics:\n%s", diags.ErrWithWarnings())
 			}
 		})
 	}

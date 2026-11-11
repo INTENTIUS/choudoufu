@@ -7,13 +7,15 @@ package tofu
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
+	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
@@ -129,13 +131,13 @@ resource "test_object" "a" {
 	}
 }
 
-// TestNewRuntimeToggle_preflightRefusesMovedOutsideLiveMode: #2256 U10
-// (#2374) admitted moved blocks in live mode only, where they are resolved
-// by marker before the engine runs. Outside live mode (no
-// ConfigValueAdjuster) a moved block is still refused by the gap table's
-// moved row, before planning and before the warning.
-func TestNewRuntimeToggle_preflightRefusesMovedOutsideLiveMode(t *testing.T) {
-	showNewRuntimeWarningForTesting(t)
+// TestNewRuntimeToggle_movedPlansOutsideLiveMode: #2256 U10 (#2374)
+// admitted moved blocks in live mode, where they are resolved by marker
+// before the engine runs. Outside live mode (no ConfigValueAdjuster) the gap
+// table's moved row refused them until #2378 verified that upstream's new
+// runtime executes the move itself, so the row is closed and the plan moves
+// the object.
+func TestNewRuntimeToggle_movedPlansOutsideLiveMode(t *testing.T) {
 	toggleOn(t)
 	m := testModuleInline(t, map[string]string{"main.tf": `
 resource "test_object" "b" {
@@ -146,26 +148,27 @@ moved {
   to   = test_object.b
 }
 `})
-	_, diags := toggleContext(t, toggleProvider()).Plan(context.Background(), m, stateWith("a"), DefaultPlanOpts)
-	refused := false
-	for _, d := range diags {
-		desc := d.Description()
-		refused = refused || (d.Severity() == tfdiags.Error && desc.Summary == newruntime.RefusalSummary && strings.Contains(desc.Detail, `gap "moved"`))
+	plan, diags := toggleContext(t, toggleProvider()).Plan(context.Background(), m, stateWith("a"), DefaultPlanOpts)
+	if diags.HasErrors() {
+		t.Fatalf("a moved block outside live mode was refused or failed; diagnostics:\n%s", diags.ErrWithWarnings())
 	}
-	if !refused {
-		t.Fatalf("a moved block outside live mode was not refused under gap %q; diagnostics:\n%s", "moved", diags.ErrWithWarnings())
+	moved := false
+	for _, ch := range plan.Changes.Resources {
+		moved = moved || (ch.Addr.String() == "test_object.b" && ch.PrevRunAddr.String() == "test_object.a")
 	}
-	if hasDiag(diags, tfdiags.Warning, newruntime.WarningSummary) {
-		t.Errorf("a run the preflight refused printed the new-runtime warning")
+	if !moved {
+		t.Fatalf("the plan has no change for test_object.b moved from test_object.a")
 	}
 }
 
 // TestNewRuntimeToggle_postPlanRefusesReplace: the post-plan check kind. A
 // plan the new runtime makes with a replace in it is refused before it is
-// returned.
+// returned. The replacecycle fork port (#2380) lifts that refusal while it
+// is on, so its switch is set here.
 func TestNewRuntimeToggle_postPlanRefusesReplace(t *testing.T) {
 	showNewRuntimeWarningForTesting(t)
 	toggleOn(t)
+	t.Setenv(forkport.Switch(replacecycle.Name), "1")
 	m := testModuleInline(t, map[string]string{"main.tf": `
 resource "test_object" "a" {
   name = "new"
@@ -182,9 +185,11 @@ resource "test_object" "a" {
 
 // TestNewRuntimeToggle_savedPlanApplyRefuses: the saved-plan apply check
 // kind. A plan made with the toggle off, holding a replace, is applied with
-// the toggle on: both checks run against it before the engine.
+// the toggle on: both checks run against it before the engine. The
+// replacecycle fork port (#2380) is switched off so a replace is refused.
 func TestNewRuntimeToggle_savedPlanApplyRefuses(t *testing.T) {
 	showNewRuntimeWarningForTesting(t)
+	t.Setenv(forkport.Switch(replacecycle.Name), "1")
 	// The plan is made on the default runtime: clear the toggle even when
 	// the experimental-runtime lane sets it for the whole package.
 	t.Setenv(newruntime.Variable, "")
@@ -211,10 +216,13 @@ resource "test_object" "a" {
 
 // TestNewRuntimeToggle_engineRefusesDeferral: the engine check kind. A
 // for_each over a value only known after apply makes the new runtime defer
-// the instance, for a reason that is neither -target nor -exclude.
+// the instance, for a reason that is neither -target nor -exclude. The
+// deferral fork port (#2382) answers this one with the old runtime's
+// "Invalid for_each argument", so it is switched off here to reach the row.
 func TestNewRuntimeToggle_engineRefusesDeferral(t *testing.T) {
 	showNewRuntimeWarningForTesting(t)
 	toggleOn(t)
+	t.Setenv(forkport.Switch(deferral.Name), "1")
 	m := testModuleInline(t, map[string]string{"main.tf": `
 resource "test_object" "a" {
   name = "a"
@@ -227,6 +235,28 @@ resource "test_object" "b" {
 	_, diags := toggleContext(t, toggleProvider()).Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
 	if !hasDiag(diags, tfdiags.Error, newruntime.RefusalSummary) {
 		t.Fatalf("a deferral was not refused inside planning; diagnostics:\n%s", diags.ErrWithWarnings())
+	}
+}
+
+// TestNewRuntimeToggle_deferralPortUnknownForEach: the same configuration
+// with the deferral fork port (#2382) on gets the default runtime's error
+// for an unknown for_each, and no refusal.
+func TestNewRuntimeToggle_deferralPortUnknownForEach(t *testing.T) {
+	toggleOn(t)
+	t.Setenv(forkport.AllOff, "")
+	t.Setenv(forkport.Switch(deferral.Name), "")
+	m := testModuleInline(t, map[string]string{"main.tf": `
+resource "test_object" "a" {
+  name = "a"
+}
+resource "test_object" "b" {
+  for_each = toset([test_object.a.id])
+  name     = each.key
+}
+`})
+	_, diags := toggleContext(t, toggleProvider()).Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
+	if hasDiag(diags, tfdiags.Error, newruntime.RefusalSummary) || !hasDiag(diags, tfdiags.Error, "Invalid for_each argument") {
+		t.Fatalf("want the default runtime's for_each error and no refusal; diagnostics:\n%s", diags.ErrWithWarnings())
 	}
 }
 

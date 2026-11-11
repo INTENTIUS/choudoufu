@@ -13,6 +13,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 )
 
 // maybeRunExperimentalNewRuntimeTests is called by this package's [TestMain]
@@ -77,7 +80,7 @@ var (
 	ExperimentalFlagUnknown = ExperimentalFlag{"Unknown", false}
 
 	ExperimentalBugCancel            = ExperimentalFlag{"Bug Context Cancel", false}
-	ExperimentalBugStateCBD          = ExperimentalFlag{"Bug CreateBeforeDestroy Not Tracked In State", false}
+	ExperimentalBugStateCBD          = ExperimentalFlag{"Bug CreateBeforeDestroy Not Tracked In State", replacecycle.Enabled()} // choudoufu fork port (#2380): remove when upstream #4714 lands
 	ExperimentalBugStateUpdateHook   = ExperimentalFlag{"Bug State Update Hook", true}
 	ExperimentalBugMissingResource   = ExperimentalFlag{"Bug Missing Configuration For Resource Instance", true}
 	ExperimentalBugResourceReadNull  = ExperimentalFlag{"Bug Read Resource Deleted", true}
@@ -90,13 +93,13 @@ var (
 	ExperimentalChangeDiagWording     = ExperimentalFlag{"Change Different Diagnostic Wording", false}
 	ExperimentalChangeErrorEarly      = ExperimentalFlag{"Change Detect Error Earlier", false}
 	ExperimentalChangeDependencies    = ExperimentalFlag{"Change Precise Dependencies", false}
-	ExperimentalChangeDeferredActions = ExperimentalFlag{"Change New Runtime Supports Deferred Actions", false}
+	ExperimentalChangeDeferredActions = ExperimentalFlag{"Change New Runtime Supports Deferred Actions", forkport.Enabled("deferral")} // choudoufu fork port (#2382): remove when upstream #4697 lands
 	ExperimentalChangeNoNoOp          = ExperimentalFlag{"Change New Runtime Doesn't Generate NoOp Changes", false}
 	ExperimentalChangePreReqdProvider = ExperimentalFlag{"Change New Runtime Doesn't Inherit Full Pre \"required_providers\" Behavior", false}
 	ExperimentalChangeDestroyOrder    = ExperimentalFlag{"Change Destroy Order", false}
 	ExperimentalChangeModuleOutput    = ExperimentalFlag{"Change Module Outputs (test only)", false}
 	ExperimentalChangeCursedSelfRef   = ExperimentalFlag{"Change Cursed Self Reference (legacy race condition)", false}
-	ExperimentalChangeMoved           = ExperimentalFlag{"Moved blocks that are not \"active\" are not processed", false}
+	ExperimentalChangeMoved           = ExperimentalFlag{"Moved blocks that are not \"active\" are not processed", true}
 	ExperimentalChangeImportValid     = ExperimentalFlag{"Import command requires a configuration that can pass validate", false}
 
 	ExperimentalFeatureDeposed         = ExperimentalFlag{"Missing Deposed", true}
