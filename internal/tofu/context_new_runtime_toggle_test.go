@@ -7,6 +7,7 @@ package tofu
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -125,6 +126,37 @@ resource "test_object" "a" {
 	}
 	if hasDiag(diags, tfdiags.Warning, newruntime.WarningSummary) {
 		t.Errorf("a run the preflight refused printed the new-runtime warning, so the warning does not mean the engine ran")
+	}
+}
+
+// TestNewRuntimeToggle_preflightRefusesMovedOutsideLiveMode: #2256 U10
+// (#2374) admitted moved blocks in live mode only, where they are resolved
+// by marker before the engine runs. Outside live mode (no
+// ConfigValueAdjuster) a moved block is still refused by the gap table's
+// moved row, before planning and before the warning.
+func TestNewRuntimeToggle_preflightRefusesMovedOutsideLiveMode(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
+	toggleOn(t)
+	m := testModuleInline(t, map[string]string{"main.tf": `
+resource "test_object" "b" {
+  name = "a"
+}
+moved {
+  from = test_object.a
+  to   = test_object.b
+}
+`})
+	_, diags := toggleContext(t, toggleProvider()).Plan(context.Background(), m, stateWith("a"), DefaultPlanOpts)
+	refused := false
+	for _, d := range diags {
+		desc := d.Description()
+		refused = refused || (d.Severity() == tfdiags.Error && desc.Summary == newruntime.RefusalSummary && strings.Contains(desc.Detail, `gap "moved"`))
+	}
+	if !refused {
+		t.Fatalf("a moved block outside live mode was not refused under gap %q; diagnostics:\n%s", "moved", diags.ErrWithWarnings())
+	}
+	if hasDiag(diags, tfdiags.Warning, newruntime.WarningSummary) {
+		t.Errorf("a run the preflight refused printed the new-runtime warning")
 	}
 }
 

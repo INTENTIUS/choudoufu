@@ -806,8 +806,10 @@ func (c *Context) planWalk(ctx context.Context, config *configs.Config, prevRunS
 		// #2256 U2: the preflight refuses, from the gap table, every
 		// construct in the configuration or prior state the new runtime
 		// cannot handle yet. It runs before newEnginePlan, so a refused run
-		// never prints the toggle's warning.
-		if moreDiags := newruntime.Preflight(config, prevRunState); moreDiags.HasErrors() {
+		// never prints the toggle's warning. Live mode is any run with a
+		// ConfigValueAdjuster, as for the post-plan check: since #2256 U10
+		// (#2374) it scopes the moved rows.
+		if moreDiags := newruntime.Preflight(config, prevRunState, c.configValueAdjuster != nil); moreDiags.HasErrors() {
 			return nil, diags.Append(moreDiags)
 		}
 		plan, moreDiags := c.newEnginePlan(ctx, config, prevRunState, opts)

@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
+	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -37,10 +38,14 @@ func refusal(r Row, what string, subject *hcl.Range) *hcl.Diagnostic {
 	}
 }
 
-// preflightDetectors maps a preflight row's construct to what finds it in a
-// module. Each returns a description and range for every occurrence.
-var preflightDetectors = map[string]func(m *configs.Module) []occurrence{
-	"data": func(m *configs.Module) (out []occurrence) {
+// preflightDetectors maps a preflight row's construct to what finds it in
+// one module of the configuration tree. Each returns a description and range
+// for every occurrence. The node is the whole configs.Config for the module,
+// because the live moved detector needs the module's children too; the rest
+// read only c.Module.
+var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
+	"data": func(c *configs.Config) (out []occurrence) {
+		m := c.Module
 		for _, r := range m.DataResources {
 			// choudoufu fork port (#2370): remove when upstream #4058
 			// lands. Gap "in-run-estates": what the port covers passes
@@ -52,19 +57,47 @@ var preflightDetectors = map[string]func(m *configs.Module) []occurrence{
 		}
 		return out
 	},
-	"removed": func(m *configs.Module) (out []occurrence) {
+	"removed": func(c *configs.Config) (out []occurrence) {
+		m := c.Module
 		for _, r := range m.Removed {
 			out = append(out, occurrence{"the configuration has a removed block", r.DeclRange})
 		}
 		return out
 	},
-	"moved": func(m *configs.Module) (out []occurrence) {
-		for _, r := range m.Moved {
+	"moved": func(c *configs.Config) (out []occurrence) {
+		for _, r := range c.Module.Moved {
 			out = append(out, occurrence{"the configuration has a moved block", r.DeclRange})
 		}
 		return out
 	},
-	"lifecycle_destroy": func(m *configs.Module) (out []occurrence) {
+	// #2256 U10 (#2374): in live mode a moved block is resolved by marker
+	// before the engine runs. internal/live/discovery binds the object that
+	// still carries the old tofu-address to the new address, the projected
+	// prior state holds it there, and the move finishes as the ordinary
+	// in-place tag update; the engine never executes a move. That holds only
+	// for the shapes moved.Honourable admits, which are the ones
+	// internal/live/lint admits and discovery aliases. Every other block is
+	// refused here, so live mode on the new runtime admits nothing more
+	// than live mode on the default runtime does.
+	"moved_unhonourable": func(c *configs.Config) (out []occurrence) {
+		seen := map[hcl.Range]bool{}
+		for _, stmt := range moved.StatementsIn(c.Module, c.Path) {
+			seen[stmt.DeclRange] = true
+			if reason, ok := moved.Honourable(c, stmt); !ok {
+				out = append(out, occurrence{"the configuration has a moved block an ownership marker cannot follow: " + reason, stmt.DeclRange})
+			}
+		}
+		// A block whose endpoints did not decode or unify has no Statement,
+		// so discovery never aliases it. It is refused rather than skipped.
+		for _, r := range c.Module.Moved {
+			if !seen[r.DeclRange] {
+				out = append(out, occurrence{"the configuration has a moved block whose endpoints could not be resolved to addresses", r.DeclRange})
+			}
+		}
+		return out
+	},
+	"lifecycle_destroy": func(c *configs.Config) (out []occurrence) {
+		m := c.Module
 		for _, r := range m.ManagedResources {
 			if r.Managed != nil && r.Managed.Destroy != nil {
 				out = append(out, occurrence{fmt.Sprintf("%s sets lifecycle destroy", r.Addr()), r.Managed.Destroy.Range()})
@@ -72,7 +105,8 @@ var preflightDetectors = map[string]func(m *configs.Module) []occurrence{
 		}
 		return out
 	},
-	"checks_conditions": func(m *configs.Module) (out []occurrence) {
+	"checks_conditions": func(c *configs.Config) (out []occurrence) {
+		m := c.Module
 		for _, c := range m.Checks {
 			out = append(out, occurrence{fmt.Sprintf("the configuration has check block %q", c.Name), c.DeclRange})
 		}
@@ -90,7 +124,8 @@ var preflightDetectors = map[string]func(m *configs.Module) []occurrence{
 		}
 		return out
 	},
-	"variable_validation": func(m *configs.Module) (out []occurrence) {
+	"variable_validation": func(c *configs.Config) (out []occurrence) {
+		m := c.Module
 		for _, v := range m.Variables {
 			for _, cr := range v.Validations {
 				out = append(out, occurrence{fmt.Sprintf("variable %q has a validation block", v.Name), cr.DeclRange})
@@ -98,7 +133,8 @@ var preflightDetectors = map[string]func(m *configs.Module) []occurrence{
 		}
 		return out
 	},
-	"sensitive": func(m *configs.Module) (out []occurrence) {
+	"sensitive": func(c *configs.Config) (out []occurrence) {
+		m := c.Module
 		for _, v := range m.Variables {
 			if v.Sensitive {
 				out = append(out, occurrence{fmt.Sprintf("variable %q is sensitive", v.Name), v.DeclRange})
@@ -207,11 +243,15 @@ var commandConstructs = map[string]bool{"test_command": true}
 // Preflight refuses, before planning, every construct the table's preflight
 // rows name that the configuration or the prior state holds. It is run on
 // plan with the toggle on, and on apply of a saved plan with the plan's
-// configuration snapshot and prior state.
-func Preflight(cfg *configs.Config, prior *states.State) tfdiags.Diagnostics {
+// configuration snapshot and prior state. live says whether the run is in
+// live mode, which decides the scope of a row, as it does for PostPlan.
+func Preflight(cfg *configs.Config, prior *states.State, live bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	for _, r := range RowsFor(CheckPreflight) {
 		if commandConstructs[r.Construct] {
+			continue
+		}
+		if !r.InScope(live) {
 			continue
 		}
 		stateDetect, hasState := stateDetectors[r.Construct]
@@ -234,7 +274,7 @@ func Preflight(cfg *configs.Config, prior *states.State) tfdiags.Diagnostics {
 			if c.Module == nil {
 				return
 			}
-			occ := detect(c.Module)
+			occ := detect(c)
 			sort.Slice(occ, func(i, j int) bool { return occ[i].rng.String() < occ[j].rng.String() })
 			for _, o := range occ {
 				rng := o.rng
@@ -275,7 +315,7 @@ func PostPlan(plan *plans.Plan, live bool) tfdiags.Diagnostics {
 			if r.Construct != construct {
 				continue
 			}
-			if (r.Scope == ScopeLive && !live) || (r.Scope == ScopeNonLive && live) {
+			if !r.InScope(live) {
 				continue
 			}
 			applicable = append(applicable, r)

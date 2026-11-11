@@ -34,10 +34,10 @@ func TestPreflightInRunEstatesPortSwitch(t *testing.T) {
 
 	t.Run("on", func(t *testing.T) {
 		t.Setenv(inrunestates.SwitchVariable, "")
-		if diags := Preflight(loadConfig(t, estateOutputsFixture), states.NewState()); diags.HasErrors() {
+		if diags := Preflight(loadConfig(t, estateOutputsFixture), states.NewState(), false); diags.HasErrors() {
 			t.Fatalf("the port is on and terraform_estate_outputs was refused:\n%s", diags.ErrWithWarnings())
 		}
-		if diags := Preflight(loadConfig(t, estateOutputsFixture+preflightFixtures["data-sources"]), states.NewState()); !refusedFor(diags, data) {
+		if diags := Preflight(loadConfig(t, estateOutputsFixture+preflightFixtures["data-sources"]), states.NewState(), false); !refusedFor(diags, data) {
 			t.Fatalf("another data source passed the preflight with the port on:\n%s", diags.ErrWithWarnings())
 		} else if len(diags) != 1 {
 			t.Fatalf("want only the other data source refused, got %d diagnostics:\n%s", len(diags), diags.ErrWithWarnings())
@@ -45,7 +45,7 @@ func TestPreflightInRunEstatesPortSwitch(t *testing.T) {
 	})
 	t.Run("switched off", func(t *testing.T) {
 		t.Setenv(inrunestates.SwitchVariable, "1")
-		if diags := Preflight(loadConfig(t, estateOutputsFixture), states.NewState()); !refusedFor(diags, data) {
+		if diags := Preflight(loadConfig(t, estateOutputsFixture), states.NewState(), false); !refusedFor(diags, data) {
 			t.Fatalf("with %s set, terraform_estate_outputs was not refused by the data-sources row:\n%s", port.Switch, diags.ErrWithWarnings())
 		}
 	})
