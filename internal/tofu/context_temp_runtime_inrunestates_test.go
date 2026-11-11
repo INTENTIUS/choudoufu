@@ -11,6 +11,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/forkport"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 )
 
@@ -34,7 +35,7 @@ func TestInRunEstatesPortMatchesTheDefaultRuntime(t *testing.T) {
 
 	port := inrunestates.New(evalCtx.InRunEstatesValue)
 	if port == nil {
-		t.Fatalf("the port is off; unset %s to run this test", inrunestates.SwitchVariable)
+		t.Fatalf("the port is off; unset %s and %s to run this test", forkport.AllOff, forkport.Switch(inrunestates.Name))
 	}
 	wantTarget, wantInRun, wantSelf := node.inRunEstateTarget(evalCtx, config)
 	gotTarget, gotInRun, gotSelf := port.Target(readerAddr, config)

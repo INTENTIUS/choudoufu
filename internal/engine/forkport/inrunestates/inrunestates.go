@@ -28,19 +28,20 @@
 // Removing the port is deleting this package, those call sites and the
 // "in-run-estates" row of internal/live/newruntime/gaps.json.
 //
-// [SwitchVariable] turns the port off. The gap table's preflight then
+// It is registered in internal/engine/forkport as [Name]. Switched off
+// (forkport.Enabled), [New] returns nil and the gap table's preflight
 // refuses these blocks again, under its "data-sources" row.
 package inrunestates
 
 import (
 	"fmt"
-	"os"
 	"sort"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/engine/forkport"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
@@ -50,15 +51,8 @@ import (
 // provider package sits above both. internal/tofu's tests check the copies.
 const TypeName = "terraform_estate_outputs"
 
-// SwitchVariable turns every new-runtime fork port off when set to any
-// non-empty value, restoring the gap table's refusal of what the port
-// covers. This is the only place it is read.
-const SwitchVariable = "CHOUDOUFU_NEW_RUNTIME_NO_FORK_PORTS"
-
-// Enabled reports whether the port is on.
-func Enabled() bool {
-	return os.Getenv(SwitchVariable) == ""
-}
+// Name is the port's name in the internal/engine/forkport registry.
+const Name = "inrunestates"
 
 // Estates maps an estate name to the module call that carries it in a
 // composed run. It is internal/tofu's ContextOpts.InRunEstates.
@@ -72,17 +66,17 @@ type Port struct {
 // New returns the port for a run with these in-run estates, or nil when the
 // port is switched off.
 func New(estates map[string]addrs.Module) *Port {
-	if !Enabled() {
+	if !forkport.Enabled(Name) {
 		return nil
 	}
 	return &Port{Estates: estates}
 }
 
-// Covers reports whether the port handles this data block while it is on:
-// a terraform_estate_outputs block of the builtin terraform provider. The
-// gap table's preflight lets exactly these through.
+// Covers reports whether the port handles this data block: a
+// terraform_estate_outputs block of the builtin terraform provider. The gap
+// table's preflight lets exactly these through while the port is on.
 func Covers(r *configs.Resource) bool {
-	if !Enabled() || r == nil || r.Mode != addrs.DataResourceMode || r.Type != TypeName {
+	if r == nil || r.Mode != addrs.DataResourceMode || r.Type != TypeName {
 		return false
 	}
 	provider := r.Provider

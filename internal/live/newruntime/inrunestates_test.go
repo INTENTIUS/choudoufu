@@ -8,6 +8,7 @@ package newruntime
 import (
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/engine/forkport"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/states"
 )
@@ -23,17 +24,22 @@ data "terraform_estate_outputs" "net" {
 `
 
 // The in-run-estates fork port lets terraform_estate_outputs through the
-// data-sources preflight while it is on, refuses it again with the switch
-// set, and never lets any other data source through.
+// data-sources preflight while it is on, refuses it again with either switch
+// set (all ports off, or this one), and never lets any other data source
+// through.
 func TestPreflightInRunEstatesPortSwitch(t *testing.T) {
 	data := row(t, "data-sources")
 	port := row(t, "in-run-estates")
-	if port.ForkPort != "internal/engine/forkport/inrunestates" || port.Switch != inrunestates.SwitchVariable+"=1" {
+	if port.ForkPort != "internal/engine/forkport/inrunestates" || port.Switch != forkport.Switch(inrunestates.Name)+"=1" {
 		t.Fatalf("the in-run-estates row names port %q and switch %q, not the package and its switch", port.ForkPort, port.Switch)
+	}
+	unset := func(t *testing.T) {
+		t.Setenv(forkport.AllOff, "")
+		t.Setenv(forkport.Switch(inrunestates.Name), "")
 	}
 
 	t.Run("on", func(t *testing.T) {
-		t.Setenv(inrunestates.SwitchVariable, "")
+		unset(t)
 		if diags := Preflight(loadConfig(t, estateOutputsFixture), states.NewState(), false); diags.HasErrors() {
 			t.Fatalf("the port is on and terraform_estate_outputs was refused:\n%s", diags.ErrWithWarnings())
 		}
@@ -43,10 +49,13 @@ func TestPreflightInRunEstatesPortSwitch(t *testing.T) {
 			t.Fatalf("want only the other data source refused, got %d diagnostics:\n%s", len(diags), diags.ErrWithWarnings())
 		}
 	})
-	t.Run("switched off", func(t *testing.T) {
-		t.Setenv(inrunestates.SwitchVariable, "1")
-		if diags := Preflight(loadConfig(t, estateOutputsFixture), states.NewState(), false); !refusedFor(diags, data) {
-			t.Fatalf("with %s set, terraform_estate_outputs was not refused by the data-sources row:\n%s", port.Switch, diags.ErrWithWarnings())
-		}
-	})
+	for _, env := range []string{forkport.AllOff, forkport.Switch(inrunestates.Name)} {
+		t.Run(env, func(t *testing.T) {
+			unset(t)
+			t.Setenv(env, "1")
+			if diags := Preflight(loadConfig(t, estateOutputsFixture), states.NewState(), false); !refusedFor(diags, data) {
+				t.Fatalf("with %s=1, terraform_estate_outputs was not refused by the data-sources row:\n%s", env, diags.ErrWithWarnings())
+			}
+		})
+	}
 }
