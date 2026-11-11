@@ -72,7 +72,7 @@ var preflightFixtures = map[string]string{
 	"removed":             "removed {\n  from = test_object.gone\n}\n",
 	"moved":               cleanFixture + "moved {\n  from = test_object.old\n  to   = test_object.a\n}\n",
 	"lifecycle-destroy":   "resource \"test_object\" \"a\" {\n  lifecycle {\n    destroy = false\n  }\n}\n",
-	"checks-conditions":   "check \"c\" {\n  assert {\n    condition     = true\n    error_message = \"x\"\n  }\n}\n",
+	"checks-conditions":   "variable \"x\" {\n  default = \"a\"\n}\ncheck \"c\" {\n  assert {\n    condition     = var.x != \"\"\n    error_message = \"x\"\n  }\n}\n",
 	"variable-validation": "variable \"v\" {\n  validation {\n    condition     = var.v != \"\"\n    error_message = \"x\"\n  }\n}\n",
 	"sensitive":           "variable \"v\" {\n  sensitive = true\n}\n",
 }
@@ -105,7 +105,7 @@ func TestPreflightRefusesSensitiveFunctionAndOutputs(t *testing.T) {
 
 func TestPreflightRefusesConditionsOnResources(t *testing.T) {
 	r := row(t, "checks-conditions")
-	src := "resource \"test_object\" \"a\" {\n  lifecycle {\n    precondition {\n      condition     = true\n      error_message = \"x\"\n    }\n  }\n}\n"
+	src := "variable \"x\" {\n  default = \"a\"\n}\nresource \"test_object\" \"a\" {\n  lifecycle {\n    precondition {\n      condition     = var.x != \"\"\n      error_message = \"x\"\n    }\n  }\n}\n"
 	if diags := Preflight(loadConfig(t, src), nil); !refusedFor(diags, r) {
 		t.Fatalf("a precondition was not refused; diagnostics:\n%s", diags.ErrWithWarnings())
 	}
