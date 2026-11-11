@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -236,11 +237,18 @@ func planOf(changes ...*plans.ResourceInstanceChangeSrc) *plans.Plan {
 
 func TestPostPlanRefusesReplace(t *testing.T) {
 	// Outside live mode a replace waits on upstream's create_before_destroy
-	// cycle, in either ordering.
+	// cycle, in either ordering, while the replacecycle fork port (#2380)
+	// is off; while it is on, planning refuses a cycle itself.
 	for _, action := range []plans.Action{plans.DeleteThenCreate, plans.CreateThenDelete} {
 		p := planOf(changeFor(t, "test_object.a[0]", action))
+		t.Setenv(forkport.AllOff, "")
+		t.Setenv(forkport.Switch(replacecycle.Name), "")
+		if diags := PostPlan(p, false); len(diags) != 0 {
+			t.Errorf("live=false %s was refused with the port on: %s", action, diags.ErrWithWarnings())
+		}
+		t.Setenv(forkport.Switch(replacecycle.Name), "1")
 		if diags := PostPlan(p, false); !refusedFor(diags, row(t, "replace-cbd-cycle")) {
-			t.Errorf("live=false %s was not refused under gap %q; diagnostics:\n%s", action, "replace-cbd-cycle", diags.ErrWithWarnings())
+			t.Errorf("live=false %s was not refused under gap %q with the port off; diagnostics:\n%s", action, "replace-cbd-cycle", diags.ErrWithWarnings())
 		}
 	}
 	// In live mode U7 (#2343) lifted the replace refusal: no row refuses it,
