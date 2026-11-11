@@ -24,7 +24,7 @@
     {"id": "input-prompts", "gap": "interactive input prompts", "check": "none", "interim": "a missing input fails loudly", "closed_by": "upstream", "upstream": ["#4695"]},
     {"id": "deprecation-warnings", "gap": "deprecation warnings on variables and outputs", "check": "accepted", "warning": "deprecation warnings on variables and outputs are not shown", "closed_by": "upstream", "upstream": ["#4688"]},
     {"id": "lint-rules", "gap": "built-in lint rules", "check": "accepted", "warning": "built-in lint rules do not run", "closed_by": "upstream", "upstream": ["#4746"]},
-    {"id": "taint-on-create", "gap": "taint on create failure", "check": "none", "interim": "none needed", "closed_by": "upstream #4768; see #2336 for the taint decision", "upstream": ["#4768"]},
+    {"id": "taint-on-create", "gap": "taint on create failure", "check": "none", "interim": "none needed", "closed_by": "upstream #4768; see #2336 for the taint decision", "upstream": ["#4768", "#4691", "#4687"]},
     {"id": "imports", "gap": "imports, config-driven and plan-option", "check": "none", "interim": "none needed", "closed_by": "upstream", "upstream": ["#4726", "#4727", "#4745", "#4683"]},
     {"id": "provisioner-self-marks", "gap": "provisioner self marks", "check": "none", "interim": "none needed: ours, already carried", "closed_by": "ours", "upstream": []}
   ]
