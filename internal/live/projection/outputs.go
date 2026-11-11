@@ -125,7 +125,10 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 	// whose absence renders as an ordinary "+ name = ..." line. That is the
 	// exact risk GitHub issue #349's scoping named for the data-source half
 	// of this, and it was already live for the evaluation half.
-	scope, _ := core.Eval(ctx, config, withOutputEvalSeeds(ctx, core, config, state, dataValues), addrs.RootModuleInstance, &tofu.EvalOpts{SetVariables: variables})
+	scope, done, _ := core.Eval(ctx, config, withOutputEvalSeeds(ctx, core, config, state, dataValues), addrs.RootModuleInstance, &tofu.EvalOpts{SetVariables: variables})
+	// Upstream's Eval (1.14) hands back the provider shutdown it used to run
+	// itself; the scope's provider instances live until this returns.
+	defer func() { _ = done(ctx) }()
 
 	// A recorded value is the before side, but the record came off an
 	// apply's final state and the after side is evaluated against the

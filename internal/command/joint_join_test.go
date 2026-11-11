@@ -13,28 +13,16 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/mitchellh/cli"
 	"github.com/zclconf/go-cty/cty"
 )
 
-// recordingCommand is the ordinary command a joint wrapper falls back to.
-type recordingCommand struct {
-	ran  [][]string
-	code int
-}
-
-func (r *recordingCommand) Run(args []string) int {
-	r.ran = append(r.ran, append([]string(nil), args...))
-	return r.code
-}
-func (r *recordingCommand) Help() string     { return "" }
-func (r *recordingCommand) Synopsis() string { return "" }
-
 // TestJointSingleUnitTakesTheOrdinaryPath is #2218's single-unit item: a
 // `plan` or `apply` that no multi-unit Terragrunt or Atmos run started (the
-// test binary's parent is `go`, never the tool) is handed to the ordinary
-// command unchanged, with the same arguments and its exit code, and opens no
-// joint session, so it plans exactly as it did before joint runs existed.
+// test binary's parent is `go`, never the tool) is declined by
+// JointIntercept, which command_main.go consults before the ordinary command,
+// and opens no joint session, so it plans exactly as it did before joint runs
+// existed. (Upstream removed mitchellh/cli in 1.14, and with it the wrapped
+// command factory this test used to drive; the decline is what remains.)
 func TestJointSingleUnitTakesTheOrdinaryPath(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
 	t.Setenv(jointEnv, "")
@@ -43,25 +31,9 @@ func TestJointSingleUnitTakesTheOrdinaryPath(t *testing.T) {
 	}
 	for _, name := range []string{"plan", "apply", "show", "output"} {
 		t.Run(name, func(t *testing.T) {
-			inner := &recordingCommand{code: 7}
-			wrapped, err := JointWrap(name, Meta{}, func() (cli.Command, error) { return inner, nil })()
-			if err != nil {
-				t.Fatal(err)
-			}
 			args := []string{"-input=false", "-out=tfplan"}
 			if name != "plan" {
 				args = []string{"tfplan"}
-			}
-			if code := wrapped.Run(args); code != 7 {
-				t.Errorf("exit %d, want the ordinary command's 7", code)
-			}
-			if len(inner.ran) != 1 || len(inner.ran[0]) != len(args) {
-				t.Fatalf("ordinary command ran %v, want once with %v", inner.ran, args)
-			}
-			for i := range args {
-				if inner.ran[0][i] != args[i] {
-					t.Errorf("ordinary command got %v, want %v", inner.ran[0], args)
-				}
 			}
 			if code, ok := JointIntercept(name, Meta{}, args); ok {
 				t.Errorf("JointIntercept took a single-unit %s (exit %d)", name, code)

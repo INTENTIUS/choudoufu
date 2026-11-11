@@ -262,7 +262,6 @@ func releaseOne(ctx context.Context, provider providers.Interface, cluster kubes
 		TypeName:      t.TypeName,
 		PriorState:    imported.State,
 		Private:       imported.Private,
-		ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
 		PriorIdentity: imported.Identity,
 	})
 	if readResp.Diagnostics.HasErrors() {
@@ -349,12 +348,7 @@ func releaseOne(ctx context.Context, provider providers.Interface, cluster kubes
 			ProposedNewState: objchange.ProposedNew(schema.Block, live, candidate),
 			Config:           candidate,
 			PriorPrivate:     imported.Private,
-			// A null of the dynamic pseudo-type, not the zero cty.Value: see
-			// internal/live/liveimport's stamp.go, same call, for why a value
-			// with no type at all panics the plugin client's conformance
-			// check whenever the provider declares a provider_meta schema.
-			ProviderMeta:  cty.NullVal(cty.DynamicPseudoType),
-			PriorIdentity: imported.Identity,
+			PriorIdentity:    imported.Identity,
 		})
 		if why := w.judge(schema.Block, live, t.TypeName, key, resp); why != "" {
 			refusal = why
@@ -377,7 +371,6 @@ func releaseOne(ctx context.Context, provider providers.Interface, cluster kubes
 		PlannedState:    planResp.PlannedState,
 		Config:          configVal,
 		PlannedPrivate:  planResp.PlannedPrivate,
-		ProviderMeta:    cty.NullVal(cty.DynamicPseudoType),
 		PlannedIdentity: planResp.PlannedIdentity,
 	})
 	if applyResp.Diagnostics.HasErrors() {

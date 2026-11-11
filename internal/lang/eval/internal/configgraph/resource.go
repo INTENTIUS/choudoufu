@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/apparentlymart/go-workgraph/workgraph"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
@@ -33,6 +32,13 @@ type Resource struct {
 	// itself a placeholder for zero or more resources whose existence
 	// and addresses we cannot determine yet.
 	Addr addrs.AbsResource
+
+	// Provider is the provider that this resource's type belongs to. This
+	// is the provider to use when asking for config validation, etc.
+	//
+	// Each instance of the resource is required to have the same provider,
+	// but they are allowed to use different instances of that provider.
+	Provider addrs.Provider
 
 	// InstanceSelector represents a rule for deciding which instances of
 	// this resource have been declared.
@@ -64,6 +70,10 @@ type Resource struct {
 	// Only the decideInstances method accesses this directly. Use that
 	// method to obtain the coalesced result for use elsewhere.
 	instancesResult grapheval.Once[*compiledInstances[*ResourceInstance]]
+
+	// valueResult ensures that we only compute the value of the resource once.
+	// This is primarilly a performance optimization.
+	valueResult grapheval.Once[cty.Value]
 }
 
 var _ exprs.Valuer = (*Resource)(nil)
@@ -90,6 +100,7 @@ func (r *Resource) IsExpansionPlaceholder() bool {
 // that it needs to produce a result value for a particular resource instance
 // before we actually request that value.
 func (r *Resource) Instances(ctx context.Context) map[addrs.InstanceKey]*ResourceInstance {
+	ctx = withDebugAddr(ctx, r.Addr, "Instances")
 	// We ignore the diagnostics here because they will be returned by
 	// the Value method instead.
 	result, diags := r.decideInstances(ctx)
@@ -113,6 +124,10 @@ func (r *Resource) StaticCheckTraversal(traversal hcl.Traversal) tfdiags.Diagnos
 
 // Value implements exprs.Valuer.
 func (r *Resource) Value(ctx context.Context) (cty.Value, tfdiags.Diagnostics) {
+	return r.valueResult.Do(ctx, r.value, &r.DeclRange, "Value of %s", r.Addr)
+}
+func (r *Resource) value(ctx context.Context) (cty.Value, tfdiags.Diagnostics) {
+	ctx = withDebugAddr(ctx, r.Addr, "Value")
 	selection, diags := r.decideInstances(ctx)
 	if diags.HasErrors() && selection == nil {
 		// If decideInstances fails for grapheval-related reasons, such as a
@@ -132,25 +147,16 @@ func (r *Resource) ValueSourceRange() *tfdiags.SourceRange {
 func (r *Resource) decideInstances(ctx context.Context) (*compiledInstances[*ResourceInstance], tfdiags.Diagnostics) {
 	return r.instancesResult.Do(ctx, func(ctx context.Context) (*compiledInstances[*ResourceInstance], tfdiags.Diagnostics) {
 		return compileInstances(ctx, r.InstanceSelector, r.CompileResourceInstance)
-	})
+	}, &r.DeclRange, "Decide instances of %s", r.Addr)
 }
 
 // PreventDestroy returns a value-based representation of the "prevent destroy"
 // setting for this resource.
-//
-// The result is guaranteed to be a [cty.Bool] value, but it could potentially
-// be unknown or marked and it's the caller's responsibility to handle those
-// situations.
-//
-// The different possible known boolean results have the following meaning:
-//   - [cty.True] means that this resource instance MUST not be destroyed.
-//   - [cty.False] means that this resource instance MAY be destroyed.
-//   - A null value is not accepted, see the comment below.
-//
-// This was copied and modified from NodeAbstractResourceInstance.checkPreventDestroy
-func (r *Resource) PreventDestroy(ctx context.Context) (cty.Value, *tfdiags.SourceRange, tfdiags.Diagnostics) {
+//   - true means that this resource instance MUST NOT be destroyed.
+//   - false means that this resource instance MAY be destroyed.
+func (r *Resource) PreventDestroy(ctx context.Context) (exprs.WithSourceRange[bool], tfdiags.Diagnostics) {
 	if r.PreventDestroyValuer == nil {
-		return cty.False, nil, nil
+		return exprs.WithSourceRange[bool]{FromValue: exprs.Known(false)}, nil
 	}
 	rng := r.PreventDestroyValuer.ValueSourceRange()
 
@@ -174,6 +180,7 @@ func (r *Resource) PreventDestroy(ctx context.Context) (cty.Value, *tfdiags.Sour
 			),
 			Subject: rng.ToHCL().Ptr(),
 		})
+		return exprs.WithSourceRange[bool]{FromValue: exprs.Unknown[bool](), SourceRange: rng}, diags
 	}
 	// TODO deprecated handling
 	//preventDestroyVal, moreDiags := marks.ExtractDeprecatedDiagnosticsWithExpr(preventDestroyVal, preventDestroyExpr)
@@ -221,10 +228,33 @@ func (r *Resource) PreventDestroy(ctx context.Context) (cty.Value, *tfdiags.Sour
 			})
 		}
 	}
+	if preventDestroyVal.IsNull() {
+		// We could potentially treat null as equivalent to false here, matching
+		// how OpenTofu would behave if there were no expression present at all,
+		// but "false" is just as easy to specify as "null" in a conditional
+		// expression and doesn't require a reader to know what the default
+		// is, so we'll require that to make life easier for a future maintainer
+		// that isn't necessarily familiar with the prevent_destroy behavior yet.
+		diags = diags.Append(&hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  errSummary,
+			Detail: fmt.Sprintf(
+				"Resource %s has prevent_destroy set to null. When making a dynamic decision to allow destroy, use false instead.",
+				r.Addr,
+			),
+			Subject: rng.ToHCL().Ptr(),
+		})
+		// We'll still return a valid value so that downstream work can continue
+		// despite the error.
+		preventDestroyVal = cty.False.WithSameMarks(preventDestroyVal)
+	}
 	if diags.HasErrors() {
 		preventDestroyVal = exprs.AsEvalError(preventDestroyVal)
 	}
-	return preventDestroyVal, rng, diags
+	ret, _ := exprs.DeriveFromValue(preventDestroyVal, func(v cty.Value) (bool, error) {
+		return v.True(), nil
+	})
+	return exprs.WithSourceRange[bool]{FromValue: ret, SourceRange: rng}, diags
 }
 
 // CheckAll implements allChecker.
@@ -242,33 +272,10 @@ func (r *Resource) CheckAll(ctx context.Context) tfdiags.Diagnostics {
 	// (e.g. this is where an invalid for_each expression would be reported)
 	cg.CheckValuer(ctx, r)
 	if r.PreventDestroyValuer != nil {
-		cg.CheckValuer(ctx, r.PreventDestroyValuer)
-	}
-	return cg.Complete(ctx)
-}
-
-func (r *Resource) AnnounceAllGraphevalRequests(announce func(workgraph.RequestID, grapheval.RequestInfo)) {
-	// There might be other grapheval requests in our dynamic instances, but
-	// they are hidden behind another request themselves so we'll try to
-	// report them only if that request was already started.
-	instancesReqId := r.instancesResult.RequestID()
-	if instancesReqId == workgraph.NoRequest {
-		return
-	}
-	announce(instancesReqId, grapheval.RequestInfo{
-		Name:        fmt.Sprintf("decide instances for %s", r.Addr),
-		SourceRange: r.InstanceSelector.InstancesSourceRange(),
-	})
-	if r.PreventDestroyValuer != nil {
-		announce(r.PreventDestroyValuer.RequestID(), grapheval.RequestInfo{
-			Name:        fmt.Sprintf("prevent_destroy argument for %s", r.Addr),
-			SourceRange: r.PreventDestroyValuer.ValueSourceRange(),
+		cg.CheckDiagsFunc(ctx, func(ctx context.Context) tfdiags.Diagnostics {
+			_, diags := r.PreventDestroy(ctx)
+			return diags
 		})
 	}
-	// The Instances method potentially starts a new request, but we already
-	// confirmed above that this request was already started and so we
-	// can safely just await its result here.
-	for _, inst := range r.Instances(grapheval.ContextWithNewWorker(context.Background())) {
-		inst.AnnounceAllGraphevalRequests(announce)
-	}
+	return cg.Complete(ctx)
 }

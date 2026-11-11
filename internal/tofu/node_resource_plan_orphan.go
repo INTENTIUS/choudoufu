@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hashicorp/hcl/v2"
-
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/refactoring"
@@ -216,11 +214,6 @@ func (n *NodePlannableResourceInstanceOrphan) managedResourceExecute(ctx context
 	if shouldDestroy {
 		change, planDiags = n.planDestroy(ctx, evalCtx, oldState, "")
 	} else {
-		diags = diags.Append(&hcl.Diagnostic{
-			Severity: hcl.DiagWarning,
-			Summary:  "Resource will be removed from the state",
-			Detail:   fmt.Sprintf("After this plan is applied, the resource %s will not be managed anymore by OpenTofu.\n\nIn case you want to manage the resource again, you will have to import it.", n.Addr),
-		})
 		log.Printf("[DEBUG] NodePlannableResourceInstanceOrphan.managedResourceExecute: %s (orphan) planning forget instead of destroy", addr)
 		change = n.planForget(ctx, evalCtx, oldState, "")
 		if skipDestroy {

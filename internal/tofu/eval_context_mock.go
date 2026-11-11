@@ -16,7 +16,6 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/checks"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -350,10 +349,6 @@ func (c *MockEvalContext) ImportResolver() *ImportResolver {
 func (c *MockEvalContext) InstanceExpander() *instances.Expander {
 	c.InstanceExpanderCalled = true
 	return c.InstanceExpanderExpander
-}
-
-func (c *MockEvalContext) GetEncryption() encryption.Encryption {
-	return encryption.Disabled()
 }
 
 func (c *MockEvalContext) ResourceIdentityResolver() ResourceIdentityResolver {

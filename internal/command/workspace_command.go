@@ -7,7 +7,6 @@ package command
 
 import (
 	"net/url"
-	"strings"
 
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
@@ -43,31 +42,6 @@ func WorkspaceCommander(legacyName bool) Command {
 	}
 
 	return cmd
-}
-
-// WorkspaceCommand is a Command Implementation that manipulates workspaces,
-// which allow multiple distinct states and variables from a single config.
-type WorkspaceCommand struct {
-	Meta
-	LegacyName bool
-}
-
-func (c *WorkspaceCommand) Run(rawArgs []string) int {
-	return RunCommand(WorkspaceCommander(c.LegacyName), c.Meta, rawArgs)
-}
-
-func (c *WorkspaceCommand) Help() string {
-	helpText := `
-Usage: choudoufu [global options] workspace
-
-  new, list, show, select and delete OpenTofu workspaces.
-
-`
-	return strings.TrimSpace(helpText)
-}
-
-func (c *WorkspaceCommand) Synopsis() string {
-	return "Workspace management"
 }
 
 // validWorkspaceName returns true is this name is valid to use as a workspace name.

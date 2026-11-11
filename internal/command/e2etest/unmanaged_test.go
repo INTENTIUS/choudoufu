@@ -16,12 +16,12 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
+	simple5 "github.com/intentius/choudoufu/internal/command/e2etest/provider-simple"
+	simple "github.com/intentius/choudoufu/internal/command/e2etest/provider-simple-v6"
 	"github.com/intentius/choudoufu/internal/e2e"
 	"github.com/intentius/choudoufu/internal/grpcwrap"
 	tfplugin5 "github.com/intentius/choudoufu/internal/plugin"
 	tfplugin "github.com/intentius/choudoufu/internal/plugin6"
-	simple5 "github.com/intentius/choudoufu/internal/provider-simple"
-	simple "github.com/intentius/choudoufu/internal/provider-simple-v6"
 	proto5 "github.com/intentius/choudoufu/internal/tfplugin5"
 	proto "github.com/intentius/choudoufu/internal/tfplugin6"
 )

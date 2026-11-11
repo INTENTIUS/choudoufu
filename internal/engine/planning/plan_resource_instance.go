@@ -15,6 +15,8 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/plans"
+	"github.com/intentius/choudoufu/internal/resources"
+	"github.com/intentius/choudoufu/internal/states"
 )
 
 // resourceInstanceObject is the planning engine's internal intermediate
@@ -40,6 +42,17 @@ type resourceInstanceObject struct {
 	// during the apply phase and so is not recorded anywhere in
 	// [resourceInstanceObject].
 	Addr addrs.AbsResourceInstanceObject
+
+	PrevRoundAddr addrs.AbsResourceInstanceObject
+
+	// UpgradedState is the previous state value after processing
+	// Upgrades and Moves.
+	UpgradedState *states.ResourceInstanceObjectFullSrc
+	UpgradedValue cty.Value
+	// UpgradedState is the upgraded state value after processing
+	// Refreshes. Will be nil if the object no-longer exists.
+	RefreshedState *states.ResourceInstanceObjectFullSrc
+	RefreshedValue cty.Value
 
 	// PlannedChange is the change that the planning engine has decided for
 	// this resource instance object.
@@ -111,19 +124,19 @@ type resourceInstanceObject struct {
 	//
 	// When returning from one of the planning functions on [planGlue] this
 	// should focus on describing only the configured constraints of the
-	// specific object in question, using [replaceAnyOrder] if there is no
-	// constraint.
+	// specific object in question, using [resources.ReplaceAnyOrder] if there
+	// is no constraint.
 	//
 	// Subsequent processing elsewhere in the planning engine will decide
-	// a final effective constraint to replace any [replaceAnyOrder]
+	// a final effective constraint to replace any [resources.ReplaceAnyOrder]
 	// constraints, by analyzing the dependency flow between objects.
 	//
 	// Currently the planning engine is allowed to return only either
-	// [replaceAnyOrder] or [replaceCreateThenDestroy] in this field.
-	// [replaceDestroyThenCreate] is then inferred automatically for any
-	// object that isn't forced to be [replaceCreateThenDestroy] by one of
-	// its dependency neighbors.
-	ReplaceOrder resourceInstanceReplaceOrder
+	// [resources.ReplaceAnyOrder] or [resources.ReplaceCreateFirst] in this
+	// field. [resources.ReplaceDeleteFirst] is then inferred automatically for
+	// any object that isn't forced to be [resources.ReplaceCreateFirst] by one
+	// of its dependency neighbors.
+	ReplaceOrder resources.ReplaceOrder
 
 	// ConfigDependencies is the set of all resource instance objects that this
 	// object's resource instance depends on either directly or indirectly.

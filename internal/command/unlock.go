@@ -8,7 +8,6 @@ package command
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
@@ -44,9 +43,6 @@ type UnlockCommand struct {
 	Meta
 }
 
-func (c *UnlockCommand) Run(rawArgs []string) int {
-	return RunCommand(UnlockCommander(), c.Meta, rawArgs)
-}
 func (c UnlockCommand) Execute(args *arguments.Unlock, view views.Unlock) int {
 	var diags tfdiags.Diagnostics
 
@@ -135,11 +131,14 @@ func (c UnlockCommand) Execute(args *arguments.Unlock, view views.Unlock) int {
 			return 1
 		}
 
+		cancelCtx, cancel := c.InterruptibleContext(ctx)
+		defer cancel()
+
 		desc := "OpenTofu will remove the lock on the remote state.\n" +
 			"This will allow local OpenTofu commands to modify this state, even though it\n" +
 			"may still be in use. Only 'yes' will be accepted to confirm."
 
-		v, err := c.UIInput().Input(context.Background(), &tofu.InputOpts{
+		v, err := c.UIInput().Input(cancelCtx, &tofu.InputOpts{
 			Id:          "force-unlock",
 			Query:       "Do you really want to force-unlock?",
 			Description: desc,
@@ -160,44 +159,4 @@ func (c UnlockCommand) Execute(args *arguments.Unlock, view views.Unlock) int {
 	}
 	view.ForceUnlockSucceeded()
 	return 0
-}
-
-func (c *UnlockCommand) Help() string {
-	helpText := `
-Usage: choudoufu [global options] force-unlock [options] LOCK_ID
-
-  Manually unlock the state for the defined configuration.
-
-  This will not modify your infrastructure. This command removes the lock on the
-  state for the current workspace. The behavior of this lock is dependent
-  on the backend being used. Local state files cannot be unlocked by another
-  process.
-
-Options:
-
-  -force                 Don't ask for input for unlock confirmation.
-
-  -var 'foo=bar'         Set a value for one of the input variables in the root
-                         module of the configuration. Use this option more than
-                         once to set more than one variable.
-
-  -var-file=filename     Load variable values from the given file, in addition
-                         to the default files terraform.tfvars and *.auto.tfvars.
-                         Use this option more than once to include more than one
-                         variables file.
-
-  -json                  Produce output in a machine-readable JSON format, 
-                         suitable for use in text editor integrations and other 
-                         automated systems. Always disables color.
-
-  -json-into=out.json    Produce the same output as -json, but sent directly
-                         to the given file. This allows automation to preserve
-                         the original human-readable output streams, while
-                         capturing more detailed logs for machine analysis.
-`
-	return strings.TrimSpace(helpText)
-}
-
-func (c *UnlockCommand) Synopsis() string {
-	return "Release a stuck lock on the current workspace"
 }

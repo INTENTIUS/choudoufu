@@ -7,7 +7,6 @@ package command
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/intentius/choudoufu/internal/command/arguments"
 	"github.com/intentius/choudoufu/internal/command/views"
@@ -35,9 +34,6 @@ type WorkspaceShowCommand struct {
 	Meta
 }
 
-func (c *WorkspaceShowCommand) Run(rawArgs []string) int {
-	return RunCommand(WorkspaceShowCommander(), c.Meta, rawArgs)
-}
 func (c WorkspaceShowCommand) Execute(args *arguments.WorkspaceShow, view views.Workspace) int {
 	ctx := c.CommandContext()
 
@@ -53,17 +49,4 @@ func (c WorkspaceShowCommand) Execute(args *arguments.WorkspaceShow, view views.
 	view.WorkspaceShow(workspace)
 
 	return 0
-}
-
-func (c *WorkspaceShowCommand) Help() string {
-	helpText := `
-Usage: choudoufu [global options] workspace show
-
-  Show the name of the current workspace.
-`
-	return strings.TrimSpace(helpText)
-}
-
-func (c *WorkspaceShowCommand) Synopsis() string {
-	return "Show the name of the current workspace"
 }

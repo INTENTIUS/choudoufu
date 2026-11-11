@@ -17,9 +17,9 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/lang/marks"
+	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
-	"github.com/intentius/choudoufu/internal/tofu"
 )
 
 func TestMarshalOutputs(t *testing.T) {
@@ -202,7 +202,7 @@ func TestMarshalResources(t *testing.T) {
 	deposedKey := states.NewDeposedKey()
 	tests := map[string]struct {
 		Resources map[string]*states.Resource
-		Schemas   *tofu.Schemas
+		Schemas   *plugins.Schemas
 		Want      []Resource
 		ErrMsg    string
 	}{
@@ -938,8 +938,8 @@ func TestMarshalModules_parent_no_resources(t *testing.T) {
 	}
 }
 
-func testSchemas() *tofu.Schemas {
-	return &tofu.Schemas{
+func testSchemas() *plugins.Schemas {
+	return &plugins.Schemas{
 		Providers: map[addrs.Provider]providers.ProviderSchema{
 			addrs.NewDefaultProvider("test"): {
 				ResourceTypes: map[string]providers.Schema{

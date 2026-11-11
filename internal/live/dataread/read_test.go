@@ -740,7 +740,8 @@ func TestReadTfeOutputsMissingTokenRefusesAtReadTimeWithoutCallingTheProvider(t 
 // TestReadRemoteStateGoesThroughTheStandardPipeline: an eligible
 // terraform_remote_state source is read through the generic readSource
 // path, redirected to the builtin terraform provider's
-// ReadDataSourceEncrypted entry point - #179 stage 3 adds an eligibility
+// ReadDataSource entry point (address and encryption on the request
+// and context since upstream 1.14) - #179 stage 3 adds an eligibility
 // rule and a failure class, not a second read implementation, the same
 // shape stage 2 proved for tfe_outputs. The real builtin provider
 // (internal/builtin/providers/tf) and a real local-backend state file are

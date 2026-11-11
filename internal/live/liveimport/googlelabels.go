@@ -165,7 +165,6 @@ func approveGoogleLabels(ctx context.Context, estate string, addr addrs.AbsResou
 			ProposedNewState: objchange.ProposedNew(e.schema.Block, e.applied, candidate),
 			Config:           candidate,
 			PriorPrivate:     e.private,
-			ProviderMeta:     cty.NullVal(cty.DynamicPseudoType),
 			PriorIdentity:    e.identity,
 		})
 		if why := notAGoogleLabelsOnlyPlan(e.schema.Block, e.applied, e.typeName, resp); why != "" {
@@ -187,7 +186,6 @@ func approveGoogleLabels(ctx context.Context, estate string, addr addrs.AbsResou
 		PlannedState:    planResp.PlannedState,
 		Config:          configVal,
 		PlannedPrivate:  planResp.PlannedPrivate,
-		ProviderMeta:    cty.NullVal(cty.DynamicPseudoType),
 		PlannedIdentity: planResp.PlannedIdentity,
 	})
 	if applyResp.Diagnostics.HasErrors() {

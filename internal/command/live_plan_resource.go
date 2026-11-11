@@ -24,6 +24,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -329,7 +330,7 @@ func (c *LivePlanCommand) livePlanResource(ctx context.Context, args *arguments.
 	// is written as the walk plans it.
 	stream := newLiveDriftStream(drift)
 	coreOpts.Hooks = append(view.Hooks(), stream)
-	coreOpts.Encryption = enc
+	ctx = encryption.ContextWithEncryption(ctx, enc)
 
 	// The node seam, wired as livePlan wires it: the resolver is also the
 	// marker writer, and without it every marker the configuration does not

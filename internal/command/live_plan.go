@@ -27,6 +27,7 @@ import (
 	"github.com/intentius/choudoufu/internal/command/views"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/live/check"
 	"github.com/intentius/choudoufu/internal/live/dataread"
 	"github.com/intentius/choudoufu/internal/live/discovery"
@@ -550,7 +551,7 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 		return 1, false, diags
 	}
 	coreOpts.Hooks = view.Hooks()
-	coreOpts.Encryption = enc
+	ctx = encryption.ContextWithEncryption(ctx, enc)
 
 	// GitHub issue #388's plan-node seam, on by default since 2026-08-25 and
 	// opted out of with CHOUDOUFU_NODE_RESOLVE=0 (see

@@ -14,7 +14,6 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/checks"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
-	"github.com/intentius/choudoufu/internal/encryption"
 	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/lang"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -174,9 +173,6 @@ type EvalContext interface {
 	// WithPath returns a copy of the context with the internal path set to the
 	// path argument.
 	WithPath(path addrs.ModuleInstance) EvalContext
-
-	// Returns the currently configured encryption setup
-	GetEncryption() encryption.Encryption
 
 	// ResourceIdentityResolver returns the plan-node seam's identity
 	// resolver, or nil if none was configured (the default). See

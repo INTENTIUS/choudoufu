@@ -8,12 +8,12 @@ package planning
 import (
 	"context"
 	"fmt"
+	"sync"
 
-	"github.com/hashicorp/hcl/v2"
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
-	"github.com/intentius/choudoufu/internal/lang/evalchecks"
+	"github.com/intentius/choudoufu/internal/lang/globalref"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -39,42 +39,56 @@ type planContext struct {
 	// current experiment we'll just keep this boolean for now.
 	deferred addrs.Map[addrs.AbsResourceInstance, struct{}]
 
+	// TODO once deferred is fully functional, we might be able to use that
+	// combined with resourceInstanceObjs to replace these fields
+	desiredMu sync.Mutex
+	desired   addrs.Set[addrs.AbsResourceInstance]
+
 	forceReplace []addrs.AbsResourceInstance
+
+	moveMu          sync.Mutex
+	recordedMoves   addrs.Map[addrs.AbsResourceInstance, addrs.AbsResourceInstance]
+	configuredMoves addrs.Map[addrs.AbsResourceInstance, []*moveStep]
 
 	// prevRoundState MUST be treated as immutable
 	prevRoundState *states.State
-
-	// refreshedState is where we record the results of refreshing
-	// resource instances as we visit them. This starts as a deep copy
-	// of prevRoundState.
-	refreshedState *states.SyncState
-
-	// upgradedState is the state returned by UpgradeResourceState.
-	// Each resource instance should modify it once.
-	upgradedState *states.SyncState
 
 	// rootOutput is the values and dependencies of the root module outputs
 	rootOutput rootOutput
 
 	providers plugins.Providers
+
+	skipRefresh bool
+	refreshOnly bool
+
+	skipImport           bool
+	importCommandTargets []*eval.ImportStatement
+	generateConfigPath   string
+
+	driftCausingChanges map[driftMark]struct{}
 }
 
 func newPlanContext(evalCtx *eval.EvalContext, prevRoundState *states.State, providers plugins.Providers, opts *PlanOpts) *planContext {
 	if prevRoundState == nil {
 		prevRoundState = states.NewState()
 	}
-	refreshedState := prevRoundState.DeepCopy()
-	upgradedState := prevRoundState.DeepCopy()
-
 	return &planContext{
 		evalCtx:          evalCtx,
 		resourceInstObjs: newResourceInstanceObjectsBuilder(),
 		deferred:         addrs.MakeMap[addrs.AbsResourceInstance, struct{}](),
+		desired:          addrs.MakeSet[addrs.AbsResourceInstance](),
 		forceReplace:     opts.ForceReplace,
+		recordedMoves:    addrs.MakeMap[addrs.AbsResourceInstance, addrs.AbsResourceInstance](),
+		configuredMoves:  addrs.MakeMap[addrs.AbsResourceInstance, []*moveStep](),
 		prevRoundState:   prevRoundState,
-		refreshedState:   refreshedState.SyncWrapper(),
-		upgradedState:    upgradedState.SyncWrapper(),
 		providers:        providers,
+		skipRefresh:      opts.SkipRefresh,
+		refreshOnly:      opts.Mode == plans.RefreshOnlyMode,
+
+		importCommandTargets: opts.ImportCommandTargets,
+		generateConfigPath:   opts.GenerateConfigPath,
+
+		driftCausingChanges: map[driftMark]struct{}{},
 	}
 }
 
@@ -86,11 +100,25 @@ func newPlanContext(evalCtx *eval.EvalContext, prevRoundState *states.State, pro
 func (p *planContext) Close(ctx context.Context) (*planContextResult, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
+	objs := p.resourceInstObjs.Close()
+
+	drift, moreDiags := p.managedResourceChangesBetweenUpgradeAndRefresh(ctx, objs)
+	diags = diags.Append(moreDiags)
+
+	var driftCausingChanges []globalref.ResourceAttr
+	for mark := range p.driftCausingChanges {
+		driftCausingChanges = append(driftCausingChanges, globalref.ResourceAttr{
+			Resource: *mark.addr,
+			Attr:     *mark.path,
+		})
+	}
+
 	result := &planContextResult{
-		ResourceInstanceObjects: p.resourceInstObjs.Close(),
-		PrevRoundState:          p.upgradedState.Close(),
-		RefreshedState:          p.refreshedState.Close(),
+		ResourceInstanceObjects: objs,
+		PrevRoundState:          p.prevRoundState,
 		RootOutput:              p.rootOutput,
+		DriftedResources:        drift,
+		DriftCausingChanges:     driftCausingChanges,
 	}
 
 	return result, diags
@@ -107,108 +135,160 @@ type rootOutput struct {
 type planContextResult struct {
 	ResourceInstanceObjects *resourceInstanceObjects
 	PrevRoundState          *states.State
-	RefreshedState          *states.State
 	RootOutput              rootOutput
 
 	// Unfortunately, we need to signal to the apply engine that some things
 	// like output values need to be handled a bit differently.
 	Destroying bool
+
+	DriftedResources    []*plans.ResourceInstanceChangeSrc
+	DriftCausingChanges []globalref.ResourceAttr
 }
 
-// Post-process "prevent_destroy" values now that the changes have been built
+// driftedResources is a best-effort attempt to compare the current and prior
+// state. If we cannot decode the prior state for some reason, this should only
+// return warnings to help the user correlate any missing resources in the
+// report. This is known to happen when targeting a subset of resources,
+// because the excluded instances will have been removed from the plan and
+// not upgraded.
 //
-// This was copied and modified from NodeAbstractResourceInstance.checkPreventDestroy
-func (p *planContextResult) CheckPreventDestroy(ctx context.Context, oracle *eval.PlanningOracle) tfdiags.Diagnostics {
+// This is a direct port from tofu/context_plan.go
+func (p *planContext) managedResourceChangesBetweenUpgradeAndRefresh(ctx context.Context, objects *resourceInstanceObjects) ([]*plans.ResourceInstanceChangeSrc, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-	const errSummary = "Invalid value for prevent_destroy"
 
-	// Check that prevent_destroy has not been violated
-	for objAddr, obj := range p.ResourceInstanceObjects.All() {
-		change := obj.PlannedChange
+	/*TODO potential optimization, maybe not needed since we no-longet do decodes below
+	if newState.ManagedResourcesEqual(oldState) && moves.Changes.Len() == 0 {
+		// Nothing to do, because we only detect and report drift for managed
+		// resource instances.
+		return nil, diags
+	}*/
 
-		if change == nil {
-			continue
-		}
-		if change.Action != plans.Delete && !change.Action.IsReplace() {
-			// If we're not attempting to destroy then the above checks are
-			// sufficient to reject an expression that cannot possibly be valid
-			// for prevent_destroy. If we're not actually planning to destroy
-			// then we'll skip the remaining checks because they are likely to
-			// fail dynamically in non-destroy situations even though they
-			// could be valid by the time this object actually is planned for
-			// destroy.
-			continue
-		}
-		preventDestroyVal, rng, pdDiags := oracle.PreventDestroy(ctx, objAddr.InstanceAddr)
-		if pdDiags.HasErrors() {
-			diags = diags.Append(pdDiags)
-			continue
-		}
-
-		if preventDestroyVal.IsNull() {
-			// We could potentially treat null as equivalent to false here, matching
-			// how OpenTofu would behave if there were no expression present at all,
-			// but "false" is just as easy to specify as "null" in a conditional
-			// expression and doesn't require a reader to know what the default
-			// is, so we'll require that to make life easier for a future maintainer
-			// that isn't necessarily familiar with the prevent_destroy behavior yet.
-			diags = diags.Append(&hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  errSummary,
-				Detail: fmt.Sprintf(
-					"Resource %s has prevent_destroy set to null. When making a dynamic decision to allow destroy, use false instead.",
-					objAddr.InstanceAddr,
-				),
-				Subject: rng.ToHCL().Ptr(),
-			})
-		}
-
-		if !preventDestroyVal.IsKnown() {
-			diags = diags.Append(&hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  errSummary,
-				Detail: fmt.Sprintf(
-					"Resource instance %s has a prevent_destroy argument but its value will not be known until the apply step, so OpenTofu can't predict whether destroying this is acceptable.\n\nTo proceed, exclude instances of this resource from this round using:\n    -exclude=%q",
-					objAddr.InstanceAddr.String(), objAddr.InstanceAddr.ContainingResource().String(),
-				),
-				Subject: rng.ToHCL().Ptr(),
-				Extra:   evalchecks.DiagnosticCausedByUnknown(true),
-			})
-		}
-		if preventDestroyVal.IsNull() {
-			// We could potentially treat null as equivalent to false here, matching
-			// how OpenTofu would behave if there were no expression present at all,
-			// but "false" is just as easy to specify as "null" in a conditional
-			// expression and doesn't require a reader to know what the default
-			// is, so we'll require that to make life easier for a future maintainer
-			// that isn't necessarily familiar with the prevent_destroy behavior yet.
-			diags = diags.Append(&hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  errSummary,
-				Detail: fmt.Sprintf(
-					"Resource instance %s has prevent_destroy set to null. When making a dynamic decision to allow destroy, use false instead.",
-					objAddr.InstanceAddr.String(),
-				),
-				Subject: rng.ToHCL().Ptr(),
-			})
-		}
-		if diags.HasErrors() {
-			// Any errors so far means that preventDestroyVal.True is likely to
-			// either panic or return nonsense.
-			continue
-		}
-
-		if preventDestroyVal.True() {
-			diags = diags.Append(&hcl.Diagnostic{
-				Severity: hcl.DiagError,
-				Summary:  "Resource instance cannot be destroyed",
-				Detail: fmt.Sprintf(
-					"Resource instance %s has prevent_destroy set, but the plan calls for it to be destroyed.\n\nTo proceed, either disable prevent_destroy for this resource or exclude instances of this resource from this round using:\n    -exclude=%q",
-					objAddr.InstanceAddr.String(), objAddr.InstanceAddr.ContainingResource().String(),
-				),
-				Subject: rng.ToHCL().Ptr(),
-			})
-		}
+	p.moveMu.Lock()
+	// Inverted map lookup
+	movesTo := addrs.MakeMap[addrs.AbsResourceInstance, addrs.AbsResourceInstance]()
+	for _, entry := range p.recordedMoves.Elements() {
+		movesTo.Put(entry.Value, entry.Key)
 	}
-	return diags
+	p.moveMu.Unlock()
+
+	var drs []*plans.ResourceInstanceChangeSrc
+
+	for _, obj := range objects.All() {
+		if obj.Addr.InstanceAddr.Resource.Resource.Mode != addrs.ManagedResourceMode {
+			// Drift reporting is only for managed resources
+			continue
+		}
+
+		if !obj.Addr.IsCurrent() {
+			// Not interested in instances that only have deposed objects
+			continue
+		}
+
+		oldIS := obj.UpgradedState
+		if oldIS == nil {
+			// Did not exist before refresh
+			continue
+		}
+
+		provider := obj.Provider
+		addr := obj.Addr.InstanceAddr
+
+		// Previous run address defaults to the current address, but
+		// can differ if the resource moved before refreshing
+		prevRunAddr, ok := movesTo.GetOk(addr)
+		if !ok {
+			prevRunAddr = obj.PrevRoundAddr.InstanceAddr
+		}
+
+		// Note: provider addr is provided twice;
+		// we cannot compare the currently configured provider
+		// with the resource's provider from the previous state, so
+		// we'll skip the provider check. TODO
+		if addr.Resource.Resource.Type != prevRunAddr.Resource.Resource.Type {
+			// We don't report drift in case of resource type change
+			continue
+		}
+
+		schema, _ := p.providers.ResourceTypeSchema(
+			ctx,
+			provider,
+			addr.Resource.Resource.Mode,
+			addr.Resource.Resource.Type,
+		)
+		if schema == nil {
+			diags = diags.Append(tfdiags.Sourceless(
+				tfdiags.Warning,
+				"Missing resource schema from provider",
+				fmt.Sprintf("No resource schema found for %s when decoding prior state", addr.Resource.Resource.Type),
+			))
+			continue
+		}
+
+		oldVal := obj.UpgradedValue
+		newVal := obj.RefreshedValue
+
+		if oldVal.RawEquals(newVal) && addr.Equal(prevRunAddr) {
+			// No drift if the two values are semantically equivalent
+			// and no move has happened
+			continue
+		}
+
+		// We can detect three types of changes after refreshing state,
+		// only two of which are easily understood as "drift":
+		//
+		// - Resources which were deleted outside OpenTofu;
+		// - Resources where the object value has changed outside OpenTofu;
+		// - Resources which have been moved without other changes.
+		//
+		// All of these are returned as drift, to allow refresh-only plans
+		// to present a full set of changes which will be applied.
+		var action plans.Action
+		switch {
+		case newVal.IsNull():
+			action = plans.Delete
+		case !oldVal.RawEquals(newVal):
+			action = plans.Update
+		default:
+			action = plans.NoOp
+		}
+
+		/* TODO identity
+		oldObjIdentity := oldIS.Identity
+		var newObjIdentity cty.Value
+		if newObj != nil {
+			newObjIdentity = newIS.Identity
+		}*/
+
+		providerInst := obj.ProviderInst
+		change := &plans.ResourceInstanceChange{
+			Addr:        addr,
+			PrevRunAddr: prevRunAddr,
+			ProviderAddr: addrs.AbsProviderConfig{
+				// FIXME: This is a lossy shim to the old-style provider instance
+				// address representation, since our old models aren't yet updated
+				// to support the modern one. It cannot handle a provider config
+				// inside a module call that uses count or for_each.
+				Module:   providerInst.Config.Module.Module(),
+				Provider: providerInst.Config.Config.Provider,
+				Alias:    providerInst.Config.Config.Alias,
+			},
+			Change: plans.Change{
+				Action: action,
+				Before: oldVal,
+				After:  newVal,
+				//BeforeIdentity: oldObjIdentity,
+				//AfterIdentity:  newObjIdentity,
+			},
+		}
+
+		changeSrc, err := change.Encode(schema)
+		if err != nil {
+			diags = diags.Append(err)
+			return nil, diags
+		}
+
+		drs = append(drs, changeSrc)
+	}
+
+	return drs, diags
 }
