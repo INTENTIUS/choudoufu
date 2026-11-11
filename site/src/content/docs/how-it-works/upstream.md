@@ -26,7 +26,7 @@ Built on upstream OpenTofu [`aa3eb66a0c`](https://github.com/opentofu/opentofu/c
 | Deferral error | [#4697](https://github.com/opentofu/opentofu/issues/4697) |
 | In-run estates, with #2372 | [#4058](https://github.com/opentofu/opentofu/issues/4058) |
 
-## Already handled by the live backend
+## Already done by choudoufu
 
 - Records: one per resource, a [conditional write](../locking/), written per instance from upstream's whole-snapshot `PersistingState` ([#4767](https://github.com/opentofu/opentofu/issues/4767)).
 - Refresh: prior state is read live; plans skip refresh ([Identity](../identity/)).
