@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/engine/internal/execgraph"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
@@ -73,6 +74,8 @@ type execOperations struct {
 
 	// instanceStateUpdate is [ApplyOpts.InstanceStateUpdate]; nil when none.
 	instanceStateUpdate InstanceStateUpdate
+
+	inRunEstates *inrunestates.Port // choudoufu fork port (#2370): remove when upstream #4058 lands
 }
 
 // The main operation methods of execOperations are spread across the separate
@@ -137,6 +140,7 @@ func (ops *execOperations) Finish(ctx context.Context, updateOutputs bool) (*sta
 		// Save the root outputs before closing the config oracle
 		rootOutputs = ops.configOracle.RootOutputs(ctx)
 	}
+	keepInRunOutputs := ops.forkInRunEstateOutputs(ctx) // choudoufu fork port (#2370): remove when upstream #4058 lands
 
 	// Close the config oracle (checkAll and providers close)
 	moreDiags := ops.configOracle.Close(ctx)
@@ -162,6 +166,7 @@ func (ops *execOperations) Finish(ctx context.Context, updateOutputs bool) (*sta
 			finalState.RemoveModule(mod.Addr)
 		}
 	}
+	keepInRunOutputs(finalState) // choudoufu fork port (#2370): remove when upstream #4058 lands
 	if updateOutputs {
 		for k, out := range rootOutputs {
 			v := out.Value

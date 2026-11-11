@@ -53,7 +53,8 @@ type Row struct {
 	// uses. Every such row must name one this package implements.
 	Construct string `json:"construct,omitempty"`
 	// Scope, for a post-plan row, is "live" (live mode only), "non_live"
-	// (outside live mode only) or "all".
+	// (outside live mode only) or "all". A preflight row may carry one too
+	// (#2256 U10); a preflight row without one applies in both modes.
 	Scope string `json:"scope,omitempty"`
 	// Interim says what happens meanwhile.
 	Interim string `json:"interim,omitempty"`
@@ -63,6 +64,27 @@ type Row struct {
 	ClosedBy string `json:"closed_by"`
 	// Upstream lists opentofu/opentofu issues and PRs as "#NNNN".
 	Upstream []string `json:"upstream"`
+	// ForkPort, on a row choudoufu closes for now with its own code in
+	// place of upstream's, names the fork-owned package that holds it.
+	// Removing the port is deleting that package, its call sites (each
+	// commented with the row's unit) and the row.
+	ForkPort string `json:"fork_port,omitempty"`
+	// Switch is the environment setting that turns a fork port off. With
+	// it set, what the port covers is refused again by the row that
+	// refused it before.
+	Switch string `json:"switch,omitempty"`
+}
+
+// InScope reports whether the row applies to a run, live saying whether the
+// run is in live mode. A row with no scope applies to every run.
+func (r Row) InScope(live bool) bool {
+	switch r.Scope {
+	case ScopeLive:
+		return live
+	case ScopeNonLive:
+		return !live
+	}
+	return true
 }
 
 // WaitsFor is how a refusal names what it is waiting for.
@@ -110,11 +132,25 @@ func parse(b []byte) ([]Row, error) {
 		default:
 			return nil, fmt.Errorf("internal/live/newruntime/gaps.json: row %q has unknown check %q", r.ID, r.Check)
 		}
-		if r.Check == CheckPostPlan {
+		if (r.ForkPort == "") != (r.Switch == "") {
+			return nil, fmt.Errorf("internal/live/newruntime/gaps.json: row %q must name both a fork_port and its switch, or neither", r.ID)
+		}
+		switch r.Check {
+		case CheckPostPlan:
 			switch r.Scope {
 			case ScopeLive, ScopeNonLive, ScopeAll:
 			default:
 				return nil, fmt.Errorf("internal/live/newruntime/gaps.json: post-plan row %q has unknown scope %q", r.ID, r.Scope)
+			}
+		case CheckPreflight:
+			switch r.Scope {
+			case "", ScopeLive, ScopeNonLive, ScopeAll:
+			default:
+				return nil, fmt.Errorf("internal/live/newruntime/gaps.json: preflight row %q has unknown scope %q", r.ID, r.Scope)
+			}
+		default:
+			if r.Scope != "" {
+				return nil, fmt.Errorf("internal/live/newruntime/gaps.json: row %q has check %q, which takes no scope", r.ID, r.Check)
 			}
 		}
 	}

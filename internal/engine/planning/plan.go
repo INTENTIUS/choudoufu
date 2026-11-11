@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/collections"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/identityresolve"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
@@ -62,6 +63,10 @@ type PlanOpts struct {
 	// no import statement is imported from the target it resolves, if any.
 	// See package identityresolve and plan_managed_identity.go.
 	IdentityResolver identityresolve.ResourceIdentityResolver
+
+	// InRunEstates is choudoufu fork port (#2370): remove when upstream
+	// #4058 lands. Nil is off. See package inrunestates.
+	InRunEstates *inrunestates.Port
 }
 
 // PlanChanges is the main entry point, taking a state snapshot from the end

@@ -130,12 +130,13 @@ func (c *Context) Apply(ctx context.Context, plan *plans.Plan, config *configs.C
 		// #2256 U2: applying a saved plan with the toggle on runs both
 		// gap-table checks against the plan's changes and the configuration
 		// it was made from (for apply PLANFILE, the plan file's snapshot), so
-		// a plan saved with the toggle off cannot slip past them.
+		// a plan saved with the toggle off cannot slip past them. Live mode
+		// scopes rows the same way as on plan (#2256 U10, #2374).
 		priorForPreflight := plan.PriorState
 		if priorForPreflight == nil {
 			priorForPreflight = plan.PrevRunState
 		}
-		if moreDiags := newruntime.Preflight(config, priorForPreflight); moreDiags.HasErrors() {
+		if moreDiags := newruntime.Preflight(config, priorForPreflight, c.configValueAdjuster != nil); moreDiags.HasErrors() {
 			return nil, diags.Append(moreDiags)
 		}
 		if moreDiags := c.newRuntimePostPlan(ctx, plan, config); moreDiags.HasErrors() {
