@@ -1,6 +1,16 @@
 {
-  "comment": "The experimental-runtime lane's expected failures (#2256 U3, #2338), read by tools/expruntime-ratchet. First measured 2026-11-11 on epic/upstream-runtime by running `make test-experimental-ratchet`, not estimated. Every failure today is a test the gap table refuses by design: the toggle refuses a construct the new runtime cannot handle yet instead of planning it wrongly, so a test that uses it fails on the refusal. None is a marker, identity or record test. failures: tests that fail with TOFU_X_EXPERIMENTAL_RUNTIME=1. skips: fork-owned tests that call SkipExperimental. The list only shrinks: when a gap row closes, its tests pass and the ratchet requires taking them off.",
+  "comment": "The experimental-runtime lane's expected failures (#2256 U3, #2338), read by tools/expruntime-ratchet. First measured 2026-11-11 on epic/upstream-runtime by running `make test-experimental-ratchet`, not estimated. Every failure is a gap-table row: almost all are refusals by design (the toggle refuses a construct the new runtime cannot handle yet instead of planning it wrongly, so a test that uses it fails on the refusal); the rest name an accepted or loud-failing row, or the toggle's own warning. None is a marker, identity or record test. failures: tests that fail with TOFU_X_EXPERIMENTAL_RUNTIME=1. skips: fork-owned tests that call SkipExperimental. The list only shrinks: when a gap row closes, its tests pass and the ratchet requires taking them off.",
   "failures": [
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_CreateBeforeDestroyWithRefreshFalse",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_concise",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestApply_conditionalSensitive",
@@ -28,8 +38,63 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_jsonGoldenReference",
+      "reason": "The toggle's warning (#2256 U2, emitted by newEnginePlan and newEngineApply) adds two JSON log lines to the golden output, by design. Leaves the list when the toggle stops warning."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_plan",
+      "reason": "Gap table row \"saved-plan-cross-runtime\" (none): a plan saved on the default runtime, applied with the toggle on. The fixture plan file has no execution graph."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_planWithVarFile",
+      "reason": "Gap table row \"saved-plan-cross-runtime\" (none): a plan saved on the default runtime, applied with the toggle on. The fixture plan file has no execution graph."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_plan_backup",
+      "reason": "Gap table row \"saved-plan-cross-runtime\" (none): a plan saved on the default runtime, applied with the toggle on. The fixture plan file has no execution graph."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_plan_noBackup",
+      "reason": "Gap table row \"saved-plan-cross-runtime\" (none): a plan saved on the default runtime, applied with the toggle on. The fixture plan file has no execution graph."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_plan_remoteState",
+      "reason": "Gap table row \"saved-plan-cross-runtime\" (none): a plan saved on the default runtime, applied with the toggle on. The fixture plan file has no execution graph."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_replace",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_sensitiveOutput",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360). The fixture declares a sensitive output."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_showSensitiveArg",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_shutdown",
+      "reason": "Gap table row \"cancel\" (accepted): cancel and stop during apply. The apply is not cancelled on the new runtime."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestApply_targetedDestroy",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestVarsParsing",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/live/projection",
@@ -278,12 +343,37 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_actionInteractions",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_computedInFunction",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_createBeforeDestroy_depends_datasource",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_createBefore_deposed",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_dataInModuleDependsOn",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_dataReferencesResourceInModules",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_dataReferencesResourceIndirectly",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
     },
     {
@@ -308,8 +398,28 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_excluded",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_excludedCrossModule",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_excludedModuleUntargetedVariable",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_forceReplace",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_ignoreChangesSensitive",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -350,6 +460,36 @@
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_importWithInvalidForEach",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_inRunEstatePartialOutputs",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_inRunEstateRead",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_inRunEstateReadNothingPending",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_inRunEstateSelfRead",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_invalidModuleOutput",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_invalidOutput",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -398,6 +538,11 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_noChangeDataPlan",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_noChangeDataSourceAddingModuleInstance",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
     },
@@ -408,8 +553,18 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_noSensitivityChange",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_orphanDataInstance",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_outputContainsExcludedResource",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -423,8 +578,43 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_preventDestroy_dynamic",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_preventDestroy_dynamicDeprecated",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_preventDestroy_dynamicFromDataResource",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_refreshOnlyMode_deposed",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_requiresReplace",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_taint",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_taintDestroyInterpolatedCountRace",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Plan_taintIgnoreChanges",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -435,6 +625,111 @@
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_triggeredByRecreate",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Refresh_dataCount",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Refresh_dataResourceDependsOn",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Refresh_dataState",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Refresh_dataValidation",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Refresh_excluded",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Refresh_excludedCount",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Refresh_excludedCountIndex",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Refresh_modules",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2Refresh_tainted",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2_tracingAggregate",
+      "reason": "Gap table row \"tracing-spans\" (accepted): the default runtime's per-resource tracing spans. Fork test of the default runtime's spans."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext2_tracingPerResourceInstance",
+      "reason": "Gap table row \"tracing-spans\" (accepted): the default runtime's per-resource tracing spans. Fork test of the default runtime's spans."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestContext_contextValuesPropagation",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, and in-run estates, waits for upstream (upstream #4058, #4740)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestNodeModuleVariableConstraints",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestSkipDestroy_Count_Reduction",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestSkipDestroy_Deposed",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately; gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestSkipDestroy_DestroyMode",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestSkipDestroy_DestroyMode_Deposed",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately; gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestSkipDestroy_DestroyMode_ErrorOnForgotten",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestSkipDestroy_Enabled_Toggle",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestSkipDestroy_ForEach",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/tofu",
+      "test": "TestSkipDestroy_Replace",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
     }
   ],
   "skips": [
