@@ -154,9 +154,9 @@ upstream issue closed or merged:
   PR if small, otherwise in a follow-up unit issue under #2256;
 - change the row's `check`, `interim` and `closed_by`, or drop it. The
   refusal checks are generated from the file, so the row is the switch.
-- regenerate the site's upstream page, `go run ./tools/upstreamdoc-gen`,
-  and drop the patch from its hand-written patches table if the row was a
-  fork port.
+- regenerate `live/NEW-RUNTIME.md` and the site's upstream page,
+  `go run ./tools/upstreamdoc-gen`, and drop the patch from the page's
+  hand-written patches table if the row was a fork port.
 
 Toggle semantics. Confirm these still hold after the merge:
 
@@ -251,11 +251,13 @@ Each of these has fired on a past sync. Fix the list, not the guard.
   shows up in rendered docs.
 - `TestUpstreamPageIsCurrent` (`tools/upstreamdoc-gen`): run
   `go run ./tools/upstreamdoc-gen` (`just upstream-page`) after the re-pin
-  and after any gap-table row change. The site's upstream page,
-  `site/src/content/docs/how-it-works/upstream.md`, renders its base line
-  from `live/fork-surface.json` and its gap tables from `gaps.json`. Its
-  opt-ins and patches tables are hand-written: edit them in the same PR when
-  a toggle's semantics or a fork patch in `internal/engine` changed.
+  and after any gap-table row change. It writes `live/NEW-RUNTIME.md` whole
+  (the base from `live/fork-surface.json` and the gap tables from
+  `gaps.json`) and the base line of the site page
+  `site/src/content/docs/how-it-works/upstream.md`. The page's opt-ins and
+  patches tables are hand-written: edit them in the same PR when a toggle's
+  semantics or a fork patch in `internal/engine` changed. The site has a word
+  limit (`TestSiteStaysShort`), so detail goes in the repo file.
 
 `render` is the only tool that may write `live/gauntlet.json`. Never
 hand-edit or hand-merge it; on a conflict take main's copy and re-render.

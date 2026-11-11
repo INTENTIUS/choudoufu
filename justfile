@@ -240,9 +240,9 @@ tagverbs-render:
 toggles:
     env -u PWD go run ./tools/toggles-gen
 
-# internal/live/newruntime/gaps.json and live/fork-surface.json -> the site's
-# upstream page (site/src/content/docs/how-it-works/upstream.md): its base line
-# and gap tables. No network.
+# internal/live/newruntime/gaps.json and live/fork-surface.json ->
+# live/NEW-RUNTIME.md (base and gap tables) and the base line of the site's
+# upstream page (site/src/content/docs/how-it-works/upstream.md). No network.
 upstream-page:
     env -u PWD go run ./tools/upstreamdoc-gen
 
