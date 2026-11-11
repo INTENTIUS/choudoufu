@@ -34,6 +34,11 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.34.0 (Unreleased)
 
+Built on OpenTofu 1.14.0-dev (upstream main `aa3eb66a0c`), up from 1.13.2 (#2336). choudoufu now follows upstream `main` between upstream releases, so releases cut between upstream tags are built on a `1.14.0-dev` base and `choudoufu version` reports that base as `1.14.0-dev` (#2256, ruling 2). Upstream's new runtime stays closed in release builds: `TOFU_X_EXPERIMENTAL_RUNTIME` and `TOFU_X_EXPERIMENTAL_RUNTIME_NEXT` are ignored by a release binary, whatever its version string says.
+
+- Changed: Go 1.27.4. The legacy command-line implementation (`TOFU_EXPERIMENTAL_CLI_ENABLED=false`) is gone, as upstream removed it; every command, live ones included, runs on the CLI that has been the default since 1.13.
+- Fixed (from upstream main): the local state backend persists state again on an error during the first run (`#4811`).
+
 - Removed: `examples/ci-pipelines` and `examples/pipeline-governance`. terragucci runs choudoufu from CI, so the docs' CI/CD how-to is now [CI with terragucci](https://intentius.io/choudoufu/docs/terragucci/), and `/docs/use/cicd/` redirects there. Releases no longer need a follow-up pin pull request.
 
 ## choudoufu v0.33.0 (2026-11-05)
