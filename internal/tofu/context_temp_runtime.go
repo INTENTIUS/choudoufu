@@ -46,12 +46,23 @@ import (
 // of that being necessary.
 // ///////////////////////
 func experimentalRuntimeEnabled() bool {
+	if experimentalRuntimeForcedForTesting {
+		return true
+	}
 	if !version.IsNightly() && !version.IsDev() {
 		return false
 	}
 
 	return experimentalRuntimeWanted()
 }
+
+// experimentalRuntimeForcedForTesting switches the new runtime on with no
+// environment variable at all. It exists so a test can show that a guard on
+// the runtime decision (see [Context.refuseLiveOnNewRuntime]) holds however
+// the runtime gets chosen, not only when one particular variable is set:
+// upstream renamed and split its opt-in once already (`#4823`). Only tests
+// set it, through [forceExperimentalRuntimeForTesting].
+var experimentalRuntimeForcedForTesting bool
 
 func experimentalRuntimeWanted() bool {
 	optIn := os.Getenv("TOFU_X_EXPERIMENTAL_RUNTIME")
