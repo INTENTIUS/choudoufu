@@ -292,11 +292,6 @@ func (m *Meta) InterruptibleContext(base context.Context) (context.Context, cont
 // CommandContext returns the "root context" to use in the main Run function
 // of a command.
 //
-// This method is just a substitute for passing a context directly to the
-// "Run" method of a command, which we can't do because that API is owned by
-// mitchellh/cli rather than by OpenTofu. Use this only in situations
-// comparable to the context having been passed in as an argument to Run.
-//
 // If the caller (e.g. "package main") provided a context when it instantiated
 // the Meta then the returned context will inherit all of its values, deadlines,
 // etc. If the caller did not provide a context then the result is an inert
@@ -432,13 +427,13 @@ func (m *Meta) contextOpts(ctx context.Context) (*tofu.ContextOpts, error) {
 }
 
 // confirm asks a yes/no confirmation.
-func (m *Meta) confirm(opts *tofu.InputOpts) (bool, error) {
+func (m *Meta) confirm(ctx context.Context, opts *tofu.InputOpts) (bool, error) {
 	if !m.Input() {
 		return false, errors.New("input is disabled")
 	}
 
 	for range 2 {
-		v, err := m.UIInput().Input(context.Background(), opts)
+		v, err := m.UIInput().Input(ctx, opts)
 		if err != nil {
 			return false, fmt.Errorf(
 				"Error asking for confirmation: %w", err)

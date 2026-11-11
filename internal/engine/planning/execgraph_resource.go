@@ -11,6 +11,7 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/engine/internal/execgraph"
 	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/resources"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,7 +25,7 @@ import (
 // resource instances belong to.
 func (b *execGraphBuilder) AddResourceInstanceObjectSubgraphs(
 	objs *resourceInstanceObjects,
-	effectiveReplaceOrders addrs.Map[addrs.AbsResourceInstanceObject, resourceInstanceReplaceOrder],
+	effectiveReplaceOrders addrs.Map[addrs.AbsResourceInstanceObject, resources.ReplaceOrder],
 	additionalStateDependencies addrs.Set[addrs.AbsResourceInstance],
 ) {
 	// TODO: We don't currently have any unit tests for this function. If this
@@ -120,6 +121,12 @@ func (b *execGraphBuilder) AddResourceInstanceObjectSubgraphs(
 				// overhead is minimal.)
 				objB.CreateOrUpdateDependsOn(objA.CreateOrUpdateCompletionRef())
 			}
+			// If object B is being completely deleted and object A is being create/updated
+			// we need to record that the create/update depends on that deletion.
+			// TestContext2Apply_destroyThenUpdate is where this is tested (with a race condition...)
+			if objA.HasCreateOrUpdateLeg() && objB.HasDeleteLeg() && !objB.HasCreateOrUpdateLeg() {
+				objA.CreateOrUpdateDependsOn(objB.DeletionRef())
+			}
 			// If object A is not being deleted then there's nothing else for us
 			// to do here.
 			if !objA.HasDeleteLeg() {
@@ -140,8 +147,8 @@ func (b *execGraphBuilder) AddResourceInstanceObjectSubgraphs(
 			// create/delete operations inside each subgraph are already ordered
 			// correctly for the selected replace order, and so we only need
 			// to worry about the connections _between_ the subgraphs.
-			cbdA := effectiveReplaceOrders.Get(addrA) == replaceCreateThenDestroy
-			cbdB := effectiveReplaceOrders.Get(addrB) == replaceCreateThenDestroy
+			cbdA := effectiveReplaceOrders.Get(addrA) == resources.ReplaceCreateFirst
+			cbdB := effectiveReplaceOrders.Get(addrB) == resources.ReplaceCreateFirst
 			if cbdA {
 				// If A is create_before_destroy then we're aiming for an
 				// ordering like this:
@@ -231,7 +238,7 @@ func ensureResourceInstanceObjectSubgraph(addr addrs.AbsResourceInstanceObject, 
 
 func (b *execGraphBuilder) resourceInstanceChangeSubgraph(
 	change *plans.ResourceInstanceChange,
-	effectiveReplaceOrder resourceInstanceReplaceOrder,
+	effectiveReplaceOrder resources.ReplaceOrder,
 ) resourceInstanceObjectSubgraph {
 	resourceMode := change.Addr.Resource.Resource.Mode
 	switch resourceMode {

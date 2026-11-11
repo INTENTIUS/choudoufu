@@ -14,6 +14,7 @@ import (
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/plans"
+	"github.com/opentofu/opentofu/internal/resources"
 )
 
 // TestExecGraphBuilder_ManagedResourceInstanceSubgraph is a unit test for
@@ -49,7 +50,7 @@ func TestExecGraphBuilder_ManagedResourceInstanceSubgraph(t *testing.T) {
 						Before:      cty.NullVal(cty.EmptyObject),
 						After:       cty.EmptyObjectVal,
 					},
-					replaceDestroyThenCreate,
+					resources.ReplaceDeleteFirst,
 				)
 			},
 			`
@@ -73,7 +74,7 @@ func TestExecGraphBuilder_ManagedResourceInstanceSubgraph(t *testing.T) {
 						Before:      cty.StringVal("before"),
 						After:       cty.StringVal("after"),
 					},
-					replaceDestroyThenCreate,
+					resources.ReplaceDeleteFirst,
 				)
 			},
 			`
@@ -103,7 +104,7 @@ func TestExecGraphBuilder_ManagedResourceInstanceSubgraph(t *testing.T) {
 						Before:      cty.StringVal("before"),
 						After:       cty.StringVal("after"),
 					},
-					replaceDestroyThenCreate,
+					resources.ReplaceDeleteFirst,
 				)
 			},
 			`
@@ -129,7 +130,7 @@ func TestExecGraphBuilder_ManagedResourceInstanceSubgraph(t *testing.T) {
 						Before:      cty.EmptyObjectVal,
 						After:       cty.NullVal(cty.EmptyObject),
 					},
-					replaceDestroyThenCreate,
+					resources.ReplaceDeleteFirst,
 				)
 			},
 			`
@@ -152,6 +153,37 @@ func TestExecGraphBuilder_ManagedResourceInstanceSubgraph(t *testing.T) {
 			//   of resource instances that are being planned for deletion,
 			//   and so this wiring creates that effect during the apply phase.
 		},
+		"forget": {
+			func(b *execGraphBuilder) resourceInstanceObjectSubgraph {
+				return b.ManagedResourceInstanceSubgraph(
+					&plans.ResourceInstanceChange{
+						Addr:        instAddr,
+						PrevRunAddr: instAddr,
+						Action:      plans.Forget,
+						Before:      cty.EmptyObjectVal,
+						After:       cty.NullVal(cty.EmptyObject),
+					},
+					resources.ReplaceDeleteFirst,
+				)
+			},
+			`
+				r[0] = ResourceInstancePrior(test.placeholder);
+				r[1] = ResourceInstanceCurrentMeta(test.placeholder, r[0]);
+				r[2] = ManagedFinalPlanForget(r[1], r[0]);
+				r[3] = ManagedForget(r[2], await());
+
+				test.placeholder = r[0];
+			`,
+			// NOTE: The result for an object being forgotten is set to the
+			// prior state, which is counter-intuitive but correct because:
+			// - In normal planning mode there can't be configuration references
+			//   to something that is being forgotten anyway, and so it doesn't
+			//   really matter which value is treated as the result.
+			// - In destroy planning mode ephemeral objects like provider
+			//   instances are expected to be able to rely on the prior state
+			//   of resource instances that are being planned for removal,
+			//   and so this wiring creates that effect during the apply phase.
+		},
 		"delete then create": {
 			func(b *execGraphBuilder) resourceInstanceObjectSubgraph {
 				return b.ManagedResourceInstanceSubgraph(
@@ -162,7 +194,7 @@ func TestExecGraphBuilder_ManagedResourceInstanceSubgraph(t *testing.T) {
 						Before:      cty.StringVal("before"),
 						After:       cty.StringVal("after"),
 					},
-					replaceDestroyThenCreate,
+					resources.ReplaceDeleteFirst,
 				)
 			},
 			`
@@ -195,7 +227,7 @@ func TestExecGraphBuilder_ManagedResourceInstanceSubgraph(t *testing.T) {
 						Before:      cty.StringVal("before"),
 						After:       cty.StringVal("after"),
 					},
-					replaceDestroyThenCreate,
+					resources.ReplaceDeleteFirst,
 				)
 			},
 			`
@@ -214,6 +246,66 @@ func TestExecGraphBuilder_ManagedResourceInstanceSubgraph(t *testing.T) {
 				test.placeholder = r[7];
 			`,
 		},
+		"forget then create": {
+			func(b *execGraphBuilder) resourceInstanceObjectSubgraph {
+				return b.ManagedResourceInstanceSubgraph(
+					&plans.ResourceInstanceChange{
+						Addr:        instAddr,
+						PrevRunAddr: instAddr,
+						Action:      plans.ForgetThenCreate,
+						Before:      cty.StringVal("before"),
+						After:       cty.StringVal("after"),
+					},
+					resources.ReplaceDeleteFirst,
+				)
+			},
+			`
+				v[0] = cty.StringVal("after");
+
+				r[0] = ResourceInstancePrior(test.placeholder);
+				r[1] = ResourceInstanceCurrentMeta(test.placeholder, r[0]);
+				r[2] = ResourceInstanceDesired(r[1]);
+				r[3] = ManagedFinalPlan(r[1], r[2], nil, v[0]);
+				r[4] = ManagedFinalPlanForget(r[1], r[0]);
+				r[5] = ManagedForget(r[4], await(r[3]));
+				r[6] = ManagedApply(r[3], nil, await(r[5]));
+
+				test.placeholder = r[6];
+			`,
+		},
+		"forget then create with move": {
+			func(b *execGraphBuilder) resourceInstanceObjectSubgraph {
+				oldInstAddr := addrs.Resource{
+					Mode: addrs.ManagedResourceMode,
+					Type: "test",
+					Name: "old",
+				}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance)
+				return b.ManagedResourceInstanceSubgraph(
+					&plans.ResourceInstanceChange{
+						Addr:        instAddr,
+						PrevRunAddr: oldInstAddr,
+						Action:      plans.ForgetThenCreate,
+						Before:      cty.StringVal("before"),
+						After:       cty.StringVal("after"),
+					},
+					resources.ReplaceDeleteFirst,
+				)
+			},
+			`
+				v[0] = cty.StringVal("after");
+
+				r[0] = ResourceInstancePrior(test.old);
+				r[1] = ResourceInstanceCurrentMeta(test.placeholder, r[0]);
+				r[2] = ResourceInstanceDesired(r[1]);
+				r[3] = ManagedChangeAddr(r[0], test.placeholder);
+				r[4] = ManagedFinalPlan(r[1], r[2], nil, v[0]);
+				r[5] = ManagedFinalPlanForget(r[1], r[3]);
+				r[6] = ManagedForget(r[5], await(r[4]));
+				r[7] = ManagedApply(r[4], nil, await(r[6]));
+
+				test.placeholder = r[7];
+			`,
+		},
 		"create then delete": {
 			func(b *execGraphBuilder) resourceInstanceObjectSubgraph {
 				return b.ManagedResourceInstanceSubgraph(
@@ -224,7 +316,7 @@ func TestExecGraphBuilder_ManagedResourceInstanceSubgraph(t *testing.T) {
 						Before:      cty.StringVal("before"),
 						After:       cty.StringVal("after"),
 					},
-					replaceCreateThenDestroy,
+					resources.ReplaceCreateFirst,
 				)
 			},
 			`
@@ -259,7 +351,7 @@ func TestExecGraphBuilder_ManagedResourceInstanceSubgraph(t *testing.T) {
 						Before:      cty.StringVal("before"),
 						After:       cty.StringVal("after"),
 					},
-					replaceCreateThenDestroy,
+					resources.ReplaceCreateFirst,
 				)
 			},
 			`

@@ -101,10 +101,6 @@ func TestCompiler_resourceInstanceBasics(t *testing.T) {
 				ConfigVal: cty.ObjectVal(map[string]cty.Value{
 					"name": cty.StringVal("thingy"),
 				}),
-				Provider:         providerAddr,
-				ProviderInstance: &providerInstAddr,
-				ResourceMode:     addrs.ManagedResourceMode,
-				ResourceType:     meta.Addr.InstanceAddr.Resource.Resource.Type,
 			}, nil
 		},
 		ResourceInstancePriorFunc: func(ctx context.Context, addr addrs.AbsResourceInstance) (*exec.ResourceInstanceObject, tfdiags.Diagnostics) {
@@ -129,7 +125,7 @@ func TestCompiler_resourceInstanceBasics(t *testing.T) {
 		ManagedFinalPlanFunc: func(ctx context.Context, _ *exec.ResourceInstanceObjectMeta, desired *eval.DesiredResourceInstance, prior *exec.ResourceInstanceObject, plannedVal cty.Value) (*exec.ManagedResourceObjectFinalPlan, tfdiags.Diagnostics) {
 			return &exec.ManagedResourceObjectFinalPlan{
 				Addr:          desired.Addr.CurrentObject(),
-				ResourceType:  desired.ResourceType,
+				ResourceType:  desired.Addr.Resource.Resource.Type, // not valid to do this in non-test code, but okay for this contrived test
 				ConfigVal:     desired.ConfigVal,
 				PriorStateVal: prior.State.Value,
 				PlannedVal:    plannedVal,
@@ -152,8 +148,11 @@ func TestCompiler_resourceInstanceBasics(t *testing.T) {
 		t.Fatal("unexpected compile errors\n" + diags.Err().Error())
 	}
 
+	ctx := t.Context()
+	ctx = grapheval.ContextWithRequestTracker(ctx, grapheval.NewRequestTracker())
+
 	// Simulate asking for a resource that is not in the plan
-	gotValue := compiledGraph.ResourceInstanceValue(grapheval.ContextWithNewWorker(t.Context()), resourceInstAddrMissing)
+	gotValue := compiledGraph.ResourceInstanceValue(grapheval.ContextWithNewWorker(ctx), resourceInstAddrMissing)
 	wantValue := cty.DynamicVal.Mark(ResourceInstanceDependencyMissingMark{Target: resourceInstAddrMissing.String()})
 	if diff := gcmp.Diff(wantValue, gotValue, ctydebug.CmpOptions); diff != "" {
 		t.Errorf("wrong result for %s: %s", resourceInstAddr, diff)
@@ -162,13 +161,13 @@ func TestCompiler_resourceInstanceBasics(t *testing.T) {
 	var wg sync.WaitGroup
 	diagsCh := make(chan tfdiags.Diagnostics, 1)
 	wg.Go(func() {
-		diagsCh <- compiledGraph.Execute(t.Context())
+		diagsCh <- compiledGraph.Execute(ctx)
 		close(diagsCh)
 	})
 
 	wg.Wait()
 
-	gotValue = compiledGraph.ResourceInstanceValue(grapheval.ContextWithNewWorker(t.Context()), resourceInstAddr)
+	gotValue = compiledGraph.ResourceInstanceValue(grapheval.ContextWithNewWorker(ctx), resourceInstAddr)
 	wantValue = cty.ObjectVal(map[string]cty.Value{
 		"name": cty.StringVal("thingy"),
 	})
@@ -217,12 +216,8 @@ func TestCompiler_resourceInstanceBasics(t *testing.T) {
 			MethodName: "ManagedFinalPlan",
 			Args: []any{
 				&eval.DesiredResourceInstance{
-					Addr:             resourceInstAddr,
-					ConfigVal:        wantValue,
-					Provider:         providerAddr,
-					ProviderInstance: &providerInstAddr,
-					ResourceMode:     addrs.ManagedResourceMode,
-					ResourceType:     resourceInstAddr.Resource.Resource.Type,
+					Addr:      resourceInstAddr,
+					ConfigVal: wantValue,
 				},
 				&exec.ResourceInstanceObject{
 					Addr: resourceInstAddr.CurrentObject(),
@@ -263,12 +258,8 @@ func TestCompiler_resourceInstanceBasics(t *testing.T) {
 				},
 			},
 			Result: &eval.DesiredResourceInstance{
-				Addr:             resourceInstAddr,
-				ConfigVal:        wantValue,
-				Provider:         providerAddr,
-				ProviderInstance: &providerInstAddr,
-				ResourceMode:     addrs.ManagedResourceMode,
-				ResourceType:     resourceInstAddr.Resource.Resource.Type,
+				Addr:      resourceInstAddr,
+				ConfigVal: wantValue,
 			},
 		},
 		{

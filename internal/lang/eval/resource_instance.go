@@ -6,17 +6,20 @@
 package eval
 
 import (
+	"context"
+
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/lang/eval/internal/configgraph"
 	"github.com/opentofu/opentofu/internal/lang/eval/internal/evalglue"
+	"github.com/opentofu/opentofu/internal/plans"
 )
 
 // ConfiguredResourceInstanceObjectMeta represents the subset of metadata
-// about a resource instance object that comes from the configuration, based
-// on configuration arguments that could potentially vary between language
-// editions.
+// about a resource instance object that comes from some module instance in
+// the configuration configuration, based on configuration arguments that could
+// potentially vary between language editions.
 //
 // It's up to the specific language edition implementation to decide how to
 // populate an object of this type. Some fields will be based on per-resource
@@ -27,16 +30,46 @@ import (
 //
 // Note that this is NOT what you should use directly in the planning or
 // applying engines as the full metadata for a resource instance object.
-// Instead, this should typically be combined with information taken from the
-// prior state (in a way that's outside the scope of this package) to determine
-// the full effective metadata for an object.
+// Instead, a set of these contained inside
+// [ModuleConfiguredResourceInstanceObjectMeta] wrappers describing the
+// information from different module instances should be combined with
+// information taken from the prior state (in a way that's outside the scope of
+// this package) to determine the full effective metadata for an object.
 //
 // The design of this type is biased towards the needs of the "managed" resource
 // mode since that represents our primary functionality and the most complicated
 // set of available metadata features. Nonetheless we do still use this type
 // for other resource modes and just leave the irrelevant fields unpopulated
-// for objects of those modes.
+// for objects of those modes, as described in the comments on each field.
 type ConfiguredResourceInstanceObjectMeta = evalglue.ConfiguredResourceInstanceObjectMeta
+
+// ResourceInstanceObjectProvider is a container for the provider-related
+// information in [ConfiguredResourceInstanceObjectMeta].
+type ResourceInstanceObjectProvider = evalglue.ResourceInstanceObjectProvider
+
+// ModuleConfiguredResourceInstanceObjectMeta describes the relationship
+// between a [ConfiguredResourceInstanceObjectMeta] object and the module
+// instance that produced it.
+//
+// The module instance where the object is declared and all of its ancestors
+// each get to contribute their own [ConfiguredResourceInstanceObjectMeta]
+// describing whatever is declared about the object in that module, and then
+// eventually all of the individual declarations, along with similar information
+// derived from the prior state, is merged together to produce a single
+// object describing the overall effective metadata for the resource instance.
+type ModuleConfiguredResourceInstanceObjectMeta struct {
+	// ModuleInstance is the address of the module that provided this specific
+	// metadata, which is important for interpreting certain information inside
+	// which could be module-instance-relative.
+	//
+	// For example, "moved" statements are described relative to the module
+	// where they are declared, and so they need to be "absolutized" using
+	// [addrs.MoveEndpointInModule.InModuleInstance] when we
+	// finally assemble the merged effective metadata for the resource instance
+	// based on the statements across all modules.
+	ModuleInstance addrs.ModuleInstance
+	*ConfiguredResourceInstanceObjectMeta
+}
 
 // DesiredResourceInstance describes a resource instance that is part of
 // the desired state (i.e. declared in the configuration).
@@ -67,9 +100,9 @@ type DesiredResourceInstance struct {
 	// through the provider protocol, because exactly how we track resource
 	// instances between rounds is a detail we want to be able to change later
 	// without breaking existing providers. In particular, when populating a
-	// resource type name in a request to a provider you should use the
-	// ResourceType field of DesiredResourceInstance instead of fishing it out
-	// from this address field.
+	// resource type name in a request to a provider you should request the
+	// metadata for the resource instance object and use its ResourceType field
+	// instead of using the resource type from from this address field.
 	Addr addrs.AbsResourceInstance
 
 	// ConfigVal is an object-typed value representing the configuration, which
@@ -80,39 +113,6 @@ type DesiredResourceInstance struct {
 	// instance is derived from the results of other resource instances which
 	// have pending actions in this same plan.
 	ConfigVal cty.Value
-
-	// Provider is the source address of the provider that the resource type
-	// of this resource instance belongs to.
-	//
-	// ProviderInstance is guaranteed to refer to an instance of this provider.
-	Provider addrs.Provider
-
-	// ProviderInstance is the absolute address of the provider instance that
-	// this resource instance currently belongs to. All configured-provider
-	// operations related to this resource instance must be performed through
-	// this provider instance.
-	//
-	// This can be nil in situations where the decision about which provider
-	// instance to use depends on an unknown value. In that case the planning
-	// phase should return a canned placeholder object based only on the
-	// configuration value and the schema for this resource type, such as
-	// by using [objchange.ProposedNew], and should otherwise defer any
-	// actions for this resource instance until a future plan/apply round.
-	ProviderInstance *addrs.AbsProviderInstanceCorrect
-	// ResourceMode and ResourceType are the resource type identifiers
-	// as they would be understood by the provider specified in the Provider
-	// and ProviderInstance fields.
-	//
-	// These is what should be sent to a provider plugin when making requests
-	// to it. Today these always matches the similar values encoded in the
-	// address given in the "Addr" field, but we're separating these so that
-	// we're not duplicating that rule in many different parts of the system,
-	// in case future change to OpenTofu cause the provider-facing
-	// representation to differ from how it's exposed in the OpenTofu language.
-	// (The representation in the provider protocol is much harder to change
-	// because we want to stay backward-compatible with existing provider plugins.)
-	ResourceMode addrs.ResourceMode
-	ResourceType string
 
 	// RequiredResourceInstances are the addresses of zero or more resource
 	// instances that must exist and must be fully converged before the
@@ -141,22 +141,6 @@ type DesiredResourceInstance struct {
 	// This is meaningful only for resource modes that support the "update"
 	// change action, and so is always empty for other modes.
 	IgnoreChangesPaths []cty.Path
-
-	// CreateBeforeDestroy is true when the module author specified that
-	// a "replace" action for this resource instance should be decomposed into
-	// "create replacement and then destroy", instead of the default
-	// decomposition of "destroy and then create replacement".
-	//
-	// How exactly that request is honored is outside the scope of this package,
-	// and is instead the responsibility of the planning engine as it builds
-	// the execution graph for the apply phase.
-	//
-	// This is meaningful only for resource modes that support the "update"
-	// change action, and so is always false for other modes.
-	//
-	// FIXME: Probably also need an "unknown" representation for this, so
-	// that we can eventually do https://github.com/opentofu/opentofu/issues/2523 .
-	CreateBeforeDestroy bool
 
 	// ReplaceTriggeredBy describes zero ore more attribute prefixes within
 	// other resource instances for which the planning engine should force
@@ -206,3 +190,34 @@ type ResourceProvisioner = evalglue.ResourceProvisioner
 // is supposed to be an implementation detail of tofu2024 and any other future
 // HCL-based language editions.
 type ResourceInstanceAttributePath = configgraph.ResourceInstanceAttributePath
+type ImportStatement = evalglue.ImportStatement
+
+func collectResourceInstanceObjectMeta(ctx context.Context, addr addrs.AbsResourceInstanceObject, rootModInst evalglue.CompiledModuleInstance) []ModuleConfiguredResourceInstanceObjectMeta {
+	leafModuleInstAddr := addr.InstanceAddr.Module
+	ret := make([]ModuleConfiguredResourceInstanceObjectMeta, 0, len(leafModuleInstAddr))
+	for moduleInstAddr, moduleInst := range evalglue.ModuleInstanceSteps(ctx, rootModInst, leafModuleInstAddr) {
+		if moduleInst == nil {
+			// We've reached the deepest level that is currently declared in
+			// the configuration, so any info we didn't already learn about
+			// this object will need to come from the previous run state, and
+			// that's the caller's responsibility to deal with.
+			ret = append(ret, ModuleConfiguredResourceInstanceObjectMeta{
+				ModuleInstance: moduleInstAddr,
+				ConfiguredResourceInstanceObjectMeta: &ConfiguredResourceInstanceObjectMeta{
+					OrphanActionReason: plans.ResourceInstanceDeleteBecauseNoModule,
+				},
+			})
+
+			break
+		}
+		relativeModuleInst := []addrs.ModuleInstanceStep(leafModuleInstAddr[len(moduleInstAddr):])
+		meta := moduleInst.ResourceInstanceObjectMeta(ctx, relativeModuleInst, addr)
+		if meta != nil {
+			ret = append(ret, ModuleConfiguredResourceInstanceObjectMeta{
+				ModuleInstance:                       moduleInstAddr,
+				ConfiguredResourceInstanceObjectMeta: meta,
+			})
+		}
+	}
+	return ret
+}

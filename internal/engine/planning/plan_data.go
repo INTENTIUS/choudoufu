@@ -12,6 +12,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/engine/internal/exec"
 	"github.com/opentofu/opentofu/internal/lang/eval"
 	"github.com/opentofu/opentofu/internal/providers"
 	"github.com/opentofu/opentofu/internal/states"
@@ -31,10 +32,21 @@ func (p *planGlue) planDesiredDataResourceInstance(ctx context.Context, inst *ev
 		}()
 	}
 
+	configMeta := p.oracle.ResourceInstanceObjectMeta(ctx, inst.Addr.CurrentObject())
+	if configMeta == nil {
+		// Should not happen: the evaluator is required to always produce
+		// non-nil metadata for a desired object.
+		panic(fmt.Sprintf("no metadata available for desired object %s", inst.Addr))
+	}
+	// Data resource instances don't have meaningful prior state (we store it
+	// only for ancillary uses like the "tofu console" command) and so the
+	// metadata is always exclusively from the configuration.
+	meta := exec.BuildResourceInstanceObjectMeta(inst.Addr.CurrentObject(), configMeta, (*states.ResourceInstanceObjectFullSrc)(nil))
+
 	ret := &resourceInstanceObject{
 		Addr:               inst.Addr.CurrentObject(),
 		ConfigDependencies: addrs.MakeSet[addrs.AbsResourceInstanceObject](),
-		Provider:           inst.Provider,
+		Provider:           meta.Provider,
 
 		// We'll start off with a completely-unknown placeholder value, but
 		// we might refine this to be more specific as we learn more below.
@@ -52,13 +64,17 @@ func (p *planGlue) planDesiredDataResourceInstance(ctx context.Context, inst *ev
 	unmarkedConfigVal, _ := inst.ConfigVal.UnmarkDeep()
 
 	// TODO resourceType.ValidateConfig
-	validateDiags := p.planCtx.providers.ValidateResourceConfig(ctx, inst.Provider, inst.ResourceMode, inst.ResourceType, unmarkedConfigVal)
+	validateDiags := p.planCtx.providers.ValidateResourceConfig(ctx, meta.Provider, addrs.DataResourceMode, meta.ResourceType, unmarkedConfigVal)
 	diags = diags.Append(validateDiags)
 	if diags.HasErrors() {
 		return ret, diags
 	}
 
-	if inst.ProviderInstance == nil {
+	providerInstUnmarked, providerInstMarks := meta.ProviderInstance.Unmark()
+	// TODO: What should we do with these marks, if anything?
+	_ = providerInstMarks
+	providerInstAddr, ok := providerInstUnmarked.ValueOk()
+	if !ok {
 		// TODO: Record that this was deferred because we don't yet know which
 		// provider instance it belongs to.
 		return ret, diags
@@ -70,10 +86,7 @@ func (p *planGlue) planDesiredDataResourceInstance(ctx context.Context, inst *ev
 	// data resource instances persist between rounds and they cannot because
 	// the protocol doesn't include any way to "upgrade" them if the provider
 	// schema has changed since previous round.
-	// FIXME: State is still using the weird old representation of provider
-	// instance addresses, so we can't actually populate the provider instance
-	// arguments properly here.
-	p.planCtx.refreshedState.SetResourceInstanceCurrent(inst.Addr, nil, addrs.AbsProviderConfig{}, inst.ProviderInstance.Key)
+	ret.PrevRoundAddr = ret.Addr
 
 	// TODO: If the config value is not wholly known, or if any resource
 	// instance in inst.RequiredResourceInstances already has a planned change,
@@ -81,12 +94,12 @@ func (p *planGlue) planDesiredDataResourceInstance(ctx context.Context, inst *ev
 	// to an object using the [plans.Read] action, without writing a new
 	// object into the refreshed state yet.
 
-	providerClient, moreDiags := p.providerClient(ctx, *inst.ProviderInstance)
+	providerClient, moreDiags := p.providerClient(ctx, providerInstAddr)
 	if providerClient == nil {
 		moreDiags = moreDiags.Append(tfdiags.AttributeValue(
 			tfdiags.Error,
 			"Provider instance not available",
-			fmt.Sprintf("Cannot plan %s because its associated provider instance %s cannot initialize.", inst.Addr, *inst.ProviderInstance),
+			fmt.Sprintf("Cannot plan %s because its associated provider instance %s cannot initialize.", inst.Addr, providerInstAddr),
 			nil,
 		))
 	}
@@ -100,16 +113,8 @@ func (p *planGlue) planDesiredDataResourceInstance(ctx context.Context, inst *ev
 		readCtx = cb(ctx, inst.Addr)
 	}
 	resp := providerClient.ReadDataSource(readCtx, providers.ReadDataSourceRequest{
-		TypeName: inst.ResourceType,
+		TypeName: meta.ResourceType,
 		Config:   unmarkedConfigVal,
-
-		// TODO: ProviderMeta is a rarely-used feature that only really makes
-		// sense when the module and provider are both written by the same
-		// party and the module author is using the provider as a way to
-		// transport module usage telemetry. We should decide whether we want
-		// to keep supporting that, and if so design a way for the relevant
-		// meta value to get from the evaluator into here.
-		ProviderMeta: cty.NullVal(cty.DynamicPseudoType),
 	})
 	diags = diags.Append(resp.Diagnostics)
 	if cb := tracer.EndDataResourceInstanceRead; cb != nil {
@@ -140,15 +145,15 @@ func (p *planGlue) planDesiredDataResourceInstance(ctx context.Context, inst *ev
 func (p *planGlue) planOrphanDataResourceInstance(_ context.Context, addr addrs.AbsResourceInstance, state *states.ResourceInstanceObjectFullSrc) (*resourceInstanceObject, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
-	// An orphan data object is always just discarded completely, because
-	// OpenTofu retains them only for esoteric uses like the "tofu console"
-	// command: they are not actually expected to persist between rounds.
-	p.planCtx.refreshedState.RemoveResourceInstanceObjectFull(addr.CurrentObject(), state.ProviderInstanceAddr)
-
 	return &resourceInstanceObject{
 		Addr:               addr.CurrentObject(),
+		PrevRoundAddr:      addr.CurrentObject(),
 		ConfigDependencies: addrs.MakeSet[addrs.AbsResourceInstanceObject](),
 		Provider:           state.ProviderInstanceAddr.Config.Config.Provider,
 		PlaceholderValue:   cty.NullVal(cty.DynamicPseudoType),
+		// An orphan data object is always just discarded completely, because
+		// OpenTofu retains them only for esoteric uses like the "tofu console"
+		// command: they are not actually expected to persist between rounds.
+		// Therefore upgrade and refresh state are not set
 	}, diags
 }

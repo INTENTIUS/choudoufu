@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/apparentlymart/go-workgraph/workgraph"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
@@ -19,6 +18,7 @@ import (
 	"github.com/opentofu/opentofu/internal/lang/exprs"
 	"github.com/opentofu/opentofu/internal/lang/grapheval"
 	"github.com/opentofu/opentofu/internal/lang/marks"
+	"github.com/opentofu/opentofu/internal/resources"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
@@ -138,6 +138,8 @@ func (ri *ResourceInstance) StaticCheckTraversal(traversal hcl.Traversal) tfdiag
 // instance, which should be used to represent the "desired state" when planning
 // changes to this resource instance.
 func (ri *ResourceInstance) ConfigValue(ctx context.Context) (v cty.Value, diags tfdiags.Diagnostics) {
+	ctx = withDebugAddr(ctx, ri.Addr, "ConfigValue")
+
 	// TODO: Preconditions? Or should that be handled in the parent [Resource]
 	// before we even attempt instance expansion? (Need to check the current
 	// behavior in the existing system, to see whether preconditions guard
@@ -161,25 +163,20 @@ func (ri *ResourceInstance) ConfigValue(ctx context.Context) (v cty.Value, diags
 	return configVal, diags
 }
 
-// CreateBeforeDestroy returns a value-based representation of the "create
-// before destroy" setting for this resource instance.
+// ReplaceOrder describes the "replace ordering" constraints for for this
+// resource instance.
 //
-// The result is guaranteed to be a [cty.Bool] value, but it could potentially
-// be unknown or marked and it's the caller's responsibility to handle those
-// situations.
-//
-// The different possible known boolean results have the following meaning:
-//   - [cty.True] means that this resource instance MUST use the create-then-destroy replace order.
-//   - [cty.False] means that this resource instance MUST use the destroy-then-create replace order.
-//   - A null value means that either order is acceptable for this resource instance.
+// The result could potentially be unknown and/or marked and it's the caller's
+// responsibility to handle those situations.
 //
 // (Callers of this function may impose additional constraints on its result
 // depending on the context where the resource instance is being used. This
 // function only checks the basic validity rules.)
-func (ri *ResourceInstance) CreateBeforeDestroy(ctx context.Context) (cty.Value, *tfdiags.SourceRange, tfdiags.Diagnostics) {
+func (ri *ResourceInstance) ReplaceOrder(ctx context.Context) (exprs.FromValue[resources.ReplaceOrder], *tfdiags.SourceRange, tfdiags.Diagnostics) {
+	ctx = withDebugAddr(ctx, ri.Addr, "ReplaceOrder")
 	if ri.CreateBeforeDestroyValuer == nil {
 		// Not setting this is equivalent to setting it to null.
-		return cty.NullVal(cty.Bool), nil, nil
+		return exprs.Known(resources.ReplaceAnyOrder), nil, nil
 	}
 	rng := ri.CreateBeforeDestroyValuer.ValueSourceRange()
 
@@ -196,7 +193,7 @@ func (ri *ResourceInstance) CreateBeforeDestroy(ctx context.Context) (cty.Value,
 		diags = diags.Append(&hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  errSummary,
-			Detail:   fmt.Sprintf("Unsuitable value for create_before_destory argument: %s.", tfdiags.FormatError(err)),
+			Detail:   fmt.Sprintf("Unsuitable value for create_before_destroy argument: %s.", tfdiags.FormatError(err)),
 			Subject:  rng.ToHCL().Ptr(),
 		})
 		cbdVal = cty.UnknownVal(cty.Bool)
@@ -220,22 +217,26 @@ func (ri *ResourceInstance) CreateBeforeDestroy(ctx context.Context) (cty.Value,
 	if diags.HasErrors() {
 		cbdVal = exprs.AsEvalError(cbdVal)
 	}
-	return cbdVal, rng, diags
+	ret, _ := exprs.DeriveFromValue(cbdVal, func(v cty.Value) (resources.ReplaceOrder, error) {
+		if v.IsNull() {
+			return resources.ReplaceAnyOrder, nil
+		}
+		if v.True() {
+			return resources.ReplaceCreateFirst, nil
+		}
+		return resources.ReplaceDeleteFirst, nil
+	})
+	return ret, rng, diags
 }
 
 // Value implements exprs.Valuer.
 func (ri *ResourceInstance) Value(ctx context.Context) (v cty.Value, diags tfdiags.Diagnostics) {
+	ctx = withDebugAddr(ctx, ri.Addr, "Value")
 	return ri.valueOnce.Do(ctx, func(ctx context.Context) (cty.Value, tfdiags.Diagnostics) {
 		configVal, diags := ri.ConfigValue(ctx)
-		if diags.HasErrors() {
-			return exprs.AsEvalError(cty.DynamicVal), diags
-		}
 
 		providerInst, moreDiags := ri.ProviderInstance(ctx)
 		diags = diags.Append(moreDiags)
-		if moreDiags.HasErrors() {
-			return exprs.AsEvalError(cty.DynamicVal), diags
-		}
 
 		riDeps := addrs.MakeSet[addrs.AbsResourceInstance]()
 		for depInst := range ContributingResourceInstances(configVal) {
@@ -244,12 +245,17 @@ func (ri *ResourceInstance) Value(ctx context.Context) (v cty.Value, diags tfdia
 			}
 		}
 
+		if diags.HasErrors() {
+			configVal = exprs.AsEvalError(cty.DynamicVal)
+		}
+
 		// We also need help from our caller to prepare the final value to
 		// return here, because it should reflect the outcome of whatever
 		// resource-instance-related side effects we're doing this evaluation in
 		// support of. Refer to the documentation of the ResultValue method
 		// for details on what we're expecting this to do.
-		resultVal, diags := ri.Glue.ResultValue(ctx, configVal, providerInst, riDeps)
+		resultVal, moreDiags := ri.Glue.ResultValue(ctx, configVal, providerInst, riDeps)
+		diags = diags.Append(moreDiags)
 
 		// We must pass the marks from the provider instance selection into the
 		// result because the values that were returned may vary depending on
@@ -265,26 +271,11 @@ func (ri *ResourceInstance) Value(ctx context.Context) (v cty.Value, diags tfdia
 		// The result needs some additional preparation to make sure it's
 		// marked correctly for ongoing use in other expressions.
 		return exprs.EvalResult(prepareResourceInstanceResult(resultVal, ri, configVal), diags)
-
-	})
+	}, ri.ConfigValuer.ValueSourceRange(), "Value of %s", ri.Addr)
 }
 
 func (ri *ResourceInstance) ProviderInstance(ctx context.Context) (exprs.FromValue[*ProviderInstance], tfdiags.Diagnostics) {
-	v, diags := ri.ProviderInstanceValuer.Value(ctx)
-	if diags.HasErrors() {
-		return exprs.Unknown[*ProviderInstance]().Mark(exprs.EvalError), diags
-	}
-	inst, err := ProviderInstanceFromValue(v, ri.Provider)
-	if err != nil {
-		diags = diags.Append(&hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  "Invalid provider instance reference",
-			Detail:   fmt.Sprintf("Unsuitable provider selection for %s: %s.", ri.Addr, tfdiags.FormatError(err)),
-			Subject:  MaybeHCLSourceRange(ri.ProviderInstanceValuer.ValueSourceRange()),
-		})
-		return inst.Mark(exprs.EvalError), diags
-	}
-	return inst, diags
+	return ProviderInstanceFromValuer(ctx, ri.ProviderInstanceValuer, ri.Provider, ri.Addr)
 }
 
 // ResourceInstanceDependencies returns a sequence of any other resource
@@ -339,28 +330,10 @@ func (ri *ResourceInstance) CheckAll(ctx context.Context) tfdiags.Diagnostics {
 	var cg CheckGroup
 	cg.CheckValuer(ctx, ri)
 	if ri.CreateBeforeDestroyValuer != nil {
-		cg.CheckValuer(ctx, ri.CreateBeforeDestroyValuer)
-	}
-	return cg.Complete(ctx)
-}
-
-func (ri *ResourceInstance) AnnounceAllGraphevalRequests(announce func(workgraph.RequestID, grapheval.RequestInfo)) {
-	announce(ri.ConfigValuer.RequestID(), grapheval.RequestInfo{
-		Name:        fmt.Sprintf("configuration for %s", ri.Addr),
-		SourceRange: ri.ConfigValuer.ValueSourceRange(),
-	})
-	if ri.CreateBeforeDestroyValuer != nil {
-		announce(ri.CreateBeforeDestroyValuer.RequestID(), grapheval.RequestInfo{
-			Name:        fmt.Sprintf("create_before_destroy argument for %s", ri.Addr),
-			SourceRange: ri.CreateBeforeDestroyValuer.ValueSourceRange(),
+		cg.CheckDiagsFunc(ctx, func(ctx context.Context) tfdiags.Diagnostics {
+			_, _, diags := ri.ReplaceOrder(ctx)
+			return diags
 		})
 	}
-	announce(ri.valueOnce.RequestID(), grapheval.RequestInfo{
-		Name:        fmt.Sprintf("final value for %s", ri.Addr),
-		SourceRange: ri.ConfigValuer.ValueSourceRange(),
-	})
-	announce(ri.ProviderInstanceValuer.RequestID(), grapheval.RequestInfo{
-		Name:        fmt.Sprintf("provider instance selection for %s", ri.Addr),
-		SourceRange: ri.ProviderInstanceValuer.ValueSourceRange(),
-	})
+	return cg.Complete(ctx)
 }

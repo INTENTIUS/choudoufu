@@ -6,6 +6,8 @@
 package configs
 
 import (
+	"log"
+
 	"github.com/hashicorp/hcl/v2"
 
 	"github.com/opentofu/opentofu/internal/configs/symlib"
@@ -43,13 +45,15 @@ func (p *Parser) LoadConfigFileOverride(path string) (*File, hcl.Diagnostics) {
 //
 // It references the same LoadHCLFile as LoadConfigFile, so inherits the same
 // syntax selection behaviours.
-func (p *Parser) LoadTestFile(path string) (*TestFile, hcl.Diagnostics) {
+// baseDir is the directory containing the test file it is used to
+// resolve relative mock provider source
+func (p *Parser) LoadTestFile(path, baseDir string) (*TestFile, hcl.Diagnostics) {
 	body, diags := p.LoadHCLFile(path)
 	if body == nil {
 		return nil, diags
 	}
 
-	test, testDiags := loadTestFile(body)
+	test, testDiags := p.loadTestFile(body, baseDir)
 	diags = append(diags, testDiags...)
 	return test, diags
 }
@@ -140,11 +144,7 @@ func loadConfigFileBody(body hcl.Body, _ string, override bool) (*File, hcl.Diag
 					file.RequiredProviders = append(file.RequiredProviders, reqs)
 
 				case "provider_meta":
-					providerCfg, cfgDiags := decodeProviderMetaBlock(innerBlock)
-					diags = append(diags, cfgDiags...)
-					if providerCfg != nil {
-						file.ProviderMetas = append(file.ProviderMetas, providerCfg)
-					}
+					log.Printf("[WARN] Ignoring provider_meta block at %s", innerBlock.DefRange)
 
 				case "encryption":
 					encryptionCfg, cfgDiags := config.DecodeConfig(innerBlock.Body, innerBlock.DefRange)
