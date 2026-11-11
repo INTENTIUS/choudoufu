@@ -98,7 +98,7 @@ var (
 	ExperimentalChangeDestroyOrder    = ExperimentalFlag{"Change Destroy Order", false}
 	ExperimentalChangeModuleOutput    = ExperimentalFlag{"Change Module Outputs (test only)", false}
 	ExperimentalChangeCursedSelfRef   = ExperimentalFlag{"Change Cursed Self Reference (legacy race condition)", false}
-	ExperimentalChangeMoved           = ExperimentalFlag{"Moved blocks that are not \"active\" are not processed", false}
+	ExperimentalChangeMoved           = ExperimentalFlag{"Moved blocks that are not \"active\" are not processed", true}
 	ExperimentalChangeImportValid     = ExperimentalFlag{"Import command requires a configuration that can pass validate", false}
 
 	ExperimentalFeatureDeposed         = ExperimentalFlag{"Missing Deposed", true}

@@ -76,6 +76,14 @@ func TestUpstreamSyncReportFlagsExpiredForkPorts(t *testing.T) {
 	}
 	out := report(t, "closed")
 	for _, p := range forkport.Ports {
+		if len(p.Expiry) == 0 {
+			// No upstream issue (#2379): removed when its row closes, never
+			// flagged by the report.
+			if strings.Contains(out, "EXPIRE: remove port "+p.Name+" ") {
+				t.Errorf("port %q has no expiry issue, and the report flags it:\n%s", p.Name, out)
+			}
+			continue
+		}
 		if !strings.Contains(out, "\n"+expire(p)+"\n") {
 			t.Errorf("with every expiry issue closed, the report lacks %q:\n%s", expire(p), out)
 		}

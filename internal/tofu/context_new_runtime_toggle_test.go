@@ -7,7 +7,6 @@ package tofu
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/zclconf/go-cty/cty"
@@ -131,13 +130,13 @@ resource "test_object" "a" {
 	}
 }
 
-// TestNewRuntimeToggle_preflightRefusesMovedOutsideLiveMode: #2256 U10
-// (#2374) admitted moved blocks in live mode only, where they are resolved
-// by marker before the engine runs. Outside live mode (no
-// ConfigValueAdjuster) a moved block is still refused by the gap table's
-// moved row, before planning and before the warning.
-func TestNewRuntimeToggle_preflightRefusesMovedOutsideLiveMode(t *testing.T) {
-	showNewRuntimeWarningForTesting(t)
+// TestNewRuntimeToggle_movedPlansOutsideLiveMode: #2256 U10 (#2374)
+// admitted moved blocks in live mode, where they are resolved by marker
+// before the engine runs. Outside live mode (no ConfigValueAdjuster) the gap
+// table's moved row refused them until #2378 verified that upstream's new
+// runtime executes the move itself, so the row is closed and the plan moves
+// the object.
+func TestNewRuntimeToggle_movedPlansOutsideLiveMode(t *testing.T) {
 	toggleOn(t)
 	m := testModuleInline(t, map[string]string{"main.tf": `
 resource "test_object" "b" {
@@ -148,17 +147,16 @@ moved {
   to   = test_object.b
 }
 `})
-	_, diags := toggleContext(t, toggleProvider()).Plan(context.Background(), m, stateWith("a"), DefaultPlanOpts)
-	refused := false
-	for _, d := range diags {
-		desc := d.Description()
-		refused = refused || (d.Severity() == tfdiags.Error && desc.Summary == newruntime.RefusalSummary && strings.Contains(desc.Detail, `gap "moved"`))
+	plan, diags := toggleContext(t, toggleProvider()).Plan(context.Background(), m, stateWith("a"), DefaultPlanOpts)
+	if diags.HasErrors() {
+		t.Fatalf("a moved block outside live mode was refused or failed; diagnostics:\n%s", diags.ErrWithWarnings())
 	}
-	if !refused {
-		t.Fatalf("a moved block outside live mode was not refused under gap %q; diagnostics:\n%s", "moved", diags.ErrWithWarnings())
+	moved := false
+	for _, ch := range plan.Changes.Resources {
+		moved = moved || (ch.Addr.String() == "test_object.b" && ch.PrevRunAddr.String() == "test_object.a")
 	}
-	if hasDiag(diags, tfdiags.Warning, newruntime.WarningSummary) {
-		t.Errorf("a run the preflight refused printed the new-runtime warning")
+	if !moved {
+		t.Fatalf("the plan has no change for test_object.b moved from test_object.a")
 	}
 }
 
