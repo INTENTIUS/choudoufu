@@ -814,7 +814,14 @@ func (c *Context) planWalk(ctx context.Context, config *configs.Config, prevRunS
 			return nil, diags.Append(moreDiags)
 		}
 		plan, moreDiags := c.newEnginePlan(ctx, config, prevRunState, opts)
-		return plan, diags.Append(moreDiags)
+		diags = diags.Append(moreDiags)
+		// #2256 U2: the post-plan check refuses, from the gap table, any
+		// change the new runtime cannot apply correctly yet, before the
+		// plan is shown or saved.
+		if postDiags := c.newRuntimePostPlan(ctx, plan, config); postDiags.HasErrors() {
+			return nil, diags.Append(postDiags)
+		}
+		return plan, diags
 	}
 
 	prevRunState = prevRunState.DeepCopy() // don't modify the caller's object when we process the moves
