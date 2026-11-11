@@ -13,6 +13,8 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
 	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
@@ -209,10 +211,13 @@ resource "test_object" "a" {
 
 // TestNewRuntimeToggle_engineRefusesDeferral: the engine check kind. A
 // for_each over a value only known after apply makes the new runtime defer
-// the instance, for a reason that is neither -target nor -exclude.
+// the instance, for a reason that is neither -target nor -exclude. The
+// deferral fork port (#2382) answers this one with the old runtime's
+// "Invalid for_each argument", so it is switched off here to reach the row.
 func TestNewRuntimeToggle_engineRefusesDeferral(t *testing.T) {
 	showNewRuntimeWarningForTesting(t)
 	toggleOn(t)
+	t.Setenv(forkport.Switch(deferral.Name), "1")
 	m := testModuleInline(t, map[string]string{"main.tf": `
 resource "test_object" "a" {
   name = "a"
@@ -225,6 +230,28 @@ resource "test_object" "b" {
 	_, diags := toggleContext(t, toggleProvider()).Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
 	if !hasDiag(diags, tfdiags.Error, newruntime.RefusalSummary) {
 		t.Fatalf("a deferral was not refused inside planning; diagnostics:\n%s", diags.ErrWithWarnings())
+	}
+}
+
+// TestNewRuntimeToggle_deferralPortUnknownForEach: the same configuration
+// with the deferral fork port (#2382) on gets the default runtime's error
+// for an unknown for_each, and no refusal.
+func TestNewRuntimeToggle_deferralPortUnknownForEach(t *testing.T) {
+	toggleOn(t)
+	t.Setenv(forkport.AllOff, "")
+	t.Setenv(forkport.Switch(deferral.Name), "")
+	m := testModuleInline(t, map[string]string{"main.tf": `
+resource "test_object" "a" {
+  name = "a"
+}
+resource "test_object" "b" {
+  for_each = toset([test_object.a.id])
+  name     = each.key
+}
+`})
+	_, diags := toggleContext(t, toggleProvider()).Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
+	if hasDiag(diags, tfdiags.Error, newruntime.RefusalSummary) || !hasDiag(diags, tfdiags.Error, "Invalid for_each argument") {
+		t.Fatalf("want the default runtime's for_each error and no refusal; diagnostics:\n%s", diags.ErrWithWarnings())
 	}
 }
 
