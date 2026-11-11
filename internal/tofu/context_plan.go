@@ -781,6 +781,9 @@ func (c *Context) planWalk(ctx context.Context, config *configs.Config, prevRunS
 	// TEMP: Opt-in support for testing with the new experimental language
 	// runtime. Refer to backend_temp_new_runtime.go for more information.
 	if experimentalRuntimeEnabled() {
+		if moreDiags := c.refuseLiveOnNewRuntime(); moreDiags.HasErrors() {
+			return nil, diags.Append(moreDiags)
+		}
 		plan, moreDiags := c.newEnginePlan(ctx, config, prevRunState, opts)
 		return plan, diags.Append(moreDiags)
 	}

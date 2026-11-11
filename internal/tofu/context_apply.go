@@ -118,6 +118,9 @@ func (c *Context) Apply(ctx context.Context, plan *plans.Plan, config *configs.C
 	// TEMP: Opt-in support for testing with the new experimental language
 	// runtime. Refer to backend_temp_new_runtime.go for more information.
 	if experimentalRuntimeEnabled() {
+		if moreDiags := c.refuseLiveOnNewRuntime(); moreDiags.HasErrors() {
+			return nil, diags.Append(moreDiags)
+		}
 		variables, vDiags := c.mergePlanAndApplyVariables(config, plan, opts)
 		diags = diags.Append(vDiags)
 		if diags.HasErrors() {
