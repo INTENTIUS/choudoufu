@@ -64,6 +64,17 @@ func experimentalRuntimeEnabled() bool {
 // set it, through [forceExperimentalRuntimeForTesting].
 var experimentalRuntimeForcedForTesting bool
 
+// SetExperimentalRuntimeForcedForTesting is the cross-package form of the
+// test hook above, for tests in other packages (internal/command's live-mode
+// guard tests) that must switch the new runtime on with no variable set. It
+// returns a function that restores the previous setting. Never call it
+// outside a test.
+func SetExperimentalRuntimeForcedForTesting(on bool) (restore func()) {
+	prev := experimentalRuntimeForcedForTesting
+	experimentalRuntimeForcedForTesting = on
+	return func() { experimentalRuntimeForcedForTesting = prev }
+}
+
 func experimentalRuntimeWanted() bool {
 	optIn := os.Getenv("TOFU_X_EXPERIMENTAL_RUNTIME")
 	return optIn != ""
