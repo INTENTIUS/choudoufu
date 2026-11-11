@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/intentius/choudoufu/internal/engine/forkport"
 	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 )
 
@@ -92,13 +93,13 @@ var (
 	ExperimentalChangeDiagWording     = ExperimentalFlag{"Change Different Diagnostic Wording", false}
 	ExperimentalChangeErrorEarly      = ExperimentalFlag{"Change Detect Error Earlier", false}
 	ExperimentalChangeDependencies    = ExperimentalFlag{"Change Precise Dependencies", false}
-	ExperimentalChangeDeferredActions = ExperimentalFlag{"Change New Runtime Supports Deferred Actions", false}
+	ExperimentalChangeDeferredActions = ExperimentalFlag{"Change New Runtime Supports Deferred Actions", forkport.Enabled("deferral")} // choudoufu fork port (#2382): remove when upstream #4697 lands
 	ExperimentalChangeNoNoOp          = ExperimentalFlag{"Change New Runtime Doesn't Generate NoOp Changes", false}
 	ExperimentalChangePreReqdProvider = ExperimentalFlag{"Change New Runtime Doesn't Inherit Full Pre \"required_providers\" Behavior", false}
 	ExperimentalChangeDestroyOrder    = ExperimentalFlag{"Change Destroy Order", false}
 	ExperimentalChangeModuleOutput    = ExperimentalFlag{"Change Module Outputs (test only)", false}
 	ExperimentalChangeCursedSelfRef   = ExperimentalFlag{"Change Cursed Self Reference (legacy race condition)", false}
-	ExperimentalChangeMoved           = ExperimentalFlag{"Moved blocks that are not \"active\" are not processed", false}
+	ExperimentalChangeMoved           = ExperimentalFlag{"Moved blocks that are not \"active\" are not processed", true}
 	ExperimentalChangeImportValid     = ExperimentalFlag{"Import command requires a configuration that can pass validate", false}
 
 	ExperimentalFeatureDeposed         = ExperimentalFlag{"Missing Deposed", true}

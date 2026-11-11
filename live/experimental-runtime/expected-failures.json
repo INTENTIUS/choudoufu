@@ -79,7 +79,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestApply_targetedDestroy",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
+      "reason": "Upstream's new runtime, in an internal/command test upstream's own experimental lane does not run (it runs internal/tofu only): subtest \"Targeted Destroy\", a destroy with -target of a resource also destroys the resources it depends on, which the default runtime keeps. Not a refusal: it fails the same way with the deferral fork port (#2382) on or off. Its -exclude subtest passes since that port."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -225,11 +225,6 @@
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestPlan_stateDefault",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestPlan_validate",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -383,63 +378,13 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_createBeforeDestroy_deposedCount",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_createBeforeDestroy_deposedOnly",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Apply_destroyWithConfiguredProvider",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_destroyWithDeposed",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_destroyWithDeposedWithDynamicProvider",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_excludedDestroy",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_excludedDestroyCountDeps",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_excludedDestroyWithMoved",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_excludedModuleDep",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_excludedModuleResourceDep",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_excludedModuleUnrelatedOutputs",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Apply_forgetOrphanAndDeposedWithDynamicProvider",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately; gap \"removed\": removed blocks, waits for upstream (upstream #4686, #4693)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"removed\": removed blocks, waits for upstream (upstream #4686, #4693)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -450,16 +395,6 @@
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Apply_inheritAndStoreCBD",
       "reason": "Runs since the replacecycle fork port (#2380) turned ExperimentalBugStateCBD on, and fails on its last check: the new runtime records create_before_destroy in state, but on a plain create only the configured value, not one inherited from a create_before_destroy dependent. The inherited (effective) order is decided at plan time and is not carried into the execution graph; the next plan records it on the existing object. Waits for upstream (upstream #4714)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_moduleExcludeDependent",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_multiDepose_createBeforeDestroy",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately. Its replace is admitted since the replacecycle fork port (#2380); the state it starts from holds deposed objects."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -483,38 +418,8 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_targetedDestroyWithMoved",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_variableValidateDataSource",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately; gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Apply_variableValidateReferences",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740); gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Functions_providerFunctionsCustom",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Functions_providerFunctionsForEachCount",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Functions_providerFunctionsStub",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Functions_providerFunctionsStubCustom",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately. The fixture module declares a variable validation block."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -530,11 +435,6 @@
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_createBeforeDestroy_depends_datasource",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_createBefore_deposed",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -560,26 +460,6 @@
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_dataSourceReadPlanError",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740). The refused plan is nil, so the test sees no errored plan."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_deposedNoLongerExists",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_excluded",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_excludedCrossModule",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_excludedModuleUntargetedVariable",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -633,43 +513,13 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_movedResourceBasic",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_movedResourceCollision",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
+      "reason": "Upstream's new runtime, wording only (#2378 verified the move itself): its \"Unresolved resource instance address changes\" warning (internal/engine/planning/plan_moved.go) names the \"tofu state\" subcommands, where the fork's default runtime names \"choudoufu state\"."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_movedResourceCollisionDestroy",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_movedResourceErrors",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_movedResourceRefreshOnly",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_movedResourceToDifferentProvider",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_movedResourceToDifferentType",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_movedResourceUntargeted",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
+      "reason": "Upstream's new runtime, wording only (#2378 verified the move itself): its \"Unresolved resource instance address changes\" warning (internal/engine/planning/plan_moved.go) names the \"tofu state\" subcommands, where the fork's default runtime names \"choudoufu state\"."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -698,11 +548,6 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_outputContainsExcludedResource",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_planDataSourceSensitiveNested",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
@@ -710,11 +555,6 @@
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_preventDestroy_dynamicFromDataResource",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_refreshOnlyMode_deposed",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -738,21 +578,6 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Refresh_excluded",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Refresh_excludedCount",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Refresh_excludedCountIndex",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deferral\": deferred actions, waits for upstream (upstream #4697)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2_tracingAggregate",
       "reason": "Gap table row \"tracing-spans\" (accepted): the default runtime's per-resource tracing spans. Fork test of the default runtime's spans."
     },
@@ -763,13 +588,13 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext_contextValuesPropagation",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
+      "test": "TestContextImport_providerConfigResources",
+      "reason": "Upstream's new runtime, by design: a provider configured from values unknown until apply is not refused, since providers now accept unknown values (upstream's ExperimentalChangeDeferredActions note on this test). It runs because the deferral fork port (#2382) turns that flag on for the tests it makes pass, TestContext2Plan_countComputedModule and TestContext2Plan_forEachUnknownValue."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestNodeModuleVariableConstraints",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"variable-validation\": variable validation conditions, waits for upstream, not yet filed separately."
+      "test": "TestContext_contextValuesPropagation",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -779,7 +604,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestSkipDestroy_Deposed",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately; gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
@@ -789,7 +614,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestSkipDestroy_DestroyMode_Deposed",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"deposed\": upgrade of orphaned or deposed objects, waits for upstream, not yet filed separately; gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",

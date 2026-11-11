@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/identityresolve"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
@@ -74,6 +75,7 @@ type planContext struct {
 	identityResolver    identityresolve.ResourceIdentityResolver // see PlanOpts
 
 	inRunEstates *inrunestates.Port // choudoufu fork port (#2370): remove when upstream #4058 lands
+	deferral     *deferral.Port     // choudoufu fork port (#2382): remove when upstream #4697 lands
 }
 
 func newPlanContext(evalCtx *eval.EvalContext, prevRoundState *states.State, providers plugins.Providers, opts *PlanOpts) *planContext {
@@ -102,6 +104,7 @@ func newPlanContext(evalCtx *eval.EvalContext, prevRoundState *states.State, pro
 		identityResolver:    opts.IdentityResolver,
 
 		inRunEstates: opts.InRunEstates, // choudoufu fork port (#2370): remove when upstream #4058 lands
+		deferral:     opts.Deferral,     // choudoufu fork port (#2382): remove when upstream #4697 lands
 	}
 }
 
