@@ -134,7 +134,7 @@ func (c *Context) newEngineShim(ctx context.Context, config *configs.Config, inp
 		modules = newRuntimeModulesForTesting{config: config}
 	}
 
-	plugins := plugins.NewRuntimePluginsTemp(c.plugins.providers, c.plugins.provisioners)
+	plugins := plugins.NewRuntimePluginsTemp(parallelProviderManager{ProviderManager: c.plugins.providers, sem: c.parallelSem}, c.plugins.provisioners)
 	evalCtx := &eval.EvalContext{
 		RootModuleDir:      config.Module.SourceDir,
 		OriginalWorkingDir: owd,

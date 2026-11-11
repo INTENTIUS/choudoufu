@@ -26,6 +26,8 @@
     {"id": "lint-rules", "gap": "built-in lint rules", "check": "accepted", "warning": "built-in lint rules do not run", "closed_by": "upstream", "upstream": ["#4746"]},
     {"id": "taint-on-create", "gap": "taint on create failure", "check": "none", "interim": "none needed", "closed_by": "upstream #4768; see #2336 for the taint decision", "upstream": ["#4768", "#4691", "#4687"]},
     {"id": "imports", "gap": "imports, config-driven and plan-option", "check": "none", "interim": "none needed", "closed_by": "upstream", "upstream": ["#4726", "#4727", "#4745", "#4683"]},
-    {"id": "provisioner-self-marks", "gap": "provisioner self marks", "check": "none", "interim": "none needed: ours, already carried", "closed_by": "ours", "upstream": []}
+    {"id": "provisioner-self-marks", "gap": "provisioner self marks", "check": "none", "interim": "none needed: ours, already carried", "closed_by": "ours", "upstream": []},
+    {"id": "saved-plan-cross-runtime", "gap": "a plan saved on the default runtime, applied with the toggle on", "check": "none", "interim": "apply refuses loudly with \"Saved plan contains no execution graph\": upstream's apply engine applies only plans its own planner made. Re-plan with the toggle on.", "closed_by": "upstream", "upstream": []},
+    {"id": "tracing-spans", "gap": "the default runtime's per-resource tracing spans", "check": "accepted", "warning": "OpenTelemetry traces do not carry the default runtime's per-resource-instance planning spans", "closed_by": "upstream's own tracing in internal/engine", "upstream": []}
   ]
 }

@@ -130,3 +130,55 @@ func TestRatchetRedListedFailureSkipped(t *testing.T) {
 	list.Failures = append(list.Failures, Entry{Package: tofuPkg, Test: "TestForkSkip", Reason: "r"})
 	wantProblem(t, checkWith(t, list, forkSrc), "a skip cannot stand in for a listed failure")
 }
+
+// Red case (#2256 end phase): a package that panics mid-run leaves its
+// running test without a result and every later test unrun. The run is
+// incomplete, and a list measured from it would be missing tests.
+func TestRatchetRedUnfinishedTest(t *testing.T) {
+	stream := run2json + `{"Action":"run","Package":"` + tofuPkg + `","Test":"TestPanics"}
+{"Action":"output","Package":"` + tofuPkg + `","Test":"TestPanics","Output":"panic: runtime error: invalid memory address\n"}
+{"Action":"output","Package":"` + tofuPkg + `","Output":"FAIL\n"}
+`
+	results, err := ParseResults(strings.NewReader(stream))
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, _ := FindSkipSites(map[string][]byte{"internal/tofu/upstream_test.go": []byte(upstreamSrc), "internal/tofu/fork_test.go": []byte(forkSrc)})
+	up, _ := FindSkipSites(map[string][]byte{"internal/tofu/upstream_test.go": []byte(upstreamSrc)})
+	r := Check(results, baseline(), head, up)
+	wantProblem(t, r, "internal/tofu.TestPanics started and never finished")
+	if r.Unfinished < 1 {
+		t.Errorf("Unfinished = %d, want at least 1 (the panicking test, and the aborted package)", r.Unfinished)
+	}
+}
+
+// A timeout reported only at package level still refuses the run.
+func TestRatchetRedPackageLevelTimeout(t *testing.T) {
+	stream := run2json + `{"Action":"output","Package":"` + tofuPkg + `","Output":"panic: test timed out after 10m0s\n"}
+`
+	results, err := ParseResults(strings.NewReader(stream))
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, _ := FindSkipSites(map[string][]byte{"internal/tofu/upstream_test.go": []byte(upstreamSrc), "internal/tofu/fork_test.go": []byte(forkSrc)})
+	up, _ := FindSkipSites(map[string][]byte{"internal/tofu/upstream_test.go": []byte(upstreamSrc)})
+	wantProblem(t, Check(results, baseline(), head, up), "(package aborted) started and never finished")
+}
+
+// A panic attributed to a test marks that test failed and silently stops
+// every later test in the package; the run is still incomplete.
+func TestRatchetRedPanicAttributedToATest(t *testing.T) {
+	stream := run2json + `{"Action":"run","Package":"` + tofuPkg + `","Test":"TestPanicsVisibly"}
+{"Action":"output","Package":"` + tofuPkg + `","Test":"TestPanicsVisibly","Output":"panic: State.Module on nil *State [recovered, repanicked]\n"}
+{"Action":"fail","Package":"` + tofuPkg + `","Test":"TestPanicsVisibly"}
+`
+	results, err := ParseResults(strings.NewReader(stream))
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := baseline()
+	list.Failures = append(list.Failures, Entry{Package: tofuPkg, Test: "TestPanicsVisibly", Reason: "listed, but the panic still aborts the package"})
+	head, _ := FindSkipSites(map[string][]byte{"internal/tofu/upstream_test.go": []byte(upstreamSrc), "internal/tofu/fork_test.go": []byte(forkSrc)})
+	up, _ := FindSkipSites(map[string][]byte{"internal/tofu/upstream_test.go": []byte(upstreamSrc)})
+	wantProblem(t, Check(results, list, head, up), "(package aborted) started and never finished")
+}

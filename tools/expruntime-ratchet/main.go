@@ -74,6 +74,10 @@ type testKey struct {
 
 func (k testKey) String() string { return strings.TrimPrefix(k.Package, modulePath+"/") + "." + k.Test }
 
+// packageAbortKey names the pseudo-test a package-level panic or timeout is
+// recorded under. It never has a result, so Check reports it.
+const packageAbortKey = "(package aborted)"
+
 // Outcome is a top-level test's result in a run.
 type Outcome struct {
 	Result string // "pass", "fail" or "skip"
@@ -107,6 +111,14 @@ func ParseResults(r io.Reader) (map[testKey]*Outcome, error) {
 			return nil, fmt.Errorf("reading test2json: %w", err)
 		}
 		if ev.Test == "" {
+			// A panic or a timeout outside any test's own output still
+			// aborts the package: record it so Check can refuse the run.
+			if ev.Action == "output" && (strings.Contains(ev.Output, "panic:") || strings.Contains(ev.Output, "test timed out")) {
+				k := testKey{ev.Package, packageAbortKey}
+				if out[k] == nil {
+					out[k] = &Outcome{}
+				}
+			}
 			continue
 		}
 		top := ev.Test
@@ -123,6 +135,16 @@ func ParseResults(r io.Reader) (map[testKey]*Outcome, error) {
 		case "output":
 			if strings.Contains(ev.Output, skipMessagePrefix) {
 				o.ExperimentalSkip = true
+			}
+			// A panic Go attributes to this test still aborts the whole
+			// package binary: the test reads as failed, and the tests that
+			// would have run after it never start, so nothing else shows
+			// they are missing.
+			if strings.HasPrefix(ev.Output, "panic: ") {
+				ak := testKey{ev.Package, packageAbortKey}
+				if out[ak] == nil {
+					out[ak] = &Outcome{}
+				}
 			}
 		case "pass", "fail", "skip":
 			if ev.Test == top {
@@ -189,6 +211,10 @@ type Report struct {
 	Passed, Failed, Skipped          int
 	ExperimentalSkips                int
 	ForkSkipSites, UpstreamSkipSites int
+	// Unfinished counts tests that started and reported no result: their
+	// package panicked or timed out, and every test after them in that
+	// package never ran, so the run measured less than it claims.
+	Unfinished int
 }
 
 // Check applies the ratchet's rules. headSites are the SkipExperimental call
@@ -206,6 +232,8 @@ func Check(results map[testKey]*Outcome, list List, headSites, upstreamSites []S
 			r.Failed++
 		case "skip":
 			r.Skipped++
+		default:
+			r.Unfinished++
 		}
 		if o.ExperimentalSkip {
 			r.ExperimentalSkips++
@@ -238,6 +266,10 @@ func Check(results map[testKey]*Outcome, list List, headSites, upstreamSites []S
 	}
 	sort.Slice(keys, func(i, j int) bool { return keys[i].String() < keys[j].String() })
 	for _, k := range keys {
+		if results[k].Result == "" {
+			problem("%s started and never finished: its package panicked or timed out, so the tests after it never ran and this run is incomplete", k)
+			continue
+		}
 		if results[k].Result == "fail" && !listedFail[k] {
 			problem("unlisted failure %s: a regression, or something upstream broke", k)
 		}
@@ -350,7 +382,7 @@ func run(resultsPath, listPath, upstreamRef string) error {
 	}
 
 	r := Check(results, list, headSites, upstreamSites)
-	fmt.Printf("tests: %d passed, %d failed, %d skipped (%d by SkipExperimental)\n", r.Passed, r.Failed, r.Skipped, r.ExperimentalSkips)
+	fmt.Printf("tests: %d passed, %d failed, %d skipped (%d by SkipExperimental), %d unfinished\n", r.Passed, r.Failed, r.Skipped, r.ExperimentalSkips, r.Unfinished)
 	fmt.Printf("SkipExperimental call sites: %d upstream-owned, %d fork-owned\n", r.UpstreamSkipSites, r.ForkSkipSites)
 	fmt.Printf("list: %d expected failure(s), %d listed skip(s)\n", len(list.Failures), len(list.Skips))
 	for _, p := range r.Problems {

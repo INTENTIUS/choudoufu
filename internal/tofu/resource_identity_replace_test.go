@@ -154,7 +154,9 @@ resource "test_object" "a" {
 			if ric.Action != tc.wantAction {
 				t.Fatalf("action = %s, want %s", ric.Action, tc.wantAction)
 			}
-			plannedMap := ric.After.GetAttr("test_map")
+			// Unmarked: the new runtime's planner marks pending changes.
+			plannedAfter, _ := ric.After.UnmarkDeep()
+			plannedMap := plannedAfter.GetAttr("test_map")
 			stamped := !plannedMap.IsNull() && plannedMap.Type().IsMapType() && plannedMap.HasIndex(cty.StringVal("marker")).True()
 			if wantStamped := tc.wantAction == plans.Update; stamped != wantStamped {
 				t.Errorf("planned test_map = %#v: stamped %v, want %v", plannedMap, stamped, wantStamped)
