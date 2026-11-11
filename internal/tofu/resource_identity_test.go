@@ -285,7 +285,9 @@ resource "test_object" "a" {
 		t.Fatalf("decoding the planned change: %s", err)
 	}
 
-	after := ric.After
+	// Unmarked: the new runtime's planner marks changed values as pending
+	// (objchange.MarkPendingChanges), and a marked value panics on AsString.
+	after, _ := ric.After.UnmarkDeep()
 	gotMap := after.GetAttr("test_map")
 	if gotMap.IsNull() || !gotMap.IsKnown() {
 		t.Fatalf("test_map is null or unknown in the planned value: %#v", gotMap)

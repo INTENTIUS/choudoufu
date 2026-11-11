@@ -59,6 +59,14 @@ type ApplyOpts struct {
 func (c *Context) Apply(ctx context.Context, plan *plans.Plan, config *configs.Config, opts *ApplyOpts) (*states.State, tfdiags.Diagnostics) {
 	defer c.acquireRun("apply")()
 
+	// choudoufu (#2256): with the new-runtime toggle on, the gap table's
+	// checks refuse a plan by returning none. A caller that applies a plan
+	// without checking Plan's errors then gets this error, not a panic.
+	if plan == nil {
+		var diags tfdiags.Diagnostics
+		return nil, diags.Append(tfdiags.Sourceless(tfdiags.Error, "No plan to apply", "Apply was called without a plan, because planning failed or was refused. Check the plan's diagnostics."))
+	}
+
 	log.Printf("[DEBUG] Building and walking apply graph for %s plan", plan.UIMode)
 
 	var diags tfdiags.Diagnostics
