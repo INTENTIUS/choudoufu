@@ -1396,6 +1396,12 @@ func TestContext2Plan_preventDestroy_bad(t *testing.T) {
 
 	// Plan should show the expected changes, even though prevent_destroy validation fails
 	// So we could see why the resource was attempted to be destroyed
+	if plan == nil {
+		// choudoufu (#2256): with TOFU_X_EXPERIMENTAL_RUNTIME set, the gap
+		// table's post-plan check refuses the replace and returns no plan.
+		// Fail here rather than panic, which would abort the whole package.
+		t.Fatalf("no plan returned; diagnostics: %s", err)
+	}
 	if got, want := 1, len(plan.Changes.Resources); got != want {
 		t.Fatalf("wrong number of planned resource changes %d; want %d\n%s", got, want, spew.Sdump(plan.Changes.Resources))
 	}

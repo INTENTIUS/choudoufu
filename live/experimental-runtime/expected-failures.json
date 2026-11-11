@@ -13,6 +13,11 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestApply_destroySkipInStateNotInConfig",
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682). The object, no longer in configuration, carries destroy = false in state; the preflight refuses it rather than let the new runtime delete it."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestApply_destroySkipInStateOrphaned",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682). The orphan carries destroy = false in state; the preflight refuses it rather than let the new runtime delete it."
     },
@@ -414,7 +419,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_preventDestroy_bad",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714). The post-plan refusal returns no plan, and the test then reads plan.Changes and panics."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"replace-cbd-cycle\": cycle on a replace with newly enabled create_before_destroy, waits for upstream (upstream #4714). The post-plan refusal returns no plan, which the test reports (choudoufu added the nil check so the refusal fails the test instead of aborting the package)."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
