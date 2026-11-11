@@ -768,16 +768,6 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_movedResourceCollision",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_movedResourceCollisionDestroy",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_movedResourceErrors",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693)."
     },
