@@ -391,6 +391,15 @@ type LiveStrictSSM struct {
 	RegionSet   bool
 	RegionRange hcl.Range
 
+	// AllowInsecure waives assertions of the first-contact SSM contract by
+	// name, the way a record_store's allow_insecure waives the bucket's
+	// (GitHub issue #2393, unit S2). Valid names are
+	// [StrictSSMInsecureSettings]; a name outside it is a decode error. An
+	// AWS managed key is refused whatever this names.
+	AllowInsecure      []string
+	AllowInsecureSet   bool
+	AllowInsecureRange hcl.Range
+
 	// DeclRange is the "ssm" block's own header, which is what a
 	// diagnostic about the block as a whole points at.
 	DeclRange hcl.Range
@@ -1022,6 +1031,7 @@ var liveStrictSSMSchema = &hcl.BodySchema{
 		{Name: "kms_key_id"},
 		{Name: "path"},
 		{Name: "region"},
+		{Name: "allow_insecure"},
 	},
 }
 
@@ -1652,8 +1662,55 @@ func decodeStrictSSMBlock(block *hcl.Block) (*LiveStrictSSM, hcl.Diagnostics) {
 		*f.set = true
 	}
 
+	if attr, exists := content.Attributes["allow_insecure"]; exists {
+		sm.AllowInsecureRange = attr.Range
+		vals, valDiags := decodeLiteralStringList(attr, "allow_insecure")
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() {
+			ok := true
+			seen := map[string]bool{}
+			for _, name := range vals {
+				switch {
+				case !slices.Contains(StrictSSMInsecureSettings, name):
+					// Refused, never ignored, for the record_store waiver's
+					// reason: a typo that waived nothing still reads as a
+					// waiver to whoever reviews the configuration.
+					ok = false
+					diags = append(diags, &hcl.Diagnostic{
+						Severity: hcl.DiagError,
+						Summary:  "Invalid ssm allow_insecure",
+						Detail: fmt.Sprintf(
+							"The \"allow_insecure\" argument names %q, which is not something the ssm block's first-contact contract asserts. Valid names are %s. Each one waives exactly one assertion and leaves the other in force, and an AWS managed key such as alias/aws/ssm is refused whatever this names.",
+							name, strings.Join(quoteEach(StrictSSMInsecureSettings), ", "),
+						),
+						Subject: attr.Expr.Range().Ptr(),
+					})
+				case seen[name]:
+					ok = false
+					diags = append(diags, &hcl.Diagnostic{
+						Severity: hcl.DiagError,
+						Summary:  "Invalid ssm allow_insecure",
+						Detail:   fmt.Sprintf("The \"allow_insecure\" argument names %q more than once.", name),
+						Subject:  attr.Expr.Range().Ptr(),
+					})
+				}
+				seen[name] = true
+			}
+			if ok {
+				sm.AllowInsecure = vals
+				sm.AllowInsecureSet = true
+			}
+		}
+	}
+
 	return sm, diags
 }
+
+// StrictSSMInsecureSettings is every name the ssm block's "allow_insecure"
+// argument accepts: the two things the first-contact SSM contract asserts.
+// internal/command pins it to [pkg/staterecord.SSMSettings] by test, beside
+// the record stores' lists.
+var StrictSSMInsecureSettings = []string{"customer_managed_key", "parameter_access"}
 
 // decodeStrictMarkersBlock decodes one `markers "<kind>"` block: the two
 // literal lists that say which resources it covers. See [LiveStrictMarkers].
@@ -1698,10 +1755,9 @@ const SummaryRecordStoreRetired = "Retired record_store backend"
 //
 // Two things in it are deliberate. It says "as a record store", every time:
 // what was retired is Parameter Store holding RECORDS, and a reader who
-// takes away "SSM is removed" has been misinformed. And it does not offer
-// SSM for secret values as something available, because it is not built:
-// that is planned (#1515, split from #1244 section 3), and today's only alternative to secret
-// values in the record store is strict { secrets = "refuse" }.
+// takes away "SSM is removed" has been misinformed. And it points at what
+// SSM is for here: secret values, under strict { secrets = "ssm" } (#1515,
+// built in #2393), with the records themselves still in a bucket.
 //
 // There is no migration, and the message says so with the reason. No estate
 // was on this backend when it was retired.
@@ -1711,7 +1767,7 @@ func recordStoreRetiredDetail(label string) string {
 		"It also has no general conditional write, only create-if-absent, where the record store's consistency rests on every write being conditional.\n\n"+
 		"Declare record_store \"s3\" with a bucket instead. examples/record-store-bucket stands a correct bucket up with \"just up\", \"choudoufu live-bucket\" says whether an existing one is correct, and its iam directory renders the policy an estate's role needs.\n\n"+
 		"Records already in Parameter Store are not migrated, and no migration command exists, because no estate was on this backend when it was retired. "+
-		"This is about where records are kept and says nothing against SSM for secret values: keeping those out of the bucket, in SSM, is planned (#1515) and not available yet. Until it is, strict { secrets = \"refuse\" } is the way to keep secret values out of the record store.",
+		"This is about where records are kept and says nothing against SSM for secret values: strict { secrets = \"ssm\" } keeps those out of the bucket, in SSM, under a customer managed key, with the records in record_store \"s3\" (#1515). strict { secrets = \"refuse\" } keeps none at all.",
 		label)
 }
 

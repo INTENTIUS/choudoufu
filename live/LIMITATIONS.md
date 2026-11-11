@@ -1998,16 +1998,12 @@ recorded (GitHub issue #1873), so a `kubernetes_secret_v1`'s
 `wait_for_service_account_token` converges while its `data` stays out.
 
 `"ssm"` keeps what `"store"` keeps and puts the values in Parameter Store
-instead, and **this build does not implement it yet** (GitHub issue #1515).
-It is grammar the vocabulary recognizes, so a configuration that writes it
-gets a refusal naming the issue and the two settings that do work, rather
-than a typo message. It is refused rather than accepted for the reason
-`marker_repair = "report"` is, pointed at a worse outcome: accepting it
-would report an estate's secrets as held under its own KMS key while every
-one of them went on being written into its records in clear, and the only
-evidence would be the absence of parameters nobody was watching for. The
-rest of the arrangement is built and is checked first — see
-"strict-secrets-ssm".
+instead (GitHub issues #1515 and #2393): the values at a record's sensitive
+paths and the provider's private data go to SecureString parameters under a
+customer managed key, and the record carries a reference. It is opt-in, like
+`"refuse"`: the default stays `"store"`. The arrangement it needs is checked
+first, by lint and at first contact (see "strict-secrets-ssm"), and
+`CHOUDOUFU_STRICT_PIN=1` refuses it, because it keeps secret material.
 
 **Why bounded.** The two settings are opposites, so a spelling that is
 neither is a question this package cannot answer. `secrets = "none"` could
@@ -2164,12 +2160,10 @@ whole prior object rather than an identity.
 without the arrangement that setting stands on, or that builds the
 arrangement without asking for the setting.
 
-The setting itself is refused today, as not implemented — see
-"strict-secrets". This rule is everything around it, which is built: the
-nested block decodes, an arrangement that could not work is refused by name
-before the mechanism is ever reached, and no local state cache is written
-under the setting. A configuration written for it now needs no change when
-the write path lands. Four shapes, one rule:
+The setting itself is accepted (GitHub issue #2393 built the write path
+#1515 designed). This rule is everything around it: an arrangement that
+could not work is refused by name at lint, before any parameter exists.
+Four shapes, one rule:
 
 ```hcl
 terraform {
@@ -2193,6 +2187,24 @@ missing:
 - An **`ssm` block under any other secrets setting**, where it configures
   nothing.
 
+**At first contact.** What lint cannot read, the first run that writes reads
+from AWS, the way the bucket contract does (`pkg/staterecord/ssmcontract.go`):
+
+- `customer_managed_key`: `kms:DescribeKey` reports `KeyManager` `CUSTOMER`,
+  the key enabled, symmetric, for encrypt and decrypt.
+- `parameter_access`: the role creates a SecureString probe parameter under
+  the path with that key (`Overwrite` false, a name no write path uses),
+  reads it back decrypted, and deletes it.
+
+`allow_insecure` in the `ssm` block waives either by name, and nothing else:
+a waived `customer_managed_key` lets a run proceed when `kms:DescribeKey` is
+denied or the key is unusable, and a waived `parameter_access` lets it
+proceed when the probe fails, at the cost of failing at the first secret
+write or leaving superseded values behind. An AWS managed key is refused
+whatever the waiver names: `alias/aws/ssm`, or any `alias/aws/` name, by its
+spelling before any call, and a key ID or customer alias that `DescribeKey`
+reports as `KeyManager` `AWS`.
+
 **Why the key is required rather than defaulted.** SSM has a default key,
 `alias/aws/ssm`, and every principal in the account holding
 `ssm:GetParameter` can decrypt a parameter written under it. That is no
@@ -2201,10 +2213,9 @@ default would move the secrets and protect nothing while a configuration sat
 there looking as though a key were in the write path. A customer managed key
 is the arrangement, not an option within it: the second gate and the
 revocation that does not go through IAM are the reason to pay for a second
-service at all. The `aws/ssm` key is refused again at first contact, where
-the key this configuration names is read; the refusal is in two places on
-purpose, because a configuration can name a key that turns out to be the
-default one by alias.
+service at all. The refusal is in two places on purpose: lint refuses the
+missing key, and first contact refuses a key that turns out to be AWS
+managed, which a key ID or an alias does not show.
 
 **Why `record_store "s3"` and nothing else.** A secret value is written to a
 parameter name no other write uses, with `Overwrite: false`, and then the
@@ -2228,11 +2239,10 @@ Nothing would be encrypted under it — every value would go into the record
 in clear, exactly as before — and the only evidence would be the absence of
 parameters nobody was watching for.
 
-**Forwarding address.** `secrets = "refuse"`, with the secret passed in by
-reference, keeps secret values out of the record store with no second
-service in the write path. It is the answer until the write path ships, and
-it needs no key, no second service and no bucket. See "strict-secrets" and
-`live/SECRETS.md`.
+**Forwarding address.** Add the missing piece the refusal names. To keep
+secret values out of the record store with no second service,
+`secrets = "refuse"` with the secret passed in by reference. See
+"strict-secrets" and `live/SECRETS.md`.
 
 ### strict-secrets-refusal
 

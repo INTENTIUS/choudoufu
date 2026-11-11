@@ -4,6 +4,7 @@
 #   render-policy.sh <estate> <bucket> [--account <account-id>] [--kms <key-arn>]
 #                    [--partition aws|aws-us-gov|aws-cn] [--key-prefix <prefix>]
 #                    [--reads-outputs-of <other-estate>]... [--read-only]
+#                    [--ssm-path <path> --ssm-kms <key-arn>]
 #
 # This script is the single source of that policy (GitHub issue #1342). The
 # documentation's IAM page shows its output and a test holds the two together,
@@ -28,12 +29,17 @@
 # --read-only renders the same policy for a role that plans and never applies
 # (GitHub issue #1370). See the read_only comment further down for what it
 # drops and why each thing it drops is not needed by a plan.
+#
+# --ssm-path and --ssm-kms add the grants for strict { secrets = "ssm" }
+# (GitHub issues #1515 and #2393): the ssm block's path and its customer
+# managed key, as a key ARN. See the ssm comment further down.
 set -euo pipefail
 
-usage() { sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 2 ] || usage
 estate="$1"; bucket="$2"; shift 2
 kms=""; account=""; partition="aws"; key_prefix=""; others=(); read_only=false
+ssm_path=""; ssm_kms=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --account) account="${2:?--account needs a 12-digit AWS account id}"; shift 2 ;;
@@ -42,6 +48,8 @@ while [ $# -gt 0 ]; do
     --key-prefix) key_prefix="${2:?--key-prefix needs the key_prefix the record_store block sets}"; shift 2 ;;
     --reads-outputs-of) others+=("${2:?--reads-outputs-of needs an estate name}"); shift 2 ;;
     --read-only) read_only=true; shift ;;
+    --ssm-path) ssm_path="${2:?--ssm-path needs the ssm block path}"; shift 2 ;;
+    --ssm-kms) ssm_kms="${2:?--ssm-kms needs the ssm block key, as a key ARN}"; shift 2 ;;
     *) usage ;;
   esac
 done
@@ -78,6 +86,32 @@ if [ -n "$kms" ]; then
     echo "--kms names a key in the $kms_partition partition and --partition says $partition; a key and the bucket that uses it are in one partition, so one of the two is wrong: $kms" >&2
     exit 2
   }
+fi
+# strict { secrets = "ssm" } keeps secret values as SecureString parameters
+# under the ssm block path, encrypted with its customer managed key. The two
+# flags come together: a path with no key has nothing to decrypt with, and a
+# key with no path names no parameter. The key is a key ARN, not an alias,
+# because the grant names the key itself, and its region is the region of the
+# parameters, since SSM encrypts with a key in its own region.
+ssm_region=""; ssm_via_service=""
+if [ -n "$ssm_path$ssm_kms" ]; then
+  [ -n "$ssm_path" ] && [ -n "$ssm_kms" ] || { echo "--ssm-path and --ssm-kms go together" >&2; exit 2; }
+  [[ "$ssm_kms" =~ ^arn:(aws|aws-us-gov|aws-cn):kms:[a-z0-9-]+:[0-9]{12}:key/[0-9a-f-]{36}$ ]] || { echo "not a KMS key ARN: $ssm_kms" >&2; exit 2; }
+  [ "$(echo "$ssm_kms" | cut -d: -f2)" = "$partition" ] || {
+    echo "--ssm-kms names a key in another partition than --partition $partition: $ssm_kms" >&2; exit 2
+  }
+  # An absolute SSM hierarchy. No wildcard, no empty segment, no "..": it
+  # goes into a Resource ARN as it stands.
+  [[ "$ssm_path" =~ ^(/[A-Za-z0-9_.-]+)+/?$ ]] || { echo "not an SSM parameter path: $ssm_path" >&2; exit 2; }
+  case "$ssm_path" in
+    *..*) echo "not an SSM parameter path: $ssm_path" >&2; exit 2 ;;
+  esac
+  ssm_path="${ssm_path%/}"
+  ssm_region="$(echo "$ssm_kms" | cut -d: -f4)"
+  case "$partition" in
+    aws-cn) ssm_via_service="ssm.${ssm_region}.amazonaws.com.cn" ;;
+    *)      ssm_via_service="ssm.${ssm_region}.amazonaws.com" ;;
+  esac
 fi
 # The key_prefix an estate sets moves its RECORDS and nothing else: the hint
 # and the root outputs keep their own namespaces. That is
@@ -178,11 +212,22 @@ fi
 # full policy follows for the three read actions it denies and never allows:
 # a Deny written for the actions of the day stops covering the boundary the
 # moment somebody widens the Allow list.
+#
+# With --ssm-path and --ssm-kms (GitHub issue #2393), the plan role gets the
+# read on secrets it already has on records: ssm:GetParameters under the
+# path, and kms:Decrypt on the key through SSM alone. The apply role also
+# gets ssm:PutParameter and ssm:DeleteParameter to create a value and delete
+# a superseded one, ssm:GetParametersByPath for the orphan sweep,
+# kms:Encrypt and kms:GenerateDataKey through SSM (standard and advanced tier
+# parameters), and kms:DescribeKey for the first-contact contract, which
+# asks KMS directly and so carries no kms:ViaService. A plan never makes
+# first contact, for the bucket contract reason above.
 others_json="$(printf '%s\n' ${others[@]+"${others[@]}"} | jq -R . | jq -s 'map(select(. != ""))')"
 
 jq -n --arg estate "$estate" --arg bucket "$bucket" --arg kms "$kms" --arg account "$account" \
       --arg partition "$partition" --arg keyprefix "$key_prefix" --arg viaservice "$via_service" \
       --argjson readonly "$read_only" \
+      --arg ssmpath "$ssm_path" --arg ssmkms "$ssm_kms" --arg ssmregion "$ssm_region" --arg ssmviaservice "$ssm_via_service" \
       --argjson others "$others_json" '
   ("arn:" + $partition + ":s3:::" + $bucket) as $b
   # Every prefix ends in "/". S3 matches a prefix as a plain string, so
@@ -303,7 +348,36 @@ jq -n --arg estate "$estate" --arg bucket "$bucket" --arg kms "$kms" --arg accou
           # See the via_service comment in the shell above, including why
           # there is no encryption-context condition here.
           Condition: { StringEquals: { "kms:ViaService": $viaservice } }
-        }] else [] end))
+        }] else [] end)
+      # strict { secrets = "ssm" }. See the ssm comment in the shell above.
+      + (if $ssmpath == "" then [] else
+          ("arn:" + $partition + ":ssm:" + $ssmregion + ":" + (if $account == "" then "*" else $account end) + ":parameter" + $ssmpath) as $p
+          | [{
+              Sid: (if $readonly then "ReadThisEstatesSecretParameters" else "KeepThisEstatesSecretParameters" end),
+              Effect: "Allow",
+              Action: (if $readonly then "ssm:GetParameters" else ["ssm:GetParameters", "ssm:PutParameter", "ssm:DeleteParameter"] end),
+              Resource: ($p + "/*")
+            }]
+          + (if $readonly then [] else [{
+              Sid: "SweepThisEstatesSecretParameters",
+              Effect: "Allow",
+              Action: "ssm:GetParametersByPath",
+              Resource: [$p, $p + "/*"]
+            }] end)
+          + [{
+              Sid: "UseTheSecretParametersKey",
+              Effect: "Allow",
+              Action: (if $readonly then ["kms:Decrypt"] else ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"] end),
+              Resource: $ssmkms,
+              Condition: { StringEquals: { "kms:ViaService": $ssmviaservice } }
+            }]
+          + (if $readonly then [] else [{
+              Sid: "CheckTheSecretParametersKey",
+              Effect: "Allow",
+              Action: "kms:DescribeKey",
+              Resource: $ssmkms
+            }] end)
+        end))
     }
   # The owner pin, applied to the finished document so that every Allow gets
   # it, including one added later by someone who never read this line. It is

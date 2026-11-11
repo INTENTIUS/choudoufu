@@ -133,20 +133,20 @@ var Toggles = []Toggle{
 		Relaxes: `"refuse" tightens the compatible-by-default answer (store secret material the way stock's ` +
 			`state file does) into HANDOFF.md's first principle: a secret-generating logical type is refused ` +
 			`outright and a sensitive settable argument is never recorded. "ssm" keeps the same material ` +
-			`"store" keeps and relaxes that principle too - it moves the values to Parameter Store under a ` +
-			`customer managed key rather than keeping none - but no build implements the write path yet ` +
-			`(GitHub issue #1515), so it is refused unconditionally and is not counted among this toggle's ` +
-			`declared Values below, for the reason [MarkerRepair]'s "report" is not. Everything AROUND it is ` +
-			`built: the nested ssm block decodes, an arrangement that could not work is refused by name, and ` +
-			`the state cache is already off under the setting.`,
+			`"store" keeps and relaxes that principle too: it moves the values at a record's sensitive paths, ` +
+			`and the provider's private data, to Parameter Store as SecureString parameters under the customer ` +
+			`managed key a nested ssm block names, and leaves a reference in the record (GitHub issues #1515, ` +
+			`#2393). It pairs with record_store "s3" only, and turns the state cache off as "refuse" does.`,
 		Doc:       `live/LIMITATIONS.md, "strict-secrets"`,
 		Pinnable:  true,
 		SafeValue: string(Refuse),
-		Values:    []string{string(Store), string(Refuse)},
+		Values:    []string{string(Store), string(Refuse), string(SSM)},
 		Meaning: `What a run does with the secret material a configuration generates or sets. "store" keeps ` +
 			`it the way stock OpenTofu keeps it. "refuse" is two refusals: a secret-generating type is ` +
 			`refused outright, and a sensitive settable argument is left out of its record. It does not ` +
-			`reach the cache file, or a terraform_data or null_resource the configuration hands a secret.`,
+			`reach the cache file, or a terraform_data or null_resource the configuration hands a secret. ` +
+			`"ssm" keeps what "store" keeps, with the secret values in Parameter Store under a customer ` +
+			`managed key and a reference in the record.`,
 	},
 	{
 		Name:    "no_source_create",

@@ -7,7 +7,7 @@ prompt: >-
   Never apply or destroy (`choudoufu apply`, `choudoufu destroy`, `tofu apply`), approve a saved plan, or merge; never edit or remove an owner tag by hand.
 ---
 
-Each managed instance has one record. It holds what a run must remember beyond
+Each managed instance has one record, holding what a run must remember beyond
 ownership.
 
 ![Record kinds and stores](../../../assets/diagram-values.svg)
@@ -17,7 +17,7 @@ ownership.
 | Kind | For |
 |---|---|
 | `identity` | A resource with a live object: what a read leaves out |
-| `object` | A resource with no live object, such as `random_*` or `tls_*`: the whole value |
+| `object` | A resource with no live object, like `random_*` or `tls_*`: the whole value |
 
 ## Five stores
 
@@ -26,8 +26,8 @@ ownership.
 | `local` | Files in `.tofu-records` | One operator (default) |
 | `s3` | Objects in your bucket | A team on AWS |
 | `kubernetes` | Secrets in your namespace | A team on a cluster |
-| `azurerm` | Blobs in your Azure Storage container | A team on Azure |
-| `gcs` | Objects in your Cloud Storage bucket | A team on GCP |
+| `azurerm` | Blobs in your Azure container | A team on Azure |
+| `gcs` | Objects in your GCS bucket | A team on GCP |
 
 ```hcl
 record_store "s3" {
@@ -40,5 +40,5 @@ bucket serves many estates.
 
 ## It holds secrets
 
-The store holds generated passwords, so guard it as you guard a state file
-([`live/SECRETS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/SECRETS.md)).
+The store holds generated passwords: guard it as you guard a state file, or keep
+them in SSM ([`live/SECRETS.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/SECRETS.md)).
