@@ -13,10 +13,12 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // These tests are #2256 U7 (#2343): markers on the create half of a replace
@@ -204,6 +206,25 @@ func TestNewRuntimeReplaceMarksNewObject(t *testing.T) {
 			// again, with no prior object.
 			if run.adjuster.creates < 2 {
 				t.Errorf("expected the create entry point at plan and at the create half's final plan, got %d calls", run.adjuster.creates)
+			}
+		})
+	}
+}
+
+// TestNewRuntimeReplaceNotRefusedInLiveMode: U7 lifts the replace refusal in
+// live mode only. The post-plan check Plan and Apply run on the new runtime
+// passes a replace when an adjuster is set (live mode), in both orderings,
+// and the same plan is still refused outside live mode, where the
+// create_before_destroy cycle row (upstream `#4714`) still applies.
+func TestNewRuntimeReplaceNotRefusedInLiveMode(t *testing.T) {
+	for _, cbd := range []bool{false, true} {
+		t.Run(fmt.Sprintf("create_before_destroy=%v", cbd), func(t *testing.T) {
+			run := newRuntimeReplace(t, cbd)
+			if diags := run.ctx.newRuntimePostPlan(context.Background(), run.plan, nil); diags.HasErrors() {
+				t.Errorf("a replace was refused in live mode: %s", diags.ErrWithWarnings())
+			}
+			if diags := newruntime.PostPlan(run.plan, false); !hasDiag(diags, tfdiags.Error, newruntime.RefusalSummary) {
+				t.Errorf("a replace was not refused outside live mode; diagnostics:\n%s", diags.ErrWithWarnings())
 			}
 		})
 	}

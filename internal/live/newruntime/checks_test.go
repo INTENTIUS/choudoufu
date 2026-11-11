@@ -160,21 +160,53 @@ func planOf(changes ...*plans.ResourceInstanceChangeSrc) *plans.Plan {
 }
 
 func TestPostPlanRefusesReplace(t *testing.T) {
-	for _, tc := range []struct {
-		live bool
-		row  string
-	}{{true, "replace-live"}, {false, "replace-cbd-cycle"}} {
-		for _, action := range []plans.Action{plans.DeleteThenCreate, plans.CreateThenDelete} {
-			p := planOf(changeFor(t, "test_object.a[0]", action))
-			diags := PostPlan(p, tc.live)
-			if !refusedFor(diags, row(t, tc.row)) {
-				t.Errorf("live=%v %s was not refused under gap %q; diagnostics:\n%s", tc.live, action, tc.row, diags.ErrWithWarnings())
-			}
+	// Outside live mode a replace waits on upstream's create_before_destroy
+	// cycle, in either ordering.
+	for _, action := range []plans.Action{plans.DeleteThenCreate, plans.CreateThenDelete} {
+		p := planOf(changeFor(t, "test_object.a[0]", action))
+		if diags := PostPlan(p, false); !refusedFor(diags, row(t, "replace-cbd-cycle")) {
+			t.Errorf("live=false %s was not refused under gap %q; diagnostics:\n%s", action, "replace-cbd-cycle", diags.ErrWithWarnings())
+		}
+	}
+	// In live mode U7 (#2343) lifted the replace refusal: no row refuses it,
+	// the cbd-cycle row included.
+	for _, action := range []plans.Action{plans.DeleteThenCreate, plans.CreateThenDelete} {
+		p := planOf(changeFor(t, "test_object.a[0]", action))
+		if diags := PostPlan(p, true); len(diags) != 0 {
+			t.Errorf("live=true %s was refused: %s", action, diags.ErrWithWarnings())
 		}
 	}
 	p := planOf(changeFor(t, "test_object.a[0]", plans.Update), changeFor(t, "test_object.a[1]", plans.Create))
-	if diags := PostPlan(p, true); len(diags) != 0 {
-		t.Errorf("an update and a create were refused: %s", diags.ErrWithWarnings())
+	for _, live := range []bool{true, false} {
+		if diags := PostPlan(p, live); len(diags) != 0 {
+			t.Errorf("live=%v: an update and a create were refused: %s", live, diags.ErrWithWarnings())
+		}
+	}
+}
+
+// TestReplaceLiveRowIsLifted: U7 (#2343) closed the replace-live row, and
+// the remaining replace row is scoped away from live mode.
+func TestReplaceLiveRowIsLifted(t *testing.T) {
+	if r := row(t, "replace-live"); r.Check != CheckNone {
+		t.Errorf("row replace-live has check %q, want %q", r.Check, CheckNone)
+	}
+	if r := row(t, "replace-cbd-cycle"); r.Check != CheckPostPlan || r.Scope != ScopeNonLive {
+		t.Errorf("row replace-cbd-cycle has check %q scope %q, want %q scope %q", r.Check, r.Scope, CheckPostPlan, ScopeNonLive)
+	}
+}
+
+func TestParseRefusesUnknownPostPlanScope(t *testing.T) {
+	for _, scope := range []string{"", "everywhere"} {
+		src := `{"comment": "", "rows": [{"id": "x", "gap": "x", "check": "post_plan", "construct": "replace", "scope": "` + scope + `", "closed_by": "x", "upstream": []}]}`
+		if _, err := parse([]byte(src)); err == nil {
+			t.Errorf("a post-plan row with scope %q was accepted", scope)
+		}
+	}
+	for _, scope := range []string{ScopeLive, ScopeNonLive, ScopeAll} {
+		src := `{"comment": "", "rows": [{"id": "x", "gap": "x", "check": "post_plan", "construct": "replace", "scope": "` + scope + `", "closed_by": "x", "upstream": []}]}`
+		if _, err := parse([]byte(src)); err != nil {
+			t.Errorf("a post-plan row with scope %q was refused: %s", scope, err)
+		}
 	}
 }
 
@@ -205,7 +237,7 @@ func TestDeferralRefusal(t *testing.T) {
 // a row that refuses must have a detector and a test, and a construct a
 // detector knows must have a row.
 func TestEveryRefusingRowHasAFixture(t *testing.T) {
-	tested := map[string]bool{"deposed": true, "test-command": true, "replace-live": true, "replace-cbd-cycle": true, "deferral": true}
+	tested := map[string]bool{"deposed": true, "test-command": true, "replace-cbd-cycle": true, "deferral": true}
 	for id := range preflightFixtures {
 		tested[id] = true
 	}
