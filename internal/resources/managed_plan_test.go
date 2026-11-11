@@ -745,8 +745,12 @@ This is a bug in the provider, which should be reported in the provider's own is
 	}
 	// The resource's real, well-formed attribute change is untouched by the
 	// dropped path: "name" still changed from "hello" to "goodbye", so this
-	// must still plan as an ordinary update, not a silent no-op either.
-	wantPlanned := cty.ObjectVal(map[string]cty.Value{"name": cty.StringVal("goodbye")})
+	// must still plan as an ordinary update, not a silent no-op either. The
+	// changed attribute carries the pending-change mark PlanChanges puts on
+	// every value that differs from the current object.
+	wantPlanned := cty.ObjectVal(map[string]cty.Value{
+		"name": objchange.ValuePendingChange(cty.StringVal("goodbye"), objAddr.InstanceAddr),
+	})
 	if diff := cmp.Diff(wantPlanned, gotResp.Planned.Value, ctydebug.CmpOptions); diff != "" {
 		t.Error("wrong planned value\n" + diff)
 	}
