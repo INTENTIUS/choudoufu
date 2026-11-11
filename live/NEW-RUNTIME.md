@@ -36,7 +36,7 @@ A run that reaches one of these stops with `Not supported on the new runtime yet
 | `lifecycle-destroy` | lifecycle { destroy } | before planning, on the configuration or state | refuse lifecycle destroy arguments | upstream [`#4682`](https://github.com/opentofu/opentofu/issues/4682) |
 | `checks-conditions` | checks and conditions | before planning, on the configuration or state | refuse check blocks and precondition and postcondition blocks | upstream [`#4390`](https://github.com/opentofu/opentofu/issues/4390) |
 | `sensitive` | sensitive values (mark handling) | before planning, on the configuration or state | refuse sensitive = true variables and outputs and the sensitive() function | upstream [`#4360`](https://github.com/opentofu/opentofu/issues/4360) |
-| `deferral` | deferred actions | inside planning | error on any deferral not caused by -target or -exclude; plans have no record of deferral, so a post-plan check cannot see one | upstream [`#4697`](https://github.com/opentofu/opentofu/issues/4697) |
+| `deferral` | deferred actions | inside planning | error on any deferral not caused by -target or -exclude; plans have no record of deferral, so a post-plan check cannot see one. The deferral fork port ([#2382](https://github.com/INTENTIUS/choudoufu/issues/2382)) marks what -target or -exclude deferred with a mark of its own, so a resource whose configuration is derived only from such a result is left out of the plan as the old runtime leaves it, and gives an unknown count or for_each the old runtime's "Invalid count argument" or "Invalid for_each argument" error. Every other deferral is still refused. With the switch set the port is off and this row refuses those deferrals again | upstream [`#4697`](https://github.com/opentofu/opentofu/issues/4697) |
 | `test-command` | tofu test | before planning, on the configuration or state | refuse the test command (its harness still evaluates on the default runtime) | upstream [`#4741`](https://github.com/opentofu/opentofu/issues/4741) |
 
 ### Accepted, and named in the warning
@@ -81,3 +81,4 @@ port's expiry issues have all closed.
 | Port | Switch | Gap rows | Expires with |
 |---|---|---|---|
 | [`inrunestates`](../internal/engine/forkport/inrunestates) | `CHOUDOUFU_NEW_RUNTIME_NO_PORT_INRUNESTATES=1` | `in-run-estates` | upstream [`#4058`](https://github.com/opentofu/opentofu/issues/4058) |
+| [`deferral`](../internal/engine/forkport/deferral) | `CHOUDOUFU_NEW_RUNTIME_NO_PORT_DEFERRAL=1` | `deferral` | upstream [`#4697`](https://github.com/opentofu/opentofu/issues/4697) |

@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/collections"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/identityresolve"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
@@ -67,6 +68,10 @@ type PlanOpts struct {
 	// InRunEstates is choudoufu fork port (#2370): remove when upstream
 	// #4058 lands. Nil is off. See package inrunestates.
 	InRunEstates *inrunestates.Port
+
+	// Deferral is choudoufu fork port (#2382): remove when upstream #4697
+	// lands. Nil is off. See package deferral.
+	Deferral *deferral.Port
 }
 
 // PlanChanges is the main entry point, taking a state snapshot from the end

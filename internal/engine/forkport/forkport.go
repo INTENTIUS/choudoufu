@@ -55,6 +55,7 @@ type Port struct {
 // call sites and its gap row.
 var Ports = []Port{
 	{Name: "inrunestates", Rows: []string{"in-run-estates"}, Expiry: []string{"#4058"}},
+	{Name: "deferral", Rows: []string{"deferral"}, Expiry: []string{"#4697"}},
 }
 
 // Lookup returns the registered port with name, and whether there is one.
