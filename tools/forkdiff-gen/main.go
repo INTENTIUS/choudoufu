@@ -112,7 +112,7 @@ const (
 	// 2b6193043d, the v1.13.0 tag (#1778), and before that 03743ce6e8,
 	// upstream main at 1.13.0-dev. See the package doc for why it is a
 	// literal hash rather than something derived from ancestry.
-	forkPointCommit = "765062032c"
+	forkPointCommit = "aa3eb66a0c"
 
 	// modulePathOld and modulePathNew are the two ends of the module-path
 	// rename the mechanical-change filter recognizes, quoted-import-only

@@ -1,16 +1,16 @@
 {
   "generated_by": "tools/forkdiff-gen (go run ./tools/forkdiff-gen)",
-  "fork_point": "765062032c46cacab116b36d714db098b806dede",
-  "fork_point_short": "765062032c",
-  "fork_point_subject": "Prepare v1.13.2 release (#4753)",
-  "measured_at_head": "7354086d911a5d9cb1d5cb3169a192aa2ae2aa8a",
-  "generated_at": "2026-11-06T20:15:37Z",
-  "base_opentofu_version": "1.13.2",
+  "fork_point": "aa3eb66a0c1c792b7751e6ffeef7ca0cd8693f66",
+  "fork_point_short": "aa3eb66a0c",
+  "fork_point_subject": "[Govulncheck][GO-2026-6859][main] Upgrade Go toolchain to 1.27.4 (#4831)",
+  "measured_at_head": "8ffa461f0b4d3d9d293adf09fe8480e409894430",
+  "generated_at": "2026-11-11T17:50:06Z",
+  "base_opentofu_version": "1.14.0-dev",
   "counts": {
-    ".github/": 25,
+    ".github/": 24,
     "internal/live/": 1905,
     "live/": 741,
-    "other": 1672,
+    "other": 1666,
     "site/": 94,
     "tools/": 583
   },
@@ -30,10 +30,6 @@
       },
       {
         "path": ".github/pull_request_template.md",
-        "status": "D"
-      },
-      {
-        "path": ".github/scripts/compare-release-version.sh",
         "status": "D"
       },
       {
@@ -10739,16 +10735,8 @@
         "status": "M"
       },
       {
-        "path": ".goreleaser.yaml",
-        "status": "M"
-      },
-      {
         "path": ".sc.png",
         "status": "A"
-      },
-      {
-        "path": ".tfdev",
-        "status": "M"
       },
       {
         "path": "AGENTS.md",
@@ -10776,10 +10764,6 @@
       },
       {
         "path": "CODE_OF_CONDUCT.md",
-        "status": "M"
-      },
-      {
-        "path": "CONTRIBUTING.RELEASE.md",
         "status": "M"
       },
       {
@@ -10820,14 +10804,6 @@
       },
       {
         "path": "cmd/choudoufu/commands.go",
-        "status": "A"
-      },
-      {
-        "path": "cmd/choudoufu/help.go",
-        "status": "A"
-      },
-      {
-        "path": "cmd/choudoufu/legacy_main.go",
         "status": "A"
       },
       {
@@ -10908,14 +10884,6 @@
       },
       {
         "path": "cmd/tofu/commands.go",
-        "status": "D"
-      },
-      {
-        "path": "cmd/tofu/help.go",
-        "status": "D"
-      },
-      {
-        "path": "cmd/tofu/legacy_main.go",
         "status": "D"
       },
       {
@@ -12171,11 +12139,19 @@
         "status": "M"
       },
       {
+        "path": "internal/command/e2etest/provider-simple-v6/provider.go",
+        "status": "M"
+      },
+      {
+        "path": "internal/command/e2etest/provider-simple/provider.go",
+        "status": "M"
+      },
+      {
         "path": "internal/command/fmt.go",
         "status": "M"
       },
       {
-        "path": "internal/command/get.go",
+        "path": "internal/command/fmt_test.go",
         "status": "M"
       },
       {
@@ -12260,10 +12236,6 @@
       },
       {
         "path": "internal/command/jsonformat/plan.go",
-        "status": "M"
-      },
-      {
-        "path": "internal/command/jsonprovider/provider.go",
         "status": "M"
       },
       {
@@ -12580,6 +12552,14 @@
       },
       {
         "path": "internal/command/live_mv_test.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_new_runtime_guard.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/command/live_new_runtime_guard_test.go",
         "status": "A"
       },
       {
@@ -13007,14 +12987,6 @@
         "status": "M"
       },
       {
-        "path": "internal/command/metadata_command.go",
-        "status": "M"
-      },
-      {
-        "path": "internal/command/metadata_functions.go",
-        "status": "M"
-      },
-      {
         "path": "internal/command/output.go",
         "status": "M"
       },
@@ -13024,14 +12996,6 @@
       },
       {
         "path": "internal/command/plan_test.go",
-        "status": "M"
-      },
-      {
-        "path": "internal/command/providers.go",
-        "status": "M"
-      },
-      {
-        "path": "internal/command/providers_lock.go",
         "status": "M"
       },
       {
@@ -13051,8 +13015,8 @@
         "status": "M"
       },
       {
-        "path": "internal/command/show.go",
-        "status": "M"
+        "path": "internal/command/run_args.go",
+        "status": "A"
       },
       {
         "path": "internal/command/state_command.go",
@@ -13411,10 +13375,6 @@
         "status": "A"
       },
       {
-        "path": "internal/command/version.go",
-        "status": "M"
-      },
-      {
         "path": "internal/command/version_test.go",
         "status": "M"
       },
@@ -13615,14 +13575,6 @@
         "status": "M"
       },
       {
-        "path": "internal/command/workspace_command.go",
-        "status": "M"
-      },
-      {
-        "path": "internal/command/workspace_delete.go",
-        "status": "M"
-      },
-      {
         "path": "internal/command/workspace_list.go",
         "status": "M"
       },
@@ -13632,10 +13584,6 @@
       },
       {
         "path": "internal/command/workspace_select.go",
-        "status": "M"
-      },
-      {
-        "path": "internal/command/workspace_show.go",
         "status": "M"
       },
       {
@@ -13748,10 +13696,6 @@
       },
       {
         "path": "internal/configs/symlib/compiler_test.go",
-        "status": "M"
-      },
-      {
-        "path": "internal/configs/test_file_test.go",
         "status": "M"
       },
       {
@@ -14243,14 +14187,6 @@
         "status": "M"
       },
       {
-        "path": "internal/provider-simple-v6/provider.go",
-        "status": "M"
-      },
-      {
-        "path": "internal/provider-simple/provider.go",
-        "status": "M"
-      },
-      {
         "path": "internal/providers/factory.go",
         "status": "M"
       },
@@ -14268,6 +14204,10 @@
       },
       {
         "path": "internal/resources/managed_plan_test.go",
+        "status": "M"
+      },
+      {
+        "path": "internal/states/statemgr/filesystem_test.go",
         "status": "M"
       },
       {
@@ -14303,6 +14243,14 @@
         "status": "M"
       },
       {
+        "path": "internal/tofu/context_live_runtime_guard.go",
+        "status": "A"
+      },
+      {
+        "path": "internal/tofu/context_live_runtime_guard_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/tofu/context_plan.go",
         "status": "M"
       },
@@ -14327,12 +14275,24 @@
         "status": "A"
       },
       {
+        "path": "internal/tofu/context_temp_runtime.go",
+        "status": "M"
+      },
+      {
+        "path": "internal/tofu/context_temp_runtime_hook_test.go",
+        "status": "A"
+      },
+      {
         "path": "internal/tofu/context_test.go",
         "status": "M"
       },
       {
         "path": "internal/tofu/context_tracing_test.go",
         "status": "A"
+      },
+      {
+        "path": "internal/tofu/context_validate.go",
+        "status": "M"
       },
       {
         "path": "internal/tofu/context_walk.go",
@@ -15287,6 +15247,14 @@
         "status": "A"
       },
       {
+        "path": "release/.goreleaser.yaml",
+        "status": "M"
+      },
+      {
+        "path": "release/README.md",
+        "status": "M"
+      },
+      {
         "path": "rfc/20230905-provider-gpgkey-missing.md",
         "status": "D"
       },
@@ -15560,6 +15528,14 @@
       },
       {
         "path": "scripts/test-sse.sh",
+        "status": "A"
+      },
+      {
+        "path": "scripts/upstream-sync-test.sh",
+        "status": "A"
+      },
+      {
+        "path": "scripts/upstream-sync.sh",
         "status": "A"
       },
       {
@@ -16120,10 +16096,6 @@
       },
       {
         "path": "website/docs/internals/module-registry-protocol.mdx",
-        "status": "D"
-      },
-      {
-        "path": "website/docs/internals/provider-meta.mdx",
         "status": "D"
       },
       {
@@ -20109,7 +20081,7 @@
     ]
   },
   "mechanical_module_rename": {
-    "excluded_count": 1145,
+    "excluded_count": 1167,
     "scope": "internal/**/*.go files (M-status) that would otherwise land in the other bucket",
     "note": "excluded because every changed line, order-independently, is the quoted Go import path moving from github.com/opentofu/opentofu to github.com/intentius/choudoufu - see the package doc's Limits section"
   },
