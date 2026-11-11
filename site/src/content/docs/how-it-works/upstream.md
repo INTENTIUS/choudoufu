@@ -1,6 +1,6 @@
 ---
 title: Upstream OpenTofu
-description: The OpenTofu base, the new-runtime opt-ins, and the fork's patches.
+description: OpenTofu base, new-runtime opt-ins, fork patches.
 prompt: >-
   Read https://intentius.io/choudoufu/how-it-works/upstream/ and its gap
   table, and list what the toggle refuses here. Change no files.
@@ -10,8 +10,7 @@ prompt: >-
 <!-- upstreamdoc-gen:begin base -->
 Built on upstream OpenTofu [`aa3eb66a0c`](https://github.com/opentofu/opentofu/commit/aa3eb66a0c1c792b7751e6ffeef7ca0cd8693f66), version `1.14.0-dev`.
 <!-- upstreamdoc-gen:end base -->
-`scripts/upstream-sync.sh` merges upstream `main` every two weeks and at each
-release tag.
+`scripts/upstream-sync.sh` merges upstream `main` fortnightly and per release.
 
 | Opt-in | Upstream | choudoufu |
 |---|---|---|
@@ -21,16 +20,16 @@ release tag.
 
 | Patch | Replaced by |
 |---|---|
-| Markers, plan and apply | fork-only |
-| Identity, via upstream import | fork-only |
-| Replace create half | fork-only |
+| Markers, identity, replace create half | fork-only |
 | Destroy-from-config | [#3472](https://github.com/opentofu/opentofu/issues/3472) |
 | Taint failed creates only | fork rule |
 | Deferral error | [#4697](https://github.com/opentofu/opentofu/issues/4697) |
 | In-run estates, with #2372 | [#4058](https://github.com/opentofu/opentofu/issues/4058) |
 
-The gap table is
-[`live/NEW-RUNTIME.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/NEW-RUNTIME.md).
-The [experimental lane](https://github.com/INTENTIUS/choudoufu/blob/main/.github/workflows/experimental-runtime.yml)
-runs the tests under the toggle against
-[`expected-failures.json`](https://github.com/INTENTIUS/choudoufu/blob/main/live/experimental-runtime/expected-failures.json).
+## Already handled by the live backend
+
+- Records: one per resource, a [conditional write](../locking/), written per instance from upstream's whole-snapshot `PersistingState` ([#4767](https://github.com/opentofu/opentofu/issues/4767)).
+- Refresh: prior state is read live; plans skip refresh ([Identity](../identity/)).
+- `moved`: found by its old-address marker, applied as a tag update, with [#2374](https://github.com/INTENTIUS/choudoufu/issues/2374).
+
+Gaps: [`live/NEW-RUNTIME.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/NEW-RUNTIME.md).
