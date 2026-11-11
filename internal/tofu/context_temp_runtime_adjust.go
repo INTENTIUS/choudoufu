@@ -7,6 +7,7 @@ package tofu
 
 import (
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/identityresolve"
 )
 
 // The new runtime receives the Context's ConfigValueAdjuster as a
@@ -28,4 +29,9 @@ var (
 	_ IgnoreChangesAdjuster     = configadjust.IgnoreChangesAdjuster(nil)
 	_ AppliedMarkerVerifier     = configadjust.AppliedMarkerVerifier(nil)
 	_ AppliedMarkerWriter       = configadjust.AppliedMarkerWriter(nil)
+
+	// #2256 U6: the identity resolver reaches the new runtime as an
+	// identityresolve.ResourceIdentityResolver.
+	_ identityresolve.ResourceIdentityResolver = ResourceIdentityResolver(nil)
+	_ ResourceIdentityResolver                 = identityresolve.ResourceIdentityResolver(nil)
 )

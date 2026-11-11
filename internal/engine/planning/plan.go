@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/collections"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/identityresolve"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/lang/grapheval"
@@ -55,6 +56,12 @@ type PlanOpts struct {
 	// when set, each desired managed resource instance's configuration value
 	// is adjusted before it is planned. See package configadjust.
 	ConfigValueAdjuster configadjust.ConfigValueAdjuster
+
+	// IdentityResolver is choudoufu's identity-resolution seam (#2256 U6):
+	// when set, a desired managed resource instance with no prior object and
+	// no import statement is imported from the target it resolves, if any.
+	// See package identityresolve and plan_managed_identity.go.
+	IdentityResolver identityresolve.ResourceIdentityResolver
 }
 
 // PlanChanges is the main entry point, taking a state snapshot from the end

@@ -23,12 +23,11 @@ import (
 // the Context's ConfigValueAdjuster when it plans, and again when the apply
 // engine re-plans each object from freshly evaluated configuration.
 //
-// G's guard (#2339, context_live_runtime_guard.go) refuses Plan and Apply on
-// the new runtime whenever a ConfigValueAdjuster is set, until U6. These
-// tests sit below the guard: they call newEnginePlan and newEngineApply, the
-// functions Plan and Apply route to once the guard has passed, so they run
-// the same engine code a live run will reach after U6 without a bypass in
-// the guard itself.
+// They call newEnginePlan and newEngineApply, the functions Plan and Apply
+// route to on the new runtime. They were written that way while G's
+// runtime-decision check (#2339) refused Plan and Apply with a
+// ConfigValueAdjuster set; #2256 U6 lifted it, and a live run now reaches
+// the same engine code through Plan and Apply.
 
 // newRuntimeAdjustProvider is a provider that plans the proposed new value
 // and applies the planned value, so whatever the adjuster wrote reaches the
