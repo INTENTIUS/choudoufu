@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/smithy-go/middleware"
 
 	"github.com/intentius/choudoufu/internal/configs"
@@ -62,7 +63,9 @@ func NewRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *config
 	if err != nil || store == nil {
 		return store, err
 	}
-	return openBuiltStore(ctx, store, rs, estate)
+	return openBuiltStore(ctx, store, rs, estate, func(s staterecord.Store) (staterecord.Store, error) {
+		return wrapSecretsInSSM(ctx, s, rs, rt, estate)
+	})
 }
 
 // NewKeyedRecordStore builds the same store [NewRecordStore] does for a run
@@ -102,7 +105,11 @@ func NewKeyedRecordStore(ctx context.Context, rs *configs.LiveRecordStore, rt *c
 	if !exists {
 		return nil, &StoreRefusal{Err: fmt.Errorf("record_store: this store holds no sentinel at %q, so a run that reads records by key cannot tell an estate that was never recorded from a store that reads as empty; refusing rather than reporting every record-backed resource as missing (issue #693). An ordinary plan under the estate's full role provisions the sentinel once", key)}
 	}
-	return staterecord.NewRunCache(counted, ""), nil
+	split, err := wrapSecretsInSSM(ctx, counted, rs, rt, estate)
+	if err != nil {
+		return nil, err
+	}
+	return staterecord.NewRunCache(split, ""), nil
 }
 
 // StoreRefusal marks a failure to open the record store as a REFUSAL: the
@@ -215,7 +222,12 @@ func isStoreFault(err error) bool {
 // drive exactly the production sequence over a fake store. The first-contact
 // tests used to reimplement this glue, and deleting the first-contact call
 // from NewRecordStore left them green (#1376).
-func openBuiltStore(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, estate string) (staterecord.Store, error) {
+//
+// wrap, when given, goes between the handshake and the run cache: GitHub
+// issue #1515's [SSMSecretsStore], which has to be beneath the cache so the
+// cache holds resolved records, and above the trip counter so the counter
+// counts the bucket's own trips.
+func openBuiltStore(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, estate string, wrap ...func(staterecord.Store) (staterecord.Store, error)) (staterecord.Store, error) {
 	// Order is load-bearing. The counter goes UNDER the cache, so what it
 	// counts is trips that actually reached the backend; over the cache it
 	// would count the calls the cache absorbs and report no change from
@@ -241,7 +253,52 @@ func openBuiltStore(ctx context.Context, store staterecord.Store, rs *configs.Li
 	// prefix is the same namespace [RecordStoreKeyPrefix] gives every caller
 	// that builds keys against this store, so a bulk load covers exactly the
 	// keys the run will ask for.
-	return staterecord.NewRunCache(counted, recordStoreKeyPrefix(rs, estate)), nil
+	cached := counted
+	for _, w := range wrap {
+		if cached, err = w(cached); err != nil {
+			return nil, err
+		}
+	}
+	return staterecord.NewRunCache(cached, recordStoreKeyPrefix(rs, estate)), nil
+}
+
+// wrapSecretsInSSM is where `strict { secrets = "ssm" }` takes effect: the
+// store comes back wrapped in an [SSMSecretsStore], or unchanged under any
+// other setting. GitHub issue #1515.
+//
+// It refuses rather than opening a store that would write secrets in clear:
+// the setting under a backend other than "s3", and the setting with no key.
+// internal/live/lint refuses both first; this is the second place, because
+// the cost of the first one being bypassed is every secret in the bucket.
+func wrapSecretsInSSM(ctx context.Context, store staterecord.Store, rs *configs.LiveRecordStore, rt *configs.LiveRetry, estate string) (staterecord.Store, error) {
+	if rs == nil || !rs.SecretsInSSM {
+		return store, nil
+	}
+	if rs.Type != "s3" {
+		return nil, &StoreRefusal{Err: fmt.Errorf("record_store %q: strict { secrets = \"ssm\" } pairs with record_store \"s3\" only, whose conditional write is what commits a reference (GitHub issue #1515)", rs.Type)}
+	}
+	sm := rs.SecretsSSM
+	if sm == nil || sm.KMSKeyID == "" {
+		return nil, &StoreRefusal{Err: fmt.Errorf("strict { secrets = \"ssm\" } needs an ssm block with a kms_key_id naming a customer managed key; refusing to open the record store rather than write secret values into it (GitHub issue #1515)")}
+	}
+	region := sm.Region
+	if region == "" {
+		region = rs.Region
+	}
+	awsCfg, err := loadAWSConfig(ctx, region, rt)
+	if err != nil {
+		return nil, fmt.Errorf("secrets in SSM: %w", err)
+	}
+	path := sm.Path
+	if path == "" {
+		path = DefaultSSMSecretsPath(estate)
+	}
+	return NewSSMSecretsStore(store, SSMSecretsConfig{
+		Client:       ssm.NewFromConfig(awsCfg),
+		KMSKeyID:     sm.KMSKeyID,
+		Path:         path,
+		RecordPrefix: recordStoreKeyPrefix(rs, estate),
+	})
 }
 
 // sentinelKeyName is the last segment of every store's sentinel key. It is

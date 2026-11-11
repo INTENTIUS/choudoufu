@@ -481,6 +481,16 @@ type residueFields struct {
 	// private carries nothing an import cannot rebuild, which reads as
 	// "nothing to restore" - the pre-#1239 behaviour.
 	ProviderPrivate []byte `json:"provider_private,omitempty"`
+
+	// Sensitive names the keys of Attributes whose value the provider's
+	// schema marks sensitive, sorted. GitHub issue #1515: it is written only
+	// under `strict { secrets = "ssm" }`, where it is what tells the store
+	// which residue values go to Parameter Store - a residue value is
+	// stored unmarked and its sensitivity is otherwise rebuilt from the
+	// schema on read, which the store does not hold. Under "store" and
+	// "refuse" it is never set, so a record written under either is the
+	// same bytes it was before this field existed. See secretsplit.go.
+	Sensitive []string `json:"sensitive,omitempty"`
 }
 
 func (r *residueFields) empty() bool {
@@ -587,6 +597,21 @@ type recordEnvelope struct {
 	// [Deposed]'s own comment gives.
 	Tombstone map[string]*tombstoneFields `json:"tombstone,omitempty"`
 
+	// SecretRefs is GitHub issue #1515's reference list: where this
+	// record's secret values went, under `strict { secrets = "ssm" }`. Each
+	// entry names one SecureString parameter and the place in this envelope
+	// its value was taken from, which holds a null (or nothing) in the
+	// stored bytes. See secretsplit.go for the split and ssmsecrets.go for
+	// the store that writes and resolves it.
+	//
+	// It never reaches a reader in this package: [SSMSecretsStore] puts each
+	// value back and drops the list before handing the payload up, so
+	// [decodeEnvelope] seeing one means the store was opened without the
+	// setting while its records were written with it - and decoding the
+	// nulls as values would be the silent loss of every secret the estate
+	// holds. It is refused there by name instead.
+	SecretRefs []secretRef `json:"secret_refs,omitempty"`
+
 	// The four fields below are v1's flat shape, decode-only. A v1
 	// record-backed payload carried these at the envelope's own top level
 	// under exactly these names (recordPayload's original tags); nothing in
@@ -633,6 +658,9 @@ func decodeEnvelope(raw []byte) (recordEnvelope, error) {
 	var env recordEnvelope
 	if err := json.Unmarshal(raw, &env); err != nil {
 		return recordEnvelope{}, fmt.Errorf("the stored record is not valid JSON: %w", err)
+	}
+	if len(env.SecretRefs) > 0 {
+		return recordEnvelope{}, &UnresolvedSecretRefsError{Parameters: secretRefParameters(env.SecretRefs)}
 	}
 
 	// Normalize an Identity/Residue/Provisioned pointer json.Unmarshal

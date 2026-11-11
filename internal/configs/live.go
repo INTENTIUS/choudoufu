@@ -610,6 +610,34 @@ type LiveRecordStore struct {
 	// Implied stays false: the author wrote the bucket down, in the backend
 	// block, so the readers [Implied] lists treat it as a declared store.
 	Derived bool
+
+	// SecretsInSSM and SecretsSSM are the live block's strict block, as far
+	// as the record store needs it: whether it sets secrets = "ssm", and its
+	// nested ssm block. GitHub issue #1515. They are copied here by
+	// [linkStrictSecrets], never decoded from the record_store block,
+	// because every opener of the record store is handed this struct and
+	// not the strict block, and a store opened without the setting would
+	// write every secret into the bucket in clear while the configuration
+	// said otherwise. SecretsSSM may be nil while SecretsInSSM is true;
+	// internal/live/lint refuses that, and the store refuses to open.
+	SecretsInSSM bool
+	SecretsSSM   *LiveStrictSSM
+}
+
+// linkStrictSecrets copies what the record store needs from l's strict
+// block onto its record store. It runs after decoding and again after a
+// store is derived from the backend block, since either may set
+// l.RecordStore. The literal is the setting's spelling, which
+// internal/live/strict owns; this compares, it does not judge.
+func linkStrictSecrets(l *Live) {
+	if l == nil || l.RecordStore == nil || l.Strict == nil {
+		return
+	}
+	l.RecordStore.SecretsInSSM = l.Strict.SecretsSet && l.Strict.Secrets == "ssm"
+	l.RecordStore.SecretsSSM = nil
+	if l.RecordStore.SecretsInSSM {
+		l.RecordStore.SecretsSSM = l.Strict.SSM
+	}
 }
 
 // LiveRecordStoreKubernetes is the "kubernetes" record store's connection
@@ -1406,6 +1434,7 @@ func decodeLiveBody(body hcl.Body, declRange hcl.Range) (*Live, hcl.Diagnostics)
 		diags = append(diags, stDiags...)
 		s.Strict = st
 	}
+	linkStrictSecrets(s)
 
 	switch len(retryBlocks) {
 	case 0:
