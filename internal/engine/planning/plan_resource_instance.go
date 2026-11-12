@@ -45,6 +45,12 @@ type resourceInstanceObject struct {
 
 	PrevRoundAddr addrs.AbsResourceInstanceObject
 
+	// movedAway is set on the orphan pass's record of a prior-state object
+	// whose move a desired object already executed. That desired object
+	// writes the plan's prior state at this same address, so this record
+	// must not write it too. choudoufu fork patch, see plan_managed.go.
+	movedAway bool
+
 	// UpgradedState is the previous state value after processing
 	// Upgrades and Moves.
 	UpgradedState *states.ResourceInstanceObjectFullSrc

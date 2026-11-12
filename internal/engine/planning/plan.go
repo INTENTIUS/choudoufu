@@ -121,6 +121,11 @@ func finalizePlan(ctx context.Context, intermediate *planContextResult, provider
 	refreshedStateSync := intermediate.PrevRoundState.DeepCopy().SyncWrapper()
 
 	for _, obj := range intermediate.ResourceInstanceObjects.All() {
+		if obj.movedAway {
+			// choudoufu fork patch: the object that moved it writes this
+			// address with its refreshed state; see movedAway.
+			continue
+		}
 		writeAddr := obj.PrevRoundAddr
 		if obj.UpgradedState != nil {
 			upgradedStateSync.SetResourceInstanceObjectFull(writeAddr, obj.UpgradedState)
