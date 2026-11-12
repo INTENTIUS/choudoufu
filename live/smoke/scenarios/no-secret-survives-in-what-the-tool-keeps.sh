@@ -1,5 +1,5 @@
 # no-secret-survives-in-what-the-tool-keeps
-# CLAIM 40 (aws) - No secret survives unless you let it, or keep it in SSM. ~5 min.
+# CLAIM 40 (aws) - No secret survives unless you let it, or keep it in SSM. ~15 min.
 #
 # This proof: No secret the run generates or sets survives in what the tool
 # keeps: under strict { secrets = "refuse" } a random_password and an
