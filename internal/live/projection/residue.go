@@ -1268,6 +1268,7 @@ func RecordResidueForInstance(ctx context.Context, store *RecordStore, addr addr
 		if err != nil {
 			return false, fmt.Errorf("encoding residue for %s: %w", addr, err)
 		}
+		markSensitiveResidue(rf, schema.Block, secrets)
 	}
 	if len(manifestKeys) > 0 {
 		if rf == nil {

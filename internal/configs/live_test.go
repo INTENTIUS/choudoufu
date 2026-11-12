@@ -1408,3 +1408,29 @@ func TestModule_liveRetryAbsent(t *testing.T) {
 		t.Errorf("Retry = %#v for a live block that declares no retry block, want nil", mod.Live.Retry)
 	}
 }
+
+// TestModule_liveStrictSSMReachesTheRecordStore: the record store is opened
+// from the record_store struct alone, so the setting has to be on it.
+// GitHub issue #1515: a store opened without it writes every secret into
+// the bucket in clear while the configuration says they are in SSM.
+func TestModule_liveStrictSSMReachesTheRecordStore(t *testing.T) {
+	mod, diags := testModuleFromDir("testdata/valid-modules/live-strict-ssm")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	rs := mod.Live.RecordStore
+	if !rs.SecretsInSSM {
+		t.Fatal("SecretsInSSM is false on the record store of a live block whose strict block sets secrets = \"ssm\"")
+	}
+	if rs.SecretsSSM != mod.Live.Strict.SSM {
+		t.Errorf("SecretsSSM = %+v, want the strict block's own ssm block", rs.SecretsSSM)
+	}
+
+	other, diags := testModuleFromDir("testdata/valid-modules/live-strict-secrets")
+	if diags.HasErrors() {
+		t.Fatalf("unexpected diagnostics: %s", diags.Error())
+	}
+	if other.Live.RecordStore.SecretsInSSM || other.Live.RecordStore.SecretsSSM != nil {
+		t.Errorf("a strict block with secrets = %q put the SSM setting on the record store", other.Live.Strict.Secrets)
+	}
+}
