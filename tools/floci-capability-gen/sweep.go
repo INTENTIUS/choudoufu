@@ -127,12 +127,12 @@ const listResourcesSource = "live probe (tools/floci-capability-gen -mode=cloudc
 // does for a type that does not support the action. Earlier pins answered
 // those types with an empty list, which the round trip below caught as
 // unimplemented; the refusal reaches the same verdict without one.
+//
+// The predicate itself lives in pkg/cloudcontrol, which discovery's Cloud
+// Control leg also reads, so the manifest and discovery agree on what a
+// refusal is.
 func isListRefusal(code string) bool {
-	switch code {
-	case cloudcontrol.CodeUnsupportedOperation, "UnknownOperationException", "UnsupportedActionException":
-		return true
-	}
-	return false
+	return cloudcontrol.IsListRefusalCode(code)
 }
 
 func classifyListResources(ctx context.Context, cc *cloudcontrol.Client, seeder *ccSeeder, tfType, cfnType string) (typeRow, error) {

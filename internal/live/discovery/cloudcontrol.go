@@ -109,6 +109,17 @@ func scanTypeCloudControl(ctx context.Context, req Request, schemas listclient.S
 	if !prefetched {
 		descs, err = req.CloudControl.ListResources(ctx, cfnType)
 	}
+	if err != nil && cloudcontrol.IsListRefusal(err) {
+		// Cloud Control declined to list the type at all
+		// (UnsupportedActionException: real AWS for a type whose handler
+		// does not support LIST, floci since 920d475 for a type its read
+		// side does not enumerate). That is "this source cannot list the
+		// type", not a failed call and not an empty answer, so the type
+		// continues down [scanType]'s route list exactly as one
+		// [cloudControlSource] never offered here would.
+		log.Printf("[DEBUG] live/discovery: Cloud Control refused to list %s (for %s): %v; trying %s's remaining routes", cfnType, typeName, err, typeName)
+		return diags.Append(scanTypeUnenumerated(ctx, req, schemas, decl, typeName, res, sweep, collectUnclaimed, scan, &ccListRefusal{cfnType: cfnType, err: err}))
+	}
 	if err != nil {
 		res.Scans = append(res.Scans, scan)
 		if sweep {

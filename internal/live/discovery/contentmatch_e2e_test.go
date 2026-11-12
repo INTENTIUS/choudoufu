@@ -8,6 +8,7 @@ package discovery
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/live/identity"
@@ -154,6 +155,32 @@ func TestScanTypeContentMatch(t *testing.T) {
 		}
 		if len(problems[0].LiveIDs) != 2 {
 			t.Errorf("Problem.LiveIDs = %v, want both candidates named", problems[0].LiveIDs)
+		}
+	})
+
+	// Cloud Control refusing the listing (UnsupportedActionException, real
+	// AWS for a type whose handler has no LIST, floci since 920d475) is the
+	// same fact as no route: the type takes the not-listable refusal, never
+	// a failed list and never "zero candidates, propose a create".
+	t.Run("Cloud Control refuses the listing - not listable, never absent", func(t *testing.T) {
+		srv := newCCServer(t)
+		srv.listErr[binding.CFNType] = cloudcontrol.CodeUnsupportedAction
+		server := srv.start()
+		defer server.Close()
+
+		res, diags := Discover(context.Background(), newReq(cloudcontrol.New(cloudcontrol.Config{Endpoint: server.URL, MaxAttempts: 1})))
+		if !diags.HasErrors() {
+			t.Fatalf("a declared type no source can list produced no error:\n%s", res)
+		}
+		if p := res.ProblemsOfKind(ProblemListFailed); len(p) != 0 {
+			t.Errorf("a list refusal was reported as a failed list: %v", p)
+		}
+		problems := res.ProblemsOfKind(ProblemTypeNotListable)
+		if len(problems) != 1 || !strings.Contains(problems[0].Detail, cloudcontrol.CodeUnsupportedAction) {
+			t.Fatalf("want one type-not-listable problem naming the refusal, got %v", res.Problems)
+		}
+		if containsAddr(res.Unbound, addr.String()) {
+			t.Error("a list refusal was reported as the instance being absent")
 		}
 	})
 }
