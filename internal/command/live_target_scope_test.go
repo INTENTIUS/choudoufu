@@ -128,6 +128,7 @@ var liveTargetScopeClassification = map[string]struct {
 	"projection.NewMarkerIndex":           {notAPass, "indexes resolutions already in hand"},
 	"liveRecordStoreOpener":               {notAPass, "opens a store (projection.NewRecordStore, a variable for #2288's test)"},
 	"projection.NewRecordEnvelopeStore":   {notAPass, "wraps a store"},
+	"projection.SSMSecretsDiagnostics":    {notAPass, "takes the warnings the SSM secrets store raised while the run read and wrote (#2393)"},
 	"projection.NewRootOutputStore":       {notAPass, "wraps a store"},
 	"projection.RecordStoreKeyPrefix":     {notAPass, "computes a key prefix"},
 	"liveAdoptionReport":                  {notAPass, "renders"},

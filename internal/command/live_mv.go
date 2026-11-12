@@ -295,6 +295,9 @@ func (c *LiveMvCommand) liveMv(ctx context.Context, args liveMvArgs) (result *mv
 	provs := newProjectionProviders(config, coreOpts.Plugins)
 	// A named return, so that the shutdown warning still reaches the caller.
 	defer func() { diags = diags.Append(provs.close(ctx)) }()
+	// GitHub issue #2393: the SSM secrets store's warnings (an advanced-tier
+	// value, a waived contract assertion), in the command's own output.
+	defer func() { diags = diags.Append(projection.SSMSecretsDiagnostics(recordStore)) }()
 
 	// Read once and handed to both the subset check and resolution below, so
 	// that a type the schemas admit reads the same answer at both points. See

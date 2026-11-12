@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/live/discovery"
 	"github.com/intentius/choudoufu/internal/live/markers"
+	"github.com/intentius/choudoufu/internal/live/projection"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -271,7 +272,13 @@ func (r *liveRunner) AfterPlan(ctx context.Context, config *configs.Config, plan
 	if r.resolver != nil {
 		diags = diags.Append(collectKubernetesFieldOwners(ctx, r.labelListSweepers, config, plan, schemas, r.resolver.Estate, r.fieldGranularMissing))
 	}
-	return diags
+	// GitHub issue #2393: under strict { secrets = "ssm" }, the plan's own
+	// count of the SSM parameters the estate will reference, checked here
+	// so an estate over SSM's ceiling is refused on the plan and before an
+	// apply's first write, and handed to the store for that write. Then
+	// whatever the store announced while this run read its records.
+	diags = diags.Append(projection.CheckPlannedSecretsCapacity(ctx, r.rawStore, plan, schemas))
+	return diags.Append(projection.SSMSecretsDiagnostics(r.rawStore))
 }
 
 // rememberKubernetesSweeper keeps the sweep's client for the post-plan dry

@@ -77,9 +77,12 @@ type SecretsCapacityError struct {
 func (e *SecretsCapacityError) Error() string { return e.Diags.Err().Error() }
 
 // PlanSecretParameters hands the store the count a plan computed for the
-// run, which the first write checks. Without one, the first write counts
-// what the estate's records already reference (from the run's bulk read)
-// and adds its own new parameters, which is a lower bound.
+// run ([SSMSecretsStore.PlanCount] over [PlannedSecretWrites]), which the
+// first write checks. A plan and an apply that plans set it in the run's
+// post-plan step. Without one - an apply of a saved plan file - the first
+// write counts what the estate's records already reference (from the run's
+// bulk read) and adds its own new parameters, which is a lower bound: it
+// cannot see the creates of the writes after it.
 func (s *SSMSecretsStore) PlanSecretParameters(n SecretParameterCount) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -1208,6 +1208,10 @@ func (c *LivePlanCommand) livePlan(ctx context.Context, args *arguments.Plan, es
 	// either, so a document and Run()'s own error text can both appear in
 	// that narrow case. Neither one is wrong about what happened; nothing
 	// is silently dropped.
+	//
+	// GitHub issue #2393: what the SSM secrets store announced while this
+	// run read the records, taken here so the document carries it too.
+	diags = diags.Append(projection.SSMSecretsDiagnostics(hintStore))
 	if jsonRequested {
 		foreignReport := liveForeignReport(classified, disco)
 		adoptable, swept := livePlanAdoptable(foreignReport)

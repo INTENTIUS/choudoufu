@@ -29,6 +29,7 @@ import (
 	"github.com/intentius/choudoufu/internal/tracing"
 	"github.com/intentius/choudoufu/internal/tracing/traceattrs"
 	"github.com/intentius/choudoufu/pkg/adoption"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // LiveImportCommand is the bulk migration path from a state-backed estate to
@@ -47,6 +48,10 @@ import (
 // the one thing in the whole command that writes.
 type LiveImportCommand struct {
 	Meta
+
+	// store is the record store the run opened, kept so the SSM secrets
+	// store's warnings can be taken into the output (GitHub issue #2393).
+	store staterecord.Store
 }
 
 // LiveImportCommander is live-import's entry in the new CLI's command tree. See
@@ -91,6 +96,7 @@ func (c *LiveImportCommand) Execute(args *arguments.LiveImport) int {
 
 	rat, adopted, closeProviders, ratDiags := c.liveImportRatify(ctx, args)
 	diags = diags.Append(ratDiags)
+	diags = diags.Append(projection.SSMSecretsDiagnostics(c.store))
 
 	switch {
 	case adopted != nil:
@@ -118,6 +124,7 @@ func (c *LiveImportCommand) Execute(args *arguments.LiveImport) int {
 	// chance to use them.
 	stampRep, stampDiags := rat.Approve(ctx)
 	diags = diags.Append(stampDiags)
+	diags = diags.Append(projection.SSMSecretsDiagnostics(c.store))
 	diags = diags.Append(closeProviders())
 	if stampRep != nil {
 		views.NewLiveImport(c.View).Stamped(liveImportStampReport(stampRep))
@@ -266,6 +273,7 @@ func (c *LiveImportCommand) liveImportRatify(ctx context.Context, args *argument
 		if storeDiags.HasErrors() {
 			return nil, nil, closer, diags
 		}
+		c.store = store
 		recordStore = projection.NewRecordEnvelopeStore(store, projection.RecordStoreKeyPrefix(recordStoreCfg, args.Estate))
 		// GitHub issue #349: the same underlying store again, its own
 		// namespace rather than a member of the envelope - an output names
