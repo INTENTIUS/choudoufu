@@ -74,8 +74,9 @@ func compileProviderConfig(
 		// Assumed static context, I don't love this sort of flagging though
 		configEvalable = exprs.EvalableHCLExpression(&hclsyntax.LiteralValueExpr{Val: cty.DynamicVal})
 	} else {
-		spec := configSchema.Block.DecoderSpec()
-		configEvalable = exprs.EvalableHCLBodyWithDynamicBlocks(config.Config, spec)
+		// choudoufu: remove when upstream handles attributes-as-blocks in
+		// the new runtime (#2256). Was exprs.EvalableHCLBodyWithDynamicBlocks.
+		configEvalable = evalableBodyWithAttrsAsBlocks(config.Config, configSchema.Block)
 	}
 
 	addr := addrs.AbsProviderConfigCorrect{
