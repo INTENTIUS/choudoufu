@@ -428,6 +428,45 @@ if wanted claim37-tolerates-a-bucket-that-never-appeared; then
   has "$SB/out" "CLEANUP-RAN" "the trap reached its last step"
 fi
 
+# ── case: claim 40's real-AWS ssm teardown, extracted verbatim ──────────
+# A destroy that fails and a user deletion that is refused must still
+# reach the parameters, the key and the bucket, and the last line must
+# name what could not be cleaned. `chdf` is a stub that fails, as a
+# destroy refused mid-run does.
+if wanted claim40-ssm-teardown-reaches-the-key-and-bucket; then
+  sandbox claim40-ssm-teardown-reaches-the-key-and-bucket
+  log "  the estate's destroy fails and the user deletion is refused; the parameters, key and bucket are still reached"
+  AWS_FAIL_GLOB='elasticache delete-user*'
+  prologue
+  {
+    echo 'chdf() { echo "stub chdf: refusing $* on purpose" >&2; return 1; }'
+    echo 'mkdir -p "$SMOKE_WORK/ssm"'
+    echo 'ESTATE_DIRS=("$SMOKE_WORK/ssm")'
+    echo 'USER_IDS=("chdf-smoke-ssm-$SUFFIX")'
+    echo 'SSM_PATH="/choudoufu/smoke/ssm-$SUFFIX"'
+    echo 'SSM_BUCKET="chdf-smoke-ssm-$SUFFIX"'
+    echo 'SSM_KEY="11111111-2222-3333-4444-555555555555"'
+    echo 'BUCKET_MADE=1'
+    extract_func "$SMOKE_SRC/scenarios/secrets-in-ssm-on-real-aws.sh" ssm_real_teardown
+    grep -m1 "trap .*ssm_real_teardown" "$SMOKE_SRC/scenarios/secrets-in-ssm-on-real-aws.sh"
+    echo 'echo SCENARIO-RAN'
+    echo 'BOOM="$(false)"'
+    echo 'echo NOT-REACHED'
+  } >> "$HARNESS"
+  grep -q 'ssm_real_teardown() {' "$HARNESS" || bad "the extraction found no ssm_real_teardown; this case would prove nothing"
+  run_harness
+  has "$SB/out" "COULD NOT DESTROY estate ssm" "the failed destroy named the estate"
+  has "$AWS_LOG" "elasticache describe-users --user-id chdf-smoke-ssm-" "the user was looked for after the failed destroy"
+  has "$SB/out" "COULD NOT DELETE ElastiCache user" "the refused user deletion named the user"
+  has "$AWS_LOG" "ssm get-parameters-by-path --path /choudoufu/smoke/ssm-" "the parameters under the run's path were listed"
+  has "$AWS_LOG" "kms schedule-key-deletion --key-id 11111111-2222-3333-4444-555555555555 --pending-window-in-days 7" "the key was scheduled for deletion"
+  has "$AWS_LOG" "s3api delete-objects" "the bucket was emptied"
+  has "$AWS_LOG" "s3api delete-bucket --bucket chdf-smoke-ssm-" "the bucket deletion was attempted"
+  has "$SB/out" "teardown: cleaned" "the final teardown line was printed"
+  has "$SB/out" "could not clean user:chdf-smoke-ssm-" "the final line names the user that could not be cleaned"
+  has "$SB/out" "CLEANUP-RAN" "the trap reached its last step"
+fi
+
 # ── case: role names ────────────────────────────────────────────────────
 if wanted role-names-carry-the-run-suffix; then
   sandbox role-names-carry-the-run-suffix
