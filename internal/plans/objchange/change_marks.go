@@ -229,6 +229,14 @@ func markChangesNestedSchemaObj(
 			// analysis, since we'll be marking the top-level value anyway.
 			return after.Mark(marker(path))
 		}
+		// choudoufu: remove when upstream fixes marked values reaching
+		// ProposedNew in the new runtime. Elements panics on a marked list,
+		// and the apply engine's final plan passes marked values here (a
+		// whole-object mark from depends_on reaches every nested block
+		// list). Walk the unmarked lists and put the list's own marks back
+		// on the result, as markChangesList already does for attributes.
+		before, _ := before.Unmark()
+		after, afterMarks := after.Unmark()
 		var retElems []cty.Value
 		for k := range after.Elements() {
 			step := cty.IndexStep{Key: k}
@@ -247,12 +255,12 @@ func markChangesNestedSchemaObj(
 		// on whether the nested schema has dynamically-typed items, so we'll
 		// respect whatever kind "after" had.
 		if ty := after.Type(); ty.IsTupleType() {
-			return cty.TupleVal(retElems)
+			return cty.TupleVal(retElems).WithMarks(afterMarks)
 		} else {
 			if len(retElems) == 0 {
-				return cty.ListValEmpty(ty.ElementType())
+				return cty.ListValEmpty(ty.ElementType()).WithMarks(afterMarks)
 			}
-			return cty.ListVal(retElems)
+			return cty.ListVal(retElems).WithMarks(afterMarks)
 		}
 	case configschema.NestingMap:
 		if lengthEq, _ := after.Length().Equals(before.Length()).Unmark(); !lengthEq.IsKnown() || lengthEq.False() {
@@ -260,6 +268,10 @@ func markChangesNestedSchemaObj(
 			// analysis, since we'll be marking the top-level value anyway.
 			return after.Mark(marker(path))
 		}
+		// choudoufu: remove when upstream fixes marked values reaching
+		// ProposedNew in the new runtime. The same as NestingList above.
+		before, _ := before.Unmark()
+		after, afterMarks := after.Unmark()
 		// If there are any elements of before that are not also in after
 		// then we must treat the whole map has having pending changes, because
 		// its set of keys is changing. We'll check this first since there's
@@ -268,7 +280,7 @@ func markChangesNestedSchemaObj(
 			step := cty.IndexStep{Key: k}
 			_, err := step.Apply(after)
 			if err != nil {
-				return after.Mark(marker(append(path, step)))
+				return after.Mark(marker(append(path, step))).WithMarks(afterMarks)
 			}
 		}
 		// If we get here then we know that the keys in the after map are a
@@ -296,12 +308,12 @@ func markChangesNestedSchemaObj(
 		// on whether the nested schema has dynamically-typed items, so we'll
 		// respect whatever kind "after" had.
 		if ty := after.Type(); ty.IsObjectType() {
-			return cty.ObjectVal(retElems)
+			return cty.ObjectVal(retElems).WithMarks(afterMarks)
 		} else {
 			if len(retElems) == 0 {
-				return cty.MapValEmpty(ty.ElementType())
+				return cty.MapValEmpty(ty.ElementType()).WithMarks(afterMarks)
 			}
-			return cty.MapVal(retElems)
+			return cty.MapVal(retElems).WithMarks(afterMarks)
 		}
 	case configschema.NestingSet:
 		// cty doesn't support nested marks inside a set anyway, so there's
