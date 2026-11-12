@@ -1317,6 +1317,17 @@
               }
             },
             {
+              "scenario": "live/smoke/scenarios/secrets-in-ssm-on-real-aws.sh",
+              "command": "just smoke secrets-in-ssm-on-real-aws",
+              "minutes": 5,
+              "real_service": true,
+              "break_mode": "BREAK=1 applies the estate under secrets = \"ssm\" with the test-only CHOUDOUFU_TEST_SSM_LEAK_PLAINTEXT=1, which writes each value into the record beside its secret_refs, and the step 4 scan over every version in the real bucket must find the password in the bucket's copy of that record; a scan that finds nothing fails the run",
+              "evidence": [
+                "live/smoke/evidence/secrets-in-ssm-on-real-aws.lastrun.json"
+              ],
+              "note": "Real AWS, maintainer-run with SMOKE_REAL_AWS=1 (#2393): the ssm steps of the emulator proof on a real account, with an ElastiCache user's password (free, created and deleted in seconds, and never returned by DescribeUsers) as the secret. It creates a customer managed KMS key, a record bucket, ElastiCache users and SSM parameters under /choudoufu/smoke/<run id>, all carrying the run id, and its EXIT trap destroys the estate, deletes the parameters and the bucket and schedules the key for deletion (7 days). A few cents a run at most: the user and the parameters are free, and the key is $1 a month prorated by the hour."
+            },
+            {
               "go_test": "TestSSMSecretsRaceOneWinsNoDanglingReference",
               "go_package": "./internal/live/projection",
               "command": "go test ./internal/live/projection -run '^TestSSMSecretsRaceOneWinsNoDanglingReference$'",

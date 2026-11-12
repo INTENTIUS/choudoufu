@@ -89,7 +89,8 @@ beside its `secret_refs` (`internal/live/projection/ssmsecrets.go`). The
 step 9 scan must find the password in the bucket's copy of that record.
 
 The ssm steps run on the emulator like the rest, so they need nothing
-beyond Docker and the AWS CLI. The estate's own role on a real account
+beyond Docker and the AWS CLI. The same steps on a real account are
+[secrets-in-ssm-on-real-aws](#secrets-in-ssm-on-real-aws), below. The estate's own role on a real account
 needs what `examples/record-store-bucket/iam/render-policy.sh --ssm-path
 <path> --ssm-kms <key-arn>` renders: `ssm:GetParameters`,
 `ssm:PutParameter`, `ssm:DeleteParameter` and `ssm:GetParametersByPath`
@@ -97,6 +98,96 @@ under the path, `kms:Encrypt`, `kms:GenerateDataKey` and `kms:Decrypt` on
 the key through SSM, and `kms:DescribeKey`. The scenario itself also calls
 `kms:CreateKey`, `kms:TagResource`, `kms:ScheduleKeyDeletion`,
 `ssm:DescribeParameters` and `ssm:GetParameter`.
+
+### secrets-in-ssm-on-real-aws
+
+    SMOKE_REAL_AWS=1 AWS_PROFILE=<profile> AWS_REGION=us-east-2 just smoke secrets-in-ssm-on-real-aws
+    SMOKE_REAL_AWS=1 AWS_PROFILE=<profile> AWS_REGION=us-east-2 BREAK=1 just smoke secrets-in-ssm-on-real-aws
+
+Real AWS, maintainer-run with `SMOKE_REAL_AWS=1`; without it the scenario
+refuses before its first AWS call. `AWS_REGION` defaults to `us-east-2`.
+It runs the ssm steps above against a real account, because the emulator
+is an emulation of SSM, KMS and S3 and a claim about where a secret ends up
+should also be shown where AWS keeps it (GitHub issue #2393).
+
+The secret is an `aws_elasticache_user`'s password, not a database's. Its
+`passwords` argument is sensitive and `DescribeUsers` returns only a
+password count, so once the apply is done the value exists only in the
+user, which cannot be asked for it, and in whatever the tool keeps: the
+same property the master password has. A user costs nothing, needs no
+cache cluster, and is created, modified and deleted in seconds; the
+smallest database is billed by the hour and takes minutes each way.
+
+The steps as they print:
+
+1. `a key, a bucket and a path of this run's own`. A customer managed key
+   and a record bucket (versioned, noncurrent versions expired, public
+   access blocked), both tagged `choudoufu-smoke-run=<run id>`, and the
+   parameter path `/choudoufu/smoke/<run id>`.
+2. `an AWS managed key is refused by name, before anything is created`.
+   `kms_key_id = "alias/aws/ssm"` is refused with
+   `kms_key_id "alias/aws/ssm" is an AWS managed key by its alias`, and
+   afterwards there is no user, no record and no parameter.
+3. `the same estate applies with the run's customer managed key`. One
+   user, active, with the password set, and the run never prints it.
+4. `grep everything the run kept, every version in the bucket included`.
+   Every version of every object under the estate's prefix is downloaded
+   and grepped with the data dir, the lock file and the configuration:
+   zero copies. The record holds `secret_refs`, and no cache file exists.
+5. `the parameters are SecureString under the run's key, and decrypt to
+   the value`. One parameter per reference, nothing else under the path.
+6. `the replan reads the password back`. `No changes.`
+7. `a rotation replaces the parameter and deletes the one it superseded`.
+   `0 added, 1 changed`, a new parameter that decrypts to the new value,
+   the old one gone, neither value in what the run kept, and the next plan
+   `No changes.`
+8. `teardown`. The estate destroyed and nothing left under the path.
+
+`BREAK=1` stops after step 1 and applies the estate with
+`CHOUDOUFU_TEST_SSM_LEAK_PLAINTEXT=1`. The step 4 scan over the real
+bucket's record versions must find the password and print `caught`.
+
+On every exit, pass, fail or interrupt, the EXIT trap destroys each
+estate the run initialised, deletes any ElastiCache user the run named
+that is still there, deletes every parameter under the run's path,
+schedules the key for deletion (the 7-day minimum), and empties and
+deletes the bucket. It ends on one line,
+`teardown: cleaned ...; could not clean ...`, and each step that fails
+prints a `COULD NOT` line with the command that finishes the job by hand.
+
+What the credentials need, in the region the run uses:
+
+- `sts:GetCallerIdentity`.
+- KMS: `kms:CreateKey`, `kms:TagResource`, `kms:DescribeKey`,
+  `kms:ScheduleKeyDeletion`, and `kms:Encrypt`, `kms:Decrypt` and
+  `kms:GenerateDataKey` on the key the run creates (the key's default
+  policy defers to IAM).
+- SSM, on `arn:aws:ssm:<region>:<account>:parameter/choudoufu/smoke/*`:
+  `ssm:PutParameter`, `ssm:GetParameter`, `ssm:GetParameters`,
+  `ssm:GetParametersByPath`, `ssm:DeleteParameter` and
+  `ssm:DeleteParameters`; and `ssm:DescribeParameters`, which takes no
+  resource.
+- S3, on `arn:aws:s3:::chdf-smoke-ssm-*` and its objects:
+  `s3:CreateBucket`, `s3:PutBucketTagging`, `s3:PutBucketVersioning`,
+  `s3:GetBucketVersioning`, `s3:PutLifecycleConfiguration`,
+  `s3:GetLifecycleConfiguration`, `s3:PutBucketPublicAccessBlock`,
+  `s3:GetBucketPublicAccessBlock`, `s3:ListBucket`,
+  `s3:ListBucketVersions`, `s3:GetObject`, `s3:GetObjectVersion`,
+  `s3:GetObjectTagging`, `s3:PutObject`, `s3:PutObjectTagging`,
+  `s3:DeleteObject`, `s3:DeleteObjectVersion` and `s3:DeleteBucket`.
+- ElastiCache, on `user:chdf-smoke-ssm-*`: `elasticache:CreateUser`,
+  `elasticache:DescribeUsers`, `elasticache:ModifyUser`,
+  `elasticache:DeleteUser`, `elasticache:AddTagsToResource`,
+  `elasticache:ListTagsForResource` and
+  `elasticache:RemoveTagsFromResource`.
+- `tag:GetResources`, which choudoufu's discovery reads the estate's
+  tagged resources through.
+
+Cost: a few cents a run at most. An ElastiCache user and standard-tier
+parameters are free and the S3 and API requests are a few dozen. The key
+is $1 a month prorated by the hour, so its share is under one cent for the
+run itself and about $0.23 if the 7-day deletion window is billed too. Time: about 5 minutes, most of it `init` downloading the
+provider; the user's create, modify and delete each take seconds.
 
 ### What the scenario does not race
 
