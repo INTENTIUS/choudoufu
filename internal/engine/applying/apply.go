@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/internal/execgraph"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
@@ -63,6 +64,7 @@ func ApplyPlannedChanges(ctx context.Context, plan *plans.Plan, configInst *eval
 		execOps.instanceStateUpdate = opts.InstanceStateUpdate
 		execOps.inRunEstates = opts.InRunEstates // choudoufu fork port (#2370): remove when upstream #4058 lands
 		execOps.stopped = opts.Stopped           // choudoufu fork port (#2381): remove when the row closes
+		execOps.forget = opts.Forget             // choudoufu fork port (#2409): remove when upstream #4682 lands
 	}
 
 	moreDiags = execGraph.Execute(ctx)
@@ -105,6 +107,10 @@ type ApplyOpts struct {
 	// Stopped is choudoufu fork port (#2381): remove when the row closes.
 	// Nil is off. See package cancel's Between and fork_cancel.go.
 	Stopped func() bool
+
+	// Forget is choudoufu fork port (#2409): remove when upstream #4682
+	// lands. Nil is off. See package forget and fork_forget.go.
+	Forget *forget.Port
 }
 
 type evalGlue struct {

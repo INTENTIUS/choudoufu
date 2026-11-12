@@ -13,26 +13,6 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestApply_destroySkipInConfigAndState",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestApply_destroySkipInStateNotInConfig",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682). The object, no longer in configuration, carries destroy = false in state; the preflight refuses it rather than let the new runtime delete it."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestApply_destroySkipInStateOrphaned",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682). The orphan carries destroy = false in state; the preflight refuses it rather than let the new runtime delete it."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestApply_destroySkipWithSuppressFlag",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestApply_jsonGoldenReference",
       "reason": "The toggle's warning (#2256 U2, emitted by newEnginePlan and newEngineApply) adds two JSON log lines to the golden output, by design. Leaves the list when the toggle stops warning."
     },
@@ -373,11 +353,6 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_forgetOrphanAndDeposedWithDynamicProvider",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"removed\": removed blocks, waits for upstream (upstream #4686, #4693)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Apply_ignoreImpureFunctionChanges",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360)."
     },
@@ -565,46 +540,6 @@
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext_contextValuesPropagation",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestSkipDestroy_Count_Reduction",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestSkipDestroy_Deposed",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestSkipDestroy_DestroyMode",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestSkipDestroy_DestroyMode_Deposed",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestSkipDestroy_DestroyMode_ErrorOnForgotten",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestSkipDestroy_Enabled_Toggle",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestSkipDestroy_ForEach",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestSkipDestroy_Replace",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"lifecycle-destroy\": lifecycle { destroy }, waits for upstream (upstream #4682)."
     }
   ],
   "skips": [

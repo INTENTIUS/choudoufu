@@ -12,6 +12,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/engine/internal/execgraph"
@@ -78,6 +79,8 @@ type execOperations struct {
 	inRunEstates *inrunestates.Port // choudoufu fork port (#2370): remove when upstream #4058 lands
 
 	stopped func() bool // choudoufu fork port (#2381): remove when the row closes
+
+	forget *forget.Port // choudoufu fork port (#2409): remove when upstream #4682 lands
 }
 
 // The main operation methods of execOperations are spread across the separate

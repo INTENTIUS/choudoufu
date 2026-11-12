@@ -19,6 +19,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/engine/forkport"
 	"github.com/intentius/choudoufu/internal/engine/forkport/conditions"
+	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 	"github.com/intentius/choudoufu/internal/live/moved"
@@ -64,7 +65,14 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 	"removed": func(c *configs.Config) (out []occurrence) {
 		m := c.Module
 		for _, r := range m.Removed {
-			out = append(out, occurrence{what: "the configuration has a removed block", rng: r.DeclRange})
+			o := occurrence{what: "the configuration has a removed block", rng: r.DeclRange}
+			// choudoufu fork port (#2409): remove when upstream #4686 and
+			// #4693 land. A removed block that deletes and has provisioners
+			// stays refused.
+			if forget.Covers(r) {
+				o.port = forget.Name
+			}
+			out = append(out, o)
 		}
 		return out
 	},
@@ -98,7 +106,9 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 		m := c.Module
 		for _, r := range m.ManagedResources {
 			if r.Managed != nil && r.Managed.Destroy != nil {
-				out = append(out, occurrence{what: fmt.Sprintf("%s sets lifecycle destroy", r.Addr()), rng: r.Managed.Destroy.Range()})
+				// choudoufu fork port (#2409): remove when upstream #4682
+				// lands.
+				out = append(out, occurrence{what: fmt.Sprintf("%s sets lifecycle destroy", r.Addr()), rng: r.Managed.Destroy.Range(), port: forget.Name})
 			}
 		}
 		return out
@@ -203,7 +213,9 @@ var stateDetectors = map[string]func(s *states.State) []string{
 	// must be forgotten, not deleted. The configuration detector cannot see
 	// an orphan, so the state is read too.
 	"lifecycle_destroy": func(s *states.State) (out []string) {
-		if s == nil {
+		// choudoufu fork port (#2409): remove when upstream #4682 lands.
+		// The port forgets such an object, deposed ones included.
+		if s == nil || forkport.Enabled(forget.Name) {
 			return nil
 		}
 		for _, ms := range s.Modules {

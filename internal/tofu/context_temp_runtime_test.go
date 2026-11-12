@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 )
 
@@ -114,8 +115,8 @@ var (
 	ExperimentalFeatureRefresh         = ExperimentalFlag{"Missing Refresh", true}
 	ExperimentalFeatureRefreshOnly     = ExperimentalFlag{"Missing Refresh-only Planning Mode", true}
 	ExperimentalFeatureMoved           = ExperimentalFlag{"Missing Moved", true}
-	ExperimentalFeatureRemoved         = ExperimentalFlag{"Missing Removed", false}
-	ExperimentalFeatureSkipDestroy     = ExperimentalFlag{"Missing Lifecycle Destroy", false}
+	ExperimentalFeatureRemoved         = ExperimentalFlag{"Missing Removed", forkport.Enabled(forget.Name)}           // choudoufu fork port (#2409): remove when upstream #4682, #4686 and #4693 land
+	ExperimentalFeatureSkipDestroy     = ExperimentalFlag{"Missing Lifecycle Destroy", forkport.Enabled(forget.Name)} // choudoufu fork port (#2409): remove when upstream #4682, #4686 and #4693 land
 	ExperimentalFeatureUpgradeUnwanted = ExperimentalFlag{"Missing Upgrade Orphan or Deposed Resource Instance State", true}
 	ExperimentalFeatureTarget          = ExperimentalFlag{"Missing Targeting", true}
 	ExperimentalFeatureVarCondition    = ExperimentalFlag{"Missing Variable Condiitions", false}
