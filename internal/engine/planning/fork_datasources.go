@@ -17,6 +17,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -93,6 +94,9 @@ func (p *planGlue) forkPlanDataRead(ctx context.Context, inst *eval.DesiredResou
 	if !inst.ForkCheckNested {
 		return ret, diags.Append(readDiags)
 	}
+	// choudoufu fork port (#2418): remove when upstream #4390 lands. The
+	// check block reports the read's failure as its result.
+	checkrules.RecordCheckDataRead(ctx, inst.Addr, readDiags)
 	// A data block inside a check block never fails the plan: as in the
 	// default runtime, its errors are warnings, an unreadable one plans with
 	// an unknown value, and it is read again during the apply so the check

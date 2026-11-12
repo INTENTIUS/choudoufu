@@ -396,9 +396,19 @@ func compileModuleInstanceResource(
 					if preconditionsBlocked() {
 						return exprs.AsEvalError(cty.DynamicVal), nil
 					}
+					// choudoufu fork port (#2418): remove when upstream
+					// #4058 and #4740 land. A data resource instance whose
+					// configuration failed to evaluate is not planned or
+					// read, as in the default runtime, and what refers to
+					// it sees no attributes to report errors about.
+					if datasources.Enabled() && config.Mode == addrs.DataResourceMode && exprs.IsEvalError(configVal) {
+						return exprs.AsEvalError(cty.DynamicVal), nil
+					}
 					ret, diags := getResultValue(ctx, inst, configVal, providerInst, riDeps)
 					if postconditions != nil {
-						diags = diags.Append(postconditions(ctx, ret))
+						var moreDiags tfdiags.Diagnostics
+						ret, moreDiags = postconditions(ctx, ret)
+						diags = diags.Append(moreDiags)
 					}
 					return ret, diags
 				},

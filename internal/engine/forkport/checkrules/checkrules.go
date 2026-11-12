@@ -30,7 +30,12 @@
 // apply of a destroy plan name their phase with [WithPhase]; any other
 // apply needs nothing. Output preconditions, which upstream compiles itself,
 // are reported the same way while the port is on. A check block's scoped
-// data source is read by the datasources port (#2414).
+// data source is read by the datasources port (#2414), before the check's
+// assertions: a read that failed is the check's result and the assertions
+// are skipped, and only the check's own assertions may refer to it (#2418).
+// A postcondition that fails while planning keeps what refers to the
+// resource from evaluating it, as the default runtime's plan walk stops at
+// a failed condition (#2418).
 //
 // The port also records every check's result for the plan's Checks and the
 // state's CheckResults (C3 of #2410, see [Results]), and the call sites of

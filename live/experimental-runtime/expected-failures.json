@@ -200,16 +200,6 @@
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContextImport_providerConfigResources",
       "reason": "Upstream's new runtime, by design: a provider configured from values unknown until apply is not refused, since providers now accept unknown values (upstream's ExperimentalChangeDeferredActions note on this test). It runs because the deferral fork port (#2382) turns that flag on for the tests it makes pass, TestContext2Plan_countComputedModule and TestContext2Plan_forEachUnknownValue."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Plan_dataSourcePreconditionPostcondition",
-      "reason": "Runs since the datasources fork port (#2414) and fails on behaviour, gaps \"data-sources\" and \"checks-conditions\": a data source's failing postcondition is reported as a warning, not an error, in a normal plan, and it does not stop the evaluation of what depends on the data source, so an index into its empty result adds an error the default runtime never reaches. Follow-up to #2414."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContextChecks",
-      "reason": "Runs since the datasources fork port (#2414) and fails on behaviour, gaps \"data-sources\" and \"checks-conditions\": a check block's scoped data source is read and its errors are warnings, but its read failure is not recorded as the check's failure in the plan's and state's check results (C3, #2410), statuses after the apply's re-read stay unknown, and a reference into a check block's scoped data source from outside is not refused with the default runtime's \"Reference to scoped resource\" error. 3 of its 10 subtests pass. Follow-up to #2414."
     }
   ],
   "skips": [

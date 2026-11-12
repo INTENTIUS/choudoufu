@@ -19,6 +19,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
 	"github.com/intentius/choudoufu/internal/engine/forkport/datasources"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/lang/eval"
@@ -33,6 +34,11 @@ import (
 // warnings, as in the default runtime.
 func (ops *execOperations) forkReadData(ctx context.Context, desired *eval.DesiredResourceInstance) (*exec.ResourceInstanceObject, tfdiags.Diagnostics) {
 	ret, diags := ops.forkReadDataInner(ctx, desired)
+	if desired.ForkCheckNested {
+		// choudoufu fork port (#2418): remove when upstream #4390 lands. The
+		// check block reports the read's failure as its result.
+		checkrules.RecordCheckDataRead(ctx, desired.Addr, diags)
+	}
 	if desired.ForkCheckNested && diags.HasErrors() {
 		diags = tfdiags.OverrideAll(diags, tfdiags.Warning, nil)
 		if ret.State == nil {

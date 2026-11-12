@@ -34,6 +34,8 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.35.0 (Unreleased)
 
+- Fixed, on the new runtime: check blocks and data postconditions now report what the default runtime reports (#2418). A check block's scoped data source that fails to read is the check's result, with the read's error as its message, and the check's assertions are skipped; statuses after an apply are recorded instead of staying unknown, including assertions on a data source read during the plan; a reference to a check block's scoped data source from outside the check is refused with "Reference to scoped resource"; and a postcondition that fails while planning keeps whatever refers to the resource from evaluating it, so an index into an empty data result no longer adds a second error. A failed provider read no longer adds a "Provider produced null object" error. `TestContextChecks` and `TestContext2Plan_dataSourcePreconditionPostcondition` are off the experimental lane's expected failures. The `checkrules` and `datasources` ports carry the change, behind their existing switches.
+
 ## choudoufu v0.34.1 (2026-11-12)
 
 Built on the same base as v0.34.0. Board snapshot: [`live/history/v0.34.1.json`](live/history/v0.34.1.json); board movement from v0.34.0: none (core 22/23, all 24/25).

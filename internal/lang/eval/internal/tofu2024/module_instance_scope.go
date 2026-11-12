@@ -55,6 +55,11 @@ type moduleInstanceScope struct {
 	workingDir string
 	rootDir    string
 	sourceDir  string
+
+	// forkCheck is choudoufu fork port (#2418): remove when upstream #4390
+	// lands. It is the check block whose assertions this scope evaluates,
+	// the only place that can refer to the check's scoped data resource.
+	forkCheck *addrs.Check
 }
 
 var _ exprs.Scope = (*moduleInstanceScope)(nil)
@@ -197,6 +202,10 @@ func (m *moduleInstanceScope) resolveResourceAttr(addr addrs.Resource, rng tfdia
 			Subject:  rng.ToHCL().Ptr(),
 		})
 		return nil, diags
+	}
+	// choudoufu fork port (#2418): remove when upstream #4390 lands.
+	if refused := m.forkRefuseScopedResource(addr, rng); refused != nil {
+		return exprs.ValueOf(refused), diags
 	}
 	return exprs.ValueOf(r), diags
 }
