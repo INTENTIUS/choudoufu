@@ -1298,6 +1298,11 @@ func TestContext2Refresh_dataStateRefData(t *testing.T) {
 
 	actual := strings.TrimSpace(s.String())
 	expected := strings.TrimSpace(testTofuRefreshDataRefDataStr)
+	// choudoufu fork port (#2414), upstream #4740's change: the new runtime
+	// tracks the dependency between the two data sources.
+	if experimentalRuntimeEnabled() {
+		expected = strings.TrimSpace(testTofuRefreshDataRefExperimentalEngineDataStr)
+	}
 	if actual != expected {
 		t.Fatalf("wrong result\n\ngot:\n%s\n\nwant:\n%s", actual, expected)
 	}

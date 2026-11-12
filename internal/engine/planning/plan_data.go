@@ -12,6 +12,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/forkport/datasources"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -59,6 +60,11 @@ func (p *planGlue) planDesiredDataResourceInstance(ctx context.Context, inst *ev
 	}
 	for dep := range inst.RequiredResourceInstances.All() {
 		ret.ConfigDependencies.Add(dep.CurrentObject())
+	}
+	// choudoufu fork port (#2414): remove when upstream #4058 and #4740 land.
+	if datasources.Enabled() {
+		ret, diags = p.forkPlanDataRead(ctx, inst, meta, ret)
+		return ret, diags
 	}
 
 	unmarkedConfigVal, _ := inst.ConfigVal.UnmarkDeep()
@@ -115,7 +121,7 @@ func (p *planGlue) planDesiredDataResourceInstance(ctx context.Context, inst *ev
 
 	readCtx := ctx
 	if cb := tracer.StartDataResourceInstanceRead; cb != nil {
-		readCtx = cb(ctx, inst.Addr)
+		readCtx = cb(ctx, inst.Addr, unmarkedConfigVal) // choudoufu fork port (#2414): the tracer takes upstream #4740's arguments; remove when it lands
 	}
 	resp := providerClient.ReadDataSource(readCtx, providers.ReadDataSourceRequest{
 		TypeName: meta.ResourceType,
@@ -129,7 +135,7 @@ func (p *planGlue) planDesiredDataResourceInstance(ctx context.Context, inst *ev
 			// case the tracer is reporting events in the UI.
 			resultVal = resp.State
 		}
-		cb(readCtx, inst.Addr, resultVal, diags)
+		cb(readCtx, inst.Addr, resultVal, diags.Err()) // choudoufu fork port (#2414): the tracer takes upstream #4740's arguments; remove when it lands
 	}
 	if resp.Diagnostics.HasErrors() {
 		return ret, diags
@@ -151,6 +157,9 @@ func (p *planGlue) planDesiredDataResourceInstance(ctx context.Context, inst *ev
 func (p *planGlue) planOrphanDataResourceInstance(_ context.Context, addr addrs.AbsResourceInstance, state *states.ResourceInstanceObjectFullSrc) (*resourceInstanceObject, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
+	if ret := p.forkDestroyDataObject(addr, state); ret != nil { // choudoufu fork port (#2414): remove when upstream #4058 and #4740 land
+		return ret, diags
+	}
 	return &resourceInstanceObject{
 		Addr:               addr.CurrentObject(),
 		PrevRoundAddr:      addr.CurrentObject(),

@@ -134,8 +134,11 @@ type Tracer struct {
 	// These events always occur between calls to
 	// StartDataResourceInstancePlanning and EndDataResourceInstancePlanning for
 	// the same instance address.
-	StartDataResourceInstanceRead func(ctx context.Context, addr addrs.AbsResourceInstance) context.Context
-	EndDataResourceInstanceRead   func(ctx context.Context, addr addrs.AbsResourceInstance, resultVal cty.Value, diags tfdiags.Diagnostics)
+	//
+	// choudoufu fork port (#2414): remove when upstream #4058 and #4740 land.
+	// These take upstream #4740's arguments.
+	StartDataResourceInstanceRead func(ctx context.Context, addr addrs.AbsResourceInstance, plannedNewState cty.Value) context.Context
+	EndDataResourceInstanceRead   func(ctx context.Context, addr addrs.AbsResourceInstance, resultVal cty.Value, err error)
 
 	// We also embed [shared.Tracer] for some events that are common across
 	// plan and apply. [PlanChanges] automatically ensures that this nested

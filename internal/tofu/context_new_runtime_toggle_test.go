@@ -121,6 +121,7 @@ func stateWith(name string) *states.State {
 // refused before planning, and no warning is printed. This is also the
 // second negative control: a refused run never reaches the engine.
 func TestNewRuntimeToggle_preflightRefuses(t *testing.T) {
+	dataSourcesRefused(t)
 	strictOn(t)
 	showNewRuntimeWarningForTesting(t)
 	toggleOn(t)

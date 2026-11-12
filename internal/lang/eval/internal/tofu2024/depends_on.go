@@ -16,8 +16,10 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/forkport/datasources"
 	"github.com/intentius/choudoufu/internal/lang/eval/internal/configgraph"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
+	langmarks "github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -136,6 +138,14 @@ func (d *dependsOnValuer) Value(ctx context.Context) (cty.Value, tfdiags.Diagnos
 		itemV, moreDiags := item.Value(ctx)
 		diags = diags.Append(moreDiags)
 		_, moreMarks := itemV.UnmarkDeep()
+		if datasources.Enabled() {
+			// choudoufu fork port (#2414): remove when upstream #4058 and
+			// #4740 land. depends_on orders; it carries no value, so a
+			// depended-on object's sensitive attributes must not make the
+			// whole configuration sensitive, which a data source's read
+			// result would then inherit.
+			delete(moreMarks, langmarks.Sensitive)
+		}
 		maps.Copy(marks, moreMarks)
 	}
 

@@ -17,6 +17,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/lang/grapheval"
@@ -39,6 +40,18 @@ func (ops *execOperations) forkOutputs(ctx context.Context) func(addrs.ModuleIns
 		}
 		return o.ForkModuleOutputs(ctx, addr)
 	}
+}
+
+// forkInRunRead reports whether desired is a terraform_estate_outputs read
+// the port answers from a module this run applies. Any other deferred read
+// is the datasources port's (#2414), while it is on.
+func (ops *execOperations) forkInRunRead(desired *eval.DesiredResourceInstance) bool {
+	if !inrunestates.IsEstateOutputs(desired.Addr) {
+		return false
+	}
+	configVal, _ := desired.ConfigVal.UnmarkDeep()
+	_, inRun, _ := ops.inRunEstates.Target(desired.Addr, configVal)
+	return inRun
 }
 
 // forkDataRead answers a terraform_estate_outputs read the plan deferred,

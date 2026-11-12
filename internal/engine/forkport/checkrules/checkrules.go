@@ -30,7 +30,7 @@
 // apply of a destroy plan name their phase with [WithPhase]; any other
 // apply needs nothing. Output preconditions, which upstream compiles itself,
 // are reported the same way while the port is on. A check block's scoped
-// data source is still refused by the data-sources row.
+// data source is read by the datasources port (#2414).
 //
 // The port also records every check's result for the plan's Checks and the
 // state's CheckResults (C3 of #2410, see [Results]), and the call sites of

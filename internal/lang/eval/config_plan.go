@@ -152,6 +152,8 @@ func (p *planningEvalGlue) ResourceInstanceValue(ctx context.Context, ri *config
 		RequiredResourceInstances: riDeps,
 		IgnoreChangesPaths:        ri.IgnoreChangesPaths,
 		ReplaceTriggeredBy:        ri.ReplaceTriggeredBy,
+		ForkCheckNested:           ri.ForkCheckNested,   // choudoufu fork port (#2414): remove when upstream #4058 and #4740 land
+		ForkHasConditions:         ri.ForkHasConditions, // choudoufu fork port (#2414): remove when upstream #4058 and #4740 land
 	}
 
 	if desired.Addr.Resource.Resource.Mode == addrs.EphemeralResourceMode {

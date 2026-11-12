@@ -20,6 +20,7 @@ import (
 	"github.com/intentius/choudoufu/internal/engine/forkport"
 	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
 	"github.com/intentius/choudoufu/internal/engine/forkport/conditions"
+	"github.com/intentius/choudoufu/internal/engine/forkport/datasources"
 	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
@@ -59,6 +60,10 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 			// lands. Gap "in-run-estates".
 			if inrunestates.Covers(r) {
 				o.port = inrunestates.Name
+			} else {
+				// choudoufu fork port (#2414): remove when upstream #4058
+				// and #4740 land.
+				o.port = datasources.Name
 			}
 			out = append(out, o)
 		}

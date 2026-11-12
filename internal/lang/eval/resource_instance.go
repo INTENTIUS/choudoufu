@@ -88,6 +88,17 @@ type ModuleConfiguredResourceInstanceObjectMeta struct {
 // comparing desired resource instances with prior state resource instances
 // to determine what actions are needed, if any.
 type DesiredResourceInstance struct {
+	// ForkCheckNested is choudoufu fork port (#2414): remove when upstream
+	// #4058 and #4740 land. It is true for a data resource declared inside a
+	// check block, whose read errors are warnings and which is read again
+	// during the apply, as in the default runtime.
+	ForkCheckNested bool
+	// ForkHasConditions is choudoufu fork port (#2414), likewise: true for a
+	// data resource with a precondition or postcondition, whose read waits
+	// for any change pending on a resource it depends on, as in the default
+	// runtime, since that change may be what makes the condition pass.
+	ForkHasConditions bool
+
 	// Addr is the absolute address of the resource instance, suitable for
 	// correlation with resource instances in the prior state and (during the
 	// apply phase) in the plan.

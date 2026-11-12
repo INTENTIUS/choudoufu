@@ -155,6 +155,10 @@ var forkOwnedMixedRoots = []string{
 	"internal/plugin",
 	"internal/plugin6",
 	"internal/plugins",
+	// #2414: data.go, data_read.go and data_validate.go, upstream `#4740`'s
+	// DataResourceType cherry-picked for the datasources fork port, until
+	// upstream's own lands.
+	"internal/resources",
 	"internal/states/statemgr",
 	"internal/tofu",
 	"internal/tracing",

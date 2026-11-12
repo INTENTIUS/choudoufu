@@ -1124,3 +1124,19 @@ data.null_data_source.foo:
   provider = provider["registry.opentofu.org/hashicorp/null"]
   foo = yes
 `
+
+// choudoufu fork port (#2414): upstream #4740's expectation for the new
+// runtime, which tracks the dependency between the two data sources.
+const testTofuRefreshDataRefExperimentalEngineDataStr = `
+data.null_data_source.bar:
+  ID = foo
+  provider = provider["registry.opentofu.org/hashicorp/null"]
+  bar = yes
+
+  Dependencies:
+    data.null_data_source.foo
+data.null_data_source.foo:
+  ID = foo
+  provider = provider["registry.opentofu.org/hashicorp/null"]
+  foo = yes
+`

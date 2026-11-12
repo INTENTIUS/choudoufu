@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/datasources"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/states"
 )
@@ -40,6 +41,9 @@ func TestPreflightInRunEstatesPortSwitch(t *testing.T) {
 
 	t.Run("on", func(t *testing.T) {
 		unset(t)
+		// The datasources port (#2414) admits every other data block; off,
+		// this shows the in-run-estates port admits only its own.
+		t.Setenv(forkport.Switch(datasources.Name), "1")
 		if diags := Preflight(loadConfig(t, estateOutputsFixture), states.NewState(), false); diags.HasErrors() {
 			t.Fatalf("the port is on and terraform_estate_outputs was refused:\n%s", diags.ErrWithWarnings())
 		}

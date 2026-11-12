@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/datasources"
 	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
 	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 	"github.com/intentius/choudoufu/internal/live/newruntime"
@@ -89,6 +90,16 @@ func fallbackProvider() *MockProvider {
 	return p
 }
 
+// dataSourcesRefused switches the datasources fork port (#2414) off for the
+// test, so a data block is still a construct the preflight refuses. These
+// tests exercise the refusal and the fallback, not data sources.
+// choudoufu fork port (#2414): when the port goes, pick another refused
+// construct.
+func dataSourcesRefused(t *testing.T) {
+	t.Helper()
+	t.Setenv(forkport.Switch(datasources.Name), "1")
+}
+
 const fallbackDataConfig = `
 data "test_object" "d" {
   name = "d"
@@ -102,6 +113,7 @@ resource "test_object" "a" {
 // fallback the plan is made on the default runtime and applies there, on the
 // same context, with no second warning. Strict, it is refused.
 func TestNewRuntimeFallback_preflight(t *testing.T) {
+	dataSourcesRefused(t)
 	m := testModuleInline(t, map[string]string{"main.tf": fallbackDataConfig})
 
 	t.Run("fallback", func(t *testing.T) {
@@ -143,6 +155,7 @@ func TestNewRuntimeFallback_preflight(t *testing.T) {
 // applied by another context, as apply PLANFILE does. It has no execution
 // graph, so it applies on the default runtime and says so.
 func TestNewRuntimeFallback_savedPlanApply(t *testing.T) {
+	dataSourcesRefused(t)
 	fallbackOn(t)
 	m := testModuleInline(t, map[string]string{"main.tf": fallbackDataConfig})
 	p := fallbackProvider()
@@ -294,6 +307,7 @@ func TestNewRuntimeFallback_cleanRunsOnNewRuntime(t *testing.T) {
 // fallback warning. Validate on the same configuration takes the default
 // runtime too, and prints nothing about it.
 func TestNewRuntimeFallback_import(t *testing.T) {
+	dataSourcesRefused(t)
 	fallbackOn(t)
 	m := testModuleInline(t, map[string]string{"main.tf": fallbackDataConfig})
 	p := fallbackProvider()
