@@ -21,11 +21,11 @@
 //     sensitive paths and the schema's, as its refresh does. [Action] turns
 //     a NoOp whose sensitivity changed into an Update, as the old runtime
 //     does, so the stored sensitive paths follow the configuration.
-//   - applying stores the provider's new object with no sensitive paths, so
-//     a sensitive argument, or an attribute the schema marks sensitive,
-//     lands in state (and, in live mode, in a record, whose split of secret
-//     material into SSM reads those paths) as if it were not sensitive.
-//     [Stored] marks it as the old runtime's apply does.
+//   - applying stored the provider's new object with no sensitive paths.
+//     That is fixed outside this port, unconditionally, by
+//     internal/engine/applying's storedSensitiveValue: a schema-sensitive
+//     attribute reached state and live-mode records unmarked even where
+//     this row never refused anything, so the fix cannot be switchable.
 //   - planning writes a root output's value into the plan's prior state
 //     still marked, which fails to serialize; [OutputValue] unmarks it and
 //     keeps its sensitivity as the state's flag.
@@ -137,27 +137,6 @@ func Action(action plans.Action, before, after cty.Value) plans.Action {
 		return action
 	}
 	return plans.Update
-}
-
-// Stored returns applied, the provider's new object, marked sensitive where
-// planned was and wherever schema declares an attribute sensitive, and
-// carrying no other mark, so that it encodes into state with its sensitive
-// paths. A path planned that applied no longer has is skipped.
-func Stored(applied, planned cty.Value, schema *configschema.Block) cty.Value {
-	if !Enabled() || applied == cty.NilVal || applied.IsNull() {
-		return applied
-	}
-	applied, _ = applied.UnmarkDeep()
-	var pvms []cty.PathValueMarks
-	if planned != cty.NilVal {
-		_, plannedMarks := planned.UnmarkDeepWithPaths()
-		for _, pvm := range sensitiveOnly(plannedMarks) {
-			if _, err := pvm.Path.Apply(applied); err == nil {
-				pvms = append(pvms, pvm)
-			}
-		}
-	}
-	return mark(applied, pvms, schema)
 }
 
 // OutputValue returns a root output value ready to store in a state: with

@@ -363,3 +363,72 @@ func TestNewRuntimeSensitive_sensitivityOnlyChangeUpdates(t *testing.T) {
 	}
 	assertSensitivePaths(t, "state after the sensitivity update", sensitivePathsOf(rs.Current.AttrSensitivePaths), sensitiveNestedTokenPath, sensitiveNestedPasswordPath)
 }
+
+// TestNewRuntimeApply_schemaSensitiveStoredWithPortsOff: an attribute the
+// provider schema marks sensitive, shaped like random_password.result, is
+// stored with its sensitive path on the new runtime even with the sensitive
+// fork port, or every fork port, switched off. The configuration has no
+// sensitive construct, so the gap table never refused it: before the fix in
+// internal/engine/applying (storedSensitiveValue) the stored object carried
+// no sensitive path, and in live mode the record written from it had no
+// SensitiveAttrs, which keeps the value out of the SSM secret split. A leak
+// fix, so it is not switchable.
+func TestNewRuntimeApply_schemaSensitiveStoredWithPortsOff(t *testing.T) {
+	for _, env := range []string{forkport.Switch(sensitive.Name), forkport.AllOff} {
+		t.Run(env, func(t *testing.T) {
+			toggleOn(t)
+			strictOn(t)
+			t.Setenv(env, "1")
+			m := testModuleInline(t, map[string]string{"main.tf": `
+resource "test_password" "p" {
+  length = 16
+}
+`})
+			p := &MockProvider{
+				GetProviderSchemaResponse: &providers.GetProviderSchemaResponse{
+					Provider: providers.Schema{Block: &configschema.Block{}},
+					ResourceTypes: map[string]providers.Schema{
+						"test_password": {Block: &configschema.Block{
+							Attributes: map[string]*configschema.Attribute{
+								"id":     {Type: cty.String, Computed: true},
+								"length": {Type: cty.Number, Required: true},
+								"result": {Type: cty.String, Computed: true, Sensitive: true},
+							},
+						}},
+					},
+				},
+			}
+			p.PlanResourceChangeFn = func(req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
+				if req.ProposedNewState.IsNull() {
+					return providers.PlanResourceChangeResponse{PlannedState: req.ProposedNewState}
+				}
+				attrs := req.ProposedNewState.AsValueMap()
+				if req.PriorState.IsNull() {
+					attrs["id"] = cty.UnknownVal(cty.String)
+					attrs["result"] = cty.UnknownVal(cty.String)
+				}
+				return providers.PlanResourceChangeResponse{PlannedState: cty.ObjectVal(attrs)}
+			}
+			p.ApplyResourceChangeFn = func(req providers.ApplyResourceChangeRequest) providers.ApplyResourceChangeResponse {
+				attrs := req.PlannedState.AsValueMap()
+				attrs["id"] = cty.StringVal("pw-id")
+				attrs["result"] = cty.StringVal("hunter2-hunter2!")
+				return providers.ApplyResourceChangeResponse{NewState: cty.ObjectVal(attrs)}
+			}
+			ctx := sensitiveNestedContext(t, p)
+			plan, diags := ctx.Plan(context.Background(), m, states.NewState(), DefaultPlanOpts)
+			assertNoErrors(t, diags)
+			if len(plan.ExecutionGraph) == 0 {
+				t.Fatal("the plan was not made by the new runtime; this test proves nothing")
+			}
+			state, diags := ctx.Apply(context.Background(), plan, m, nil)
+			assertNoErrors(t, diags)
+			addr := mustResourceInstanceAddr("test_password.p")
+			rs := state.ResourceInstance(addr)
+			if rs == nil || rs.Current == nil {
+				t.Fatalf("no applied object for %s", addr)
+			}
+			assertSensitivePaths(t, "stored object with "+env+"=1", sensitivePathsOf(rs.Current.AttrSensitivePaths), cty.GetAttrPath("result"))
+		})
+	}
+}
