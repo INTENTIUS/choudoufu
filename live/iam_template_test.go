@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -1403,6 +1404,27 @@ func TestIAMRendererRefusesABucketOrKeyThatIsNotOne(t *testing.T) {
 	} {
 		if out, err := exec.Command("bash", append([]string{iamRenderer}, bad...)...).CombinedOutput(); err == nil {
 			t.Errorf("render-policy.sh accepted %v:\n%s", bad, out)
+		}
+	}
+}
+
+// TestIAMRenderingGrantsEverySSMCallTheStoreMakes is GitHub issue #2393's
+// guard on the SSM half: every method of projection.SSMSecretsAPI, the
+// whole of what the secrets store can ask SSM, is an action the full
+// --ssm-path rendering allows. The store once called DescribeParameters
+// and DeleteParameters while the policy granted GetParametersByPath and
+// DeleteParameter, so the orphan sweep and every superseded-value delete
+// were denied under the published policy, and nothing noticed because the
+// store treats a failed superseded delete as an orphan for the sweep.
+func TestIAMRenderingGrantsEverySSMCallTheStoreMakes(t *testing.T) {
+	full := iamAllowedActions(t, renderIAMPolicy(t, "prod", iamBucket, "--ssm-path", iamSSMPath, "--ssm-kms", iamKMSKey))
+	api := reflect.TypeOf((*projection.SSMSecretsAPI)(nil)).Elem()
+	if api.NumMethod() == 0 {
+		t.Fatal("SSMSecretsAPI has no methods, so this test checks nothing")
+	}
+	for i := 0; i < api.NumMethod(); i++ {
+		if a := "ssm:" + api.Method(i).Name; !full[a] {
+			t.Errorf("the secrets store calls %s and the full rendering with --ssm-path does not allow it", a)
 		}
 	}
 }

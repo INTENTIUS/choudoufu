@@ -24,6 +24,10 @@ type SweepResult struct {
 	// Young is the unreferenced parameters left because they are inside
 	// the grace period: a writer may be about to commit them.
 	Young []string
+	// Orphans is the unreferenced parameters older than the grace period:
+	// what [SSMSecretsStore.SweepOrphans] deletes and
+	// [SSMSecretsStore.ListOrphans] only names.
+	Orphans []string
 	// Deleted is the orphans deleted.
 	Deleted []string
 }
@@ -75,6 +79,17 @@ func (e *SweepOrphanSecretsAbortedError) Error() string {
 // A record that cannot be read or decoded stops the sweep before it
 // deletes anything: it may reference anything.
 func (s *SSMSecretsStore) SweepOrphans(ctx context.Context) (SweepResult, error) {
+	return s.sweep(ctx, true)
+}
+
+// ListOrphans is [SSMSecretsStore.SweepOrphans] without the delete: the
+// same reads, the same three-way split, and nothing written. It is
+// live-secrets' default.
+func (s *SSMSecretsStore) ListOrphans(ctx context.Context) (SweepResult, error) {
+	return s.sweep(ctx, false)
+}
+
+func (s *SSMSecretsStore) sweep(ctx context.Context, del bool) (SweepResult, error) {
 	var res SweepResult
 	start := s.cfg.Now()
 
@@ -122,13 +137,15 @@ func (s *SSMSecretsStore) SweepOrphans(ctx context.Context) (SweepResult, error)
 		orphans = append(orphans, name)
 	}
 	sort.Strings(res.Young)
-	if len(orphans) == 0 {
+	sort.Strings(orphans)
+	res.Orphans = orphans
+	if len(orphans) == 0 || !del {
 		return res, nil
 	}
 	if elapsed, bound := s.cfg.Now().Sub(start), s.cfg.Grace/2; elapsed >= bound {
 		return res, &SweepOrphanSecretsAbortedError{Elapsed: elapsed, Bound: bound}
 	}
-	deleted, err := s.deleteParameters(ctx, orphans)
+	deleted, err := s.deleteParameters(ctx, append([]string(nil), orphans...))
 	res.Deleted = deleted
 	sort.Strings(res.Deleted)
 	if err != nil {
@@ -142,23 +159,25 @@ func (s *SSMSecretsStore) sweepRefs(payload []byte) ([]secretRef, error) {
 	return rawRefs(payload)
 }
 
-// describeNamespace lists every parameter under this store's namespace,
-// metadata only: the sweep never decrypts.
-func (s *SSMSecretsStore) describeNamespace(ctx context.Context) ([]ssmtypes.ParameterMetadata, error) {
-	var out []ssmtypes.ParameterMetadata
+// describeNamespace lists every parameter under this store's namespace
+// with GetParametersByPath and no decryption: the sweep needs each name and
+// its LastModifiedDate, and a SecureString comes back as ciphertext, so the
+// sweep never decrypts and needs no kms:Decrypt. GetParametersByPath, not
+// DescribeParameters, because the published policy can scope it to the path
+// (see [SSMSecretsAPI]).
+func (s *SSMSecretsStore) describeNamespace(ctx context.Context) ([]ssmtypes.Parameter, error) {
+	var out []ssmtypes.Parameter
 	var token *string
 	for {
-		var resp *ssm.DescribeParametersOutput
-		err := s.retry(ctx, "DescribeParameters", func() error {
+		var resp *ssm.GetParametersByPathOutput
+		err := s.retry(ctx, "GetParametersByPath", func() error {
 			var err error
-			resp, err = s.cfg.Client.DescribeParameters(ctx, &ssm.DescribeParametersInput{
-				ParameterFilters: []ssmtypes.ParameterStringFilter{{
-					Key:    aws.String("Path"),
-					Option: aws.String("Recursive"),
-					Values: []string{s.ns},
-				}},
-				MaxResults: aws.Int32(50),
-				NextToken:  token,
+			resp, err = s.cfg.Client.GetParametersByPath(ctx, &ssm.GetParametersByPathInput{
+				Path:           aws.String(s.ns),
+				Recursive:      aws.Bool(true),
+				WithDecryption: aws.Bool(false),
+				MaxResults:     aws.Int32(10),
+				NextToken:      token,
 			})
 			return err
 		})
