@@ -302,3 +302,94 @@ resource "test_object" "b" {
 		t.Errorf("test_object.b applied as %s, want %s", got.Current.AttrsJSON, want)
 	}
 }
+
+// valueReadingResolver stands in for live mode's NodeResolver on one
+// instance: it derives the import ID from the evaluated test_string the way
+// identity.ComponentsFromValue derives a config-identified type's identity,
+// and refuses ("No source for this instance's identity") when that value is
+// unknown or marked, as ComponentsFromValue does. Every other address has
+// nothing to say.
+type valueReadingResolver struct {
+	addr addrs.AbsResourceInstance
+	got  []string
+}
+
+func (r *valueReadingResolver) ResolveResourceIdentity(_ context.Context, addr addrs.AbsResourceInstance, config cty.Value, _ providers.Schema) (providers.ImportTarget, bool, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	if !addr.Equal(r.addr) {
+		return providers.ImportTarget{}, false, nil
+	}
+	v := config.GetAttr("test_string")
+	if !v.IsKnown() || v.IsNull() || v.IsMarked() {
+		return providers.ImportTarget{}, false, diags.Append(tfdiags.Sourceless(tfdiags.Error, "No source for this instance's identity",
+			addr.String()+": test_string is "+v.GoString()))
+	}
+	r.got = append(r.got, v.AsString())
+	return providers.ImportTarget{ID: v.AsString()}, true, nil
+}
+
+// testResolverDerivesIdentityFromSiblingAttr: test_object.b's identity
+// argument interpolates test_object.a's test_string, which is not an
+// identity attribute of a's, and a is planned for a change (an update of a
+// prior object, or a create). The new runtime marks every part of a's
+// planned value that changes with objchange.PendingChange, and the mark
+// followed the reference into b's configuration, so the resolver saw a
+// marked name and refused with "No source for this instance's identity"
+// (reference-k8s day2_crash, the deposed leg's crash_rename_read on #2256).
+// The old runtime hands the resolver the plain value. Either way the
+// resolver must see "b-sfx", and b, absent, plans a create.
+func testResolverDerivesIdentityFromSiblingAttr(t *testing.T, newRuntime bool) {
+	m := testModuleInline(t, map[string]string{"main.tf": `
+resource "test_object" "a" {
+  test_string = "sfx"
+}
+
+resource "test_object" "b" {
+  test_string = "b-${test_object.a.test_string}"
+}
+`})
+	a := mustResourceInstanceAddr("test_object.a")
+	b := mustResourceInstanceAddr("test_object.b")
+	provider := addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("test"), Module: addrs.RootModule}
+	priors := map[string]*states.State{
+		"a exists": states.BuildState(func(s *states.SyncState) {
+			s.SetResourceInstanceCurrent(a, &states.ResourceInstanceObjectSrc{Status: states.ObjectReady, AttrsJSON: []byte(`{"test_string":"old"}`)}, provider, addrs.NoKey)
+		}),
+		"a new": states.NewState(),
+	}
+	for name, prior := range priors {
+		t.Run(name, func(t *testing.T) {
+			p := newRuntimeIdentityProvider()
+			resolver := &valueReadingResolver{addr: b}
+			opts := *DefaultPlanOpts
+			opts.SkipRefresh = true
+			ctx := newRuntimeIdentityContext(t, p, resolver)
+			plan, diags := ctx.Plan(context.Background(), m, prior, &opts)
+			assertNoErrors(t, diags)
+			if hasNewRuntimeWarning(diags) != newRuntime {
+				t.Fatalf("the plan ran on the wrong runtime (new runtime warning: %t); diagnostics:\n%s", !newRuntime, diags.ErrWithWarnings())
+			}
+			if len(resolver.got) != 1 || resolver.got[0] != "b-sfx" {
+				t.Fatalf("the resolver derived %q for %s, want [\"b-sfx\"]", resolver.got, b)
+			}
+			change := plan.Changes.ResourceInstance(b)
+			if change == nil || change.Action != plans.Create || change.Importing != nil {
+				t.Fatalf("%s planned %v, want a plain create", b, change)
+			}
+		})
+	}
+}
+
+func TestNewRuntimeResolverDerivesIdentityFromSiblingAttr(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
+	forceExperimentalRuntimeForTesting(t)
+	testResolverDerivesIdentityFromSiblingAttr(t, true)
+}
+
+// The toggle-off twin. The variable is cleared so the experimental lane,
+// which sets it for the whole package, still runs this on the old runtime.
+func TestOldRuntimeResolverDerivesIdentityFromSiblingAttr(t *testing.T) {
+	showNewRuntimeWarningForTesting(t)
+	t.Setenv(newruntime.Variable, "")
+	testResolverDerivesIdentityFromSiblingAttr(t, false)
+}

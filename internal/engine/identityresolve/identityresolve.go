@@ -33,8 +33,10 @@ import (
 
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
+	"github.com/zclconf/go-cty/cty/ctymarks"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/configadjust"
 	"github.com/intentius/choudoufu/internal/live/absent"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -50,7 +52,8 @@ type ResourceIdentityResolver interface {
 
 // Resolve asks r about one instance. It loads the schema only when r is not
 // nil, and reports found only for a target that names something (an ID or an
-// identity object), the same test NodeResolver's own steps apply.
+// identity object), the same test NodeResolver's own steps apply. config
+// reaches r with the engine's own marks removed ([PeelEngineMarks]).
 func Resolve(
 	ctx context.Context,
 	r ResourceIdentityResolver,
@@ -67,7 +70,7 @@ func Resolve(
 	if diags.HasErrors() || schema.Block == nil {
 		return providers.ImportTarget{}, false, diags
 	}
-	target, found, moreDiags := r.ResolveResourceIdentity(ctx, addr, config, schema)
+	target, found, moreDiags := r.ResolveResourceIdentity(ctx, addr, PeelEngineMarks(config), schema)
 	diags = diags.Append(moreDiags)
 	if diags.HasErrors() || !found {
 		return providers.ImportTarget{}, false, diags
@@ -76,6 +79,44 @@ func Resolve(
 		return providers.ImportTarget{}, false, diags
 	}
 	return target, true, diags
+}
+
+// PeelEngineMarks removes every mark on config, at any depth, that is not one
+// of the language's own (configadjust.IsLanguageMark): the new runtime's
+// bookkeeping, chiefly objchange.PendingChange.
+//
+// The new runtime marks each part of a resource instance's planned value
+// that the plan changes with PendingChange, and a reference carries the mark
+// into whatever reads it. So a resource whose identity argument interpolates
+// a sibling's ordinary attribute ("crash-read-${a.data["suffix"]}"), while
+// that sibling is being created or updated, reaches the resolver with a
+// known string marked on that one attribute. NodeResolver refuses a marked
+// identity value, because a marked value may be sensitive
+// (identity.ComponentsFromValue), so the instance failed with "No source for
+// this instance's identity" (reference-k8s day2_crash on #2256). The old
+// runtime puts no such mark on the value it hands the resolver. The value is
+// the planned one either way; the mark only says it is not applied yet, which
+// says nothing about the identity it names.
+//
+// The language's marks (Sensitive, Ephemeral, deprecation) stay, so a
+// sensitive identity argument is still refused. configadjust's peel removes
+// only the marks on the whole value, because a marker adjuster's own
+// attribute marks are its business; the resolver reads attributes, so it
+// needs them gone at depth.
+func PeelEngineMarks(config cty.Value) cty.Value {
+	if config == cty.NilVal || !config.ContainsMarked() {
+		return config
+	}
+	peeled, err := config.WrangleMarksDeep(func(mark any, _ cty.Path) (ctymarks.WrangleAction, error) {
+		if configadjust.IsLanguageMark(mark) {
+			return nil, nil
+		}
+		return ctymarks.WrangleDrop, nil
+	})
+	if err != nil {
+		return config
+	}
+	return peeled
 }
 
 // importSyntheticAbsentSummaries are the import path's own diagnostics that

@@ -221,7 +221,7 @@ func peelEngineMarks(config cty.Value) (cty.Value, cty.ValueMarks) {
 	keep := make(cty.ValueMarks, len(all))
 	peeled := make(cty.ValueMarks, len(all))
 	for m := range all {
-		if isLanguageMark(m) {
+		if IsLanguageMark(m) {
 			keep[m] = struct{}{}
 		} else {
 			peeled[m] = struct{}{}
@@ -234,9 +234,10 @@ func peelEngineMarks(config cty.Value) (cty.Value, cty.ValueMarks) {
 // of its mark values so it follows the module path.
 var languageMarksPkg = reflect.TypeOf(marks.Sensitive).PkgPath()
 
-// isLanguageMark reports whether m is one of the language's own marks,
-// declared in internal/lang/marks.
-func isLanguageMark(m any) bool {
+// IsLanguageMark reports whether m is one of the language's own marks,
+// declared in internal/lang/marks. Every other mark on a configuration value
+// is the new runtime's bookkeeping (package identityresolve peels those too).
+func IsLanguageMark(m any) bool {
 	t := reflect.TypeOf(m)
 	if t == nil {
 		return false
