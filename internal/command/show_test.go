@@ -1447,6 +1447,11 @@ type plan struct {
 	PriorState      priorState     `json:"prior_state"`
 	Config          map[string]any `json:"configuration,omitempty"`
 	Errored         bool           `json:"errored"`
+
+	// choudoufu fork port (#2410): remove when upstream #4390 lands. The
+	// plan's check results, which the comparison ignored without this. (The
+	// fixtures' "condition_results" is a field plans no longer have.)
+	Checks []any `json:"checks,omitempty"`
 }
 
 type priorState struct {

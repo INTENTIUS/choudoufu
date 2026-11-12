@@ -32,15 +32,23 @@ import (
 // with the severity checkrules.Report gives for the phase. checkBlock is
 // true for check block assertions. It returns the dependency marks of the
 // condition results, for the caller to carry onto what the rules guard,
-// and whether any rule failed, reported or not.
-func forkCheckRules(ctx context.Context, rules []*configgraph.CheckRule, what string, checkBlock bool) (_ cty.ValueMarks, _ tfdiags.Diagnostics, failed bool) {
+// and whether any rule failed, reported or not. Each result is recorded
+// (C3, #2410) as the rule of ruleType at its index of obj.
+func forkCheckRules(ctx context.Context, rules []*configgraph.CheckRule, what string, checkBlock bool, obj addrs.Checkable, ruleType addrs.CheckRuleType) (_ cty.ValueMarks, _ tfdiags.Diagnostics, failed bool) {
 	severity, report := checkrules.Report(ctx, checkBlock)
 	var diags tfdiags.Diagnostics
 	ruleMarks := make(cty.ValueMarks)
-	for _, rule := range rules {
+	for i, rule := range rules {
 		status, moreMarks, moreDiags := rule.Check(ctx)
 		maps.Copy(ruleMarks, moreMarks)
 		diags = diags.Append(moreDiags)
+		if checkrules.PhaseOf(ctx) == checkrules.Validate {
+			// The default runtime's validate also evaluates each error
+			// message, with unknown values, to report what is invalid in it.
+			_, moreDiags := rule.ErrorMessageValuer.Value(ctx)
+			diags = diags.Append(moreDiags)
+		}
+		var msg string
 		switch status {
 		case checks.StatusUnknown:
 			// A condition unknown because what it reads failed to evaluate
@@ -56,9 +64,10 @@ func forkCheckRules(ctx context.Context, rules []*configgraph.CheckRule, what st
 		case checks.StatusFail:
 			failed = true
 			if !report {
-				continue
+				break
 			}
-			msg, moreDiags := rule.ErrorMessage(ctx)
+			var moreDiags tfdiags.Diagnostics
+			msg, moreDiags = rule.ErrorMessage(ctx)
 			diags = diags.Append(moreDiags)
 			if msg == "" {
 				msg = "This check failed, but has an invalid error message as described in the other accompanying messages."
@@ -70,6 +79,7 @@ func forkCheckRules(ctx context.Context, rules []*configgraph.CheckRule, what st
 				Subject:  rule.ConditionRange().ToHCL().Ptr(),
 			})
 		}
+		checkrules.Record(ctx, obj, ruleType, i, status, msg)
 	}
 	configgraph.RemoveNonDependencyMarks(ruleMarks)
 	return ruleMarks, diags, failed
@@ -81,12 +91,13 @@ func forkCheckRules(ctx context.Context, rules []*configgraph.CheckRule, what st
 // leaves the configuration unevaluated, and blocked then reports true, so
 // that the instance's result is not asked of the planning or apply engine:
 // the default runtime does not call the provider for it either.
-func forkGuardPreconditions(config *configs.Resource, localScope exprs.Scope, inner exprs.Valuer) (_ exprs.Valuer, blocked func() bool) {
+func forkGuardPreconditions(config *configs.Resource, localScope exprs.Scope, addr addrs.AbsResourceInstance, inner exprs.Valuer) (_ exprs.Valuer, blocked func() bool) {
 	if !checkrules.Enabled() || len(config.Preconditions) == 0 {
 		return inner, func() bool { return false }
 	}
 	g := &forkPreconditionGuard{
 		rules: slices.Collect(compileCheckRules(config.Preconditions, localScope)),
+		addr:  addr,
 		inner: inner,
 	}
 	return g, g.failed.Load
@@ -94,6 +105,7 @@ func forkGuardPreconditions(config *configs.Resource, localScope exprs.Scope, in
 
 type forkPreconditionGuard struct {
 	rules  []*configgraph.CheckRule
+	addr   addrs.AbsResourceInstance
 	inner  exprs.Valuer
 	failed atomic.Bool
 }
@@ -109,7 +121,7 @@ func (g *forkPreconditionGuard) ValueSourceRange() *tfdiags.SourceRange {
 }
 
 func (g *forkPreconditionGuard) Value(ctx context.Context) (cty.Value, tfdiags.Diagnostics) {
-	ruleMarks, diags, failed := forkCheckRules(ctx, g.rules, "Resource precondition", false)
+	ruleMarks, diags, failed := forkCheckRules(ctx, g.rules, "Resource precondition", false, g.addr, addrs.ResourcePrecondition)
 	if diags.HasErrors() {
 		g.failed.Store(true)
 		return exprs.AsEvalError(cty.DynamicVal), diags
@@ -147,7 +159,7 @@ func forkPostconditions(config *configs.Resource, localScope exprs.Scope, addr a
 		}
 		scope := selfScope(localScope, configgraph.WithoutResourceInstanceDependency(result, addr), selfIdent, selfName)
 		rules := slices.Collect(compileCheckRules(config.Postconditions, scope))
-		_, diags, _ := forkCheckRules(ctx, rules, "Resource postcondition", false)
+		_, diags, _ := forkCheckRules(ctx, rules, "Resource postcondition", false, addr, addrs.ResourcePostcondition)
 		return diags
 	}
 }
@@ -177,6 +189,6 @@ func forkCompileCheckBlocks(checkConfigs map[string]*configs.Check, scope exprs.
 
 // CheckAll is called by the module instance's CheckAll walk.
 func (c *forkCheckBlock) CheckAll(ctx context.Context) tfdiags.Diagnostics {
-	_, diags, _ := forkCheckRules(ctx, c.rules, "Check block assertion", true)
+	_, diags, _ := forkCheckRules(ctx, c.rules, "Check block assertion", true, c.addr, addrs.CheckAssertion)
 	return diags
 }

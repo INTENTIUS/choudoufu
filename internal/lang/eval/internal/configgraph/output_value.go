@@ -95,9 +95,13 @@ func (o *OutputValue) Value(ctx context.Context) (cty.Value, tfdiags.Diagnostics
 	// TODO: We probably need to find some way to collect up check results for
 	// inclusion in the checks summary in the plan or state, but for now we're
 	// not worrying about that because it's pretty rarely-used functionality.
+	//
+	// choudoufu fork port (#2410): remove when upstream #4390 lands. The
+	// checkrules port records them and reports failures as the default
+	// runtime does (forkOutputPreconditions).
 	preconditionMarks, moreDiags := CheckAllRules(ctx,
 		slices.Values(o.Preconditions),
-		func(ruleDeclRange tfdiags.SourceRange, status checks.Status, errMsg string) tfdiags.Diagnostics {
+		forkOutputPreconditions(ctx, o, func(ruleDeclRange tfdiags.SourceRange, status checks.Status, errMsg string) tfdiags.Diagnostics {
 			var diags tfdiags.Diagnostics
 			if status == checks.StatusFail {
 				diags = diags.Append(&hcl.Diagnostic{
@@ -108,7 +112,7 @@ func (o *OutputValue) Value(ctx context.Context) (cty.Value, tfdiags.Diagnostics
 				})
 			}
 			return diags
-		},
+		}),
 	)
 	diags = diags.Append(moreDiags)
 
@@ -118,7 +122,10 @@ func (o *OutputValue) Value(ctx context.Context) (cty.Value, tfdiags.Diagnostics
 		return exprs.AsEvalError(cty.UnknownVal(o.TargetType.WithoutOptionalAttributesDeep())).WithMarks(preconditionMarks), diags
 	}
 
-	rawV, diags := o.RawValue.Value(ctx)
+	// choudoufu fork port (#2410): remove when upstream #4390 lands. Keep
+	// the preconditions' warnings, which a refresh-only plan reports.
+	rawV, moreDiags := o.RawValue.Value(ctx)
+	diags = diags.Append(moreDiags)
 	if o.TargetDefaults != nil {
 		rawV = o.TargetDefaults.Apply(rawV)
 	}

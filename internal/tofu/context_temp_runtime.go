@@ -349,7 +349,10 @@ func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, pre
 		return nil, diags.Append(moreDiags)
 	}
 
-	plan, moreDiags := planning.PlanChanges(ctx, newOpts, prevRoundState, configInst, plugins)
+	// choudoufu fork port (#2410): remove when upstream #4390 lands. The
+	// plan's check results (C3), as the default runtime's walk records them.
+	checkResults := checkrules.NewResults(opts.Mode == plans.DestroyMode)
+	plan, moreDiags := planning.PlanChanges(checkrules.WithResults(ctx, checkResults), newOpts, prevRoundState, configInst, plugins)
 	// choudoufu fork port (#2381): remove when the row closes.
 	if err := cancel.Halted(c.sh.Stopped()); err != nil {
 		moreDiags = moreDiags.Append(err)
@@ -366,6 +369,9 @@ func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, pre
 		// them. The destroy-target row needs them, and they are the same
 		// value Context.Plan writes afterwards.
 		plan.TargetAddrs = opts.Targets
+		if checkrules.Enabled() { // choudoufu fork port (#2410): remove when upstream #4390 lands
+			plan.Checks = checkResults.CheckResults(config)
+		}
 	}
 	diags = diags.Append(moreDiags)
 	return plan, diags
@@ -518,7 +524,14 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 		}
 		return errors.Join(errs...)
 	}
-	newState, moreDiags := applying.ApplyPlannedChanges(ctx, plan, configInst, plugins, persistState, &applying.ApplyOpts{
+	// choudoufu fork port (#2410): remove when upstream #4390 lands. The
+	// state's check results (C3), as the default runtime's walk records them.
+	// The apply of a destroy plan reports no condition failures.
+	checkResults := checkrules.NewResults(plan.UIMode == plans.DestroyMode)
+	if plan.UIMode == plans.DestroyMode {
+		ctx = checkrules.WithPhase(ctx, checkrules.DestroyApply)
+	}
+	newState, moreDiags := applying.ApplyPlannedChanges(checkrules.WithResults(ctx, checkResults), plan, configInst, plugins, persistState, &applying.ApplyOpts{
 		ConfigValueAdjuster: c.configValueAdjuster,
 		InstanceStateUpdate: c.newEngineInstanceStateUpdate, // choudoufu: #2341
 		// choudoufu fork port (#2370): remove when upstream #4058 lands.
@@ -532,6 +545,15 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 	// choudoufu fork port (#2381): remove when the row closes.
 	if err := cancel.Halted(c.sh.Stopped()); err != nil {
 		diags = diags.Append(err)
+	}
+	// choudoufu fork port (#2410): remove when upstream #4390 lands. A
+	// refresh-only plan's apply keeps the plan's results, as the default
+	// runtime's Context.Apply does.
+	if newState != nil && checkrules.Enabled() {
+		newState.CheckResults = checkResults.CheckResults(config)
+		if plan.UIMode == plans.RefreshOnlyMode {
+			newState.CheckResults = plan.Checks.DeepCopy()
+		}
 	}
 
 	if len(plan.TargetAddrs) > 0 || len(plan.ExcludeAddrs) > 0 {

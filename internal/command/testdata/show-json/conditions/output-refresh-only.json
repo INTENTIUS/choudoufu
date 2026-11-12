@@ -169,5 +169,64 @@
       "unknown": false,
       "error_message": "Invalid AMI ID: must start with \"ami-\"."
     }
+  ],
+  "checks": [
+    {
+      "address": {
+        "kind": "output_value",
+        "name": "foo_id",
+        "to_display": "output.foo_id"
+      },
+      "status": "pass",
+      "instances": [
+        {
+          "address": {
+            "to_display": "output.foo_id"
+          },
+          "status": "pass"
+        }
+      ]
+    },
+    {
+      "address": {
+        "kind": "resource",
+        "mode": "managed",
+        "name": "bar",
+        "to_display": "test_instance.bar",
+        "type": "test_instance"
+      },
+      "status": "pass",
+      "instances": [
+        {
+          "address": {
+            "to_display": "test_instance.bar"
+          },
+          "status": "pass"
+        }
+      ]
+    },
+    {
+      "address": {
+        "kind": "resource",
+        "mode": "managed",
+        "name": "foo",
+        "to_display": "test_instance.foo",
+        "type": "test_instance"
+      },
+      "status": "fail",
+      "instances": [
+        {
+          "address": {
+            "to_display": "test_instance.foo"
+          },
+          "status": "fail",
+          "problems": [
+            {
+              "message": "Invalid AMI ID: must start with \"ami-\"."
+            }
+          ]
+        }
+      ]
+    }
   ]
 }

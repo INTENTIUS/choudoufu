@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
 	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 )
@@ -104,9 +105,9 @@ var (
 	ExperimentalChangeImportValid     = ExperimentalFlag{"Import command requires a configuration that can pass validate", false}
 
 	ExperimentalFeatureDeposed         = ExperimentalFlag{"Missing Deposed", true}
-	ExperimentalFeatureCondition       = ExperimentalFlag{"Missing Pre/Post Conditions", false}
+	ExperimentalFeatureCondition       = ExperimentalFlag{"Missing Pre/Post Conditions", forkport.Enabled(checkrules.Name)} // choudoufu fork port (#2410): remove when upstream #4390 lands
 	ExperimentalFeatureLocalState      = ExperimentalFlag{"Missing Store locals in state", false}
-	ExperimentalFeatureChecks          = ExperimentalFlag{"Missing Checks", false}
+	ExperimentalFeatureChecks          = ExperimentalFlag{"Missing Checks", forkport.Enabled(checkrules.Name)} // choudoufu fork port (#2410): remove when upstream #4390 lands
 	ExperimentalFeatureChanges         = ExperimentalFlag{"Missing Plan Changes", true}
 	ExperimentalFeatureDeprecated      = ExperimentalFlag{"Missing Deprecated", false}
 	ExperimentalFeatureImport          = ExperimentalFlag{"Missing Importing", true}
