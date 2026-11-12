@@ -1273,7 +1273,7 @@ EOF
     F_FINAL_PLAN_OUT="$(cd "$ADOPTED" && "$TOFU" plan -input=false -no-color 2>&1)"; F_FINAL_PLAN_RC=$?
     [ "$F_FINAL_PLAN_RC" -eq 0 ] || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -40; fail "the post-replace plan exited $F_FINAL_PLAN_RC"; }
     grep -qF "No changes. Your infrastructure matches the configuration." <<< "$F_FINAL_PLAN_OUT" \
-      || { grep -E '^  #' <<< "$F_FINAL_PLAN_OUT"; fail "the post-replace plan is not empty"; }
+      || { printf '%s\n' "$F_FINAL_PLAN_OUT" | tail -60; fail "the post-replace plan is not empty"; }
     log "  no resource action proposed, no marker collision. The replace is complete and invisible to the next plan."
 
     ASG_SG_ID="$F_NEW_ID"
