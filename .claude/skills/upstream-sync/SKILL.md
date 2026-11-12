@@ -206,11 +206,15 @@ Toggle semantics. Confirm these still hold after the merge:
 |---|---|---|
 | `TOFU_X_EXPERIMENTAL_RUNTIME` | plan and apply (`experimentalRuntimeEnabled` in `internal/tofu/context_temp_runtime.go`) | every build, release included (U2) |
 | `TOFU_X_EXPERIMENTAL_RUNTIME_NEXT` | the command layer (`Meta.NewRuntimeEnabled` in `internal/command/temp_new_runtime.go`) | closed when `version.IsReleaseBuild()` |
+| `CHOUDOUFU_NEW_RUNTIME_STRICT` | refuse instead of falling back to the default runtime (#2397, `newruntime.Strict`); the lane and any toggle-on measurement set it | every build |
 
 Live mode runs under the first since U6, and is still refused under the
 second (`liveRefusesNewRuntime` in `internal/command/live_new_runtime_guard.go`).
 The warning comes only from `newEnginePlan` and `newEngineApply`, never from
-`newEngineShim`; the post-plan check is `newRuntimePostPlan`.
+`newEngineShim`; the post-plan check is `newRuntimePostPlan`. Without the
+strict switch, a run a gap row refuses falls back to the default runtime in
+`Context.Plan` and prints `newruntime.FallbackWarning` instead (#2397), and
+`Context.Apply` follows the plan's shape (an execution graph or not).
 
 ```
 git diff <prev-graft> <new-graft> -- internal/tofu/context_temp_runtime.go internal/command/temp_new_runtime.go internal/command/meta.go
@@ -255,7 +259,7 @@ Read verdict lines, never exit codes.
 
    ```
    go test ./internal/command -run 'TestLiveRefusesNewRuntime_|TestNewRuntimeEnabledClosedInReleaseBuild|TestLiveModeCreateCycleOnNewRuntime'
-   go test ./internal/tofu -run 'TestContextLiveOnNewRuntime|TestExperimentalRuntimeToggleInReleaseBuild|TestNewRuntimeToggle_|TestNewRuntimeAdjuster|TestNewRuntimeApply_appliedMarker|TestNewRuntimeReplace|TestContextDestroyFromConfigNewRuntime|TestNewRuntimeResolver'
+   go test ./internal/tofu -run 'TestContextLiveOnNewRuntime|TestExperimentalRuntimeToggleInReleaseBuild|TestNewRuntimeToggle_|TestNewRuntimeFallback_|TestNewRuntimeAdjuster|TestNewRuntimeApply_appliedMarker|TestNewRuntimeReplace|TestContextDestroyFromConfigNewRuntime|TestNewRuntimeResolver'
    go test ./internal/live/newruntime ./tools/expruntime-ratchet
    ```
 
@@ -328,10 +332,12 @@ lines, one per runtime:
 
 ```
 cd <measure worktree> && gauntlet run -parallel 3 <names>
-cd <measure worktree> && TOFU_X_EXPERIMENTAL_RUNTIME=1 gauntlet run -parallel 3 <names>
+cd <measure worktree> && TOFU_X_EXPERIMENTAL_RUNTIME=1 CHOUDOUFU_NEW_RUNTIME_STRICT=1 gauntlet run -parallel 3 <names>
 ```
 
-Then read `live/gauntlet/logs`. Under the toggle, the data-source preflight
+Then read `live/gauntlet/logs`. The strict switch keeps a gap from falling
+back to the default runtime, which would measure the wrong runtime (#2397).
+Under the toggle, the data-source preflight
 refuses any estate with a `data` block, by design (gap row `data-sources`,
 waiting on `#4058` and `#4740`). That refusal is the expected result for
 such an estate, not a regression. Pick at least one estate without data

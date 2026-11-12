@@ -98,6 +98,32 @@ func experimentalRuntimeWanted() bool {
 	return optIn != ""
 }
 
+// newRuntimeThisRun reports whether the current plan, validate or import
+// runs on the new runtime: the toggle is on, the context was not built for
+// the default runtime, and the run has not fallen back (#2397). Every
+// runtime decision inside a plan asks this, not experimentalRuntimeEnabled,
+// so a fallback run takes the default runtime's path throughout.
+func (c *Context) newRuntimeThisRun() bool {
+	return experimentalRuntimeEnabled() && !c.defaultRuntime && c.fallbackRows == nil
+}
+
+// newRuntimeMayFallBack reports whether a run the new runtime cannot handle
+// falls back to the default runtime (#2397) rather than being refused: the
+// toggle is on and CHOUDOUFU_NEW_RUNTIME_STRICT is not set.
+func (c *Context) newRuntimeMayFallBack() bool {
+	return experimentalRuntimeEnabled() && !c.defaultRuntime && !newruntime.Strict()
+}
+
+// defaultShapedPlanSummary is the summary of the warning Apply gives when the
+// toggle is on and the plan was made by the default runtime (#2397).
+const defaultShapedPlanSummary = "Applying on the default runtime"
+
+func defaultShapedPlanWarning() tfdiags.Diagnostic {
+	return tfdiags.Sourceless(tfdiags.Warning, defaultShapedPlanSummary, fmt.Sprintf(
+		"%s is set, but this plan was made by the default runtime (it has no execution graph), so it is applied on the default runtime. Apply follows the plan: a plan made by the new runtime is applied on the new runtime.",
+		newruntime.Variable))
+}
+
 func (c *Context) newEngineShim(ctx context.Context, config *configs.Config, inputValuesRaw InputValues, planTimestamp time.Time, allowImpureFunctions bool, applying bool) (*eval.ConfigInstance, plugins.Plugins, func(), tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 

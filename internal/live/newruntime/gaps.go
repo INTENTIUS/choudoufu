@@ -208,7 +208,7 @@ const WarningSummary = "Running on OpenTofu's experimental new runtime"
 // risk in the table.
 func WarningDetail() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s is set, so this plan or apply runs on OpenTofu's new runtime (internal/engine), which upstream has not yet called stable. Constructs it cannot handle are refused before planning. These known differences are accepted, not refused:", Variable)
+	fmt.Fprintf(&b, "%s is set, so this plan or apply runs on OpenTofu's new runtime (internal/engine), which upstream has not yet called stable. A run holding something it cannot handle falls back to the default runtime, or is refused with %s set. These known differences are accepted, not refused:", Variable, StrictVariable)
 	for _, r := range RowsFor(CheckAccepted) {
 		fmt.Fprintf(&b, "\n  - %s", r.Warning)
 	}

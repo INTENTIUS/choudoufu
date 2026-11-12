@@ -11,6 +11,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/internal/tracing"
@@ -69,7 +70,14 @@ func (c *Context) Validate(ctx context.Context, config *configs.Config) tfdiags.
 
 	// TEMP: Opt-in support for testing with the new experimental language
 	// runtime. Refer to backend_temp_new_runtime.go for more information.
-	if experimentalRuntimeEnabled() {
+	//
+	// choudoufu (#2397): unless CHOUDOUFU_NEW_RUNTIME_STRICT is set, a
+	// configuration the new runtime cannot handle is validated on the default
+	// runtime, which is where its plan will fall back to. The plan prints the
+	// fallback warning; validate, which never printed the new-runtime
+	// warning either, prints none.
+	if experimentalRuntimeEnabled() && !c.defaultRuntime &&
+		(newruntime.Strict() || !newruntime.Preflight(config, nil, c.configValueAdjuster != nil).HasErrors()) {
 		moreDiags := c.newEngineValidate(ctx, config, varValues)
 		return diags.Append(moreDiags)
 	}

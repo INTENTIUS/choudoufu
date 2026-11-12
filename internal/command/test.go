@@ -70,11 +70,19 @@ func (c TestCommand) Execute(args *arguments.Test, view views.Test) int {
 	ctx := c.CommandContext()
 
 	// choudoufu (#2256 U2): the test harness still evaluates on the default
-	// runtime, so with the new-runtime toggle on the command is refused
-	// rather than run on a mix of the two (gap "test-command").
+	// runtime, so with the new-runtime toggle on the command is not run on
+	// a mix of the two (gap "test-command"). Since #2397 it falls back: the
+	// whole command runs on the default runtime, with the fallback warning.
+	// CHOUDOUFU_NEW_RUNTIME_STRICT=1 refuses it instead, as before.
+	defaultRuntime := false
 	if tofu.ExperimentalRuntimeEnabled() {
-		view.Diagnostics(nil, nil, newruntime.RefuseCommand("test"))
-		return 1
+		refusal := newruntime.RefuseCommand("test")
+		if newruntime.Strict() {
+			view.Diagnostics(nil, nil, refusal)
+			return 1
+		}
+		diags = diags.Append(newruntime.FallbackWarning(newruntime.RefusedRows(refusal)))
+		defaultRuntime = true
 	}
 
 	variables, variableDiags := c.collectVariableValuesWithTests(args.TestDirectory)
@@ -181,6 +189,7 @@ func (c TestCommand) Execute(args *arguments.Test, view views.Test) int {
 		view.Diagnostics(nil, nil, diags)
 		return 1
 	}
+	opts.DefaultRuntime = defaultRuntime
 
 	// Don't use encryption during testing
 	ctx = encryption.ContextWithEncryption(ctx, encryption.Disabled())

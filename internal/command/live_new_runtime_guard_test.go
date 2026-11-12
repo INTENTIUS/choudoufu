@@ -130,8 +130,11 @@ func TestLiveNotRefusedOnNewRuntime_testHook(t *testing.T) {
 					t.Fatalf("%s with the new runtime forced on was refused (%q); output:\n%s", ep.name, s, got)
 				}
 			}
-			if code == 0 && !strings.Contains(got, newruntime.WarningSummary) {
-				t.Errorf("%s succeeded with the new runtime forced on but shows no %q warning; output:\n%s", ep.name, newruntime.WarningSummary, got)
+			// #2397: a run the new runtime cannot handle falls back to the
+			// default runtime and says so instead; either way the output
+			// names the runtime that ran.
+			if code == 0 && !strings.Contains(got, newruntime.WarningSummary) && !strings.Contains(got, newruntime.FallbackSummary) {
+				t.Errorf("%s succeeded with the new runtime forced on but shows neither %q nor %q; output:\n%s", ep.name, newruntime.WarningSummary, newruntime.FallbackSummary, got)
 			}
 			t.Logf("%s exited %d", ep.name, code)
 		})

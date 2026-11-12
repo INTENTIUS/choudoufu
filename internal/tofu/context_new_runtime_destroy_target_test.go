@@ -75,13 +75,14 @@ func deletes(plan *plans.Plan) []string {
 // a destroy with -target of a dependent also plans the deletion of what it
 // depends on (TestApply_targetedDestroy, subtest "Targeted Destroy"). The
 // post-plan check refuses such a plan under gap "destroy-target", before it
-// is shown or saved. A targeted destroy whose deletes are only the target
+// is shown or saved, with the strict switch on (#2397). A targeted destroy whose deletes are only the target
 // and its dependents is not refused.
 func TestNewRuntimeToggle_destroyTargetRefusesOverDestroy(t *testing.T) {
 	toggleOn(t)
 	m := testModuleInline(t, map[string]string{"main.tf": destroyTargetConfig})
 
 	t.Run("target a dependent", func(t *testing.T) {
+		strictOn(t)
 		opts := SimplePlanOpts(plans.DestroyMode, nil)
 		opts.Targets = []addrs.Targetable{mustResourceInstanceAddr("test_object.b")}
 		plan, diags := toggleContext(t, toggleProvider()).Plan(context.Background(), m, destroyTargetState(), opts)

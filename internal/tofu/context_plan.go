@@ -230,17 +230,51 @@ The -target and -exclude options are not for routine use, and are provided only 
 		))
 	}
 
+	planMode := func(prevRunState *states.State) (*plans.Plan, tfdiags.Diagnostics) {
+		switch opts.Mode {
+		case plans.NormalMode:
+			return c.plan(ctx, config, prevRunState, opts)
+		case plans.DestroyMode:
+			return c.destroyPlan(ctx, config, prevRunState, opts)
+		case plans.RefreshOnlyMode:
+			return c.refreshOnlyPlan(ctx, config, prevRunState, opts)
+		default:
+			panic(fmt.Sprintf("unsupported plan mode %s", opts.Mode))
+		}
+	}
+
+	// choudoufu (#2397): with the new-runtime toggle on and
+	// CHOUDOUFU_NEW_RUNTIME_STRICT unset, a run the new runtime cannot
+	// handle falls back to the default runtime for the whole run, instead
+	// of being refused. The preflight decides before anything is planned.
+	// A refusal raised by planning itself (the deferral row) or by the
+	// post-plan check discards the new runtime's plan and plans again on
+	// the default runtime: planning is read-only, so nothing the first
+	// attempt did needs undoing, and it is handed a copy of the state.
+	// Either way the run prints FallbackWarning and not the new-runtime
+	// warning. With the variable set, planWalk refuses as before.
+	c.fallbackRows, c.fallbackPlan = nil, nil
+	defer func() { c.fallbackRows = nil }()
+	mayFallBack := c.newRuntimeMayFallBack()
+	if mayFallBack {
+		c.fallbackRows = newruntime.RefusedRows(newruntime.Preflight(config, prevRunState, c.configValueAdjuster != nil))
+	}
 	var plan *plans.Plan
 	var planDiags tfdiags.Diagnostics
-	switch opts.Mode {
-	case plans.NormalMode:
-		plan, planDiags = c.plan(ctx, config, prevRunState, opts)
-	case plans.DestroyMode:
-		plan, planDiags = c.destroyPlan(ctx, config, prevRunState, opts)
-	case plans.RefreshOnlyMode:
-		plan, planDiags = c.refreshOnlyPlan(ctx, config, prevRunState, opts)
-	default:
-		panic(fmt.Sprintf("unsupported plan mode %s", opts.Mode))
+	planned := false
+	if mayFallBack && c.fallbackRows == nil {
+		plan, planDiags = planMode(prevRunState.DeepCopy())
+		planned = true
+		if rows := newruntime.RefusedRows(planDiags); len(rows) > 0 {
+			log.Printf("[WARN] Discarding the new runtime's plan and planning on the default runtime (#2397)")
+			c.fallbackRows, planned = rows, false
+		}
+	}
+	if !planned {
+		plan, planDiags = planMode(prevRunState)
+	}
+	if c.fallbackRows != nil {
+		diags = diags.Append(newruntime.FallbackWarning(c.fallbackRows))
 	}
 	diags = diags.Append(planDiags)
 	// NOTE: We're intentionally not returning early when diags.HasErrors
@@ -281,7 +315,7 @@ The -target and -exclude options are not for routine use, and are provided only 
 		panic("nil plan but no errors")
 	}
 
-	if plan != nil && !experimentalRuntimeEnabled() {
+	if plan != nil && !c.newRuntimeThisRun() {
 		relevantAttrs, rDiags := c.relevantResourceAttrsForPlan(ctx, config, plan)
 		diags = diags.Append(rDiags)
 		plan.RelevantAttributes = relevantAttrs
@@ -299,6 +333,9 @@ The -target and -exclude options are not for routine use, and are provided only 
 	}
 
 	diags = diags.Append(c.checkApplyGraph(ctx, plan, config))
+	if c.fallbackRows != nil {
+		c.fallbackPlan = plan
+	}
 
 	if planHasForgetChanges(plan) {
 		schemas, schemasDiags := c.Schemas(ctx, config, prevRunState)
@@ -332,7 +369,7 @@ func (c *Context) checkApplyGraph(ctx context.Context, plan *plans.Plan, config 
 		log.Println("[DEBUG] no planned changes, skipping apply graph check")
 		return nil
 	}
-	if experimentalRuntimeEnabled() {
+	if c.newRuntimeThisRun() {
 		return nil
 	}
 	log.Println("[DEBUG] building apply graph to check for errors")
@@ -445,7 +482,7 @@ func (c *Context) destroyPlan(ctx context.Context, config *configs.Config, prevR
 	priorState := prevRunState
 
 	skipNormalPlanForRefresh := opts.SkipRefresh
-	if experimentalRuntimeEnabled() {
+	if c.newRuntimeThisRun() {
 		// When we're shimming to the experimental runtime it's that runtime's
 		// responsibility to deal with refreshing however it wants to do it,
 		// rather than us forcing it to handle it by running a normal plan first
@@ -518,7 +555,7 @@ func (c *Context) destroyPlan(ctx context.Context, config *configs.Config, prevR
 	// is skipped, so prevRunState is still the caller's unupgraded state, and
 	// the engine's plan already carries the upgraded previous run state.
 	// Keep the engine's: the overwrite below is only for the refresh plan.
-	if !opts.SkipRefresh && !experimentalRuntimeEnabled() {
+	if !opts.SkipRefresh && !c.newRuntimeThisRun() {
 		// If we didn't skip refreshing then we want the previous run state to
 		// be the one we originally fed into the c.refreshOnlyPlan call above,
 		// not the refreshed version we used for the destroy planWalk.
@@ -806,7 +843,8 @@ func (c *Context) planWalk(ctx context.Context, config *configs.Config, prevRunS
 
 	// TEMP: Opt-in support for testing with the new experimental language
 	// runtime. Refer to backend_temp_new_runtime.go for more information.
-	if experimentalRuntimeEnabled() {
+	// choudoufu (#2397): a run that fell back takes the default runtime.
+	if c.newRuntimeThisRun() {
 		// #2256 U2: the preflight refuses, from the gap table, every
 		// construct in the configuration or prior state the new runtime
 		// cannot handle yet. It runs before newEnginePlan, so a refused run

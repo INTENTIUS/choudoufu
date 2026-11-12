@@ -38,6 +38,7 @@ func refusal(r Row, what string, subject *hcl.Range) *hcl.Diagnostic {
 		Detail: fmt.Sprintf("%s is set, and %s. The new runtime cannot handle %s yet, so it is refused rather than planned wrongly (gap %q in internal/live/newruntime/gaps.json). It waits for %s. Unset %s to use the default runtime.",
 			Variable, what, r.Gap, r.ID, r.WaitsFor(), Variable),
 		Subject: subject,
+		Extra:   gapRefusal(r.ID),
 	}
 }
 

@@ -93,7 +93,7 @@ resource "test_object" "r2" {
 // post-plan check admits the replace, and the apply creates the new r2,
 // then deletes the old r2, then r1, recording create_before_destroy on the
 // new r2. With the port's switch set, the gap table's replace-cbd-cycle row
-// refuses the plan again.
+// refuses the plan again (strict; otherwise it falls back, #2397).
 func TestNewRuntimeReplaceCycle4714(t *testing.T) {
 	t.Run("port on", func(t *testing.T) {
 		t.Setenv(forkport.AllOff, "")
@@ -125,6 +125,7 @@ func TestNewRuntimeReplaceCycle4714(t *testing.T) {
 	})
 	t.Run("port off", func(t *testing.T) {
 		t.Setenv(forkport.Switch(replacecycle.Name), "1")
+		strictOn(t)
 		_, _, plan, _ := newRuntime4714(t)
 		_, diags := plan()
 		if !hasDiag(diags, tfdiags.Error, newruntime.RefusalSummary) {

@@ -17,6 +17,7 @@ Built on upstream OpenTofu [`aa3eb66a0c`](https://github.com/opentofu/opentofu/c
 | `TOFU_X_EXPERIMENTAL_RUNTIME` | dev, nightly | every build, live mode included |
 | `TOFU_X_EXPERIMENTAL_RUNTIME_NEXT` | dev, nightly | non-release builds, by linker flag |
 | `CHOUDOUFU_NEW_RUNTIME_NO_FORK_PORTS` | none | all fork ports off |
+| `CHOUDOUFU_NEW_RUNTIME_STRICT` | none | refuse gaps, no default-runtime fallback |
 
 | Patch | Replaced by |
 |---|---|
@@ -24,7 +25,7 @@ Built on upstream OpenTofu [`aa3eb66a0c`](https://github.com/opentofu/opentofu/c
 | Destroy-from-config | [#3472](https://github.com/opentofu/opentofu/issues/3472) |
 | Taint failed creates only | fork rule |
 
-Gap fills, each switchable and expiring with upstream: [fork ports](https://github.com/INTENTIUS/choudoufu/blob/main/live/NEW-RUNTIME.md#fork-ports).
+Gap fills, switchable, expiring with upstream: [fork ports](https://github.com/INTENTIUS/choudoufu/blob/main/live/NEW-RUNTIME.md#fork-ports).
 
 ## Already done by choudoufu
 

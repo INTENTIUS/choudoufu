@@ -28,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TF_APPEND_USER_AGENT: Integration-Test
+      # Refuse, not fall back (#2397): the lane measures the new runtime.
+      # The Makefile target sets it too.
+      CHOUDOUFU_NEW_RUNTIME_STRICT: "1"
     steps:
       - uses: actions/checkout@v7
         with:

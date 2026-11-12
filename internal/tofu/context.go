@@ -18,7 +18,9 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/lang/eval"
+	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/logging"
+	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/plugins"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -60,6 +62,12 @@ type ContextOpts struct {
 	// in a composed run (GitHub issue #2059). See inrun_estates.go. Nil for
 	// every other run.
 	InRunEstates map[string]addrs.Module
+
+	// DefaultRuntime keeps every plan, apply, validate and import of this
+	// context on the default runtime even with TOFU_X_EXPERIMENTAL_RUNTIME
+	// set (#2397). The test command sets it when it falls back, because its
+	// harness evaluates on the default runtime.
+	DefaultRuntime bool
 }
 
 // SetInRunEstates installs ContextOpts.InRunEstates after the context is
@@ -116,6 +124,15 @@ type Context struct {
 	resourceIdentityResolver ResourceIdentityResolver
 	configValueAdjuster      ConfigValueAdjuster
 	inRunEstates             map[string]addrs.Module
+
+	// defaultRuntime is ContextOpts.DefaultRuntime.
+	defaultRuntime bool
+	// fallbackRows, during one Plan or Import, are the gap rows that made
+	// it fall back to the default runtime (#2397); nil while it runs on
+	// the runtime the toggle chose. fallbackPlan is the last plan Plan
+	// made after falling back, so Apply does not say so twice.
+	fallbackRows []newruntime.Row
+	fallbackPlan *plans.Plan
 }
 
 // (additional methods on Context can be found in context_*.go files.)
@@ -176,6 +193,7 @@ func NewContext(opts *ContextOpts) (*Context, tfdiags.Diagnostics) {
 		resourceIdentityResolver: opts.ResourceIdentityResolver,
 		configValueAdjuster:      opts.ConfigValueAdjuster,
 		inRunEstates:             opts.InRunEstates,
+		defaultRuntime:           opts.DefaultRuntime,
 	}, diags
 }
 
