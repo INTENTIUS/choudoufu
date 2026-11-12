@@ -15,6 +15,8 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
 	"github.com/intentius/choudoufu/internal/lang/eval/internal/configgraph"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
 	"github.com/intentius/choudoufu/internal/lang/grapheval"
@@ -22,6 +24,11 @@ import (
 )
 
 func TestCompileModuleInstanceOutputValuesValue(t *testing.T) {
+	// choudoufu fork port (#2410): remove when upstream #4390 lands. This
+	// tests upstream's output precondition diagnostics; with the checkrules
+	// port on they are the default runtime's, which internal/tofu's
+	// TestContext2Plan_outputPrecondition covers.
+	t.Setenv(forkport.Switch(checkrules.Name), "1")
 	// This test is focused on whether individual output values get
 	// compiled and evaluated correctly, testing the overall compilation
 	// process only as a side-effect.

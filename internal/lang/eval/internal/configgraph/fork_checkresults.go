@@ -66,6 +66,19 @@ func forkOutputPreconditions(ctx context.Context, o *OutputValue, upstream func(
 	}
 }
 
+// forkSensitiveErrorMessage is the default runtime's warning for an error
+// message derived from a sensitive value.
+func forkSensitiveErrorMessage(r *CheckRule) *hcl.Diagnostic {
+	return &hcl.Diagnostic{
+		Severity: hcl.DiagWarning,
+		Summary:  "Error message refers to sensitive values",
+		Detail: `The error expression used to explain this condition refers to sensitive values, so OpenTofu will not display the resulting message.
+
+You can correct this by removing references to sensitive values, or by carefully using the nonsensitive() function if the expression will not reveal the sensitive data.`,
+		Subject: MaybeHCLSourceRange(r.ErrorMessageValuer.ValueSourceRange()),
+	}
+}
+
 // forkRecordResourceInstances records which instances a resource has.
 func forkRecordResourceInstances(ctx context.Context, r *Resource, insts *compiledInstances[*ResourceInstance]) {
 	if insts == nil {
