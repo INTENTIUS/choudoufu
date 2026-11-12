@@ -127,6 +127,8 @@ DKEOF
 args="$*"
 printf '%s\n' "$args" >> "$STUB_DIR/choudoufu.log"
 echo "$$" >> "$STUB_DIR/stub.pids"
+# What the real binary does with TF_LOG_PATH, so a kept log has a body.
+[ -z "${TF_LOG_PATH:-}" ] || printf 'stub debug log: %s\n' "$args" >> "$TF_LOG_PATH"
 # shellcheck disable=SC2254
 case "$args" in
   ${CHDF_STALL_GLOB:-__none__})
@@ -436,6 +438,45 @@ if wanted watchdog-floci; then
   check_stall_verdict selftest-stall 'FAIL [selftest-stall]: stalled in step "2. the step that stalls" and killed after 10s. Raise the bound with SMOKE_TIMEOUT_SECS=<seconds>.' 0
   if grep -q 'still running: .*choudoufu.*apply' "$OUT"; then ok "the stalled command is named above the verdict"
   else bad "the output does not name the command that was still running"; fi
+  [ "$PASS" = "1" ] || show_out
+fi
+
+# --- 8. a stall names the call it killed, and that call's log survives ---
+# Claim 40 on floci stalled in "12. teardown" with four estates destroyed by
+# one loop, and the report named an apply -destroy without saying which
+# estate's, how long it had run, or where its TF_LOG went - the per-call
+# logs were in the workroot cleanup deletes. Two calls run first inside a
+# `$(...)` each, so the call number must come from the file, not from a
+# counter the subshell's increment never reached: the stalled call is
+# call 3, and its log must be call-3.log under SMOKE_LOG_DIR/chdf-calls,
+# still there after the run has ended.
+if wanted stall-names-call; then
+  sandbox stall-names-call
+  cat > "$SB/tree/live/smoke/scenarios/selftest-stall.sh" <<'SCEOF'
+# selftest-stall
+# selftest-bounds.sh's case 8: two calls that return, then one that never does.
+step "1. a step that returns"
+mkdir -p "$SMOKE_WORKROOT/estate-b"
+OUT="$(chdf plan -input=false 2>&1)" || fail "selftest-stall" "plan failed: $OUT"
+OUT="$(chdf plan -input=false 2>&1)" || fail "selftest-stall" "plan failed: $OUT"
+step "2. the step that stalls"
+OUT="$(cd "$SMOKE_WORKROOT/estate-b" && chdf apply -destroy -auto-approve 2>&1)" || fail "selftest-stall" "destroy failed: $OUT"
+step "3. a step that must never start"
+SCEOF
+  mkdir -p "$SB/logs"
+  run_smoke selftest-stall 20 CHDF_STALL_GLOB='apply*' SMOKE_INSTRUMENT=1 SMOKE_LOG_DIR="$SB/logs" \
+    SMOKE_TIMEOUT_SECS=10 SMOKE_KILL_GRACE_SECS=2
+  check_stall_verdict selftest-stall 'FAIL [selftest-stall]: stalled in step "2. the step that stalls" and killed after 10s. Raise the bound with SMOKE_TIMEOUT_SECS=<seconds>.' 0
+  if grep -qE '^  choudoufu call 3 had run [0-9]+s: choudoufu apply -destroy -auto-approve$' "$OUT"; then ok "the report names the killed call by number, age and arguments"
+  else bad "no line naming choudoufu call 3 and its arguments"; fi
+  if grep -qE '^    in .*/estate-b$' "$OUT"; then ok "the report names the directory the call ran in"
+  else bad "no line naming the directory the stalled call ran in"; fi
+  if grep -qF "    its TF_LOG=debug log, kept after this run: $SB/logs/chdf-calls/call-3.log" "$OUT"; then ok "the report names the call's own log"
+  else bad "the report does not name $SB/logs/chdf-calls/call-3.log"; fi
+  if grep -q 'apply -destroy' "$SB/logs/chdf-calls/call-3.log" 2>/dev/null; then ok "call-3.log is still there after the run ended, and is the destroy's"
+  else bad "call-3.log is missing after the run, or is not the stalled call's"; fi
+  if grep -qE '^  the bound fired [0-9]+s into the run, [0-9]+s into the step$' "$OUT"; then ok "the report says how far into the run and the step the bound fired"
+  else bad "no line saying how far into the run and the step the bound fired"; fi
   [ "$PASS" = "1" ] || show_out
 fi
 

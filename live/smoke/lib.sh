@@ -83,7 +83,10 @@ fail() {
 # step also records where the scenario is, in a file, because the process
 # that reports a stall is never the shell that ran the step (#1457).
 step() {
-  if [ -n "${SMOKE_WORKROOT:-}" ]; then printf '%s\n' "$*" > "$SMOKE_WORKROOT/step"; fi
+  if [ -n "${SMOKE_WORKROOT:-}" ]; then
+    printf '%s\n' "$*" > "$SMOKE_WORKROOT/step"
+    date +%s > "$SMOKE_WORKROOT/step-started"
+  fi
   echo; echo "=== $* ==="; echo
 }
 note() { echo "  $*"; }
@@ -227,7 +230,10 @@ banner() {
   echo "  choudoufu: $CHOUDOUFU_PROVENANCE"
   echo "  floci:     $FLOCI_IMAGE (pinned image, never built here)"
   echo "  opentofu:  $OPENTOFU_IMAGE (stock oracle leg)"
-  [ "${SMOKE_INSTRUMENT:-0}" = "1" ] && echo "  instrumentation: ON (TF_LOG=debug capture + request summary)"
+  if [ "${SMOKE_INSTRUMENT:-0}" = "1" ]; then
+    echo "  instrumentation: ON (TF_LOG=debug capture + request summary)"
+    echo "  call logs: $CHDF_LOG_DIR (kept after the run; they can hold the values a scenario sets)"
+  fi
   echo
 }
 
@@ -959,6 +965,7 @@ smoke_stall() {
       if [ -z "$c" ] || [ "$c" = "$main_cmd" ]; then continue; fi
       echo "  still running: $(printf '%s' "$c" | cut -c1-400)"
     done
+    smoke_stall_call
     echo "FAIL [${SMOKE_SCENARIO:-smoke}]: $before in step \"$(cat "$SMOKE_WORKROOT/step" 2>/dev/null || echo '?')\" $after"
   } >&"${SMOKE_ERR_FD:-2}"
   kill -TERM "$$" 2>/dev/null
@@ -1120,27 +1127,89 @@ sed_i() {
 # TF_LOG=debug stream lands in its own file so the summary can count what
 # actually went over the wire - choudoufu's own client requests included,
 # which is what #682's logging exists for.
+#
+# Those files are also the only record of what a stalled call was doing,
+# so they are kept out of the workroot cleanup deletes (claim 40's teardown
+# stall on floci left nothing to read). chdf_logs_init picks the directory
+# once, in the scenario shell, before anything runs: SMOKE_LOG_DIR/chdf-calls
+# when SMOKE_LOG_DIR is set, so ci-run.sh's artifact carries them, and
+# otherwise a directory of its own under TMPDIR that outlives the run. The
+# banner prints which.
+#
+# The call number is kept in a file and not only in CHDF_CALL, because most
+# calls run inside a `$(...)`, whose increment the parent never sees: two
+# calls used to share call-<n>.log and the second overwrote the first. And
+# each call leaves a note of itself in the workroot while it runs, which is
+# how smoke_stall, in its own subshell, names the call a bound killed, how
+# long it had run, where it ran and which log is its.
 CHDF_CALL=0
-chdf() {
-  CHDF_CALL=$((CHDF_CALL+1))
-  if [ "${SMOKE_INSTRUMENT:-0}" = "1" ]; then
-    TF_LOG=debug TF_LOG_PATH="$SMOKE_WORKROOT/logs/call-$CHDF_CALL.log" "$TOFU" "$@"
+CHDF_LOG_DIR=""
+chdf_logs_init() {
+  [ "${SMOKE_INSTRUMENT:-0}" = "1" ] || return 0
+  if [ -n "${SMOKE_LOG_DIR:-}" ]; then
+    CHDF_LOG_DIR="$SMOKE_LOG_DIR/chdf-calls"
+    mkdir -p "$CHDF_LOG_DIR"
+    # A log dir reused from an earlier run must not lend this run its files.
+    rm -f "$CHDF_LOG_DIR"/call-*.log
   else
-    "$TOFU" "$@"
+    CHDF_LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/choudoufu-smoke-${SMOKE_SCENARIO:-run}.XXXXXX")"
+  fi
+}
+chdf() {
+  local n log="" rc=0
+  if [ -z "${SMOKE_WORKROOT:-}" ]; then "$TOFU" "$@"; return; fi
+  n=$(( $(cat "$SMOKE_WORKROOT/chdf-calls" 2>/dev/null || echo 0) + 1 ))
+  printf '%s\n' "$n" > "$SMOKE_WORKROOT/chdf-calls"
+  CHDF_CALL="$n"
+  if [ "${SMOKE_INSTRUMENT:-0}" = "1" ] && [ -n "$CHDF_LOG_DIR" ]; then
+    log="$CHDF_LOG_DIR/call-$n.log"
+  fi
+  # Line by line: number, start, working directory, log (empty for none),
+  # arguments. smoke_stall_call reads it back.
+  printf '%s\n%s\n%s\n%s\n%s\n' "$n" "$(date +%s)" "$PWD" "$log" "$*" > "$SMOKE_WORKROOT/chdf-running"
+  if [ -n "$log" ]; then
+    TF_LOG=debug TF_LOG_PATH="$log" "$TOFU" "$@" || rc=$?
+  else
+    "$TOFU" "$@" || rc=$?
+  fi
+  rm -f "$SMOKE_WORKROOT/chdf-running"
+  return "$rc"
+}
+
+# smoke_stall_call prints, for a stall's report, how far into the run and
+# into the step the bound fired, and the choudoufu call that was running
+# when it did, with its log. A run that is simply slower than its bound
+# reads differently here from one call that never came back: the first has
+# a young call late in a long step, the second an old one.
+smoke_stall_call() {
+  local now started call
+  now="$(date +%s)"
+  started="$(cat "$SMOKE_WORKROOT/step-started" 2>/dev/null || true)"
+  if [ -n "${SMOKE_STARTED:-}" ] && [ -n "$started" ]; then
+    echo "  the bound fired $((now - SMOKE_STARTED))s into the run, $((now - started))s into the step"
+  fi
+  call="$SMOKE_WORKROOT/chdf-running"
+  [ -f "$call" ] || return 0
+  echo "  choudoufu call $(sed -n 1p "$call") had run $((now - $(sed -n 2p "$call")))s: choudoufu $(sed -n 5p "$call" | cut -c1-300)"
+  echo "    in $(sed -n 3p "$call")"
+  if [ -n "$(sed -n 4p "$call")" ]; then
+    echo "    its TF_LOG=debug log, kept after this run: $(sed -n 4p "$call")"
+  else
+    echo "    it ran without a TF_LOG; SMOKE_INSTRUMENT=1 keeps one per call"
   fi
 }
 
 instrument_summary() {
   [ "${SMOKE_INSTRUMENT:-0}" = "1" ] || return 0
   step "instrumentation - requests on the wire (terralith-style counters)"
-  local logs="$SMOKE_WORKROOT/logs"
-  [ -d "$logs" ] || { note "no logs captured"; return 0; }
+  local logs="$CHDF_LOG_DIR"
+  [ -n "$logs" ] && [ -d "$logs" ] || { note "no logs captured"; return 0; }
   local total retries
-  total=$(cat "$logs"/*.log 2>/dev/null | grep -c "HTTP Request Sent" || true)
-  retries=$(cat "$logs"/*.log 2>/dev/null | grep -c "retrying request" || true)
+  total=$(cat "$logs"/call-*.log 2>/dev/null | grep -c "HTTP Request Sent" || true)
+  retries=$(cat "$logs"/call-*.log 2>/dev/null | grep -c "retrying request" || true)
   note "requests: $total   retries: $retries   (per-call logs: $logs)"
   note "top operations:"
-  cat "$logs"/*.log 2>/dev/null | grep "HTTP Request Sent" \
+  cat "$logs"/call-*.log 2>/dev/null | grep "HTTP Request Sent" \
     | grep -oE "rpc.method=[A-Za-z0-9/_-]+" | sort | uniq -c | sort -rn | head -8 \
     | sed 's/^/    /'
 }
