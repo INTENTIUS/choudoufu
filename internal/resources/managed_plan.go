@@ -353,16 +353,23 @@ func (rt *ManagedResourceType) PlanChanges(ctx context.Context, req *ManagedReso
 	// is needed. Providers are allowed to ignore this value completely and
 	// implement their own merging logic though, as long as the result conforms
 	// to the rules that [objchange.AssertPlanValid] enforces.
-	var proposedVal cty.Value
-	if !desiredVal.IsNull() {
-		proposedVal = objchange.ProposedNew(schema.Block, currentVal, desiredVal)
-	} else {
-		proposedVal = cty.NullVal(ty)
-	}
-
+	//
+	// choudoufu: remove when upstream fixes marked values reaching
+	// ProposedNew in the new runtime. ProposedNew does not accept marked
+	// values: the apply engine's final plan passes the configuration value
+	// with its marks (depends_on puts a resource instance mark on the whole
+	// object), and a nested block list read through that mark panics in
+	// LengthInt. Propose from the unmarked values, as the default runtime
+	// does; the proposal goes only to the provider, which takes no marks, and
+	// the marks are put back on the planned value below.
 	currentValUnmarked, currentMarks := currentVal.UnmarkDeepWithPaths()
 	desiredValUnmarked, desiredMarks := desiredVal.UnmarkDeepWithPaths()
-	proposedValUnmarked, _ := proposedVal.UnmarkDeep()
+	var proposedValUnmarked cty.Value
+	if !desiredValUnmarked.IsNull() {
+		proposedValUnmarked = objchange.ProposedNew(schema.Block, currentValUnmarked, desiredValUnmarked)
+	} else {
+		proposedValUnmarked = cty.NullVal(ty)
+	}
 
 	var resp providers.PlanResourceChangeResponse
 	if !desiredValUnmarked.IsNull() || rt.providerCanPlanDestroy(ctx) {

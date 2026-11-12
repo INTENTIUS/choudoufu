@@ -1322,3 +1322,54 @@ func TestMarkChanges(t *testing.T) {
 		})
 	}
 }
+
+// TestMarkChanges_markedNestedBlockCollections: MarkChanges walks a nested
+// block list or map that carries marks of its own, as the new runtime's apply
+// engine passes it (#2256: depends_on puts a mark on the whole configuration
+// object, which reaches every nested block collection). It used to panic in
+// Elements. The collection keeps its marks, and only the changed element
+// gets the change mark.
+func TestMarkChanges_markedNestedBlockCollections(t *testing.T) {
+	const other = "other"
+	changed := func(cty.Path) any { return "changed" }
+	elem := func(s string) cty.Value { return cty.ObjectVal(map[string]cty.Value{"v": cty.StringVal(s)}) }
+	inner := configschema.Block{Attributes: map[string]*configschema.Attribute{"v": {Type: cty.String, Optional: true}}}
+
+	for _, nesting := range []configschema.NestingMode{configschema.NestingList, configschema.NestingMap} {
+		t.Run(nesting.String(), func(t *testing.T) {
+			schema := &configschema.Block{
+				BlockTypes: map[string]*configschema.NestedBlock{
+					"b": {Nesting: nesting, Block: inner},
+				},
+			}
+			coll := func(a, b cty.Value) cty.Value {
+				if nesting == configschema.NestingMap {
+					return cty.MapVal(map[string]cty.Value{"0": a, "1": b})
+				}
+				return cty.ListVal([]cty.Value{a, b})
+			}
+			index := func(i int) cty.Value {
+				if nesting == configschema.NestingMap {
+					return cty.StringVal([]string{"0", "1"}[i])
+				}
+				return cty.NumberIntVal(int64(i))
+			}
+			before := cty.ObjectVal(map[string]cty.Value{"b": coll(elem("x"), elem("y"))})
+			after := cty.ObjectVal(map[string]cty.Value{"b": coll(elem("x"), elem("z"))}).Mark(other)
+
+			got := MarkChanges(schema, before, after, changed)
+
+			b := got.GetAttr("b")
+			if !b.HasMark(other) {
+				t.Errorf("b lost its mark: %#v", b)
+			}
+			bUnmarked, _ := b.Unmark()
+			if b0 := bUnmarked.Index(index(0)).GetAttr("v"); b0.HasMark("changed") {
+				t.Errorf("b[0].v is marked changed but did not change: %#v", b0)
+			}
+			if b1 := bUnmarked.Index(index(1)).GetAttr("v"); !b1.HasMark("changed") {
+				t.Errorf("b[1].v is not marked changed: %#v", b1)
+			}
+		})
+	}
+}

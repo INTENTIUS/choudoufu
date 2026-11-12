@@ -827,3 +827,99 @@ This is a bug in the provider, which should be reported in the provider's own is
 		t.Fatal("expected an error, got none")
 	}
 }
+
+// TestPlanChanges_markedNestedListBlock: PlanChanges accepts a desired value
+// that is marked as a whole and also inside an element of a NestingList
+// block, as the new runtime's apply engine passes it from ManagedFinalPlan
+// (#2256): depends_on puts a resource instance mark on the whole object and
+// a sensitive value puts a sensitive mark on one attribute. ProposedNew
+// panicked in cty's LengthInt on the marked block list. The provider must see
+// no marks, and the planned value must carry the desired value's marks back
+// at the same paths.
+func TestPlanChanges_markedNestedListBlock(t *testing.T) {
+	schema := &configschema.Block{
+		Attributes: map[string]*configschema.Attribute{
+			"name": {Type: cty.String, Optional: true},
+		},
+		BlockTypes: map[string]*configschema.NestedBlock{
+			"rule": {
+				Nesting: configschema.NestingList,
+				Block: configschema.Block{
+					Attributes: map[string]*configschema.Attribute{
+						"port":  {Type: cty.Number, Optional: true},
+						"token": {Type: cty.String, Optional: true},
+					},
+				},
+			},
+		},
+	}
+	rule := func(port int64, token string) cty.Value {
+		return cty.ObjectVal(map[string]cty.Value{
+			"port":  cty.NumberIntVal(port),
+			"token": cty.StringVal(token),
+		})
+	}
+	type wholeObjectMark struct{}
+	const sensitive = "sensitive"
+
+	var sawMarks bool
+	providerClient := &fakeProviderClient{
+		schema: &providers.GetProviderSchemaResponse{
+			ResourceTypes: map[string]providers.Schema{"test_thing": {Block: schema}},
+		},
+		planResourceChange: func(_ context.Context, req providers.PlanResourceChangeRequest) providers.PlanResourceChangeResponse {
+			sawMarks = req.PriorState.ContainsMarked() || req.Config.ContainsMarked() || req.ProposedNewState.ContainsMarked()
+			return providers.PlanResourceChangeResponse{PlannedState: req.ProposedNewState}
+		},
+	}
+	resourceType := NewManagedResourceType(addrs.NewBuiltInProvider("test"), "test_thing", providerClient)
+	objAddr := addrs.Resource{
+		Mode: addrs.ManagedResourceMode,
+		Type: "test_thing",
+		Name: "test",
+	}.Absolute(addrs.RootModuleInstance).Instance(addrs.NoKey).CurrentObject()
+
+	desired := cty.ObjectVal(map[string]cty.Value{
+		"name": cty.StringVal("svc"),
+		"rule": cty.ListVal([]cty.Value{
+			rule(80, "a"),
+			cty.ObjectVal(map[string]cty.Value{
+				"port":  cty.NumberIntVal(443),
+				"token": cty.StringVal("b").Mark(sensitive),
+			}),
+		}),
+	}).Mark(wholeObjectMark{})
+
+	for name, current := range map[string]cty.Value{
+		"create": cty.NilVal,
+		"update": cty.ObjectVal(map[string]cty.Value{
+			"name": cty.StringVal("svc"),
+			"rule": cty.ListVal([]cty.Value{rule(8080, "a"), rule(443, "b")}),
+		}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			sawMarks = false
+			resp, diags := resourceType.PlanChanges(t.Context(), &ManagedResourcePlanRequest{
+				Current:      ValueWithPrivate{Value: current},
+				DesiredValue: desired,
+			}, objAddr)
+			if diags.HasErrors() {
+				t.Fatalf("unexpected errors: %s", diags.Err())
+			}
+			if sawMarks {
+				t.Error("the provider was sent a marked value")
+			}
+			planned := resp.Planned.Value
+			if !planned.GetAttr("name").HasMark(wholeObjectMark{}) {
+				t.Error("the planned value lost the whole-object mark")
+			}
+			token := planned.GetAttr("rule").Index(cty.NumberIntVal(1)).GetAttr("token")
+			if !token.HasMark(sensitive) {
+				t.Errorf("rule[1].token in the planned value is %#v, want it still marked sensitive", token)
+			}
+			if got, _ := planned.GetAttr("rule").Index(cty.NumberIntVal(0)).GetAttr("port").Unmark(); !got.RawEquals(cty.NumberIntVal(80)) {
+				t.Errorf("rule[0].port in the planned value is %#v, want 80", got)
+			}
+		})
+	}
+}
