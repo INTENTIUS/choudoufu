@@ -21,10 +21,12 @@ package configadjust
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -105,6 +107,10 @@ type Adjusted struct {
 //     object only;
 //   - [IgnoreChangesAdjuster] contributes extra ignore_changes paths.
 //
+// The engine's own bookkeeping marks on config as a whole are peeled off
+// before the adjuster sees it and put back on both returned values; see
+// [peelEngineMarks].
+//
 // Callers must pass the result to the provider's planning step and never
 // adjust anything the provider returns. A nil adj returns config unchanged
 // in both value fields and loads no schema. prior should be unmarked.
@@ -115,10 +121,27 @@ func Adjust(
 	config, prior cty.Value,
 	loadSchema func(context.Context) (providers.Schema, tfdiags.Diagnostics),
 ) (Adjusted, tfdiags.Diagnostics) {
-	ret := Adjusted{Config: config, CreateConfig: config}
 	if adj == nil {
-		return ret, nil
+		return Adjusted{Config: config, CreateConfig: config}, nil
 	}
+	config, engineMarks := peelEngineMarks(config)
+	ret, diags := adjust(ctx, adj, addr, config, prior, loadSchema)
+	if len(engineMarks) != 0 {
+		ret.Config = ret.Config.WithMarks(engineMarks)
+		ret.CreateConfig = ret.CreateConfig.WithMarks(engineMarks)
+	}
+	return ret, diags
+}
+
+// adjust is [Adjust] after the engine's marks are peeled off config.
+func adjust(
+	ctx context.Context,
+	adj ConfigValueAdjuster,
+	addr addrs.AbsResourceInstance,
+	config, prior cty.Value,
+	loadSchema func(context.Context) (providers.Schema, tfdiags.Diagnostics),
+) (Adjusted, tfdiags.Diagnostics) {
+	ret := Adjusted{Config: config, CreateConfig: config}
 	var diags tfdiags.Diagnostics
 
 	schema, moreDiags := loadSchema(ctx)
@@ -164,4 +187,62 @@ func Adjust(
 	ret.Config = adjusted
 	ret.CreateConfig = createVal
 	return ret, diags
+}
+
+// peelEngineMarks splits the marks on config itself (not on its attributes)
+// into the language's own, which stay on the returned value, and every other
+// mark, which is returned separately.
+//
+// The new runtime marks a resource instance's configuration value as a whole
+// with its own bookkeeping: depends_on, and references in count, for_each,
+// provisioners and replace_triggered_by, put the evaluator's
+// ResourceInstanceMark on the object (internal/lang/eval/internal/tofu2024,
+// compile_resources.go), and through depends_on a dependency's planned value
+// hoists objchange.PendingChange there too. The ownership-marker adjuster
+// (internal/live/projection, NodeResolver) declines a configuration marked
+// as a whole, because a marked value may be sensitive, so on such a
+// resource it wrote no markers. Worse, the two phases see different marks:
+// the planning oracle strips ResourceInstanceMark and the applying oracle
+// does not, and PendingChange is there at plan and gone at apply. So the
+// same resource was stamped in one phase and not the other, and the final
+// plan failed as inconsistent (reference-k8s drift_reconverge,
+// reference-azure day2_crash on #2256), or neither stamped and a create
+// went out unmarked.
+//
+// The language's marks (package internal/lang/marks: Sensitive, Ephemeral,
+// deprecation) stay on the value, so the adjuster still refuses a
+// configuration that is sensitive as a whole. The rest carry no meaning
+// for a marker; they are put back unchanged on what [Adjust] returns.
+func peelEngineMarks(config cty.Value) (cty.Value, cty.ValueMarks) {
+	if config == cty.NilVal || !config.IsMarked() {
+		return config, nil
+	}
+	inner, all := config.Unmark()
+	keep := make(cty.ValueMarks, len(all))
+	peeled := make(cty.ValueMarks, len(all))
+	for m := range all {
+		if isLanguageMark(m) {
+			keep[m] = struct{}{}
+		} else {
+			peeled[m] = struct{}{}
+		}
+	}
+	return inner.WithMarks(keep), peeled
+}
+
+// languageMarksPkg is the import path of internal/lang/marks, read off one
+// of its mark values so it follows the module path.
+var languageMarksPkg = reflect.TypeOf(marks.Sensitive).PkgPath()
+
+// isLanguageMark reports whether m is one of the language's own marks,
+// declared in internal/lang/marks.
+func isLanguageMark(m any) bool {
+	t := reflect.TypeOf(m)
+	if t == nil {
+		return false
+	}
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return t.PkgPath() == languageMarksPkg
 }
