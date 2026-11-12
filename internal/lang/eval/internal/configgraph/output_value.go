@@ -17,6 +17,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/checks"
+	"github.com/intentius/choudoufu/internal/engine/forkport/sensitive"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/plans/objchange"
@@ -135,6 +136,12 @@ func (o *OutputValue) Value(ctx context.Context) (cty.Value, tfdiags.Diagnostics
 	// Pending changes do not propagate through output vals
 	// See TestContext2Plan_dataReferencesResourceIndirectly
 	finalV = objchange.RemovePendingChangesMark(finalV)
+
+	// choudoufu fork port (#2410): remove when upstream #4360 lands. A root
+	// output whose value is sensitive must say so, as on the old runtime.
+	if d := sensitive.UndeclaredRootOutput(o.Addr.Module.IsRoot(), o.ForceSensitive, finalV, MaybeHCLSourceRange(o.ValueSourceRange())); d != nil {
+		diags = diags.Append(d)
+	}
 
 	finalV = finalV.WithMarks(preconditionMarks)
 	if o.ForceSensitive {

@@ -17,6 +17,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
 	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
+	"github.com/intentius/choudoufu/internal/engine/forkport/sensitive"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/lang/evalchecks"
@@ -616,6 +617,26 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 		ret.PlaceholderValue = current.Value
 		plannedAction = plans.NoOp
 	}
+	// choudoufu fork port (#2410): remove when upstream #4360 lands. The
+	// change's prior and planned values carry their sensitive marks, and a
+	// change of sensitivity alone is an update, as on the old runtime.
+	if sensitive.Enabled() {
+		schema, moreDiags := resourceType.LoadSchema(ctx)
+		diags = diags.Append(moreDiags)
+		if diags.HasErrors() {
+			return ret, diags
+		}
+		var priorPaths []cty.Path
+		if src := ret.RefreshedState; src != nil {
+			priorPaths = src.Value.SensitivePaths
+		} else if src := ret.UpgradedState; src != nil {
+			priorPaths = src.Value.SensitivePaths
+		}
+		planResp.Current.Value = sensitive.Prior(planResp.Current.Value, priorPaths, schema.Block)
+		planResp.Planned.Value = sensitive.Planned(planResp.Planned.Value, inst.ConfigVal, planResp.Current.Value, slices.Concat(inst.IgnoreChangesPaths, extraIgnoreChanges), schema.Block)
+		plannedAction = sensitive.Action(plannedAction, planResp.Current.Value, planResp.Planned.Value)
+	}
+
 	// (a "desired" object cannot have a Delete action; we handle those cases
 	// in planOrphanManagedResourceInstance and planDeposedManagedResourceInstanceObject below.)
 	ret.PlannedChange = &plans.ResourceInstanceChange{

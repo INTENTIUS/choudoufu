@@ -16,6 +16,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/forkport/sensitive"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/providers"
@@ -538,8 +539,10 @@ func (ops *execOperations) managedApply(
 		}
 
 		state = &states.ResourceInstanceObjectFull{
-			Status:               status,
-			Value:                resp.NewState,
+			Status: status,
+			// choudoufu fork port (#2410): remove when upstream #4360
+			// lands. The new object is stored with its sensitive paths.
+			Value:                sensitive.Stored(resp.NewState, plan.PlannedVal, schema.Block),
 			Private:              resp.Private,
 			ProviderInstanceAddr: providerConfigAddr,
 			ResourceType:         plan.ResourceType,

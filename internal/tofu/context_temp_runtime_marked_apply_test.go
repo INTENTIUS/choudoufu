@@ -148,8 +148,15 @@ func markedApplyRules(t *testing.T, p *MockProvider, state *states.State) []stri
 	if err != nil {
 		t.Fatalf("decoding the applied object: %s", err)
 	}
+	// The schema marks token sensitive, so the stored object carries that
+	// path, as on the old runtime (choudoufu fork port #2410).
+	tokenPath := cty.GetAttrPath("rule").IndexInt(1).GetAttr("token")
+	if !slices.ContainsFunc(rs.Current.AttrSensitivePaths, func(pvm cty.PathValueMarks) bool { return pvm.Path.Equals(tokenPath) }) {
+		t.Errorf("the applied object's sensitive paths %#v lack the schema-sensitive rule[1].token", rs.Current.AttrSensitivePaths)
+	}
+	val, _ := obj.Value.UnmarkDeep()
 	var got []string
-	for it := obj.Value.GetAttr("rule").ElementIterator(); it.Next(); {
+	for it := val.GetAttr("rule").ElementIterator(); it.Next(); {
 		_, v := it.Element()
 		s := v.GetAttr("port").AsBigFloat().String()
 		if tok := v.GetAttr("token"); !tok.IsNull() {

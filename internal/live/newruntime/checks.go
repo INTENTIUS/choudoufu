@@ -23,6 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
+	"github.com/intentius/choudoufu/internal/engine/forkport/sensitive"
 	"github.com/intentius/choudoufu/internal/live/moved"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
@@ -149,6 +150,12 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 		return out
 	},
 	"sensitive": func(c *configs.Config) (out []occurrence) {
+		// choudoufu fork port (#2410): remove when upstream #4360 lands.
+		defer func() {
+			for i := range out {
+				out[i].port = sensitive.Name
+			}
+		}()
 		m := c.Module
 		for _, v := range m.Variables {
 			if v.Sensitive {
