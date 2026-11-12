@@ -583,8 +583,16 @@ while read -r rin rattr rparam; do
   PMETA="$(awsl ssm describe-parameters --parameter-filters "Key=Name,Values=$rparam" --query 'Parameters[0].[Type,KeyId]' --output text 2>/dev/null || true)"
   PTYPE="$(cut -f1 <<< "$PMETA")"; PKEY="$(cut -f2 <<< "$PMETA")"
   [ "$PTYPE" = "SecureString" ] || fail "secrets" "the parameter $rparam is $PTYPE, not a SecureString"
-  case "$PKEY" in "$SSM_KEY"|*"key/$SSM_KEY") ;; *) fail "secrets" "the parameter $rparam is encrypted under $PKEY, not the run's key $SSM_KEY" ;; esac
-  echo "$rin $rattr: $PTYPE under key ...${SSM_KEY: -8}" | evidence
+  # The pinned emulator stores no KeyId for SSM and DescribeParameters
+  # omits it, so the CLI prints None. Only that exact answer is let
+  # through, and the key is then held by secrets-in-ssm-on-real-aws,
+  # which makes the same check against AWS. Any KeyId that is present
+  # and is not the run's key still fails here.
+  case "$PKEY" in
+    "$SSM_KEY"|*"key/$SSM_KEY") echo "$rin $rattr: $PTYPE under key ...${SSM_KEY: -8}" | evidence ;;
+    None) echo "$rin $rattr: $PTYPE; the emulator reports no KeyId, the key is checked by secrets-in-ssm-on-real-aws" | evidence ;;
+    *) fail "secrets" "the parameter $rparam is encrypted under $PKEY, not the run's key $SSM_KEY" ;;
+  esac
   if [ "$rin" = "residue.attributes" ] && [ "$rattr" = "password" ]; then PWPARAM="$rparam"; fi
 done <<< "$SREFS"
 [ -n "$PWPARAM" ] || fail "secrets" "no reference is for the password attribute: $SREFS"
