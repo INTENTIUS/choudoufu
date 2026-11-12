@@ -139,6 +139,7 @@ var surfaceSeamExemptions = map[string]surfaceSeamExemption{
 	"internal/live/discovery/sweeper.go:TaggingIndexSweep.Sweep":                               {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
 	"internal/live/discovery/discovery.go:scanType":                                            {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
 	"internal/live/discovery/discovery.go:scanTypeReporting":                                   {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
+	"internal/live/discovery/discovery.go:scanTypeUnenumerated":                                {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
 	"internal/live/discovery/lookalikerelist.go:relistForLookalikes":                           {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
 	"internal/live/discovery/recordorphan_read.go:recordOrphanReadSweep":                       {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
 	"internal/live/discovery/servicelist.go:scanTypeServiceList":                               {Handles: []Surface{SurfaceARMTags, SurfaceTags}, Why: sweepFieldCredit},
