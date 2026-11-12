@@ -273,6 +273,27 @@ func TestClassifyUnsupportedOperation(t *testing.T) {
 	}
 }
 
+// TestClassifyUnsupportedActionException covers the refusal shape lex00/floci
+// 5cf10ece1 (upstream #3141, first pinned at 920d475) gives ListResources for
+// a type its read side does not enumerate: UnsupportedActionException, the
+// code real AWS Cloud Control uses for "this type does not support this
+// action", where earlier pins answered an empty list. It is a refusal, the
+// same verdict as UnsupportedOperation; recording it unverified dropped
+// every such row out of CloudControlListCapabilityGate's skip.
+func TestClassifyUnsupportedActionException(t *testing.T) {
+	f := newFakeCloudControl()
+	f.listStatus = http.StatusBadRequest
+	f.listBody = `{"__type":"UnsupportedActionException","message":"ListResources is not supported for resource type AWS::CloudFront::CachePolicy."}`
+
+	row := classifyAgainst(t, f, "aws_cloudfront_cache_policy", "AWS::CloudFront::CachePolicy")
+	if row.Status != "unimplemented" {
+		t.Errorf("Status = %q, want unimplemented (%s)", row.Status, row.Evidence)
+	}
+	if !strings.Contains(row.Evidence, "UnsupportedActionException") {
+		t.Errorf("Evidence does not carry the refusal it saw: %q", row.Evidence)
+	}
+}
+
 // TestClassifyBrokenHandler covers the HTML-error-page shape the databases
 // and stragglers cohort READMEs both document: HTTP round trips, but the
 // body carries no __type at all, so the client's own APIError.Code comes

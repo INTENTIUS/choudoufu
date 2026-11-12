@@ -119,6 +119,22 @@ const listResourcesSource = "live probe (tools/floci-capability-gen -mode=cloudc
 // list handler needs scoping input, which registry.Roster.EnumerationSource
 // excludes by construction and internal/live/discovery reaches through
 // EnumerationSourceScoped instead (#277).
+// isListRefusal is whether a ListResources error code means the emulator
+// declined to list the type at all: the router's UnsupportedOperation or
+// UnknownOperationException, or UnsupportedActionException, which
+// lex00/floci 5cf10ece1 (upstream #3141, first pinned at 920d475) answers
+// for a type its read side does not enumerate, as real AWS Cloud Control
+// does for a type that does not support the action. Earlier pins answered
+// those types with an empty list, which the round trip below caught as
+// unimplemented; the refusal reaches the same verdict without one.
+func isListRefusal(code string) bool {
+	switch code {
+	case cloudcontrol.CodeUnsupportedOperation, "UnknownOperationException", "UnsupportedActionException":
+		return true
+	}
+	return false
+}
+
 func classifyListResources(ctx context.Context, cc *cloudcontrol.Client, seeder *ccSeeder, tfType, cfnType string) (typeRow, error) {
 	row := func(status, evidence string) typeRow {
 		return typeRow{
@@ -139,7 +155,7 @@ func classifyListResources(ctx context.Context, cc *cloudcontrol.Client, seeder 
 			return typeRow{}, callErr
 		}
 		switch {
-		case apiErr.Code == cloudcontrol.CodeUnsupportedOperation || apiErr.Code == "UnknownOperationException":
+		case isListRefusal(apiErr.Code):
 			return row("unimplemented", fmt.Sprintf("ListResources(%s) returns %s: %s", cfnType, apiErr.Code, apiErr.Message)), nil
 		case apiErr.Code == "":
 			return row("broken", fmt.Sprintf("ListResources(%s) returned HTTP %d with no parseable AWS error body: %s", cfnType, apiErr.StatusCode, apiErr.Message)), nil

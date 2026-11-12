@@ -134,7 +134,7 @@ func classifyListResourcesScoped(ctx context.Context, cc *cloudcontrol.Client, s
 			return typeRow{}, callErr
 		}
 		switch {
-		case apiErr.Code == cloudcontrol.CodeUnsupportedOperation || apiErr.Code == "UnknownOperationException":
+		case isListRefusal(apiErr.Code):
 			return row("unimplemented", fmt.Sprintf("ListResourcesScoped(%s, %v) returns %s: %s", cfnType, requiredInput, apiErr.Code, apiErr.Message)), nil
 		case apiErr.Code == "":
 			return row("broken", fmt.Sprintf("ListResourcesScoped(%s, %v) returned HTTP %d with no parseable AWS error body: %s", cfnType, requiredInput, apiErr.StatusCode, apiErr.Message)), nil

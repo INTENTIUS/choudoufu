@@ -81,7 +81,9 @@
 //     Verdicts, and what each is evidence of: implemented means the created
 //     resource came back in the list, the only path to that word here;
 //     unimplemented means either the router refuses ListResources
-//     (UnsupportedOperation/UnknownOperationException) or the created
+//     (UnsupportedOperation/UnknownOperationException, or the
+//     UnsupportedActionException floci answers from 920d475 on for a type
+//     it does not enumerate) or the created
 //     resource was absent from the list it did return; broken means a
 //     response Cloud Control's own client cannot parse as its ordinary
 //     error shape (the HTML-error-page signature the databases and

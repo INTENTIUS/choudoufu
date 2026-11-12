@@ -14,7 +14,7 @@ Everything between the generated markers is rendered from
 inside them.
 
 <!-- board-gen:begin banner -->
-Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 1 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-21T20:52:35Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
+Estates below were last measured against different emulator pins: 23 against `ghcr.io/lex00/floci@sha256:6c3d5c2dac72209e6f2e45c08902e783480d4d34f48d25daba8da94b9f882072`, 1 against `ghcr.io/lex00/floci@sha256:ff46eb8d1b73a9727948d1a194a660972e44cc64164a486548da7cb468a09144` (last_run.date ranges from 2026-10-02T19:19:40Z to 2026-10-21T20:52:35Z across these rows, not one shared measurement). The current pin is `ghcr.io/lex00/floci@sha256:8b0b0f332d01515a1525fc5f6d3f63265f12f67c64065a3bf9224524382d7d54`; a row not measured against it is stale evidence, not a failure - `go run ./tools/gauntlet next` surfaces it as work.
 
 The engine is built on OpenTofu `1.14.0-dev` (`version/VERSION`). Of the 43 estates measured so far, 0 recorded running on it; 43 are engine-stale: measured on a different base, or predating `last_run.upstream_version` and so measured on `1.13.0-dev` - stale evidence, not a failure, and `go run ./tools/gauntlet next` surfaces it as work.
 

@@ -73,6 +73,36 @@ var flociImageFields = map[string]string{
 // decision that says what re-measuring would cost; empty is the intended
 // state.
 //
+// 2026-11-12 repin: sha256:8b0b0f33 (tag 920d475, amd64 and arm64) is
+// lex00/floci develop at 920d475 (2026-11-02, "fix(cloudcontrol): list nine
+// more types that CreateResource provisions"), leaving the c688f52 pin line
+// for develop. The pin line's one commit, the EKS sub-resource tagging fix,
+// is on develop as 5e531c3a1. develop does not carry 0e955cf07 (SSM KeyId
+// support), so claim 40's floci arm still accepts a missing KeyId.
+// live/floci-capabilities.json was re-probed for the digest by the
+// maintainer (-mode=all with -watch networkmanager, then -mode=tagging on a
+// fresh container), the three hand rows were carried across (opensearch by
+// hand, redshift by hand, qldb from source), then -mode=prune. ListResources
+// now refuses a type floci does not enumerate with UnsupportedActionException
+// (lex00/floci 5cf10ece1, upstream #3141) instead of an empty list; the
+// sweep recorded those 716 rows unverified, and its classifier now counts
+// that code as a refusal, so they were rewritten from their recorded answers
+// to the unimplemented row it writes (no create was attempted on any of
+// them, so nothing else feeds the verdict). Status moves: aws_sqs_queue and
+// aws_ssm_parameter go unimplemented -> implemented on cloudcontrol-list;
+// aws_batch_job_queue and aws_iam_instance_profile go implemented ->
+// unverified there, CreateResource no longer provisioning them from an
+// empty desired state; 24 rows (19 cloudcontrol-list, 5 scoped, among them
+// aws_route_table, aws_nat_gateway, aws_lb_listener and aws_eks_node_group)
+// go unverified -> unimplemented, a create having failed on the old pin
+// and the list now refusing outright; aws_redshift_cluster goes implemented -> partial,
+// RedshiftService now starting a container per cluster, which needs the
+// docker socket this harness does not mount. The services half gains 55
+// rows and moves ce, es, sagemaker and mwaa to implemented; amp is no
+// longer listed. `go run ./tools/gauntlet render` carried gauntlet.json's
+// emulator field across; its rows read as stale against the new pin until
+// the maintainer re-measures them.
+//
 // 2026-10-17 repin (issue #2047, lex00/floci#228): sha256:5ec92ae8 (tag
 // c688f52, amd64 and arm64) is the previous pin's source commit (39d9c7c)
 // plus one commit, c688f52 (branch fix/eks-tag-subresources-on-pin-228), a
@@ -209,12 +239,12 @@ var staleFlociMeasurements = map[string]string{
 	// own run time (single-digit minutes per N, but it is a call-count
 	// ratchet unrelated to EC2 subnet allocation - this fix touches no path
 	// bench-estate's synthetic fixture exercises).
-	"plan-budget.json": "measured against the pre-#672 pin, now eight repins back; re-measuring costs a full `make bench-estate` run at N=200 and N=1000, and no fix since (EC2 CreateSubnet CIDR-conflict rejection, then the ELBv2 concurrent-RegisterTargets monitor, then the ELBv2 CreateRule priority monitor) touches a call this benchmark's synthetic fixture makes",
+	"plan-budget.json": "measured against the pre-#672 pin, now nine repins back; re-measuring costs a full `make bench-estate` run at N=200 and N=1000, and no fix since (EC2 CreateSubnet CIDR-conflict rejection, then the ELBv2 concurrent-RegisterTargets monitor, then the ELBv2 CreateRule priority monitor) touches a call this benchmark's synthetic fixture makes",
 	// TestCohortAcceptance (internal/live/acceptance) applies, deletes the
 	// state of, and replans all 31 estate-gen cohorts under
 	// live/e2e/estates/ against a live floci container; re-measuring costs
 	// that whole sweep, not the one estate this repin's ruling named.
-	"cohort-acceptance.json": "measured against the #1316 pin, two repins back; re-measuring costs TestCohortAcceptance's whole 31-cohort apply/delete-state/replan sweep; #1821's fix only changes which of two racing same-name IAM creates wins and what the loser is told, and no response shape, and #2047's only widens which EKS ARNs the EKS tagging API accepts",
+	"cohort-acceptance.json": "measured against the #1316 pin, three repins back; re-measuring costs TestCohortAcceptance's whole 31-cohort apply/delete-state/replan sweep; #1821's fix only changes which of two racing same-name IAM creates wins and what the loser is told, and no response shape, and #2047's only widens which EKS ARNs the EKS tagging API accepts; the 2026-11-12 move to lex00/floci develop changes far more (redshift create now needs the docker socket, Cloud Control list refusals changed shape), so the databases cohort's verdict in particular is unmeasured at this pin",
 	// gauntlet-scale.json's top-level emulator field is NOT rewritten by
 	// `gauntlet render` the way gauntlet.json's is - render leaves the
 	// scale ladder's committed bytes alone (tools/gauntlet/render.go's own
@@ -230,7 +260,7 @@ var staleFlociMeasurements = map[string]string{
 	// index_wait for TARGET=floci entirely (see its own skip message and
 	// live/indexwait_partition_test.go for that decision, re-made on this
 	// repin).
-	"gauntlet-scale.json": "measured against the pre-#1152 pin, now four repins back; re-measuring costs three full terralith-scale floci crossings at SCALE 1, 128 and 136 plus four real-AWS ones. #1152 changed only which IAM ARNs GetResources returns, a call the floci arm of that ladder does not make because index_wait is skipped for TARGET=floci; #1316 makes a Tagging API write on a Route 53 zone reach Route 53's own tags, which the floci arm's steady-state plans of its zone do read, so its floci records predate that fix",
+	"gauntlet-scale.json": "measured against the pre-#1152 pin, now five repins back; re-measuring costs three full terralith-scale floci crossings at SCALE 1, 128 and 136 plus four real-AWS ones. #1152 changed only which IAM ARNs GetResources returns, a call the floci arm of that ladder does not make because index_wait is skipped for TARGET=floci; #1316 makes a Tagging API write on a Route 53 zone reach Route 53's own tags, which the floci arm's steady-state plans of its zone do read, so its floci records predate that fix",
 	// cohort-triage.json is hand triage reconciled against
 	// cohort-acceptance.json's own re-measurement (its own generated_by
 	// field says so); it cannot be re-measured independently of that file.
