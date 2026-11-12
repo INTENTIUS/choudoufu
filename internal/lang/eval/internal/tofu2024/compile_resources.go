@@ -27,6 +27,7 @@ import (
 	"github.com/intentius/choudoufu/internal/lang/eval/internal/configgraph"
 	"github.com/intentius/choudoufu/internal/lang/eval/internal/evalglue"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
+	"github.com/intentius/choudoufu/internal/plans/objchange"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
@@ -339,11 +340,16 @@ func compileModuleInstanceResource(
 					// choudoufu fork port (#2414): remove when upstream
 					// #4058 and #4740 land. A module's depends_on reaches a
 					// data source's configuration as PendingChange marks.
+					// Only those: upstream #4740 adds every mark, which
+					// would carry a depended-on object's sensitive marks
+					// into the configuration.
 					if datasources.Enabled() {
 						sharedDepMarks, moreDiags := sharedDeps.Marks(ctx)
 						vDiags = vDiags.Append(moreDiags)
-						if len(sharedDepMarks) != 0 {
-							v = v.WithMarks(sharedDepMarks)
+						for m := range sharedDepMarks {
+							if _, ok := m.(objchange.PendingChange); ok {
+								v = v.Mark(m)
+							}
 						}
 					}
 
