@@ -7,6 +7,9 @@ package projection
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"strings"
 
 	"github.com/zclconf/go-cty/cty"
 
@@ -144,6 +147,20 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 	// v0.33.0 cut). Where the record and the evaluation differ only that
 	// way, the evaluation is the before side; any other difference keeps
 	// the record, which is what #2073 is for.
+	//
+	// A JSON document attribute is the same shape (corpus-iam-policy's
+	// day2_replace). hashicorp/aws plans a created aws_iam_policy's policy
+	// through its StateFunc, structure.NormalizeJsonString, and an apply
+	// takes a root output's value from the plan when it is known
+	// (NodeApplyableOutput.Execute), so a create records the compact text.
+	// The projection's read is seeded with the configuration's own text
+	// (configuredAttrsSeed), and the provider hands back an equivalent
+	// policy in the spelling its prior gave it, so the evaluation is the
+	// configuration's layout. An update records that same layout, since
+	// its planned value is the prior's; only a create, a replace among
+	// them, records the other spelling. Stock's refresh starts from the
+	// stored compact text and shows no change, so a string that is the
+	// same JSON document on both sides is the same value here too.
 	for _, name := range fromRecord {
 		if scope == nil {
 			break
@@ -159,7 +176,7 @@ func ApplyRootOutputValues(ctx context.Context, core *tofu.Context, config *conf
 		}
 		val, _ = val.UnmarkDeep()
 		rec, _ = rec.UnmarkDeep()
-		if !val.RawEquals(rec) && sameUpToLegacyEmptyStrings(rec, val) {
+		if !val.RawEquals(rec) && sameUpToProviderNormalization(rec, val) {
 			root.SetOutputValue(name, val, output.Sensitive, output.Deprecated)
 		}
 	}
@@ -413,17 +430,19 @@ func withZeroInstanceBlocks(ctx context.Context, config *configs.Config, state *
 	return seeded
 }
 
-// sameUpToLegacyEmptyStrings reports whether a and b are equal once every
-// known empty string in each is read as a null string, the equivalence a
-// legacy-SDK provider applies to an unset string attribute.
+// sameUpToProviderNormalization reports whether a and b are equal once each
+// is put through the two normalizations a provider applies without the
+// value changing: every known empty string read as a null string (the
+// legacy SDK's unset string), and every string holding a JSON object or
+// array rewritten in one canonical encoding ([canonicalJSONDocuments]).
 // A marked value anywhere refuses (false): the caller unmarks both sides
 // first, so a mark here means something else changed.
-func sameUpToLegacyEmptyStrings(a, b cty.Value) bool {
+func sameUpToProviderNormalization(a, b cty.Value) bool {
 	if a.ContainsMarked() || b.ContainsMarked() {
 		return false
 	}
-	na, errA := nullLegacyEmptyStrings(a)
-	nb, errB := nullLegacyEmptyStrings(b)
+	na, errA := normalizeForOutputCompare(a)
+	nb, errB := normalizeForOutputCompare(b)
 	if errA != nil || errB != nil || !na.Type().Equals(nb.Type()) {
 		return false
 	}
@@ -443,5 +462,47 @@ func nullLegacyEmptyStrings(v cty.Value) (cty.Value, error) {
 			return cty.NullVal(cty.String), nil
 		}
 		return v, nil
+	})
+}
+
+func normalizeForOutputCompare(v cty.Value) (cty.Value, error) {
+	v, err := nullLegacyEmptyStrings(v)
+	if err != nil {
+		return v, err
+	}
+	return canonicalJSONDocuments(v)
+}
+
+// canonicalJSONDocuments rewrites every known string whose text is a JSON
+// object or array into one encoding: no insignificant whitespace, object
+// keys sorted, numbers kept as written. Two strings it maps to the same
+// text are the same document, so nothing a consumer of the document can
+// read differs between them. A scalar ("1", "true") is left as text, since
+// "1" and "1.0" are different strings to every reader that is not parsing
+// JSON, and so is a string that does not parse.
+func canonicalJSONDocuments(v cty.Value) (cty.Value, error) {
+	return cty.Transform(v, func(_ cty.Path, v cty.Value) (cty.Value, error) {
+		if v.IsMarked() || v.Type() != cty.String || !v.IsKnown() || v.IsNull() {
+			return v, nil
+		}
+		s := v.AsString()
+		trimmed := strings.TrimSpace(s)
+		if trimmed == "" || (trimmed[0] != '{' && trimmed[0] != '[') {
+			return v, nil
+		}
+		dec := json.NewDecoder(strings.NewReader(trimmed))
+		dec.UseNumber()
+		var doc any
+		if err := dec.Decode(&doc); err != nil || dec.More() {
+			return v, nil
+		}
+		if _, err := dec.Token(); err != io.EOF {
+			return v, nil
+		}
+		out, err := json.Marshal(doc)
+		if err != nil {
+			return v, nil
+		}
+		return cty.StringVal(string(out)), nil
 	})
 }

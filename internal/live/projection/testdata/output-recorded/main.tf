@@ -33,3 +33,39 @@ output "recorded_legacy_empty" {
 output "recorded_empty_changed" {
   value = { id = "lg-2", name = "named" }
 }
+
+# corpus-iam-policy's day2_replace: a JSON document attribute. The replace's
+# apply recorded the provider's normalized (compact) text, and the
+# projection evaluates the configuration's own layout, which the provider's
+# read keeps because the two are JSON-equivalent. Same document: no-op.
+output "recorded_json_whitespace" {
+  value = <<EOT
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "ec2:Describe*"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }
+  ]
+}
+EOT
+}
+
+# Recorded with a different Action: a real change in the document.
+output "recorded_json_changed" {
+  value = <<EOT
+{
+  "Version": "2012-10-17",
+  "Statement": [{"Action": ["ec2:Describe*"], "Effect": "Allow", "Resource": "*"}]
+}
+EOT
+}
+
+# Recorded as "1.0", configured as "1": not a JSON document, so text decides.
+output "recorded_json_scalar" {
+  value = "1"
+}
