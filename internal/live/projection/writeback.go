@@ -1388,6 +1388,7 @@ func writeBackRecordEnvelopes(ctx context.Context, req WriteBackRequest) tfdiags
 										addr, encErr,
 									)))
 								} else {
+									markSensitiveResidue(rf, schema.Block, secrets)
 									setResidue = rf
 								}
 							}

@@ -372,6 +372,15 @@ var refusals = []Refusal{
 		What:    "An estate's provisioner record - the one bit saying a create-time provisioner failed on a live object (GitHub issue #353) - exists but could not be used: the store failed, the payload did not decode, or it names a different resource address. Reading on would report a half-provisioned object as healthy and never run the provisioner again.",
 	},
 	{
+		Summary: SummarySecretsCapacityExceeded,
+		What:    "Under strict { secrets = \"ssm\" }, the estate's records would reference more SecureString parameters of one tier than an AWS account holds per region (10,000 standard, 100,000 advanced). Refused before the first parameter or record is written, since a run that reached the ceiling partway would commit some secrets and not others (GitHub issue #1515, #1309's arithmetic).",
+	},
+	{
+		Summary: SummarySecretsCapacityNear,
+		Warning: true,
+		What:    "Under strict { secrets = \"ssm\" }, the estate's records will reference at least nine tenths of a tier's per-account, per-region parameter ceiling. A warning, not a refusal: whether they fit depends on the account's other parameters, which the run does not read (GitHub issue #1515).",
+	},
+	{
 		Summary: SummaryResidueUnreadable,
 		What:    "An estate's residue record - the argument values an earlier apply sent that the provider's read never gives back (GitHub issue #275) - exists but could not be used: the store failed, the payload did not decode, or it names a different resource address. The plan continues from what the provider returned, so those arguments are proposed for update again.",
 	},

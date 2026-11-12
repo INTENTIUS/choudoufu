@@ -1017,6 +1017,7 @@ func (m *Module) ignoreStateStoreUnderLive(diags *hcl.Diagnostics) {
 		if rs := m.Live.RecordStore; rs != nil && rs.Implied {
 			if derived, why := deriveRecordStore(m.IgnoredBackend); derived != nil {
 				m.Live.RecordStore = derived
+				linkStrictSecrets(m.Live)
 			} else {
 				m.Live.RecordStoreNote = why
 			}
