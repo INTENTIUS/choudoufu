@@ -33,7 +33,14 @@ import (
 // warnings, as in the default runtime.
 func (ops *execOperations) forkReadData(ctx context.Context, desired *eval.DesiredResourceInstance) (*exec.ResourceInstanceObject, tfdiags.Diagnostics) {
 	ret, diags := ops.forkReadDataInner(ctx, desired)
-	if desired.ForkCheckNested {
+	if desired.ForkCheckNested && diags.HasErrors() {
+		diags = tfdiags.OverrideAll(diags, tfdiags.Warning, nil)
+		if ret.State == nil {
+			// Unreadable, its value is unknown, so the check's assertions
+			// cannot be decided rather than failing on a null object.
+			ret.State = &states.ResourceInstanceObjectFull{Status: states.ObjectReady, Value: cty.DynamicVal}
+		}
+	} else if desired.ForkCheckNested {
 		diags = tfdiags.OverrideAll(diags, tfdiags.Warning, nil)
 	}
 	return ret, diags
