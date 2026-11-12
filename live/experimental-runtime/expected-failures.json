@@ -173,6 +173,11 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
+      "test": "TestShow_json_output",
+      "reason": "Since the checkrules fork port (#2409) its conditions and plan-error cases pass. Since the sensitive fork port (#2410) its sensitive-values case passes too. Its moved, moved-drift, multi-resource-update, provider-aliasing-conflict and unknown-output cases differ from the default runtime's plan JSON or fail to plan on the new runtime. Its provider-aliasing-default case also fails in some runs and passes in others (child module order in the plan JSON), with the sensitive port on or off."
+    },
+    {
+      "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestShow_json_output_identity",
       "reason": "Upstream's new runtime, in an internal/command test upstream's own experimental lane does not run (it runs internal/tofu only): the JSON plan does not carry resource identity as the default runtime does."
     },
