@@ -83,6 +83,14 @@ func renderRepoDoc(fs forkSurface, rows []newruntime.Row) string {
 	b.WriteString("choudoufu needs, how it is handled while `" + newruntime.Variable + "` is set, and\n")
 	b.WriteString("what closes it. Numbers link to opentofu/opentofu when the row lists them as\n")
 	b.WriteString("upstream, and to choudoufu otherwise.\n\n")
+	b.WriteString("A run that a refusing row stops falls back to the default runtime for the\n")
+	b.WriteString("whole run ([#2397](https://github.com/INTENTIUS/choudoufu/issues/2397)), with the warning\n")
+	b.WriteString("`" + newruntime.FallbackSummary + "` naming the rows, in place of the\n")
+	b.WriteString("new runtime's own warning, so the output says which runtime ran. Apply follows\n")
+	b.WriteString("the plan: one with an execution graph runs on the new runtime, one without on\n")
+	b.WriteString("the default runtime. `" + newruntime.StrictVariable + "=1` refuses instead of falling\n")
+	b.WriteString("back; the experimental-runtime lane sets it, so the expected-failures list\n")
+	b.WriteString("measures the new runtime. The `live` row's refusal is not a fallback.\n\n")
 	b.WriteString(renderGaps(rows))
 	b.WriteString("\n## Fork ports\n\n")
 	b.WriteString(renderPorts(forkport.Ports))
@@ -206,7 +214,7 @@ func renderGaps(rows []newruntime.Row) string {
 	var b strings.Builder
 
 	b.WriteString("### Refused\n\n")
-	b.WriteString("A run that reaches one of these stops with `" + newruntime.RefusalSummary + "`, naming the row and what it waits for.\n\n")
+	b.WriteString("With `" + newruntime.StrictVariable + "=1`, a run that reaches one of these stops with `" + newruntime.RefusalSummary + "`, naming the row and what it waits for. Without it, the run falls back to the default runtime, except at the `live` row.\n\n")
 	b.WriteString("| Row | Gap | Where it stops | What it refuses | Waits for |\n|---|---|---|---|---|\n")
 	for _, r := range rows {
 		if !isRefusal(r.Check) {

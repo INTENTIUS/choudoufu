@@ -19,9 +19,18 @@ choudoufu needs, how it is handled while `TOFU_X_EXPERIMENTAL_RUNTIME` is set, a
 what closes it. Numbers link to opentofu/opentofu when the row lists them as
 upstream, and to choudoufu otherwise.
 
+A run that a refusing row stops falls back to the default runtime for the
+whole run ([#2397](https://github.com/INTENTIUS/choudoufu/issues/2397)), with the warning
+`Ran on the default runtime, not the new runtime` naming the rows, in place of the
+new runtime's own warning, so the output says which runtime ran. Apply follows
+the plan: one with an execution graph runs on the new runtime, one without on
+the default runtime. `CHOUDOUFU_NEW_RUNTIME_STRICT=1` refuses instead of falling
+back; the experimental-runtime lane sets it, so the expected-failures list
+measures the new runtime. The `live` row's refusal is not a fallback.
+
 ### Refused
 
-A run that reaches one of these stops with `Not supported on the new runtime yet`, naming the row and what it waits for.
+With `CHOUDOUFU_NEW_RUNTIME_STRICT=1`, a run that reaches one of these stops with `Not supported on the new runtime yet`, naming the row and what it waits for. Without it, the run falls back to the default runtime, except at the `live` row.
 
 | Row | Gap | Where it stops | What it refuses | Waits for |
 |---|---|---|---|---|
@@ -36,7 +45,7 @@ A run that reaches one of these stops with `Not supported on the new runtime yet
 | `checks-conditions` | checks and conditions | before planning, on the configuration or state | refuse check blocks and precondition and postcondition blocks | upstream [`#4390`](https://github.com/opentofu/opentofu/issues/4390) |
 | `sensitive` | sensitive values (mark handling) | before planning, on the configuration or state | refuse sensitive = true variables and outputs and the sensitive() function | upstream [`#4360`](https://github.com/opentofu/opentofu/issues/4360) |
 | `deferral` | deferred actions | inside planning | error on any deferral not caused by -target or -exclude; plans have no record of deferral, so a post-plan check cannot see one. The deferral fork port ([#2382](https://github.com/INTENTIUS/choudoufu/issues/2382)) marks what -target or -exclude deferred with a mark of its own, so a resource whose configuration is derived only from such a result is left out of the plan as the old runtime leaves it, and gives an unknown count or for_each the old runtime's "Invalid count argument" or "Invalid for_each argument" error. Every other deferral is still refused. With the switch set the port is off and this row refuses those deferrals again | upstream [`#4697`](https://github.com/opentofu/opentofu/issues/4697) |
-| `test-command` | tofu test | before planning, on the configuration or state | refuse the test command (its harness still evaluates on the default runtime) | upstream [`#4741`](https://github.com/opentofu/opentofu/issues/4741) |
+| `test-command` | tofu test | before planning, on the configuration or state | the test command runs on the default runtime with the fallback warning, since its harness still evaluates there ([#2397](https://github.com/INTENTIUS/choudoufu/issues/2397)); with CHOUDOUFU_NEW_RUNTIME_STRICT=1 it is refused | upstream [`#4741`](https://github.com/opentofu/opentofu/issues/4741) |
 
 ### Accepted, and named in the warning
 
@@ -67,7 +76,7 @@ Every run on the new runtime prints `Running on OpenTofu's experimental new runt
 | `taint-on-create` | taint on create failure | none needed | upstream [`#4768`](https://github.com/opentofu/opentofu/issues/4768); see [#2336](https://github.com/INTENTIUS/choudoufu/issues/2336) for the taint decision; upstream [`#4691`](https://github.com/opentofu/opentofu/issues/4691), [`#4687`](https://github.com/opentofu/opentofu/issues/4687) |
 | `imports` | imports, config-driven and plan-option | none needed | upstream [`#4726`](https://github.com/opentofu/opentofu/issues/4726), [`#4727`](https://github.com/opentofu/opentofu/issues/4727), [`#4745`](https://github.com/opentofu/opentofu/issues/4745), [`#4683`](https://github.com/opentofu/opentofu/issues/4683) |
 | `provisioner-self-marks` | provisioner self marks | none needed: ours, already carried | ours |
-| `saved-plan-cross-runtime` | a plan saved on the default runtime, applied with the toggle on | apply refuses loudly with "Saved plan contains no execution graph": upstream's apply engine applies only plans its own planner made. Re-plan with the toggle on. | upstream |
+| `saved-plan-cross-runtime` | a plan saved on the default runtime, applied with the toggle on | apply follows the plan ([#2397](https://github.com/INTENTIUS/choudoufu/issues/2397)): a plan with resource changes and no execution graph was made by the default runtime and is applied there, with a warning; one with an execution graph is applied on the new runtime. Upstream's apply engine applies only plans its own planner made, so with CHOUDOUFU_NEW_RUNTIME_STRICT=1 apply still refuses the first kind with "Saved plan contains no execution graph" | [#2397](https://github.com/INTENTIUS/choudoufu/issues/2397) (apply follows the plan); upstream for the strict refusal |
 | `tracing-spans` | the default runtime's per-resource tracing spans | a fork port ([#2381](https://github.com/INTENTIUS/choudoufu/issues/2381)), not upstream's code: plan and apply each open the default runtime's Graph walk span, and under it a plan or apply span per managed resource instance, from the engine's tracer callbacks, with the span budget and aggregate summaries of [#1898](https://github.com/INTENTIUS/choudoufu/issues/1898). With the switch set the port is off and traces carry none of these spans | removed, package and call sites and this row, when upstream's own tracing in internal/engine lands |
 
 ## Fork ports

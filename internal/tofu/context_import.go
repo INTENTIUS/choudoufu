@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
 	"github.com/intentius/choudoufu/internal/tfdiags"
@@ -429,22 +430,40 @@ func (c *Context) Import(ctx context.Context, config *configs.Config, prevRunSta
 
 	// TEMP: Opt-in support for testing with the new experimental language
 	// runtime. Refer to backend_temp_new_runtime.go for more information.
-	if experimentalRuntimeEnabled() {
+	//
+	// choudoufu (#2397): unless CHOUDOUFU_NEW_RUNTIME_STRICT is set, an
+	// import the new runtime cannot handle (the preflight refuses the
+	// configuration, or planning raises a gap refusal) falls back to the
+	// default runtime's import below, with FallbackWarning. Strict, the
+	// import runs on the new runtime as before.
+	c.fallbackRows = nil
+	defer func() { c.fallbackRows = nil }()
+	if c.newRuntimeMayFallBack() {
+		c.fallbackRows = newruntime.RefusedRows(newruntime.Preflight(config, prevRunState, c.configValueAdjuster != nil))
+	}
+	if c.newRuntimeThisRun() {
 		// choudoufu (#2256 end phase): the import command passes no state
 		// when none exists yet, which the old runtime tolerates and the new
 		// planner dereferences; and a failed plan may be nil.
 		if prevRunState == nil {
 			prevRunState = states.NewState()
 		}
-		plan, diags := c.newEnginePlan(ctx, config, prevRunState, &PlanOpts{
+		plan, diags := c.newEnginePlan(ctx, config, prevRunState.DeepCopy(), &PlanOpts{
 			Mode:          plans.RefreshOnlyMode,
 			SetVariables:  opts.SetVariables,
 			ImportTargets: opts.Targets,
 		})
-		if plan == nil || plan.Errored || diags.HasErrors() {
-			return prevRunState, diags
+		rows := newruntime.RefusedRows(diags)
+		if len(rows) == 0 || !c.newRuntimeMayFallBack() {
+			if plan == nil || plan.Errored || diags.HasErrors() {
+				return prevRunState, diags
+			}
+			return plan.PriorState, diags
 		}
-		return plan.PriorState, diags
+		c.fallbackRows = rows
+	}
+	if c.fallbackRows != nil {
+		diags = diags.Append(newruntime.FallbackWarning(c.fallbackRows))
 	}
 
 	// Don't modify our caller's state

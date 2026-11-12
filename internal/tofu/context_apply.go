@@ -126,22 +126,55 @@ func (c *Context) Apply(ctx context.Context, plan *plans.Plan, config *configs.C
 
 	// TEMP: Opt-in support for testing with the new experimental language
 	// runtime. Refer to backend_temp_new_runtime.go for more information.
-	if experimentalRuntimeEnabled() {
-		// #2256 U2: applying a saved plan with the toggle on runs both
-		// gap-table checks against the plan's changes and the configuration
-		// it was made from (for apply PLANFILE, the plan file's snapshot), so
-		// a plan saved with the toggle off cannot slip past them. Live mode
-		// scopes rows the same way as on plan (#2256 U10, #2374).
-		priorForPreflight := plan.PriorState
-		if priorForPreflight == nil {
-			priorForPreflight = plan.PrevRunState
+	//
+	// choudoufu (#2397): apply follows the plan. Unless
+	// CHOUDOUFU_NEW_RUNTIME_STRICT is set, a plan with resource changes and
+	// no execution graph was made by the default runtime, a fallback run's
+	// included, and is applied by it. A plan with an execution graph was
+	// made by the new runtime and is applied there, after the checks below.
+	// A plan with neither (no resource changes) may be either runtime's and
+	// either can apply it: the new runtime does unless the checks refuse it.
+	// Strict, every plan goes to the new runtime as before, which refuses
+	// one with resource changes and no graph.
+	newRuntimeApply := experimentalRuntimeEnabled() && !c.defaultRuntime
+	if newRuntimeApply {
+		strict := newruntime.Strict()
+		noGraph := len(plan.ExecutionGraph) == 0
+		var checkDiags tfdiags.Diagnostics
+		if strict || !noGraph || plan.Changes.ResourcesEmpty() {
+			// #2256 U2: applying a saved plan with the toggle on runs both
+			// gap-table checks against the plan's changes and the
+			// configuration it was made from (for apply PLANFILE, the plan
+			// file's snapshot), so a plan saved with the toggle off cannot
+			// slip past them. Live mode scopes rows the same way as on plan
+			// (#2256 U10, #2374).
+			priorForPreflight := plan.PriorState
+			if priorForPreflight == nil {
+				priorForPreflight = plan.PrevRunState
+			}
+			checkDiags = newruntime.Preflight(config, priorForPreflight, c.configValueAdjuster != nil)
+			if !checkDiags.HasErrors() {
+				checkDiags = c.newRuntimePostPlan(ctx, plan, config)
+			}
 		}
-		if moreDiags := newruntime.Preflight(config, priorForPreflight, c.configValueAdjuster != nil); moreDiags.HasErrors() {
-			return nil, diags.Append(moreDiags)
+		switch {
+		case !strict && noGraph && (!plan.Changes.ResourcesEmpty() || checkDiags.HasErrors()):
+			newRuntimeApply = false
+			if plan != c.fallbackPlan {
+				diags = diags.Append(defaultShapedPlanWarning())
+			}
+		case checkDiags.HasErrors():
+			// #2397: the default runtime cannot apply a plan the new
+			// runtime made, so there is nothing to fall back to here. A
+			// fresh plan falls back as a whole.
+			if !strict {
+				checkDiags = checkDiags.Append(tfdiags.Sourceless(tfdiags.Error, "Plan again to fall back to the default runtime",
+					"This plan was made by the new runtime, and only the new runtime can apply it, but it holds something the new runtime cannot handle yet (above). Make a new plan: a plan the new runtime cannot handle is made on the default runtime, and its apply follows it there."))
+			}
+			return nil, diags.Append(checkDiags)
 		}
-		if moreDiags := c.newRuntimePostPlan(ctx, plan, config); moreDiags.HasErrors() {
-			return nil, diags.Append(moreDiags)
-		}
+	}
+	if newRuntimeApply {
 		variables, vDiags := c.mergePlanAndApplyVariables(config, plan, opts)
 		diags = diags.Append(vDiags)
 		if diags.HasErrors() {
@@ -155,7 +188,10 @@ func (c *Context) Apply(ctx context.Context, plan *plans.Plan, config *configs.C
 
 	providerFunctionTracker := make(ProviderFunctionMapping)
 
-	graph, operation, diags := c.applyGraph(ctx, plan, config, providerFunctionTracker, opts)
+	// choudoufu (#2397): appended, not assigned, so the warning above that
+	// a default-shaped plan is applied on the default runtime survives.
+	graph, operation, graphDiags := c.applyGraph(ctx, plan, config, providerFunctionTracker, opts)
+	diags = diags.Append(graphDiags)
 	if diags.HasErrors() {
 		return nil, diags
 	}

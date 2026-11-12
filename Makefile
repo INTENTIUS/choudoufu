@@ -42,15 +42,18 @@ EXPERIMENTAL_RUNTIME_PACKAGES ?= ./internal/tofu ./internal/command ./internal/l
 .PHONY: test-experimental
 test-experimental:
 # 	TOFU_X_EXPERIMENTAL_RUNTIME=1 go test -ldflags "-X main.experimentsAllowed=yes" -v ./...
-	TOFU_X_EXPERIMENTAL_RUNTIME=1 go test -count=1 -v -ldflags "-X main.experimentsAllowed=yes" -v $(EXPERIMENTAL_RUNTIME_PACKAGES)
+	TOFU_X_EXPERIMENTAL_RUNTIME=1 CHOUDOUFU_NEW_RUNTIME_STRICT=1 go test -count=1 -v -ldflags "-X main.experimentsAllowed=yes" -v $(EXPERIMENTAL_RUNTIME_PACKAGES)
 
 # test-experimental-ratchet runs the same packages with -json and checks the
 # result against live/experimental-runtime/expected-failures.json. The test
 # run's own exit status is ignored on purpose: expected failures fail it, and
 # the ratchet is what decides. Its last line is the verdict.
+# CHOUDOUFU_NEW_RUNTIME_STRICT=1 keeps the gap table's refusals (#2397), so
+# a test the new runtime cannot run fails here instead of passing on the
+# default runtime by fallback, and the list keeps measuring the new runtime.
 .PHONY: test-experimental-ratchet
 test-experimental-ratchet:
-	-TOFU_X_EXPERIMENTAL_RUNTIME=1 go test -count=1 -json -ldflags "-X main.experimentsAllowed=yes" $(EXPERIMENTAL_RUNTIME_PACKAGES) > experimental-runtime-results.json
+	-TOFU_X_EXPERIMENTAL_RUNTIME=1 CHOUDOUFU_NEW_RUNTIME_STRICT=1 go test -count=1 -json -ldflags "-X main.experimentsAllowed=yes" $(EXPERIMENTAL_RUNTIME_PACKAGES) > experimental-runtime-results.json
 	go run ./tools/expruntime-ratchet -results experimental-runtime-results.json
 
 # generate runs `go generate` to build the dynamically generated

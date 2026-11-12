@@ -98,6 +98,13 @@ func toggleOn(t *testing.T) {
 	t.Setenv(newruntime.Variable, "1")
 }
 
+// strictOn keeps the gap table's refusals (#2397): without it, a run the new
+// runtime cannot handle falls back to the default runtime instead.
+func strictOn(t *testing.T) {
+	t.Helper()
+	t.Setenv(newruntime.StrictVariable, "1")
+}
+
 func stateWith(name string) *states.State {
 	return states.BuildState(func(s *states.SyncState) {
 		s.SetResourceInstanceCurrent(
@@ -110,10 +117,11 @@ func stateWith(name string) *states.State {
 }
 
 // TestNewRuntimeToggle_preflightRefuses: the preflight check kind. With the
-// toggle on, a configuration holding a refused construct (a data source) is
+// toggle and the strict switch on (#2397), a configuration holding a refused construct (a data source) is
 // refused before planning, and no warning is printed. This is also the
 // second negative control: a refused run never reaches the engine.
 func TestNewRuntimeToggle_preflightRefuses(t *testing.T) {
+	strictOn(t)
 	showNewRuntimeWarningForTesting(t)
 	toggleOn(t)
 	m := testModuleInline(t, map[string]string{"main.tf": `
@@ -166,6 +174,7 @@ moved {
 // returned. The replacecycle fork port (#2380) lifts that refusal while it
 // is on, so its switch is set here.
 func TestNewRuntimeToggle_postPlanRefusesReplace(t *testing.T) {
+	strictOn(t)
 	showNewRuntimeWarningForTesting(t)
 	toggleOn(t)
 	t.Setenv(forkport.Switch(replacecycle.Name), "1")
@@ -188,6 +197,7 @@ resource "test_object" "a" {
 // the toggle on: both checks run against it before the engine. The
 // replacecycle fork port (#2380) is switched off so a replace is refused.
 func TestNewRuntimeToggle_savedPlanApplyRefuses(t *testing.T) {
+	strictOn(t)
 	showNewRuntimeWarningForTesting(t)
 	t.Setenv(forkport.Switch(replacecycle.Name), "1")
 	// The plan is made on the default runtime: clear the toggle even when
@@ -220,6 +230,7 @@ resource "test_object" "a" {
 // deferral fork port (#2382) answers this one with the old runtime's
 // "Invalid for_each argument", so it is switched off here to reach the row.
 func TestNewRuntimeToggle_engineRefusesDeferral(t *testing.T) {
+	strictOn(t)
 	showNewRuntimeWarningForTesting(t)
 	toggleOn(t)
 	t.Setenv(forkport.Switch(deferral.Name), "1")

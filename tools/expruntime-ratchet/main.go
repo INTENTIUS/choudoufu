@@ -5,8 +5,9 @@
 
 // Command expruntime-ratchet is the experimental-runtime lane's ratchet
 // (#2256 U3, #2338). It reads the `go test -json` output of a run with
-// TOFU_X_EXPERIMENTAL_RUNTIME=1 and checks it against the checked-in
-// expected-failures list, live/experimental-runtime/expected-failures.json:
+// TOFU_X_EXPERIMENTAL_RUNTIME=1 and CHOUDOUFU_NEW_RUNTIME_STRICT=1 (#2397:
+// refuse, not fall back to the default runtime) and checks it against the
+// checked-in expected-failures list, live/experimental-runtime/expected-failures.json:
 //
 //   - a listed test that passes fails the job until it is taken off the list;
 //   - an unlisted test that fails fails the job (a regression, or something
@@ -21,7 +22,7 @@
 //
 // Usage:
 //
-//	TOFU_X_EXPERIMENTAL_RUNTIME=1 go test -json ./internal/tofu ... > results.json
+//	TOFU_X_EXPERIMENTAL_RUNTIME=1 CHOUDOUFU_NEW_RUNTIME_STRICT=1 go test -json ./internal/tofu ... > results.json
 //	go run ./tools/expruntime-ratchet -results results.json
 //
 // The last line is the verdict, "RATCHET: PASS ..." or "RATCHET: FAIL ...".
