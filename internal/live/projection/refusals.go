@@ -381,6 +381,21 @@ var refusals = []Refusal{
 		What:    "Under strict { secrets = \"ssm\" }, the estate's records will reference at least nine tenths of a tier's per-account, per-region parameter ceiling. A warning, not a refusal: whether they fit depends on the account's other parameters, which the run does not read (GitHub issue #1515).",
 	},
 	{
+		Summary: SummarySecretsCapacityUncounted,
+		Warning: true,
+		What:    "Under strict { secrets = \"ssm\" }, the post-plan count of the SSM parameters the estate will reference could not be made (a record could not be read or decoded, or a planned value could not be). The store's own check still runs before the first parameter is written, on the parameters the run can see (GitHub issue #2393).",
+	},
+	{
+		Summary: SummarySecretsAdvancedTier,
+		Warning: true,
+		What:    "Under strict { secrets = \"ssm\" }, a single secret value over 4 KB (a PEM private key, usually) is kept in SSM's advanced tier, at $0.05 per parameter-month. Announced on every run that reads or writes it, naming the instance and the parameter (GitHub issue #1515, ruling 3).",
+	},
+	{
+		Summary: SummarySecretsContractWaived,
+		Warning: true,
+		What:    "Under strict { secrets = \"ssm\" }, the ssm block's allow_insecure waives one of the first-contact assertions (customer_managed_key, parameter_access), and the run proceeded without it. Announced by the run that writes, with what the waiver costs (GitHub issue #2393).",
+	},
+	{
 		Summary: SummaryResidueUnreadable,
 		What:    "An estate's residue record - the argument values an earlier apply sent that the provider's read never gives back (GitHub issue #275) - exists but could not be used: the store failed, the payload did not decode, or it names a different resource address. The plan continues from what the provider returned, so those arguments are proposed for update again.",
 	},

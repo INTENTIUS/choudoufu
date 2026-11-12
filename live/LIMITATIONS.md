@@ -3274,7 +3274,10 @@ refused, and each says so in its own entry.
 | - | - | projection | Residue record could not be read | error | `internal/live/projection` | "Residue record could not be read" |
 | - | - | projection | Resolved instance missing from the configuration | error | `internal/live/projection` | "Resolved instance missing from the configuration" |
 | - | - | projection | Resource type has no classic Importer | error | `internal/live/projection` | "Resource type has no classic Importer" |
+| - | - | projection | SSM secrets contract assertion waived | warning | `internal/live/projection` | "SSM secrets contract assertion waived" |
 | - | - | projection | Secret parameters close to SSM's ceiling | warning | `internal/live/projection` | "Secret parameters close to SSM's ceiling" |
+| - | - | projection | Secret parameters not counted from the plan | warning | `internal/live/projection` | "Secret parameters not counted from the plan" |
+| - | - | projection | Secret value in SSM's advanced tier | warning | `internal/live/projection` | "Secret value in SSM's advanced tier" |
 | - | - | projection | Several moved-from addresses hold a record | error | `internal/live/projection` | "Several moved-from addresses hold a record" |
 | - | - | projection | The destroy left record-backed instances behind | error | `internal/live/projection` | "The destroy left record-backed instances behind" |
 | - | - | projection | The estate boundary policy refused this run's record write | error | `internal/live/projection` | "The estate boundary policy refused this run's record write" |
@@ -3292,7 +3295,7 @@ refused, and each says so in its own entry.
 | 0 | 0 | stamp | Ownership marker conflict | error | `internal/live/stamp` | "Ownership marker conflict" |
 | 0 | 0 | stamp | Ownership markers not stamped | error | `internal/live/stamp` | "Ownership markers not stamped" |
 
-**317 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
+**320 refusals**, from every registry the live path has: `internal/live/lint`'s rule table, and `internal/live/identity`'s, `internal/live/passthrough`'s, `internal/live/stamp`'s and `internal/live/discovery`'s. A refusal blocking nothing is not an error in this table - it is the interesting end of it, and a set assembled by watching output could never contain one. **Severity** is `error` (fatal, stops the run) unless marked `warning`. Five layers can declare `warning` today: a lint rule (GitHub issue #214's `state-backend`), an identity registry entry marked as a warning, a discovery refusal, whose severity is read from the same call the diagnostic is built from, a dataread refusal belonging to the root-output demand class, which costs one output its prior value rather than the run, and a projection registry entry marked as a warning (GitHub issue #1371's notice that a value read from another estate is as of its last apply). A `warning` does not stop the run - it says this run saw less than the whole picture, or found something outside its own coverage - so it is not a blocker and should not be ranked as one.
 
 Counts are from `live/corpus-refusals.json`, over the corpus that artifact names. Read them as a ranking and not as a rate: the corpus leans on module `examples/`, which use variables, conditionals and `dynamic` blocks harder than an ordinary estate does. A dash means the refusal is in the registries but was not measured. Every `stamp` and `discovery` row shows one: those two passes need a cloud, so no corpus run reaches them.
 <!-- limits-gen:end refusal-table -->
@@ -5436,9 +5439,33 @@ reserved for the limits wing's fixture directories, and
 
 **How often.** Not measured: absent from the corpus artifact this was generated against.
 
+#### SSM secrets contract assertion waived
+
+**What.** Under strict { secrets = "ssm" }, the ssm block's allow_insecure waives one of the first-contact assertions (customer_managed_key, parameter_access), and the run proceeded without it. Announced by the run that writes, with what the waiver costs (GitHub issue #2393).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
 #### Secret parameters close to SSM's ceiling
 
 **What.** Under strict { secrets = "ssm" }, the estate's records will reference at least nine tenths of a tier's per-account, per-region parameter ceiling. A warning, not a refusal: whether they fit depends on the account's other parameters, which the run does not read (GitHub issue #1515).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Secret parameters not counted from the plan
+
+**What.** Under strict { secrets = "ssm" }, the post-plan count of the SSM parameters the estate will reference could not be made (a record could not be read or decoded, or a planned value could not be). The store's own check still runs before the first parameter is written, on the parameters the run can see (GitHub issue #2393).
+
+**Where.** The projection pass, raised by `internal/live/projection`.
+
+**How often.** Not measured: absent from the corpus artifact this was generated against.
+
+#### Secret value in SSM's advanced tier
+
+**What.** Under strict { secrets = "ssm" }, a single secret value over 4 KB (a PEM private key, usually) is kept in SSM's advanced tier, at $0.05 per parameter-month. Announced on every run that reads or writes it, naming the instance and the parameter (GitHub issue #1515, ruling 3).
 
 **Where.** The projection pass, raised by `internal/live/projection`.
 

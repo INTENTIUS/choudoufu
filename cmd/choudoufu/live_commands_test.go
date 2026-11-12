@@ -22,7 +22,7 @@ import (
 // The CLI is commandMain's urfave/cli tree, built from
 // command.RootCommander; upstream removed the legacy mitchellh/cli commands
 // map in 1.14, so RootCommander is the only place each has to be reachable.
-var liveCommandNames = []string{"live-check", "live-plan", "live-mv", "live-import", "live-ls", "live-bucket", "live-cluster", "live-summary", "live-affected", "live-cone", "live-history", "live-graph", "live-plan-set", "live-waves", "live-wave-apply", "investigate", "mcp"}
+var liveCommandNames = []string{"live-check", "live-plan", "live-mv", "live-import", "live-ls", "live-bucket", "live-cluster", "live-summary", "live-sweep-secrets", "live-affected", "live-cone", "live-history", "live-graph", "live-plan-set", "live-waves", "live-wave-apply", "investigate", "mcp"}
 
 // TestCommandMainRoutesLiveCommands is the routing half of GitHub issue
 // #1778's step 3 test (internal/command's TestNewCLIDispatchesLiveCommands

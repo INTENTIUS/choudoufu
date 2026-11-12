@@ -35,6 +35,7 @@ func LiveCommanders() []Command {
 		LivePlanCommander(),
 		LivePlanSetCommander(),
 		LiveSummaryCommander(),
+		LiveSweepSecretsCommander(),
 		LiveWaveApplyCommander(),
 		LiveWavesCommander(),
 		InvestigateCommander(),

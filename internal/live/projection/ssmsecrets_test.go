@@ -56,6 +56,9 @@ func (f *fakeSSM) DeleteParameter(_ context.Context, in *ssm.DeleteParameterInpu
 		return nil, &ssmtypes.ParameterNotFound{Message: aws.String(name)}
 	}
 	delete(f.params, name)
+	if f.log != nil && !strings.Contains(name, staterecord.SSMProbeNamePrefix) {
+		*f.log = append(*f.log, "ssm:delete "+name)
+	}
 	return &ssm.DeleteParameterOutput{}, nil
 }
 
@@ -149,28 +152,19 @@ func (f *fakeSSM) GetParameters(_ context.Context, in *ssm.GetParametersInput, _
 	return out, nil
 }
 
-func (f *fakeSSM) DeleteParameters(_ context.Context, in *ssm.DeleteParametersInput, _ ...func(*ssm.Options)) (*ssm.DeleteParametersOutput, error) {
+func (f *fakeSSM) GetParametersByPath(_ context.Context, in *ssm.GetParametersByPathInput, _ ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	out := &ssm.DeleteParametersOutput{}
-	for _, n := range in.Names {
-		if _, ok := f.params[n]; ok {
-			delete(f.params, n)
-			out.DeletedParameters = append(out.DeletedParameters, n)
-			if f.log != nil {
-				*f.log = append(*f.log, "ssm:delete "+n)
-			}
-		} else {
-			out.InvalidParameters = append(out.InvalidParameters, n)
-		}
+	if aws.ToBool(in.WithDecryption) {
+		return nil, errors.New("fake SSM: the sweep's listing asked for decryption")
 	}
-	return out, nil
-}
-
-func (f *fakeSSM) DescribeParameters(_ context.Context, in *ssm.DescribeParametersInput, _ ...func(*ssm.Options)) (*ssm.DescribeParametersOutput, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	path := in.ParameterFilters[0].Values[0]
+	if !aws.ToBool(in.Recursive) {
+		return nil, errors.New("fake SSM: the sweep's listing is not recursive")
+	}
+	if n := aws.ToInt32(in.MaxResults); n < 1 || n > 10 {
+		return nil, fmt.Errorf("fake SSM: MaxResults %d, the API's range is 1 to 10", n)
+	}
+	path := aws.ToString(in.Path)
 	var names []string
 	for n := range f.params {
 		if strings.HasPrefix(n, path+"/") {
@@ -183,10 +177,10 @@ func (f *fakeSSM) DescribeParameters(_ context.Context, in *ssm.DescribeParamete
 		fmt.Sscanf(*in.NextToken, "%d", &start)
 	}
 	end := min(start+int(aws.ToInt32(in.MaxResults)), len(names))
-	out := &ssm.DescribeParametersOutput{}
+	out := &ssm.GetParametersByPathOutput{}
 	for _, n := range names[start:end] {
 		mod := f.params[n].modified
-		out.Parameters = append(out.Parameters, ssmtypes.ParameterMetadata{Name: aws.String(n), LastModifiedDate: &mod, Tier: f.params[n].tier})
+		out.Parameters = append(out.Parameters, ssmtypes.Parameter{Name: aws.String(n), Value: aws.String("ciphertext"), LastModifiedDate: &mod})
 	}
 	if end < len(names) {
 		out.NextToken = aws.String(fmt.Sprint(end))

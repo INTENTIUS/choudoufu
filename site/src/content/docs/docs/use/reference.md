@@ -22,6 +22,7 @@ prompt: >-
 | `live-mv <old> <new>` | Rewrites a marker |
 | `live-plan` | The live plan; [`-filter`](https://github.com/INTENTIUS/choudoufu/blob/main/live/REPORT-FILTER.md) narrows it |
 | `live-history <address>` | A record's versions, newest first |
+| `live-sweep-secrets` | Orphaned SSM secrets; `-delete` removes them |
 | `live-graph DIR -json` | The estate's graph |
 | `investigate`, `mcp` | Read-only questions, also over MCP |
 | `live-ls -estate=<name>` | Lists an estate |
@@ -31,10 +32,10 @@ prompt: >-
 
 ## The live backend
 
-The live backend replaces the `backend` block. Write it in
-`estate.chdf.hcl` at the root, or in a `live` block inside `terraform`. A
-`backend` block beside it is ignored with a warning. Unless it is
-`local`, an apply writes the estate's non-sensitive outputs where it points.
+The live backend replaces the `backend` block, in `estate.chdf.hcl` or a
+`live` block inside `terraform`. A `backend` block beside it is ignored
+with a warning. Except under
+`local`, an apply writes the estate's non-sensitive outputs to the store.
 
 ```hcl
 estate = "prod-networking"
@@ -55,7 +56,7 @@ cache under `-refresh=false`.
 | Argument | Store | Meaning |
 |---|---|---|
 | `path` | `local` | Records directory |
-| `bucket`, `region`, `bucket_owner` | `s3` | The bucket, its region and owning account |
+| `bucket`, `region`, `bucket_owner` | `s3` | Bucket, region, owning account |
 | `key_prefix` | `s3`, `kubernetes`, `gcs`, `azurerm` | Replaces `tofu-records/<estate>/` |
 | `namespace` | `kubernetes` | Defaults to `tofu-records-<estate>` |
 | `host`, `config_path`, `exec` and the rest | `kubernetes` | As in stock's `kubernetes` backend |

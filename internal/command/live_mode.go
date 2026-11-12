@@ -1754,7 +1754,10 @@ func (r *liveRunner) WriteBack(ctx context.Context, finalState *states.State, sc
 	if !diags.HasErrors() {
 		diags = diags.Append(publishOutputsState(ctx, r.liveConfig, r.rootOutputStore, r.publishWorkspace))
 	}
-	return diags
+	// GitHub issue #2393: what the SSM secrets store announced while the
+	// apply wrote - an advanced-tier value, a waived contract assertion -
+	// as warnings in the run's own output, -json included.
+	return diags.Append(projection.SSMSecretsDiagnostics(r.rawStore))
 }
 
 // WriteInstance implements [backendLocal.LiveRun]: GitHub issue #1944's

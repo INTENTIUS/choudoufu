@@ -27,7 +27,15 @@ import (
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/smithy-go"
 
+	"github.com/intentius/choudoufu/internal/tfdiags"
 	"github.com/intentius/choudoufu/pkg/staterecord"
+)
+
+// SummarySecretsAdvancedTier and SummarySecretsContractWaived are the
+// store's two warnings.
+const (
+	SummarySecretsAdvancedTier   = "Secret value in SSM's advanced tier"
+	SummarySecretsContractWaived = "SSM secrets contract assertion waived"
 )
 
 // SSMSecretsStore is GitHub issue #1515's write path: a [staterecord.Store]
@@ -86,9 +94,17 @@ type SSMSecretsStore struct {
 	// tiers is every parameter this run has seen referenced, by tier, for
 	// the capacity check's count of what the estate already holds.
 	tiers map[string]string
+	// perKey is, per record key, how many parameters of each tier the
+	// last version of it this run saw references: the existing half of
+	// [SSMSecretsStore.PlanCount].
+	perKey map[string]SecretParameterCount
 	// announced is every advanced parameter this run has announced.
 	announced     map[string]bool
 	announcements []string
+	// diags is every warning this store has raised and nobody has taken
+	// yet: the advanced-tier announcements (ruling 3) and the contract
+	// waivers. See [SSMSecretsStore.TakeDiagnostics].
+	diags tfdiags.Diagnostics
 
 	planned      *SecretParameterCount
 	capacityDone bool
@@ -106,10 +122,17 @@ type baseRefs struct {
 type SSMSecretsAPI interface {
 	PutParameter(ctx context.Context, in *ssm.PutParameterInput, optFns ...func(*ssm.Options)) (*ssm.PutParameterOutput, error)
 	GetParameters(ctx context.Context, in *ssm.GetParametersInput, optFns ...func(*ssm.Options)) (*ssm.GetParametersOutput, error)
-	DeleteParameters(ctx context.Context, in *ssm.DeleteParametersInput, optFns ...func(*ssm.Options)) (*ssm.DeleteParametersOutput, error)
-	DescribeParameters(ctx context.Context, in *ssm.DescribeParametersInput, optFns ...func(*ssm.Options)) (*ssm.DescribeParametersOutput, error)
-	// DeleteParameter is the first-contact probe's, through
+	// GetParametersByPath is the orphan sweep's listing, without
+	// decryption.
+	GetParametersByPath(ctx context.Context, in *ssm.GetParametersByPathInput, optFns ...func(*ssm.Options)) (*ssm.GetParametersByPathOutput, error)
+	// DeleteParameter deletes a superseded value or an orphan, one name a
+	// call, and is the first-contact probe's delete through
 	// [staterecord.AssertSSMContract].
+	//
+	// Every method here is an IAM action examples/record-store-bucket/iam's
+	// rendering grants, which live/iam_template_test.go checks. That is why
+	// there is no DeleteParameters and no DescribeParameters: each is an
+	// action of its own, and DescribeParameters cannot be scoped to a path.
 	DeleteParameter(ctx context.Context, in *ssm.DeleteParameterInput, optFns ...func(*ssm.Options)) (*ssm.DeleteParameterOutput, error)
 }
 
@@ -143,8 +166,9 @@ type SSMSecretsConfig struct {
 	// parameter and its commit. Zero means [DefaultSSMSweepGrace].
 	Grace time.Duration
 
-	// Announce receives the advanced-tier announcement (ruling 3). Nil
-	// writes it to standard error.
+	// Announce, when set, also receives each announcement's text. Every
+	// announcement is a warning diagnostic in any case, which the command
+	// running the store takes with [SSMSecretsStore.TakeDiagnostics].
 	Announce func(string)
 
 	// The rest are seams for tests.
@@ -230,9 +254,6 @@ func NewSSMSecretsStore(inner staterecord.Store, cfg SSMSecretsConfig) (*SSMSecr
 	if cfg.Rand == nil {
 		cfg.Rand = rand.Reader
 	}
-	if cfg.Announce == nil {
-		cfg.Announce = func(msg string) { fmt.Fprintln(os.Stderr, msg) }
-	}
 	sum := sha256.Sum256([]byte(cfg.RecordPrefix))
 	return &SSMSecretsStore{
 		inner:     inner,
@@ -241,6 +262,7 @@ func NewSSMSecretsStore(inner staterecord.Store, cfg SSMSecretsConfig) (*SSMSecr
 		values:    map[string]string{},
 		base:      map[string]baseRefs{},
 		tiers:     map[string]string{},
+		perKey:    map[string]SecretParameterCount{},
 		announced: map[string]bool{},
 	}, nil
 }
@@ -517,6 +539,53 @@ func (s *SSMSecretsStore) noteBase(key, version string, refs []secretRef) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.base[key] = baseRefs{version: version, refs: refs}
+	s.perKey[key] = countRefs(refs)
+}
+
+// countRefs is refs by tier.
+func countRefs(refs []secretRef) SecretParameterCount {
+	var n SecretParameterCount
+	for _, r := range refs {
+		if r.Tier == secretTierAdvancedLabel {
+			n.Advanced++
+		} else {
+			n.Standard++
+		}
+	}
+	return n
+}
+
+// warn records a warning for [SSMSecretsStore.TakeDiagnostics] and hands
+// its text to [SSMSecretsConfig.Announce] when one is set.
+func (s *SSMSecretsStore) warn(d tfdiags.Diagnostic) {
+	s.mu.Lock()
+	s.diags = s.diags.Append(d)
+	s.mu.Unlock()
+	if s.cfg.Announce != nil {
+		s.cfg.Announce(d.Description().Detail)
+	}
+}
+
+// TakeDiagnostics returns the warnings raised since the last call and
+// forgets them, so a command that drains at several points of a run shows
+// each once. GitHub issue #2393: they were written to standard error, which
+// a -json run does not carry and a reader of the normal output finds apart
+// from every other warning.
+func (s *SSMSecretsStore) TakeDiagnostics() tfdiags.Diagnostics {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d := s.diags
+	s.diags = nil
+	return d
+}
+
+// SSMSecretsDiagnostics is [SSMSecretsStore.TakeDiagnostics] for whatever
+// store s wraps, and nothing when it wraps none.
+func SSMSecretsDiagnostics(s staterecord.Store) tfdiags.Diagnostics {
+	if ss, ok := AsSSMSecretsStore(s); ok {
+		return ss.TakeDiagnostics()
+	}
+	return nil
 }
 
 func (s *SSMSecretsStore) noteTier(ref secretRef) {
@@ -548,10 +617,10 @@ func (s *SSMSecretsStore) announceTiers(key string, refs []secretRef) {
 		} else if len(ref.Path) > 0 {
 			place += " " + string(ref.Path)
 		}
-		msg := fmt.Sprintf("Warning: secrets in SSM: %s keeps a secret value over 4 KB (%s) in the advanced tier, parameter %s, at $%.2f per parameter-month (GitHub issue #1515, ruling 3).", addr, place, ref.Parameter, SSMAdvancedMonthlyCostUSD)
+		msg := fmt.Sprintf("%s keeps a secret value over 4 KB (%s) in the advanced tier, parameter %s, at $%.2f per parameter-month (GitHub issue #1515, ruling 3).", addr, place, ref.Parameter, SSMAdvancedMonthlyCostUSD)
 		s.announcements = append(s.announcements, msg)
 		s.mu.Unlock()
-		s.cfg.Announce(msg)
+		s.warn(tfdiags.Sourceless(tfdiags.Warning, SummarySecretsAdvancedTier, msg))
 	}
 }
 
@@ -880,21 +949,25 @@ func (s *SSMSecretsStore) deleteSuperseded(ctx context.Context, key string, base
 	}
 }
 
+// deleteParameters deletes each name and returns the ones it deleted. A
+// name SSM does not have is not deleted and is not an error: deleting it
+// is what was wanted.
 func (s *SSMSecretsStore) deleteParameters(ctx context.Context, names []string) ([]string, error) {
 	sort.Strings(names)
 	var deleted []string
-	for i := 0; i < len(names); i += ssmGetParametersBatch {
-		batch := names[i:min(i+ssmGetParametersBatch, len(names))]
-		var resp *ssm.DeleteParametersOutput
-		err := s.retry(ctx, "DeleteParameters", func() error {
-			var err error
-			resp, err = s.cfg.Client.DeleteParameters(ctx, &ssm.DeleteParametersInput{Names: batch})
+	for _, name := range names {
+		err := s.retry(ctx, "DeleteParameter", func() error {
+			_, err := s.cfg.Client.DeleteParameter(ctx, &ssm.DeleteParameterInput{Name: aws.String(name)})
 			return err
 		})
-		if err != nil {
+		var notFound *ssmtypes.ParameterNotFound
+		switch {
+		case errors.As(err, &notFound):
+		case err != nil:
 			return deleted, err
+		default:
+			deleted = append(deleted, name)
 		}
-		deleted = append(deleted, resp.DeletedParameters...)
 	}
 	return deleted, nil
 }
@@ -913,6 +986,7 @@ func (s *SSMSecretsStore) Delete(ctx context.Context, key string, expectedVersio
 	}
 	s.mu.Lock()
 	delete(s.base, key)
+	delete(s.perKey, key)
 	s.mu.Unlock()
 	if current {
 		s.deleteSuperseded(ctx, key, base, nil)
@@ -951,7 +1025,7 @@ func (s *SSMSecretsStore) admitContract(ctx context.Context) error {
 		return err
 	}
 	for _, f := range waived {
-		s.cfg.Announce(fmt.Sprintf("Warning: secrets in SSM: the ssm block's allow_insecure waives %s, so %s.", f.Setting, staterecord.SSMWaiverCost(f.Setting)))
+		s.warn(tfdiags.Sourceless(tfdiags.Warning, SummarySecretsContractWaived, fmt.Sprintf("The ssm block's allow_insecure waives %s, so %s.", f.Setting, staterecord.SSMWaiverCost(f.Setting))))
 	}
 	return nil
 }
