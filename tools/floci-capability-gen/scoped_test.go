@@ -182,6 +182,19 @@ func TestClassifyScopedUnsupportedOperation(t *testing.T) {
 	}
 }
 
+// TestClassifyScopedUnsupportedActionException mirrors
+// TestClassifyUnsupportedActionException for the scoped leg's own list call.
+func TestClassifyScopedUnsupportedActionException(t *testing.T) {
+	f := newFakeCloudControl()
+	f.listStatus = http.StatusBadRequest
+	f.listBody = `{"__type":"UnsupportedActionException","message":"ListResources is not supported for resource type AWS::Connect::Queue."}`
+
+	row := classifyScopedAgainst(t, f, "aws_connect_queue", "AWS::Connect::Queue", []string{"InstanceArn"})
+	if row.Status != "unimplemented" {
+		t.Errorf("Status = %q, want unimplemented (%s)", row.Status, row.Evidence)
+	}
+}
+
 // TestClassifyScopedBrokenHandler mirrors TestClassifyBrokenHandler.
 func TestClassifyScopedBrokenHandler(t *testing.T) {
 	f := newFakeCloudControl()

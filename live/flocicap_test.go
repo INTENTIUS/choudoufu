@@ -8,6 +8,7 @@ package residue
 import (
 	"encoding/json"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -70,13 +71,17 @@ func TestFlociTypeCapability(t *testing.T) {
 	// aws_redshift_cluster's CreateCluster misrouted to the SQS handler on
 	// every digest through sha256:488f4d6d. Re-probed 2026-08-18 against
 	// the pinned digest: create-cluster now succeeds and returns
-	// ClusterStatus "available" - the honest status is implemented.
+	// ClusterStatus "available", implemented through the c688f52 pin. At
+	// the 920d475 pin (2026-11-12) RedshiftService starts a container per
+	// cluster, so create-cluster fails without the docker socket this
+	// harness does not mount: partial, the same condition as
+	// aws_opensearch_domain below.
 	cap, ok := FlociTypeCapability(pinnedDigest, "aws_redshift_cluster", "")
 	if !ok {
 		t.Fatal("expected a manifest entry for aws_redshift_cluster at the pinned digest")
 	}
-	if cap.Status != FlociImplemented {
-		t.Errorf("aws_redshift_cluster status = %q, want %q", cap.Status, FlociImplemented)
+	if cap.Status != FlociPartial {
+		t.Errorf("aws_redshift_cluster status = %q, want %q", cap.Status, FlociPartial)
 	}
 
 	// aws_qldb_ledger was FlociBroken (HTML-error-page crash) until the
@@ -147,6 +152,13 @@ func TestFlociTypeCapability(t *testing.T) {
 // literal in its control flow: the generator derives its whole type list
 // from internal/live/identity.AdmittedTypes joined through the registry,
 // and a test is the right place to hold it to a known answer.
+//
+// At the 920d475 pin (2026-11-12) the two false cases answer differently
+// again: lex00/floci 5cf10ece1 (upstream #3141) makes ListResources refuse a
+// type its read side does not enumerate with UnsupportedActionException
+// rather than return an empty list, so their rows are refusals and cite no
+// create. They stay the examples because the property is unchanged: neither
+// row may claim the list answers.
 func TestCloudControlListRowsRecordAnAnswerNotACall(t *testing.T) {
 	// AWS::ECS::TaskDefinition has moved to the other side of this guard.
 	// lex00/floci bda9bc3d backed ListResources' default branch with the
@@ -173,12 +185,19 @@ func TestCloudControlListRowsRecordAnAnswerNotACall(t *testing.T) {
 			t.Errorf("%s cloudcontrol-list = implemented, but the emulator's list cannot find an object it just created: %s",
 				tfType, entry.Evidence)
 		}
-		if !strings.Contains(entry.Evidence, "ListResources") || !strings.Contains(entry.Evidence, "CreateResource") {
+		// A refusal is the one verdict reached without a create: the list
+		// itself declined the type, so there was nothing to round-trip.
+		refused := entry.Status == FlociUnimplemented && listRefusal.MatchString(entry.Evidence)
+		if !strings.Contains(entry.Evidence, "ListResources") || (!refused && !strings.Contains(entry.Evidence, "CreateResource")) {
 			t.Errorf("%s evidence does not say which calls were made, so a reader cannot tell a round trip from a bare call: %q",
 				tfType, entry.Evidence)
 		}
 	}
 }
+
+// listRefusal is the evidence tools/floci-capability-gen's sweep writes when
+// ListResources itself declines a type (sweep.go's isListRefusal).
+var listRefusal = regexp.MustCompile(`^ListResources\(\S+\) returns (UnsupportedOperation|UnknownOperationException|UnsupportedActionException): `)
 
 // TestNoCloudControlListRowClaimsImplementedOnABareCall is the same guard
 // widened past the three named types, so the defect cannot come back for
