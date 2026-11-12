@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -30,6 +31,9 @@ func normalPlan(ctx context.Context, opts *PlanOpts, prevRoundState *states.Stat
 		excludes: addrs.MakeSet(opts.Excludes...),
 	}
 
+	// choudoufu fork port (#2409): remove when upstream #4390 lands. A
+	// refresh-only plan reports failing resource conditions as warnings.
+	ctx = checkrules.WithPhase(ctx, checkrules.PhaseForPlan(opts.Mode == plans.RefreshOnlyMode))
 	oracle, ctx, diags := configInst.BuildPlanningOracle(ctx, glue)
 	if diags.HasErrors() {
 		return &plans.Plan{Errored: true}, nil

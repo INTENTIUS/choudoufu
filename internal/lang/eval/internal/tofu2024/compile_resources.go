@@ -322,7 +322,7 @@ func compileModuleInstanceResource(
 			// transformations of the configuration value, so we'll deal
 			// with those by transforming what we get from just evaluating
 			// the main config body.
-			configValuer := configgraph.ValuerOnce(exprs.DerivedValuerContext(
+			guardedConfig, preconditionsBlocked := forkGuardPreconditions(config, localScope, exprs.DerivedValuerContext( // choudoufu fork port (#2409): remove when upstream #4390 lands
 				exprs.NewClosure(configEvalable, localScope),
 				func(ctx context.Context, v cty.Value, vDiags tfdiags.Diagnostics) (cty.Value, tfdiags.Diagnostics) {
 					// TODO more efficient marking, this does a lot of map garbarge
@@ -349,7 +349,9 @@ func compileModuleInstanceResource(
 
 					return v, vDiags
 				},
-			), "Value of %s", instAddr)
+			))
+			configValuer := configgraph.ValuerOnce(guardedConfig, "Value of %s", instAddr)
+			postconditions := forkPostconditions(config, localScope, instAddr) // choudoufu fork port (#2409): remove when upstream #4390 lands
 
 			inst := &configgraph.ResourceInstance{
 				Addr:                      instAddr,
@@ -369,7 +371,17 @@ func compileModuleInstanceResource(
 			// phase, for example.)
 			inst.Glue = &resourceInstanceGlue{
 				getResultValue: func(ctx context.Context, configVal cty.Value, providerInst exprs.FromValue[*configgraph.ProviderInstance], riDeps addrs.Set[addrs.AbsResourceInstance]) (cty.Value, tfdiags.Diagnostics) {
-					return getResultValue(ctx, inst, configVal, providerInst, riDeps)
+					// choudoufu fork port (#2409): remove when upstream #4390
+					// lands. A failed precondition keeps the instance from the
+					// engine; postconditions check what the engine returns.
+					if preconditionsBlocked() {
+						return exprs.AsEvalError(cty.DynamicVal), nil
+					}
+					ret, diags := getResultValue(ctx, inst, configVal, providerInst, riDeps)
+					if postconditions != nil {
+						diags = diags.Append(postconditions(ctx, ret))
+					}
+					return ret, diags
 				},
 			}
 			return inst

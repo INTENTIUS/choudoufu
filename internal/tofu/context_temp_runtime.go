@@ -22,6 +22,7 @@ import (
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/engine/applying"
 	"github.com/intentius/choudoufu/internal/engine/forkport/cancel"
+	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
 	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
 	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
@@ -235,7 +236,9 @@ func (c *Context) newEngineValidate(ctx context.Context, config *configs.Config,
 
 	defer done()
 
-	moreDiags = configInst.Validate(ctx)
+	// choudoufu fork port (#2409): remove when upstream #4390 lands. The
+	// default runtime's validate reports no condition failures.
+	moreDiags = configInst.Validate(checkrules.WithPhase(ctx, checkrules.Validate))
 	diags = diags.Append(moreDiags)
 	return diags
 }
