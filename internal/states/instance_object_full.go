@@ -136,6 +136,7 @@ func (s *SyncState) ResourceInstanceObjectFull(addr addrs.AbsResourceInstanceObj
 		SchemaVersion:        srcObj.SchemaVersion,
 		ConfigDependencies:   slices.Clone(srcObj.Dependencies),
 		Dependencies:         slices.Clone(srcObj.DependsOn),
+		SkipDestroy:          srcObj.SkipDestroy,
 		CreateBeforeDestroy:  srcObj.CreateBeforeDestroy,
 	}
 }
@@ -186,6 +187,7 @@ func (s *SyncState) SetResourceInstanceObjectFull(addr addrs.AbsResourceInstance
 		Dependencies:        obj.ConfigDependencies,
 		DependsOn:           obj.Dependencies,
 		CreateBeforeDestroy: obj.CreateBeforeDestroy,
+		SkipDestroy:         obj.SkipDestroy,
 	}
 	if len(obj.Value.SensitivePaths) != 0 {
 		smallerObj.AttrSensitivePaths = make([]cty.PathValueMarks, len(obj.Value.SensitivePaths))
@@ -310,6 +312,11 @@ type ResourceInstanceObjectRepr[V ValueOrJSONEquivalent] struct {
 	// altogether, or is now deposed.
 	Dependencies []addrs.AbsResourceInstance
 
+	// SkipDestroy is set if, in the most recent round, the configuration
+	// specified that this object ought to be "forgotten" instead of deleted
+	// if it is orphaned on the next round.
+	SkipDestroy bool
+
 	// CreateBeforeDestroy reflects the status of the lifecycle
 	// create_before_destroy option when this instance was last updated.
 	// Because create_before_destroy also effects the overall ordering of the
@@ -368,6 +375,10 @@ func mapResourceInstanceObjectReprValue[V1, V2 ValueOrJSONEquivalent](input *Res
 		ConfigDependencies:   input.ConfigDependencies,
 		Dependencies:         input.Dependencies,
 		CreateBeforeDestroy:  input.CreateBeforeDestroy,
+		// choudoufu fork port (#2409): remove when upstream #4682 lands.
+		// Upstream's `#4839` adds the field but not this copy, so an encode
+		// or decode would drop it.
+		SkipDestroy: input.SkipDestroy,
 	}
 }
 

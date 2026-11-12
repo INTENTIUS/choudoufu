@@ -23,6 +23,7 @@ import (
 	"github.com/intentius/choudoufu/internal/engine/applying"
 	"github.com/intentius/choudoufu/internal/engine/forkport/cancel"
 	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
+	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
 	tracingport "github.com/intentius/choudoufu/internal/engine/forkport/tracing"
 	"github.com/intentius/choudoufu/internal/engine/planning"
@@ -333,6 +334,16 @@ func (c *Context) newEnginePlan(ctx context.Context, config *configs.Config, pre
 
 		// choudoufu fork port (#2382): remove when upstream #4697 lands.
 		Deferral: deferral.New(config),
+
+		// choudoufu fork port (#2409): remove when upstream #4682, #4686
+		// and #4693 land.
+		Forget: forget.New(config, opts.Mode),
+	}
+	// choudoufu fork port (#2409): remove when upstream #4686 lands. The
+	// default runtime's errors for a removed block whose resource or module
+	// block still exists.
+	if moreDiags := newOpts.Forget.Validate(); moreDiags.HasErrors() {
+		return nil, diags.Append(moreDiags)
 	}
 
 	plan, moreDiags := planning.PlanChanges(ctx, newOpts, prevRoundState, configInst, plugins)
@@ -511,6 +522,8 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 		InRunEstates: inrunestates.New(c.inRunEstates),
 		// choudoufu fork port (#2381): remove when the row closes.
 		Stopped: cancel.Between(c.sh.Stopped),
+		// choudoufu fork port (#2409): remove when upstream #4682 lands.
+		Forget: forget.New(config, plan.UIMode),
 	})
 	diags = diags.Append(moreDiags)
 	// choudoufu fork port (#2381): remove when the row closes.

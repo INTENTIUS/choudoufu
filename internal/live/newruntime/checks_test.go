@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
@@ -163,30 +164,39 @@ func TestPreflightRefusesConditionsOnResources(t *testing.T) {
 
 // TestPreflightAdmitsDeposedState: the deposed row is closed (#2378), since
 // upstream's new runtime plans deposed objects itself. A deposed object
-// recording lifecycle destroy = false is still refused, by lifecycle-destroy.
+// recording lifecycle destroy = false is forgotten by the forget fork port
+// (#2409), and refused by lifecycle-destroy with the port off.
 func TestPreflightAdmitsDeposedState(t *testing.T) {
 	if r := row(t, "deposed"); r.Check != CheckNone {
 		t.Fatalf("row deposed has check %q, want %q", r.Check, CheckNone)
 	}
 	addr := addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "test_object", Name: "a"}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance)
-	for _, skip := range []bool{false, true} {
-		s := states.BuildState(func(ss *states.SyncState) {
-			ss.SetResourceInstanceDeposed(addr, states.DeposedKey("00000001"),
-				&states.ResourceInstanceObjectSrc{Status: states.ObjectReady, AttrsJSON: []byte(`{}`), SkipDestroy: skip},
-				addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("test"), Module: addrs.RootModule}, addrs.NoKey)
-		})
-		diags := Preflight(loadConfig(t, cleanFixture), s, false)
-		if !skip && len(diags) != 0 {
-			t.Errorf("deposed state was refused:\n%s", diags.ErrWithWarnings())
+	for _, portOn := range []bool{true, false} {
+		t.Setenv(forkport.AllOff, "")
+		t.Setenv(forkport.Switch(forget.Name), "")
+		if !portOn {
+			t.Setenv(forkport.Switch(forget.Name), "1")
 		}
-		if skip && !refusedFor(diags, row(t, "lifecycle-destroy")) {
-			t.Errorf("a deposed object with destroy = false was not refused under lifecycle-destroy; diagnostics:\n%s", diags.ErrWithWarnings())
+		for _, skip := range []bool{false, true} {
+			s := states.BuildState(func(ss *states.SyncState) {
+				ss.SetResourceInstanceDeposed(addr, states.DeposedKey("00000001"),
+					&states.ResourceInstanceObjectSrc{Status: states.ObjectReady, AttrsJSON: []byte(`{}`), SkipDestroy: skip},
+					addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("test"), Module: addrs.RootModule}, addrs.NoKey)
+			})
+			diags := Preflight(loadConfig(t, cleanFixture), s, false)
+			if (!skip || portOn) && len(diags) != 0 {
+				t.Errorf("deposed state (destroy = false %t, forget port on %t) was refused:\n%s", skip, portOn, diags.ErrWithWarnings())
+			}
+			if skip && !portOn && !refusedFor(diags, row(t, "lifecycle-destroy")) {
+				t.Errorf("with the forget port off a deposed object with destroy = false was not refused under lifecycle-destroy; diagnostics:\n%s", diags.ErrWithWarnings())
+			}
 		}
 	}
 }
 
 // An orphaned object whose state records lifecycle destroy = false: the
-// resource block is gone, so only the state says not to delete it.
+// resource block is gone, so only the state says not to delete it. The
+// forget fork port (#2409) forgets it; with the port off it is refused.
 func TestPreflightRefusesSkipDestroyInState(t *testing.T) {
 	r := row(t, "lifecycle-destroy")
 	addr := addrs.Resource{Mode: addrs.ManagedResourceMode, Type: "test_object", Name: "gone"}.Instance(addrs.NoKey).Absolute(addrs.RootModuleInstance)
@@ -195,8 +205,46 @@ func TestPreflightRefusesSkipDestroyInState(t *testing.T) {
 			&states.ResourceInstanceObjectSrc{Status: states.ObjectReady, AttrsJSON: []byte(`{}`), SkipDestroy: true},
 			addrs.AbsProviderConfig{Provider: addrs.NewDefaultProvider("test"), Module: addrs.RootModule}, addrs.NoKey)
 	})
+	t.Setenv(forkport.AllOff, "")
+	t.Setenv(forkport.Switch(forget.Name), "")
+	if diags := Preflight(loadConfig(t, cleanFixture), s, false); len(diags) != 0 {
+		t.Fatalf("with the forget port on an orphan with destroy = false in state was refused:\n%s", diags.ErrWithWarnings())
+	}
+	t.Setenv(forkport.Switch(forget.Name), "1")
 	if diags := Preflight(loadConfig(t, cleanFixture), s, false); !refusedFor(diags, r) {
-		t.Fatalf("an orphan with destroy = false in state was not refused; diagnostics:\n%s", diags.ErrWithWarnings())
+		t.Fatalf("with the forget port off an orphan with destroy = false in state was not refused; diagnostics:\n%s", diags.ErrWithWarnings())
+	}
+}
+
+// TestPreflightForgetPort (#2409): with the forget port on, removed blocks
+// and lifecycle destroy are admitted, except a removed block that deletes
+// and has provisioners, which the new runtime would not run; with its switch
+// set each is refused under its row again, in and out of live mode.
+func TestPreflightForgetPort(t *testing.T) {
+	withProvisioner := "removed {\n  from = test_object.gone\n  lifecycle {\n    destroy = true\n  }\n  provisioner \"local-exec\" {\n    when    = destroy\n    command = \"echo\"\n  }\n}\n"
+	forgetting := "removed {\n  from = test_object.gone\n  lifecycle {\n    destroy = false\n  }\n}\n"
+	cases := []struct {
+		row, src  string
+		refusedOn bool
+	}{
+		{"removed", preflightFixtures["removed"], false},
+		{"removed", forgetting, false},
+		{"removed", withProvisioner, true},
+		{"lifecycle-destroy", preflightFixtures["lifecycle-destroy"], false},
+	}
+	for _, live := range []bool{false, true} {
+		for _, c := range cases {
+			r := row(t, c.row)
+			t.Setenv(forkport.AllOff, "")
+			t.Setenv(forkport.Switch(forget.Name), "")
+			if diags := Preflight(loadConfig(t, c.src), states.NewState(), live); refusedFor(diags, r) != c.refusedOn {
+				t.Errorf("live=%t, port on, %q: refused under %q is %t, want %t; diagnostics:\n%s", live, c.src, c.row, !c.refusedOn, c.refusedOn, diags.ErrWithWarnings())
+			}
+			t.Setenv(forkport.Switch(forget.Name), "1")
+			if diags := Preflight(loadConfig(t, c.src), states.NewState(), live); !refusedFor(diags, r) {
+				t.Errorf("live=%t, port off, %q was not refused under %q; diagnostics:\n%s", live, c.src, c.row, diags.ErrWithWarnings())
+			}
+		}
 	}
 }
 

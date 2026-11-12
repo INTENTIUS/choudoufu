@@ -548,6 +548,9 @@ func (ops *execOperations) managedApply(
 			// lands. A fallback is the deposed half of a create-first
 			// replace.
 			CreateBeforeDestroy: plan.CreateBeforeDestroy || forkReplacedCreateFirst(fallback),
+			// choudoufu fork port (#2409): remove when upstream #4682
+			// lands.
+			SkipDestroy: ops.forkSkipDestroy(plan),
 
 			// TODO: Propagate the dependencies from the desired object into
 			// the final plan and then populate "Dependencies" here.

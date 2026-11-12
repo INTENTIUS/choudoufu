@@ -15,6 +15,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/live/newruntime"
 	"github.com/intentius/choudoufu/internal/plans"
 	"github.com/intentius/choudoufu/internal/states"
@@ -182,8 +183,14 @@ func (c *Context) Apply(ctx context.Context, plan *plans.Plan, config *configs.C
 		}
 
 		newState, moreDiags := c.newEngineApply(ctx, config, plan, variables)
+		diags = diags.Append(moreDiags)
+		// choudoufu fork port (#2409): remove when upstream #4682 lands. The
+		// default runtime's error, below, for a destroy that forgot objects.
+		if !diags.HasErrors() {
+			diags = diags.Append(forget.DestroyLeftForgotten(plan.UIMode, forgetCount, opts != nil && opts.SuppressForgetErrorsDuringDestroy))
+		}
 
-		return newState, diags.Append(moreDiags)
+		return newState, diags
 	}
 
 	providerFunctionTracker := make(ProviderFunctionMapping)

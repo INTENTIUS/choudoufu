@@ -442,6 +442,13 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 		ret.RefreshedValue = ret.UpgradedValue
 	}
 
+	// choudoufu fork port (#2409): remove when upstream #4682 lands.
+	ret.RefreshedState, moreDiags = p.forkSkipDestroyDesired(inst.Addr, ret.RefreshedState)
+	diags = diags.Append(moreDiags)
+	if diags.HasErrors() {
+		return ret, diags
+	}
+
 	if p.planCtx.refreshOnly {
 		if ret.PlaceholderValue.IsNull() {
 			ret.PlaceholderValue = cty.UnknownVal(ret.PlaceholderValue.Type())
@@ -601,6 +608,10 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 		} else {
 			plannedAction = plans.DeleteThenCreate
 		}
+		// choudoufu fork port (#2409): remove when upstream #4682 lands.
+		// destroy = false makes the replace leave the old object.
+		plannedAction, moreDiags = p.planCtx.forget.ReplaceAction(inst.Addr, plannedAction)
+		diags = diags.Append(moreDiags)
 	} else if eq, _ := planResp.Planned.Value.Equals(current.Value).Unmark(); eq.IsKnown() && eq.True() {
 		ret.PlaceholderValue = current.Value
 		plannedAction = plans.NoOp
@@ -849,6 +860,19 @@ func (p *planGlue) planUnwantedManagedResourceInstanceObject(
 		// on what the expectations are for refresh only plans as we get deeper into
 		// integration and e2e testing
 		return ret, diags
+	}
+
+	// choudoufu fork port (#2409): remove when upstream #4682, #4686 and
+	// #4693 land. An object destroy = false or a removed block keeps is
+	// forgotten, which asks nothing of the provider.
+	forgetProviderAddr := addrs.AbsProviderConfig{
+		Module:   providerInstAddr.Config.Module.Module(),
+		Provider: providerInstAddr.Config.Config.Provider,
+		Alias:    providerInstAddr.Config.Config.Alias,
+	}
+	if change, moreDiags := p.forkForgetUnwanted(addr, currentRunAddr, stateSrc, forgetProviderAddr, prevState.Value, prevState.Private, meta.OrphanActionReason); change != nil || moreDiags.HasErrors() {
+		ret.PlannedChange = change
+		return ret, diags.Append(moreDiags)
 	}
 
 	// choudoufu (GitHub issue #2344): destroy-from-config provider overrides.
