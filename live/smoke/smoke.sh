@@ -31,7 +31,11 @@
 #                              workroot and die with it, and the tail
 #                              printed on failure is the lasting copy
 #   SMOKE_INSTRUMENT=1         capture TF_LOG=debug per call and summarize
-#                              requests/retries (the terralith counters)
+#                              requests/retries (the terralith counters).
+#                              The call logs are kept after the run, in
+#                              SMOKE_LOG_DIR/chdf-calls or a directory the
+#                              banner names, and a stall names the log of
+#                              the call it killed
 #   BREAK=1                    corrupt one expected fact mid-scenario and
 #                              require the scenario to CATCH it - proof the
 #                              assertions are load-bearing, never scenery
@@ -246,6 +250,7 @@ trap cleanup EXIT
 trap 'if [ -d "$SMOKE_WORKROOT/stalled" ]; then exit 124; else exit 143; fi' TERM
 
 resolve_choudoufu
+chdf_logs_init
 banner "$SCENARIO"
 
 # Every scenario is bounded except the real-AWS ones (#1593). Those tear
@@ -254,6 +259,8 @@ banner "$SCENARIO"
 # that delete what the run created. real_aws is read from claims.json
 # (scenario_is_real_aws), not from a k8s- prefix: most bounded scenarios run
 # against the floci emulator and carry no prefix at all.
+# When the clock starts, for the stall report's "into the run" figure.
+SMOKE_STARTED="$(date +%s)"
 if [ "$(scenario_is_real_aws)" != "1" ]; then
   BOUND="$(scenario_bound_secs)"
   # The verdict's two halves, in variables so the call below stays on one

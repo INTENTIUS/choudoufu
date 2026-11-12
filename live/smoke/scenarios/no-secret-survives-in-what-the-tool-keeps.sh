@@ -663,6 +663,7 @@ explain \
   "run's path. The run's key is then scheduled for deletion."
 cmd "choudoufu apply -destroy -auto-approve   # all four estates ; aws kms schedule-key-deletion"
 for d in "$REFUSE" "$FLAGS" "$STORE" "$SSMD"; do
+  note "destroying $(basename "$d") ($(date +%H:%M:%S))"
   DOUT="$(cd "$d" && chdf apply -destroy -auto-approve -input=false -no-color 2>&1)" \
     || fail "secrets" "teardown of $(basename "$d") failed: $DOUT"
   destroyed_exactly "secrets" 1 "$DOUT"
