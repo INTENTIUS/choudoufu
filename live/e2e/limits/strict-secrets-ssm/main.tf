@@ -13,9 +13,6 @@
 # The refusals for the other direction - `secrets = "ssm"` with no key, or
 # with a record store that has no conditional write to commit a reference
 # with - are exercised in internal/live/lint/testdata/strict-secrets-ssm-*.
-# They cannot be the fixture here: a configuration that asks for the setting
-# also gets "strict-secrets"'s "not implemented yet" refusal, because no
-# build writes a parameter yet, and this directory asserts exactly one rule.
 # See live/LIMITATIONS.md, "strict-secrets-ssm".
 
 terraform {

@@ -31,9 +31,9 @@ prompt: >-
 
 ## The live backend
 
-The live backend takes the place of the `backend` block. Write it in
+The live backend replaces the `backend` block. Write it in
 `estate.chdf.hcl` at the root, or in a `live` block inside `terraform`. A
-`backend` block left beside it is ignored with a warning. Unless it is
+`backend` block beside it is ignored with a warning. Unless it is
 `local`, an apply writes the estate's non-sensitive outputs where it points.
 
 ```hcl
@@ -67,8 +67,8 @@ cache under `-refresh=false`.
 `policy` sets a verb per case, such as `undeclared_tagged`
 ([`live/OWNERSHIP-POLICY.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/OWNERSHIP-POLICY.md)).
 
-`strict` holds `marker_repair`, `secrets`, `no_source_create` and
-`provider_change`
+`strict` holds `marker_repair`, `secrets`, `no_source_create`,
+`provider_change` and an `ssm` block for `"ssm"`
 ([`live/STRICT.md`](https://github.com/INTENTIUS/choudoufu/blob/main/live/STRICT.md)).
 
 ## Specifications
@@ -77,5 +77,5 @@ cache under `-refresh=false`.
 [refusals](https://github.com/INTENTIUS/choudoufu/blob/main/live/LIMITATIONS.md),
 [IAM permissions](https://github.com/INTENTIUS/choudoufu/blob/main/live/IAM-REFERENCE.md),
 [outputs](https://github.com/INTENTIUS/choudoufu/blob/main/live/OUTPUTS.md).
-What is verified, and how, is indexed in
-[EVIDENCE.md](https://github.com/INTENTIUS/choudoufu/blob/main/EVIDENCE.md).
+[EVIDENCE.md](https://github.com/INTENTIUS/choudoufu/blob/main/EVIDENCE.md)
+indexes what is verified and how.

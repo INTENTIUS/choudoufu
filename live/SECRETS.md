@@ -189,24 +189,19 @@ secret somewhere built to hold one and pass a reference. And an argument that
 is neither returned by the API nor remembered has no prior value, so every
 plan shows it as a change.
 
-## Keeping secret values in SSM: the setting, not yet the write path
+## Keeping secret values in SSM
 
-Designed in #1515, with its four rulings made on 2026-09-22. The
-configuration surface is built and a configuration that asks for the setting
-is still refused, because nothing writes a parameter yet.
+`strict { secrets = "ssm" }` keeps the records in the S3 record store and
+moves the secret values out of them, for organisations whose rotation, audit
+and access review already live in SSM. Designed in #1515, with its four
+rulings made on 2026-09-22, and built in #2393. It is opt-in: the default
+stays `"store"`.
 
-For organisations whose rotation, audit and access review already live in
-SSM, the records stay in the S3 record store, and the values at the record's
-sensitive paths and the provider's private data alone go to SSM as
-`SecureString` under a customer managed KMS key, with the record carrying a
-reference in place of each value. The S3 record's compare-and-swap stays the
-only thing that decides a concurrent write, because each secret goes to a
-parameter name no other write uses.
-
-### What is built
-
-`strict { secrets = "ssm" }` is a spelling the vocabulary recognises, with
-the key, the parameter path and the region in a nested `ssm` block:
+What moves is the values at the paths a record's `SensitiveAttrs` names, and
+the provider's private data. Each goes to SSM Parameter Store as a
+`SecureString` under a customer managed KMS key, and the record carries a
+reference in its place. Identity and non-secret residue stay in the record,
+so a plan still reads them from one store.
 
 ```hcl
 strict {
@@ -214,38 +209,82 @@ strict {
   ssm {
     kms_key_id = "arn:aws:kms:eu-west-1:111122223333:key/1234abcd"
     path       = "/choudoufu/prod/secrets"
+    # region         = "eu-west-1"
+    # allow_insecure = ["parameter_access"]
   }
 }
 ```
 
-Around it, four refusals, all of them reached before the write path would be
+`region` defaults to the record store's. The 10,000 standard parameters
+are per account and region, so the choice has a capacity consequence.
+
+### Before the first write
+
+Lint refuses four arrangements that could not work
 (`live/LIMITATIONS.md`, "strict-secrets-ssm"): the setting with no `ssm`
 block, a block with no `kms_key_id`, the setting with a record store other
 than `"s3"`, and a block under a secrets setting that would never read it.
-A customer managed key is required, because SSM's own `alias/aws/ssm` is
-readable by every principal in the account holding `ssm:GetParameter` — no
+A customer managed key is required because SSM's own `alias/aws/ssm` is
+usable by every principal in the account holding `ssm:GetParameter`, no
 narrower than the read on the bucket the values would be leaving.
 
-Ruling 4 is built too: no local cache file is written or read under the
-setting, as under `refuse`, unless `CHOUDOUFU_STATE_CACHE` names a path.
-`CHOUDOUFU_STRICT_PIN=1` refuses the setting the way it refuses `"store"`,
-because `"ssm"` keeps secret material and so relaxes a pin that forces
-`"refuse"`.
+The first run that writes then checks what lint cannot see, the way the
+bucket contract checks the bucket (`pkg/staterecord/ssmcontract.go`):
 
-### What is owed
+| Setting | Asserted |
+|---|---|
+| `customer_managed_key` | `kms:DescribeKey` on `kms_key_id` reports `KeyManager` `CUSTOMER`, the key enabled, `SYMMETRIC_DEFAULT`, `ENCRYPT_DECRYPT` |
+| `parameter_access` | The role creates a `SecureString` probe parameter under `path` with that key, with `Overwrite` false and a name starting `choudoufu-contract-probe-`, reads it back decrypted, and deletes it |
 
-The write path and everything downstream of it: the content-addressed
-parameter name and its `Overwrite: false` create, the reference in the
-record, the read that resolves one, the delete of a superseded parameter and
-the sweep for orphans, the advanced tier for a single value still over 4 KB
-with its monthly cost announced (ruling 3), the first-contact contract on the
-key and the role's put and get with its `allow_insecure` waivers, and the
-plan role's `ssm:GetParameters` and `kms:Decrypt`. The claim with a BREAK arm
-that #1515's "Done when" asks for is owed with them: nothing can measure that
-no secret value reaches the bucket until something is putting them elsewhere.
+`allow_insecure` in the `ssm` block waives either setting by name and nothing
+else. Waiving `customer_managed_key` lets a run proceed when the role may not
+call `kms:DescribeKey`, or the key is disabled or asymmetric. Waiving
+`parameter_access` lets it proceed when the probe fails, at the cost of
+failing at the first secret write, or of superseded values counting against
+the quota if the role cannot delete. An AWS managed key is refused whatever
+the waiver names: an `alias/aws/` name by its spelling, before any call, and
+a key ID or customer alias that `DescribeKey` reports as AWS managed. A
+refusal leaves nothing in Parameter Store and nothing in the record store. A
+probe the role could create and not delete is named in the refusal, for
+deleting by hand.
 
-Until that lands, `strict { secrets = "refuse" }` with secrets passed in by
-reference is the way to keep secret values out of the record store.
+### The write and the read
+
+Lands with S1 (#2393). Each secret value goes to a new, content-addressed
+parameter name with `Overwrite: false`, so every SSM write is a create of a
+name no other write uses. The S3 record's `If-Match` write then commits the
+reference, and stays the only thing that decides a concurrent write: the
+loser's parameter is an orphan nobody references. A plan resolves
+references with `GetParameters` in batches of 10, with retry. A superseded
+parameter is deleted after the commit, and a sweep removes orphans from lost
+races and failed runs, never a parameter a record references.
+
+One parameter per sensitive path. A single value over 4 KB, such as one of
+the three PEM encodings a `tls_private_key` holds, goes to the advanced tier,
+announced on every run with its cost of $0.05 per parameter-month. If the
+planned parameter count exceeds the tier's ceiling the run is refused before
+its first write.
+
+No local cache file is written or read under the setting, as under
+`refuse`, unless `CHOUDOUFU_STATE_CACHE` names a path.
+`CHOUDOUFU_STRICT_PIN=1` refuses the setting, because it keeps secret
+material and so relaxes a pin that forces `"refuse"`.
+
+### Who holds the read
+
+A record's reader gets references, not values. A value's reader needs
+`ssm:GetParameters` on the path and `kms:Decrypt` on the key, which the key
+policy also has to allow. `examples/record-store-bucket/iam/render-policy.sh
+--ssm-path <path> --ssm-kms <key-arn>` renders the grants
+([the IAM page](../examples/record-store-bucket/iam/README.md#secret-values-in-ssm)):
+
+| Role | Under the path | On the key, through SSM |
+|---|---|---|
+| Plan (`--read-only`) | `ssm:GetParameters` | `kms:Decrypt` |
+| Apply | `ssm:GetParameters`, `ssm:PutParameter`, `ssm:DeleteParameter`, `ssm:GetParametersByPath` | `kms:Decrypt`, `kms:Encrypt`, `kms:GenerateDataKey`, and `kms:DescribeKey` directly |
+
+Receipts are unaffected: `receipt-value` keeps refusing a `SecureString`.
+
 [Reference](https://intentius.io/choudoufu/docs/use/reference/) covers the
 setting and the environment pin that stops a configuration relaxing it.
 

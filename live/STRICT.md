@@ -13,7 +13,7 @@ this file is the reasoning and the measured behaviour behind each toggle.
 | Argument | Values | Default | Meaning |
 |---|---|---|---|
 | `marker_repair` | `"repair"`, `"never"` | `"repair"` | What a run does about an ownership marker on a live object that disagrees with the marker this configuration declares. "repair" writes the declared value over it, as the plan's ordinary in-place tags update. "never" leaves it silently, for an estate where something else owns the tags, and only once a markers "record" selection gives the resource an identity source that is not the marker. |
-| `secrets` | `"store"`, `"refuse"` | `"store"` | What a run does with the secret material a configuration generates or sets. "store" keeps it the way stock OpenTofu keeps it. "refuse" is two refusals: a secret-generating type is refused outright, and a sensitive settable argument is left out of its record. It does not reach the cache file, or a terraform_data or null_resource the configuration hands a secret. |
+| `secrets` | `"store"`, `"refuse"`, `"ssm"` | `"store"` | What a run does with the secret material a configuration generates or sets. "store" keeps it the way stock OpenTofu keeps it. "refuse" is two refusals: a secret-generating type is refused outright, and a sensitive settable argument is left out of its record. It does not reach the cache file, or a terraform_data or null_resource the configuration hands a secret. "ssm" keeps what "store" keeps, with the secret values in Parameter Store under a customer managed key and a reference in the record. |
 | `no_source_create` | `"refuse"`, `"create"` | `"refuse"` | What a run does with an instance that has no record, no live marker and no identity anything can derive from configuration. "refuse" reports it, by name, and names both remedies: "choudoufu live-import" from a stock state that already holds it, or this toggle. "create" selects stock OpenTofu's own behavior for a resource with no prior state: plan a create. |
 | `provider_change` | `"refuse"`, `"recreate"` | `"refuse"` | What a run does when a resource block names a different provider configuration than the one whose account or region still holds a live object carrying this estate's marker for that block's address - a region or account change. "refuse" reports the object, by name, with the provider configuration that found it and the one its address now belongs to, and names both remedies: destroying or disowning that object, or this toggle. "recreate" selects stock OpenTofu's own behavior - plan the create under the new configuration - and warns, by name, that the old one's object is abandoned and nothing will find it again. |
 <!-- toggles-gen:end strict-toggles -->
@@ -106,6 +106,12 @@ does:
 - **A record-backed resource handed a secret by configuration.**
   `terraform_data { input = var.db_password }` is admitted and recorded
   whole. The refusal is by resource type.
+
+`"ssm"` keeps what `"store"` keeps and moves the secret values out of the
+records, into SSM Parameter Store as `SecureString` parameters under the
+customer managed key a nested `ssm` block names, with a reference in the
+record (GitHub issues #1515 and #2393). It pairs with `record_store "s3"`
+only, writes no cache file, and is refused under `CHOUDOUFU_STRICT_PIN=1`.
 
 [Secrets in the record store](SECRETS.md) has it.
 

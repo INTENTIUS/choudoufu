@@ -80,6 +80,24 @@ func TestTheWaivableNamesAreTheAssertedSettings(t *testing.T) {
 		}
 	}
 
+	// The same pin on the SSM contract the strict block's ssm block waives
+	// (GitHub issue #2393, unit S2). Its names must not collide with any
+	// store's, for the same reason.
+	var ssmAsserted []string
+	for _, s := range staterecord.SSMSettings {
+		ssmAsserted = append(ssmAsserted, string(s))
+	}
+	if !slices.Equal(ssmAsserted, configs.StrictSSMInsecureSettings) {
+		t.Errorf("staterecord asserts %v about the ssm block, its allow_insecure accepts %v", ssmAsserted, configs.StrictSSMInsecureSettings)
+	}
+	for _, name := range configs.StrictSSMInsecureSettings {
+		for _, store := range []string{"s3", "kubernetes", "azurerm", "gcs"} {
+			if slices.Contains(configs.RecordStoreInsecureSettingsFor(store), name) {
+				t.Errorf("%q names an assertion of the SSM contract and of record_store %q", name, store)
+			}
+		}
+	}
+
 	// The local store asserts nothing, so it waives nothing.
 	if got := configs.RecordStoreInsecureSettingsFor("local"); got != nil {
 		t.Errorf("record_store \"local\" accepts allow_insecure names %v; a directory has nothing to assert", got)

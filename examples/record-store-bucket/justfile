@@ -230,7 +230,8 @@ verify bucket="":
     exit "$fail"
 
 # The IAM policy for one estate's role against this bucket. Pass the rest of
-# render-policy.sh's flags through: --kms <key-arn>, --reads-outputs-of <estate>.
+# render-policy.sh's flags through: --kms <key-arn>, --reads-outputs-of <estate>,
+# --ssm-path <path> --ssm-kms <key-arn>.
 # This is the documentation's policy, from the same script; the bucket policy
 # above grants nobody anything.
 policy estate bucket="" *flags="":

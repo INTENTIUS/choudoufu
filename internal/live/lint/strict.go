@@ -121,12 +121,12 @@ func checkLiveStrict(mod *configs.Module, path addrs.Module, issues *[]Issue) {
 // issue #365's first principle, "no secrets stored by the tool", turned into
 // a setting whose default is stock OpenTofu's own behavior.
 //
-// There is one shape to refuse and it is a typo. Unlike marker_repair, both
-// settings this fork's schema defines are implemented, so there is no
-// grammar-without-a-mechanism case: [strict.Store] is what every layer does
-// when the argument is omitted, and [strict.Refuse] is what every layer did
-// before the argument existed. Neither can be accepted-and-ignored, because
-// each is somebody's whole behavior today.
+// There is one shape to refuse here and it is a typo, plus the pin. Unlike
+// marker_repair, every setting this fork's schema defines is implemented:
+// [strict.Store] is what every layer does when the argument is omitted,
+// [strict.Refuse] is what every layer did before the argument existed, and
+// [strict.SSM] has its write path since GitHub issue #2393. What "ssm" needs
+// from the rest of the live block is [checkStrictSecretsSSM]'s question.
 //
 // The default written out by hand is clean, for GitHub issue #101's standing
 // reason: `secrets = "store"` must mean exactly what omitting it means, or
@@ -195,24 +195,16 @@ func checkStrictSecrets(st *configs.LiveStrict, path addrs.Module, issues *[]Iss
 }
 
 // unimplementedSecretsDetail is the sentence for a secrets setting this
-// fork's schema defines and this build cannot act on yet. It is
-// [unimplementedRepairDetail]'s twin, and it is deliberately specific about
-// what accepting the setting would actually do, because "not implemented"
-// on a marker_repair setting means tags keep being written and on this one
-// means secrets keep being written in clear.
+// fork's schema defines and this build cannot act on. It is
+// [unimplementedRepairDetail]'s twin. No setting reaches it today: "ssm"
+// did until its write path landed (GitHub issue #2393), and the branch stays
+// so the next setting added to the vocabulary before its mechanism is
+// refused rather than silently accepted.
 func unimplementedSecretsDetail(v strict.Secrets) string {
 	return fmt.Sprintf(
-		"%q is a secrets setting this fork's schema defines and this build does not implement yet (GitHub "+
-			"issue #1515). It would put the values at a record's sensitive paths, and the provider's private "+
-			"data, into AWS Systems Manager Parameter Store as SecureString parameters under the customer "+
-			"managed key an ssm block names, leaving a reference in the record - and nothing in this build "+
-			"writes a parameter or resolves a reference. Accepting it would report an estate's secrets as held "+
-			"under its own KMS key while every one of them went on being written into its records in clear, "+
-			"with no parameter anywhere to notice was missing, so it is refused instead. Settings this build "+
-			"implements: %s. The rest of the arrangement is already here and is checked before this refusal - "+
-			"the nested ssm block decodes, an arrangement that could not work is refused by name, and no local "+
-			"state cache is written under the setting - so a configuration written for it today needs no change "+
-			"when the write path lands.",
+		"%q is a secrets setting this fork's schema defines and this build does not implement. Accepting it "+
+			"would report the estate's secrets as handled one way while this build went on handling them "+
+			"another, so it is refused instead. Settings this build implements: %s.",
 		v, strict.SecretsImplementedNames(),
 	)
 }

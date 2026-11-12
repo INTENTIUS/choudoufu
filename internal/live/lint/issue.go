@@ -180,15 +180,19 @@ const (
 
 	// RuleStrictSecrets covers a live block's strict block whose secrets
 	// argument names something outside internal/live/strict's vocabulary.
-	// Both settings the vocabulary defines are implemented, so unlike
-	// [RuleStrictMarkerRepair] there is only one shape here: a typo. GitHub
-	// issue #365. See strict.go.
+	// Every setting the vocabulary defines is implemented ("ssm" since GitHub
+	// issue #2393), so unlike [RuleStrictMarkerRepair] the shapes here are a
+	// typo and a setting CHOUDOUFU_STRICT_PIN refuses. GitHub issue #365.
+	// See strict.go.
 	RuleStrictSecrets Rule = "strict-secrets"
 
 	// RuleStrictSecretsSSM covers the arrangement `strict { secrets = "ssm" }`
 	// needs and does not have, or has and does not need: a nested ssm block
 	// naming a customer managed KMS key, and a record_store "s3" to commit
-	// the reference with. GitHub issue #1515.
+	// the reference with. GitHub issue #1515. Four structural refusals,
+	// kept when the setting itself stopped being refused (#2393); whether
+	// the key is customer managed and the role can use the path is the
+	// first-contact SSM contract's, in pkg/staterecord.
 	//
 	// It is separate from [RuleStrictSecrets] because it is a different
 	// question. That rule answers "is this spelling in the vocabulary", and

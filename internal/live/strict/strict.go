@@ -304,11 +304,12 @@ const DefaultSecrets = Store
 // on each. It grew [markerRepairs]'s support column when [SSM] arrived, and
 // for the same reason that table has one: [SecretsValid] and
 // [SecretsImplemented] are two questions, and holding them in one table is
-// what stops them drifting apart.
+// what stops them drifting apart. All three are implemented now; the column
+// stays for the next setting that is grammar before it is a mechanism.
 var secretsSettings = map[Secrets]bool{
 	Store:  true,
 	Refuse: true,
-	SSM:    false,
+	SSM:    true,
 }
 
 // SecretsValid reports whether v is one of the three settings this fork's
@@ -321,27 +322,20 @@ func SecretsValid(v Secrets) bool {
 
 // SecretsImplemented reports whether a build acts on v.
 //
-// [Store] and [Refuse] are each somebody's whole behavior today and neither
-// can be accepted-and-ignored. [SSM] is the one this fork's schema defines
-// and this build does not act on yet: GitHub issue #1515 settles the
-// grammar, the four rulings and every refusal around the setting, and the
-// write path that would put a value into Parameter Store and a reference
-// into the record is a later unit.
+// [Store] and [Refuse] are each somebody's whole behavior and neither can be
+// accepted-and-ignored. [SSM] was grammar without a mechanism until GitHub
+// issue #2393 built the write path #1515 designed, and it was refused until
+// then for [Implemented]'s reason: accepting it would have told an operator
+// their secret values were in Parameter Store while every one of them went
+// on being written into the records in clear.
 //
-// It is refused rather than accepted silently, for [Implemented]'s reason
-// pointed at a worse outcome. Accepting it would tell an operator their
-// secret values were in Parameter Store under their own KMS key while every
-// one of them went on being written into the estate's records in clear, and
-// the only evidence would be the absence of parameters nobody was watching
-// for. A refusal is loud and reversible; a setting that silently does
-// nothing about secrets is the "you are fine" this fork keeps finding in
-// itself.
-//
-// Everything around the setting is built and is reached BEFORE this: the
-// nested block decodes, internal/live/lint's strict-secrets-ssm refuses an
-// arrangement that could not work, and the state cache is already off under
-// it. So the day the write path lands, this entry flips and nothing else
-// has to move.
+// It is opt-in. [DefaultSecrets] stays [Store], so no configuration reaches
+// Parameter Store without writing secrets = "ssm", and internal/live/lint's
+// strict-secrets-ssm still refuses an arrangement that could not work - no
+// ssm block, no kms_key_id, a record store other than "s3", or an ssm block
+// under another setting - before the write path is reached. The first-contact
+// contract on the key and the role (pkg/staterecord's AssertSSMContract) is
+// the run-time half.
 func SecretsImplemented(v Secrets) bool {
 	return secretsSettings[v]
 }
