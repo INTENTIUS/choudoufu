@@ -1,5 +1,5 @@
 # k8s-no-secret-survives-in-what-the-tool-keeps
-# CLAIM 40 (kubernetes) - No secret survives unless you let it. ~3 min.
+# CLAIM 40 (kubernetes) - No secret survives unless you let it, or keep it in SSM. ~3 min.
 #
 # This proof: under strict { secrets = "refuse" } on a Kubernetes estate, a
 # random_password is refused by name with nothing written, and a

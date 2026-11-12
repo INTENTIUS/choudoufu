@@ -565,7 +565,29 @@ showing its own checks would have caught it.
   `No changes.` with the cache deleted. The BREAK control applies the same
   estate under `secrets = "store"`, and the same scan must find the value.
   The replan under refuse proposes the password again, rotated or not,
-  which is what the refusal costs (#1503).
+  which is what the refusal costs (#1503). Then the same estate under
+  `strict { secrets = "ssm" }` (#2393): the run creates a customer
+  managed KMS key tagged with the run id, a record bucket and a parameter
+  path `/choudoufu/smoke/secrets-<run id>`. `alias/aws/ssm` is refused by
+  name at plan time with nothing created; under the run's key the apply
+  succeeds, a copy of every record version in the bucket, the data dir,
+  the lock file and the cache hold no copy of the password, the record
+  holds `secret_refs`, each referenced parameter is a `SecureString` under
+  that key and the password's decrypts to the value, the replan is
+  `No changes.`, a rotation deletes the superseded parameter, and teardown
+  leaves no parameter under the path and schedules the key for deletion.
+  The BREAK control adds a second arm: the same ssm apply with the
+  test-only `CHOUDOUFU_TEST_SSM_LEAK_PLAINTEXT=1`, which writes each value
+  into the record beside its references, and the scan must find it in
+  the bucket's copy. Needs Docker and the AWS CLI, like every emulator
+  scenario: the emulator answers the KMS, SSM and S3 calls. On a real
+  account the estate's role needs `ssm:GetParameters`, `ssm:PutParameter`,
+  `ssm:DeleteParameter` and `ssm:GetParametersByPath` under the path and
+  `kms:Encrypt`, `kms:GenerateDataKey`, `kms:Decrypt` and `kms:DescribeKey`
+  on the key (`examples/record-store-bucket/iam/render-policy.sh
+  --ssm-path --ssm-kms` renders them), and the scenario's own calls add
+  `kms:CreateKey`, `kms:TagResource`, `kms:ScheduleKeyDeletion`,
+  `ssm:DescribeParameters` and `ssm:GetParameter`.
 - **a-killed-apply-hides-nothing** - *Claim 5 (claim 42 until #1817): a killed apply hides
   nothing it marked.* A real apply is killed with SIGKILL at a point
   pinned by a count read off the account - hosted zones named

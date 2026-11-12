@@ -2163,7 +2163,7 @@ arrangement without asking for the setting.
 The setting itself is accepted (GitHub issue #2393 built the write path
 #1515 designed). This rule is everything around it: an arrangement that
 could not work is refused by name at lint, before any parameter exists.
-Four shapes, one rule:
+Five shapes, one rule:
 
 ```hcl
 terraform {
@@ -2182,7 +2182,10 @@ That is the whole of what the setting needs. Each refusal is one piece of it
 missing:
 
 - `secrets = "ssm"` with **no `ssm` block**, so nothing names the key.
-- An `ssm` block with **no `kms_key_id`**.
+- An `ssm` block with **no `kms_key_id`**, or one that spells an **AWS
+  managed key**, any `alias/aws/` name. This one is refused at lint as well
+  as at first contact, because first contact is the first parameter write,
+  after the apply has created what the plan proposed (GitHub issue #2393).
 - `secrets = "ssm"` with **no `record_store`**, or one that is not `"s3"`.
 - An **`ssm` block under any other secrets setting**, where it configures
   nothing.
@@ -2202,7 +2205,7 @@ denied or the key is unusable, and a waived `parameter_access` lets it
 proceed when the probe fails, at the cost of failing at the first secret
 write or leaving superseded values behind. An AWS managed key is refused
 whatever the waiver names: `alias/aws/ssm`, or any `alias/aws/` name, by its
-spelling before any call, and a key ID or customer alias that `DescribeKey`
+spelling at lint and again before any call, and a key ID or customer alias that `DescribeKey`
 reports as `KeyManager` `AWS`.
 
 **Why the key is required rather than defaulted.** SSM has a default key,

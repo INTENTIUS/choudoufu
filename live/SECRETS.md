@@ -220,9 +220,10 @@ are per account and region, so the choice has a capacity consequence.
 
 ### Before the first write
 
-Lint refuses four arrangements that could not work
+Lint refuses five arrangements that could not work
 (`live/LIMITATIONS.md`, "strict-secrets-ssm"): the setting with no `ssm`
-block, a block with no `kms_key_id`, the setting with a record store other
+block, a block with no `kms_key_id`, a `kms_key_id` spelled as an AWS
+managed key (`alias/aws/...`), the setting with a record store other
 than `"s3"`, and a block under a secrets setting that would never read it.
 A customer managed key is required because SSM's own `alias/aws/ssm` is
 usable by every principal in the account holding `ssm:GetParameter`, no
