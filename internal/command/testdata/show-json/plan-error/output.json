@@ -31,5 +31,30 @@
             ]
         }
     },
-    "errored": true
+    "errored": true,
+    "checks": [
+        {
+            "address": {
+                "kind": "resource",
+                "mode": "managed",
+                "name": "test",
+                "to_display": "test_instance.test",
+                "type": "test_instance"
+            },
+            "status": "fail",
+            "instances": [
+                {
+                    "address": {
+                        "to_display": "test_instance.test"
+                    },
+                    "status": "fail",
+                    "problems": [
+                        {
+                            "message": "ami is bar"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
 }

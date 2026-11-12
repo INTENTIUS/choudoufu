@@ -26,10 +26,15 @@
 // apply, a warning in a refresh-only plan, and nothing at all in a destroy
 // plan's refresh or in validation; a check assertion failure is a warning
 // except in those last two, and one that cannot be decided yet warns "known
-// after apply" while planning. The planning engine and validation name
-// their phase with [WithPhase]; an apply needs nothing. Check results are
-// not recorded in the plan or state (C3 of #2410), and a check block's
-// scoped data source is still refused by the data-sources row.
+// after apply" while planning. The planning engine, validation and the
+// apply of a destroy plan name their phase with [WithPhase]; any other
+// apply needs nothing. Output preconditions, which upstream compiles itself,
+// are reported the same way while the port is on. A check block's scoped
+// data source is still refused by the data-sources row.
+//
+// The port also records every check's result for the plan's Checks and the
+// state's CheckResults (C3 of #2410, see [Results]), and the call sites of
+// that are commented "choudoufu fork port (#2410)".
 //
 // Every call site is commented "choudoufu fork port (#2409): remove when
 // upstream #4390 lands". Removing the port is deleting this package,
@@ -66,6 +71,9 @@ const (
 	RefreshOnly
 	DestroyRefresh
 	Validate
+	// DestroyApply is the apply of a destroy plan (C3, #2410), which checks
+	// nothing in the default runtime.
+	DestroyApply
 )
 
 type phaseKey struct{}
@@ -81,7 +89,7 @@ func WithPhase(ctx context.Context, phase Phase) context.Context {
 func Report(ctx context.Context, checkBlock bool) (hcl.DiagnosticSeverity, bool) {
 	phase, _ := ctx.Value(phaseKey{}).(Phase)
 	switch {
-	case phase == DestroyRefresh || phase == Validate:
+	case phase == DestroyRefresh || phase == Validate || phase == DestroyApply:
 		return hcl.DiagInvalid, false
 	case checkBlock || phase == RefreshOnly:
 		return hcl.DiagWarning, true

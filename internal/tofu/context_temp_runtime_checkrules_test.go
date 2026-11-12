@@ -27,10 +27,9 @@ import (
 // checkrules port on the new runtime, against the default runtime's
 // behaviour in TestContext2Plan_resourcePreconditionPostcondition,
 // TestContext2Apply_resourcePostcondition and
-// TestContext2Validate_precondition_count. Those stay skipped behind
-// ExperimentalFeatureCondition, because their other cases read check
-// results from the plan and state, which the port does not record (C3,
-// #2410).
+// TestContext2Validate_precondition_count, which also run on the new
+// runtime since the port records check results (C3, #2410) and
+// ExperimentalFeatureCondition follows the port's switch.
 //
 // It drives newEnginePlan, newEngineApply and newEngineValidate directly,
 // past the gap table's preflight, so with the port's switch set the

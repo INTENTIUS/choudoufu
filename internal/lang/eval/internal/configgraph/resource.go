@@ -146,7 +146,9 @@ func (r *Resource) ValueSourceRange() *tfdiags.SourceRange {
 
 func (r *Resource) decideInstances(ctx context.Context) (*compiledInstances[*ResourceInstance], tfdiags.Diagnostics) {
 	return r.instancesResult.Do(ctx, func(ctx context.Context) (*compiledInstances[*ResourceInstance], tfdiags.Diagnostics) {
-		return compileInstances(ctx, r.InstanceSelector, r.CompileResourceInstance)
+		insts, diags := compileInstances(ctx, r.InstanceSelector, r.CompileResourceInstance)
+		forkRecordResourceInstances(ctx, r, insts) // choudoufu fork port (#2410): remove when upstream #4390 lands
+		return insts, diags
 	}, &r.DeclRange, "Decide instances of %s", r.Addr)
 }
 

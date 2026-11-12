@@ -139,7 +139,8 @@ func (i *InputVariable) value(ctx context.Context) (cty.Value, tfdiags.Diagnosti
 	if i.CompileValidationRules != nil {
 		validationMarks, moreDiags = CheckAllRules(ctx,
 			i.CompileValidationRules(ctx, finalV),
-			func(ruleDeclRange tfdiags.SourceRange, status checks.Status, errMsg string) tfdiags.Diagnostics {
+			// choudoufu fork port (#2410): remove when upstream #4390 lands.
+			forkRecordResults(ctx, i.Addr, addrs.InputValidation, func(ruleDeclRange tfdiags.SourceRange, status checks.Status, errMsg string) tfdiags.Diagnostics {
 				var diags tfdiags.Diagnostics
 				if status == checks.StatusFail {
 					var srcRange *hcl.Range
@@ -155,7 +156,7 @@ func (i *InputVariable) value(ctx context.Context) (cty.Value, tfdiags.Diagnosti
 					})
 				}
 				return diags
-			},
+			}),
 		)
 		diags = diags.Append(moreDiags)
 	}

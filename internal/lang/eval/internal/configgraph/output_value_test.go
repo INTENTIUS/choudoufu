@@ -11,12 +11,19 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
 	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 func TestOutputValue_Value(t *testing.T) {
+	// choudoufu fork port (#2410): remove when upstream #4390 lands. This
+	// tests upstream's output precondition diagnostics; with the checkrules
+	// port on they are the default runtime's, which internal/tofu's
+	// TestContext2Plan_outputPrecondition covers.
+	t.Setenv(forkport.Switch(checkrules.Name), "1")
 	testAddr := addrs.OutputValue{Name: "test"}
 	testValuer(t, map[string]valuerTest[*OutputValue]{
 		"minimal": {

@@ -15,6 +15,7 @@ import (
 	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/intentius/choudoufu/internal/checks"
+	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
 	"github.com/intentius/choudoufu/internal/engine/forkport/conditions"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
 	"github.com/intentius/choudoufu/internal/lang/marks"
@@ -112,6 +113,11 @@ func (r *CheckRule) ErrorMessage(ctx context.Context) (string, tfdiags.Diagnosti
 	rawResult, err := convert.Convert(rawResult, cty.String)
 	if err == nil && rawResult.IsNull() {
 		err = fmt.Errorf("value must not be null")
+	}
+	if err == nil && rawResult.HasMark(marks.Sensitive) && checkrules.Enabled() {
+		// choudoufu fork port (#2410): remove when upstream #4390 lands. The
+		// default runtime's warning, with the failure still reported.
+		return "", diags.Append(forkSensitiveErrorMessage(r))
 	}
 	if err == nil && rawResult.HasMark(marks.Sensitive) {
 		err = fmt.Errorf("must not be derived from a sensitive value")
