@@ -5,7 +5,8 @@
 
 // choudoufu fork port (#2414): remove when upstream #4058 and #4740 land.
 // Cherry-picked from upstream #4740 (commit 4b689c442b) with the import path
-// rewritten; upstream's own copy replaces this file.
+// rewritten and one early return added (#2418, commented below); upstream's
+// own copy replaces this file.
 
 package resources
 
@@ -72,6 +73,13 @@ func (dt *DataResourceType) Read(ctx context.Context, req *DataResourceReadReque
 	// abstraction to make a best effort to interpret attribute paths against
 	// whatever the valuer was evaluating.
 	diags = diags.Append(providerResp.Diagnostics)
+	// choudoufu fork port (#2418): remove when upstream #4058 and #4740 land.
+	// A read the provider failed has no result to check, so it ends here,
+	// as the default runtime's readDataSource does, instead of adding a
+	// "Provider produced null object" error for the null it came back with.
+	if diags.HasErrors() {
+		return nil, diags
+	}
 
 	newVal := providerResp.State
 	if newVal == cty.NilVal {

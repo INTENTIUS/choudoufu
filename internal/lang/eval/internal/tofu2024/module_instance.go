@@ -43,7 +43,8 @@ type CompiledModuleInstance struct {
 	moveStatements []refactoring.MoveStatement
 	importNodes    []*configgraph.Import
 
-	forkCheckBlocks []*forkCheckBlock // choudoufu fork port (#2409): remove when upstream #4390 lands
+	forkCheckBlocks     []*forkCheckBlock              // choudoufu fork port (#2409): remove when upstream #4390 lands
+	forkScopedResources map[addrs.Resource]addrs.Check // choudoufu fork port (#2418): remove when upstream #4390 lands
 
 	missingProviders rootMissingProviders
 

@@ -13,6 +13,7 @@ import (
 	"github.com/intentius/choudoufu/internal/checks"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/states"
+	"github.com/intentius/choudoufu/internal/tfdiags"
 )
 
 // Results collects the check results of one plan or apply on the new
@@ -38,6 +39,11 @@ type Results struct {
 	objects  addrs.Map[addrs.ConfigCheckable, addrs.Set[addrs.Checkable]]
 	unknown  addrs.Set[addrs.ConfigCheckable]
 	statuses addrs.Map[addrs.CheckRule, result]
+
+	// checkData and checkDeps are #2418's: see [RecordCheckDataRead] and
+	// [RecordCheckDependencies].
+	checkData addrs.Map[addrs.AbsResourceInstance, checkData]
+	checkDeps addrs.Set[addrs.AbsResourceInstance]
 }
 
 type result struct {
@@ -53,6 +59,9 @@ func NewResults(destroy bool) *Results {
 		objects:  addrs.MakeMap[addrs.ConfigCheckable, addrs.Set[addrs.Checkable]](),
 		unknown:  addrs.MakeSet[addrs.ConfigCheckable](),
 		statuses: addrs.MakeMap[addrs.CheckRule, result](),
+
+		checkData: addrs.MakeMap[addrs.AbsResourceInstance, checkData](),
+		checkDeps: addrs.MakeSet[addrs.AbsResourceInstance](),
 	}
 }
 
@@ -161,4 +170,79 @@ func placeholderCheckable(obj addrs.Checkable) bool {
 		return a.Module.IsPlaceholder()
 	}
 	return false
+}
+
+// checkData is what reading a data resource instance declared in a check
+// block came to (#2418): whether it failed and, if so, the failure message.
+type checkData struct {
+	failed bool
+	msg    string
+}
+
+// RecordCheckDataRead records how the read of addr, a data resource
+// instance declared in a check block, went: diags are the read's
+// diagnostics, before they are made warnings. The check block reports it as
+// its own result, as the default runtime's planDataSource and
+// readDataSource do: the rule of type CheckDataResource fails with the
+// read's error, or passes.
+func RecordCheckDataRead(ctx context.Context, addr addrs.AbsResourceInstance, diags tfdiags.Diagnostics) {
+	r := resultsOf(ctx)
+	if r == nil {
+		return
+	}
+	res := checkData{}
+	if diags.HasErrors() {
+		res = checkData{failed: true, msg: diags.Err().Error()}
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.checkData.Put(addr, res)
+}
+
+// CheckDataFailure returns the failure message [RecordCheckDataRead]
+// recorded for addr, and whether its read failed. A read that never
+// happened, because it was deferred to the apply, did not fail.
+func CheckDataFailure(ctx context.Context, addr addrs.AbsResourceInstance) (string, bool) {
+	r := resultsOf(ctx)
+	if r == nil {
+		return "", false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	res, ok := r.checkData.GetOk(addr)
+	return res.msg, ok && res.failed
+}
+
+// RecordCheckDependencies records resource instances a check block's
+// assertions read (#2418). The default runtime's apply checks them against
+// the state, so the apply of the new runtime needs each in its execution
+// graph, as it does for what a root output reads, even when it has no
+// change: otherwise an assertion on a data source read during the plan
+// cannot be decided during the apply.
+func RecordCheckDependencies(ctx context.Context, deps ...addrs.AbsResourceInstance) {
+	r := resultsOf(ctx)
+	if r == nil || len(deps) == 0 {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, dep := range deps {
+		r.checkDeps.Add(dep)
+	}
+}
+
+// CheckDependencies is what [RecordCheckDependencies] recorded under ctx,
+// or nothing with the port off.
+func CheckDependencies(ctx context.Context) addrs.Set[addrs.AbsResourceInstance] {
+	ret := addrs.MakeSet[addrs.AbsResourceInstance]()
+	r := resultsOf(ctx)
+	if r == nil {
+		return ret
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for dep := range r.checkDeps.All() {
+		ret.Add(dep)
+	}
+	return ret
 }

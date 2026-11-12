@@ -170,7 +170,7 @@ func CompileModuleInstance(
 		providersSidechannel,
 		module.Import,
 	)
-	ret.forkCheckBlocks = forkCompileCheckBlocks(module.Checks, topScope, call.CalleeAddr) // choudoufu fork port (#2409): remove when upstream #4390 lands
+	ret.forkCheckBlocks, ret.forkScopedResources = forkCompileCheckBlocks(module.Checks, topScope, call.CalleeAddr) // choudoufu fork port (#2409, #2418): remove when upstream #4390 lands
 	ret.moveStatements = compileMoveStatements(
 		module,
 		call.CalleeAddr,

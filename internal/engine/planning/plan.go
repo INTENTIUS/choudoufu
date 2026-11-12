@@ -15,6 +15,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/collections"
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
+	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
 	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
 	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
@@ -224,6 +225,13 @@ func finalizePlan(ctx context.Context, intermediate *planContextResult, provider
 		}
 		// TODO more efficient maps
 		additionalStateDependencies = additionalStateDependencies.Union(out.ResourceDependencies)
+	}
+	// choudoufu fork port (#2418): remove when upstream #4390 lands. What a
+	// check block's assertions read is checked again during the apply.
+	for dep := range checkrules.CheckDependencies(ctx).All() {
+		if intermediate.ResourceInstanceObjects.Get(dep.CurrentObject()) != nil {
+			additionalStateDependencies.Add(dep)
+		}
 	}
 
 	execGraph := buildExecutionGraph(
