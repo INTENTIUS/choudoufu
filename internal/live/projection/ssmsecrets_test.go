@@ -1097,3 +1097,40 @@ func TestSSMSecretsContractRefusalWritesNothing(t *testing.T) {
 		t.Errorf("a waived contract failure said %q, want one warning naming it", r.notes)
 	}
 }
+
+// TestSSMSecretsTestLeakHookWritesThePlaintext: the switch claim 40's BREAK
+// arm sets puts the plaintext into the bucket's record beside its
+// references, so the scenario's scan has a leak to find, and the record still
+// reads back. Unset, the same write leaves the bucket clean.
+func TestSSMSecretsTestLeakHookWritesThePlaintext(t *testing.T) {
+	ctx := context.Background()
+	for _, leak := range []bool{false, true} {
+		t.Run(fmt.Sprintf("leak=%v", leak), func(t *testing.T) {
+			if leak {
+				t.Setenv(SSMLeakPlaintextForTestEnv, "1")
+			} else {
+				t.Setenv(SSMLeakPlaintextForTestEnv, "")
+			}
+			r := newSSMRig(t)
+			seedPassword(t, NewRecordEnvelopeStore(r.open(), r.prefix), "random_password.db", "s3cr3t-value", nil)
+			raw := r.rawRecord("random_password.db")
+			if !bytes.Contains(raw, []byte(`"secret_refs"`)) {
+				t.Fatalf("the record carries no secret_refs:\n%s", raw)
+			}
+			if got := bytes.Contains(raw, []byte("s3cr3t-value")); got != leak {
+				t.Fatalf("plaintext in the bucket's record = %v, want %v:\n%s", got, leak, raw)
+			}
+			env, _, ok, err := NewRecordEnvelopeStore(r.open(), r.prefix).getRaw(ctx, mustAddr(t, "random_password.db"))
+			if err != nil || !ok {
+				t.Fatalf("read: exists=%v err=%v", ok, err)
+			}
+			val, _, _, err := decodeObjectValue(env.Object)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !val.RawEquals(passwordValue("s3cr3t-value")) {
+				t.Errorf("value read back = %#v", val)
+			}
+		})
+	}
+}

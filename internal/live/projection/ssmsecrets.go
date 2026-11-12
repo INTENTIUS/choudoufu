@@ -652,6 +652,11 @@ func (s *SSMSecretsStore) put(ctx context.Context, key string, payload []byte, e
 			return "", err
 		}
 		s.announceTiers(key, refs)
+		if os.Getenv(SSMLeakPlaintextForTestEnv) == "1" {
+			if stored, err = leakPlaintextForTest(stored, pending); err != nil {
+				return "", err
+			}
+		}
 	}
 	if s.cfg.beforeCommit != nil {
 		s.cfg.beforeCommit(key)
@@ -673,6 +678,45 @@ func (s *SSMSecretsStore) put(ctx context.Context, key string, payload []byte, e
 	s.noteBase(key, newVersion, refs)
 	s.deleteSuperseded(ctx, key, base, refs)
 	return newVersion, nil
+}
+
+// SSMLeakPlaintextForTestEnv names a TEST-ONLY switch. Set to "1", every
+// record [SSMSecretsStore] commits also carries, beside its secret_refs,
+// the plaintext of each value it moved to Parameter Store, under
+// [ssmLeakedPlaintextField]. Nothing an operator should ever set: it
+// exists so claim 40's BREAK=1 arm
+// (live/smoke/scenarios/no-secret-survives-in-what-the-tool-keeps.sh), the
+// only thing that sets it, can show that the scan which finds no secret in
+// an ssm record would find one there. A scan that has never been shown a
+// leak proves nothing by finding none (GitHub issue #2393).
+//
+// Unset or any other value, it is inert, and under any secrets setting but
+// "ssm" it is never read, because only this store consults it. The extra
+// member is unknown to [recordEnvelope], so a record carrying it still reads
+// back, and its resolved payload is re-encoded without it.
+const SSMLeakPlaintextForTestEnv = "CHOUDOUFU_TEST_SSM_LEAK_PLAINTEXT"
+
+// ssmLeakedPlaintextField is the record member [SSMLeakPlaintextForTestEnv]
+// writes the plaintext under.
+const ssmLeakedPlaintextField = "test_leaked_plaintext"
+
+// leakPlaintextForTest adds pending's values to stored under
+// [ssmLeakedPlaintextField]. See [SSMLeakPlaintextForTestEnv].
+func leakPlaintextForTest(stored []byte, pending []pendingSecret) ([]byte, error) {
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(stored, &doc); err != nil {
+		return nil, fmt.Errorf("secrets in SSM: %s: %w", SSMLeakPlaintextForTestEnv, err)
+	}
+	values := make([]string, len(pending))
+	for i, p := range pending {
+		values[i] = p.value
+	}
+	leaked, err := json.Marshal(values)
+	if err != nil {
+		return nil, err
+	}
+	doc[ssmLeakedPlaintextField] = leaked
+	return json.Marshal(doc)
 }
 
 // checkIdentity is secretsplit.go's "Byte identity" check: stored,

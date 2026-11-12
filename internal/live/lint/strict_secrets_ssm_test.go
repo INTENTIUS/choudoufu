@@ -42,7 +42,7 @@ func TestStrictSecretsSSMArrangement(t *testing.T) {
 		construct string
 		// wantDetail is what the refusal has to SAY, not merely that it
 		// fired. Each entry is the fact an operator needs to act, and the
-		// test is here because the four shapes share a rule: a detail
+		// test is here because the five shapes share a rule: a detail
 		// written for one of them appearing under another is a defect this
 		// rule's own count cannot see.
 		wantDetail []string
@@ -64,6 +64,16 @@ func TestStrictSecretsSSMArrangement(t *testing.T) {
 			wantDetail: []string{
 				"kms_key_id",
 				"alias/aws/ssm",
+			},
+		},
+		{
+			name:      "an AWS managed key by its alias",
+			dir:       "testdata/strict-secrets-ssm-aws-managed-key",
+			construct: "strict.ssm.kms_key_id",
+			wantDetail: []string{
+				`kms_key_id "alias/aws/ssm" is an AWS managed key by its alias`,
+				"customer managed key",
+				"allow_insecure does not cover this",
 			},
 		},
 		{
@@ -127,7 +137,7 @@ func TestStrictSecretsSSMArrangement(t *testing.T) {
 
 // TestSecretsSSMIsAccepted is the lift GitHub issue #2393 made: a complete
 // arrangement under secrets = "ssm" draws no strict-secrets refusal, and the
-// four structural refusals still draw exactly the one strict-secrets-ssm
+// five structural refusals still draw exactly the one strict-secrets-ssm
 // issue each (TestStrictSecretsSSMArrangement). It replaced
 // TestSecretsSSMIsRefusedAsUnimplemented, which held the refusal while
 // nothing wrote a parameter.

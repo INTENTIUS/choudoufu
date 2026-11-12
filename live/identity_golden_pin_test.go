@@ -3402,7 +3402,7 @@ const (
 	// 742, up six (fixture-dirs 705 -> 711): ci-products epic-ready (fix unit cp-choudoufu-fix-identity-golden): 6 rows added, 0 changed, 0 removed, all in new fixtures: internal/live/check/testdata/acm-route53-pending-read-2297 (aws_acm_certificate.this[0]) and the three stamp-declared-store-2296 directories (aws_kms_alias.unmarkable, name left to name_prefix) NEEDS_DISCOVERY; live/e2e/limits/aws-tag-count (aws_s3_bucket.crowded at limits-aws-tag-count) and live/e2e/limits/ignore-tags (aws_s3_bucket.q at limits-ignore-tags) CONCRETE at their literal bucket names; regenerated with -update.
 	// 766, up twenty-four (fixture-dirs 711 -> 735): #2309 (provider overrides): 49 rows added, 0 changed, 0 removed, all in the new fixtures under live/override-repro (24 directories, the AWS provider bug reproductions), every one NEEDS_DISCOVERY; regenerated with -update.
 	// 776, up ten (fixture-dirs 735 -> 745): #2309 (destroy-from-config overrides): 10 rows added, 0 changed, 0 removed, all in the new fixtures under live/override-repro (s3-force-destroy, iam-user-force-destroy, route53-zone-force-destroy, ecr-force-delete, db-instance-snapshot), every one NEEDS_DISCOVERY; regenerated with -update.
-	identityGoldenPinDirs = 776
+	identityGoldenPinDirs = 777
 
 	// identityGoldenPinCohortDirs and identityGoldenPinCohortInstances pin
 	// the generated half of the golden on its own (GitHub issue #930).

@@ -1292,7 +1292,7 @@
     {
       "id": 40,
       "slug": "no-secret-survives-in-what-the-tool-keeps",
-      "title": "No secret survives unless you let it",
+      "title": "No secret survives unless you let it, or keep it in SSM",
       "theme": "operate",
       "substrate": [
         "aws",
@@ -1305,9 +1305,9 @@
             {
               "scenario": "live/smoke/scenarios/no-secret-survives-in-what-the-tool-keeps.sh",
               "command": "just smoke no-secret-survives-in-what-the-tool-keeps",
-              "minutes": 3,
-              "break_mode": "BREAK=1 applies the same estate under secrets = \"store\" and runs the identical scan over the identical set of files, which must then find the password (it finds it in the record and the cache); a scan that finds nothing there fails the run, because its zero under refuse would prove nothing",
-              "note": "Under refuse the argument is proposed on every plan, rotated or not, and the scenario asserts both arms (#1503).",
+              "minutes": 5,
+              "break_mode": "BREAK=1 applies the same estate under secrets = \"store\" and runs the identical scan over the identical set of files, which must then find the password (it finds it in the record and the cache); then applies it under secrets = \"ssm\" with the test-only CHOUDOUFU_TEST_SSM_LEAK_PLAINTEXT=1, which writes each value into the record beside its secret_refs, and the ssm scan must find the password in the bucket's copy of that record. A scan that finds nothing in either fails the run, because its zero would prove nothing",
+              "note": "Under refuse the argument is proposed on every plan, rotated or not, and the scenario asserts both arms (#1503). Under ssm (#2393) the same estate keeps its records in a bucket and the password in a SecureString parameter under the run's customer managed key: alias/aws/ssm is refused by name at plan time, the records hold secret_refs and no copy, the replan is No changes., and a rotation deletes the superseded parameter.",
               "last_run": {
                 "status": "proven",
                 "claim": 40,
@@ -1315,6 +1315,18 @@
                 "date": "2026-10-11",
                 "version": "v0.26.0"
               }
+            },
+            {
+              "go_test": "TestSSMSecretsRaceOneWinsNoDanglingReference",
+              "go_package": "./internal/live/projection",
+              "command": "go test ./internal/live/projection -run '^TestSSMSecretsRaceOneWinsNoDanglingReference$'",
+              "note": "Under secrets = \"ssm\" two writers of one record race between their parameter creates and their commits, driven deterministically over a fake SSM: the bucket's conditional write decides, the loser's parameter is an unreferenced orphan, and no record references a parameter that does not exist (#2393)."
+            },
+            {
+              "go_test": "TestSSMSecretsCapacityRefusedBeforeAnyWrite",
+              "go_package": "./internal/live/projection",
+              "command": "go test ./internal/live/projection -run '^TestSSMSecretsCapacityRefusedBeforeAnyWrite$'",
+              "note": "Under secrets = \"ssm\" a planned parameter count over the standard tier's ceiling refuses the run's first write before any parameter or record is written, and every write after it (#2393)."
             }
           ],
           "note": ""

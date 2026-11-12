@@ -14,6 +14,7 @@ import (
 	"github.com/intentius/choudoufu/internal/live/identity"
 	"github.com/intentius/choudoufu/internal/live/strict"
 	"github.com/intentius/choudoufu/internal/providers"
+	"github.com/intentius/choudoufu/pkg/staterecord"
 )
 
 // checkLiveStrict validates the optional strict block nested in a live block,
@@ -217,8 +218,10 @@ func unimplementedSecretsDetail(v strict.Secrets) string {
 // that one cannot: "ssm" is the only secrets setting that needs anything
 // else in the live block to be true, and everything it needs is somewhere
 // else - a nested block, and the record_store the reference is committed
-// with. Four shapes are refused and each is somebody's whole arrangement
-// being wrong, so all four are refusals rather than warnings.
+// with. Five shapes are refused and each is somebody's whole arrangement
+// being wrong, so all five are refusals rather than warnings. The fifth,
+// an AWS managed key by its alias, is also refused at first contact, but
+// that is after the apply (see its own comment below).
 //
 // # Why the record store is checked here rather than at the store
 //
@@ -310,6 +313,26 @@ func checkStrictSecretsSSM(mod *configs.Module, st *configs.LiveStrict, path add
 				strict.SSM,
 			),
 			Subject: st.SSM.DeclRange,
+		})
+	} else if staterecord.AWSManagedKeyAlias(st.SSM.KMSKeyID) {
+		// The spelling settles it, so it is refused here, at plan time.
+		// The first-contact contract refuses it too, but that runs at the
+		// first parameter write, which is the record write after the
+		// apply: by then every resource the plan created exists, with no
+		// record to say so (GitHub issue #2393, claim 40's ssm steps).
+		*issues = append(*issues, Issue{
+			Rule:      RuleStrictSecretsSSM,
+			Construct: "strict.ssm.kms_key_id",
+			Module:    path,
+			Detail: fmt.Sprintf(
+				"kms_key_id %q is an AWS managed key by its alias. An AWS managed key such as alias/aws/ssm can "+
+					"be used by every principal in the account that holds ssm:GetParameter, which is no narrower "+
+					"than the read on the bucket the secret values are being moved out of. secrets = %q requires "+
+					"a customer managed key, whose key policy is a second gate on the values, and the ssm block's "+
+					"allow_insecure does not cover this. Name a symmetric customer managed key by ID, ARN or alias.",
+				st.SSM.KMSKeyID, strict.SSM,
+			),
+			Subject: st.SSM.KMSKeyIDRange,
 		})
 	}
 
