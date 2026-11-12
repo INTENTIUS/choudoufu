@@ -8,15 +8,21 @@ package tofu2024
 import (
 	"context"
 	"fmt"
+	"iter"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/ext/dynblock"
+	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
+	"github.com/intentius/choudoufu/internal/configs/configschema"
 	"github.com/intentius/choudoufu/internal/instances"
+	"github.com/intentius/choudoufu/internal/lang/blocktoattr"
 	"github.com/intentius/choudoufu/internal/lang/eval/internal/configgraph"
 	"github.com/intentius/choudoufu/internal/lang/eval/internal/evalglue"
 	"github.com/intentius/choudoufu/internal/lang/exprs"
@@ -95,8 +101,9 @@ func compileModuleInstanceResource(
 		// Assumed static context, I don't love this sort of flagging though
 		configEvalable = exprs.EvalableHCLExpression(&hclsyntax.LiteralValueExpr{Val: cty.DynamicVal})
 	} else {
-		spec := resourceTypeSchema.Block.DecoderSpec()
-		configEvalable = exprs.EvalableHCLBodyWithDynamicBlocks(config.Config, spec)
+		// choudoufu: remove when upstream handles attributes-as-blocks in
+		// the new runtime (#2256). Was exprs.EvalableHCLBodyWithDynamicBlocks.
+		configEvalable = evalableBodyWithAttrsAsBlocks(config.Config, resourceTypeSchema.Block)
 	}
 
 	// Compile Provisioners
@@ -441,4 +448,77 @@ func traversalToPath(traversal hcl.Traversal) cty.Path {
 		}
 	}
 	return path
+}
+
+// choudoufu: remove when upstream handles attributes-as-blocks in the new
+// runtime (#2256).
+//
+// evalableBodyWithAttrsAsBlocks is [exprs.EvalableHCLBodyWithDynamicBlocks]
+// plus the default runtime's attributes-as-blocks fixup: a list- or
+// set-of-object attribute, such as aws_security_group's ingress, may be
+// written as one nested block per element. It does what lang.Scope's
+// ExpandBlock and EvalBlock do, in the same order: "dynamic" blocks are
+// expanded first and the fixup is applied to the expanded body, so a dynamic
+// block can produce elements of such an attribute too. References and
+// function calls are found with blocktoattr's walkers, which see inside
+// those blocks, static and dynamic, as lang.ReferencesInBlock does.
+//
+// A body whose schema has nothing the fixup applies to decodes exactly as
+// before: blocktoattr.FixUpBlockAttrs returns it unchanged.
+func evalableBodyWithAttrsAsBlocks(body hcl.Body, schema *configschema.Block) exprs.Evalable {
+	return &attrsAsBlocksBody{
+		body:   body,
+		schema: schema,
+		spec:   schema.DecoderSpec(),
+	}
+}
+
+type attrsAsBlocksBody struct {
+	body   hcl.Body
+	schema *configschema.Block
+	spec   hcldec.Spec
+}
+
+var _ exprs.Evalable = (*attrsAsBlocksBody)(nil)
+
+// Evaluate implements exprs.Evalable.
+func (b *attrsAsBlocksBody) Evaluate(ctx context.Context, hclCtx *hcl.EvalContext) (cty.Value, tfdiags.Diagnostics) {
+	var diags tfdiags.Diagnostics
+	body := dynblock.Expand(b.body, hclCtx)
+	body = blocktoattr.FixUpBlockAttrs(body, b.schema)
+	v, hclDiags := hcldec.Decode(body, b.spec, hclCtx)
+	diags = diags.Append(hclDiags)
+	if hclDiags.HasErrors() {
+		v = cty.UnknownVal(b.ResultTypeConstraint()).WithSameMarks(v)
+	}
+	return v, diags
+}
+
+// References implements exprs.Evalable.
+func (b *attrsAsBlocksBody) References() iter.Seq[hcl.Traversal] {
+	return slices.Values(blocktoattr.ExpandedVariables(b.body, b.schema))
+}
+
+// FunctionCalls implements exprs.Evalable.
+func (b *attrsAsBlocksBody) FunctionCalls() iter.Seq[*hcl.StaticCall] {
+	return func(yield func(*hcl.StaticCall) bool) {
+		for _, traversal := range blocktoattr.ExpandedFunctions(b.body, b.schema) {
+			if !yield(&hcl.StaticCall{
+				Name:      traversal.RootName(),
+				NameRange: traversal.SourceRange(),
+			}) {
+				return
+			}
+		}
+	}
+}
+
+// ResultTypeConstraint implements exprs.Evalable.
+func (b *attrsAsBlocksBody) ResultTypeConstraint() cty.Type {
+	return hcldec.ImpliedType(b.spec)
+}
+
+// EvalableSourceRange implements exprs.Evalable.
+func (b *attrsAsBlocksBody) EvalableSourceRange() tfdiags.SourceRange {
+	return tfdiags.SourceRangeFromHCL(b.body.MissingItemRange())
 }
