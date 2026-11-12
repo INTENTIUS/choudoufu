@@ -79,7 +79,7 @@ func (v *preparationGlue) ResourceInstanceValue(ctx context.Context, ri *configg
 		return cty.DynamicVal, diags
 	}
 
-	configValUnmarked, _ := configVal.UnmarkDeep()
+	configValUnmarked, configMarkPaths := configVal.UnmarkDeepWithPaths()
 	validateDiags := v.providers.ValidateResourceConfig(ctx, ri.Provider, ri.Addr.Resource.Resource.Mode, ri.Addr.Resource.Resource.Type, configValUnmarked)
 	diags = diags.Append(validateDiags)
 	if diags.HasErrors() {
@@ -103,9 +103,16 @@ func (v *preparationGlue) ResourceInstanceValue(ctx context.Context, ri *configg
 	// it's not competing with other expensive work like performing transitive
 	// reduction on a dag, etc. The main problem seems to be that it allocates
 	// a _lot_ of temporary objects, and so there's lots of GC pressure.
+	//
+	// choudoufu: remove when upstream fixes marked values in
+	// preparationGlue.ResourceInstanceValue. ProposedNew does not accept
+	// marked values: a whole-object mark (depends_on puts a resource instance
+	// mark there) reaches a nested block list and panics in LengthInt. Use
+	// the unmarked value and put the same marks back on the result, as the
+	// default runtime does around its own ProposedNew calls.
 	proposed := objchange.ProposedNew(
-		schema.Block, cty.UnknownVal(schema.Block.ImpliedType()), configVal,
-	)
+		schema.Block, cty.UnknownVal(schema.Block.ImpliedType()), configValUnmarked,
+	).MarkWithPaths(configMarkPaths)
 
 	// Handle provisioners validate
 	for _, prov := range ri.CreateProvisioners {
