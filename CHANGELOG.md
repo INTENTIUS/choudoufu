@@ -34,6 +34,13 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 
 ## choudoufu v0.35.0 (Unreleased)
 
+## choudoufu v0.34.1 (2026-11-12)
+
+Built on the same base as v0.34.0. Board snapshot: [`live/history/v0.34.1.json`](live/history/v0.34.1.json); board movement from v0.34.0: none (core 22/23, all 24/25).
+
+- Fixed, on the new runtime: an explicit `moved` block, a whole-module rename included, applies instead of panicking with "invalid move". Planning kept each moved object at both its old and new address, so the apply's move found its destination taken (#2421). This was v0.34.0's known issue; with the toggle on and `CHOUDOUFU_NEW_RUNTIME_STRICT=1`, corpus-lambda-simple now clears, `day2_rename` included.
+- Changed: claim 40's ssm steps are proven on floci and on real AWS at `8fe40da8f9`, after the store moved to `DeleteParameter` (#2424). The scenario's time budget is 15 minutes, its measured floci runtime (#2425), and a smoke stall now names the call it killed and keeps per-call logs (#2423).
+
 ## choudoufu v0.34.0 (2026-11-12)
 
 Built on OpenTofu 1.14.0-dev (upstream main `aa3eb66a0c`), up from 1.13.2 (#2336). choudoufu now follows upstream `main` between upstream releases, so releases cut between upstream tags are built on a `1.14.0-dev` base and `choudoufu version` reports that base as `1.14.0-dev` (#2256, ruling 2). A release binary is recognised by a build flag, not by its version string, so a `-dev` base opens nothing by accident (#2336). `TOFU_X_EXPERIMENTAL_RUNTIME_NEXT`, upstream's opt-in for the command layer, is ignored by a release binary. `TOFU_X_EXPERIMENTAL_RUNTIME`, its opt-in for plan and apply, is opened on purpose in every build: see the first entry below.
