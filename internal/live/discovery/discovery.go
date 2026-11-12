@@ -1978,6 +1978,100 @@ func scanTypeReporting(ctx context.Context, req Request, schemas listclient.Sche
 	return diags
 }
 
+// scanTypeUnenumerated is the rest of [scanType]'s route list for a type
+// the provider offers no native list resource for, once neither content
+// match nor Cloud Control has enumerated it: the service's own list API,
+// then, for a declared instance only, the estate's tag index or its record
+// store, and with none of those the not-listable refusal.
+//
+// refused is nil when Cloud Control was never a route for the type
+// ([cloudControlSource] said no), and set when it was one and refused the
+// listing ([cloudcontrol.IsListRefusal]). A refusal is the same fact as no
+// route - this source cannot list the type - so it takes the same path,
+// and the refusal's own words only change what the diagnostic says. It
+// never reads as an empty listing: that would plan a create for a declared
+// instance that may exist and record the sweep as covered, which is what
+// floci's earlier pins did by answering such a type with an empty list.
+func scanTypeUnenumerated(ctx context.Context, req Request, schemas listclient.Schemas, decl *declared, typeName string, res *Result, sweep, collectUnclaimed bool, scan TypeScan, refused *ccListRefusal) tfdiags.Diagnostics {
+	var diags tfdiags.Diagnostics
+
+	// GitHub issue #1477: the service's own list API, for a type
+	// neither content match nor Cloud Control enumerated and the lister
+	// has a route for
+	// (aws_iam_service_linked_role through iam:ListRoles). An
+	// enumeration, so it is tried with the enumerations and before
+	// the two fallbacks below, which exist for a type nothing can
+	// list. A nil Request.ServiceList is "the leg does not apply
+	// here", exactly as a nil CloudControl is in [scanType]. See
+	// servicelist.go.
+	if serviceListRoute(req, typeName) {
+		return scanTypeServiceList(ctx, req, schemas, decl, typeName, res, sweep, collectUnclaimed)
+	}
+
+	// Issue #293. No route found a way to list typeName at all. A declared instance of a taggable type still has one more
+	// place to look before this refuses: the estate's tag index issue
+	// #266 already fetched, which finds a resource by its own marker
+	// and ARN rather than by enumerating its type - see
+	// [scanTypeMarkerFallback]'s doc comment for the full reasoning,
+	// including why the sweep never takes this branch. Gated on
+	// taggability first so an untaggable type - which could never
+	// carry a marker for the index to find - reaches the same refusal
+	// it always has, unweakened.
+	if !sweep && typeTaggable(schemas, typeName) {
+		if fbDiags, ok := scanTypeMarkerFallback(ctx, req, decl, typeName, res); ok {
+			return diags.Append(fbDiags)
+		}
+	}
+
+	// [scanTypeMarkerFallback]'s untaggable companion. A type with no
+	// tags argument at all could never carry a marker for the index
+	// above to find, but untaggable does not mean unidentifiable (see
+	// .claude/agents/live-markers.md's invariant): a migration already
+	// reads such an object once, for residue (#341), and writes the
+	// identity it read into the estate's record store. See
+	// [scanTypeLocatedFallback]'s doc comment.
+	if !sweep && !typeTaggable(schemas, typeName) {
+		if fbDiags, ok := scanTypeLocatedFallback(ctx, req, decl, typeName, res); ok {
+			return diags.Append(fbDiags)
+		}
+	}
+
+	res.Scans = append(res.Scans, scan)
+	if sweep {
+		return diags.Append(sweepGapDiag(res, SweepGap{
+			TypeName: typeName,
+			Reason:   SweepGapNotListable,
+			Detail: fmt.Sprintf(
+				"%s, so this run could not look for resources of that type which this estate owns but no longer declares. A deleted %s block's live resource stays live until the provider can list the type.",
+				refused.cannotList(typeName), typeName),
+		}))
+	}
+	decl.unscanned[typeName] = true
+	return diags.Append(problemDiag(res, Problem{
+		Kind:     ProblemTypeNotListable,
+		TypeName: typeName,
+		Detail: fmt.Sprintf(
+			"%s, so the %d declared instance(s) of it cannot be discovered by marker. The provider needs list support for this type before live resource markers can manage it.",
+			refused.cannotList(typeName), scan.Declared),
+	}))
+}
+
+// ccListRefusal is Cloud Control declining to list a type outright (see
+// [cloudcontrol.IsListRefusal]), carried into [scanTypeUnenumerated] so its
+// refusal can say which source was tried and what it answered.
+type ccListRefusal struct {
+	cfnType string
+	err     error
+}
+
+// cannotList is the opening clause of the not-listable refusal and gap.
+func (r *ccListRefusal) cannotList(typeName string) string {
+	if r == nil {
+		return fmt.Sprintf("The provider cannot list %s", typeName)
+	}
+	return fmt.Sprintf("The provider cannot list %s, and Cloud Control refused to list %s for it (%v)", typeName, r.cfnType, r.err)
+}
+
 // scanType lists one resource type and files what comes back.
 //
 // sweep says this type is being listed because the estate may own resources
@@ -2041,7 +2135,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 		if req.CloudControl != nil {
 			if binding, ok := identity.ContentMatchTypes[typeName]; ok {
 				if _, byName := uniqueNameIndexFor(decl, typeName); !byName {
-					return scanTypeContentMatch(ctx, req, decl, typeName, binding, res, sweep, collectUnclaimed)
+					return scanTypeContentMatch(ctx, req, schemas, decl, typeName, binding, res, sweep, collectUnclaimed)
 				}
 			}
 		}
@@ -2056,65 +2150,7 @@ func scanType(ctx context.Context, req Request, schemas listclient.Schemas, decl
 			return scanTypeCloudControl(ctx, req, schemas, decl, typeName, cfnType, res, sweep, collectUnclaimed)
 		}
 
-		// GitHub issue #1477: the service's own list API, for a type
-		// neither route above enumerates and the lister has a route for
-		// (aws_iam_service_linked_role through iam:ListRoles). An
-		// enumeration, so it is tried with the enumerations and before
-		// the two fallbacks below, which exist for a type nothing can
-		// list. A nil Request.ServiceList is "the leg does not apply
-		// here", exactly as a nil CloudControl is above. See
-		// servicelist.go.
-		if serviceListRoute(req, typeName) {
-			return scanTypeServiceList(ctx, req, schemas, decl, typeName, res, sweep, collectUnclaimed)
-		}
-
-		// Issue #293. Neither route above found a way to list typeName at
-		// all. A declared instance of a taggable type still has one more
-		// place to look before this refuses: the estate's tag index issue
-		// #266 already fetched, which finds a resource by its own marker
-		// and ARN rather than by enumerating its type - see
-		// [scanTypeMarkerFallback]'s doc comment for the full reasoning,
-		// including why the sweep never takes this branch. Gated on
-		// taggability first so an untaggable type - which could never
-		// carry a marker for the index to find - reaches the same refusal
-		// it always has, unweakened.
-		if !sweep && typeTaggable(schemas, typeName) {
-			if fbDiags, ok := scanTypeMarkerFallback(ctx, req, decl, typeName, res); ok {
-				return diags.Append(fbDiags)
-			}
-		}
-
-		// [scanTypeMarkerFallback]'s untaggable companion. A type with no
-		// tags argument at all could never carry a marker for the index
-		// above to find, but untaggable does not mean unidentifiable (see
-		// .claude/agents/live-markers.md's invariant): a migration already
-		// reads such an object once, for residue (#341), and writes the
-		// identity it read into the estate's record store. See
-		// [scanTypeLocatedFallback]'s doc comment.
-		if !sweep && !typeTaggable(schemas, typeName) {
-			if fbDiags, ok := scanTypeLocatedFallback(ctx, req, decl, typeName, res); ok {
-				return diags.Append(fbDiags)
-			}
-		}
-
-		res.Scans = append(res.Scans, scan)
-		if sweep {
-			return diags.Append(sweepGapDiag(res, SweepGap{
-				TypeName: typeName,
-				Reason:   SweepGapNotListable,
-				Detail: fmt.Sprintf(
-					"The provider cannot list %s, so this run could not look for resources of that type which this estate owns but no longer declares. A deleted %s block's live resource stays live until the provider can list the type.",
-					typeName, typeName),
-			}))
-		}
-		decl.unscanned[typeName] = true
-		return diags.Append(problemDiag(res, Problem{
-			Kind:     ProblemTypeNotListable,
-			TypeName: typeName,
-			Detail: fmt.Sprintf(
-				"The provider cannot list %s, so the %d declared instance(s) of it cannot be discovered by marker. The provider needs list support for this type before live resource markers can manage it.",
-				typeName, scan.Declared),
-		}))
+		return diags.Append(scanTypeUnenumerated(ctx, req, schemas, decl, typeName, res, sweep, collectUnclaimed, scan, nil))
 	}
 
 	if sweep && !markerCapable(ts) {

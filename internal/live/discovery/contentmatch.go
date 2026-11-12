@@ -15,8 +15,10 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/live/identity"
+	"github.com/intentius/choudoufu/internal/live/listclient"
 	"github.com/intentius/choudoufu/internal/live/staticeval"
 	"github.com/intentius/choudoufu/internal/tfdiags"
+	"github.com/intentius/choudoufu/pkg/cloudcontrol"
 )
 
 // This file is issue #272's "admission path 4 (list and content match)",
@@ -74,7 +76,7 @@ import (
 // comment), so "unclaimed" has no meaning for it regardless of why sweep is
 // true: GitHub issue #388 edge 3's record-backed exception widens what a
 // sweep call collects, never what a type with no marker surface can answer.
-func scanTypeContentMatch(ctx context.Context, req Request, decl *declared, typeName string, binding identity.ContentMatchBinding, res *Result, sweep, collectUnclaimed bool) tfdiags.Diagnostics {
+func scanTypeContentMatch(ctx context.Context, req Request, schemas listclient.Schemas, decl *declared, typeName string, binding identity.ContentMatchBinding, res *Result, sweep, collectUnclaimed bool) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	pathLabel := strings.Join(binding.PropertyPath, ".")
@@ -109,6 +111,14 @@ func scanTypeContentMatch(ctx context.Context, req Request, decl *declared, type
 	}
 
 	descs, err := req.CloudControl.ListResources(ctx, binding.CFNType)
+	if err != nil && cloudcontrol.IsListRefusal(err) {
+		// Cloud Control declined to list the type at all, which is the
+		// same fact as no route: see [scanTypeCloudControl]'s refusal
+		// branch. Its remaining route for a declared instance of an
+		// untaggable type is the record store ([scanTypeLocatedFallback]).
+		log.Printf("[DEBUG] live/discovery: Cloud Control refused to list %s (for %s's content match): %v; trying %s's remaining routes", binding.CFNType, typeName, err, typeName)
+		return diags.Append(scanTypeUnenumerated(ctx, req, schemas, decl, typeName, res, sweep, collectUnclaimed, scan, &ccListRefusal{cfnType: binding.CFNType, err: err}))
+	}
 	if err != nil {
 		res.Scans = append(res.Scans, scan)
 		decl.unscanned[typeName] = true
