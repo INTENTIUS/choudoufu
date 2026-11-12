@@ -249,10 +249,17 @@ func (p *planGlue) planDesiredManagedResourceInstance(
 		ret.UpgradedState = prevStateFull
 		ret.UpgradedValue = prevValue.Value
 
-		if prevStateInfo.isImplicit() {
+		// choudoufu fork patch: upstream saves state at the previous
+		// address only for an implied move. An explicit move saved it at the
+		// new address while the orphan pass kept the old object at the old
+		// one, so the plan's prior state held both, and the apply's
+		// ManagedChangeAddr, which reads the prior at PrevRunAddr and then
+		// moves it, panicked with "invalid move" on every explicit move.
+		// Upstream main has the same code.
+		if prevStateInfo.isMove() {
 			// due to a quirk in how moves are handled,
-			// if it's an implied move, we save state
-			// in the prevAddr instead of current.
+			// a moved object's state is saved in the prevAddr
+			// instead of current.
 			ret.PrevRoundAddr = prevStateInfo.from.CurrentObject()
 		}
 
@@ -776,6 +783,7 @@ func (p *planGlue) planUnwantedManagedResourceInstanceObject(
 	if movedToAddress != nil {
 		if addr.IsCurrent() {
 			// We were part of a move already and can safely be ignored
+			ret.movedAway = true // choudoufu fork patch, see movedAway
 			log.Printf("[TRACE] Potentially orphaned resource %s was recorded as being moved to %s and is therefore not orphaned", currentRunAddr, *movedToAddress)
 			return ret, diags
 		}
