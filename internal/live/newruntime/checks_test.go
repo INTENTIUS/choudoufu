@@ -141,6 +141,8 @@ func TestParseRefusesUnknownPreflightScope(t *testing.T) {
 }
 
 func TestPreflightRefusesSensitiveFunctionAndOutputs(t *testing.T) {
+	// The sensitive fork port admits these while on (sensitive_test.go).
+	t.Setenv(forkport.AllOff, "1")
 	r := row(t, "sensitive")
 	for name, src := range map[string]string{
 		"sensitive()":      "locals {\n  x = sensitive(\"a\")\n}\n",

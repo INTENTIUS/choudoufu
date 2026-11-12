@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/engine/forkport/deferral"
 	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
+	"github.com/intentius/choudoufu/internal/engine/forkport/sensitive"
 	"github.com/intentius/choudoufu/internal/engine/identityresolve"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
@@ -168,6 +169,12 @@ func finalizePlan(ctx context.Context, intermediate *planContextResult, provider
 				Value: v.Value,
 				// TODO Sensitive  bool
 				// TODO Deprecated string
+			}
+			// choudoufu fork port (#2410): remove when upstream #4360
+			// lands. A state holds an output unmarked, with its flag.
+			if sensitive.Enabled() {
+				out := refreshedOutputs[k]
+				out.Value, out.Sensitive = sensitive.OutputValue(v.Value)
 			}
 		} else if prev, ok := upgradedOutputs[k]; ok {
 			refreshedOutputs[k] = prev

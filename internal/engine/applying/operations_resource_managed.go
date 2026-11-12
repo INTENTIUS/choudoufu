@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/engine/configadjust"
 	"github.com/intentius/choudoufu/internal/engine/internal/exec"
 	"github.com/intentius/choudoufu/internal/lang/eval"
+	"github.com/intentius/choudoufu/internal/lang/marks"
 	"github.com/intentius/choudoufu/internal/providers"
 	"github.com/intentius/choudoufu/internal/resources"
 	"github.com/intentius/choudoufu/internal/states"
@@ -538,8 +539,13 @@ func (ops *execOperations) managedApply(
 		}
 
 		state = &states.ResourceInstanceObjectFull{
-			Status:               status,
-			Value:                resp.NewState,
+			Status: status,
+			// choudoufu: remove when upstream #4360 lands. The new object
+			// is stored with its sensitive paths. Not a switchable fork
+			// port: without them a schema-sensitive attribute is stored,
+			// and in live mode recorded, as if it were not sensitive
+			// (#2410). See storedSensitiveValue.
+			Value:                storedSensitiveValue(resp.NewState, plan.PlannedVal, schema.Block),
 			Private:              resp.Private,
 			ProviderInstanceAddr: providerConfigAddr,
 			ResourceType:         plan.ResourceType,
@@ -873,4 +879,36 @@ func markedAppliedValue(applied, planned cty.Value, schema *configschema.Block) 
 		return applied
 	}
 	return applied.MarkWithPaths(pvms)
+}
+
+// storedSensitiveValue is the provider's new object as it is stored in
+// state: carrying the sensitive mark wherever [markedAppliedValue] puts it
+// (the planned value's sensitive marks and the schema's Sensitive flags) and
+// no other mark, which the state encoder refuses. Upstream stores the object
+// unmarked, so a schema-sensitive attribute (random_password.result) lands
+// in state with no sensitive path, and in live mode in a record with no
+// SensitiveAttrs, which keeps it out of the SSM secret split. That is why
+// this is an unconditional fork fix and not part of the switchable
+// sensitive fork port (#2410). choudoufu: remove when upstream #4360 lands.
+func storedSensitiveValue(applied, planned cty.Value, schema *configschema.Block) cty.Value {
+	if applied == cty.NilVal || applied.IsNull() || schema == nil {
+		return applied
+	}
+	unmarked, _ := applied.UnmarkDeep()
+	_, pvms := markedAppliedValue(unmarked, planned, schema).UnmarkDeepWithPaths()
+	if pvms = sensitivePVMs(pvms); len(pvms) == 0 {
+		return unmarked
+	}
+	return unmarked.MarkWithPaths(pvms)
+}
+
+// sensitivePVMs keeps, of each path's marks, only marks.Sensitive.
+func sensitivePVMs(pvms []cty.PathValueMarks) []cty.PathValueMarks {
+	var out []cty.PathValueMarks
+	for _, pvm := range pvms {
+		if _, ok := pvm.Marks[marks.Sensitive]; ok {
+			out = append(out, cty.PathValueMarks{Path: pvm.Path, Marks: cty.NewValueMarks(marks.Sensitive)})
+		}
+	}
+	return out
 }
