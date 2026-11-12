@@ -584,6 +584,24 @@ func TestApplyRootOutputValuesRecordIsThePriorValue(t *testing.T) {
 //
 // With no record store (nil records) every output is evaluated, and the plan
 // stays the no-op it was before #2073 for an estate without one.
+// prettyPolicy is testdata/output-recorded's recorded_json_whitespace as
+// the heredoc evaluates, and compactPolicy the same document as
+// hashicorp/aws's structure.NormalizeJsonString writes it.
+const prettyPolicy = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "ec2:Describe*"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }
+  ]
+}
+`
+const compactPolicy = `{"Statement":[{"Action":["ec2:Describe*"],"Effect":"Allow","Resource":"*"}],"Version":"2012-10-17"}`
+
 func TestApplyRootOutputValuesPlansAgainstTheRecords(t *testing.T) {
 	cfg := loadConfig(t, "testdata/output-recorded")
 
@@ -622,6 +640,9 @@ func TestApplyRootOutputValuesPlansAgainstTheRecords(t *testing.T) {
 			"recorded_empty_changed": cty.ObjectVal(map[string]cty.Value{
 				"id": cty.StringVal("lg-2"), "name": cty.StringVal(""),
 			}),
+			"recorded_json_whitespace": cty.StringVal(compactPolicy),
+			"recorded_json_changed":    cty.StringVal(`{"Statement":[{"Action":["s3:*"],"Effect":"Allow","Resource":"*"}],"Version":"2012-10-17"}`),
+			"recorded_json_scalar":     cty.StringVal("1.0"),
 		}})
 		for name, want := range map[string]struct {
 			action plans.Action
@@ -641,6 +662,14 @@ func TestApplyRootOutputValuesPlansAgainstTheRecords(t *testing.T) {
 			"recorded_empty_changed": {plans.Update, cty.ObjectVal(map[string]cty.Value{
 				"id": cty.StringVal("lg-2"), "name": cty.StringVal(""),
 			})},
+			// The record holds the provider's normalized JSON and the
+			// projection the configuration's layout of the same document:
+			// no-op, with the projection's text as the before side.
+			"recorded_json_whitespace": {plans.NoOp, cty.StringVal(prettyPolicy)},
+			// A different document is a real change.
+			"recorded_json_changed": {plans.Update, cty.StringVal(`{"Statement":[{"Action":["s3:*"],"Effect":"Allow","Resource":"*"}],"Version":"2012-10-17"}`)},
+			// A scalar is not a document; its text is its value.
+			"recorded_json_scalar": {plans.Update, cty.StringVal("1.0")},
 		} {
 			oc, ok := got[name]
 			if !ok {
