@@ -1305,7 +1305,7 @@
             {
               "scenario": "live/smoke/scenarios/no-secret-survives-in-what-the-tool-keeps.sh",
               "command": "just smoke no-secret-survives-in-what-the-tool-keeps",
-              "minutes": 5,
+              "minutes": 15,
               "break_mode": "BREAK=1 applies the same estate under secrets = \"store\" and runs the identical scan over the identical set of files, which must then find the password (it finds it in the record and the cache); then applies it under secrets = \"ssm\" with the test-only CHOUDOUFU_TEST_SSM_LEAK_PLAINTEXT=1, which writes each value into the record beside its secret_refs, and the ssm scan must find the password in the bucket's copy of that record. A scan that finds nothing in either fails the run, because its zero would prove nothing",
               "note": "Under refuse the argument is proposed on every plan, rotated or not, and the scenario asserts both arms (#1503). Under ssm (#2393) the same estate keeps its records in a bucket and the password in a SecureString parameter under the run's customer managed key: alias/aws/ssm is refused by name at plan time, the records hold secret_refs and no copy, the replan is No changes., and a rotation deletes the superseded parameter.",
               "last_run": {
