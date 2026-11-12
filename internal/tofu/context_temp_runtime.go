@@ -509,6 +509,8 @@ func (c *Context) newEngineApply(ctx context.Context, config *configs.Config, pl
 		InstanceStateUpdate: c.newEngineInstanceStateUpdate, // choudoufu: #2341
 		// choudoufu fork port (#2370): remove when upstream #4058 lands.
 		InRunEstates: inrunestates.New(c.inRunEstates),
+		// choudoufu fork port (#2381): remove when the row closes.
+		Stopped: cancel.Between(c.sh.Stopped),
 	})
 	diags = diags.Append(moreDiags)
 	// choudoufu fork port (#2381): remove when the row closes.

@@ -62,6 +62,7 @@ func ApplyPlannedChanges(ctx context.Context, plan *plans.Plan, configInst *eval
 		execOps.configValueAdjuster = opts.ConfigValueAdjuster
 		execOps.instanceStateUpdate = opts.InstanceStateUpdate
 		execOps.inRunEstates = opts.InRunEstates // choudoufu fork port (#2370): remove when upstream #4058 lands
+		execOps.stopped = opts.Stopped           // choudoufu fork port (#2381): remove when the row closes
 	}
 
 	moreDiags = execGraph.Execute(ctx)
@@ -100,6 +101,10 @@ type ApplyOpts struct {
 	// InRunEstates is choudoufu fork port (#2370): remove when upstream
 	// #4058 lands. Nil is off. See package inrunestates.
 	InRunEstates *inrunestates.Port
+
+	// Stopped is choudoufu fork port (#2381): remove when the row closes.
+	// Nil is off. See package cancel's Between and fork_cancel.go.
+	Stopped func() bool
 }
 
 type evalGlue struct {

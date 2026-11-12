@@ -11,9 +11,10 @@
 // opened to stop gracefully. The new runtime never looks at it, so a stop
 // (Ctrl-C) leaves a provider call running to the end (upstream's tests
 // skip this as ExperimentalBugCancel). [Watch] does what the walk's watcher
-// does, for the length of one plan or apply on the new runtime, and
-// [Halted] fails a stopped run as the default runtime's stop hook does, so
-// a stopped plan never reads as a complete one.
+// does, for the length of one plan or apply on the new runtime, [Between]
+// keeps the apply engine from starting a resource instance's apply once the
+// run is stopped, and [Halted] fails a stopped run as the default runtime's
+// stop hook does, so a stopped plan never reads as a complete one.
 //
 // It is the whole port. internal/tofu's shim calls it where plan and apply
 // enter the engine, each call commented "choudoufu fork port (#2381):
@@ -58,4 +59,20 @@ func Halted(stopped bool) error {
 		return nil
 	}
 	return errors.New("execution halted")
+}
+
+// Between is the stop check the engine makes between operations: the
+// apply engine asks it before it starts a managed resource instance
+// object's apply, and refuses to start once it reports true, as the
+// default runtime's stop hook makes PreApply refuse every node the walk
+// reaches after a stop. Without it a stop that lands after one
+// operation returned lets the next one start anyway, which is how a
+// stop between a create_before_destroy replace's create and its deposed
+// object's destroy still destroyed the old object (the gauntlet's
+// day2_crash, #2256). It returns stopped, or nil with the port off.
+func Between(stopped func() bool) func() bool {
+	if stopped == nil || !forkport.Enabled(Name) {
+		return nil
+	}
+	return stopped
 }
