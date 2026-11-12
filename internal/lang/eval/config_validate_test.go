@@ -289,3 +289,98 @@ func TestValidate_childModuleCallValuesOnly(t *testing.T) {
 		t.Fatalf("unexpected errors: %s", diags.Err())
 	}
 }
+
+// TestValidate_markedNestingListBlock covers a resource whose configuration
+// value reaches objchange.ProposedNew carrying marks: a sensitive value inside
+// a NestingList block, and the resource-instance mark that depends_on puts
+// on the whole object in the new runtime. The whole-object mark made the
+// block list itself marked, which panicked in cty.Value.LengthInt.
+func TestValidate_markedNestingListBlock(t *testing.T) {
+	configInst, diags := eval.NewConfigInstance(t.Context(), &eval.ConfigCall{
+		EvalContext: evalglue.EvalContextForTesting(t, &eval.EvalContext{
+			Modules: eval.ModulesForTesting(map[addrs.ModuleSourceLocal]*configs.Module{
+				addrs.ModuleSourceLocal("."): configs.ModuleFromStringForTesting(t, `
+					terraform {
+						required_providers {
+							foo = {
+								source = "test/foo"
+							}
+						}
+					}
+					variable "secret" {
+						type      = string
+						sensitive = true
+					}
+					resource "foo" "a" {
+						name = "a"
+					}
+					resource "foo" "b" {
+						name       = foo.a.id
+						depends_on = [foo.a]
+						item {
+							value = var.secret
+						}
+						dynamic "item" {
+							for_each = toset([var.secret])
+							content {
+								value = item.value
+							}
+						}
+					}
+					output "out" {
+						value     = foo.b.item
+						sensitive = true
+					}
+				`),
+			}),
+			Providers: eval.ProvidersForTesting(map[addrs.Provider]*providers.GetProviderSchemaResponse{
+				addrs.MustParseProviderSourceString("test/foo"): {
+					Provider: providers.Schema{
+						Block: &configschema.Block{},
+					},
+					ResourceTypes: map[string]providers.Schema{
+						"foo": {
+							Block: &configschema.Block{
+								Attributes: map[string]*configschema.Attribute{
+									"name": {
+										Type:     cty.String,
+										Required: true,
+									},
+									"id": {
+										Type:     cty.String,
+										Computed: true,
+									},
+								},
+								BlockTypes: map[string]*configschema.NestedBlock{
+									"item": {
+										Nesting: configschema.NestingList,
+										Block: configschema.Block{
+											Attributes: map[string]*configschema.Attribute{
+												"value": {
+													Type:     cty.String,
+													Optional: true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}),
+		}),
+		RootModuleSource: addrs.ModuleSourceLocal("."),
+		InputValues: eval.InputValuesForTesting(map[string]cty.Value{
+			"secret": cty.StringVal("hunter2"),
+		}),
+	})
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Err())
+	}
+
+	diags = configInst.Validate(t.Context())
+	if diags.HasErrors() {
+		t.Fatalf("unexpected errors: %s", diags.Err())
+	}
+}
