@@ -216,6 +216,7 @@ func (o *ApplyOracle) DesiredResourceInstance(ctx context.Context, addr addrs.Ab
 		Addr:                      inst.Addr,
 		ConfigVal:                 configVal,
 		RequiredResourceInstances: riDeps,
+		ForkCheckNested:           inst.ForkCheckNested, // choudoufu fork port (#2414): remove when upstream #4058 and #4740 land
 	}
 	return ret, diags
 }

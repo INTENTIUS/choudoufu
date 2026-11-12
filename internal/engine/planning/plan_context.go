@@ -78,6 +78,8 @@ type planContext struct {
 	inRunEstates *inrunestates.Port // choudoufu fork port (#2370): remove when upstream #4058 lands
 	deferral     *deferral.Port     // choudoufu fork port (#2382): remove when upstream #4697 lands
 	forget       *forget.Port       // choudoufu fork port (#2409): remove when upstream #4682, #4686 and #4693 land
+
+	forkDestroyData *sync.Map // choudoufu fork port (#2414): remove when upstream #4058 and #4740 land. See fork_datasources.go.
 }
 
 func newPlanContext(evalCtx *eval.EvalContext, prevRoundState *states.State, providers plugins.Providers, opts *PlanOpts) *planContext {

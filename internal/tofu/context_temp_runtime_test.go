@@ -16,6 +16,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/engine/forkport"
 	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
+	"github.com/intentius/choudoufu/internal/engine/forkport/datasources"
 	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/replacecycle"
 )
@@ -86,11 +87,13 @@ var (
 	ExperimentalBugStateUpdateHook   = ExperimentalFlag{"Bug State Update Hook", true}
 	ExperimentalBugMissingResource   = ExperimentalFlag{"Bug Missing Configuration For Resource Instance", true}
 	ExperimentalBugResourceReadNull  = ExperimentalFlag{"Bug Read Resource Deleted", true}
-	ExperimentalBugDataResource      = ExperimentalFlag{"Bug Data Resource", false}
+	ExperimentalBugDataResource      = ExperimentalFlag{"Bug Data Resource", datasources.Enabled()} // choudoufu fork port (#2414): remove when upstream #4058 and #4740 land
 	ExperimentalBugResourceMarks     = ExperimentalFlag{"Bug Not Transferring Marks from Resource Instance Config Value to Final Value", false}
 	ExperimentalBugTaintOnCreateFail = ExperimentalFlag{"Bug Not Tainted When Create Fails", true}
 	ExperimentalBugProviderPrivate   = ExperimentalFlag{"Bug Provider Private Data Not Preserved", true}
 	ExperimentalBugCircularReference = ExperimentalFlag{"Bug Circular Reference", true}
+
+	ExperimentalBugProviderDepsInExecgraph = ExperimentalFlag{"Bug Provider Dependencies Must Compile Into Execgraph", false} // choudoufu fork port (#2414): upstream #4740's flag
 
 	ExperimentalChangeDiagWording     = ExperimentalFlag{"Change Different Diagnostic Wording", false}
 	ExperimentalChangeErrorEarly      = ExperimentalFlag{"Change Detect Error Earlier", false}

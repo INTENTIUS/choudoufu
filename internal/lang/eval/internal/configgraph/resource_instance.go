@@ -23,6 +23,11 @@ import (
 )
 
 type ResourceInstance struct {
+	// ForkCheckNested is choudoufu fork port (#2414): remove when upstream
+	// #4058 and #4740 land. See eval.DesiredResourceInstance.
+	ForkCheckNested   bool
+	ForkHasConditions bool
+
 	// Addr is the absolute address of this resource instance, which is used
 	// to track the resource instance between plan/apply rounds and between
 	// the plan and apply phases in a single round.

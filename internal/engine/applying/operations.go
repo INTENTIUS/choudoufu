@@ -163,6 +163,9 @@ func (ops *execOperations) Finish(ctx context.Context, updateOutputs bool) (*sta
 	ops.plugins = nil
 	ops.configOracle = nil
 
+	if !updateOutputs {
+		forkDropDataAfterDestroy(finalState) // choudoufu fork port (#2414): remove when upstream #4058 and #4740 land
+	}
 	// Clear out the existing output values from the state as they are
 	// all now invalid. This is a weird quirk from our legacy test harnesses
 	for _, mod := range finalState.Modules {

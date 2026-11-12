@@ -11053,7 +11053,7 @@ locals {
 // Ensure that we can destroy when a provider references a resource that will
 // also be destroyed
 func TestContext2Apply_destroyProviderReference(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDataResource)
+	SkipExperimental(t, ExperimentalBugDataResource, ExperimentalBugProviderDepsInExecgraph) // choudoufu fork port (#2414): upstream #4740's flag
 
 	m, snap := testModuleWithSnapshot(t, "apply-destroy-provider-refs")
 
@@ -12301,7 +12301,7 @@ resource "test_instance" "a" {
 }
 
 func TestContext2Apply_dataSensitive(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDataResource)
+	SkipExperimental(t, ExperimentalBugDataResource, ExperimentalFeatureSensitivity) // choudoufu fork port (#2414): a sensitive variable is the sensitive row's
 
 	m := testModule(t, "apply-data-sensitive")
 	p := testProvider("null")

@@ -306,7 +306,7 @@ func TestContextImport_multiInstanceProviderConfig(t *testing.T) {
 }
 
 func TestContextImport_importResourceWithSensitiveDataSource(t *testing.T) {
-	SkipExperimental(t, ExperimentalBugDataResource)
+	SkipExperimental(t, ExperimentalBugDataResource, ExperimentalChangeDependencies) // choudoufu fork port (#2414): the new runtime records the import's dependency on the data source
 	p := testProvider("aws")
 	m := testModuleInline(t, map[string]string{
 		"main.tf": `

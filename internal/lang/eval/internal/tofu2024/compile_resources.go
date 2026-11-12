@@ -21,6 +21,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/configs/configschema"
+	"github.com/intentius/choudoufu/internal/engine/forkport/datasources"
 	"github.com/intentius/choudoufu/internal/instances"
 	"github.com/intentius/choudoufu/internal/lang/blocktoattr"
 	"github.com/intentius/choudoufu/internal/lang/eval/internal/configgraph"
@@ -335,6 +336,16 @@ func compileModuleInstanceResource(
 					if len(instDepMarks) != 0 {
 						v = v.WithMarks(instDepMarks)
 					}
+					// choudoufu fork port (#2414): remove when upstream
+					// #4058 and #4740 land. A module's depends_on reaches a
+					// data source's configuration as PendingChange marks.
+					if datasources.Enabled() {
+						sharedDepMarks, moreDiags := sharedDeps.Marks(ctx)
+						vDiags = vDiags.Append(moreDiags)
+						if len(sharedDepMarks) != 0 {
+							v = v.WithMarks(sharedDepMarks)
+						}
+					}
 
 					if len(provisionerMarks) != 0 {
 						v = v.WithMarks(provisionerMarks)
@@ -362,6 +373,8 @@ func compileModuleInstanceResource(
 				CreateProvisioners:        provisionerConfigs,
 				IgnoreChangesPaths:        ignoreChanges,
 				ReplaceTriggeredBy:        replaceTriggeredBy,
+				ForkCheckNested:           forkCheckNested(config),      // choudoufu fork port (#2414): remove when upstream #4058 and #4740 land
+				ForkHasConditions:         config.HasCustomConditions(), // choudoufu fork port (#2414): remove when upstream #4058 and #4740 land
 			}
 			// Again the [ResourceInstance] implementation will call back
 			// through this object so we can help it interact with the
@@ -533,4 +546,12 @@ func (b *attrsAsBlocksBody) ResultTypeConstraint() cty.Type {
 // EvalableSourceRange implements exprs.Evalable.
 func (b *attrsAsBlocksBody) EvalableSourceRange() tfdiags.SourceRange {
 	return tfdiags.SourceRangeFromHCL(b.body.MissingItemRange())
+}
+
+// forkCheckNested reports whether config is a data block declared inside a
+// check block. choudoufu fork port (#2414): remove when upstream #4058 and
+// #4740 land.
+func forkCheckNested(config *configs.Resource) bool {
+	_, ok := config.Container.(*configs.Check)
+	return ok
 }

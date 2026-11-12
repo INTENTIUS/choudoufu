@@ -14,6 +14,7 @@ import (
 
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
+	"github.com/intentius/choudoufu/internal/engine/forkport/datasources"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -68,6 +69,9 @@ func destroyPlan(ctx context.Context, opts *PlanOpts, prevRoundState *states.Sta
 	// actually make any changes
 	planCtx.refreshOnly = true
 	planCtx.skipImport = true
+	if datasources.Enabled() { // choudoufu fork port (#2414): remove when upstream #4058 and #4740 land
+		planCtx.forkDestroyData = new(sync.Map)
+	}
 
 	moreDiags := glue.normalGlue.CheckTargets(ctx)
 	diags = diags.Append(moreDiags)
@@ -161,6 +165,15 @@ func (p *planGlueDestroy) PlanDesiredResourceInstance(ctx context.Context, inst 
 		}
 
 		return result, diags
+	}
+	// choudoufu fork port (#2414): remove when upstream #4058 and #4740
+	// land. As the default runtime's pre-destroy refresh does, a data
+	// resource instance is read when it can be, and otherwise keeps its
+	// prior state value, so a count or for_each derived from it is known.
+	if inst.Addr.Resource.Resource.Mode == addrs.DataResourceMode && datasources.Enabled() {
+		obj, diags := p.normalGlue.planDesiredDataResourceInstance(ctx, inst)
+		p.normalGlue.forkKeepDestroyData(obj)
+		return obj.ResultValue(), diags
 	}
 	return cty.DynamicVal, nil
 
