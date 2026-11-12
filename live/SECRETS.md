@@ -251,20 +251,53 @@ deleting by hand.
 
 ### The write and the read
 
-Lands with S1 (#2393). Each secret value goes to a new, content-addressed
-parameter name with `Overwrite: false`, so every SSM write is a create of a
-name no other write uses. The S3 record's `If-Match` write then commits the
-reference, and stays the only thing that decides a concurrent write: the
-loser's parameter is an orphan nobody references. A plan resolves
-references with `GetParameters` in batches of 10, with retry. A superseded
-parameter is deleted after the commit, and a sweep removes orphans from lost
-races and failed runs, never a parameter a record references.
+Each secret value goes to a new parameter, named
+`<path>/<hash of the record namespace>/<hash of the record key>-<128 random bits>`
+and created with `Overwrite: false`, so every SSM write is a create of a
+name no other write uses. The name is deliberately not derived from the
+value: a name is readable by anyone with `ssm:DescribeParameters`, and a hash
+of a short password is a guessing oracle. An unchanged value keeps the
+parameter its record already references. The S3 record's `If-Match` write
+then commits the reference, and stays the only thing that decides a
+concurrent write: the loser's parameter is an orphan nobody references. A
+plan resolves references with `GetParameters` in batches of 10, with retry.
+A superseded parameter is deleted after the commit.
 
 One parameter per sensitive path. A single value over 4 KB, such as one of
 the three PEM encodings a `tls_private_key` holds, goes to the advanced tier,
-announced on every run with its cost of $0.05 per parameter-month. If the
-planned parameter count exceeds the tier's ceiling the run is refused before
-its first write.
+announced on every run with its cost of $0.05 per parameter-month. The
+announcement is a warning in the run's own output, `-json` included, as is a
+waived `allow_insecure` assertion.
+
+The plan counts the parameters the estate will reference once it is
+applied: every record's references now, less the records the plan deletes,
+with each record-backed instance it creates or changes counted from its
+planned value. Over the tier's ceiling the plan is refused, and so is an
+apply before its first write. An ordinary resource's residue and provider
+private data are decided by the apply, so the count keeps what its record
+references now. An apply of a saved plan file has no post-plan step and
+checks at its first write on what it can see, a lower bound.
+
+### Orphans
+
+A write that loses a race or fails to commit leaves its parameters
+unreferenced, and so does a superseded value whose delete failed.
+`choudoufu live-sweep-secrets` lists them: every parameter under the
+estate's namespace that no record references and that is older than the
+24-hour grace period. `-delete` deletes them. It never deletes a parameter a
+record references, a concurrent apply's included; the argument is in
+`SweepOrphans`' doc comment (`internal/live/projection/ssmsweep.go`). It
+reads every record first and deletes nothing if one cannot be read. It
+needs `ssm:GetParametersByPath` and `ssm:DeleteParameter` under the path,
+which the apply role already holds, and never decrypts.
+
+### Switching an existing estate
+
+Switching an existing estate from `store` to `ssm` does not move the
+secrets already in the bucket: a record is only rewritten when it changes,
+so rewrite or recreate the records that hold them, and expire the bucket's
+noncurrent object versions, which keep the plaintext until the lifecycle
+rule deletes them.
 
 No local cache file is written or read under the setting, as under
 `refuse`, unless `CHOUDOUFU_STATE_CACHE` names a path.
