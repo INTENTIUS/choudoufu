@@ -76,6 +76,8 @@ type execOperations struct {
 	instanceStateUpdate InstanceStateUpdate
 
 	inRunEstates *inrunestates.Port // choudoufu fork port (#2370): remove when upstream #4058 lands
+
+	stopped func() bool // choudoufu fork port (#2381): remove when the row closes
 }
 
 // The main operation methods of execOperations are spread across the separate

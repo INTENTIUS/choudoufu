@@ -107,6 +107,9 @@ func (ops *execOperations) ManagedApply(
 	plan *exec.ManagedResourceObjectFinalPlan,
 	fallback *exec.ResourceInstanceObject,
 ) (*exec.ResourceInstanceObject, tfdiags.Diagnostics) {
+	if ret, diags, halted := ops.forkHaltedBeforeApply(ctx, plan, fallback); halted {
+		return ret, diags // choudoufu fork port (#2381): remove when the row closes
+	}
 	ret, diags := ops.managedApply(ctx, plan, fallback)
 	if plan == nil || ops.instanceStateUpdate == nil || ops.workingState == nil {
 		return ret, diags
