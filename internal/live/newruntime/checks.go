@@ -18,6 +18,7 @@ import (
 	"github.com/intentius/choudoufu/internal/addrs"
 	"github.com/intentius/choudoufu/internal/configs"
 	"github.com/intentius/choudoufu/internal/engine/forkport"
+	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
 	"github.com/intentius/choudoufu/internal/engine/forkport/conditions"
 	"github.com/intentius/choudoufu/internal/engine/forkport/forget"
 	"github.com/intentius/choudoufu/internal/engine/forkport/inrunestates"
@@ -115,19 +116,23 @@ var preflightDetectors = map[string]func(c *configs.Config) []occurrence{
 	},
 	"checks_conditions": func(c *configs.Config) (out []occurrence) {
 		m := c.Module
+		// choudoufu fork port (#2409): remove when upstream #4390 lands.
+		// The checkrules port covers check blocks and resource conditions;
+		// output preconditions are upstream's own and stay refused here
+		// only while the port is off, with the rest of the row.
 		for _, c := range m.Checks {
-			out = append(out, occurrence{what: fmt.Sprintf("the configuration has check block %q", c.Name), rng: c.DeclRange})
+			out = append(out, occurrence{what: fmt.Sprintf("the configuration has check block %q", c.Name), rng: c.DeclRange, port: checkrules.Name})
 		}
 		for _, set := range []map[string]*configs.Resource{m.ManagedResources, m.DataResources, m.EphemeralResources} {
 			for _, r := range set {
 				for _, cr := range append(append([]*configs.CheckRule(nil), r.Preconditions...), r.Postconditions...) {
-					out = append(out, occurrence{what: fmt.Sprintf("%s has a precondition or postcondition", r.Addr()), rng: cr.DeclRange})
+					out = append(out, occurrence{what: fmt.Sprintf("%s has a precondition or postcondition", r.Addr()), rng: cr.DeclRange, port: checkrules.Name})
 				}
 			}
 		}
 		for _, o := range m.Outputs {
 			for _, cr := range o.Preconditions {
-				out = append(out, occurrence{what: fmt.Sprintf("output %q has a precondition", o.Name), rng: cr.DeclRange})
+				out = append(out, occurrence{what: fmt.Sprintf("output %q has a precondition", o.Name), rng: cr.DeclRange, port: checkrules.Name})
 			}
 		}
 		return out

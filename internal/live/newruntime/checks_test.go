@@ -154,14 +154,6 @@ func TestPreflightRefusesSensitiveFunctionAndOutputs(t *testing.T) {
 	}
 }
 
-func TestPreflightRefusesConditionsOnResources(t *testing.T) {
-	r := row(t, "checks-conditions")
-	src := "variable \"x\" {\n  default = \"a\"\n}\nresource \"test_object\" \"a\" {\n  lifecycle {\n    precondition {\n      condition     = var.x != \"\"\n      error_message = \"x\"\n    }\n  }\n}\n"
-	if diags := Preflight(loadConfig(t, src), nil, false); !refusedFor(diags, r) {
-		t.Fatalf("a precondition was not refused; diagnostics:\n%s", diags.ErrWithWarnings())
-	}
-}
-
 // TestPreflightAdmitsDeposedState: the deposed row is closed (#2378), since
 // upstream's new runtime plans deposed objects itself. A deposed object
 // recording lifecycle destroy = false is forgotten by the forget fork port

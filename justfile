@@ -42,7 +42,7 @@ ci:
     echo "==> build"
     go build ./cmd/choudoufu
     echo "==> fast test tier"
-    env -u PWD go test ./internal/live/... ./pkg/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/engine/planning/ ./internal/engine/configadjust/ ./internal/engine/forkport/... ./internal/engine/identityresolve/ ./internal/engine/internal/execgraph/ ./internal/lang/eval/ ./internal/tofu/... ./internal/backend/local/ ./internal/backend/remote-state/azure/auth/ ./internal/configs/ ./internal/plans/ ./internal/plans/planfile/ ./internal/plugin/ ./internal/plugin6/ ./internal/plugins/ ./internal/states/statemgr/ ./internal/tracing/... ./internal/builtin/providers/tf/
+    env -u PWD go test ./internal/live/... ./pkg/... ./tools/... ./live/ ./cmd/... ./internal/command/ ./internal/command/arguments/ ./internal/command/views/ ./internal/command/e2etest/ ./internal/engine/applying/ ./internal/engine/planning/ ./internal/engine/configadjust/ ./internal/engine/forkport/... ./internal/engine/identityresolve/ ./internal/engine/internal/execgraph/ ./internal/lang/eval/ ./internal/lang/eval/internal/tofu2024/ ./internal/tofu/... ./internal/backend/local/ ./internal/backend/remote-state/azure/auth/ ./internal/configs/ ./internal/plans/ ./internal/plans/planfile/ ./internal/plugin/ ./internal/plugin6/ ./internal/plugins/ ./internal/states/statemgr/ ./internal/tracing/... ./internal/builtin/providers/tf/
     echo "==> CI steps passed"
 
 # Check whether background subagents (dispatched via the Agent tool) are

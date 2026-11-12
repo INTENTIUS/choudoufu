@@ -214,12 +214,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/command",
       "test": "TestShow_json_output",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"checks-conditions\": checks and conditions, waits for upstream (upstream #4390); gap \"moved\": moved blocks (not yet treated as active), waits for upstream (upstream #4693); gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/command",
-      "test": "TestShow_json_output_conditions_refresh_only",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"checks-conditions\": checks and conditions, waits for upstream (upstream #4390)."
+      "reason": "Since the checkrules fork port (#2409) its conditions and plan-error cases pass. Its sensitive-values case is refused by gap \"sensitive\": sensitive values (mark handling), waits for upstream (upstream #4360); its moved, moved-drift, multi-resource-update, provider-aliasing-conflict and unknown-output cases differ from the default runtime's plan JSON or fail to plan on the new runtime."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/command",
@@ -363,11 +358,6 @@
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
-      "test": "TestContext2Apply_noRePlanNoOp",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"checks-conditions\": checks and conditions, waits for upstream (upstream #4390)."
-    },
-    {
-      "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Apply_providerModuleIteration",
       "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
     },
@@ -474,7 +464,7 @@
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",
       "test": "TestContext2Plan_moduleDependsOnWithCheck",
-      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"checks-conditions\": checks and conditions, waits for upstream (upstream #4390); gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740)."
+      "reason": "Refused under the toggle by the gap table (internal/live/newruntime/gaps.json), by design: gap \"data-sources\": data sources, waits for upstream (upstream #4058, #4740). The check block itself runs since the checkrules fork port (#2409); its scoped data source is the refusal."
     },
     {
       "package": "github.com/intentius/choudoufu/internal/tofu",

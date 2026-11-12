@@ -13,6 +13,7 @@ import (
 	"github.com/zclconf/go-cty/cty"
 
 	"github.com/intentius/choudoufu/internal/addrs"
+	"github.com/intentius/choudoufu/internal/engine/forkport/checkrules"
 	"github.com/intentius/choudoufu/internal/engine/plugins"
 	"github.com/intentius/choudoufu/internal/lang/eval"
 	"github.com/intentius/choudoufu/internal/plans"
@@ -51,6 +52,10 @@ func destroyPlan(ctx context.Context, opts *PlanOpts, prevRoundState *states.Sta
 		},
 	}
 
+	// choudoufu fork port (#2409): remove when upstream #4390 lands. The
+	// default runtime drops what its pre-destroy refresh reports about
+	// failing conditions, so this walk reports none.
+	ctx = checkrules.WithPhase(ctx, checkrules.DestroyRefresh)
 	oracle, ctx, diags := configInst.BuildPlanningOracle(ctx, glue)
 	if diags.HasErrors() {
 		return &plans.Plan{Errored: true}, nil

@@ -62,6 +62,7 @@ var Ports = []Port{
 	{Name: "deferral", Rows: []string{"deferral"}, Expiry: []string{"#4697"}},
 	{Name: "conditions", Rows: []string{"variable-validation"}},
 	{Name: "forget", Rows: []string{"removed", "lifecycle-destroy"}, Expiry: []string{"#4682", "#4686", "#4693"}},
+	{Name: "checkrules", Rows: []string{"checks-conditions"}, Expiry: []string{"#4390"}},
 }
 
 // Lookup returns the registered port with name, and whether there is one.

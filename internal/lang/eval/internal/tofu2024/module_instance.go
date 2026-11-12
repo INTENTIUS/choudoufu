@@ -43,6 +43,8 @@ type CompiledModuleInstance struct {
 	moveStatements []refactoring.MoveStatement
 	importNodes    []*configgraph.Import
 
+	forkCheckBlocks []*forkCheckBlock // choudoufu fork port (#2409): remove when upstream #4390 lands
+
 	missingProviders rootMissingProviders
 
 	providerRequirements func(ctx context.Context) (getproviders.Requirements, *getproviders.ProvidersQualification, tfdiags.Diagnostics)
@@ -91,6 +93,9 @@ func (c *CompiledModuleInstance) CheckAll(ctx context.Context) tfdiags.Diagnosti
 		cg.CheckChild(ctx, n)
 	}
 	for _, n := range c.importNodes {
+		cg.CheckChild(ctx, n)
+	}
+	for _, n := range c.forkCheckBlocks { // choudoufu fork port (#2409): remove when upstream #4390 lands
 		cg.CheckChild(ctx, n)
 	}
 	// TODO: Once we have support for module calls we'll need to check both
