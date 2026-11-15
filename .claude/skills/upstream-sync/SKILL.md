@@ -33,7 +33,7 @@ For a release tag, use the tag in place of `upstream/main` (`git fetch
 upstream tag v1.14.0`), and still name the branch `sync/upstream-<shortsha>`.
 
 The primary checkout is for reading. A sync run there exercises the
-unmodified tree and can report success about the wrong code (CLAUDE.md).
+unmodified tree and can report success about the wrong code (AGENTS.md).
 
 ## 2. Sync
 
@@ -236,7 +236,7 @@ metadata (`#4655`). `#4696` is the known risk for U8's destroy-from-config.
 git diff <prev-graft> <new-graft> --stat -- internal/engine internal/lang/eval
 ```
 
-## 5. Tests, tiered by CLAUDE.md
+## 5. Tests
 
 Read verdict lines, never exit codes.
 
