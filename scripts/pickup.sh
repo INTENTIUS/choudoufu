@@ -469,8 +469,6 @@ fi
 
 # ------------------------------------------------------------ 6. live processes
 hr "processes"
-workers=$(pgrep -fl 'claude .*gauntlet-worker' 2>/dev/null | wc -l | tr -d ' ')
-printf 'headless claude workers (just contribute): %s   (Agent-tool workers run inside their parent and are NOT listed here; see each worktree line above)\n' "$workers"
 if have docker && docker info >/dev/null 2>&1; then
   # Crossing containers are named choudoufu-<estate>-<pid> and carry the
   # ownership labels live/e2e/lib/gauntlet.sh writes (#1312). The library's
@@ -516,8 +514,6 @@ fi
 hr "what to read next"
 cat <<'EOF'
 HANDOFF.md "Pick up here" says what each section above means and the rule
-for each disposition. Then: .claude/agents/gauntlet-orchestrator.md if you
-are running the loop, .claude/agents/gauntlet-worker.md if you are doing one
-unit, .claude/agents/live-markers.md for the mechanics and traps of this
+for each disposition. Then AGENTS.md for the working rules of this
 checkout. Every number you quote from here names the commit it was read at.
 EOF

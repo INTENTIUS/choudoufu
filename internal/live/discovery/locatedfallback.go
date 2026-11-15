@@ -81,7 +81,7 @@ import (
 // ever name them.
 //
 // Untaggable does not mean unidentifiable. See
-// .claude/agents/live-markers.md's invariant, and live/MARKERS.md: a marker
+// live/IDENTITY.md ("Untaggable is not unidentifiable") and live/MARKERS.md: a marker
 // answers "may I delete this", an identity answers "which object is this",
 // and a type can lack the first while still having a knowable second. For
 // this population the second is knowable exactly once: a migration

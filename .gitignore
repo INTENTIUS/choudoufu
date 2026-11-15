@@ -64,9 +64,8 @@ tmp
 /choudoufu
 
 # .claude/ is local state - settings.local.json is per-machine, worktrees/
-# is scratch - with exceptions. agents/ holds the operational brief for
-# working on this fork: the test invocation and its symlink trap, the doc
-# cache path, the cohort ownership split, and the adversarial-audit shapes.
+# is scratch - with exceptions. The operational brief for working on this
+# fork is AGENTS.md at the root; .claude/ carries no subagent definitions.
 # scripts/ holds small executable machinery an orchestrating agent or the
 # maintainer runs directly (e.g. checking a background subagent's progress
 # without reading its full transcript into context) - the same "make it a
@@ -82,7 +81,6 @@ tmp
 # does not descend into an excluded directory and a ! rule beneath one
 # never matches.
 /.claude/*
-!/.claude/agents/
 !/.claude/skills/
 !/.claude/scripts/
 
@@ -100,7 +98,6 @@ tmp
 /azurerm-tags-gen
 /ci-gate
 /cloudcontrol-probe
-/contribute
 /corpus-fetch
 /corpus-gen
 /credential-sweep

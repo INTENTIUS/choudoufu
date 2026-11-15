@@ -100,6 +100,52 @@ func TestHandoffCitationsResolve(t *testing.T) {
 	})
 }
 
+// agentsPath is the working-rules page every agent session loads (CLAUDE.md
+// is one line importing it).
+const agentsPath = "AGENTS.md"
+
+// TestAgentsDocCitationsResolve holds AGENTS.md to the same three checks as
+// the playbook: every path, `just` recipe and test name it tells a reader to
+// use exists. AGENTS.md replaced the .claude/agents/ briefs, whose own
+// citation check pinned phrases ("merge on green") rather than anything a
+// reader would run.
+func TestAgentsDocCitationsResolve(t *testing.T) {
+	root := repoRoot(t)
+	b, err := os.ReadFile(filepath.Join(root, agentsPath))
+	if err != nil {
+		t.Fatalf("reading %s: %s", agentsPath, err)
+	}
+	text := string(b)
+
+	paths := handoffCitedPaths(root, text)
+	if len(paths) < 6 {
+		t.Fatalf("found only %d cited paths in %s; the extraction is broken rather than the document being sparse", len(paths), agentsPath)
+	}
+	for _, p := range paths {
+		if _, err := os.Stat(filepath.Join(root, p)); err != nil {
+			t.Errorf("%s cites %s, which does not exist.", agentsPath, p)
+		}
+	}
+
+	recipes := justRecipes(t, root)
+	cited := handoffCitedRecipes(text)
+	if len(cited) == 0 {
+		t.Fatalf("found no `just <recipe>` citations in %s; the extraction is broken", agentsPath)
+	}
+	for _, r := range cited {
+		if !recipes[r] {
+			t.Errorf("%s tells the reader to run `just %s`, which is not a recipe in the justfile.", agentsPath, r)
+		}
+	}
+
+	defined := definedTestNames(t, root)
+	for _, name := range handoffCitedTestNames(text) {
+		if !defined[name] {
+			t.Errorf("%s cites %s, which is not defined anywhere in the tree.", agentsPath, name)
+		}
+	}
+}
+
 // TestHandoffFiguresMatchTheirPins is the second direction.
 //
 // The playbook quotes two numbers about the identity golden, because they are
@@ -225,7 +271,7 @@ func TestHandoffCarriesNoConflictMarkers(t *testing.T) {
 // regenerating, which is its own standing rule.
 var conflictScannedFiles = []string{
 	"HANDOFF.md",
-	".claude/agents/live-markers.md",
+	"AGENTS.md",
 	".claude/skills/measuring-choudoufu/SKILL.md",
 	"live/HARNESS.md",
 	"live/LIMITATIONS.md",

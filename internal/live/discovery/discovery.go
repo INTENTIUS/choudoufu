@@ -2026,7 +2026,7 @@ func scanTypeUnenumerated(ctx context.Context, req Request, schemas listclient.S
 	// [scanTypeMarkerFallback]'s untaggable companion. A type with no
 	// tags argument at all could never carry a marker for the index
 	// above to find, but untaggable does not mean unidentifiable (see
-	// .claude/agents/live-markers.md's invariant): a migration already
+	// live/IDENTITY.md, "Untaggable is not unidentifiable"): a migration already
 	// reads such an object once, for residue (#341), and writes the
 	// identity it read into the estate's record store. See
 	// [scanTypeLocatedFallback]'s doc comment.

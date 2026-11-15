@@ -13,9 +13,10 @@ import (
 )
 
 // operationalBrief is the tracked record of how to work on this fork: the
-// test invocation and its symlink trap, the doc cache path, the cohort
-// ownership split, the worktree rules, and the adversarial-audit shapes.
-const operationalBrief = ".claude/agents/live-markers.md"
+// test invocation and its symlink trap, the runs only the maintainer starts,
+// and the generated files. It used to live under .claude/agents/; it is
+// AGENTS.md now, which CLAUDE.md imports.
+const operationalBrief = "AGENTS.md"
 
 // trackedInstructions is every path under .claude/ that carries shared
 // written instruction rather than per-machine state, and that therefore has
@@ -56,8 +57,9 @@ var trackedInstructions = []string{
 // lived in an untracked directory on one machine: absent from a fresh
 // clone, absent from any backup, invisible to a second contributor.
 //
-// The ignore rule is now /.claude/* with an exception for agents/, which
-// keeps settings.local.json and worktrees/ out while letting the brief in.
+// The ignore rule is now /.claude/* with exceptions for skills/ and
+// scripts/, which keep settings.local.json and worktrees/ out while letting
+// the shared instruction in.
 // That is a narrow exception and an easy one to lose while adjusting the
 // surrounding rules, so it is checked rather than trusted.
 //
@@ -87,7 +89,7 @@ func TestOperationalBriefIsTracked(t *testing.T) {
 			"It is written instruction on how to work on this repository. Untracked, it does not "+
 			"survive a fresh clone and no second contributor or agent can read it - which is exactly "+
 			"the state issue #165 was filed about. Check the /.claude/* exception in .gitignore still "+
-			"re-includes /.claude/agents/, /.claude/skills/ and /.claude/scripts/.",
+			"re-includes /.claude/skills/ and /.claude/scripts/.",
 			path, err, strings.TrimSpace(string(out)))
 	}
 }
@@ -113,8 +115,8 @@ func TestOperationalBriefIsTracked(t *testing.T) {
 // permanent green whenever anything went wrong, under a message that named
 // the wrong cause for two of the three.
 //
-// An empty file list needs no assertion of its own here: .claude/agents/,
-// .claude/skills/ and .claude/scripts/ all carry tracked files, so a git
+// An empty file list needs no assertion of its own here: .claude/skills/
+// and .claude/scripts/ both carry tracked files, so a git
 // that answered about the wrong tree and returned nothing would take
 // TestOperationalBriefIsTracked above red on the same run.
 func TestLocalAgentStateStaysUntracked(t *testing.T) {
@@ -133,11 +135,11 @@ func TestLocalAgentStateStaysUntracked(t *testing.T) {
 			bin, err, stderr)
 	}
 	for _, path := range strings.Fields(string(out)) {
-		if !strings.HasPrefix(path, ".claude/agents/") && !strings.HasPrefix(path, ".claude/skills/") && !strings.HasPrefix(path, ".claude/scripts/") {
-			t.Errorf("%s is tracked, but .claude/ outside agents/, skills/ and scripts/ is local state.\n"+
+		if !strings.HasPrefix(path, ".claude/skills/") && !strings.HasPrefix(path, ".claude/scripts/") {
+			t.Errorf("%s is tracked, but .claude/ outside skills/ and scripts/ is local state.\n"+
 				"settings.local.json is per-machine and worktrees/ is scratch; neither belongs in the "+
-				"repository. Narrow the .gitignore exception back to /.claude/agents/, "+
-				"/.claude/skills/ and /.claude/scripts/.", path)
+				"repository. Narrow the .gitignore exception back to /.claude/skills/ "+
+				"and /.claude/scripts/.", path)
 		}
 	}
 }

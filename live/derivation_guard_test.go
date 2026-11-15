@@ -26,7 +26,7 @@ import (
 // The rule is "this is a generator; all work must be derived, and hand-wiring
 // a named resource type is cheating". It has been violated and caught twice by
 // adversarial reading and never once by CI, because until now it lived only in
-// prose - in .claude/agents/live-markers.md and in whatever an orchestrator
+// prose - in an agent brief and in whatever an orchestrator
 // remembered to paste into a brief. Prose is re-read by whoever happens to
 // read it, and this repository keeps discovering its prose was stale.
 //

@@ -6,9 +6,6 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -144,50 +141,5 @@ func TestNextSurfacesStaleClearEstatesAsTrailingWork(t *testing.T) {
 	last := ids[len(ids)-1]
 	if last != "c-stale/stale_pin" {
 		t.Errorf("last unit = %q, want %q (trailing stale-evidence work)", last, "c-stale/stale_pin")
-	}
-}
-
-// TestWorkerBriefCitationsResolve: every repo path the worker and
-// orchestrator briefs name exists, so an unattended agent never follows a
-// dead reference.
-func TestWorkerBriefCitationsResolve(t *testing.T) {
-	root := testRoot(t)
-	for _, brief := range []string{WorkerBriefPath, OrchestratorBriefPath} {
-		t.Run(filepath.Base(brief), func(t *testing.T) { checkBriefCitations(t, root, brief) })
-	}
-}
-
-func checkBriefCitations(t *testing.T, root, brief string) {
-	t.Helper()
-	b, err := os.ReadFile(filepath.Join(root, brief))
-	if err != nil {
-		t.Fatal(err)
-	}
-	re := regexp.MustCompile("`((?:\\.claude|live|tools|scripts|HANDOFF|\\.github)[A-Za-z0-9_./-]*)`")
-	seen := 0
-	for _, m := range re.FindAllStringSubmatch(string(b), -1) {
-		p := strings.TrimSuffix(m[1], "/")
-		if strings.ContainsAny(p, "<>*") {
-			continue
-		}
-		seen++
-		if _, err := os.Stat(filepath.Join(root, p)); err != nil {
-			t.Errorf("%s cites %s, which does not exist", brief, p)
-		}
-	}
-	if seen < 6 {
-		t.Fatalf("found only %d citations in the brief; the extraction is broken", seen)
-	}
-	musts := []string{"never merge", "[gauntlet:", "five-row", "not_run"}
-	if brief == OrchestratorBriefPath {
-		musts = []string{"stop and ask", "merge on green", "[gauntlet:", "render"}
-	}
-	for _, must := range musts {
-		if !strings.Contains(strings.ToLower(string(b)), strings.ToLower(must)) {
-			t.Errorf("%s no longer says %q", brief, must)
-		}
-	}
-	if _, err := os.Stat(filepath.Join(root, "scripts/contribute.sh")); err != nil {
-		t.Errorf("scripts/contribute.sh missing")
 	}
 }
