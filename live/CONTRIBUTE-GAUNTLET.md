@@ -1,23 +1,18 @@
-# Contribute compute
+# Contribute to the gauntlet
 
-Anyone can move the bars by spending tokens rather than time. The loop is
-deterministic, so it needs no coordinator:
+The work is ordered, so it needs no coordinator:
 
 ```
 go run ./tools/gauntlet next        # the next unit: an estate and the first active stage it does not pass
-just contribute [max-usd]           # one worker run on that unit, in a fresh worktree, with your own key
 ```
 
-`just contribute` runs Claude Code headless under the brief in
-`.claude/agents/gauntlet-worker.md`, which does exactly one unit: run the estate, classify every
-difference from stock with the five-row table in HANDOFF.md, fix it generically,
-re-run, render, and open a pull request whose title carries the unit ID. It
-never merges. There is no hosted path; every worker runs under the key of
-whoever started it.
-
-Two contributors picking the same unit is expected. The worker checks for an
-open pull request carrying the unit ID before starting and takes the next unit
-if one exists. Every pull request waits for a maintainer to merge it.
+A unit is one estate and one stage. Classify every difference from stock with
+the five-row table in HANDOFF.md, fix it generically, and open a pull request
+on a branch named `gauntlet/<estate>-<stage>`. Check for an open pull request
+on the same unit first and take the next one if it exists. A gauntlet run
+asks for "run" at a terminal, so the person at the keyboard starts it
+(`just gauntlet-run <estate>`). Every pull request waits for a maintainer to
+merge it.
 
 Providers are lanes. A Kubernetes, GCP or Azure estate enters the same manifest with its
 own lane, runs the same stages against its own substrate, and `next` picks it up

@@ -493,8 +493,3 @@ oracle-bump set="all":
     env -u PWD go run ./tools/gauntlet run -set {{set}}
     env -u PWD go run ./tools/oracle-bump-report
 
-# One gauntlet worker run under your own key: picks the next unit, makes a
-# worktree, runs Claude Code headless under .claude/agents/gauntlet-worker.md,
-# opens a pull request. Never merges. `just contribute 10` caps spend at $10.
-contribute max_usd="25":
-    bash scripts/contribute.sh {{max_usd}}
