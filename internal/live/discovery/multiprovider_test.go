@@ -195,7 +195,7 @@ func TestMergeCrossProviderOrphanCollision(t *testing.T) {
 // TestMergeCrossProviderOrphanCollision run -count=20 in one process:
 // [crossProviderOrphanCollisions] iterates two Go maps it builds itself
 // (byAddr, byID) before sorting their keys - the exact "map order as hidden
-// nondeterminism" trap live-markers.md warns about (GitHub issue #403 part
+// nondeterminism" trap (GitHub issue #403 part
 // 1's own suspicion, checked here at the unit level rather than only via a
 // flaky e2e script). If either sort were ever dropped, or a slice were
 // built straight off map iteration ahead of it, this would flake under

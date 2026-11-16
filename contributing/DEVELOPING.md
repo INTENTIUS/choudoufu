@@ -6,10 +6,9 @@ repository, it means upstream OpenTofu's: pull requests, issues and design
 records for this fork go to this repository, and choudoufu files nothing with
 any other project. Two fork-specific pages sit alongside it:
 
-- [`.claude/agents/live-markers.md`](../.claude/agents/live-markers.md) is
-  the operational brief: how to run the tests, which claims about this
-  repository have repeatedly turned out to be false, and the traps that have
-  cost real time. Read it before changing anything on the live-marker path.
+- [`AGENTS.md`](../AGENTS.md) has the working rules: how to run the tests,
+  which runs only the maintainer starts, the generated files, and the traps
+  that have cost real time.
 - [`LIVE-TABLES.md`](LIVE-TABLES.md) is where a hand ruling goes, and why
   editing a generated artifact loses it silently.
 

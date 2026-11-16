@@ -13,7 +13,7 @@ import (
 
 // TestSchemaPrecedenceMatchesRowByValue is ruling 2's own acceptance bar
 // (the foundation-order ruling (#388), #387), asserted the way
-// live-markers.md's own measurement discipline requires: never a predicate,
+// HANDOFF.md's safety rule requires: never a predicate,
 // always the rendered value. It resolves the same three fixtures twice -
 // once with no schemas, so [resolver.lookupType] uses [DefaultTable]'s row
 // exactly as it always has, and once with a fake provider schema built

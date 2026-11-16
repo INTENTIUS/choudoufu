@@ -41,11 +41,8 @@ unit ID in the message, so a crash loses minutes, not the unit. The state
 of the work is the artifact, the tracker, the branches and the pull
 requests. Nothing about it lives in chat or in a session's memory.
 
-Then read the rest of this page, and the brief for your role:
-`.claude/agents/gauntlet-orchestrator.md` to run the loop,
-`.claude/agents/gauntlet-worker.md` to do one unit,
-`.claude/agents/live-markers.md` for the mechanics and traps of this
-checkout.
+Then read the rest of this page, and `AGENTS.md` for the working rules of
+this checkout.
 
 ## The promise
 
@@ -201,12 +198,7 @@ a regression; the estate usually got better and the script did not.
    the loop; the recorded detail is a lead. Say which of the five rows it
    is before fixing anything. New estates enter with `go run ./tools/gauntlet add` (the procedure is
    `live/CONTRIBUTE-GAUNTLET.md`; `live/GAUNTLET.md` is the
-   definition). `just contribute` runs one unit unattended under
-   your own key, in a worktree, and opens the PR; that is also what
-   contributors run from their forks. `.claude/agents/gauntlet-orchestrator.md`
-   is the brief for a session that keeps the loop running unattended: pick,
-   spawn, verify, merge on green, and the short list of things to stop and
-   ask about.
+   definition).
 2. `go run ./tools/gauntlet run <name>`; read the verdict lines, not the exit
    code.
 3. Every difference from stock gets its row from the table above. Fix

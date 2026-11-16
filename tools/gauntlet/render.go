@@ -23,14 +23,10 @@ import (
 // Nothing on the docs site is written here (#1055, #2092). The board is
 // live/BOARD.md, rendered by tools/statpages from BoardDataPath and the
 // artifact. ContributePage is the hand-written page on adding an estate and
-// contributing compute, named so the spec and the briefs can point at it;
-// this tool never writes it.
+// contributing, named so the spec can point at it; this tool never writes it.
 const (
-	SpecPath        = "live/GAUNTLET.md"
-	ContributePage  = "live/CONTRIBUTE-GAUNTLET.md"
-	WorkerBriefPath = ".claude/agents/gauntlet-worker.md"
-	// OrchestratorBriefPath is the brief for whoever keeps the loop running.
-	OrchestratorBriefPath = ".claude/agents/gauntlet-orchestrator.md"
+	SpecPath       = "live/GAUNTLET.md"
+	ContributePage = "live/CONTRIBUTE-GAUNTLET.md"
 )
 
 // Render writes every generated file into root. It returns the list of

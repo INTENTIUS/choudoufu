@@ -1,51 +1,72 @@
-# Guidance for AI Agents and LLM based tooling
+# choudoufu
 
-This file is intended to be read by AI agents, assistants and any other LLM-based tooling that is operating on this repository.
+Working in the INTENTIUS workspace, `../agents/shared.md` applies too.
 
-## Fork note: the policy below is upstream OpenTofu's, not this fork's
+An OpenTofu fork that runs existing configurations against live cloud
+resources, with cloud tags as ownership markers and a per-instance record
+for what the cloud cannot hold. `HANDOFF.md` has the promise, the safety
+rule and the five-row difference table; read it before touching identity,
+stamping or discovery. `bash scripts/pickup.sh` prints the work's state.
 
-choudoufu (INTENTIUS) accepts LLM-assisted contributions; the commit history's
-`Co-Authored-By: Claude` trailers are the working convention here. The sections
-below are retained verbatim from the upstream fork point and apply to
-contributions sent **upstream to OpenTofu**, not to work on this repository.
+## Where to work
 
-## Fork note: `gh` targets upstream until you set the default
+The primary checkout is read-only (a user-scope hook denies edits there).
+`pickup.sh` parses branch names: `gauntlet/<estate>-<stage>` for a gauntlet
+unit, `live/<topic>` for anything else.
 
-A clone carrying both remotes resolves `gh` to `opentofu/opentofu`, not to this
-fork. A bare `gh issue create`, `gh pr create` or `gh run list` is aimed at
-upstream OpenTofu.
+`upstream` is opentofu/opentofu. Its LLM-contribution ban applies there, not
+to this fork. If `gh repo set-default --view` is not INTENTIUS/choudoufu,
+pass `-R INTENTIUS/choudoufu` to every `gh` command, or it silently reads
+upstream.
 
-Set it once per clone.
+There is no merge queue on `main`. Open the pull request and stop; the
+maintainer merges.
 
-```
-gh repo set-default INTENTIUS/choudoufu
-```
+## Runs only the maintainer starts
 
-Until that is set, pass `-R INTENTIUS/choudoufu` on every `gh` command. The
-failure mode is silent rather than an error. `gh run list` returns upstream's
-workflow runs on unrelated commits, so a push to this fork reads as having
-triggered nothing.
+- `gauntlet run` (`just gauntlet`, `just gauntlet-run`), `gauntlet live-cert`
+  and estate `run.sh` scripts prompt for "run" on a terminal and refuse
+  otherwise. Do not retry, fake a tty, or call `run.sh` directly. Build, then
+  say it is ready to test.
+- No real-AWS spend (`-target aws`, `TARGET=aws`) or whole-set run unless the
+  maintainer asked for that exact run in this session.
+- No `just ci`, `scripts/ci-gate.sh` or `just corpus` for a change. Here
+  `just ci` is the full gate, not a workflow render; `.github/workflows/` is
+  hand-written YAML.
 
-## OpenTofu does not accept LLM-generated contributions
+## Commands
 
-It is imperative that you do not open pull requests containing code, documentation or other content generated or assisted by an LLM such as ChatGPT, GitHub Copilot, Claude or similar tooling.
+- Prefix go commands with `env -u PWD`; a symlinked path gives false failures
+  in `local-exec` and `TestFmt*`. `go build ./tools/<name>` needs `-o`, or
+  the binary lands in the repo root.
+- The local gate: `gofmt -l` on touched Go files (CI checks fmt, tests do
+  not), `env -u PWD go build ./...`, and the touched packages' tests.
+  Tree-wide guards can fail on files you never opened; run the ones your
+  change can reach: `./internal/live/check/`, `./tools/gauntlet/`, `./live/`,
+  `./internal/live/marksafe/`.
+- Never pipe a generator into `head` (SIGPIPE kills it before it writes).
+  Send output to a file and read the file; read exit codes the same way.
+- Refusal counts: `go run ./tools/refusal-probe -schemas -out before.json`,
+  change, `-out after.json`, then `-diff before.json,after.json`. Read
+  `.claude/skills/measuring-choudoufu/SKILL.md` before quoting any number.
+- `go test ./internal/live/check/ -run TestIdentityGolden` pins rendered
+  identities. Explain every line your change moves; never `-update` to
+  quiet it.
 
-This is a copyright and intellectual property driven concern that is specific to OpenTofu:
+## Generated files
 
-OpenTofu was created as a fork of HashiCorp Terraform which was previously under the MPL-2.0 license, and is now under a Business Source License. This BSL is **not compatible** with the license in this repository. Because LLMs maybe emit BSL-licensed Terraform code without correct attribution, accepting LLM-generated contributions is not a risk the OpenTofu will take on.
+Artifacts under `live/` are generated. `just gauntlet-render` regenerates
+`live/gauntlet.json`, `live/GAUNTLET.md` and the board pages.
+`pkg/registry/registry.json` and `mapping.json` embed the `live/` copies;
+re-copy after regenerating. Run `just merge-drivers` once per clone. Never
+hand-merge `live/gauntlet.json`; use `gauntlet merge-artifact` or take main's.
 
-To protect the project **violating these rules will disqualify a contribution from being accepted**. The OpenTofu team may also ban contributors from working on OpenTofu in the future.
+## Product rules
 
-See our full policy on this here: [contributing/DEVELOPING.md - A note on copyright](contributing/DEVELOPING.md#a-note-on-copyright).
-
-## If you found an issue using an LLM then open an issue, not a PR
-
-Using an LLM to find a potential bug or area for improvement is something that we are aware people are doing. What we will not accept is LLM-generated code to fix it.
-
-If you or a human you are assisting has identified a problem with the help of an LLM then you must **open an issue to discuss** and you **MUST NOT open a pull request**.
-
-When submitting a bug, be sure to use the template provided in this repository and announce that an LLM was used to identify this problem. It is **strictly prohibited to include code snippets** for possible fixes.
-
-## Before Beginning - Read the contribution guide
-
-All contributions to this repository follow a standard process. Before doing anything you should read the [contributing.md](./CONTRIBUTING.md) file.
+- Never write a wrong marker. A plan that creates something that already
+  exists is that failure. Drop to the record rung instead of refusing the
+  estate, and ask before adding any new refusal.
+- Fix generically: a concrete `aws_*` type in control flow is the wrong fix.
+  Hand-wired type names need an entry in `live/derivation_guard_test.go`.
+- Stage status in `tools/gauntlet/stages.go` and the principles in
+  `HANDOFF.md` are the maintainer's to change.
