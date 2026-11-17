@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -625,4 +626,48 @@ func TestHistoryCarriesNoRecordValue(t *testing.T) {
 	if nodes["aws_s3_bucket.logs"].Facts == nil {
 		t.Error("an unexpanded managed block got no history")
 	}
+}
+
+// TestTerralithScaleOneDecodesAgainstChantSchema is #2285's first acceptance
+// item as written: the document for `tools/terralith-gen -scale=1` output
+// validates against chant's schema. The generator is built into a temp
+// directory and run with its formatter step skipped, so the test needs only
+// the Go toolchain. It builds one small binary, about ten seconds cold, and
+// runs in the normal suite; -short skips it.
+func TestTerralithScaleOneDecodesAgainstChantSchema(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds tools/terralith-gen")
+	}
+	s := loadSchema(t)
+	root := repoRoot(t)
+	tmp := t.TempDir()
+	bin := filepath.Join(tmp, "terralith-gen")
+	if out, err := exec.Command("go", "build", "-o", bin, filepath.Join(root, "tools", "terralith-gen")).CombinedOutput(); err != nil {
+		t.Fatalf("building terralith-gen: %v\n%s", err, out)
+	}
+	dir := filepath.Join(tmp, "estate")
+	// A -fmt-bin that is not on PATH makes the generator skip formatting.
+	cmd := exec.Command(bin, "-scale=1", "-out", dir, "-fmt-bin", "choudoufu-no-such-formatter")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("terralith-gen -scale=1: %v\n%s", err, out)
+	}
+	cfg, err := waves.LoadTree(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bt := Build(cfg, Options{Dir: dir, Estate: "terralith", Markers: testMarkers})
+	if len(bt.Doc.Nodes) == 0 || len(bt.Doc.Edges) == 0 {
+		t.Fatalf("the scale 1 estate gave %d nodes and %d edges", len(bt.Doc.Nodes), len(bt.Doc.Edges))
+	}
+	out, err := json.Marshal(bt.Doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if errs := s.check(t, out); len(errs) > 0 {
+		if len(errs) > 20 {
+			errs = errs[:20]
+		}
+		t.Errorf("the scale 1 document does not decode against chant's schema:\n%s", strings.Join(errs, "\n"))
+	}
+	t.Logf("scale 1: %d nodes, %d edges", len(bt.Doc.Nodes), len(bt.Doc.Edges))
 }
