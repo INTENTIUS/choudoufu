@@ -441,8 +441,8 @@ Options:
 
   -list              List the investigations.
   -json              The answer as one JSON document.
-  -chant=path        The chant binary; none for no chant.
-  -behold=path       The behold binary; none for no behold.
+  -chant=path        The chant binary, or a .js/.mjs/.cjs entry that runs with node from PATH; none for no chant.
+  -behold=path       The behold binary, or a .js/.mjs/.cjs entry that runs with node from PATH; none for no behold.
   -templates=file    A templates.json to read instead of chant's.
   -project=dir       Where chant search and behold mcp run.
 `)
@@ -544,8 +544,8 @@ Usage: choudoufu [global options] mcp [options]
 Options:
 
   -allow-op-approve  Pass chant's op-approve through.
-  -chant=path        The chant binary; none for no chant.
-  -behold=path       The behold binary; none for no behold.
+  -chant=path        The chant binary, or a .js/.mjs/.cjs entry that runs with node from PATH; none for no chant.
+  -behold=path       The behold binary, or a .js/.mjs/.cjs entry that runs with node from PATH; none for no behold.
   -templates=file    A templates.json to read instead of chant's.
   -project=dir       The chant project or workspace the children run in.
 `)

@@ -53,11 +53,43 @@ func lookTool(given, name string) string {
 		}
 		return p
 	default:
+		if isScript(given) {
+			// A script is run by node, so it needs to exist and nothing more:
+			// an npm package's bin file is often not mode-executable in git.
+			if st, err := os.Stat(given); err == nil && !st.IsDir() {
+				return given
+			}
+			return ""
+		}
 		if p, err := exec.LookPath(given); err == nil {
 			return p
 		}
 		return ""
 	}
+}
+
+// isScript reports whether path names a JavaScript file, which is run with
+// node found on PATH instead of being executed directly.
+func isScript(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".js", ".mjs", ".cjs":
+		return true
+	}
+	return false
+}
+
+// command builds the child for a tool binary. A .js, .mjs or .cjs path runs
+// as `node <path> args...`, with node found on PATH; anything else runs as
+// itself. If node is not on PATH the command fails to start and says so.
+func command(bin string, args ...string) (name string, argv []string) {
+	if !isScript(bin) {
+		return bin, args
+	}
+	node, err := exec.LookPath("node")
+	if err != nil {
+		node = "node"
+	}
+	return node, append([]string{bin}, args...)
 }
 
 // investigationChild is the whole set of child processes the investigation
@@ -110,7 +142,8 @@ func (t *Tools) runChant(ctx context.Context, args ...string) ([]byte, error) {
 	if err := investigationChild("chant", args); err != nil {
 		return nil, err
 	}
-	cmd := exec.CommandContext(ctx, chant, args...)
+	name, argv := command(chant, args...)
+	cmd := exec.CommandContext(ctx, name, argv...)
 	cmd.Dir = t.dir()
 	cmd.Env = t.env()
 	var stdout, stderr bytes.Buffer

@@ -93,7 +93,8 @@ type MCPClient struct {
 
 // StartMCP starts bin with args in dir and runs the initialize handshake.
 func StartMCP(ctx context.Context, bin string, args []string, dir string, env []string) (*MCPClient, error) {
-	cmd := exec.Command(bin, args...)
+	name, argv := command(bin, args...)
+	cmd := exec.Command(name, argv...)
 	cmd.Dir = dir
 	cmd.Env = env
 	stdin, err := cmd.StdinPipe()

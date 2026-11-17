@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"go/parser"
 	"go/token"
 	"os"
@@ -602,5 +603,66 @@ func TestNativeInputs(t *testing.T) {
 	}
 	if a := RunNative(context.Background(), n, map[string]string{"cloud_id": "x"}); a.Refused != "not an ARN" {
 		t.Errorf("refusal: %+v", a)
+	}
+}
+
+// A -chant or -behold that names a .js, .mjs or .cjs file runs under node
+// found on PATH, even when the file is not mode-executable (an npm package's
+// bin file is not, in git). The fake node here records that it was handed the
+// script as its first argument, then plays the named tool.
+func TestScriptEntryRunsUnderNode(t *testing.T) {
+	for _, tc := range []struct{ tool, file string }{
+		{"chant", "cli.mjs"},
+		{"chant", "cli.cjs"},
+		{"behold", "behold.js"},
+	} {
+		t.Run(tc.file, func(t *testing.T) {
+			e := newFakeEnv(t)
+			self, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			script := filepath.Join(t.TempDir(), tc.file)
+			if err := os.WriteFile(script, []byte("// not a program\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			nodeLog := filepath.Join(t.TempDir(), "node.log")
+			node := fmt.Sprintf("#!/bin/sh\necho \"$1\" >> '%s'\nshift\nINVESTIGATE_FAKE=%s exec '%s' \"$@\"\n", nodeLog, tc.tool, self)
+			if err := os.WriteFile(filepath.Join(e.Bin, "node"), []byte(node), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			tools := &Tools{Dir: e.Estate}
+			if tc.tool == "chant" {
+				tools.Chant = script
+				if got := tools.ChantPath(); got != script {
+					t.Fatalf("ChantPath = %q, want %q", got, script)
+				}
+				if _, err := tools.runChant(context.Background(), "search", "--capabilities", "--json"); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				tools.Behold = script
+				if got := tools.BeholdPath(); got != script {
+					t.Fatalf("BeholdPath = %q, want %q", got, script)
+				}
+				c, err := StartMCP(context.Background(), script, []string{"mcp", e.Estate}, e.Estate, tools.env())
+				if err != nil {
+					t.Fatal(err)
+				}
+				c.Close()
+			}
+			got, err := os.ReadFile(nodeLog)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.TrimSpace(string(got)) != script {
+				t.Fatalf("node was run with %q, want the script %q", strings.TrimSpace(string(got)), script)
+			}
+		})
+	}
+
+	// BREAK: a script path that does not exist is no tool.
+	if got := (&Tools{Behold: "/nonexistent/behold.js"}).BeholdPath(); got != "" {
+		t.Fatalf("a missing script resolved to %q", got)
 	}
 }
