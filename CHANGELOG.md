@@ -34,7 +34,30 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 6. Update the numbers in `EVIDENCE.md` at the cut, from `live/CLAIMS.md` and
    `live/BOARD.md`, on the release branch before step 4's commit.
 
-## choudoufu v0.35.0 (Unreleased)
+## choudoufu v0.36.0 (Unreleased)
+
+## choudoufu v0.35.0 (2026-11-17)
+
+Built on OpenTofu 1.14.0-dev (upstream main `aa3eb66a0c`). Board snapshot: [`live/history/v0.35.0.json`](live/history/v0.35.0.json).
+
+BOARD MOVEMENT (from `go run ./tools/gauntlet notes live/history/v0.34.1.json live/history/v0.35.0.json`):
+
+### Board movement
+
+- Core estates: 22/23 clear -> 22/23 clear (0)
+- All estates: 24/25 clear -> 24/25 clear (0)
+
+### Newly cleared
+
+- none
+
+### Regressed
+
+- none
+
+### Emulator
+
+- Repinned from `ghcr.io/lex00/floci@sha256:5ec92ae8046445d62c0009590dd09f04560886e5a5ef31248cb3fcc09b2961ec` to `ghcr.io/lex00/floci@sha256:8b0b0f332d01515a1525fc5f6d3f63265f12f67c64065a3bf9224524382d7d54`
 
 - Fixed: `-behold` and `-chant` on `choudoufu investigate` and `choudoufu mcp` accept a `.js`, `.mjs` or `.cjs` path and run it with `node` found on PATH. Before, behold's `dist/cli.js` failed with `exec format error` and `bin/behold.js` was skipped when it was not mode-executable, so a source checkout of behold needed a wrapper script (`TestScriptEntryRunsUnderNode`).
 - Changed: the AWS emulator is repinned from `ghcr.io/lex00/floci@sha256:5ec92ae8...` (tag `c688f52`) to `ghcr.io/lex00/floci@sha256:8b0b0f33...` (tag `920d475`, lex00/floci develop as of 2026-11-02), which still carries the old pin's EKS sub-resource tagging fix. `live/floci-capabilities.json` is re-probed for it. Cloud Control `ListResources` on floci now refuses a type it does not enumerate with `UnsupportedActionException` where it used to return an empty list, and `tools/floci-capability-gen` records that refusal as unimplemented. SQS queues and SSM parameters now list through Cloud Control. `aws_redshift_cluster` goes from implemented to partial: floci now starts a container per cluster, so create needs the docker socket, which this harness does not mount. The board's rows stay at their last measurement until they are re-measured.
