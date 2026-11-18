@@ -74,7 +74,7 @@ func IsDev() bool {
 }
 
 // IsReleaseBuild reports whether this binary was built for release: the
-// linker set dev to "no", as .github/workflows/release.yml does. choudoufu
+// linker set dev to "no", as scripts/release-build.sh does. choudoufu
 // addition (GitHub issue #2336).
 //
 // It is not the same question as IsDev, which reads the version string.

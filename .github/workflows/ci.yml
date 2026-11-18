@@ -7,14 +7,13 @@ on:
   # workflow_dispatch lets a run be started by hand. Every ordinary change
   # still runs on push and pull_request (TestCIValidationRunsOnOrdinaryEvents).
   workflow_dispatch:
-  # release.yml calls this workflow so a tag is gated on the same unit tier.
-  workflow_call:
 
 permissions:
   contents: read
 
 # Unit tests only on pull_request, push and release: gofmt, build and the Go
-# unit test tier.
+# unit test tier. chant release (chant.config.ts) cuts only a commit whose
+# checks, this workflow's `fast` job among them, passed.
 jobs:
   fast:
     runs-on: ubuntu-latest

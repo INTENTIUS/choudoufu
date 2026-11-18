@@ -8,7 +8,7 @@ choudoufu tags its own `v0.x` line on top of an upstream OpenTofu version. Both 
 are upstream OpenTofu's own manuals, inherited as upstream wrote them, and
 describe neither this fork's cadence nor its tooling; this paragraph is the
 real procedure, read against `PR #1017` (`v0.16.0`) and
-`.github/workflows/release.yml`:
+`chant.config.ts`:
 
 1. Branch `release/vX.Y.Z` off `main`.
 2. `go run ./tools/gauntlet snapshot vX.Y.Z` (`just gauntlet-snapshot vX.Y.Z`)
@@ -25,10 +25,12 @@ real procedure, read against `PR #1017` (`v0.16.0`) and
 4. Commit as `release: cut vX.Y.Z`, open a pull request from `release/vX.Y.Z`,
    run the gate (`scripts/ci-gate.sh run` / `check`) at the branch's tip, and
    merge.
-5. Tag the merge commit `vX.Y.Z` and push the tag.
-   `.github/workflows/release.yml` triggers on the pushed tag - not on the
-   merge - builds the six platform binaries, and publishes the GitHub
-   release with its `SHA256SUMS`.
+5. `scripts/cut-release.sh dispatch vX.Y.Z` starts
+   `.github/workflows/chant-release.yml` (`chant release`, configured in
+   `chant.config.ts`) on `main`. It waits for the commit's checks, tags it
+   `vX.Y.Z`, builds the six platform binaries with
+   `scripts/release-build.sh`, and publishes the GitHub release with its
+   `SHA256SUMS`. The notes come from `scripts/release-notes.sh`.
 6. Update the numbers in `EVIDENCE.md` at the cut, from `live/CLAIMS.md` and
    `live/BOARD.md`, on the release branch before step 4's commit.
 
