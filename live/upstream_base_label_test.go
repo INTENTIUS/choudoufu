@@ -19,7 +19,7 @@ import (
 // every published release note said "stock OpenTofu 1.13.0". The base is
 // upstream main at 03743ce6e8, whose version/VERSION reads 1.13.0-dev: an
 // unreleased tree, not the 1.13.0 release. Two places manufactured the
-// wrong number by stripping the suffix: release.yml's
+// wrong number by stripping the suffix: the old release.yml's
 // `sed 's/-dev$//'` and tools/forkdiff-gen's readBaseOpenTofuVersion, which
 // kept only the release core.
 //
@@ -33,7 +33,7 @@ import (
 const (
 	upstreamVersionFile = "../version/VERSION"
 	changelogFile       = "../CHANGELOG.md"
-	releaseWorkflowFile = "../.github/workflows/release.yml"
+	releaseWorkflowFile = "../scripts/release-notes.sh"
 )
 
 // forkSurfaceBaseDoc decodes the fork-surface fields this file needs.
@@ -148,7 +148,8 @@ func TestChangelogBuiltOnLinesNameTheForkPointVersion(t *testing.T) {
 	}
 }
 
-// TestReleaseNotesTakeTheBaseFromForkSurface holds release.yml to reading
+// TestReleaseNotesTakeTheBaseFromForkSurface holds scripts/release-notes.sh
+// (which chant release runs to write the notes) to reading
 // the base version and the fork-point commit from live/fork-surface.json,
 // rather than stripping version/VERSION or typing the hash.
 func TestReleaseNotesTakeTheBaseFromForkSurface(t *testing.T) {

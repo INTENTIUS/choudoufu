@@ -5,9 +5,12 @@
 #   scripts/cut-release.sh cut vX.Y.Z   release branch in its own worktree,
 #                                       board snapshot, CHANGELOG dated, commit,
 #                                       push, pull request
-#   scripts/cut-release.sh tag vX.Y.Z   once that pull request has merged: tag
-#                                       the merge commit and push the tag, which
-#                                       starts .github/workflows/release.yml
+#   scripts/cut-release.sh dispatch vX.Y.Z
+#                                       once that pull request has merged: start
+#                                       .github/workflows/chant-release.yml
+#                                       (`chant release`, chant.config.ts) on
+#                                       main, which tags the merge commit vX.Y.Z
+#                                       and publishes the GitHub release
 #
 # No gauntlet runs. The board snapshot is a copy of live/gauntlet.json as
 # main has it, which is what `gauntlet snapshot` writes too, and the board
@@ -17,7 +20,7 @@
 # The release pull request's GitHub CI is its gate.
 set -euo pipefail
 
-usage() { echo "usage: $0 cut|tag vX.Y.Z" >&2; exit 2; }
+usage() { echo "usage: $0 cut|dispatch vX.Y.Z" >&2; exit 2; }
 die() { echo "cut-release: $*" >&2; exit 1; }
 
 [ $# -eq 2 ] || usage
@@ -51,7 +54,7 @@ cut() {
   local today
   # The "Built on" line names the fork point as well as the version, the
   # shape live/upstream_base_label_test.go holds every CHANGELOG claim to
-  # (#1778), read from live/fork-surface.json as release.yml reads it.
+  # (#1778), read from live/fork-surface.json as scripts/release-notes.sh reads it.
   local version fork ref base
   version="$(jq -r '.base_opentofu_version // empty' live/fork-surface.json)"
   fork="$(jq -r '.fork_point_short // empty' live/fork-surface.json)"
@@ -94,11 +97,11 @@ Board movement against $prev:
 
 $movement
 
-After merge: \`scripts/cut-release.sh tag $V\`."
-  echo "cut-release: $V is in a pull request from $BRANCH (worktree $wt). When it merges: $0 tag $V"
+After merge: \`scripts/cut-release.sh dispatch $V\`."
+  echo "cut-release: $V is in a pull request from $BRANCH (worktree $wt). When it merges: $0 dispatch $V"
 }
 
-tag() {
+dispatch() {
   git -C "$ROOT" fetch -q origin main --tags
   git -C "$ROOT" rev-parse -q --verify "refs/tags/$V" >/dev/null && die "tag $V already exists"
   local state merge
@@ -107,13 +110,16 @@ tag() {
   merge="$(gh pr view "$BRANCH" --json mergeCommit -q .mergeCommit.oid)"
   [ -n "$merge" ] || die "the merged pull request names no merge commit"
   git -C "$ROOT" merge-base --is-ancestor "$merge" origin/main || die "merge commit $merge is not on origin/main"
-  git -C "$ROOT" tag -a "$V" -m "choudoufu $V" "$merge"
-  git -C "$ROOT" push -q origin "refs/tags/$V"
-  echo "cut-release: tagged $merge as $V and pushed it; release.yml builds and publishes the release"
+  # The workflow cuts the commit it is dispatched on, main's head, so a
+  # release cuts the merge commit only while nothing has landed after it.
+  [ "$(git -C "$ROOT" rev-parse origin/main)" = "$merge" ] \
+    || die "origin/main has moved past the merge commit $merge; the release would cut a later commit"
+  gh workflow run chant-release.yml --ref main -f "label=$V"
+  echo "cut-release: started chant-release.yml for $V on $merge; it tags $V and publishes the release once its checks pass"
 }
 
 case "$CMD" in
   cut) cut ;;
-  tag) tag ;;
+  dispatch) dispatch ;;
   *) usage ;;
 esac
