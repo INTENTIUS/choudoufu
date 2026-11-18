@@ -68,6 +68,7 @@ jobs:
           go-version-file: "go.mod"
           cache: false
       - run: npm ci
+      - run: npx chant release doctor --from cut
       - run: git fetch origin 'refs/tags/ci/*:refs/tags/ci/*'
       - run: rc=0; git ls-remote --exit-code --heads origin chant/lifecycle >/dev/null || rc=$?; if [ "$rc" = 0 ]; then git fetch origin chant/lifecycle:chant/lifecycle; elif [ "$rc" != 2 ]; then exit "$rc"; fi
       - run: |

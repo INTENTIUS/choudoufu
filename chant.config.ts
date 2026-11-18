@@ -15,8 +15,6 @@ export default {
       // scripts/release-notes.sh writes dist/release-notes.md for the notes
       // below, and fails the cut when CHANGELOG.md has no section for the tag.
       build: "bash scripts/release-notes.sh",
-      // The cut job's doctor reports false failures until the next chant release.
-      doctor: false,
     },
     artifacts: [
       {
