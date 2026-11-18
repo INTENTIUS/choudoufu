@@ -84,7 +84,12 @@ body = (
 open(p, "w").write(s.replace(head + "\n", body, 1))
 PY
 
+  # The new snapshot and version move the stat pages (live/CLAIMS.md names the
+  # version the claims are about); TestGeneratedStatPagesAreCurrent fails the
+  # release PR unless they are rendered here.
+  env -u PWD go run ./tools/gauntlet render >/dev/null
   git add CHANGELOG.md "live/history/$V.json"
+  git diff --name-only -z | xargs -0 -r git add --
   git commit -q -m "release: cut $V
 
 Built on OpenTofu $base. Board snapshot live/history/$V.json, movement against $prev:
