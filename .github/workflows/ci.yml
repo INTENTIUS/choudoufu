@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The merge queue runs the same checks on the queued merge commit.
+  merge_group:
   # workflow_dispatch lets a run be started by hand. Every ordinary change
   # still runs on push and pull_request (TestCIValidationRunsOnOrdinaryEvents).
   workflow_dispatch:
